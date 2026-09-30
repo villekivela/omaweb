@@ -1841,6 +1841,20 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(SystemClipboard.text(), "2030-01-01 00:00:00 UTC");
 
+        // Every field has its own button, and each copies what its row shows.
+        const keys = ["subject", "issuer", "notBefore", "notAfter", "sha256",
+                      "subjectAlternativeNames"];
+        const copied = keys.map(function (key) {
+            SystemClipboard.copyText("something the reader already had");
+            const button = findChild(dialog, "copyCertificateField_" + key);
+            settleActions(button);
+            mouseClick(button, button.width / 2, button.height / 2);
+            return SystemClipboard.text() === findChild(dialog, "certificateValue_" + key).text;
+        });
+        compare(copied, keys.map(function () {
+            return true;
+        }));
+
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
             return !dialog.visible;
@@ -1922,9 +1936,74 @@ TestCase {
         sidebar.statusOpen = false;
         engine.pageCertificatesAvailable = true;
 
+        // Plain HTTP offers none even where the engine still holds a chain
+        // from the page before, and a Space at rest has no page to ask.
+        const plain = openPage("http://stale.example/page");
+        plain.certificateChain = plain.labCertificateChain("https://stale.example/page");
+        verify(plain.certificateChain.length > 0);
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const staleOverHttp = view.visible;
+        sidebar.statusOpen = false;
+
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        browser.openInput("about:blank", true);
+        tryVerify(function () {
+            return engineHost.item === null;
+        });
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const atRest = view.visible;
+        sidebar.statusOpen = false;
+        browser.closeActiveTab();
+
         compare(overHttp, [false, false]);
         compare(stock, [false, true,
                         "· this engine cannot show the certificate a page arrived over"]);
+        verify(!staleOverHttp);
+        verify(!atRest);
+    }
+
+    // A Private window's page arrived over a certificate like any other, and
+    // Site information there shows it the same way.
+    function test_aPrivateWindowShowsTheCertificateLikeAnyOther() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://private-chain.example/page", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const sidebar = findChild(privateBrowser.contentItem, "sidebar");
+        const panel = findChild(privateBrowser.contentItem, "siteInformationPanel");
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const view = findChild(panel, "viewCertificate");
+        const offered = view.visible;
+        settleActions(view);
+        mouseClick(view, view.width / 2, view.height / 2);
+        const dialog = findChild(privateBrowser.contentItem, "certificatePanel");
+        tryVerify(function () {
+            return dialog.visible;
+        });
+        const origin = findChild(dialog, "certificateOrigin").text;
+        const subject = findChild(dialog, "certificateValue_subject").text;
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        verify(offered);
+        compare(origin, "private-chain.example · verified by the engine");
+        compare(subject, "CN=private-chain.example");
     }
 
     // The tally says how many; the list says which. An uncloaked refusal is
@@ -1998,6 +2077,27 @@ TestCase {
         engine.lastLoadNameUnresolved = false;
         secureDns.turnOff();
         compare(text, "· Quad9 could not find this site, over Secure DNS");
+    }
+
+    // A resolver the engine would not take looks nothing up: the system did,
+    // so a name it could not find is not the chosen resolver's to answer for.
+    function test_siteInformationBlamesNoResolverTheEngineRefused() {
+        const engine = openPage("https://refused-resolver.example/page");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        verify(secureDns.useResolver("quad9"));
+        engineSecureDns.applied = false;
+        engine.lastLoadNameUnresolved = true;
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const text = findChild(window.contentItem, "siteInformationConnection").text;
+        sidebar.statusOpen = false;
+        engine.lastLoadNameUnresolved = false;
+        engineSecureDns.applied = true;
+        secureDns.turnOff();
+        verify(text.indexOf("could not find this site") < 0, text);
     }
 
     function test_siteInformationCountsOneRefusalInTheSingular() {
@@ -5674,7 +5774,7 @@ TestCase {
                                                          "notifications").length > 0);
         tryCompare(privateBrowser, "permissionOpen", true);
         const privateBar = findChild(privateBrowser.contentItem, "sitePermissionBar");
-        compare(privateBar.detail, "notifications · kept until this Private window closes");
+        compare(privateBar.detail, "notifications · kept until the last Private window closes");
         verify(!privateBar.actions[1].enabled);
         privateBrowser.respondToPermission(BrowserController.Block);
 
@@ -8692,6 +8792,85 @@ TestCase {
         verify(browser.plainHttpRemembered(browser.activeSpaceId, "http://always.example"));
     }
 
+    // "Load once" is a load HTTPS-only mode lets through, not a plain address
+    // it sends straight back over HTTPS.
+    function test_loadingAFailedUpgradeOnceLetsItThrough() {
+        const page = findChild(window.contentItem, "httpsOnlyPage");
+        const engine = openPage("https://once.example/page");
+        verify(httpsOnly.sendsOverHttps(engine.spaceId, "http://once.example/page"));
+        engine.simulateHttpsUpgradeFailure("http://once.example/page", "unreachable", "");
+        tryVerify(function () {
+            return page.visible;
+        });
+        page.loadOnce();
+        tryCompare(browser, "activeUrl", "http://once.example/page");
+        verify(!httpsOnly.sendsOverHttps(engine.spaceId, "http://once.example/page"));
+    }
+
+    // Retrying a page over plain HTTP from its menu is the reader's choice
+    // for that load, which HTTPS-only mode lets through like "Load once".
+    function test_retryingOverPlainHttpIsLetThroughHttpsOnlyMode() {
+        const engine = openPage("https://retry.example/page");
+        const menu = findChild(window.contentItem, "pageMenu");
+        verify(httpsOnly.sendsOverHttps(engine.spaceId, "http://retry.example/page"));
+        engine.simulateContextMenu({});
+        tryVerify(function () {
+            return menu.visible;
+        });
+        const retry = window.pageMenuActions.findIndex(function (row) {
+            return row.run === "retry-insecure";
+        });
+        verify(retry >= 0);
+        window.runPageMenu(retry);
+        tryCompare(browser, "activeUrl", "http://retry.example/page");
+        verify(!httpsOnly.sendsOverHttps(engine.spaceId, "http://retry.example/page"));
+    }
+
+    // Site information says when a page came over HTTPS because the mode
+    // sent it there.
+    function test_siteInformationSaysHttpsOnlyModeUpgradedThePage() {
+        const engine = openPage("https://upgraded.example/page");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        engine.arrivedThroughHttpsUpgrade = true;
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const upgraded = findChild(panel, "siteInformationConnection").text;
+        sidebar.statusOpen = false;
+        engine.arrivedThroughHttpsUpgrade = false;
+        verify(upgraded.endsWith(" · upgraded from HTTP by HTTPS-only mode"), upgraded);
+    }
+
+    // A Private window remembers nothing, so its page offers the plain
+    // address for this load and not for good.
+    function test_aPrivateWindowsFailedUpgradeOffersOnlyThisLoad() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://private-plain.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        privateEngine.item.simulateHttpsUpgradeFailure("http://private-plain.example/",
+                                                       "unreachable", "");
+        const page = findChild(privateBrowser.contentItem, "httpsOnlyPage");
+        tryVerify(function () {
+            return page.visible;
+        });
+        const offered = [findChild(page, "httpsOnlyLoadOnce").visible, findChild(page,
+                                                                                 "httpsOnlyLoadAlways").visible];
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        compare(offered, [true, false]);
+    }
+
     // Screenshot page writes the page area, and nothing of Omaweb's own, into
     // the downloads location at the display's pixel density, and lists it as
     // a finished download. The stand-in page is drawn in stripes 96 points
@@ -8916,6 +9095,36 @@ TestCase {
         notice.dismiss();
     }
 
+    // Private windows forget a download answer when the last of them closes,
+    // and the question says so rather than promising a Space's memory.
+    function test_aPrivateWindowsDownloadQuestionSaysHowLongItsAnswerLasts() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://auto-private.example/page", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const question = findChild(privateBrowser.contentItem, "downloadQuestionBar");
+        compare(window.privateProfileHost.simulateDownloadRequest(
+                    "https://auto-private.example/page", "https://auto-private.example/tracker.pdf",
+                    "omaweb-test-private.pdf", "application/pdf"), "");
+        tryCompare(question, "open", true);
+        const detail = question.detail;
+        const alwaysEnabled = question.actions[1].enabled !== false;
+        question.actionTriggered(2);
+        tryCompare(question, "open", false);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        compare(detail, "omaweb-test-private.pdf · kept until the last Private window closes");
+        verify(!alwaysEnabled);
+    }
+
     function test_aPageThatDownloadsByItselfTakesASitePermission() {
         openPage("https://auto.example/page");
         const host = window.spaceProfileHost;
@@ -8932,7 +9141,7 @@ TestCase {
         compare(question.actions[0].label, "Allow once");
         compare(question.actions[1].label, "Always allow");
         compare(question.actions[2].label, "Block");
-        verify(question.detail.indexOf("this Space only") > 0);
+        compare(question.detail, "omaweb-test-tracker.pdf · remembered for this Space only");
 
         question.actionTriggered(2);
         tryCompare(question, "open", false);

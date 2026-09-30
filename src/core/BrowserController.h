@@ -386,6 +386,10 @@ public:
     // `localhost` and the `.localhost` and `.test` names. The Omnibar sends a
     // typed one over plain HTTP, and HTTPS-only mode leaves one alone.
     static bool localDevelopmentHost(const QString &host);
+    // The origin a site's permissions are kept under: lowercase, the default
+    // port left out, the host in its ASCII form. Empty for anything but an
+    // `http:` or `https:` address with a host.
+    static QString normalizedOrigin(const QUrl &url);
     // The reader chose plain HTTP for this site in HTTPS-only mode, for good,
     // in the active Space. A Private window writes nothing down. Kept with
     // the site's permissions, so resetting them takes it back.
@@ -612,7 +616,6 @@ private:
     bool saveAwayTabs(const QString &spaceId, QVector<TabState> tabs);
     // Reads the Agent Space labels, and which are temporary, from the store.
     void loadAgentSpaces();
-    static QString normalizedOrigin(const QUrl &url);
     BrowserController(std::shared_ptr<ThreadedSessionStore> store, SpaceStorage storage,
         QString configRoot, QObject *parent);
     // The thread the store takes its calls on, when it has one, is where the
