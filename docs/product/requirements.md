@@ -312,7 +312,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   page; in a Space at rest it uses the native window backdrop. It searches only the active Space and
   deletes one visit, one origin, a time range, or the entire Space history. Deleting history also
   deletes the stored favicons of the pages it names, except one a tab in that Space's sidebar still
-  shows. Private windows record none.
+  shows and one whose page is still in History. Private windows record none.
 - Settings clears selected cookies, storage, cache, permissions, and history for one Space and time
   range by default. Clearing every Space is a separate explicit choice. Deleting a Space removes all
   of its browser-managed data after confirmation.

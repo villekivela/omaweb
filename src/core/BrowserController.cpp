@@ -647,6 +647,7 @@ QString BrowserController::openTabInSpace(const QString &spaceId, const QUrl &ur
     tab.url = url;
     tab.title = addressTitle(url);
     if (spaceId == m_activeSpaceId) {
+        tab.iconUrl = iconToShow(tab, {});
         m_tabs.append(tab);
         refreshSoundSuppression();
         schedulePersistTabs();
@@ -1369,6 +1370,7 @@ void BrowserController::openInputInBackground(const QUrl &url)
     tab.spaceId = m_activeSpaceId;
     tab.url = url;
     tab.title = addressTitle(url);
+    tab.iconUrl = iconToShow(tab, {});
     tab.active = false;
     m_tabs.append(tab);
     refreshSoundSuppression();
@@ -1599,6 +1601,7 @@ QString BrowserController::duplicateTab(const QString &tabId)
     tab.spaceId = m_activeSpaceId;
     tab.url = source->url;
     tab.title = source->title;
+    tab.iconUrl = iconToShow(tab, {});
     tab.active = true;
     // A pin is the Space's furniture rather than something a copy inherits, and
     // zoom and muting are decisions about the tab the reader made, not about
@@ -2113,6 +2116,21 @@ QUrl BrowserController::storedFaviconIn(const QString &spaceId, const QUrl &page
 QUrl BrowserController::iconToShow(const TabState &tab, const QUrl &pageIcon) const
 {
     return pageIcon.isEmpty() ? storedFaviconIn(tab.spaceId, tab.url) : pageIcon;
+}
+
+// A tab whose page is still running keeps what that page showed. Any other
+// tab shows the favicon the Space stored for its address, before and without
+// its page loading.
+void BrowserController::showRestoredPages(QVector<TabState> &tabs) const
+{
+    for (auto &tab : tabs) {
+        const auto livePage = m_livePageStates.constFind(tab.id);
+        if (livePage != m_livePageStates.cend()) {
+            tab.iconUrl = livePage->iconUrl;
+            tab.audible = livePage->audible;
+        }
+        tab.iconUrl = iconToShow(tab, tab.iconUrl);
+    }
 }
 
 // The icon is read from where the engine already put it and kept in the page's
@@ -3130,6 +3148,7 @@ void BrowserController::reloadSyncedState()
     for (auto &tab : tabs) {
         tab.active = tab.id == m_activeTabId;
     }
+    showRestoredPages(tabs);
     repairSplits(tabs, m_activeTabId);
     m_tabs.reset(std::move(tabs));
     loadClosedTabs();
@@ -3209,17 +3228,7 @@ void BrowserController::ensureActiveTab()
         tabs.append(tab);
         m_store->saveTab(tab, 0);
     }
-    // A tab whose page is still running keeps what that page showed. Any
-    // other tab shows the favicon the Space stored for its address, before
-    // and without its page loading.
-    for (auto &tab : tabs) {
-        const auto livePage = m_livePageStates.constFind(tab.id);
-        if (livePage != m_livePageStates.cend()) {
-            tab.iconUrl = livePage->iconUrl;
-            tab.audible = livePage->audible;
-        }
-        tab.iconUrl = iconToShow(tab, tab.iconUrl);
-    }
+    showRestoredPages(tabs);
 
     auto active = tabs.cbegin();
     for (auto it = tabs.cbegin(); it != tabs.cend(); ++it) {

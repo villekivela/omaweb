@@ -104,6 +104,8 @@ private slots:
     void aSpaceFindsNoFaviconAnotherSpaceStored();
     void aPrivateStoreKeepsFaviconsInMemoryOnly();
     void deletingHistoryDeletesItsFaviconsButNotOneATabShows();
+    void deletingHistoryKeepsTheSiteFaviconATabShows();
+    void deletingOneVisitKeepsTheFaviconOfAPageStillInHistory();
     void aSpaceDatabaseFromBeforeFaviconsOpensWithItsHistory();
     void aThreadedStoreFindsAFaviconOffTheCallersThread();
     void aThreadedStoreLandsAPendingWriteWhenItCloses();
@@ -704,6 +706,67 @@ void SessionStoreTest::deletingHistoryDeletesItsFaviconsButNotOneATabShows()
     QVERIFY(store.deleteHistorySince(spaceId(), 0));
     QCOMPARE(
         foundFavicon(store, spaceId(), QStringLiteral("https://a.example/shown")), QByteArray());
+}
+
+// A tab whose own page has no icon shows the newest its site has. That icon
+// is one the tab shows, so deleting History keeps it too, however it is
+// deleted.
+void SessionStoreTest::deletingHistoryKeepsTheSiteFaviconATabShows()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    const auto remember = [&store](const QString &url) {
+        QVERIFY(store.recordVisit(spaceId(), QUrl(url), url));
+        QVERIFY(store.recordFavicon(spaceId(), QUrl(url), url.toUtf8()));
+    };
+    const auto tabPage = QStringLiteral("https://a.example/unlit");
+    QVERIFY(store.saveTabs(
+        spaceId(), {makeTab(QStringLiteral("tab-1"), tabPage)}, QStringLiteral("tab-1")));
+
+    remember(QStringLiteral("https://a.example/older"));
+    remember(QStringLiteral("https://a.example/lit"));
+    QVERIFY(store.deleteHistoryOrigin(spaceId(), QStringLiteral("https://a.example")));
+    QCOMPARE(foundFavicon(store, spaceId(), tabPage), QByteArrayLiteral("https://a.example/lit"));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/older")),
+        QByteArrayLiteral("https://a.example/lit"));
+
+    QVERIFY(store.deleteHistorySince(spaceId(), 0));
+    QCOMPARE(foundFavicon(store, spaceId(), tabPage), QByteArrayLiteral("https://a.example/lit"));
+
+    remember(QStringLiteral("https://a.example/newer"));
+    const auto newer = store.history(spaceId(), QStringLiteral("a.example/newer"), 1)
+                           .first()
+                           .toMap()
+                           .value(QStringLiteral("id"))
+                           .toLongLong();
+    QVERIFY(store.deleteHistoryVisit(spaceId(), newer));
+    QCOMPARE(foundFavicon(store, spaceId(), tabPage), QByteArrayLiteral("https://a.example/newer"));
+}
+
+// A page visited twice is still in History after one visit is deleted, and
+// keeps its icon while it is.
+void SessionStoreTest::deletingOneVisitKeepsTheFaviconOfAPageStillInHistory()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    const auto page = QStringLiteral("https://twice.example/page");
+    QVERIFY(store.recordVisit(spaceId(), QUrl(page), page));
+    QVERIFY(store.recordVisit(spaceId(), QUrl(page), page));
+    QVERIFY(store.recordFavicon(spaceId(), QUrl(page), page.toUtf8()));
+
+    const auto visits = store.history(spaceId(), QStringLiteral("twice.example"), 10);
+    QCOMPARE(visits.size(), 2);
+    QVERIFY(store.deleteHistoryVisit(
+        spaceId(), visits.first().toMap().value(QStringLiteral("id")).toLongLong()));
+    QCOMPARE(foundFavicon(store, spaceId(), page), page.toUtf8());
+
+    QVERIFY(store.deleteHistoryVisit(
+        spaceId(), visits.last().toMap().value(QStringLiteral("id")).toLongLong()));
+    QCOMPARE(foundFavicon(store, spaceId(), page), QByteArray());
 }
 
 // A Space database written before favicons were kept has no table for them.

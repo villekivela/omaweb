@@ -573,6 +573,9 @@ private:
     // The icon a tab shows: its page's own, or while it has none, the one its
     // Space stored for the address.
     QUrl iconToShow(const TabState &tab, const QUrl &pageIcon) const;
+    // Tabs read back from the store keep what a still-running page showed,
+    // and otherwise show their stored icon.
+    void showRestoredPages(QVector<TabState> &tabs) const;
     void keepFavicon(const QString &spaceId, const QUrl &pageUrl, const QUrl &iconUrl);
     void schedulePersistTabs();
     // A new tab of the Space on show, selected.
