@@ -9,6 +9,9 @@ Item {
     property string iconFontFamily
     property bool open: false
     property var prompt: ({})
+    // The page the bar stands over, blurred under its ground so it shows
+    // through as colour and shape but cannot be read. Null over no page.
+    property Item backdropSource: null
     readonly property string kind: String(prompt.kind || "")
     readonly property bool asksForText: kind === "javascript-prompt"
     readonly property bool asksForCredentials: kind === "http-authentication"
@@ -85,7 +88,15 @@ Item {
         anchors.fill: parent
     }
 
+    PageBackdrop {
+        objectName: "pageBarBackdrop"
+        anchors.fill: ground
+        source: root.backdropSource
+    }
+
     Rectangle {
+        id: ground
+        objectName: "pagePromptGround"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top

@@ -493,9 +493,11 @@ int main(int argc, char *argv[])
     // no Agent is using. `--agents-away` leaves the reader's first Space on
     // show instead, with the Agent's Space marked in the footer.
     // `--agents-window` has the Agent's page open an Auxiliary window, and the
-    // capture is of that window. The Agent is the real Agent rules answered by
-    // the stand-in page.
-    const auto agentsAway = arguments.contains(QStringLiteral("--agents-away"));
+    // capture is of that window. `--agents-grant` has the Agent ask for the
+    // reader's page on show, so the grant prompt stands over it. The Agent is
+    // the real Agent rules answered by the stand-in page.
+    const auto agentsGrant = arguments.contains(QStringLiteral("--agents-grant"));
+    const auto agentsAway = agentsGrant || arguments.contains(QStringLiteral("--agents-away"));
     const auto agentsWindow = arguments.contains(QStringLiteral("--agents-window"));
     const auto agents
         = agentsAway || agentsWindow || arguments.contains(QStringLiteral("--agents"));
@@ -540,6 +542,17 @@ int main(int argc, char *argv[])
                             {QStringLiteral("target"), QStringLiteral("12")},
                             {QStringLiteral("name"), QStringLiteral("Files changed")},
                         }}},
+                },
+                [](const QJsonObject &) { });
+        });
+    }
+    if (agentControl && agentsGrant) {
+        QTimer::singleShot(300, &application, [&agentControl, &browser, agentName] {
+            agentControl->handle(
+                {
+                    {QStringLiteral("verb"), QStringLiteral("look")},
+                    {QStringLiteral("name"), agentName},
+                    {QStringLiteral("tab"), browser.activeTabId()},
                 },
                 [](const QJsonObject &) { });
         });
@@ -650,6 +663,9 @@ int main(int argc, char *argv[])
             // question bar stands over it. `--private` shows the Private
             // window's wording.
             {QStringLiteral("permission"), {}},
+            // The same page asks a JavaScript question, so the prompt bar
+            // stands over it.
+            {QStringLiteral("prompt"), {}},
             // The last two seeded tabs side by side, the last one active.
             {QStringLiteral("split"), {{"", "sidebarPeeked", false}}},
             // Steps to the next Space shortly before a capture, so the frame
@@ -674,26 +690,38 @@ int main(int argc, char *argv[])
                 browser.activateTab(tabId);
             }
         }
-        if (requested == QLatin1String("permission")) {
+        // Both are asked by the page on show rather than set on the window.
+        const auto pageAsks
+            = requested == QLatin1String("permission") || requested == QLatin1String("prompt");
+        if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
-                qCritical("--show permission needs a page; pass --tabs");
+                qCritical("--show %s needs a page; pass --tabs", qPrintable(requested));
                 return 1;
             }
             browser.activateTab(tabId);
             // The page's engine is built once the tab is on show, so the
             // question waits for it.
-            QTimer::singleShot(300, root, [root] {
+            QTimer::singleShot(300, root, [root, requested] {
                 auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
                 auto *view = host ? host->property("item").value<QObject *>() : nullptr;
                 if (view == nullptr) {
-                    qCritical("No page to ask from for --show permission");
+                    qCritical("No page to ask from for --show %s", qPrintable(requested));
                     return;
                 }
                 const auto origin
                     = view->property("currentUrl")
                           .toUrl()
                           .adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+                if (requested == QLatin1String("prompt")) {
+                    QMetaObject::invokeMethod(view, "simulateJavaScriptPrompt",
+                        Q_ARG(QVariant, QStringLiteral("confirm")),
+                        Q_ARG(QVariant, origin.toString()),
+                        Q_ARG(QVariant,
+                            QStringLiteral("Leave this page? Changes you made may not be saved.")),
+                        Q_ARG(QVariant, QString()));
+                    return;
+                }
                 QMetaObject::invokeMethod(view, "simulateSitePermission",
                     Q_ARG(QVariant, origin.toString()),
                     Q_ARG(QVariant, QStringLiteral("notifications")));
@@ -789,7 +817,7 @@ int main(int argc, char *argv[])
                     }
                 });
             }
-        } else if (state.isEmpty() && requested != QLatin1String("permission")) {
+        } else if (state.isEmpty() && !pageAsks) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;
         }
