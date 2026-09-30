@@ -42,6 +42,9 @@ QJsonArray readAgentSteps(const QStringList &arguments, QString &error);
 // fit the log, or a fallback when nothing is left.
 QString agentConnectionName(const QString &name);
 
+// The levels `console` keeps: errors, warnings and errors, or everything.
+const QStringList &agentConsoleLevels();
+
 // How long a client waits for the answer to `request`, a little longer than
 // the browser waits for the page, so the browser's answer is the one heard.
 int agentAnswerTimeoutMs(const QJsonObject &request);

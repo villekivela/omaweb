@@ -865,7 +865,8 @@ if(OMAWEB_BUILD_BROWSER)
         # An Agent skill is a directory named for the skill, which the reader
         # links into their agent's skills directory.
         install(DIRECTORY integrations/agent/omaweb
-            DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/skills")
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/skills"
+            COMPONENT agent-skill)
     endif()
 endif()
 
@@ -944,6 +945,17 @@ if(BUILD_TESTING)
             -DOMAWEB_EXPECTED=${omaweb_expected_qml_build}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_qml_aot.cmake
     )
+
+    # The package installs the Agent skill, and the reader links the
+    # directory it lands in, so where it lands is checked as installed.
+    if(OMAWEB_BUILD_BROWSER AND UNIX AND NOT APPLE)
+        add_test(NAME omaweb-agent-skill-installed
+            COMMAND ${CMAKE_COMMAND}
+                -DOMAWEB_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+                -DOMAWEB_SKILL=${CMAKE_CURRENT_SOURCE_DIR}/integrations/agent/omaweb/SKILL.md
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_agent_skill_installed.cmake
+        )
+    endif()
 
     add_test(NAME omaweb-vendored-omarchy-ui
         COMMAND ${CMAKE_COMMAND}
@@ -1124,6 +1136,10 @@ if(BUILD_TESTING)
 
     qt_add_executable(omaweb-agent-mcp-tests tests/core/tst_agentmcp.cpp)
     target_link_libraries(omaweb-agent-mcp-tests PRIVATE omaweb-core Qt6::Test)
+    # The skill is checked against the verbs it teaches.
+    target_compile_definitions(omaweb-agent-mcp-tests PRIVATE
+        OMAWEB_AGENT_SKILL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/agent/omaweb/SKILL.md"
+    )
     omaweb_strict_target(omaweb-agent-mcp-tests)
     add_test(NAME omaweb-agent-mcp COMMAND omaweb-agent-mcp-tests)
 

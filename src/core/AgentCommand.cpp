@@ -488,6 +488,13 @@ QString agentConnectionName(const QString &name)
     return cleaned.isEmpty() ? fallbackName : cleaned;
 }
 
+const QStringList &agentConsoleLevels()
+{
+    static const QStringList levels {
+        QStringLiteral("error"), QStringLiteral("warning"), QStringLiteral("all")};
+    return levels;
+}
+
 int agentAnswerTimeoutMs(const QJsonObject &request) { return answerTimeoutFor(request); }
 
 bool isAgentCommand(const QStringList &arguments)
@@ -582,8 +589,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
                 return command;
             }
             request.insert(option, static_cast<double>(cursor));
-        } else if (option == u"level" && value != u"error" && value != u"warning"
-            && value != u"all") {
+        } else if (option == u"level" && !agentConsoleLevels().contains(value)) {
             command.error = QStringLiteral("--level is error, warning or all.");
             return command;
         } else {
