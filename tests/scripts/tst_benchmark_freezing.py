@@ -38,41 +38,57 @@ class Tree:
         return self.now
 
 
-def settle(tree: Tree, interval: float = 2.0, tolerance: float = 0.25, limit: float = 30.0):
-    return runtime.settled_reading(tree.read, interval=interval, tolerance=tolerance, limit=limit,
-                                   sleep=tree.sleep, clock=tree.clock)
+def settle(tree: Tree):
+    return runtime.settled_reading(tree.read, sleep=tree.sleep, clock=tree.clock)
+
+
+# Readings a step apart that the tolerance counts as still, and a step it counts as moving.
+STILL = runtime.STEADY_TOLERANCE / 2
+MOVING = runtime.STEADY_TOLERANCE * 4
+INTERVAL = runtime.STEADY_INTERVAL
 
 
 class SettledReadingTest(unittest.TestCase):
 
-    def test_a_tree_that_is_already_still_is_read_after_one_interval(self):
-        tree = Tree([500.0, 500.1])
+    def test_a_tree_that_is_already_still_is_read_after_two_intervals(self):
+        tree = Tree([500.0, 500.0 + STILL, 500.0 + 2 * STILL])
         reading = settle(tree)
         self.assertTrue(reading.settled)
-        self.assertEqual(reading.mebibytes, 500.1)
-        self.assertEqual(reading.seconds, 2.0)
+        self.assertEqual(reading.mebibytes, 500.0 + 2 * STILL)
+        self.assertEqual(reading.seconds, 2 * INTERVAL)
 
-    def test_a_tree_still_settling_is_read_once_two_readings_agree(self):
-        tree = Tree([500.0, 503.0, 505.5, 506.0, 506.1])
+    def test_a_tree_still_settling_is_read_once_three_readings_agree(self):
+        tree = Tree([500.0, 500.0 + MOVING, 500.0 + 2 * MOVING, 500.0 + 2 * MOVING + STILL,
+                     500.0 + 2 * MOVING + 2 * STILL])
         reading = settle(tree)
         self.assertTrue(reading.settled)
-        self.assertEqual(reading.mebibytes, 506.1)
-        self.assertEqual(reading.seconds, 8.0)
+        self.assertEqual(reading.first, 500.0)
+        self.assertEqual(reading.mebibytes, 500.0 + 2 * MOVING + 2 * STILL)
+        self.assertEqual(reading.seconds, 4 * INTERVAL)
 
     def test_readings_that_agree_only_by_moving_back_still_count_as_moving(self):
-        tree = Tree([500.0, 497.0, 497.1])
+        tree = Tree([500.0, 500.0 - MOVING, 500.0 - MOVING + STILL, 500.0 - MOVING + 2 * STILL])
         reading = settle(tree)
-        self.assertEqual(reading.mebibytes, 497.1)
-        self.assertEqual(reading.seconds, 4.0)
+        self.assertTrue(reading.settled)
+        self.assertEqual(reading.seconds, 3 * INTERVAL)
+
+    # A pause in the browser's work after a switch is not the end of it.
+    def test_one_agreeing_pair_between_moves_is_not_settled(self):
+        tree = Tree([500.0, 500.0 + STILL, 500.0 + STILL + MOVING, 500.0 + 2 * STILL + MOVING,
+                     500.0 + 3 * STILL + MOVING])
+        reading = settle(tree)
+        self.assertTrue(reading.settled)
+        self.assertEqual(reading.seconds, 4 * INTERVAL)
 
     # A page still running never settles, and the wait has to end so the budget can say so.
     def test_a_tree_that_keeps_growing_is_read_at_the_limit(self):
-        tree = Tree([500.0 + 10.0 * step for step in range(40)])
-        reading = settle(tree, limit=30.0)
+        steps = int(runtime.STEADY_LIMIT / INTERVAL)
+        tree = Tree([500.0 + MOVING * step for step in range(steps + 10)])
+        reading = settle(tree)
         self.assertFalse(reading.settled)
-        self.assertEqual(reading.seconds, 30.0)
-        self.assertEqual(reading.mebibytes, 650.0)
-        self.assertEqual(tree.reads, 16)
+        self.assertEqual(reading.seconds, steps * INTERVAL)
+        self.assertEqual(reading.mebibytes - reading.first, MOVING * steps)
+        self.assertEqual(tree.reads, steps + 1)
 
 
 if __name__ == "__main__":

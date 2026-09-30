@@ -137,14 +137,15 @@ AWAY_WINDOW = 10.0
 # The reading the away window is measured from waits for the process tree to stop moving, because
 # the whole tree is read and a Space switch leaves the browser busy for a while: the Space now on
 # show settling its page, its tabs' stored favicons being looked up, the allocator giving memory
-# back. A fixed wait let that land in the away window and cross the ceiling one run in eight (#467).
-# Two readings this far apart that differ by no more than the tolerance are a still tree. The
-# tolerance is a twentieth of the ceiling per interval, so a tree still drifting just under it adds
-# at most a quarter of the ceiling over the away window; the allocator page grows forty times
-# faster. The limit ends the wait for a page that is still running, which never settles and which
-# the away window then reads as growth. It is short enough that such a page is still well under its
-# 500 MiB cap, which it reaches a hundred seconds after it loads, when the away window closes.
+# back. A fixed wait let that land in the away window and cross the ceiling on ordinary runs.
+# Three readings in a row, each within the tolerance of the one before, are a still tree; one
+# agreeing pair can be a pause in work that starts again. The tolerance is a twentieth of the
+# ceiling per interval, and the allocator page grows forty times that, so a page still running
+# never settles. The limit ends the wait for such a page, and the away window then reads it as
+# growth: it is short enough that the page is still well under its 500 MiB cap, which it reaches a
+# hundred seconds after it loads, when the away window closes.
 STEADY_INTERVAL = 2.0
+STEADY_READINGS = 3
 STEADY_TOLERANCE = 0.25
 STEADY_LIMIT = 30.0
 
@@ -427,31 +428,36 @@ def describe_processes(root: int) -> list[str]:
 
 @dataclasses.dataclass(frozen=True)
 class SettledReading:
-    """A reading taken once the tree stopped moving, or at the limit if it never did."""
+    """A reading taken once the tree stopped moving, or at the limit if it never did.
 
+    The first reading is kept beside it, so what the tree did during the wait can be told apart
+    from how long the wait took: a Freezing that starts late looks like a tree still growing.
+    """
+
+    first: float
     mebibytes: float
     seconds: float
     settled: bool
 
 
-def settled_reading(read, interval: float = STEADY_INTERVAL, tolerance: float = STEADY_TOLERANCE,
-                    limit: float = STEADY_LIMIT, sleep=time.sleep,
-                    clock=time.monotonic) -> SettledReading:
-    """Reads until two readings an interval apart agree within the tolerance, or the limit passes.
+def settled_reading(read, sleep=time.sleep, clock=time.monotonic) -> SettledReading:
+    """Reads until `STEADY_READINGS` in a row agree within the tolerance, or the limit passes.
 
     Agreement is on the size, not the direction: a tree that shrank is still moving, because what
     shrank it is the browser still at work.
     """
     start = clock()
-    previous = read()
+    first = previous = read()
+    agreeing = 1
     while True:
-        sleep(interval)
+        sleep(STEADY_INTERVAL)
         current = read()
         waited = clock() - start
-        if abs(current - previous) <= tolerance:
-            return SettledReading(current, waited, True)
-        if waited >= limit:
-            return SettledReading(current, waited, False)
+        agreeing = agreeing + 1 if abs(current - previous) <= STEADY_TOLERANCE else 1
+        if agreeing >= STEADY_READINGS:
+            return SettledReading(first, current, waited, True)
+        if waited >= STEADY_LIMIT:
+            return SettledReading(first, current, waited, False)
         previous = current
 
 
@@ -796,13 +802,12 @@ def measure_freezing(executable: str) -> dict:
         grew = browser.memory_mib() - running
         log(f"  the away Space's page grew {grew:.1f} MiB in {ON_SHOW_WINDOW:.0f} s on show")
         keyboard.press("Primary+1")
-        time.sleep(SETTLE)
         frozen = settled_reading(browser.memory_mib)
-        after = SETTLE + frozen.seconds
-        if frozen.settled:
-            log(f"  the process tree settled {after:.1f} s after the switch")
-        else:
-            log(f"  the process tree was still moving {after:.1f} s after the switch")
+        since_switch = SETTLE + frozen.seconds
+        moved = frozen.mebibytes - frozen.first
+        state = "settled" if frozen.settled else "was still moving"
+        log(f"  the process tree {state} {since_switch:.1f} s after the switch, "
+            f"having moved {moved:+.1f} MiB while it was waited for")
         time.sleep(AWAY_WINDOW)
         growth = browser.memory_mib() - frozen.mebibytes
         log(f"  and {growth:.1f} MiB in {AWAY_WINDOW:.0f} s away")

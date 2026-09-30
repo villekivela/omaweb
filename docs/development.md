@@ -1184,14 +1184,14 @@ Five measurements, one subcommand each, so a developer can run the one they are 
   [ADR 0008](adr/0008-isolate-space-storage-on-disk.md) buys.
 - `freezing` loads a page that takes a megabyte every fifth of a second into a second Space, puts
   that Space away, and reports how much the process tree grew over the ten seconds after it had
-  settled. The whole tree is read, and a Space switch leaves the browser busy for a moment, so the
-  reading those ten seconds are measured from waits until two readings two seconds apart agree
-  within a quarter of a mebibyte, for at most thirty seconds, and the log says how long that took.
-  [ADR 0033](adr/0033-stop-an-away-spaces-pages-instead-of-taking-them.md) keeps a frozen page's
-  document and process and stops its timers, animations and script, so what the memory it holds buys
-  is not in question; a page still running in a Space nobody is reading is. The growth while that
-  Space was on show is printed beside it as the control, and a page that did not grow there fails
-  the run rather than passing it, because a flat line means nothing without one.
+  settled. The whole tree is read, and a Space switch leaves the browser busy for a moment. So the
+  probe first reads every two seconds until three readings in a row agree within a quarter of a
+  mebibyte, for at most thirty seconds. The log says how long that took and how far the tree moved
+  meanwhile. [ADR 0033](adr/0033-stop-an-away-spaces-pages-instead-of-taking-them.md) keeps a frozen
+  page's document and process and stops its timers, animations and script, so what the memory it
+  holds buys is not in question; a page still running in a Space nobody is reading is. The growth
+  while that Space was on show is printed beside it as the control, and a page that did not grow
+  there fails the run rather than passing it, because a flat line means nothing without one.
 - `pageload` is what Content blocking as a whole adds to a page load: the rule check, CNAME
   uncloaking where the engine carries it, the Refusal tally and the refused-request list. It is
   described below.
