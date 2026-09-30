@@ -94,8 +94,9 @@ Item {
                                             EngineBuild.knownExtensions
                                             ? EngineCapabilities.KnownExtensions : 0) | (
                                             EngineBuild.cnameUncloaking
-                                            ? EngineCapabilities.CnameUncloaking : 0)
-                                        | EngineCapabilities.ProceduralCosmeticFiltering | (
+                                            ? EngineCapabilities.CnameUncloaking : 0) | (
+                                            EngineBuild.proceduralCosmeticFiltering
+                                            ? EngineCapabilities.ProceduralCosmeticFiltering : 0) | (
                                             QtCertificates.arrivedChainReported
                                             ? EngineCapabilities.PageCertificates : 0)
     // Which Space's browsing identity these pages belong to. Handed down with
@@ -1560,12 +1561,11 @@ Item {
         return script;
     }
 
-    // Procedural cosmetic rules (ADR 0052). Every frame asks for the rules of
-    // its own address as its document is created, so a subframe from another
-    // site gets that site's rules, and the answer loads the vendored matcher
-    // into the frame's application world only when there are any. The matcher
-    // needs a DOM to search, so a rule applies as the document parses rather
-    // than before it, and goes on applying for the life of the page.
+    // Procedural cosmetic rules (ADR 0052). Every frame asks for the rules of its own address as
+    // its document is created, so a subframe from another site gets that site's rules, and the
+    // answer loads the vendored matcher into the frame's application world only when there are
+    // any. The matcher needs a DOM to search, so a rule applies as the document parses rather than
+    // before it, and goes on applying for the life of the page.
     property var proceduralFiltersScript: {
         const script = WebEngine.script();
         script.name = "Omaweb procedural filters";
@@ -1575,13 +1575,14 @@ Item {
         script.sourceCode = root.reporting("report('procedural_filters', { url: location.href });");
         return script;
     }
-    // Starts this frame's rules. `restart` replaces rules already running, for
-    // rules or a site decision that changed under the document; without it a
-    // frame that already has its rules keeps them. A frame left with none is
-    // told to stop, which undoes everything but what `:remove()` took out.
+    // Starts this frame's rules. `restart` replaces rules already running, for rules or a site
+    // decision that changed under the document; without it a frame that already has its rules keeps
+    // them. A frame left with none is told to stop, which undoes everything but what `:remove()`
+    // took out. The page's site decides whether the frame's rules apply, as it decides for the
+    // frame's requests.
     function applyProceduralRules(frame, restart) {
         const blocker = root.contentBlocker;
-        const actions = blocker ? blocker.proceduralActions(frame.url) : "[]";
+        const actions = blocker ? blocker.proceduralActions(frame.url, webView.url) : "[]";
         if (actions === "[]") {
             if (restart)
                 root.runInFrameApplicationWorld(frame, "globalThis.__omawebProcedural?.stop();");

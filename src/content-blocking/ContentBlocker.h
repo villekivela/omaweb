@@ -93,9 +93,10 @@ public:
     Q_INVOKABLE QVariantList refusedRequests(const QString &spaceId, const QUrl &pageAddress) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
-    // The procedural cosmetic rules for one address as a JSON array, `[]` for a
-    // site the user turned blocking off for.
-    Q_INVOKABLE QString proceduralActions(const QUrl &url) const;
+    // The procedural cosmetic rules for one frame's address as a JSON array. The page the frame is
+    // in decides whether they apply, as it decides for the frame's requests: `[]` when the user
+    // turned blocking off for the page's site.
+    Q_INVOKABLE QString proceduralActions(const QUrl &url, const QUrl &pageUrl) const;
     // The script that applies them in a page: the vendored matcher and the
     // dispatch that acts on what it finds, which defines
     // `globalThis.__omawebProcedural` in the world it runs in. The same for

@@ -22,9 +22,9 @@ QStringList validateEngineBlockerContract(const QObject &blocker)
         {"scriptletSource", false, 1},
         {"cosmeticSurveyWanted", false, 1},
         {"genericCosmeticStyleSheet", false, 3},
-        // The procedural rules for one frame's address, and the script that
-        // applies them there (ADR 0052).
-        {"proceduralActions", false, 1},
+        // The procedural rules for one frame's address in a page, and the
+        // script that applies them there (ADR 0052).
+        {"proceduralActions", false, 2},
         {"proceduralFilterSource", false, 0},
         // A compiled rule set has been replaced, or the reader has turned
         // blocking off for a site. Either makes the cosmetic rules in force

@@ -287,7 +287,7 @@ const LACKED_OPERATORS: [&str; 11] = [
 
 // What makes a cosmetic rule procedural: an operator only a matcher can answer,
 // or an action other than hiding.
-const PROCEDURAL_MARKERS: [&str; 13] = [
+const PROCEDURAL_MARKERS: [&str; 14] = [
     ":has-text(",
     ":-abp-contains(",
     ":matches-attr(",
@@ -301,6 +301,7 @@ const PROCEDURAL_MARKERS: [&str; 13] = [
     ":remove(",
     ":style(",
     ":remove-class(",
+    ":remove-attr(",
 ];
 
 // The sites a cosmetic rule is written against: what comes before its
@@ -314,10 +315,9 @@ fn cosmetic_sites(line: &str) -> Option<&str> {
 // every page a search of its whole document.
 fn is_generic_procedural(line: &str) -> bool {
     is_cosmetic_rule(line)
-        && (PROCEDURAL_MARKERS
+        && PROCEDURAL_MARKERS
             .iter()
             .any(|marker| line.contains(marker))
-            || line.contains(":remove-attr("))
         && cosmetic_sites(line).is_some_and(|sites| {
             sites
                 .split(',')

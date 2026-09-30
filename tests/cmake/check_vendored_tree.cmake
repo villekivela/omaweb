@@ -14,6 +14,11 @@
 # A tree copied from a repository names its commit as `ref`. A snapshot of files
 # served at an address has no commit, and each entry names the day it was
 # fetched instead.
+#
+# An entry copied from a repository also names its upstream git `blob`, which
+# the sync scripts compare with the commit's tree. It is checked against the
+# copy here too, so an edit to the manifest's pin fails as an edit to a copy
+# does. Checking it needs git; a tree without git skips it.
 
 file(READ "${OMAWEB_VENDOR_ROOT}/MANIFEST.json" manifest)
 string(JSON manifest_files GET "${manifest}" files)
@@ -25,6 +30,7 @@ string(JSON file_count LENGTH "${manifest_files}")
 
 set(problems "")
 set(tracked "")
+find_program(omaweb_git git)
 if(file_count GREATER 0)
     math(EXPR last_file "${file_count} - 1")
     foreach(index RANGE 0 ${last_file})
@@ -37,6 +43,18 @@ if(file_count GREATER 0)
             file(SHA256 "${OMAWEB_VENDOR_ROOT}/${vendored_path}" actual)
             if(NOT actual STREQUAL expected)
                 list(APPEND problems "edited locally: ${vendored_path}")
+            endif()
+            string(JSON expected_blob ERROR_VARIABLE no_blob
+                GET "${manifest_files}" "${vendored_path}" blob)
+            if(NOT no_blob AND omaweb_git)
+                execute_process(
+                    COMMAND "${omaweb_git}" hash-object --no-filters
+                        "${OMAWEB_VENDOR_ROOT}/${vendored_path}"
+                    OUTPUT_VARIABLE actual_blob
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+                if(NOT actual_blob STREQUAL expected_blob)
+                    list(APPEND problems "blob does not match its pin: ${vendored_path}")
+                endif()
             endif()
         endif()
     endforeach()

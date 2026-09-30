@@ -512,9 +512,9 @@ QString ContentBlocker::scriptletSource(const QUrl &url) const
     return matcher ? matcher->scriptletSource(url) : QString();
 }
 
-QString ContentBlocker::proceduralActions(const QUrl &url) const
+QString ContentBlocker::proceduralActions(const QUrl &url, const QUrl &pageUrl) const
 {
-    const auto matcher = matcherFor(url);
+    const auto matcher = matcherFor(pageUrl);
     return matcher ? matcher->proceduralActions(url) : QStringLiteral("[]");
 }
 

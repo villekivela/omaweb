@@ -196,7 +196,8 @@ void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
 }
 
 // The procedural rules reach the page through the same per-site switch as the
-// stylesheet, and every one the parser emits for the page's address arrives.
+// stylesheet, and every one the parser emits for the page's address arrives. A
+// frame gets its own address's rules, under the switch of the page it is in.
 void ContentBlockerTest::proceduralRulesFollowRuleReplacementAndSiteToggles()
 {
     QFile fixture(QStringLiteral(OMAWEB_PROCEDURAL_RULES));
@@ -213,7 +214,7 @@ void ContentBlockerTest::proceduralRulesFollowRuleReplacementAndSiteToggles()
     ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
     const QUrl page(QStringLiteral("http://127.0.0.1/procedural.html"));
     const auto actions = [&blocker](const QUrl &url) {
-        return QJsonDocument::fromJson(blocker.proceduralActions(url).toUtf8()).array();
+        return QJsonDocument::fromJson(blocker.proceduralActions(url, url).toUtf8()).array();
     };
     QCOMPARE(actions(page), QJsonArray());
     blocker.setUserRules(rules.join(QLatin1Char('\n')));
@@ -222,9 +223,20 @@ void ContentBlockerTest::proceduralRulesFollowRuleReplacementAndSiteToggles()
     for (const auto &action : expected)
         QVERIFY(actions(page).contains(action));
     QCOMPARE(actions(QUrl(QStringLiteral("http://localhost/procedural.html"))), QJsonArray());
+    const QUrl framing(QStringLiteral("http://localhost/"));
+    QCOMPARE(
+        QJsonDocument::fromJson(blocker.proceduralActions(page, framing).toUtf8()).array().size(),
+        expected.size());
 
     blocker.setSiteEnabled(page, false);
-    QCOMPARE(blocker.proceduralActions(page), QStringLiteral("[]"));
+    QCOMPARE(blocker.proceduralActions(page, page), QStringLiteral("[]"));
+    QCOMPARE(
+        QJsonDocument::fromJson(blocker.proceduralActions(page, framing).toUtf8()).array().size(),
+        expected.size());
+    blocker.setSiteEnabled(framing, false);
+    blocker.setSiteEnabled(page, true);
+    QCOMPARE(blocker.proceduralActions(page, framing), QStringLiteral("[]"));
+    blocker.setSiteEnabled(framing, true);
     blocker.setSiteEnabled(page, true);
     QCOMPARE(actions(page).size(), expected.size());
 

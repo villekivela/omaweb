@@ -487,7 +487,7 @@ public:
         return m_matcher->genericCosmeticStyleSheet(url, classes, ids);
     }
 
-    Q_INVOKABLE QString proceduralActions(const QUrl &url) const
+    Q_INVOKABLE QString proceduralActions(const QUrl &url, const QUrl &) const
     {
         return m_matcher->proceduralActions(url);
     }

@@ -190,6 +190,7 @@ void ContentMatcherTest::reportsTheProceduralOperatorsTheParserLacks()
         QStringLiteral("site.example##.card:has-text(Sponsored)\n"
                        "##.card:has-text(Sponsored)\n"
                        "~site.example##.card:has-text(Sponsored)\n"
+                       "##.card:remove-attr(data-track)\n"
                        "#?#.card:-abp-contains(Sponsored)\n"
                        "site.example##.card:watch-attr(class)\n"
                        "site.example##.card:matches-prop(ad)\n"
@@ -204,7 +205,7 @@ void ContentMatcherTest::reportsTheProceduralOperatorsTheParserLacks()
     QCOMPARE(
         unsupported.keys(), QStringList {QStringLiteral("procedural operators this parser lacks")});
     QCOMPARE(
-        unsupported.value(QStringLiteral("procedural operators this parser lacks")).toInt(), 9);
+        unsupported.value(QStringLiteral("procedural operators this parser lacks")).toInt(), 10);
     QCOMPARE(compilation.report.value(QStringLiteral("invalidRuleCount")).toInt(), 0);
 }
 
