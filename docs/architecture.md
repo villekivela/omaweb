@@ -356,11 +356,11 @@ answers them its own way. The Qt adapter runs `agent-page.js` in the application
 page's own script cannot see it, and installs it again in every document it finds without one.
 
 - `look` answers the title, the address, an outline of headings and text capped at 6,000 characters,
-  and the interactive targets on screen with labels, counting those above and below. `--all` takes
-  the whole page. A label is a number that names its element for as long as the document lives. The
-  adapter hands the page the next number it has not given out in this tab, and the page area keeps
-  that number for the tab and gives it to a view built again for it, so a label from a document that
-  has gone never names an element of a later one.
+  and up to 200 interactive targets on screen with labels, counting those above, below, and on
+  screen past the 200. `--all` takes the whole page. A label is a number that names its element for
+  as long as the document lives. The adapter hands the page the next number it has not given out in
+  this tab, and the page area keeps that number for the tab and gives it to a view built again for
+  it, so a label from a document that has gone never names an element of a later one.
 - `read` answers the page, or the part a selector names, as Markdown.
 - `do` runs a batch of `click`, `fill`, `press`, `select`, `scroll`, `back` and `wait` steps. After
   each, it waits until a navigation the step started has committed and the document has not changed
@@ -369,11 +369,12 @@ page's own script cannot see it, and installs it again in every document it find
   the first step that fails and answers with a fresh `look` either way. While the reader's keyboard
   focus is in the tab, `do` answers that the reader is using it.
 - `shot` writes a PNG in `shots/` beside the socket, a directory only its user can enter, under a
-  name of its own or the bare file name the Agent gives. A name that is a path is refused, and so is
-  one already taken. The file is made with mode 0600 before the page is drawn into it, and the
-  directory keeps the 50 newest screenshots of the last day. It is `grabToImage` of the view, which
-  answers only while Omaweb's window is drawing, so a shot that gets no frame within 5 s says the
-  window is not on screen.
+  name of its own or the bare `.png` file name the Agent gives. A name that is a path or another
+  kind of file is refused, and so is one already taken. The file is made with mode 0600 before the
+  page is drawn into it and removed again if the page does not draw into it, and the directory keeps
+  the 50 newest screenshots of the last day. It is `grabToImage` of the view, which answers only
+  while Omaweb's window is drawing, so a shot that gets no frame within 5 s says the window is not
+  on screen.
 - `eval` answers the JSON value of an expression run in the application world, waiting up to 30 s
   for a promise.
 

@@ -429,6 +429,10 @@ namespace {
         if (below > 0) {
             text += QStringLiteral("%1 more below\n").arg(below);
         }
+        // On screen, past the most a look lists.
+        if (const auto unlisted = look.value(QStringLiteral("unlisted")).toInt(); unlisted > 0) {
+            text += QStringLiteral("%1 more not listed\n").arg(unlisted);
+        }
         return text;
     }
 
