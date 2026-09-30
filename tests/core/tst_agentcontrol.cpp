@@ -1167,6 +1167,10 @@ void AgentControlTest::switchesSpaceAndSelectsATabWithAllowAgentsOff()
     QVERIFY(succeeded(ask(control, script, QStringLiteral("focus"),
         {{QStringLiteral("target"), QStringLiteral("personal-pin")}})));
     QCOMPARE(browser->activeTabId(), QStringLiteral("personal-pin"));
+    QVERIFY(!browser
+            ->openTabInSpace(QStringLiteral("personal"),
+                QUrl(QStringLiteral("https://search.example/?q=work-tab")))
+            .isEmpty());
     QVERIFY(succeeded(ask(control, script, QStringLiteral("focus"),
         {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
     QCOMPARE(browser->activeSpaceId(), QStringLiteral("work"));

@@ -333,9 +333,10 @@ omaweb eval <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
 ```
 
-`space` puts a Space on show, and `focus` selects a tab by its id or else the first tab whose
-address holds the text, looking in the Space on show before the others and switching to the tab's
-Space. `commands` lists the command scope's commands that can run now, one line each as id and
+`space` puts a Space on show. A Space named `new` or `delete` is switched to by its id, since those
+words start `space new` and `space delete`. `focus` selects a tab by its id or else the first tab
+whose address holds the text, looking in the Space on show before the others and switching to the
+tab's Space. `commands` lists the command scope's commands that can run now, one line each as id and
 title, and `run` runs one in the ordinary window as the command scope would, exiting 0 when it ran.
 `select-tab` and `select-space` take a position, 1 for the first. Every command of
 `src/ui/BrowserCommands.qml` is public except `private-window`, since a Private window is never an

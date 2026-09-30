@@ -1300,7 +1300,10 @@ TestCase {
     // core has already refused what is not public, and the window refuses it
     // again, answers from `available`, and says whether the command ran.
     function test_answersTheAgentSocketsCommands() {
-        const offered = ["toggle-sidebar", "find-next", "not-a-command"];
+        // No split is on show, so separating one is offered but not available.
+        verify(!browser.splitOnShow);
+        verify(!window.commands.available("separate-split"));
+        const offered = ["toggle-sidebar", "separate-split", "not-a-command"];
         const listed = window.commands.answerAgent({
                                                        verb: "commands",
                                                        commands: offered
@@ -1309,10 +1312,17 @@ TestCase {
         const names = listed.commands.map(function (row) {
             return row.command;
         });
-        verify(names.indexOf("toggle-sidebar") >= 0);
-        verify(names.indexOf("not-a-command") < 0);
-        compare(names.indexOf("find-next") >= 0, window.commands.available("find-next"));
+        compare(names, ["toggle-sidebar"]);
         compare(listed.commands[0].title, "Hide or show the sidebar");
+
+        const unavailable = window.commands.answerAgent({
+                                                            verb: "run",
+                                                            commands: offered,
+                                                            command: "separate-split",
+                                                            argument: -1
+                                                        });
+        verify(!unavailable.ok);
+        compare(unavailable.code, "unavailable");
 
         const collapsed = window.sidebarCollapsed;
         verify(window.commands.answerAgent({
@@ -1333,6 +1343,53 @@ TestCase {
                                                  });
         verify(!kept.ok);
         compare(kept.code, "refused");
+    }
+
+    // `omaweb space work && omaweb run toggle-sidebar` from a keybind: through
+    // the core, with Allow agents off, to this window's registry and back.
+    function test_aKeybindSwitchesSpaceAndRunsACommand() {
+        const startSpaceId = browser.activeSpaceId;
+        const workSpaceId = browser.createSpace("Keybind work");
+        verify(workSpaceId.length > 0);
+
+        const switched = agentSocket.ask({
+                                             verb: "space",
+                                             name: "keybind",
+                                             space: "Keybind work"
+                                         });
+        verify(switched.ok);
+        compare(browser.activeSpaceId, workSpaceId);
+
+        const collapsed = window.sidebarCollapsed;
+        const ran = agentSocket.ask({
+                                        verb: "run",
+                                        name: "keybind",
+                                        command: "toggle-sidebar"
+                                    });
+        verify(ran.ok);
+        compare(window.sidebarCollapsed, !collapsed);
+
+        const listed = agentSocket.ask({
+                                           verb: "commands",
+                                           name: "keybind"
+                                       });
+        verify(listed.ok);
+        verify(listed.commands.some(function (row) {
+            return row.command === "toggle-sidebar";
+        }));
+
+        const kept = agentSocket.ask({
+                                         verb: "run",
+                                         name: "keybind",
+                                         command: "private-window"
+                                     });
+        verify(!kept.ok);
+        compare(kept.code, "refused");
+
+        window.commands.run("toggle-sidebar", -1);
+        compare(window.sidebarCollapsed, collapsed);
+        verify(browser.switchSpace(startSpaceId));
+        verify(browser.deleteSpace(workSpaceId, "Keybind work"));
     }
 
     function test_sidebarHasNoNewTabButton() {

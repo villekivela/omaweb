@@ -533,7 +533,8 @@ QJsonObject AgentControl::switchToSpace(const QJsonObject &request)
 
 // A tab by its id, or else the first whose address holds the text, looked for
 // in the Space on show before the others in the sidebar's order. Selecting it
-// switches to its Space, as choosing it in the Omnibar does.
+// switches to its Space, as choosing it in the Omnibar does. A Space not on
+// show is read from its store, so each is read once, for both.
 QJsonObject AgentControl::focusTab(const QJsonObject &request)
 {
     const auto target = request.value(QStringLiteral("target")).toString();
@@ -541,27 +542,32 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
         return refusal(QStringLiteral("bad-request"),
             QStringLiteral("Name a tab, or a part of its address, to select."));
     }
-    auto tab = m_browser->findTab(target);
-    if (!tab) {
-        QStringList spaceIds {m_browser->activeSpaceId()};
-        const auto *model = m_browser->spaces();
-        for (int row = 0; row < model->rowCount(); ++row) {
-            const auto id = model->index(row, 0).data(SpaceListModel::IdRole).toString();
-            if (!spaceIds.contains(id)) {
-                spaceIds.append(id);
-            }
+    QStringList spaceIds {m_browser->activeSpaceId()};
+    const auto *model = m_browser->spaces();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const auto id = model->index(row, 0).data(SpaceListModel::IdRole).toString();
+        if (!spaceIds.contains(id)) {
+            spaceIds.append(id);
         }
-        for (const auto &spaceId : std::as_const(spaceIds)) {
-            for (const auto &each : m_browser->spaceTabs(spaceId)) {
-                if (each.url.toString().contains(target, Qt::CaseInsensitive)) {
-                    tab = each;
-                    break;
-                }
-            }
-            if (tab) {
+    }
+    std::optional<TabState> tab;
+    std::optional<TabState> byAddress;
+    for (const auto &spaceId : std::as_const(spaceIds)) {
+        for (const auto &each : m_browser->spaceTabs(spaceId)) {
+            if (each.id == target) {
+                tab = each;
                 break;
             }
+            if (!byAddress && each.url.toString().contains(target, Qt::CaseInsensitive)) {
+                byAddress = each;
+            }
         }
+        if (tab) {
+            break;
+        }
+    }
+    if (!tab) {
+        tab = byAddress;
     }
     if (!tab) {
         return refusal(QStringLiteral("not-found"),

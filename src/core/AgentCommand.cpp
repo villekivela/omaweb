@@ -132,7 +132,7 @@ namespace {
                 .flags = {},
                 .minimumPositionals = 1,
                 .maximumPositionals = 2,
-                .positionalField = QStringLiteral("command")};
+                .positionalField = {}};
         }
         if (verb == u"focus") {
             return {.valued = {},
