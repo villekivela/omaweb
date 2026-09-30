@@ -463,6 +463,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QVERIFY(firstStore.savePreference(QStringLiteral("sidebar-width"), QStringLiteral("500")));
     QVERIFY(firstStore.savePreference(
         QStringLiteral("clear-data-range"), QStringLiteral("machine-a-only")));
+    QVERIFY(firstStore.savePreference(QStringLiteral("start-page-road"), QStringLiteral("false")));
     const auto keybindings = QByteArrayLiteral(
         R"({"version":1,"browser":{"Primary+K":"settings"},"bindings":{"j":"scroll-down"}})");
     QVERIFY(writeFile(firstConfigRoot.filePath(QStringLiteral("keybindings.json")), keybindings));
@@ -497,6 +498,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     const auto checkout = inspectionRoot.filePath(QStringLiteral("checkout"));
     QVERIFY(QFile::exists(checkout + QStringLiteral("/settings/floating-controls.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/sidebar-width.json")));
+    QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/start-page-road.json")));
     QVERIFY(!filesBelow(checkout).contains("visited.example"));
     QVERIFY(!filesBelow(checkout).contains("private.example"));
     QVERIFY(!filesBelow(checkout).contains("downloaded"));
@@ -528,6 +530,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QCOMPARE(secondStore.preference(QStringLiteral("sidebar-width")), QStringLiteral("311"));
     QCOMPARE(secondStore.preference(QStringLiteral("clear-data-range")),
         QStringLiteral("machine-b-only"));
+    QVERIFY(secondStore.preference(QStringLiteral("start-page-road")).isEmpty());
     QFile restoredKeybindings(secondConfigRoot.filePath(QStringLiteral("keybindings.json")));
     QVERIFY(restoredKeybindings.open(QIODevice::ReadOnly));
     QCOMPARE(restoredKeybindings.readAll(), keybindings);

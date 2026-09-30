@@ -111,8 +111,8 @@ Item {
         id: hint
         objectName: "startPageHint"
 
-        readonly property color keyColour: root.roadEnabled ? road.glow : root.colors.accent
-        readonly property color wordColour: root.roadEnabled ? road.light : root.colors.text
+        readonly property color keyColor: root.roadEnabled ? road.glow : root.colors.accent
+        readonly property color wordColor: root.roadEnabled ? road.light : root.colors.text
 
         anchors.horizontalCenter: parent.horizontalCenter
         y: root.horizonY + root.fieldBelowHorizon + Style.spacing.xl
@@ -136,13 +136,13 @@ Item {
                 radius: 3
                 color: "transparent"
                 border.width: 1
-                border.color: hint.keyColour
+                border.color: hint.keyColor
 
                 Text {
                     id: keyText
                     anchors.centerIn: parent
                     text: "?"
-                    color: hint.keyColour
+                    color: hint.keyColor
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     font.bold: true
@@ -153,7 +153,7 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "shortcuts"
-                color: hint.wordColour
+                color: hint.wordColor
                 opacity: 0.85
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body

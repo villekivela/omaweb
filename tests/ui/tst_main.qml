@@ -6362,28 +6362,43 @@ TestCase {
         input.text = "notes-s";
         compare(panel.rows[panel.selected].argument, notesTabId);
 
-        // Inside a title is listed, and the typed text stays the selection.
+        // Inside a title is listed, and the typed text stays the selection,
+        // for a tab and for a visit alike.
+        browser.recordVisit("https://annual-report.example/", "Annual figures");
         input.text = "figures";
         verify(omnibarRowsOf(panel, "tab").some(function (row) {
             return row.argument === notesTabId;
         }));
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "history").some(function (row) {
+                return row.url === "https://annual-report.example/";
+            });
+        });
         compare(panel.selected, -1);
 
         // The unedited preset is the page on show, and Return goes there
-        // again rather than to anything listed.
+        // again rather than to anything listed: not even to a second tab of
+        // the same address, whose untitled page the preset starts.
         window.closeOmnibar();
+        openPageInNewTab("https://ranking-tab.example/one");
+        const twinTabId = browser.activeTabId;
+        browser.reportTabPageState(twinTabId, "https://ranking-tab.example/one",
+                                   "https://ranking-tab.example/one", "", false, false);
+        browser.activateTab(quarterlyTabId);
         window.openOmnibar(false);
         compare(input.text, "https://ranking-tab.example/one");
         compare(omnibarRowsOf(panel, "tab").length, 0);
         compare(panel.selected, -1);
         panel.accept();
         compare(browser.activeTabId, quarterlyTabId);
-        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.tabs.rowCount(), tabCount + 1);
         compare(browser.activeUrl.toString(), "https://ranking-tab.example/one");
 
+        browser.closeTab(twinTabId);
         browser.closeTab(notesTabId);
         browser.closeTab(quarterlyTabId);
         browser.activateTab(startTabId);
+        verify(browser.deleteHistoryOrigin("https://annual-report.example/"));
     }
 
     // A new tab exists only once something is committed, and choosing a tab
@@ -6406,7 +6421,6 @@ TestCase {
         panel.accept();
         compare(browser.activeTabId, gammaTabId);
         compare(browser.tabs.rowCount(), tabCount);
-        compare(window.newTabIntent, false);
 
         window.openOmnibar(true);
         input.text = "https://epsilon-open.example/";
@@ -6653,10 +6667,24 @@ TestCase {
         const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const prompt = findChild(window.contentItem, "omnibarPrompt");
+        const mark = findChild(window.contentItem, "omnibarMark");
+        const colon = findChild(window.contentItem, "omnibarColon");
+        const go = findChild(window.contentItem, "omnibarGo");
+        const accent = String(window.colors.accent);
+        const markFill = mark.data.filter(function (child) {
+            return child.fillColor !== undefined;
+        })[0];
+        browser.recordVisit("https://reopen-notes.example/", "Reopen notes");
+        openPage("https://command-scope.example/");
+        activateWindow();
 
-        window.openCommandScope();
+        keyClick(Qt.Key_K, Qt.ControlModifier);
         compare(panel.commandScope, true);
         compare(prompt.text, ":");
+        verify(colon.visible);
+        verify(!mark.visible);
+        compare(String(colon.color), accent);
+        compare(String(go.color), accent);
         compare(input.text, "");
         tryVerify(function () {
             return input.activeFocus;
@@ -6673,12 +6701,19 @@ TestCase {
         keyClick(Qt.Key_Backspace);
         compare(panel.commandScope, false);
         compare(prompt.text, "mark");
-        verify(findChild(window.contentItem, "omnibarMark").visible);
+        verify(mark.visible);
+        verify(!colon.visible);
+        compare(String(markFill.fillColor), accent);
         compare(input.text, "reopen");
         compare(panel.selected, -1);
         verify(omnibarRowsOf(panel, "command").some(function (row) {
             return row.command === "reopen-tab";
         }));
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "history").some(function (row) {
+                return row.url === "https://reopen-notes.example/";
+            });
+        });
 
         // Backspace inside the text is only a Backspace.
         input.text = ":reopen";
@@ -6698,6 +6733,7 @@ TestCase {
         compare(input.text, "");
         compare(prompt.text, ":");
         window.closeOmnibar();
+        verify(browser.deleteHistoryOrigin("https://reopen-notes.example/"));
     }
 
     // The go mark at the end of the field is Return, for the pointer.
@@ -6769,6 +6805,30 @@ TestCase {
         });
         verify(browser.deleteSpace(probeSpaceId, "Private probe space"));
         verify(browser.deleteHistoryOrigin("https://private-probe.example/"));
+    }
+
+    // A Private window's Start page drives with the lights off, and the
+    // window beside it keeps its own lit.
+    function test_aPrivateWindowsRoadHasItsLightsOff() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        tryVerify(function () {
+            return findChild(privateBrowser.contentItem, "startPage").visible;
+        });
+        const road = findChild(privateBrowser.contentItem, "nightRoad");
+        verify(road.visible);
+        verify(road.privateWindow);
+        compare(road.stars, 0);
+        compare(road.laneMarks, 0);
+        verify(!findChild(window.contentItem, "nightRoad").privateWindow);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
     }
 
     function test_historyIsAFilteredBrowserOwnedSheet() {
@@ -7437,6 +7497,42 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting");
     }
 
+    // The Start page's field belongs to the tab it stands in for. Moving on to
+    // another Space at rest, from a row in that field or from anywhere else,
+    // leaves what was typed and what the last Space's history answered behind.
+    function test_aSpaceSwitchLeavesTheStartPageFieldBehind() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const secondSpaceId = browser.createSpace("Resting second");
+        const firstSpaceId = enterRestingSpace("Resting first");
+
+        input.text = "resting sec";
+        const spaces = omnibarRowsOf(panel, "space");
+        compare(spaces.length, 1);
+        panel.selected = panel.rows.indexOf(spaces[0]);
+        panel.accept();
+        compare(browser.activeSpaceId, secondSpaceId);
+        verify(window.startPageShown);
+        compare(input.text, "");
+        compare(panel.rows.length, 0);
+
+        verify(browser.switchSpace(firstSpaceId));
+        browser.recordVisit("https://first-space-only.example/", "First space only");
+        input.text = "first space";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "history").length > 0;
+        });
+        verify(browser.switchSpace(secondSpaceId));
+        verify(window.startPageShown);
+        compare(input.text, "");
+        compare(panel.rows.length, 0);
+
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(secondSpaceId, "Resting second"));
+        leaveSpace(homeSpaceId, firstSpaceId, "Resting first");
+    }
+
     // A new tab is the Start page over the page on show, and the tab exists
     // only once a destination is committed. Escape gives the page back.
     function test_aNewTabShowsTheStartPageAndCreatesItsTabOnCommit() {
@@ -7450,7 +7546,7 @@ TestCase {
         const pageTabId = browser.activeTabId;
         const tabCount = browser.tabs.rowCount();
 
-        window.commands.run("new-tab", -1);
+        keyClick(Qt.Key_T, Qt.ControlModifier);
         tryVerify(function () {
             return startPage.open && input.activeFocus;
         });
@@ -7640,10 +7736,11 @@ TestCase {
         wait(300);
         verify(window.startPageDriving);
         verify(startPage.open);
+        // The first paint ends it then, long before the limit would.
         engineLoader.item.simulateFirstPaint();
         tryVerify(function () {
             return !window.startPageDriving && !startPage.open;
-        });
+        }, 400);
         // The road goes on driving, lit, while it fades into the page.
         verify(startPage.visible);
         verify(road.driving);
@@ -7670,6 +7767,34 @@ TestCase {
             return !window.startPageDriving;
         }, 400);
         browser.closeActiveTab();
+
+        // So has an upgrade HTTPS-only mode could not complete, and a
+        // certificate the engine refused.
+        const failures = [function (engine) {
+            engine.simulateHttpsUpgradeFailure("http://slow-paint.example/upgrade", "unreachable",
+                                               "");
+        }, function (engine) {
+            engine.certificateErrorOrigin = "https://slow-paint.example";
+        }];
+        for (let index = 0; index < failures.length; ++index) {
+            window.commands.run("new-tab", -1);
+            tryVerify(function () {
+                return input.activeFocus;
+            });
+            const address = "https://slow-paint.example/failure-" + index;
+            input.text = address;
+            keyClick(Qt.Key_Return);
+            verify(window.startPageDriving);
+            tryVerify(function () {
+                return engineLoader.item !== null && engineLoader.item.currentUrl.toString()
+                        === address;
+            });
+            failures[index](engineLoader.item);
+            tryVerify(function () {
+                return !window.startPageDriving;
+            }, 400);
+            browser.closeActiveTab();
+        }
 
         // A page that has not painted in two seconds is left to the page's own
         // loading indicator.
@@ -7793,6 +7918,12 @@ TestCase {
 
         window.setStartPageRoad(true);
         compare(browser.preference("start-page-road", "false"), "true");
+        verify(road.visible);
+
+        // The stored choice is what the window follows, however it was made.
+        browser.setPreference("start-page-road", "false");
+        verify(!road.visible);
+        browser.setPreference("start-page-road", "true");
         verify(road.visible);
         leaveSpace(homeSpaceId, restingSpaceId, "Resting road");
     }
