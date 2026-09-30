@@ -91,16 +91,17 @@ loads, so a Space switch has somewhere to go. `--sample-lists` writes EasyList a
 the lab's content-blocking settings as current, so Content Blocking shows the lists a first run has
 without fetching them. `--agents` has an Agent at work under the real Agent rules: an Agent Space it
 made is on show with the tab it is driving, which it has just clicked in, and a second Agent Space
-sits unused. `--agents-away` keeps the reader's Space on show instead. Pass `--capture <path>` to
-render one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by default, which works
-headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes
-without a desktop session. The chrome's movements are reviewed the same way: `--show space-step`,
-`tab-step`, `omnibar-step` and `settings-step` run the switch or the opening shortly before the
-capture, so the frame lands part way through it, and the `-settled` spelling of each runs it early
-enough to land at rest. The leaving list's picture and the Omnibar's growth need the hardware
-renderer, so those two captures go without `QT_QUICK_BACKEND=software`. Development presets load
-QML, themes, and the icon font directly from the source tree. Editing those files requires an
-application restart but no compile or relink.
+sits unused. `--agents-away` keeps the reader's Space on show instead, and `--agents-window` has the
+Agent's page open an Auxiliary window and captures that window. Pass `--capture <path>` to render
+one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by default, which works headlessly
+with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes without a
+desktop session. The chrome's movements are reviewed the same way: `--show space-step`, `tab-step`,
+`omnibar-step` and `settings-step` run the switch or the opening shortly before the capture, so the
+frame lands part way through it, and the `-settled` spelling of each runs it early enough to land at
+rest. The leaving list's picture and the Omnibar's growth need the hardware renderer, so those two
+captures go without `QT_QUICK_BACKEND=software`. Development presets load QML, themes, and the icon
+font directly from the source tree. Editing those files requires an application restart but no
+compile or relink.
 
 The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
 engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so
