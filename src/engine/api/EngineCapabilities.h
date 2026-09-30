@@ -43,9 +43,9 @@ public:
         // (ADR 0049).
         KnownExtensions = 1 << 14,
         // Whether Content blocking can check a request again under the names
-        // in its host's CNAME chain. It needs the engine
-        // to resolve the host for the interceptor, which the patched Qt engine
-        // does and Ladybird does not (ADR 0050).
+        // in its host's CNAME chain. It needs the engine to resolve the host
+        // for the interceptor, which the patched Qt engine does and Ladybird
+        // does not (ADR 0050).
         CnameUncloaking = 1 << 15,
         // Whether the engine applies the procedural cosmetic rules Content
         // blocking hands it: the Qt engine runs the vendored matcher in each

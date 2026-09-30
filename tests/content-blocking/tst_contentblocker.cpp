@@ -63,6 +63,7 @@ private slots:
     void anUncloakedRefusalCountsInTheTally();
     void theRefusedRequestsAreListedWithTheCanonicalNameTheyMatched();
     void anAddressRefusedTwiceIsListedOnceUntilTheNextLoad();
+    void theListKeepsTheFirstHundredAddressesTheTallyCounts();
     void everyAliasInTheChainIsChecked();
 };
 
@@ -975,6 +976,33 @@ void ContentBlockerTest::anAddressRefusedTwiceIsListedOnceUntilTheNextLoad()
 
     blocker->showPage(&view, space, page, 2);
     QVERIFY(blocker->refusedRequests(space, page).isEmpty());
+}
+
+// A page that refuses a request per ad slot can refuse thousands. The tally
+// counts every one and the list stops at a hundred, far more than Site
+// information shows.
+void ContentBlockerTest::theListKeepsTheFirstHundredAddressesTheTallyCounts()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    QObject view;
+    const QUrl page(QStringLiteral("https://site.example/"));
+    blocker->showPage(&view, space, page, 1);
+
+    for (int slot = 0; slot < 101; ++slot) {
+        QVERIFY(blocker
+                ->checkRequest(QUrl(QStringLiteral("https://ads.example/slot/%1.js").arg(slot)),
+                    page, QStringLiteral("script"), space)
+                .blocked);
+    }
+    QTRY_COMPARE(blocker->refusalTally(space, page), 101);
+    const auto refused = blocker->refusedRequests(space, page);
+    QCOMPARE(refused.size(), 100);
+    QCOMPARE(refused.first().toMap().value(QStringLiteral("address")).toString(),
+        QStringLiteral("https://ads.example/slot/0.js"));
+    QCOMPARE(refused.last().toMap().value(QStringLiteral("address")).toString(),
+        QStringLiteral("https://ads.example/slot/99.js"));
 }
 
 // The engine hands the chain over in no particular order: Chromium keeps a

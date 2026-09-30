@@ -700,10 +700,10 @@ pub unsafe extern "C" fn omaweb_blocker_check(
 }
 
 // The request's address with its host replaced by a name from the host's
-// CNAME chain, or None when there is nothing to check: an
-// address with no host, a canonical name that parses as none, or one on the
-// request's own site. uBlock Origin ignores a first-party CNAME by default, so
-// a site's own CDN aliases never refuse what no list meant to.
+// CNAME chain, or None when there is nothing to check: an address with no host,
+// a canonical name that parses as none, or one on the request's own site.
+// uBlock Origin ignores a first-party CNAME by default, so a site's own CDN
+// aliases never refuse what no list meant to.
 fn uncloaked_url(url: &str, canonical_name: &str) -> Option<String> {
     let request = parse_url(url)?;
     let canonical = parse_url(&format!("https://{canonical_name}/"))?;

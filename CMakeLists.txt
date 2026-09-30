@@ -975,7 +975,7 @@ if(BUILD_TESTING)
     # The rules the page-load budget measures against. A copy that drifted would
     # move the budget's numbers with nothing in the diff to say why.
     add_test(NAME omaweb-vendored-filter-lists
-        COMMAND ${CMAKE_COMMAND}
+        COMMAND "${CMAKE_COMMAND}"
             "-DOMAWEB_VENDOR_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/third_party/filter-lists"
             "-DOMAWEB_VENDOR_TRACKED=*.txt"
             "-DOMAWEB_VENDOR_NAME=filter-list snapshot"
@@ -1017,6 +1017,12 @@ if(BUILD_TESTING)
         add_test(NAME omaweb-benchmark-pageload
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_pageload.py"
+        )
+        # The filter-list refresh writes the snapshots and the manifest the
+        # vendored-tree check reads, so the two have to agree.
+        add_test(NAME omaweb-sync-filter-lists
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_sync_filter_lists.py"
         )
         # When the freezing budget's frozen reading is taken: once the process
         # tree has stopped moving after the Space switch, or at a limit for a
