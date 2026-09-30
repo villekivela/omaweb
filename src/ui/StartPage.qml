@@ -8,8 +8,9 @@ import qs.Commons
 // is the road under it and the one line that names the Shortcut sheet.
 //
 // It costs no engine. The road moves only while the page is on show and the
-// window is the reader's, and a reader who turns the road off gets the
-// sidebar's fill instead.
+// window is the reader's. A reader who turns the road off gets the sidebar's
+// fill instead, or, over a page a new tab was asked from, that page blurred
+// under the sheet tint, as the Shortcut sheet shows it.
 Item {
     id: root
     objectName: "startPage"
@@ -17,8 +18,8 @@ Item {
     property var colors
     property bool privateWindow: false
     property bool open: false
-    // The Settings interface section's road. Off, the page is the sidebar's
-    // fill under the Omnibar.
+    // The Settings interface section's road. Off, the backdrop below takes its
+    // place.
     property bool roadEnabled: true
     // The window is on screen and holds the keyboard.
     property bool windowActive: false
@@ -28,8 +29,8 @@ Item {
     // How far below the horizon the Omnibar's field ends, so the hint sits
     // under it rather than behind it.
     property real fieldBelowHorizon: 32
-    // The page the Start page was summoned over, blurred under the sidebar's
-    // fill when the road is off. Must not be an ancestor of this item.
+    // The page the Start page was summoned over, blurred under the sheet tint
+    // when the road is off. Must not be an ancestor of this item.
     property Item pageSource: null
     // Whether the page fades as it gives way to a page.
     property bool ease: true
