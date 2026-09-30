@@ -138,13 +138,25 @@ void ContentBlockerTest::cosmeticsFollowRuleReplacementAndSiteToggles()
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
     QVERIFY(blocker.cosmeticStyleSheet(page).contains(QStringLiteral(".old-ad")));
     QVERIFY(blocker.scriptletSource(page).contains(QStringLiteral("adsShown")));
-    QVERIFY(blocker.cosmeticSurveyWanted(page));
+    QVERIFY(blocker.cosmeticSurveyWanted(page, page));
+    // A frame's generic rules follow the switch of the page it is in, not its own.
+    const QUrl framing(QStringLiteral("https://news.example/"));
+    const QStringList generic {QStringLiteral("generic-ad")};
+    blocker.setSiteEnabled(framing, false);
+    QVERIFY(!blocker.cosmeticSurveyWanted(page, framing));
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, framing, generic, {}).isEmpty());
+    QVERIFY(blocker.cosmeticSurveyWanted(page, page));
+    blocker.setSiteEnabled(framing, true);
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, framing, generic, {})
+            .contains(QStringLiteral(".generic-ad")));
 
     blocker.setSiteEnabled(page, false);
+    QVERIFY(blocker.cosmeticSurveyWanted(page, framing));
     QVERIFY(blocker.cosmeticStyleSheet(page).isEmpty());
     QVERIFY(blocker.scriptletSource(page).isEmpty());
-    QVERIFY(!blocker.cosmeticSurveyWanted(page));
-    QVERIFY(blocker.genericCosmeticStyleSheet(page, {QStringLiteral("generic-ad")}, {}).isEmpty());
+    QVERIFY(!blocker.cosmeticSurveyWanted(page, page));
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, page, {QStringLiteral("generic-ad")}, {})
+            .isEmpty());
 
     blocker.setUserRules(
         QStringLiteral("example.com##.new-ad\n##.generic-ad\nexample.com#@#.generic-ad\n"
@@ -157,7 +169,8 @@ void ContentBlockerTest::cosmeticsFollowRuleReplacementAndSiteToggles()
     QVERIFY(css.contains(QStringLiteral(".new-ad")));
     QVERIFY(!css.contains(QStringLiteral(".old-ad")));
     QVERIFY(blocker.scriptletSource(page).isEmpty());
-    QVERIFY(blocker.genericCosmeticStyleSheet(page, {QStringLiteral("generic-ad")}, {}).isEmpty());
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, page, {QStringLiteral("generic-ad")}, {})
+            .isEmpty());
 }
 
 void ContentBlockerTest::userRulesCompileOffTheCallerPath()
@@ -800,7 +813,7 @@ void ContentBlockerTest::theCookieListHidesAConsentBannerWhileItIsOn()
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
     const QUrl page(QStringLiteral("https://site.example/article"));
     const auto banner = QStringList {QStringLiteral("cookie-consent-banner")};
-    QVERIFY(blocker.genericCosmeticStyleSheet(page, banner, {})
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, page, banner, {})
             .contains(QStringLiteral(".cookie-consent-banner")));
     QVERIFY(blocker
             .checkRequest(QUrl(QStringLiteral("https://cdn.example/js/x-cookie-consent.js")), page,
@@ -809,7 +822,7 @@ void ContentBlockerTest::theCookieListHidesAConsentBannerWhileItIsOn()
 
     blocker.setSubscriptionEnabled(QStringLiteral("easylist-cookie"), false);
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
-    QVERIFY(blocker.genericCosmeticStyleSheet(page, banner, {}).isEmpty());
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, page, banner, {}).isEmpty());
     QVERIFY(!blocker
             .checkRequest(QUrl(QStringLiteral("https://cdn.example/js/x-cookie-consent.js")), page,
                 QStringLiteral("script"), space)

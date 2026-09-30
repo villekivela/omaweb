@@ -474,14 +474,14 @@ public:
         return m_matcher->scriptletSource(url);
     }
 
-    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url)
+    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url, const QUrl &)
     {
         m_cosmeticSurveyWantedCalls += 1;
         return m_matcher->cosmeticSurveyWanted(url);
     }
 
     Q_INVOKABLE QString genericCosmeticStyleSheet(
-        const QUrl &url, const QStringList &classes, const QStringList &ids)
+        const QUrl &url, const QUrl &, const QStringList &classes, const QStringList &ids)
     {
         m_genericCosmeticStyleSheetCalls += 1;
         return m_matcher->genericCosmeticStyleSheet(url, classes, ids);

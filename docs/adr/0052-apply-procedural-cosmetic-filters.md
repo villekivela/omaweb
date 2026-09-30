@@ -51,10 +51,10 @@ In `ApplicationWorld`, like the generic cosmetic survey and the collapse of refu
 page can neither reach the matcher nor tamper with it. A script injected at `DocumentCreation` in
 every frame asks for the rules of the frame's own address, so a subframe from another site gets that
 site's rules, and the answer loads the matcher into the frame only when there are any. Whether those
-rules apply is the page's site's to decide, as it is for the frame's requests: a site whose blocking
-was switched off gets no procedural rule in any of its frames. A frame the engine hands the view's
-scripts too late to ask, which the survey's own fallback already covers, asks through its survey
-instead.
+rules apply is the page's site's to decide, as it is for the frame's requests and its generic
+cosmetic rules: a site whose blocking was switched off gets none of them in any of its frames. A
+frame the engine hands the view's scripts too late to ask, which the survey's own fallback already
+covers, asks through its survey instead.
 
 ## How it hides
 

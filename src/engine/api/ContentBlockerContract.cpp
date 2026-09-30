@@ -20,8 +20,8 @@ QStringList validateEngineBlockerContract(const QObject &blocker)
         // page's own classes and ids narrows down.
         {"cosmeticStyleSheet", false, 1},
         {"scriptletSource", false, 1},
-        {"cosmeticSurveyWanted", false, 1},
-        {"genericCosmeticStyleSheet", false, 3},
+        {"cosmeticSurveyWanted", false, 2},
+        {"genericCosmeticStyleSheet", false, 4},
         // The procedural rules for one frame's address in a page, and the
         // script that applies them there (ADR 0052).
         {"proceduralActions", false, 2},

@@ -1641,12 +1641,13 @@ Item {
         // it never asked for its procedural rules, so the survey asks for it.
         if (survey.whole)
             root.applyProceduralRules(frame, false);
-        if (!blocker.cosmeticSurveyWanted(frame.url)) {
+        if (!blocker.cosmeticSurveyWanted(frame.url, webView.url)) {
             if (survey.whole)
                 root.clearGenericCosmeticRules(frame, root.siteRepairSnippet(frame));
             return;
         }
-        const css = blocker.genericCosmeticStyleSheet(frame.url, survey.classes, survey.ids);
+        const css = blocker.genericCosmeticStyleSheet(frame.url, webView.url, survey.classes,
+                                                      survey.ids);
         if (!survey.whole) {
             if (css.length > 0) {
                 root.genericCosmeticRulesInjected = true;

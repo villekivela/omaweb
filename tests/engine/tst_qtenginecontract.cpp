@@ -114,9 +114,9 @@ public:
     }
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &) const { return {}; }
     Q_INVOKABLE QString scriptletSource(const QUrl &) const { return {}; }
-    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &) const { return false; }
+    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &, const QUrl &) const { return false; }
     Q_INVOKABLE QString genericCosmeticStyleSheet(
-        const QUrl &, const QStringList &, const QStringList &) const
+        const QUrl &, const QUrl &, const QStringList &, const QStringList &) const
     {
         return {};
     }
@@ -154,10 +154,10 @@ static QByteArray blockerFakeSource()
             function shouldBlockPopup(requestUrl, openerUrl, spaceId) { return false; }
             function cosmeticStyleSheet(url) { return ""; }
             function scriptletSource(url) { return ""; }
-            function cosmeticSurveyWanted(url) { return surveyWanted; }
+            function cosmeticSurveyWanted(url, pageUrl) { return surveyWanted; }
             function proceduralActions(url, pageUrl) { return "[]"; }
             function proceduralFilterSource() { return ""; }
-            function genericCosmeticStyleSheet(url, classes, ids) {
+            function genericCosmeticStyleSheet(url, pageUrl, classes, ids) {
                 genericRequests += 1;
                 surveys = surveys.concat([{ url: String(url), classes: Array.from(classes),
                                             ids: Array.from(ids) }]);
@@ -232,6 +232,7 @@ private slots:
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data();
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress();
     void qtUndoesAFramesProceduralRulesWhenThePagesSiteIsSwitchedOff();
+    void qtUndoesAFramesGenericCosmeticRulesWhenThePagesSiteIsSwitchedOff();
     void qtKeepsTheProceduralApplierOutOfThePagesReach();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
@@ -2927,9 +2928,10 @@ void QtEngineContractTest::qtUndoesProceduralRulesSwitchedOffWhileThePageLoads()
     held.release();
 }
 
-// A page on 127.0.0.1 holding a frame from localhost, each reporting whether
-// its card is shown: the page's in the title, before the frame's.
-static QByteArray proceduralFramePage()
+// A page on 127.0.0.1 holding a frame from localhost, each with a card and
+// each reporting whether it is shown: the page's in the title, before the
+// frame's.
+static QByteArray framedCardPage()
 {
     return "<!doctype html><html><body>"
            "<div class=\"card\" id=\"match\">Sponsored</div><script>"
@@ -2972,7 +2974,7 @@ void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress()
 {
     QFETCH(QString, rule);
     QFETCH(QString, expected);
-    PageServer server(proceduralFramePage());
+    PageServer server(framedCardPage());
     QVERIFY(server.listen(QHostAddress::LocalHost));
     ProceduralFilteringView view(rule);
     QVERIFY(view.adapter);
@@ -2986,13 +2988,30 @@ void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress()
 // site was given, though that site is still on.
 void QtEngineContractTest::qtUndoesAFramesProceduralRulesWhenThePagesSiteIsSwitchedOff()
 {
-    PageServer server(proceduralFramePage());
+    PageServer server(framedCardPage());
     QVERIFY(server.listen(QHostAddress::LocalHost));
     ProceduralFilteringView view(QStringLiteral("localhost##.card:has-text(Sponsored)"));
     QVERIFY(view.adapter);
     const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
     QVERIFY(view.adapter->setProperty("currentUrl", page));
     QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("shown|hidden"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(!view.adapter->property("loading").toBool(), 15000);
+
+    view.blocker->setSiteEnabled(page, false);
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("shown|shown"), 15000);
+}
+
+// The same holds for the generic cosmetic rules a frame's survey is answered
+// with: the page's site switched off takes them back in every frame.
+void QtEngineContractTest::qtUndoesAFramesGenericCosmeticRulesWhenThePagesSiteIsSwitchedOff()
+{
+    PageServer server(framedCardPage());
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(QStringLiteral("##.card"));
+    QVERIFY(view.adapter);
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(view.adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("hidden|hidden"), 15000);
     QTRY_VERIFY_WITH_TIMEOUT(!view.adapter->property("loading").toBool(), 15000);
 
     view.blocker->setSiteEnabled(page, false);
