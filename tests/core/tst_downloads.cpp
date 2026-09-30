@@ -153,6 +153,16 @@ void DownloadsTest::namesAScreenshotForThePageAndTheMoment()
     QVERIFY(
         downloads.screenshotDestination(root.filePath(QStringLiteral("gone")), QStringLiteral("x"))
             .isEmpty());
+
+    // A long title is shortened, never through the middle of a character: an
+    // emoji straddling the cut goes whole.
+    const auto emoji = QString::fromUtf8("\U0001F4F7");
+    const auto shortened = QFileInfo(
+        downloads.screenshotDestination(root.path(), QString(99, QLatin1Char('a')) + emoji + emoji))
+                               .fileName();
+    QVERIFY2(shortened.startsWith(QString(99, QLatin1Char('a')) + QLatin1Char(' ')),
+        qPrintable(shortened));
+    QCOMPARE(shortened.toUtf8().isValidUtf8(), true);
 }
 
 // A screenshot Omaweb wrote itself joins the list as a finished download of

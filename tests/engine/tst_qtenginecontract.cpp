@@ -71,6 +71,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QTest>
 #include <QTimer>
 #include <QTemporaryDir>
+#include <QtMath>
 #include <QUrlQuery>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 #include <QtWebEngineCore/QWebEngineCertificateError>
@@ -286,6 +287,8 @@ private slots:
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
     void qtCapturesThePageAreaAsTheEngineDrewIt();
     void qtCapturesTheWholePageAndLeavesTheReaderWhereTheyWere();
+    void qtRefusesAPageTallerThanAScreenshotBeforeScrollingIt();
+    void qtCapturesAStickyElementOnceWhereItSits();
     void qtReportsSiteFullscreenWithItsOrigin();
     void qtRefusesPictureInPictureWhereThePageCanSeeIt();
     void profileAdaptersHandOverNotifications_data();
@@ -6056,6 +6059,135 @@ void QtEngineContractTest::qtCapturesTheWholePageAndLeavesTheReaderWhereTheyWere
     QCOMPARE(at(300), QColor(200, 30, 40));
     QCOMPARE(at(610), QColor(20, 60, 210));
     QCOMPARE(at(1190), QColor(20, 60, 210));
+}
+
+// What a page makes sticky is drawn once, where it sits in the page, rather
+// than stuck to the top of every screenful or left out of all but the first:
+// the site's header at the top, and a section's header below the fold at the
+// head of its section. Both are sticky again afterwards.
+void QtEngineContractTest::qtCapturesAStickyElementOnceWhereItSits()
+{
+    PageServer server(R"HTML(<!doctype html><html><body style="margin: 0">
+        <nav id="nav" style="position: sticky; top: 0; height: 30px; background: rgb(120, 40, 160)"></nav>
+        <div style="height: 570px; background: rgb(200, 30, 40)"></div>
+        <section style="height: 600px; background: rgb(20, 60, 210)">
+            <h2 id="heading" style="position: sticky; top: 30px; height: 40px; margin: 0;
+                                     background: rgb(30, 160, 60)"></h2>
+        </section>
+        <div style="height: 300px; background: rgb(230, 200, 20)"></div>
+        <script>
+            scrollTo(0, 123);
+            const report = () => {
+                document.title = scrollY + "|"
+                    + getComputedStyle(document.getElementById("nav")).position + "|"
+                    + getComputedStyle(document.getElementById("heading")).position;
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(400, 300);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(400, 300));
+    window.show();
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    const QString atRest = QStringLiteral("123|sticky|sticky");
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), atRest, 15000);
+    const auto ratio = window.effectiveDevicePixelRatio();
+    const bool pageDrawn = QTest::qWaitFor(
+        [&window] { return window.grabWindow().pixelColor(10, 10) == QColor(120, 40, 160); }, 5000);
+
+    QSignalSpy captured(adapter.get(), SIGNAL(pageCaptured(QString, bool, QString)));
+    const auto path = root.filePath(QStringLiteral("page.png"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "capturePageFully", Q_ARG(QVariant, path)));
+    QTRY_COMPARE_WITH_TIMEOUT(captured.size(), 1, 15000);
+    QVERIFY(captured.first().at(1).toBool());
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), atRest, 5000);
+
+    const QImage image(path);
+    QCOMPARE(image.size(), QSize(qRound(400 * ratio), qRound(1500 * ratio)));
+    if (!pageDrawn)
+        QSKIP("This platform's scene never shows the engine's frames, so what a capture shows "
+              "cannot be compared with the page here.");
+    const auto at = [&image, ratio](int y) { return image.pixelColor(10, qRound(y * ratio)); };
+    QCOMPARE(at(15), QColor(120, 40, 160));
+    QCOMPARE(at(315), QColor(200, 30, 40));
+    QCOMPARE(at(620), QColor(30, 160, 60));
+    QCOMPARE(at(915), QColor(20, 60, 210));
+    QCOMPARE(at(945), QColor(20, 60, 210));
+    QCOMPARE(at(1215), QColor(230, 200, 20));
+}
+
+// A page taller than a screenshot holds is refused before anything moves: the
+// answer names the limit, nothing is written, and the page is never scrolled.
+// The limit is in the image's pixels, so the page is only just too tall at the
+// window's pixel ratio, and would fit if the ratio were left out.
+void QtEngineContractTest::qtRefusesAPageTallerThanAScreenshotBeforeScrollingIt()
+{
+    QQuickWindow window;
+    const auto ratio = window.effectiveDevicePixelRatio();
+    const auto tall = qCeil((omaweb::PageImages::kHeightLimit + 1000) / ratio);
+    PageServer server(QByteArray(R"HTML(<!doctype html><html><body style="margin: 0">
+        <div style="height: )HTML")
+        + QByteArray::number(tall) + QByteArray(R"HTML(px; background: rgb(200, 30, 40)"></div>
+        <script>
+            scrollTo(0, 50);
+            let scrolls = 0;
+            addEventListener("scroll", () => { scrolls += 1; });
+            const report = () => {
+                document.title = scrollY + "|" + scrolls;
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    window.resize(400, 300);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(400, 300));
+    window.show();
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString().startsWith(QStringLiteral("50|")), 15000);
+    // The page's own scroll to 50 may be reported once as a scroll event.
+    QTest::qWait(200);
+    const auto atRest = adapter->property("pageTitle").toString();
+
+    QSignalSpy captured(adapter.get(), SIGNAL(pageCaptured(QString, bool, QString)));
+    const auto path = root.filePath(QStringLiteral("page.png"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "capturePageFully", Q_ARG(QVariant, path)));
+    QTRY_COMPARE_WITH_TIMEOUT(captured.size(), 1, 15000);
+    QVERIFY(!captured.first().at(1).toBool());
+    const auto reason = captured.first().at(2).toString();
+    QVERIFY2(
+        reason.contains(QString::number(omaweb::PageImages::kHeightLimit)), qPrintable(reason));
+    QVERIFY(!QFileInfo::exists(path));
+    QTest::qWait(300);
+    QCOMPARE(adapter->property("pageTitle").toString(), atRest);
 }
 
 // The adapter renders the page into a PDF for the platform's print dialog to

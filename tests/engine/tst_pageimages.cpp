@@ -31,6 +31,8 @@ private slots:
     void refusesAPageTallerThanTheLimitAndLeavesNoFile();
     void removesTheStripsItWasGiven();
     void refusesStripsItCannotPlace();
+    void scrollsAScreenfulAtATimeAndEndsAtTheBottom();
+    void refusesAPageTallerThanTheLimitAtItsPixelRatio();
 };
 
 // Three screenfuls of a page 250 tall in a viewport of 100: the last one is
@@ -101,6 +103,29 @@ void PageImagesTest::refusesStripsItCannotPlace()
     QVERIFY(!images.join({strip(10, 100, Qt::red)}, {0}, 100, 0, path));
     QVERIFY(!images.join({root.filePath(QStringLiteral("missing.png"))}, {0}, 100, 100, path));
     QVERIFY(!QFileInfo::exists(path));
+}
+
+// Each screenful starts where the last one ended, and the last is scrolled
+// only as far as the page goes, so it overlaps the one before it.
+void PageImagesTest::scrollsAScreenfulAtATimeAndEndsAtTheBottom()
+{
+    const PageImages images;
+    QCOMPARE(images.stripTops(250, 100), QVariantList({0.0, 100.0, 150.0}));
+    QCOMPARE(images.stripTops(300, 100), QVariantList({0.0, 100.0, 200.0}));
+    QCOMPARE(images.stripTops(80, 100), QVariantList {0.0});
+    QCOMPARE(images.stripTops(250, 0), QVariantList());
+}
+
+// The limit is in the image's pixels, so a page that fits at one pixel ratio
+// is refused at twice it, and the refusal names the height and the limit.
+void PageImagesTest::refusesAPageTallerThanTheLimitAtItsPixelRatio()
+{
+    const PageImages images;
+    QCOMPARE(images.heightRefusal(20000, 1), QString());
+    QCOMPARE(images.heightRefusal(PageImages::kHeightLimit, 1), QString());
+    const auto refusal = images.heightRefusal(20000, 2);
+    QVERIFY2(refusal.contains(QStringLiteral("40000")), qPrintable(refusal));
+    QVERIFY2(refusal.contains(QString::number(PageImages::kHeightLimit)), qPrintable(refusal));
 }
 
 QTEST_GUILESS_MAIN(PageImagesTest)

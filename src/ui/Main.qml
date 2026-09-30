@@ -1545,17 +1545,16 @@ ApplicationWindow {
     // the downloads list, or the clipboard.
     property var pendingCaptures: ({})
 
-    // The page area as the engine drew it, or with `fully` the whole page
+    // The page area as the engine drew it, or with `fullPage` the whole page
     // from top to bottom, saved into the downloads location or copied. A tab
     // with no page has nothing to capture, and says so rather than saving a
-    // picture of Omaweb's own Start page.
-    function screenshotPage(toClipboard, fully) {
-        const command = fully ? (toClipboard ? "Copy full-page screenshot" :
-                                               "Screenshot full page") : (toClipboard
-                                                                          ? "Copy screenshot" :
-                                                                            "Screenshot page");
+    // picture of Omaweb's own Start page. `command` is the command's title,
+    // which the notices name.
+    function screenshotPage(command, toClipboard, fullPage) {
+        // A Space at rest and a blank tab both show the Start page, and are
+        // told so by name; Settings or History over them leaves no page at all.
         if (!engineLoader.item || window.windowBrowser.activeTabBlank) {
-            window.showNotice("block", command + " is not available", engineLoader.item
+            window.showNotice("block", command + " is not available", window.startPageShown
                               ? "The Start page is not a page to capture" :
                                 "There is no page here");
             return;
@@ -1574,7 +1573,7 @@ ApplicationWindow {
             "clipboard": toClipboard,
             "page": window.windowBrowser.activeUrl
         };
-        if (fully)
+        if (fullPage)
             engineLoader.capturePageFully(destination);
         else
             engineLoader.capturePage(destination);

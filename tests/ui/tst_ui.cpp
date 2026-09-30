@@ -37,6 +37,7 @@
 #include <QQmlContext>
 #include <QDir>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QFile>
 #include <QFontDatabase>
 #include <QQuickImageProvider>
@@ -153,6 +154,23 @@ class CursorProbe final : public QObject {
 
 public:
     Q_INVOKABLE int shape(QWindow *window) const { return window->cursor().shape(); }
+};
+
+// What the desktop is asked to open. The offscreen platform has no desktop to
+// ask, so a local file or folder handed to it is kept here instead.
+class DesktopProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    DesktopProbe() { QDesktopServices::setUrlHandler(QStringLiteral("file"), this, "open"); }
+    ~DesktopProbe() override { QDesktopServices::unsetUrlHandler(QStringLiteral("file")); }
+    Q_INVOKABLE QStringList opened() const { return m_opened; }
+
+public slots:
+    void open(const QUrl &url) { m_opened.append(url.toLocalFile()); }
+
+private:
+    QStringList m_opened;
 };
 
 // The window losing the keyboard to another one. The offscreen platform has no
@@ -383,6 +401,7 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(QStringLiteral("imageProbe"), m_imageProbe.get());
         engine->rootContext()->setContextProperty(QStringLiteral("cursorProbe"), &m_cursorProbe);
+        engine->rootContext()->setContextProperty(QStringLiteral("desktopProbe"), &m_desktopProbe);
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowFocusProbe"), &m_windowFocusProbe);
         engine->rootContext()->setContextProperty(
@@ -473,6 +492,7 @@ public slots:
 private:
     SyncLauncherProbe m_syncLauncher;
     CursorProbe m_cursorProbe;
+    DesktopProbe m_desktopProbe;
     WindowFocusProbe m_windowFocusProbe;
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
