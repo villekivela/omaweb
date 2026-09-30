@@ -25,6 +25,15 @@ void AgentConsole::record(const QString &tabId, const QString &document, int lev
     }
 }
 
+void AgentConsole::start(const QString &tabId, const QString &document)
+{
+    const auto found = m_buffers.find(tabId);
+    if (found != m_buffers.end() && found->document != document) {
+        *found = {};
+        found->document = document;
+    }
+}
+
 AgentConsole::Reading AgentConsole::read(const QString &tabId, Level threshold, quint64 since) const
 {
     Reading reading;

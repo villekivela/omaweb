@@ -382,14 +382,16 @@ adapter reports each line a page writes to its console through `pageConsoleMessa
 source, line and the document that wrote it, after it has read its own markers and the reports
 Omaweb's scripts send it, which never leave the adapter. The page area passes a line on to
 `AgentControl` only for an Agent tab, and `AgentConsole` keeps a tab's lines for the document on
-show: a new document starts the tab's buffer again. The page area names each document by its engine
-as well as by the engine's own count, since a tab whose page is built again, as one in a Space not
-on show is when it is given an address, counts its documents from the start. A tab keeps its newest
-500 lines, each cut to 2,000 characters, in memory only, and loses them when it stops being an Agent
-tab or Allow agents goes off. Every kept line is numbered, and an answer's cursor is the newest
-number the tab holds at any level, so `--since` with it answers only what was logged after, and says
-so when the buffer had to drop lines newer than that. A tab becomes an Agent tab when an Agent opens
-its address or reads its console, so what a page says before then is not kept.
+show: a new document starts the tab's buffer again. The page area also reports each document as it
+starts, so one that writes nothing does not answer with the last one's lines. The page area names
+each document by its engine as well as by the engine's own count, since a tab whose page is built
+again, as one in a Space not on show is when it is given an address, counts its documents from the
+start. A tab keeps its newest 500 lines, each cut to 2,000 characters, in memory only, and loses
+them when it stops being an Agent tab or Allow agents goes off. Every kept line is numbered, and an
+answer's cursor is the newest number the tab holds at any level, so `--since` with it answers only
+what was logged after, and says so when the buffer had to drop lines newer than that. A tab becomes
+an Agent tab when an Agent opens its address or reads its console, so what a page says before then
+is not kept.
 
 Input is Qt events sent to the item QtWebEngine draws the page in, which a page sees as trusted
 (#376). Keys go to whatever the page has focused, and `fill` focuses its field from the page, so

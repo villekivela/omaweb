@@ -144,6 +144,18 @@ void AgentConsoleTest::startsAgainWithEachDocument()
         QStringLiteral("rebuilt"), {}, 1);
     QCOMPARE(texts(console.read(QStringLiteral("t"), AgentConsole::Info, 0).messages),
         QStringList {QStringLiteral("rebuilt")});
+
+    // A document that says nothing still starts again, and saying so twice,
+    // or for a tab with nothing kept, changes nothing.
+    console.start(QStringLiteral("t"), QStringLiteral("2:2"));
+    QVERIFY(console.read(QStringLiteral("t"), AgentConsole::Info, 0).messages.isEmpty());
+    console.record(QStringLiteral("t"), QStringLiteral("2:2"), AgentConsole::Error,
+        QStringLiteral("quiet page"), {}, 1);
+    console.start(QStringLiteral("t"), QStringLiteral("2:2"));
+    console.start(QStringLiteral("other"), QStringLiteral("1:1"));
+    QCOMPARE(texts(console.read(QStringLiteral("t"), AgentConsole::Info, 0).messages),
+        QStringList {QStringLiteral("quiet page")});
+    QVERIFY(console.read(QStringLiteral("other"), AgentConsole::Info, 0).messages.isEmpty());
 }
 
 void AgentConsoleTest::keepsOnlyTheNewestMessages()
@@ -230,6 +242,11 @@ void AgentConsoleTest::answersAnAgentTabsConsole()
     const auto newer = ask(
         {{QStringLiteral("verb"), QStringLiteral("console")}, {QStringLiteral("since"), cursor}});
     QCOMPARE(texts(newer), QStringList {QStringLiteral("after")});
+
+    // The page goes on to a document that says nothing: the last one's lines
+    // are not its.
+    control.startConsoleDocument(tabId, QStringLiteral("2"));
+    QVERIFY(texts(ask({{QStringLiteral("verb"), QStringLiteral("console")}})).isEmpty());
 
     QCOMPARE(code(ask({{QStringLiteral("verb"), QStringLiteral("console")},
                  {QStringLiteral("level"), QStringLiteral("loud")}})),

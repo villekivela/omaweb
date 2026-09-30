@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "AgentCommand.h"
+#include "AgentConsole.h"
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
 #include "EngineBuild.h"
@@ -5287,6 +5288,38 @@ void QtEngineContractTest::qtReportsOnlyThePagesOwnConsole()
     for (const auto &text : said()) {
         QVERIFY2(!text.startsWith(QStringLiteral("__omaweb_")), qPrintable(text));
     }
+
+    // What `console` answers from those lines: the errors and warnings of the
+    // first document in order, then only what is newer than its cursor.
+    omaweb::AgentConsole console;
+    const auto keep = [&console, &logged](qsizetype from, qsizetype to) {
+        for (auto index = from; index < to; ++index) {
+            const auto &arguments = logged.at(index);
+            console.record(QStringLiteral("tab"), arguments.at(4).toString(),
+                arguments.at(0).toInt(), arguments.at(1).toString(), arguments.at(3).toString(),
+                arguments.at(2).toInt());
+        }
+    };
+    keep(0, 3);
+    const auto first = console.read(QStringLiteral("tab"), omaweb::AgentConsole::Warning, 0);
+    QCOMPARE(first.messages.size(), 2);
+    QCOMPARE(first.messages.at(0).text, QStringLiteral("careful"));
+    QCOMPARE(first.messages.at(0).level, omaweb::AgentConsole::Warning);
+    QCOMPARE(first.messages.at(1).text, QStringLiteral("boom"));
+    QCOMPARE(first.messages.at(1).level, omaweb::AgentConsole::Error);
+    QVERIFY(first.messages.at(1).source.contains(QStringLiteral("console.html")));
+    QVERIFY(first.messages.at(1).line > 0);
+    const auto errors = console.read(QStringLiteral("tab"), omaweb::AgentConsole::Error, 0);
+    QCOMPARE(errors.messages.size(), 1);
+    QCOMPARE(errors.messages.constFirst().text, QStringLiteral("boom"));
+    QVERIFY(console.read(QStringLiteral("tab"), omaweb::AgentConsole::Info, first.cursor)
+            .messages.isEmpty());
+
+    keep(3, logged.size());
+    const auto newer
+        = console.read(QStringLiteral("tab"), omaweb::AgentConsole::Warning, first.cursor);
+    QCOMPARE(newer.messages.size(), 1);
+    QCOMPARE(newer.messages.constFirst().text, QStringLiteral("second document"));
 }
 
 void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()
