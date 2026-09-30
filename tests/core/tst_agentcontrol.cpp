@@ -1514,6 +1514,8 @@ void AgentControlTest::drivesTheWindowsAnAgentTabOpens()
     QCOMPARE(request.value(QStringLiteral("tabId")).toString(), window);
     QCOMPARE(request.value(QStringLiteral("window")).toBool(), true);
     QCOMPARE(request.value(QStringLiteral("spaceId")).toString(), spaceId);
+    // Answered, so nothing is left waiting on a reply this test has let go.
+    control.answerPage(requested.at(2).at(0).toInt(), {{QStringLiteral("ok"), true}});
     // Its lines are kept, as an Agent tab's are.
     control.recordConsoleMessage(window, QStringLiteral("1"), 2, QStringLiteral("boom"), {}, 1);
     const auto console = ask(control, QStringLiteral("agent"), QStringLiteral("console"),
