@@ -50,9 +50,11 @@ against the same parser, and would drift from it.
 In `ApplicationWorld`, like the generic cosmetic survey and the collapse of refused elements, so the
 page can neither reach the matcher nor tamper with it. A script injected at `DocumentCreation` in
 every frame asks for the rules of the frame's own address, so a subframe from another site gets that
-site's rules, and the answer loads the matcher into the frame only when there are any. A frame the
-engine hands the view's scripts too late to ask, which the survey's own fallback already covers,
-asks through its survey instead.
+site's rules, and the answer loads the matcher into the frame only when there are any. Whether those
+rules apply is the page's site's to decide, as it is for the frame's requests and its generic
+cosmetic rules: a site whose blocking was switched off gets none of them in any of its frames. A
+frame the engine hands the view's scripts too late to ask, which the survey's own fallback already
+covers, asks through its survey instead.
 
 ## How it hides
 
@@ -68,7 +70,8 @@ or a text node changes, so a MutationObserver watches the document. Mutations ar
 rules re-run at most every 100 ms, and only the rules the mutation's kind can affect: a text change
 re-runs `:has-text` and `:min-text-length`, an attribute change `:matches-attr`, the `:matches-css`
 family and the attribute actions, and a tree change all of them, because it can bring any element
-in.
+in. A re-run only adds: an element that stops matching keeps what the rule did to it until the rules
+change or the page reloads, as in Brave.
 
 ## An open page when the rules change
 

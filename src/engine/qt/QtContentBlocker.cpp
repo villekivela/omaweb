@@ -286,13 +286,13 @@ QString QtContentBlocker::cosmeticStyleSheet(const QUrl &url) const
 
 bool QtContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
 {
-    return m_contentBlocker->cosmeticSurveyWanted(url);
+    return m_contentBlocker->cosmeticSurveyWanted(url, url);
 }
 
 QString QtContentBlocker::genericCosmeticStyleSheet(
     const QUrl &url, const QStringList &classes, const QStringList &ids) const
 {
-    return m_contentBlocker->genericCosmeticStyleSheet(url, classes, ids);
+    return m_contentBlocker->genericCosmeticStyleSheet(url, url, classes, ids);
 }
 
 QtContentBlocker::~QtContentBlocker() = default;

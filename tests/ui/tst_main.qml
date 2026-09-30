@@ -2017,6 +2017,13 @@ TestCase {
         compare(settings.cnameUncloakingAvailable, EngineBuild.cnameUncloaking);
     }
 
+    // And the same for procedural cosmetic rules (ADR 0052).
+    function test_settingsKnowsWhetherThisBuildsEngineAppliesProceduralRules() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare(settings.proceduralCosmeticFilteringAvailable,
+                EngineBuild.proceduralCosmeticFiltering);
+    }
+
     function test_siteInformationListsTheRequestsItRefused() {
         openPage("https://news.example/story");
         const sidebar = findChild(window.contentItem, "sidebar");

@@ -512,9 +512,9 @@ QString ContentBlocker::scriptletSource(const QUrl &url) const
     return matcher ? matcher->scriptletSource(url) : QString();
 }
 
-QString ContentBlocker::proceduralActions(const QUrl &url) const
+QString ContentBlocker::proceduralActions(const QUrl &url, const QUrl &pageUrl) const
 {
-    const auto matcher = matcherFor(url);
+    const auto matcher = matcherFor(pageUrl);
     return matcher ? matcher->proceduralActions(url) : QStringLiteral("[]");
 }
 
@@ -535,16 +535,16 @@ QString ContentBlocker::proceduralFilterSource() const
     return source;
 }
 
-bool ContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
+bool ContentBlocker::cosmeticSurveyWanted(const QUrl &url, const QUrl &pageUrl) const
 {
-    const auto matcher = matcherFor(url);
+    const auto matcher = matcherFor(pageUrl);
     return matcher && matcher->cosmeticSurveyWanted(url);
 }
 
 QString ContentBlocker::genericCosmeticStyleSheet(
-    const QUrl &url, const QStringList &classes, const QStringList &ids) const
+    const QUrl &url, const QUrl &pageUrl, const QStringList &classes, const QStringList &ids) const
 {
-    const auto matcher = matcherFor(url);
+    const auto matcher = matcherFor(pageUrl);
     return matcher ? matcher->genericCosmeticStyleSheet(url, classes, ids) : QString();
 }
 

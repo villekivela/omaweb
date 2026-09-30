@@ -114,13 +114,16 @@ public:
     }
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &) const { return {}; }
     Q_INVOKABLE QString scriptletSource(const QUrl &) const { return {}; }
-    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &) const { return false; }
+    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &, const QUrl &) const { return false; }
     Q_INVOKABLE QString genericCosmeticStyleSheet(
-        const QUrl &, const QStringList &, const QStringList &) const
+        const QUrl &, const QUrl &, const QStringList &, const QStringList &) const
     {
         return {};
     }
-    Q_INVOKABLE QString proceduralActions(const QUrl &) const { return QStringLiteral("[]"); }
+    Q_INVOKABLE QString proceduralActions(const QUrl &, const QUrl &) const
+    {
+        return QStringLiteral("[]");
+    }
     Q_INVOKABLE QString proceduralFilterSource() const { return {}; }
 
     const QList<QPair<QString, QUrl>> &announced() const { return m_announced; }
@@ -151,10 +154,10 @@ static QByteArray blockerFakeSource()
             function shouldBlockPopup(requestUrl, openerUrl, spaceId) { return false; }
             function cosmeticStyleSheet(url) { return ""; }
             function scriptletSource(url) { return ""; }
-            function cosmeticSurveyWanted(url) { return surveyWanted; }
-            function proceduralActions(url) { return "[]"; }
+            function cosmeticSurveyWanted(url, pageUrl) { return surveyWanted; }
+            function proceduralActions(url, pageUrl) { return "[]"; }
             function proceduralFilterSource() { return ""; }
-            function genericCosmeticStyleSheet(url, classes, ids) {
+            function genericCosmeticStyleSheet(url, pageUrl, classes, ids) {
                 genericRequests += 1;
                 surveys = surveys.concat([{ url: String(url), classes: Array.from(classes),
                                             ids: Array.from(ids) }]);
@@ -221,11 +224,15 @@ private slots:
     void qtAppliesEveryProceduralOperatorAndAction_data();
     void qtAppliesEveryProceduralOperatorAndAction();
     void qtAppliesProceduralRulesToWhatThePageAddsLater();
+    void qtRerunsOnlyTheProceduralRulesAChangeCanAffect_data();
+    void qtRerunsOnlyTheProceduralRulesAChangeCanAffect();
     void qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff();
     void qtUndoesProceduralRulesSwitchedOffWhileThePageLoads_data();
     void qtUndoesProceduralRulesSwitchedOffWhileThePageLoads();
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data();
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress();
+    void qtUndoesAFramesProceduralRulesWhenThePagesSiteIsSwitchedOff();
+    void qtUndoesAFramesGenericCosmeticRulesWhenThePagesSiteIsSwitchedOff();
     void qtKeepsTheProceduralApplierOutOfThePagesReach();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
@@ -2786,10 +2793,58 @@ void QtEngineContractTest::qtAppliesProceduralRulesToWhatThePageAddsLater()
     QVERIFY2(latency <= 100, qPrintable(view.title()));
 }
 
+// A text or attribute change after load re-runs the rules it can make match,
+// and no others. The page takes the hide off the element a tree rule hid, which
+// only a re-run of that rule would put back, and then makes the card match.
+void QtEngineContractTest::qtRerunsOnlyTheProceduralRulesAChangeCanAffect_data()
+{
+    QTest::addColumn<QString>("rule");
+    QTest::addColumn<QByteArray>("change");
+    QTest::newRow("text") << QStringLiteral("127.0.0.1##.card:has-text(Sponsored)")
+                          << QByteArray("card.firstChild.data = 'Sponsored';");
+    QTest::newRow("attribute") << QStringLiteral(
+        R"(127.0.0.1##.card:matches-attr("data-kind"="promo"))")
+                               << QByteArray("card.setAttribute('data-kind', 'promo');");
+}
+
+void QtEngineContractTest::qtRerunsOnlyTheProceduralRulesAChangeCanAffect()
+{
+    QFETCH(QString, rule);
+    QFETCH(QByteArray, change);
+    PageServer server("<!doctype html><html><body>"
+                      "<div class=\"fixed\" id=\"fixed\">Fixed</div>"
+                      "<div class=\"card\" id=\"card\">News</div><script>"
+        + proceduralStateScript + R"JS(
+            addEventListener("load", () => {
+                const fixed = document.getElementById("fixed");
+                const card = document.getElementById("card");
+                const unhide = () => {
+                    if (getComputedStyle(fixed).display !== "none") return setTimeout(unhide, 20);
+                    for (const name of fixed.getAttributeNames())
+                        if (name !== "id" && name !== "class") fixed.removeAttribute(name);
+                    setTimeout(() => {
+                        )JS"
+        + change + R"JS(
+                        setTimeout(() => {
+                            document.title = read("card") + "|" + read("fixed");
+                        }, 400);
+                    }, 300);
+                };
+                unhide();
+            });
+        </script></body></html>)JS");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(rule + QStringLiteral("\n127.0.0.1##.fixed:matches-path(/page)"));
+    QVERIFY(view.adapter);
+    QVERIFY(view.adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("hidden|shown"), 15000);
+}
+
 // A site switched off with its page open gets back what the rules hid,
-// restyled and stripped, without a reload. What `:remove()` took out stays out
-// until the page loads again. Switching the site back on applies the rules
-// again.
+// restyled and stripped, without a reload, and no element keeps the marker a
+// hide or a style set. What `:remove()` took out stays out until the page
+// loads again. Switching the site back on applies the rules again.
 void QtEngineContractTest::qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff()
 {
     PageServer server("<!doctype html><html><body>"
@@ -2797,8 +2852,12 @@ void QtEngineContractTest::qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff()
                       "<div class=\"card\" id=\"style\">Style</div>"
                       "<div class=\"card\" id=\"remove\">Remove</div><script>"
         + proceduralStateScript + R"JS(
+            const marked = () => Array.from(document.body.querySelectorAll("*")).some(element =>
+                element.getAttributeNames().some(name =>
+                    !["id", "class", "data-track"].includes(name))) ? "|marked" : "";
             const report = () => {
-                document.title = read("hide") + "|" + read("style") + "|" + read("remove");
+                document.title = read("hide") + "|" + read("style") + "|" + read("remove")
+                    + marked();
                 requestAnimationFrame(report);
             };
             report();
@@ -2813,7 +2872,7 @@ void QtEngineContractTest::qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff()
     QVERIFY(view.adapter);
     const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
     QVERIFY(view.adapter->setProperty("currentUrl", page));
-    const QString applied = QStringLiteral("hidden|shown styled|gone");
+    const QString applied = QStringLiteral("hidden|shown styled|gone|marked");
     QTRY_COMPARE_WITH_TIMEOUT(view.title(), applied, 15000);
 
     view.blocker->setSiteEnabled(page, false);
@@ -2869,25 +2928,13 @@ void QtEngineContractTest::qtUndoesProceduralRulesSwitchedOffWhileThePageLoads()
     held.release();
 }
 
-// A subframe from another site gets the rules of its own address, not the
-// page's: each loopback name is its own site, and a rule is written against
-// one of them.
-void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data()
+// A page on 127.0.0.1 holding a frame from localhost, each with a card and
+// each reporting whether it is shown: the page's in the title, before the
+// frame's.
+static QByteArray framedCardPage()
 {
-    QTest::addColumn<QString>("rule");
-    QTest::addColumn<QString>("expected");
-    QTest::newRow("the-page's-site")
-        << QStringLiteral("127.0.0.1##.card:has-text(Sponsored)") << QStringLiteral("hidden|shown");
-    QTest::newRow("the-frame's-site")
-        << QStringLiteral("localhost##.card:has-text(Sponsored)") << QStringLiteral("shown|hidden");
-}
-
-void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress()
-{
-    QFETCH(QString, rule);
-    QFETCH(QString, expected);
-    PageServer server("<!doctype html><html><body>"
-                      "<div class=\"card\" id=\"match\">Sponsored</div><script>"
+    return "<!doctype html><html><body>"
+           "<div class=\"card\" id=\"match\">Sponsored</div><script>"
         + proceduralStateScript + R"JS(
             if (window === top) {
                 let inner = "";
@@ -2907,13 +2954,68 @@ void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress()
                 };
                 tell();
             }
-        </script></body></html>)JS");
+        </script></body></html>)JS";
+}
+
+// A subframe from another site gets the rules of its own address, not the
+// page's: each loopback name is its own site, and a rule is written against
+// one of them.
+void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data()
+{
+    QTest::addColumn<QString>("rule");
+    QTest::addColumn<QString>("expected");
+    QTest::newRow("the-page's-site")
+        << QStringLiteral("127.0.0.1##.card:has-text(Sponsored)") << QStringLiteral("hidden|shown");
+    QTest::newRow("the-frame's-site")
+        << QStringLiteral("localhost##.card:has-text(Sponsored)") << QStringLiteral("shown|hidden");
+}
+
+void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress()
+{
+    QFETCH(QString, rule);
+    QFETCH(QString, expected);
+    PageServer server(framedCardPage());
     QVERIFY(server.listen(QHostAddress::LocalHost));
     ProceduralFilteringView view(rule);
     QVERIFY(view.adapter);
     QVERIFY(view.adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
     QTRY_COMPARE_WITH_TIMEOUT(view.title(), expected, 15000);
+}
+
+// The page's site decides whether a frame's rules apply, as it does for the
+// frame's requests: switching it off undoes the rules a frame from another
+// site was given, though that site is still on.
+void QtEngineContractTest::qtUndoesAFramesProceduralRulesWhenThePagesSiteIsSwitchedOff()
+{
+    PageServer server(framedCardPage());
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(QStringLiteral("localhost##.card:has-text(Sponsored)"));
+    QVERIFY(view.adapter);
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(view.adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("shown|hidden"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(!view.adapter->property("loading").toBool(), 15000);
+
+    view.blocker->setSiteEnabled(page, false);
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("shown|shown"), 15000);
+}
+
+// The same holds for the generic cosmetic rules a frame's survey is answered
+// with: the page's site switched off takes them back in every frame.
+void QtEngineContractTest::qtUndoesAFramesGenericCosmeticRulesWhenThePagesSiteIsSwitchedOff()
+{
+    PageServer server(framedCardPage());
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(QStringLiteral("##.card"));
+    QVERIFY(view.adapter);
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(view.adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("hidden|hidden"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(!view.adapter->property("loading").toBool(), 15000);
+
+    view.blocker->setSiteEnabled(page, false);
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("shown|shown"), 15000);
 }
 
 // The page shares the DOM with the applier and nothing else: it cannot read

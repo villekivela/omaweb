@@ -26,7 +26,9 @@ tools here, not build dependencies.
 ## Nothing here is edited
 
 `ctest` fails on a local edit, an untracked file under `src/`, or a bundle that does not match its
-digest (`omaweb-vendored-procedural-filters`), and so does the sync script's `--verify`.
+digest (`omaweb-vendored-procedural-filters`), and so does the sync script's `--verify`. `ctest`
+also fails when the manifest's upstream blob for a copy is not the copy's own. The commit the
+manifest names can only be checked against upstream, with `--check-upstream`.
 `tests/content-blocking/procedural-rules.json` holds one rule per operator and action with the JSON
 the pinned parser emits for it, and `omaweb-qt-engine-contract` runs the bundle on each, so a
 matcher that renames an operator fails a test rather than a page.

@@ -93,17 +93,21 @@ public:
     Q_INVOKABLE QVariantList refusedRequests(const QString &spaceId, const QUrl &pageAddress) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
-    // The procedural cosmetic rules for one address as a JSON array, `[]` for a
-    // site the user turned blocking off for.
-    Q_INVOKABLE QString proceduralActions(const QUrl &url) const;
+    // The procedural cosmetic rules for one frame's address as a JSON array. The page the frame is
+    // in decides whether they apply, as it decides for the frame's requests: `[]` when the user
+    // turned blocking off for the page's site.
+    Q_INVOKABLE QString proceduralActions(const QUrl &url, const QUrl &pageUrl) const;
     // The script that applies them in a page: the vendored matcher and the
     // dispatch that acts on what it finds, which defines
     // `globalThis.__omawebProcedural` in the world it runs in. The same for
     // every page, so a view loads it only into a frame that has rules.
     Q_INVOKABLE QString proceduralFilterSource() const;
-    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
-    Q_INVOKABLE QString genericCosmeticStyleSheet(
-        const QUrl &url, const QStringList &classes, const QStringList &ids) const;
+    // Whether one frame's survey is worth asking for, and the generic rules it is answered with.
+    // Like the procedural rules, the frame's address decides the rules and the page it is in
+    // decides whether they apply.
+    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url, const QUrl &pageUrl) const;
+    Q_INVOKABLE QString genericCosmeticStyleSheet(const QUrl &url, const QUrl &pageUrl,
+        const QStringList &classes, const QStringList &ids) const;
 
     // The window a page asked for is refused from QML, where the request
     // arrives, so unlike checkRequest this one is invokable.
