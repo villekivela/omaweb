@@ -478,11 +478,14 @@ the tab even in an Agent Space, and a Private window has no such command.
 `omaweb mcp` is a second front end on the same socket. `AgentMcp` maps each tool call to the request
 the CLI would send, through the CLI's own step parser, and answers with the CLI's own text, so a
 tool and its command answer alike. The protocol is answered in `answerAgentMcp`, which takes the
-socket round trip as a function and is tested without one. The server holds one connection while it
-runs, which is what lets a temporary Space last as long as the Agent's session. A request the
-browser has not answered in time leaves its answer owed, and the server skips it when it arrives
-ahead of the next. When nothing answers on the socket, it starts the browser as a detached process
-with none of its own streams, because its standard output is the MCP channel.
+socket round trip as a function and is tested without one, and `serveAgentMcp` reads and writes it a
+line at a time. `AgentMcpLink` holds the one connection the server keeps while it runs, which is
+what lets a temporary Space last as long as the Agent's session. The browser answers a connection's
+requests in order, so a request it has not answered in time leaves its answer owed, and the link
+skips it when it arrives ahead of the next. When nothing answers on the socket, it starts the
+browser as a detached process with none of its own streams, because its standard output is the MCP
+channel. It starts one at most once without an answer, since a second launch of a browser that runs
+with its socket closed only brings that browser forward.
 
 ## Everyday page commands
 

@@ -419,13 +419,15 @@ so at start.
 with `space new` and `space delete` as `space_new` and `space_delete`. It holds one connection to
 the socket for as long as it runs, so the current tab carries from call to call and a temporary
 Space lasts until the Agent stops the server. When no browser answers, the first tool call starts
-one and waits up to 30 seconds for its socket. Register it with Claude Code:
+one and waits up to 30 seconds for its socket. A browser that runs with its socket closed would only
+come forward, so one started that never answers is not started again, and later calls say so.
+Register it with Claude Code:
 
 ```sh
 claude mcp add omaweb -- omaweb mcp
 ```
 
-The tool list costs about 1,100 tokens of schema and the server's instructions 130 more, which every
+The tool list costs about 1,400 tokens of schema and the server's instructions 130 more, which every
 conversation the server is registered in pays. An Agent that runs shell commands can use the CLI
 instead, taught by the skill the package installs under `/usr/share/omaweb/skills/omaweb`. Link it
 into the Agent's skills directory:

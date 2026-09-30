@@ -509,6 +509,13 @@ QString agentConnectionName(const QString &name)
     return cleaned.isEmpty() ? fallbackName : cleaned;
 }
 
+const QStringList &agentConsoleLevels()
+{
+    static const QStringList levels {
+        QStringLiteral("error"), QStringLiteral("warning"), QStringLiteral("all")};
+    return levels;
+}
+
 int agentAnswerTimeoutMs(const QJsonObject &request) { return answerTimeoutFor(request); }
 
 bool isAgentCommand(const QStringList &arguments)
@@ -590,7 +597,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         } else if (option == u"settle" || option == u"timeout") {
             bool number = false;
             const auto milliseconds = value.toInt(&number);
-            if (!number) {
+            if (!number || milliseconds < 0) {
                 command.error = QStringLiteral("--%1 is a number of milliseconds.").arg(option);
                 return command;
             }

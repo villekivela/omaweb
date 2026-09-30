@@ -51,7 +51,7 @@ omaweb space <id|name>
 omaweb focus <tab id|part of an address>
 omaweb commands
 omaweb run <command> [position]
-omaweb space new [name]
+omaweb space new [name] [--temporary]
 omaweb space delete <id|name>
 omaweb look [--all]
 omaweb read [selector]
@@ -82,4 +82,8 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 - `space`, `focus` and `run` change what the reader sees: another Space, another tab, or a browser
   command such as `toggle-sidebar`. Use them only when the reader asks for that. `commands` lists
   what `run` can run now.
+- `space new --temporary` keeps running after it prints the Space's id, and the Space is deleted
+  when the process stops. Start it in the background and stop it when the task is done.
+- Commands with the same `--name` share the current tab. The name defaults to that of the process
+  that ran `omaweb`, so give it only when commands come from different processes.
 - `--tab <id>` points any page command at another tab. `--json` prints the browser's answer as JSON.
