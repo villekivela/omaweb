@@ -3573,6 +3573,8 @@ TestCase {
             property var answers: ({})
             property var agentWindowIds: []
             property var closedWindows: []
+            property var agentActivity: ({})
+            property var windowOpeners: ({})
             signal agentTabsChanged
             signal pageRequested(int requestId, var request)
             signal pageRequestsCancelled
@@ -3585,12 +3587,16 @@ TestCase {
                 if (agentTabIds.indexOf(openerTabId) < 0)
                     return "";
                 const windowId = "window-" + (agentWindowIds.length + closedWindows.length + 1);
+                windowOpeners[windowId] = openerTabId;
                 agentWindowIds = agentWindowIds.concat([windowId]);
                 return windowId;
             }
             function agentWindow(windowId) {
                 return agentWindowIds.indexOf(windowId) >= 0 ? {
                                                                    "windowId": windowId,
+                                                                   "openerTabId":
+                                                                   windowOpeners[windowId],
+                                                                   "connection": "claude-code",
                                                                    "downloadDirectory":
                                                                    "/downloads/Agents/test"
                                                                } : ({});
@@ -3725,6 +3731,71 @@ TestCase {
         gone();
 
         engineLoader.agentControl = null;
+        control.destroy();
+    }
+
+    // An Agent's window is marked as its tab is: framed in the Agent accent,
+    // with who is driving it and what it did last, and plain again once the
+    // Agent lets it go.
+    function test_anAgentTabsWindowIsFramedLikeItsTab() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+        const agentEngine = openPageInNewTab("https://agent-framed-opener.example/");
+        const agentTabId = browser.activeTabId;
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": browser.activeSpaceId,
+            "url": "https://agent-framed-opener.example/"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        const report = function (act) {
+            const activity = {};
+            activity[agentTabId] = {
+                "spaceId": browser.activeSpaceId,
+                "name": "claude-code",
+                "act": act,
+                "busy": false
+            };
+            control.agentActivity = activity;
+        };
+        report("clicked \"Sign in\"");
+        control.agentTabsChanged();
+
+        agentEngine.simulateNewWindowRequest("https://sign-in.example/", true);
+        let auxiliary = null;
+        tryVerify(function () {
+            auxiliary = findChild(window, "auxiliaryWindow");
+            return auxiliary !== null && auxiliary.visible;
+        });
+        verify(auxiliary.agentDriven);
+        const frame = findChild(auxiliary.contentItem, "auxiliaryAgentFrame");
+        verify(frame !== null);
+        verify(frame.visible);
+        compare(frame.width, auxiliary.contentItem.width);
+        compare(String(findChild(frame, "agentFrameBorder").border.color), String(
+                    window.colors.agentAccent));
+        compare(String(findChild(frame, "agentFrameLabel").color), String(
+                    window.colors.agentAccent));
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · clicked \"Sign in\"");
+        report("typed in \"Email\"");
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · typed in \"Email\"");
+
+        // Let go, the window is the reader's and plain.
+        control.agentWindowIds = [];
+        verify(!auxiliary.agentDriven);
+        verify(!frame.visible);
+        auxiliary.close();
+        tryVerify(function () {
+            return findChild(window, "auxiliaryWindow") === null;
+        });
+
+        engineLoader.agentControl = window.agentControlSource;
+        browser.closeTab(agentTabId);
         control.destroy();
     }
 

@@ -3885,6 +3885,7 @@ ApplicationWindow {
 
         AuxiliaryWindow {
             engineSource: engineViewSource
+            colors: window.colors
             permissionController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker
