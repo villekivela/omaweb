@@ -1458,7 +1458,6 @@ ApplicationWindow {
     // window's alone, for the same reason.
     readonly property var agentActivitySource: !window.privateWindow && typeof agentActivity
                                                !== "undefined" ? agentActivity : null
-
     // Each Agent tab by id, with its Space, the connection's name, its last
     // act and whether a command is in flight, for the marks on the row, the
     // page and the Space. It is read from the page area's control, which
@@ -1493,6 +1492,26 @@ ApplicationWindow {
             window.agentControlSource.answerCommand(requestId, browserCommands.answerAgent(
                                                         request));
         }
+    }
+
+    // The Space grant the reader is being asked for, as the prompt bar reads a
+    // prompt. It stands over whatever page is on show, since the Space asked
+    // for is usually not the one on show.
+    readonly property var agentGrantRequest: window.agentControlSource
+                                             ? window.agentControlSource.grantRequest : ({})
+    readonly property bool agentGrantOpen: String(window.agentGrantRequest.spaceId || "").length > 0
+    readonly property var agentGrantPrompt: window.agentGrantOpen ? window.grantPrompt(
+                                                                        window.agentGrantRequest) : (
+                                                                        {})
+
+    function grantPrompt(request) {
+        const space = String(request.spaceName);
+        return {
+            "kind": "agent-grant",
+            "message": "An Agent named " + request.name + " wants to use Space " + space,
+            "detail": "It could read and act in every tab of " + space
+                      + ", Pinned tabs too, until you revoke it in Settings."
+        };
     }
 
     // The reader let a site through HTTPS-only mode: for this load, or for
@@ -3536,6 +3555,24 @@ ApplicationWindow {
                     }
                 }
 
+                PagePromptBar {
+                    objectName: "agentGrantBar"
+                    anchors.fill: parent
+                    z: 44
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
+                    open: window.agentGrantOpen
+                    prompt: window.agentGrantPrompt
+
+                    onAnswered: function (accepted) {
+                        if (window.agentControlSource)
+                            window.agentControlSource.answerGrant(String(
+                                                                      window.agentGrantRequest.spaceId),
+                                                                  accepted);
+                    }
+                }
+
                 SettingsPage {
                     id: settingsSurface
                     objectName: "settingsSurface"
@@ -3572,6 +3609,7 @@ ApplicationWindow {
                     blocker: contentBlocker
                     keyboard: keyboardNavigation
                     syncLauncher: window.privateWindow ? null : window.syncLauncherService
+                    agentControl: window.agentControlSource
                     open: window.settingsOpen
                     // As the sheet does: the page itself, never the viewport
                     // that owns both.

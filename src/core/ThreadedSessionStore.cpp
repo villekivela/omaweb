@@ -124,6 +124,21 @@ bool ThreadedSessionStore::forgetAgentSpace(const QString &spaceId)
     return ask([this, &spaceId] { return m_store->forgetAgentSpace(spaceId); });
 }
 
+QStringList ThreadedSessionStore::spaceGrants() const
+{
+    return ask([this] { return m_store->spaceGrants(); });
+}
+
+bool ThreadedSessionStore::saveSpaceGrant(const QString &spaceId)
+{
+    return ask([this, &spaceId] { return m_store->saveSpaceGrant(spaceId); });
+}
+
+bool ThreadedSessionStore::forgetSpaceGrant(const QString &spaceId)
+{
+    return ask([this, &spaceId] { return m_store->forgetSpaceGrant(spaceId); });
+}
+
 bool ThreadedSessionStore::setActiveSpace(const QString &spaceId)
 {
     return ask([this, &spaceId] { return m_store->setActiveSpace(spaceId); });

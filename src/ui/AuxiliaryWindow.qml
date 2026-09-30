@@ -156,6 +156,11 @@ ApplicationWindow {
                                                                 document), level, message, sourceId,
                                                             lineNumber);
         }
+        function onPageGenerationChanged() {
+            if (auxiliary.agentDriven)
+                auxiliary.agentControl.startConsoleDocument(auxiliary.agentWindowId, String(
+                                                                engineLoader.item.pageGeneration));
+        }
     }
 
     Connections {
@@ -180,6 +185,11 @@ ApplicationWindow {
 
         function onPageRequestsCancelled() {
             if (engineLoader.item)
+                engineLoader.item.cancelAgentVerbs();
+        }
+
+        function onPageRequestsCancelledIn(targetIds) {
+            if (engineLoader.item && targetIds.indexOf(auxiliary.agentWindowId) >= 0)
                 engineLoader.item.cancelAgentVerbs();
         }
 

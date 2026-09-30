@@ -782,10 +782,13 @@ Item {
         engine.pageHasFocusChanged.connect(function () {
             root.keepKeyboardOff(engine);
         });
-        // Asked of every engine, and kept only for an Agent tab: the core
-        // decides that, since it knows which tabs an Agent holds. An engine
-        // numbers its documents from the start, so a tab's page built again
-        // is told apart from the one before by a number for the engine too.
+        // Passed on only for an Agent tab, so a reader's page costs no call
+        // a line. The core checks again, since Allow agents may have gone off
+        // since the page area last heard. An engine numbers its documents from
+        // the start, so a tab's page built again is told apart from the one
+        // before by a number for the engine too. A new document is announced
+        // even when it says nothing, so the last page's lines are not read as
+        // its own.
         if (engine.pageConsoleMessage) {
             const engineSerial = ++root.consoleEngineSerial;
             engine.pageConsoleMessage.connect(function (level, message, lineNumber, sourceId,
@@ -793,6 +796,11 @@ Item {
                 if (root.agentControl && root.agentAttached(tabId))
                     root.agentControl.recordConsoleMessage(tabId, engineSerial + ":" + document,
                                                            level, message, sourceId, lineNumber);
+            });
+            engine.pageGenerationChanged.connect(function () {
+                if (root.agentControl && root.agentAttached(tabId))
+                    root.agentControl.startConsoleDocument(tabId, engineSerial + ":"
+                                                           + engine.pageGeneration);
             });
         }
         if (engine.agentVerbAnswered) {
@@ -1066,6 +1074,19 @@ Item {
                 delete root.pendingAgentRequests[requestId];
             for (const tabId in root.engines) {
                 if (root.engines[tabId].cancelAgentVerbs)
+                    root.engines[tabId].cancelAgentVerbs();
+            }
+        }
+
+        // The same, for the pages of a Space whose grant was revoked.
+        function onPageRequestsCancelledIn(targetIds) {
+            for (let index = 0; index < targetIds.length; ++index) {
+                const tabId = targetIds[index];
+                for (const requestId in root.pendingAgentRequests) {
+                    if (root.pendingAgentRequests[requestId] === tabId)
+                        delete root.pendingAgentRequests[requestId];
+                }
+                if (root.engines[tabId] && root.engines[tabId].cancelAgentVerbs)
                     root.engines[tabId].cancelAgentVerbs();
             }
         }

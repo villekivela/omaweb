@@ -2523,6 +2523,10 @@ Item {
     function cancelAgentVerbs() {
         root.agentGeneration += 1;
         root.agentUpload = null;
+        // A whole-page screenshot under way stops too, rather than writing
+        // the file the core has let go.
+        if (root.fullCapture && root.fullCapture.answer)
+            root.finishFullCapture(false, "");
     }
 
     function agentDialogShown() {
@@ -2738,7 +2742,8 @@ Item {
             } else if (verb === "eval") {
                 root.agentEval(String(options.expression || ""), live, answer);
             } else if (verb === "shot") {
-                root.agentShot(String(options.destination || ""), options.full === true, answer);
+                root.agentShot(String(options.destination || ""), options.full === true, live,
+                               answer);
             } else if (verb === "do") {
                 root.agentDo(options, live, answer);
             } else {
@@ -2838,7 +2843,7 @@ Item {
         root.agentRun(source, settled);
     }
 
-    function agentShot(destination, full, answer) {
+    function agentShot(destination, full, live, answer) {
         let finished = false;
         let guard = null;
         const finish = function (succeeded, code, error) {
@@ -2871,6 +2876,10 @@ Item {
         }
         const grabbing = webView.width > 0 && webView.height > 0 && webView.grabToImage(function (
             result) {
+            // Answered already, or called off: the core has let the file go,
+            // and a picture written now would make it again.
+            if (finished || !live())
+                return;
             if (result.saveToFile(destination))
                 finish(true, "", "");
             else
@@ -3421,12 +3430,14 @@ Item {
             // and verified the site stylesheet with the answer, unless the
             // survey script never reached it. The DOM is often parsed before
             // the load is over, so a rule change in between came after the
-            // survey and is put in here. One that did not load gets the site
+            // survey and is put in here, for a document the reader stopped as
+            // for one that finished. One that did not load gets the site
             // stylesheet verified here.
-            if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
-                root.applyCosmeticRules();
-            else if (root.blockingRulesChangedSinceLoad)
+            if (root.blockingRulesChangedSinceLoad && loadRequest.status
+                    !== WebEngineView.LoadFailedStatus)
                 root.reapplyBlockingRules();
+            else if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
+                root.applyCosmeticRules();
             else if (!root.documentSurveyed)
                 root.surveyGenericCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadSucceededStatus && root.httpsOnlyPolicy) {

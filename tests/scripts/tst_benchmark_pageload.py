@@ -17,6 +17,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -278,6 +279,55 @@ class SummaryTest(unittest.TestCase):
 
     def test_blocking_that_costs_nothing_can_come_out_below_zero(self):
         self.assertLess(runtime.summarise_pageload([50.0, 51.0], [52.0, 53.0]).added, 0)
+
+
+class ReportTest(unittest.TestCase):
+    """The budget's verdict: each page-load difference beside its ceiling, in milliseconds."""
+
+    def setUp(self):
+        self.budget = {
+            "machine": "a runner",
+            "recorded_on": "2026-09-28",
+            "measurements": {
+                "pageload_fresh_hosts_milliseconds": {"ceiling": 72.8},
+                "pageload_known_hosts_milliseconds": {"ceiling": 20.0},
+            },
+        }
+
+    def reported(self, results):
+        with mock.patch.object(runtime, "log") as log:
+            crossed = runtime.report(results, self.budget)
+        return crossed, [call.args[0] for call in log.call_args_list]
+
+    def test_a_difference_past_its_ceiling_fails_the_run(self):
+        crossed, lines = self.reported({"pageload_fresh_hosts_milliseconds": 80.0,
+                                        "pageload_known_hosts_milliseconds": 4.0})
+        self.assertEqual(crossed, 1)
+        self.assertIn("CROSSED  pageload_fresh_hosts_milliseconds: 80.00 ms against 72.80 ms "
+                      "(-7.20 ms of headroom)", lines)
+        self.assertIn("within   pageload_known_hosts_milliseconds: 4.00 ms against 20.00 ms "
+                      "(16.00 ms of headroom)", lines)
+
+    def test_a_difference_at_its_ceiling_passes(self):
+        crossed, _ = self.reported({"pageload_known_hosts_milliseconds": 20.0})
+        self.assertEqual(crossed, 0)
+
+
+class RequireDnsTest(unittest.TestCase):
+    """Where no DNS server can run, pageload skips, unless CI said it may not."""
+
+    def measure(self, require_dns):
+        with mock.patch.object(runtime, "machine_serves_zone", return_value=False), \
+                mock.patch.object(runtime.shutil, "which", return_value=None):
+            runtime.measure_pageload("build/dev/omaweb", require_dns)
+
+    def test_a_machine_without_the_tools_skips(self):
+        with self.assertRaises(runtime.Unavailable):
+            self.measure(require_dns=False)
+
+    def test_require_dns_turns_the_skip_into_a_failure(self):
+        with self.assertRaisesRegex(runtime.MeasurementFailed, "--require-dns"):
+            self.measure(require_dns=True)
 
 
 if __name__ == "__main__":

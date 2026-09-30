@@ -52,6 +52,9 @@ public:
     // engine names that is not one of the three is read as Info.
     void record(const QString &tabId, const QString &document, int level, const QString &text,
         const QString &source, int line);
+    // The tab's page has gone on to `document`, which may say nothing, so
+    // what the last one said is not read as its.
+    void start(const QString &tabId, const QString &document);
     // Messages at `threshold` or more serious, newer than `since`.
     Reading read(const QString &tabId, Level threshold, quint64 since) const;
     void forget(const QString &tabId);

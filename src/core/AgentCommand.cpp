@@ -1,5 +1,7 @@
 #include "AgentCommand.h"
 
+#include "AgentConsole.h"
+
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -33,8 +35,19 @@ namespace {
     // little longer than it does, so the browser's answer is the one heard.
     constexpr int pageAnswerTimeoutMs = 65000;
     constexpr int fullShotAnswerTimeoutMs = 125000;
+    // A verb that reaches one of the reader's Spaces first waits a minute for
+    // them to grant it, before the page is asked at all.
+    constexpr int grantAnswerTimeoutMs = 60000;
 
     const auto fallbackName = QStringLiteral("agent");
+
+    // The levels `console --level` takes, which the socket reads the same way.
+    // Written out on the command line, so an empty one is a mistake.
+    bool namesConsoleLevel(const QString &name)
+    {
+        auto level = AgentConsole::Info;
+        return !name.isEmpty() && AgentConsole::parseThreshold(name, &level);
+    }
 
     struct Grammar {
         // The options this verb takes a value for, and those it takes alone.
@@ -429,6 +442,10 @@ namespace {
         if (below > 0) {
             text += QStringLiteral("%1 more below\n").arg(below);
         }
+        // On screen, past the most a look lists.
+        if (const auto unlisted = look.value(QStringLiteral("unlisted")).toInt(); unlisted > 0) {
+            text += QStringLiteral("%1 more not listed\n").arg(unlisted);
+        }
         return text;
     }
 
@@ -452,9 +469,8 @@ namespace {
         return text;
     }
 
-    int answerTimeoutFor(const QJsonObject &request)
+    int pageTimeoutFor(const QString &verb, const QJsonObject &request)
     {
-        const auto verb = request.value(QStringLiteral("verb")).toString();
         if (verb == u"shot" && request.value(QStringLiteral("full")).toBool()) {
             return fullShotAnswerTimeoutMs;
         }
@@ -469,6 +485,15 @@ namespace {
             return pageAnswerTimeoutMs;
         }
         return answerTimeoutMs;
+    }
+
+    int answerTimeoutFor(const QJsonObject &request)
+    {
+        const auto verb = request.value(QStringLiteral("verb")).toString();
+        const auto timeout = pageTimeoutFor(verb, request);
+        const auto reachesAPage = verb == u"look" || verb == u"read" || verb == u"do"
+            || verb == u"shot" || verb == u"eval" || verb == u"console";
+        return reachesAPage ? timeout + grantAnswerTimeoutMs : timeout;
     }
 
 } // namespace
@@ -519,25 +544,32 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
     QJsonObject request {{QStringLiteral("verb"), verb}};
     QString name = defaultName;
     QStringList positionals;
+    // `--` ends the options, so an expression or an address that starts with
+    // two dashes can still be given.
+    auto optionsEnded = false;
     for (auto index = next; index < arguments.size(); ++index) {
         const auto &argument = arguments.at(index);
-        if (!argument.startsWith(u"--") || argument == u"--") {
+        if (!optionsEnded && argument == u"--") {
+            optionsEnded = true;
+            continue;
+        }
+        if (optionsEnded || !argument.startsWith(u"--")) {
             positionals.append(argument);
             continue;
         }
         auto option = argument.mid(2);
         QString value;
         const auto equals = option.indexOf(u'=');
-        const auto inline_ = equals >= 0;
-        if (inline_) {
+        const auto hasInlineValue = equals >= 0;
+        if (hasInlineValue) {
             value = option.mid(equals + 1);
             option = option.left(equals);
         }
-        if (option == u"json" && !inline_) {
+        if (option == u"json" && !hasInlineValue) {
             command.json = true;
             continue;
         }
-        if (grammar.flags.contains(option) && !inline_) {
+        if (grammar.flags.contains(option) && !hasInlineValue) {
             request.insert(option, true);
             continue;
         }
@@ -546,7 +578,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             command.error = QStringLiteral("`%1` takes no option --%2.").arg(verb, option);
             return command;
         }
-        if (!inline_) {
+        if (!hasInlineValue) {
             if (index + 1 >= arguments.size()) {
                 command.error = QStringLiteral("--%1 needs a value.").arg(option);
                 return command;
@@ -571,8 +603,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
                 return command;
             }
             request.insert(option, static_cast<double>(cursor));
-        } else if (option == u"level" && value != u"error" && value != u"warning"
-            && value != u"all") {
+        } else if (option == u"level" && !namesConsoleLevel(value)) {
             command.error = QStringLiteral("--level is error, warning or all.");
             return command;
         } else {
@@ -622,7 +653,8 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             ? QStringLiteral("Use `space <space>`, `space new [name]` or `space delete <space>`.")
             : verb == u"focus"
             ? QStringLiteral("`focus` takes a tab's id or a part of its address.")
-            : QStringLiteral("`%1` takes no argument %2.").arg(verb, positionals.value(0));
+            : QStringLiteral("`%1` takes no argument %2.")
+                  .arg(verb, positionals.value(std::max<qsizetype>(grammar.maximumPositionals, 0)));
         return command;
     }
     if (!positionals.isEmpty()) {
@@ -636,8 +668,9 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
 namespace {
 
     // One message a line: its level, where it was logged, and what it said,
-    // with its own line breaks written out so each stays one line. The last
-    // line is the cursor to pass as `--since` next time.
+    // with its own line breaks and tabs written out so each stays one line of
+    // three fields. The last line is the cursor to pass as `--since` next
+    // time.
     QString formatConsole(const QJsonObject &answer)
     {
         QString text;
@@ -647,7 +680,10 @@ namespace {
         for (const auto &value : answer.value(QStringLiteral("messages")).toArray()) {
             const auto message = value.toObject();
             auto said = message.value(QStringLiteral("message")).toString();
-            said.replace(u'\\', QStringLiteral("\\\\")).replace(u'\n', QStringLiteral("\\n"));
+            said.replace(u'\\', QStringLiteral("\\\\"))
+                .replace(u'\n', QStringLiteral("\\n"))
+                .replace(u'\r', QStringLiteral("\\r"))
+                .replace(u'\t', QStringLiteral("\\t"));
             const auto line = message.value(QStringLiteral("line")).toInt();
             const auto source = message.value(QStringLiteral("source")).toString();
             text += message.value(QStringLiteral("level")).toString() + u'\t'

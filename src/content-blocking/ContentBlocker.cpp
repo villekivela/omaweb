@@ -579,14 +579,14 @@ RequestDecision ContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl 
     return decision;
 }
 
-// A window the page never got to open is a request the page never got to
-// make, so it lands in the same tally as the rest and the number keeps
-// meaning one thing.
 bool ContentBlocker::uncloaks(const QUrl &sourceUrl) const
 {
     return matcherFor(sourceUrl) != nullptr;
 }
 
+// A window the page never got to open is a request the page never got to
+// make, so it lands in the same tally as the rest and the number keeps
+// meaning one thing.
 bool ContentBlocker::shouldBlockPopup(
     const QUrl &requestUrl, const QUrl &openerUrl, const QString &spaceId) const
 {
