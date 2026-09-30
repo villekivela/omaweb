@@ -123,6 +123,95 @@ namespace {
         return url.isValid() && schemes.contains(url.scheme());
     }
 
+    QString quoted(const QString &text) { return QStringLiteral("\"%1\"").arg(text); }
+
+    // One step of a `do`, as the reader is told it was done: what the page
+    // named the element it reached, and the label only where it named none.
+    QString describeStep(const QVariantMap &step, const QVariantMap &result)
+    {
+        const auto action = step.value(QStringLiteral("action")).toString();
+        const auto target = step.value(QStringLiteral("target")).toString();
+        const auto text = step.value(QStringLiteral("text")).toString();
+        auto name = result.value(QStringLiteral("name")).toString();
+        if (name.isEmpty()) {
+            name = QStringLiteral("label %1").arg(target);
+        } else {
+            name = quoted(name);
+        }
+        if (action == u"click") {
+            return QStringLiteral("clicked %1").arg(name);
+        }
+        if (action == u"fill") {
+            return QStringLiteral("typed in %1").arg(name);
+        }
+        if (action == u"select") {
+            return QStringLiteral("chose %1 in %2").arg(quoted(text), name);
+        }
+        if (action == u"scroll") {
+            if (target == u"up" || target == u"down") {
+                return QStringLiteral("scrolled %1").arg(target);
+            }
+            if (target == u"top" || target == u"bottom") {
+                return QStringLiteral("scrolled to the %1").arg(target);
+            }
+            return QStringLiteral("scrolled to %1").arg(name);
+        }
+        if (action == u"press") {
+            return QStringLiteral("pressed %1").arg(step.value(QStringLiteral("key")).toString());
+        }
+        if (action == u"back") {
+            return QStringLiteral("went back");
+        }
+        if (action == u"wait") {
+            return text.isEmpty() ? QStringLiteral("waited for the address")
+                                  : QStringLiteral("waited for %1").arg(quoted(text));
+        }
+        return {};
+    }
+
+    // A page verb's answer as the Agent's last act, or nothing when the verb
+    // did nothing to tell: it failed, or a batch failed at its first step.
+    QString describeAct(const QString &verb, const QVariantList &steps, const QJsonObject &answer)
+    {
+        if (verb == u"do") {
+            const auto results = answer.value(QStringLiteral("steps")).toArray();
+            for (auto index = std::min(results.size(), steps.size()) - 1; index >= 0; --index) {
+                const auto result = results.at(index).toObject().toVariantMap();
+                if (result.value(QStringLiteral("ok")).toBool()) {
+                    return describeStep(steps.at(index).toMap(), result);
+                }
+            }
+            return {};
+        }
+        if (!answer.value(QStringLiteral("ok")).toBool()) {
+            return {};
+        }
+        if (verb == u"look") {
+            return QStringLiteral("looked at the page");
+        }
+        if (verb == u"read") {
+            return QStringLiteral("read the page");
+        }
+        if (verb == u"eval") {
+            return QStringLiteral("ran a script");
+        }
+        if (verb == u"shot") {
+            return QStringLiteral("took a screenshot");
+        }
+        return {};
+    }
+
+    // What a tab an Agent loads is called until its page names itself.
+    QString hostOrAddress(const QUrl &url)
+    {
+        return url.host().isEmpty() ? url.toDisplayString() : url.host();
+    }
+
+    QString describeOpened(const QUrl &url)
+    {
+        return QStringLiteral("opened %1").arg(hostOrAddress(url));
+    }
+
     // An address as the activity log keeps it: without its query, fragment or
     // credentials, which is where a form's values and a site's tokens go.
     QString activityAddress(const QUrl &url)
@@ -223,6 +312,7 @@ void AgentControl::apply(bool allowed)
             m_attached.clear();
             m_idleCheck.stop();
             emit agentTabsChanged();
+            emit agentActivityChanged();
         }
         // What was already asked of a page is refused rather than answered,
         // and the pages stop, so nothing more is sent to them and nothing
@@ -547,6 +637,25 @@ QStringList AgentControl::agentTabIds() const
     return ids;
 }
 
+QVariantMap AgentControl::agentActivity() const
+{
+    QHash<QString, int> working;
+    for (const auto &pending : std::as_const(m_pendingPages)) {
+        working[openerOf(pending.tabId)] += 1;
+    }
+    QVariantMap activity;
+    for (auto it = m_attached.cbegin(); it != m_attached.cend(); ++it) {
+        activity.insert(it.key(),
+            QVariantMap {
+                {QStringLiteral("spaceId"), it->spaceId},
+                {QStringLiteral("name"), it->name},
+                {QStringLiteral("act"), it->act},
+                {QStringLiteral("busy"), working.value(it.key()) > 0},
+            });
+    }
+    return activity;
+}
+
 QVariantMap AgentControl::agentTab(const QString &tabId) const
 {
     if (!m_attached.contains(tabId)) {
@@ -673,10 +782,19 @@ void AgentControl::setAttachmentIdleMs(int milliseconds)
     m_idleCheck.setInterval(std::min(idleCheckMs, std::max(milliseconds / 2, 1)));
 }
 
-void AgentControl::attach(const QString &tabId, const QString &name)
+void AgentControl::attach(
+    const QString &tabId, const QString &spaceId, const QString &name, const QString &act)
 {
     const auto known = m_attached.contains(tabId);
-    m_attached.insert(tabId, m_clock.elapsed());
+    auto &attachment = m_attached[tabId];
+    attachment.lastUsed = m_clock.elapsed();
+    attachment.spaceId = spaceId;
+    if (!name.isEmpty()) {
+        attachment.name = name;
+    }
+    if (!act.isEmpty()) {
+        attachment.act = act;
+    }
     // Another connection using the tab takes its downloads with it, which the
     // page hears as a change to the Agent tabs.
     const auto handedOver = !name.isEmpty() && m_tabConnections.value(tabId) != name;
@@ -689,6 +807,7 @@ void AgentControl::attach(const QString &tabId, const QString &name)
     if (!known || handedOver) {
         emit agentTabsChanged();
     }
+    emit agentActivityChanged();
 }
 
 void AgentControl::detach(const QString &tabId)
@@ -702,6 +821,7 @@ void AgentControl::detach(const QString &tabId)
             m_idleCheck.stop();
         }
         emit agentTabsChanged();
+        emit agentActivityChanged();
     }
 }
 
@@ -721,7 +841,7 @@ void AgentControl::detachIdle()
         if (working.contains(it.key())) {
             continue;
         }
-        if (now - it.value() >= m_attachmentIdleMs || !m_browser->findTab(it.key())) {
+        if (now - it->lastUsed >= m_attachmentIdleMs || !m_browser->findTab(it.key())) {
             leaving.append(it.key());
         }
     }
@@ -737,6 +857,7 @@ void AgentControl::detachIdle()
     }
     if (!leaving.isEmpty()) {
         emit agentTabsChanged();
+        emit agentActivityChanged();
     }
 }
 
@@ -1284,7 +1405,8 @@ QJsonObject AgentControl::readConsole(Connection &connection, const QJsonObject 
     }
     connection.currentTabId = target;
     connection.currentSpaceId = tab->spaceId;
-    attach(tab->id, request.value(QStringLiteral("name")).toString());
+    attach(tab->id, tab->spaceId, request.value(QStringLiteral("name")).toString(),
+        QStringLiteral("read the console"));
 
     const auto reading
         = m_console.read(target, threshold, static_cast<quint64>(sinceValue.toDouble(0)));
@@ -1368,7 +1490,6 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
 
     connection.currentTabId = target;
     connection.currentSpaceId = tab->spaceId;
-    attach(tabId, name);
 
     auto budget = pageAnswerMs;
     if (verb == u"shot" && arguments.value(QStringLiteral("full")).toBool()) {
@@ -1390,6 +1511,7 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
             return;
         }
         pending.deadline->deleteLater();
+        emit agentActivityChanged();
         removeUntakenShot(pending);
         pending.reply(
             refusal(QStringLiteral("timeout"), QStringLiteral("The page did not answer in time.")));
@@ -1398,7 +1520,12 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
         PendingPage {.reply = reply,
             .deadline = deadline,
             .tabId = target,
+            .verb = verb,
+            .steps = arguments.value(QStringLiteral("steps")).toList(),
             .shot = arguments.value(QStringLiteral("destination")).toString()});
+    // Attached once the request is out, so the tab is told busy from the
+    // first moment it is an Agent tab.
+    attach(tabId, tab->spaceId, name);
     deadline->start();
     emit pageRequested(requestId,
         QVariantMap {
@@ -1431,14 +1558,20 @@ void AgentControl::answerPage(int requestId, const QVariantMap &answer)
         removeUntakenShot(pending);
     }
     result.insert(QStringLiteral("tab"), pending.tabId);
-    if (m_attached.contains(pending.tabId)) {
-        m_attached.insert(pending.tabId, m_clock.elapsed());
+    // A verb in one of a tab's windows is the tab's Agent at work there.
+    if (const auto attachment = m_attached.find(openerOf(pending.tabId));
+        attachment != m_attached.end()) {
+        attachment->lastUsed = m_clock.elapsed();
+        if (const auto act = describeAct(pending.verb, pending.steps, result); !act.isEmpty()) {
+            attachment->act = act;
+        }
     }
     // The windows the page opened since it last answered, which the Agent
     // reaches by these ids.
     if (const auto opened = m_newWindows.take(pending.tabId); !opened.isEmpty()) {
         result.insert(QStringLiteral("opened"), QJsonArray::fromStringList(opened));
     }
+    emit agentActivityChanged();
     pending.reply(result);
 }
 
@@ -1812,7 +1945,7 @@ QJsonObject AgentControl::open(
         // The page an Agent loads is one it means to read, so it starts
         // loading behind the page on show rather than at the first look.
         if (mayRead(*tab)) {
-            attach(tabId, name);
+            attach(tabId, tab->spaceId, name, describeOpened(url));
         }
         tab->url = url;
         tab->title = BrowserController::addressTitle(url);
@@ -1831,7 +1964,7 @@ QJsonObject AgentControl::open(
     connection.currentTabId = tabId;
     connection.currentSpaceId = spaceId;
     if (usableSpace(spaceId)) {
-        attach(tabId, name);
+        attach(tabId, spaceId, name, describeOpened(url));
     }
     const auto tab = m_browser->findTab(tabId, spaceId);
     return success({{QStringLiteral("tab"), tab ? describeTab(*tab, connection) : QJsonObject {}}});

@@ -11,6 +11,7 @@
   "border": "#4a4658",
   "urgent": "#e06c75",
   "privateAccent": "#c678dd",
+  "agentAccent": "#56b6c2",
   "syntax": {
     "keyword": "#c678dd",
     "string": "#98c379",

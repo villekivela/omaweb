@@ -313,7 +313,7 @@
         error: `Label ${label} is covered by ${cover ? cover.kind + (cover.name ? ' "' + cover.name + '"' : "") : "something"}.`,
       };
     }
-    return { x, y };
+    return { x, y, name: nameOf(element) };
   };
 
   const editable = (element) =>
@@ -345,7 +345,7 @@
     if (active !== element && !element.contains(active)) {
       return { code: "not-focused", error: `Label ${label} would not take the keyboard.` };
     }
-    return { ok: true };
+    return { ok: true, name: nameOf(element) };
   };
 
   // A select's popup is drawn by the browser, out of the page's reach and so
@@ -372,7 +372,7 @@
     element.value = option.value;
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
-    return { ok: true };
+    return { ok: true, name: nameOf(element) };
   };
 
   const scroll = (target) => {
@@ -388,7 +388,7 @@
     const found = find(target);
     if (!found.element) return found;
     found.element.scrollIntoView({ block: "center", behavior: "instant" });
-    return { ok: true };
+    return { ok: true, name: nameOf(found.element) };
   };
 
   const present = (kind, value) =>

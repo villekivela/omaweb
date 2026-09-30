@@ -39,6 +39,15 @@ Item {
     property string iconFontFamily
     property bool useFavicons: true
     property bool tintFavicons: false
+    // The Agent attached to this tab, as the core reports it: the
+    // connection's `name` and `busy` while one of its commands is in flight.
+    // Null for a tab no Agent drives. A Pinned tab is never an Agent's.
+    property var agent: null
+    readonly property bool showsAgent: agent !== null && !pinned
+    readonly property string agentNote: (agent && String(agent.name || "").length > 0 ? String(
+                                                                                            agent.name) :
+                                                                                        "An Agent")
+                                        + " is driving this tab. It stays rendered while attached."
     // The key that selects this tab, as the keymap displays it, and whether
     // Primary is being held for the labels.
     property string keyLabel: ""
@@ -147,7 +156,10 @@ Item {
                                                                              ? " (playing audio)" :
                                                                                ""))) + (showsKeepActive
                                                                                         ? " (kept active)" :
-                                                                                          "")
+                                                                                          "") + (showsAgent
+                                                                                                 ? " (Agent tab)" :
+                                                                                                   "")
+    Accessible.description: showsAgent ? agentNote : ""
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function (event) {
@@ -274,6 +286,37 @@ Item {
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.body
+    }
+
+    // An Agent's tab says so at the end of its row, in the place the close
+    // button takes on hover.
+    Item {
+        id: agentSpot
+        objectName: "agentSpot-" + root.tabId
+        anchors.right: parent.right
+        anchors.rightMargin: 4
+        anchors.verticalCenter: parent.verticalCenter
+        width: 28
+        height: 28
+        visible: root.showsAgent
+
+        AgentMark {
+            objectName: "agentMark-" + root.tabId
+            anchors.centerIn: parent
+            visible: !hoverArea.containsMouse
+            busy: root.agent !== null && root.agent.busy === true
+            color: root.colors.agentAccent
+            font.family: root.iconFontFamily
+        }
+
+        // The mark and the close button share one place, so the note is the
+        // row's: the whole row answers the pointer for it.
+        Omarchy.PanelToolTip {
+            objectName: "agentNote-" + root.tabId
+            visible: root.showsAgent && hoverArea.containsMouse && !root.lifted
+            text: root.agentNote
+            fontFamily: Style.font.family
+        }
     }
 
     // Over the chip rather than at the end of the row, where the speaker and

@@ -61,6 +61,11 @@ class AgentControl final : public QObject {
     // lately. The interface keeps each rendered and running while it is
     // listed, wherever its Space is.
     Q_PROPERTY(QStringList agentTabIds READ agentTabIds NOTIFY agentTabsChanged)
+    // What each Agent tab's Agent is doing, for the marks the interface draws
+    // on its row, its page and its Space: by tab id, the tab's `spaceId`, the
+    // connection's `name`, its last `act` in words, and `busy` while one of
+    // its page verbs is in flight.
+    Q_PROPERTY(QVariantMap agentActivity READ agentActivity NOTIFY agentActivityChanged)
     // The Auxiliary windows an Agent tab opened, which the connection drives
     // as it drives the tab, by these ids. The interface marks each as it
     // marks its tab.
@@ -153,6 +158,7 @@ public:
     Q_INVOKABLE void startConsoleDocument(const QString &tabId, const QString &document);
 
     QStringList agentTabIds() const;
+    QVariantMap agentActivity() const;
     // What the interface needs to build an Agent tab's page: `tabId`,
     // `spaceId`, `url`, `zoom` and `muted`. Empty for a tab that is not one.
     Q_INVOKABLE QVariantMap agentTab(const QString &tabId) const;
@@ -195,6 +201,7 @@ public:
 signals:
     void allowAgentsChanged();
     void agentTabsChanged();
+    void agentActivityChanged();
     void agentWindowsChanged();
     void grantRequestChanged();
     void grantedSpacesChanged();
@@ -247,8 +254,19 @@ private:
         Reply reply;
         QTimer *deadline = nullptr;
         QString tabId;
+        // What was asked, so the answer can be told as the Agent's last act.
+        QString verb;
+        QVariantList steps;
         // The file made for a `shot`, which is the page's to draw into.
         QString shot;
+    };
+
+    struct Attachment {
+        // When a verb last used the tab, on `m_clock`.
+        qint64 lastUsed = 0;
+        QString spaceId;
+        QString name;
+        QString act;
     };
 
     struct AgentWindow {
@@ -298,7 +316,9 @@ private:
     void askGrant(const QString &spaceId, const QString &name,
         const std::function<void(GrantAnswer)> &waiter);
     void finishGrant(const QString &spaceId, GrantAnswer answer);
-    void attach(const QString &tabId, const QString &name = {});
+    // `act` is left as it was when empty.
+    void attach(
+        const QString &tabId, const QString &spaceId, const QString &name, const QString &act = {});
     void detach(const QString &tabId);
     void detachIdle();
     Connection &connectionNamed(const QString &name);
@@ -368,8 +388,8 @@ private:
     int m_commandRequest = 0;
     std::optional<QJsonObject> m_commandAnswer;
     QHash<int, PendingPage> m_pendingPages;
-    // Each Agent tab, and when a verb last used it on this clock.
-    QHash<QString, qint64> m_attached;
+    // Each Agent tab, and what its Agent last did there.
+    QHash<QString, Attachment> m_attached;
     QElapsedTimer m_clock;
     QTimer m_idleCheck;
     AgentConsole m_console;

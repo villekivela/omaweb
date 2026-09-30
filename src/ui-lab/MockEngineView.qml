@@ -397,9 +397,19 @@ Rectangle {
             "below": 0
         };
         Qt.callLater(function () {
+            // Each step goes through, and a step that carries a `name` is
+            // reported as reaching an element the page names so.
+            const steps = verb === "do" ? ((args || {}).steps || []).map(function (step) {
+                return step.name !== undefined ? {
+                                                     "ok": true,
+                                                     "name": String(step.name)
+                                                 } : {
+                    "ok": true
+                };
+            }) : [];
             root.agentVerbAnswered(requestId, verb === "do" ? {
                                                                   "ok": true,
-                                                                  "steps": [],
+                                                                  "steps": steps,
                                                                   "look": look
                                                               } : {
                                        "ok": true,

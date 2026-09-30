@@ -3016,12 +3016,18 @@ Item {
         const fail = function (code, error) {
             done(root.agentFailure(code, error));
         };
+        // What the page names the element a step reached, so the reader is
+        // told what the Agent did in the page's own words.
+        let reached = "";
         const settle = function () {
             root.agentSettle(startGeneration, startUrl, settleMs, deadline, live, function (quiet) {
-                done({
-                         "ok": true,
-                         "settled": quiet
-                     });
+                const result = {
+                    "ok": true,
+                    "settled": quiet
+                };
+                if (reached.length > 0)
+                    result.name = reached;
+                done(result);
             });
         };
         const inPage = function (source, then) {
@@ -3032,8 +3038,10 @@ Item {
                     fail("failed", "The page did not answer.");
                 else if (result.code)
                     fail(result.code, result.error);
-                else
+                else {
+                    reached = String(result.name || "");
                     then(result);
+                }
             });
         };
         if (root.agentDialog && step.action !== "dialog") {
