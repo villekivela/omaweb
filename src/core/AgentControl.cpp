@@ -209,6 +209,7 @@ void AgentControl::apply(bool allowed)
         for (const auto &request : pending) {
             request.deadline->stop();
             request.deadline->deleteLater();
+            removeUntakenShot(request);
             request.reply(refusal(QStringLiteral("allow-agents"),
                 QStringLiteral("Allow agents was turned off, so the page was left as it was.")));
         }
@@ -1036,14 +1037,15 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
         return;
     }
     const auto tabId = tab->id;
-    QVariantMap arguments;
-    if (const auto refused = pageArguments(verb, request, arguments); !refused.isEmpty()) {
-        reply(refused);
-        return;
-    }
+    // Asked first, so no screenshot's file is made for a page nobody holds.
     if (!isSignalConnected(QMetaMethod::fromSignal(&AgentControl::pageRequested))) {
         reply(refusal(QStringLiteral("unavailable"),
             QStringLiteral("This browser has no page to answer the verb.")));
+        return;
+    }
+    QVariantMap arguments;
+    if (const auto refused = pageArguments(verb, request, arguments); !refused.isEmpty()) {
+        reply(refused);
         return;
     }
 
@@ -1071,11 +1073,15 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
             return;
         }
         pending.deadline->deleteLater();
+        removeUntakenShot(pending);
         pending.reply(
             refusal(QStringLiteral("timeout"), QStringLiteral("The page did not answer in time.")));
     });
-    m_pendingPages.insert(
-        requestId, PendingPage {.reply = reply, .deadline = deadline, .tabId = target});
+    m_pendingPages.insert(requestId,
+        PendingPage {.reply = reply,
+            .deadline = deadline,
+            .tabId = target,
+            .shot = arguments.value(QStringLiteral("destination")).toString()});
     deadline->start();
     emit pageRequested(requestId,
         QVariantMap {
@@ -1103,6 +1109,9 @@ void AgentControl::answerPage(int requestId, const QVariantMap &answer)
     auto result = QJsonObject::fromVariantMap(answer);
     if (!result.value(QStringLiteral("ok")).isBool()) {
         result = refusal(QStringLiteral("failed"), QStringLiteral("The page gave no answer."));
+    }
+    if (!result.value(QStringLiteral("ok")).toBool()) {
+        removeUntakenShot(pending);
     }
     result.insert(QStringLiteral("tab"), pending.tabId);
     if (m_attached.contains(pending.tabId)) {
@@ -1136,6 +1145,12 @@ QString AgentControl::reserveShot(const QString &name, QJsonObject &refused) con
                            "in its own directory for screenshots."));
         return {};
     }
+    // The page's picture is written as the name's suffix says.
+    if (!name.isEmpty() && !name.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive)) {
+        refused = refusal(QStringLiteral("bad-request"),
+            QStringLiteral("A screenshot is a PNG, so name it with .png, such as page.png."));
+        return {};
+    }
     if (m_shotDirectory.isEmpty() || !QDir().mkpath(m_shotDirectory)
         || ::chmod(QFile::encodeName(m_shotDirectory).constData(), S_IRWXU) != 0) {
         return failed(QStringLiteral("There is nowhere to write the screenshot."));
@@ -1165,6 +1180,15 @@ QString AgentControl::reserveShot(const QString &name, QJsonObject &refused) con
         }
     }
     return failed(QStringLiteral("The screenshot could not be made."));
+}
+
+// The empty file made for a screenshot the page did not take, so it neither
+// lies there nor keeps its name from the next try.
+void AgentControl::removeUntakenShot(const PendingPage &pending)
+{
+    if (!pending.shot.isEmpty()) {
+        QFile::remove(pending.shot);
+    }
 }
 
 void AgentControl::pruneShots() const
@@ -1305,8 +1329,14 @@ QJsonObject AgentControl::pageArguments(
         if (!given.isDouble()) {
             return false;
         }
-        value = static_cast<int>(given.toDouble());
-        return value >= lowest && value <= highest;
+        // Checked as the number it is, since one past an int's range has no
+        // int to be converted to.
+        const auto number = given.toDouble();
+        if (!(number >= lowest && number <= highest)) {
+            return false;
+        }
+        value = static_cast<int>(number);
+        return true;
     };
     int settle = 0;
     int timeout = 0;

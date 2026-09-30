@@ -146,6 +146,7 @@ private slots:
     void handsAPageVerbToThePageAndRepliesWithItsAnswer();
     void checksABatchBeforeThePageSeesIt();
     void writesScreenshotsWhereOnlyTheReaderCanRead();
+    void letsGoOfAScreenshotItDidNotTake();
     void refusesWhatIsUnderWayWhenAllowAgentsGoesOff();
     void keepsATabAnAgentTabOnlyWhileAnAgentUsesIt();
     void answersASocketsRequestsInTheOrderAsked();
@@ -954,6 +955,11 @@ void AgentControlTest::checksABatchBeforeThePageSeesIt()
         QStringLiteral("bad-request"));
     QCOMPARE(
         failure(batch({click}, {{QStringLiteral("timeout"), 5}})), QStringLiteral("bad-request"));
+    // A number past what an int holds is out of range, not converted into it.
+    for (const auto &key : {QStringLiteral("settle"), QStringLiteral("timeout")}) {
+        QCOMPARE(failure(batch({click}, {{key, 1e300}})), QStringLiteral("bad-request"));
+        QCOMPARE(failure(batch({click}, {{key, -1e300}})), QStringLiteral("bad-request"));
+    }
     QCOMPARE(requested.count(), 0);
 
     connect(&control, &AgentControl::pageRequested, this, [] { });
@@ -1023,6 +1029,66 @@ void AgentControlTest::writesScreenshotsWhereOnlyTheReaderCanRead()
     QVERIFY(destination(2).endsWith(u".png"));
     QVERIFY(QDir(shots).entryList({QStringLiteral("*.png")}, QDir::Files).size() <= 50);
     QVERIFY(QFileInfo::exists(destination(60)));
+
+    // A screenshot is a PNG, so a name that would make it anything else, or
+    // nothing the page can write, is refused before a file is made.
+    for (const auto &name : {QStringLiteral("page"), QStringLiteral("page.jpg")}) {
+        QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("shot"),
+                     {{QStringLiteral("output"), name}})),
+            QStringLiteral("bad-request"));
+        QVERIFY(!QFileInfo::exists(QDir(shots).filePath(name)));
+    }
+    QCOMPARE(requested.count(), 61);
+}
+
+// The file made for a screenshot the page did not take goes again, so it
+// neither lies there empty nor keeps its name from the next try.
+void AgentControlTest::letsGoOfAScreenshotItDidNotTake()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    const auto shots = runtime.filePath(QStringLiteral("shots"));
+    control.setShotDirectory(shots);
+    openAgentTab(control, QStringLiteral("agent"));
+    const auto named = QDir(shots).filePath(QStringLiteral("page.png"));
+    const auto shot = [&control](const QString &name = QStringLiteral("page.png")) {
+        return askPage(control, QStringLiteral("agent"), QStringLiteral("shot"),
+            {{QStringLiteral("output"), name}});
+    };
+
+    // Nothing holds a page to take it.
+    QCOMPARE(failure(shot()), QStringLiteral("unavailable"));
+    QVERIFY(!QFileInfo::exists(named));
+
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    shot();
+    QCOMPARE(requested.count(), 1);
+    QVERIFY(QFileInfo::exists(named));
+    control.answerPage(requested.at(0).at(0).toInt(),
+        {{QStringLiteral("ok"), false}, {QStringLiteral("code"), QStringLiteral("not-drawing")}});
+    QVERIFY(!QFileInfo::exists(named));
+
+    // The same name again, and one the page took stays.
+    shot();
+    QCOMPARE(requested.count(), 2);
+    control.answerPage(requested.at(1).at(0).toInt(),
+        {{QStringLiteral("ok"), true}, {QStringLiteral("path"), named}});
+    QVERIFY(QFileInfo::exists(named));
+
+    // Allow agents goes off before the page answers.
+    const auto other = QDir(shots).filePath(QStringLiteral("other.png"));
+    shot(QStringLiteral("other.png"));
+    QCOMPARE(requested.count(), 3);
+    QVERIFY(QFileInfo::exists(other));
+    control.setAllowAgents(false);
+    QVERIFY(!QFileInfo::exists(other));
+    QVERIFY(QFileInfo::exists(named));
 }
 
 // Turning Allow agents off refuses what was already asked of a page, and
@@ -1137,6 +1203,25 @@ void AgentControlTest::answersASocketsRequestsInTheOrderAsked()
     QTRY_VERIFY(client.canReadLine());
     const auto second = QJsonDocument::fromJson(client.readLine()).object();
     QVERIFY(second.contains(QStringLiteral("spaces")));
+
+    // Requests queued behind one still being answered are each held to the
+    // limit, not all of them together.
+    client.write(R"({"verb":"look","name":"agent"})"
+                 "\n");
+    const QByteArray padding(30 * 1024, 'a');
+    for (auto index = 0; index < 3; ++index) {
+        client.write(R"({"verb":"spaces","name":"agent","padding":")" + padding + "\"}\n");
+    }
+    client.flush();
+    QTRY_COMPARE(requested.count(), 2);
+    QTest::qWait(200);
+    QCOMPARE(client.state(), QLocalSocket::ConnectedState);
+    control.answerPage(requested.at(1).at(0).toInt(),
+        {{QStringLiteral("ok"), true}, {QStringLiteral("look"), QVariantMap {}}});
+    for (auto index = 0; index < 4; ++index) {
+        QTRY_VERIFY(client.canReadLine());
+        QVERIFY(succeeded(QJsonDocument::fromJson(client.readLine()).object()));
+    }
 }
 
 // What a keybind needs: another Space on show, or a tab chosen by its address,

@@ -189,6 +189,8 @@ private:
         Reply reply;
         QTimer *deadline = nullptr;
         QString tabId;
+        // The file made for a `shot`, which is the page's to draw into.
+        QString shot;
     };
 
     struct AgentWindow {
@@ -237,6 +239,7 @@ private:
     QString downloadDirectoryFor(const QString &name) const;
     QString reserveShot(const QString &name, QJsonObject &refused) const;
     void pruneShots() const;
+    static void removeUntakenShot(const PendingPage &pending);
 
     QJsonObject listSpaces() const;
     QJsonObject listTabs(Connection &connection, const QJsonObject &request) const;

@@ -221,8 +221,10 @@ bool QtAgentInput::pressKey(QQuickItem *view, const QString &name)
         return false;
     }
     auto parts = name.split(u'+');
-    // `Control++` is Control and the plus key.
-    if (name.endsWith(QStringLiteral("++"))) {
+    // `+` is the plus key, and `Control++` is Control and the plus key.
+    if (name == u"+") {
+        parts = {name};
+    } else if (name.endsWith(QStringLiteral("++"))) {
         parts.removeLast();
         parts.last() = QStringLiteral("+");
     }
