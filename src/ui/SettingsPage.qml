@@ -118,6 +118,13 @@ Rectangle {
     property var globalPrivacyControl: null
     // HTTPS-only mode's switch, browser-wide like the one above.
     property var httpsOnly: null
+    // Whether the Omnibar asks a search engine for Engine suggestions,
+    // browser-wide like the switches above.
+    property var engineSuggestions: null
+    // The engine Engine suggestions ask when no keyword chooses another.
+    readonly property var defaultEngine: root.engines.find(function (engine) {
+        return engine.default;
+    }) || null
     // What a page's call may learn about the reader's network, and the engine
     // adapter that says whether this build can set it at all (ADR 0047).
     property var webRtcPolicy: null
@@ -418,6 +425,17 @@ Rectangle {
         root.clearRange = value;
         if (root.browser)
             root.browser.setPreference("clear-data-range", value);
+    }
+
+    // Where Engine suggestions send the typing: the default engine, or the
+    // plain fact that it has nowhere to ask.
+    function engineSuggestionsNote(engine) {
+        if (engine === null)
+            return "";
+        if (!engine.suggestUrl)
+            return engine.name + " doesn't offer suggestions.";
+        return "Sends what you type in the Omnibar to " + engine.name
+                + " as you type, without your cookies. Never in a Private window.";
     }
 
     function makeDefaultSearchEngine(id) {
@@ -1284,20 +1302,23 @@ Rectangle {
                     visible: root.section === 4
                     spacing: 0
 
-                    SettingRow {
+                    // Browser-wide and off by default: on, what is typed in
+                    // the Omnibar leaves the machine before any commit. The
+                    // note names where it goes, which follows the default
+                    // engine, and the switch keeps its value when that engine
+                    // has nowhere to ask.
+                    SettingToggle {
+                        objectName: "engineSuggestions"
+                        visible: !!root.engineSuggestions
                         width: pane.width
                         colors: root.colors
-                        separated: false
-                        title: "Remote search suggestions"
-                        note: "Typing in the Omnibar never leaves the machine. Suggestions come "
-                              + "from this Space's own history."
-
-                        Text {
-                            objectName: "remoteSuggestionsStatus"
-                            text: "Remote search suggestions: Off"
-                            color: root.colors.mutedText
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.body
+                        title: "Engine suggestions"
+                        note: root.engineSuggestionsNote(root.defaultEngine)
+                        accessibleName: "Engine suggestions"
+                        checked: !!root.engineSuggestions && root.engineSuggestions.enabled
+                        onClicked: {
+                            if (root.engineSuggestions)
+                                root.engineSuggestions.enabled = !checked;
                         }
                     }
 
@@ -1310,8 +1331,7 @@ Rectangle {
                             objectName: "automaticRequestsStatus"
                             width: Math.min(root.noteMeasure, pane.width / 2)
                             text: "Enabled filter-list subscriptions make automatic network requests "
-                                  + "to their displayed update address when Omaweb starts. Remote search "
-                                  + "suggestions remain off."
+                                  + "to their displayed update address when Omaweb starts."
                             color: root.colors.mutedText
                             wrapMode: Text.WordWrap
                             font.family: Style.font.family
@@ -1530,6 +1550,7 @@ Rectangle {
 
                     SettingField {
                         id: engineName
+                        objectName: "engineName"
                         width: pane.width
                         colors: root.colors
                         placeholder: "name"
@@ -1538,14 +1559,44 @@ Rectangle {
 
                     SettingField {
                         id: engineQueryUrl
+                        objectName: "engineQueryUrl"
                         width: pane.width
                         colors: root.colors
                         placeholder: "query URL with {query}"
                         accessibleName: "Search engine query URL"
                     }
 
+                    // The field and the caption that says what it must answer
+                    // are one block, so the caption sits under its own field
+                    // rather than a form's gap away.
+                    Column {
+                        width: pane.width
+                        spacing: Style.spacing.xs
+
+                        SettingField {
+                            id: engineSuggestUrl
+                            objectName: "engineSuggestUrl"
+                            width: parent.width
+                            colors: root.colors
+                            placeholder: "optional suggest URL with {query}"
+                            accessibleName: "Search engine suggest URL"
+                        }
+
+                        Text {
+                            objectName: "engineSuggestUrlCaption"
+                            width: parent.width
+                            text: "Answers in OpenSearch suggestions JSON. Leave empty if the engine "
+                                  + "offers none."
+                            color: root.colors.mutedText
+                            wrapMode: Text.WordWrap
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+                    }
+
                     SettingField {
                         id: engineKeyword
+                        objectName: "engineKeyword"
                         width: pane.width
                         colors: root.colors
                         placeholder: "optional keyword"
@@ -1553,15 +1604,20 @@ Rectangle {
                     }
 
                     ActionButton {
+                        objectName: "addSearchEngineButton"
                         colors: root.colors
                         label: "Add and make default"
                         enabled: engineName.text.trim().length > 0 && engineQueryUrl.text.indexOf(
-                                     "{query}") >= 0
+                                     "{query}") >= 0 && (engineSuggestUrl.text.trim().length === 0
+                                                         || engineSuggestUrl.text.indexOf(
+                                                             "{query}") >= 0)
                         onClicked: {
                             if (root.browser.addSearchEngine(engineName.text, engineQueryUrl.text,
-                                                             engineKeyword.text)) {
+                                                             engineKeyword.text,
+                                                             engineSuggestUrl.text)) {
                                 engineName.text = "";
                                 engineQueryUrl.text = "";
+                                engineSuggestUrl.text = "";
                                 engineKeyword.text = "";
                                 root.refresh();
                             }

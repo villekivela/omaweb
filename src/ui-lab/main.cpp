@@ -3,6 +3,7 @@
 #include "BrowserController.h"
 #include "StoredFaviconProvider.h"
 #include "ContentBlocker.h"
+#include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
 #include "SecureDns.h"
 #include "WebRtcPolicy.h"
@@ -366,7 +367,12 @@ int main(int argc, char *argv[])
         writeSampleLists(dataRoot);
     }
 
+    // Off until it is turned on in the lab's Settings, where it is written
+    // under the lab's own data root. Turned on, the lab asks the real engines,
+    // which is how the rows are reviewed against what an engine answers.
+    omaweb::EngineSuggestions engineSuggestions(dataRootPath);
     omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")));
+    browser.setEngineSuggestions(&engineSuggestions);
     omaweb::ContentBlocker contentBlocker(dataRootPath, omaweb::ContentBlocker::DefaultLists::None);
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
     QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
@@ -457,6 +463,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineSecureDns"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineSuggestions"), &engineSuggestions);
     // The lab runs no engine, so there is nothing to report unreachable.
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineWebRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));

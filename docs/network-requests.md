@@ -36,7 +36,8 @@ subscription checks and the release check above run off the engine and do not ca
 The browser sends network requests only after an explicit user or page action:
 
 - Committing an address in the Omnibar loads that address.
-- Committing non-address text searches DuckDuckGo. Omaweb sends the text as the `q` query parameter.
+- Committing non-address text searches the default engine, or the engine a typed keyword chose, at
+  that engine's query URL.
 - Navigations started by a loaded page use the active Space's engine profile.
 - Accepting a download fetches the requested file.
 - Adding a Content-blocking subscription fetches its declared update address immediately.
@@ -49,17 +50,23 @@ site the Space has never loaded keeps its host code, and one whose icon carries 
 neutral tile. Omaweb never asks a third-party favicon service or a site's `/favicon.ico` for an
 icon.
 
-Remote search suggestions are off. Typing in the Omnibar queries only the active Space's local
-history and does not send the typed text over the network.
+Engine suggestions are off by default, and while they are off typing in the Omnibar queries only the
+active Space's local history and sends nothing over the network. With the Engine suggestions switch
+in Settings' network section on, typing search terms in the Omnibar sends them, about 150 ms after
+the last keystroke, to the suggest URL of the engine Return would search: the one in the keyword
+chip, or the default engine. The request is a GET that carries the typed terms in that address and
+nothing else: no cookies, no Space, no history, and `Omaweb` as its user agent. It goes through the
+browser's own network client rather than an Engine profile. Nothing is sent for an address, in
+command scope, for empty terms, or to an engine without a suggest URL, and a Private window never
+asks whatever the setting says. Turning the switch off stops the requests.
 
 Omaweb opens no listening socket during an ordinary session. The `--remote-debugging[=port]` launch
 option is the one exception: it binds Chromium's debugging listener to loopback, prints the address
 and a warning, and disables Private windows for that launch. It is never on by default, and a
 Chromium debugging switch passed to the engine by any other route refuses the launch.
 
-Future features that add sync, remote suggestions, telemetry, or another background request must
-document the destination, trigger, data sent, default state, and disable control here before
-release.
+Future features that add sync, telemetry, or another background request must document the
+destination, trigger, data sent, default state, and disable control here before release.
 
 Sync is off by default and is unavailable in Private windows. Connecting it starts GitHub's device
 authorization flow and polls GitHub only while that flow is active. GitHub receives the App client

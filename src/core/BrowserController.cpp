@@ -3,6 +3,7 @@
 #include "KnownExtensions.h"
 
 #include "DownloadPolicy.h"
+#include "EngineSuggestions.h"
 #include "ExtensionPackage.h"
 #include "HistoryQuery.h"
 #include "HistorySearch.h"
@@ -47,9 +48,39 @@ namespace {
 
     // The engines Omaweb ships, keywords and all. Version 2 of the file is
     // the one that has them: a version-1 file was seeded with DuckDuckGo
-    // alone, and is given the rest once.
-    constexpr int searchEnginesVersion = 2;
+    // alone, and is given the rest once. Version 3 gives the shipped engines
+    // their suggest URLs, once.
+    constexpr int searchEnginesVersion = 3;
     const auto defaultSearchEngineId = QStringLiteral("duckduckgo");
+
+    // How long typing has to pause before the Omnibar's text goes to a search
+    // engine: a request per keystroke would send every half-typed word.
+    constexpr int engineSuggestionPauseMilliseconds = 150;
+    // The most Engine suggestion rows the Omnibar lists, under its own.
+    constexpr qsizetype engineSuggestionLimit = 4;
+
+    // A query or suggest URL: somewhere to put the terms, in an address.
+    bool isSearchTemplate(const QString &url)
+    {
+        return url.contains(QStringLiteral("{query}")) && QUrl(url).isValid();
+    }
+
+    // A query or suggest URL with the terms in place of `{query}`.
+    QUrl filledTemplate(const QString &url, const QString &terms)
+    {
+        auto encoded = url.toUtf8();
+        encoded.replace("{query}", QUrl::toPercentEncoding(terms));
+        return QUrl::fromEncoded(encoded);
+    }
+
+    // The engine's own site, which a row that names the engine draws.
+    QString engineSite(const QVariantMap &engine)
+    {
+        const QUrl query(engine.value(QStringLiteral("queryUrl")).toString());
+        return query.adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment)
+                   .toString()
+            + QLatin1Char('/');
+    }
 
     QVariantList predefinedSearchEngines()
     {
@@ -57,36 +88,52 @@ namespace {
             QVariantMap {{QStringLiteral("id"), QStringLiteral("duckduckgo")},
                 {QStringLiteral("name"), QStringLiteral("DuckDuckGo")},
                 {QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}")},
-                {QStringLiteral("keyword"), QStringLiteral("d")}},
+                {QStringLiteral("keyword"), QStringLiteral("d")},
+                {QStringLiteral("suggestUrl"),
+                    QStringLiteral("https://duckduckgo.com/ac/?q={query}&type=list")}},
             QVariantMap {{QStringLiteral("id"), QStringLiteral("google")},
                 {QStringLiteral("name"), QStringLiteral("Google")},
                 {QStringLiteral("queryUrl"),
                     QStringLiteral("https://www.google.com/search?q={query}")},
-                {QStringLiteral("keyword"), QStringLiteral("g")}},
+                {QStringLiteral("keyword"), QStringLiteral("g")},
+                {QStringLiteral("suggestUrl"),
+                    QStringLiteral(
+                        "https://www.google.com/complete/search?client=firefox&q={query}")}},
             QVariantMap {{QStringLiteral("id"), QStringLiteral("bing")},
                 {QStringLiteral("name"), QStringLiteral("Bing")},
                 {QStringLiteral("queryUrl"),
                     QStringLiteral("https://www.bing.com/search?q={query}")},
-                {QStringLiteral("keyword"), QStringLiteral("b")}},
+                {QStringLiteral("keyword"), QStringLiteral("b")},
+                {QStringLiteral("suggestUrl"),
+                    QStringLiteral("https://api.bing.com/osjson.aspx?query={query}")}},
             QVariantMap {{QStringLiteral("id"), QStringLiteral("brave")},
                 {QStringLiteral("name"), QStringLiteral("Brave Search")},
                 {QStringLiteral("queryUrl"),
                     QStringLiteral("https://search.brave.com/search?q={query}")},
-                {QStringLiteral("keyword"), QStringLiteral("br")}},
+                {QStringLiteral("keyword"), QStringLiteral("br")},
+                {QStringLiteral("suggestUrl"),
+                    QStringLiteral("https://search.brave.com/api/suggest?q={query}")}},
             QVariantMap {{QStringLiteral("id"), QStringLiteral("kagi")},
                 {QStringLiteral("name"), QStringLiteral("Kagi")},
                 {QStringLiteral("queryUrl"), QStringLiteral("https://kagi.com/search?q={query}")},
-                {QStringLiteral("keyword"), QStringLiteral("k")}},
+                {QStringLiteral("keyword"), QStringLiteral("k")},
+                // Kagi answers suggestions only with a subscriber's session
+                // token, which Omaweb does not hold.
+                {QStringLiteral("suggestUrl"), QString {}}},
             QVariantMap {{QStringLiteral("id"), QStringLiteral("ecosia")},
                 {QStringLiteral("name"), QStringLiteral("Ecosia")},
                 {QStringLiteral("queryUrl"),
                     QStringLiteral("https://www.ecosia.org/search?q={query}")},
-                {QStringLiteral("keyword"), QStringLiteral("e")}},
+                {QStringLiteral("keyword"), QStringLiteral("e")},
+                {QStringLiteral("suggestUrl"),
+                    QStringLiteral("https://ac.ecosia.org/autocomplete?q={query}&type=list")}},
             QVariantMap {{QStringLiteral("id"), QStringLiteral("startpage")},
                 {QStringLiteral("name"), QStringLiteral("Startpage")},
                 {QStringLiteral("queryUrl"),
                     QStringLiteral("https://www.startpage.com/sp/search?query={query}")},
-                {QStringLiteral("keyword"), QStringLiteral("sp")}},
+                {QStringLiteral("keyword"), QStringLiteral("sp")},
+                {QStringLiteral("suggestUrl"),
+                    QStringLiteral("https://www.startpage.com/osuggestions?q={query}")}},
         };
     }
 
@@ -164,6 +211,10 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     m_persistTabsTimer.setSingleShot(true);
     m_persistTabsTimer.setInterval(persistTabsDelayMilliseconds);
     connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { recordTabs(); });
+    m_engineSuggestionPause.setSingleShot(true);
+    m_engineSuggestionPause.setInterval(engineSuggestionPauseMilliseconds);
+    connect(&m_engineSuggestionPause, &QTimer::timeout, this,
+        &BrowserController::askEngineForSuggestions);
     // Every route to a blank tab changes the tab model: opening the first
     // address, closing the last page, switching Space, restoring a session.
     // Watching the model is what keeps the answer from depending on a caller
@@ -2386,6 +2437,81 @@ void BrowserController::historySearchAnswered(
     }
 }
 
+void BrowserController::setEngineSuggestions(EngineSuggestions *suggestions)
+{
+    m_engineSuggestions = suggestions;
+}
+
+void BrowserController::requestEngineSuggestions(const QString &text)
+{
+    cancelEngineSuggestions();
+    const auto intent = searchIntent(text);
+    const auto engine = searchEngine(intent.value(QStringLiteral("engineId")).toString());
+    const auto terms = intent.value(QStringLiteral("terms")).toString();
+    // An address, blank text and a keyword alone have no search intent or no
+    // terms, so they are never sent, and nor is anything from a window that
+    // may not ask.
+    if (!m_capabilities.allows(Capability::EngineSuggestions) || !m_engineSuggestions
+        || !m_engineSuggestions->enabled() || terms.isEmpty()
+        || engine.value(QStringLiteral("suggestUrl")).toString().isEmpty()) {
+        answerEngineSuggestions(engine, terms, {});
+        return;
+    }
+    m_engineSuggestionEngine = engine;
+    m_engineSuggestionTerms = terms;
+    m_engineSuggestionPause.start();
+}
+
+void BrowserController::cancelEngineSuggestions()
+{
+    // Moved on first, so the reply an abort finishes answers nobody.
+    ++m_engineSuggestionGeneration;
+    m_engineSuggestionPause.stop();
+    if (m_engineSuggestionReply) {
+        m_engineSuggestionReply->abort();
+    }
+}
+
+void BrowserController::askEngineForSuggestions()
+{
+    const auto engine = m_engineSuggestionEngine;
+    const auto terms = m_engineSuggestionTerms;
+    const auto generation = m_engineSuggestionGeneration;
+    auto *reply = m_engineSuggestions->ask(
+        filledTemplate(engine.value(QStringLiteral("suggestUrl")).toString(), terms));
+    m_engineSuggestionReply = reply;
+    connect(reply, &QNetworkReply::finished, this, [this, reply, engine, terms, generation] {
+        reply->deleteLater();
+        if (generation != m_engineSuggestionGeneration) {
+            return;
+        }
+        // A failure, a timeout and an answer in another shape all list
+        // nothing: the reader typed a search, not a request for an error.
+        QStringList suggestions;
+        if (reply->error() == QNetworkReply::NoError) {
+            for (const auto &suggestion : EngineSuggestions::parse(reply->readAll())) {
+                if (suggestion.compare(terms, Qt::CaseInsensitive) == 0) {
+                    continue;
+                }
+                suggestions.append(suggestion);
+                if (suggestions.size() == engineSuggestionLimit) {
+                    break;
+                }
+            }
+        }
+        answerEngineSuggestions(engine, terms, suggestions);
+    });
+}
+
+void BrowserController::answerEngineSuggestions(
+    const QVariantMap &engine, const QString &terms, const QStringList &suggestions)
+{
+    emit engineSuggestionsReady({{QStringLiteral("engineId"), engine.value(QStringLiteral("id"))},
+        {QStringLiteral("engineName"), engine.value(QStringLiteral("name"))},
+        {QStringLiteral("siteUrl"), engine.isEmpty() ? QString {} : engineSite(engine)},
+        {QStringLiteral("terms"), terms}, {QStringLiteral("suggestions"), suggestions}});
+}
+
 QVariantList BrowserController::history(const QString &query, int limit) const
 {
     if (limit <= 0) {
@@ -2475,7 +2601,7 @@ bool BrowserController::addSearchEnginePreset(const QString &id)
 }
 
 bool BrowserController::addSearchEngine(
-    const QString &name, const QString &queryUrl, const QString &keyword)
+    const QString &name, const QString &queryUrl, const QString &keyword, const QString &suggestUrl)
 {
     const auto normalizedName = name.trimmed();
     auto id = normalizedName.toLower();
@@ -2496,8 +2622,19 @@ bool BrowserController::addSearchEngine(
     auto engines = m_searchEngines;
     engines.append(QVariantMap {{QStringLiteral("id"), id},
         {QStringLiteral("name"), normalizedName}, {QStringLiteral("queryUrl"), queryUrl.trimmed()},
-        {QStringLiteral("keyword"), keyword.trimmed()}});
+        {QStringLiteral("keyword"), keyword.trimmed()},
+        {QStringLiteral("suggestUrl"), suggestUrl.trimmed()}});
     return saveSearchEngines(engines, id);
+}
+
+QString BrowserController::searchAddress(const QString &engineId, const QString &terms) const
+{
+    const auto engine = searchEngine(engineId);
+    if (engine.isEmpty()) {
+        return {};
+    }
+    return filledTemplate(engine.value(QStringLiteral("queryUrl")).toString(), terms)
+        .toString(QUrl::FullyEncoded);
 }
 
 bool BrowserController::deleteSearchEngine(const QString &id)
@@ -2542,9 +2679,10 @@ bool BrowserController::saveSearchEngines(
         const auto name = engine.value(QStringLiteral("name")).toString().trimmed();
         const auto queryUrl = engine.value(QStringLiteral("queryUrl")).toString().trimmed();
         const auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed().toLower();
-        if (id.isEmpty() || name.isEmpty() || !queryUrl.contains(QStringLiteral("{query}"))
-            || !QUrl(queryUrl).isValid() || ids.contains(id)
-            || (!keyword.isEmpty() && keywords.contains(keyword))) {
+        const auto suggestUrl = engine.value(QStringLiteral("suggestUrl")).toString().trimmed();
+        if (id.isEmpty() || name.isEmpty() || !isSearchTemplate(queryUrl) || ids.contains(id)
+            || (!keyword.isEmpty() && keywords.contains(keyword))
+            || (!suggestUrl.isEmpty() && !isSearchTemplate(suggestUrl))) {
             return false;
         }
         ids.insert(id);
@@ -2554,7 +2692,7 @@ bool BrowserController::saveSearchEngines(
         foundDefault = foundDefault || id == defaultEngineId;
         const QJsonObject normalizedEngine {{QStringLiteral("id"), id},
             {QStringLiteral("name"), name}, {QStringLiteral("queryUrl"), queryUrl},
-            {QStringLiteral("keyword"), keyword}};
+            {QStringLiteral("keyword"), keyword}, {QStringLiteral("suggestUrl"), suggestUrl}};
         jsonEngines.append(normalizedEngine);
         normalized.append(normalizedEngine.toVariantMap());
     }
@@ -3336,9 +3474,14 @@ bool BrowserController::loadSearchEngines()
         const auto name = engine.value(QStringLiteral("name")).toString().trimmed();
         const auto queryUrl = engine.value(QStringLiteral("queryUrl")).toString().trimmed();
         auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed().toLower();
-        valid = valid && !id.isEmpty() && !name.isEmpty()
-            && queryUrl.contains(QStringLiteral("{query}")) && QUrl(queryUrl).isValid()
+        auto suggestUrl = engine.value(QStringLiteral("suggestUrl")).toString().trimmed();
+        valid = valid && !id.isEmpty() && !name.isEmpty() && isSearchTemplate(queryUrl)
             && !ids.contains(id);
+        // A suggest URL that could not be asked is an engine without one,
+        // rather than a list the reader loses.
+        if (!suggestUrl.isEmpty() && !isSearchTemplate(suggestUrl)) {
+            suggestUrl.clear();
+        }
         ids.insert(id);
         // A file written before keywords were one namespace whatever their
         // case may hold `g` and `G`. The first keeps its keyword; the second
@@ -3351,6 +3494,7 @@ bool BrowserController::loadSearchEngines()
         }
         auto lowered = engine;
         lowered.insert(QStringLiteral("keyword"), keyword);
+        lowered.insert(QStringLiteral("suggestUrl"), suggestUrl);
         engines.append(lowered);
     }
     const auto defaultId = object.value(QStringLiteral("default")).toString();
@@ -3360,7 +3504,7 @@ bool BrowserController::loadSearchEngines()
         return false;
     }
     const auto version = object.value(QStringLiteral("version")).toInt();
-    if (version < searchEnginesVersion) {
+    if (version < 2) {
         // The shipped engines the file does not have yet, once: a reader who
         // deletes one afterwards is not given it again. An engine of the
         // reader's own keeps a keyword a shipped one would have used.
@@ -3376,6 +3520,27 @@ bool BrowserController::loadSearchEngines()
                 keywords.insert(keyword);
             }
             engines.append(engine);
+        }
+    }
+    if (version < 3) {
+        // A shipped engine still asking where it shipped asking is given the
+        // suggest URL it now ships with. One whose query URL the reader
+        // changed is the reader's own, and is left as it is.
+        for (auto &value : engines) {
+            auto engine = value.toMap();
+            if (!engine.value(QStringLiteral("suggestUrl")).toString().isEmpty()) {
+                continue;
+            }
+            for (const auto &shippedValue : shipped) {
+                const auto preset = shippedValue.toMap();
+                if (preset.value(QStringLiteral("id")) == engine.value(QStringLiteral("id"))
+                    && preset.value(QStringLiteral("queryUrl"))
+                        == engine.value(QStringLiteral("queryUrl"))) {
+                    engine.insert(
+                        QStringLiteral("suggestUrl"), preset.value(QStringLiteral("suggestUrl")));
+                    value = engine;
+                }
+            }
         }
     }
     m_searchEngines = engines;
@@ -3401,17 +3566,12 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
     }
     const auto selected = searchEngine(intent.value(QStringLiteral("engineId")).toString());
     const auto terms = intent.value(QStringLiteral("terms")).toString();
-    auto queryUrl = selected.value(QStringLiteral("queryUrl")).toString().toUtf8();
     if (terms.isEmpty()) {
         // The keyword alone is the engine itself: its origin, not a search for
         // nothing.
-        auto origin = QUrl::fromEncoded(queryUrl).adjusted(
-            QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
-        origin.setPath(QStringLiteral("/"));
-        return origin;
+        return QUrl(engineSite(selected));
     }
-    queryUrl.replace("{query}", QUrl::toPercentEncoding(terms));
-    return QUrl::fromEncoded(queryUrl);
+    return filledTemplate(selected.value(QStringLiteral("queryUrl")).toString(), terms);
 }
 
 QVariantMap BrowserController::searchIntent(const QString &text) const
@@ -3457,14 +3617,9 @@ QVariantList BrowserController::searchKeywordOffers(const QString &text) const
             || !keyword.startsWith(prefix)) {
             continue;
         }
-        const QUrl query(engine.value(QStringLiteral("queryUrl")).toString());
         offers.append(QVariantMap {{QStringLiteral("engineId"), engine.value(QStringLiteral("id"))},
             {QStringLiteral("engineName"), engine.value(QStringLiteral("name"))},
-            {QStringLiteral("keyword"), keyword},
-            {QStringLiteral("siteUrl"),
-                query.adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment)
-                        .toString()
-                    + QLatin1Char('/')}});
+            {QStringLiteral("keyword"), keyword}, {QStringLiteral("siteUrl"), engineSite(engine)}});
     }
     return offers;
 }

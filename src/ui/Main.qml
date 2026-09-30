@@ -217,6 +217,7 @@ ApplicationWindow {
     // The browser's Global Privacy Control, named apart from its context
     // property for the same reason.
     readonly property var privacyControl: globalPrivacyControl
+    readonly property var engineSuggestionSetting: engineSuggestions
     readonly property var webRtcAddressPolicy: webRtcPolicy
     readonly property var dnsResolver: secureDns
     readonly property var engineDnsResolver: engineSecureDns
@@ -313,6 +314,9 @@ ApplicationWindow {
         };
     })
     property var omnibarSuggestions: []
+    // The latest Engine suggestion answer for the Omnibar's text, as the
+    // browser gave it: the engine asked, the terms, and its proposals.
+    property var omnibarEngineSuggestions: ({})
     // What the retained-tab list is showing. Rebuilt when the retained set
     // changes and while the list is open, because a renderer's resident memory
     // moves on its own and a number that never moves is worse than none.
@@ -2229,11 +2233,19 @@ ApplicationWindow {
         // Suggestions arrive from the search thread, so the panel opens on the
         // typing it was opened for rather than on a scan of the Space's
         // history finishing first.
-        omnibarSuggestions = [];
+        window.forgetOmnibarSuggestions();
         if (!window.privateWindow)
             window.windowBrowser.requestHistorySuggestions(preset);
         omnibar.beginAddress(preset, false);
         omnibarOpen = true;
+    }
+
+    // What the Omnibar was answered with, and the Engine suggestion request
+    // still out for it: nothing typed before now is listed or asked about.
+    function forgetOmnibarSuggestions() {
+        window.omnibarSuggestions = [];
+        window.omnibarEngineSuggestions = ({});
+        window.windowBrowser.cancelEngineSuggestions();
     }
 
     // The profile the Space on show runs in. Which is the same table every
@@ -2395,7 +2407,7 @@ ApplicationWindow {
         omnibarOpen = false;
         if (!window.startPageDriving)
             window.startPageSummoned = false;
-        omnibarSuggestions = [];
+        window.forgetOmnibarSuggestions();
         if (!window.privateWindow)
             window.windowBrowser.cancelHistorySuggestions();
         window.focusPage();
@@ -2421,7 +2433,7 @@ ApplicationWindow {
         if (!window.startPageSummoned)
             return;
         window.startPageSummoned = false;
-        omnibarSuggestions = [];
+        window.forgetOmnibarSuggestions();
         window.focusPage();
     }
 
@@ -2431,10 +2443,10 @@ ApplicationWindow {
     onStartPageShownChanged: {
         if (!window.startPageShown) {
             if (!window.omnibarOpen)
-                window.omnibarSuggestions = [];
+                window.forgetOmnibarSuggestions();
             return;
         }
-        window.omnibarSuggestions = [];
+        window.forgetOmnibarSuggestions();
         omnibar.beginAddress("", window.startPageSummoned);
         if (omnibar.open)
             omnibar.restart();
@@ -2454,7 +2466,7 @@ ApplicationWindow {
             window.startPageSummoned = false;
             if (!window.startPageShown || window.omnibarOpen)
                 return;
-            window.omnibarSuggestions = [];
+            window.forgetOmnibarSuggestions();
             omnibar.beginAddress("", false);
             omnibar.clearField();
         }
@@ -3593,6 +3605,7 @@ ApplicationWindow {
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
                     httpsOnly: window.httpsOnlyPolicy
+                    engineSuggestions: window.engineSuggestionSetting
                     webRtcPolicy: window.webRtcAddressPolicy
                     secureDns: window.dnsResolver
                     engineSecureDns: window.engineDnsResolver
@@ -4056,6 +4069,11 @@ ApplicationWindow {
                 return;
             window.omnibarSuggestions = suggestions;
         }
+        function onEngineSuggestionsReady(answer) {
+            if (!window.omnibarShown || omnibar.commandScope)
+                return;
+            window.omnibarEngineSuggestions = answer;
+        }
         function onRetainedTabsChanged() {
             window.refreshRetainedTabs();
         }
@@ -4497,6 +4515,7 @@ ApplicationWindow {
                           startPage.height)
         horizonY: startPage.horizonY
         suggestions: window.omnibarSuggestions
+        engineSuggestions: window.omnibarEngineSuggestions
 
         onDismissed: {
             if (omnibar.resting)
@@ -4506,16 +4525,24 @@ ApplicationWindow {
         }
         onShortcutsRequested: window.requestShortcuts()
         onQueryChanged: function (text) {
-            if (omnibar.commandScope)
+            // Command scope asks nothing of anyone, and a keystroke that
+            // entered it may still have a request waiting on the pause.
+            if (omnibar.commandScope) {
+                window.omnibarEngineSuggestions = ({});
+                window.windowBrowser.cancelEngineSuggestions();
                 return;
+            }
             if (window.privateWindow) {
-                window.omnibarSuggestions = [];
+                window.forgetOmnibarSuggestions();
                 return;
             }
             // The rows on show stay until the answer to this keystroke
             // arrives: emptying them first would flicker the panel on every
             // character.
             window.windowBrowser.requestHistorySuggestions(text);
+            // Asked of what Return would search, keyword and all. The browser
+            // answers with nothing while the setting is off.
+            window.windowBrowser.requestEngineSuggestions(omnibar.typed());
         }
         onCommitted: function (text) {
             if (omnibar.resting) {

@@ -6652,6 +6652,188 @@ TestCase {
         verify(browser.deleteSpace(zephyrSpaceId, "Zephyr reading"));
     }
 
+    // Answers a suggest request from the loopback stub the harness runs,
+    // through an engine the test adds and makes the default.
+    function useStubSuggestions(body) {
+        suggestServer.answer(body);
+        verify(browser.addSearchEngine("Stub", "https://stub.example/?q={query}", "",
+                                       suggestServer.suggestUrl()));
+        engineSuggestions.enabled = true;
+    }
+
+    function stopStubSuggestions() {
+        engineSuggestions.enabled = false;
+        browser.deleteSearchEngine("stub");
+        browser.setDefaultSearchEngine("duckduckgo");
+    }
+
+    // With the setting on, typed search terms go to the default engine and
+    // its proposals list under every local row: four at most, never the terms
+    // again, each a search of the engine that proposed it.
+    function test_engineSuggestionsListBelowEveryLocalRow() {
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://weather-start.example/");
+        const commitTabId = browser.activeTabId;
+        browser.recordVisit("https://weathered.example/log", "Weathered log");
+        useStubSuggestions('["weath", ["weather", "WEATH", "weather.com", "Weather <img src=x>",'
+                           + ' "weather today", "weather week"]]');
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        try {
+            const asked = suggestServer.requestCount();
+            window.openOmnibar(false);
+            input.text = "weath";
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "suggestion").length === 4;
+            });
+            compare(suggestServer.requestCount(), asked + 1);
+            compare(suggestServer.lastTarget(), "/suggest?q=weath");
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "history").length === 1;
+            });
+            const first = panel.rows.indexOf(omnibarRowsOf(panel, "suggestion")[0]);
+            compare(first, panel.rows.length - 4);
+            compare(omnibarRowsOf(panel, "suggestion").map(function (row) {
+                return row.title;
+            }), ["weather", "weather.com", "Weather <img src=x>", "weather today"]);
+            // Nothing is ever selected for the reader: Return on the typed
+            // text still searches the typed text.
+            compare(panel.selected, -1);
+
+            let row = omnibarRowItem(rows, first);
+            compare(row.action, "search →");
+            compare(row.keys, "");
+            compare(row.Accessible.name, "Search Stub for weather");
+            compare(findChild(row, "omnibarRowHost").visible, false);
+            compare(findChild(row, "omnibarRowTitle").text, "weath<b>er</b>");
+            const tile = findChild(row, "omnibarRowTile");
+            compare(tile.visible, true);
+            compare(tile.siteUrl.toString(), "https://stub.example/");
+            // What the engine sent is text, never markup the row would draw.
+            row = omnibarRowItem(rows, first + 2);
+            compare(findChild(row, "omnibarRowTitle").text, "Weath<b>er &lt;img src=x&gt;</b>");
+
+            // An address-looking proposal is still a search of its engine.
+            panel.selected = first + 1;
+            panel.accept();
+            tryVerify(function () {
+                return browser.activeUrl.toString() === "https://stub.example/?q=weather.com";
+            });
+            compare(browser.activeTabId, commitTabId);
+        } finally {
+            window.closeOmnibar();
+            stopStubSuggestions();
+            browser.deleteHistoryOrigin("https://weathered.example/log");
+            browser.closeTab(commitTabId);
+            browser.activateTab(startTabId);
+        }
+    }
+
+    // Off, typing sends nothing; on, command scope and an address send
+    // nothing either. Closing the Omnibar leaves no proposal behind.
+    function test_engineSuggestionsAskOnlyForSearchTerms() {
+        useStubSuggestions('["weath", ["weather"]]');
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        try {
+            const asked = suggestServer.requestCount();
+            engineSuggestions.enabled = false;
+            window.openOmnibar(false);
+            input.text = "weath";
+            wait(400);
+            compare(suggestServer.requestCount(), asked);
+            compare(omnibarRowsOf(panel, "suggestion").length, 0);
+            window.closeOmnibar();
+
+            engineSuggestions.enabled = true;
+            window.openOmnibar(false);
+            input.text = "";
+            input.text = ":";
+            verify(panel.commandScope);
+            input.text = "weath";
+            // Past the pause, so a request that was going to go has gone.
+            wait(400);
+            compare(suggestServer.requestCount(), asked);
+            input.text = "";
+            input.text = "weath";
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "suggestion").length === 0 && panel.commandScope;
+            });
+            window.closeOmnibar();
+
+            window.openOmnibar(false);
+            input.text = "github.com/weath";
+            wait(400);
+            compare(suggestServer.requestCount(), asked);
+            input.text = "weath";
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "suggestion").length === 1;
+            });
+            window.closeOmnibar();
+            window.openOmnibar(false);
+            compare(omnibarRowsOf(panel, "suggestion").length, 0);
+        } finally {
+            window.closeOmnibar();
+            stopStubSuggestions();
+        }
+    }
+
+    // The add-engine form takes a suggest URL, and leaving it empty adds an
+    // engine that offers none.
+    function test_addEngineFormTakesAnOptionalSuggestUrl() {
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("search");
+        const name = findChild(settings, "engineName");
+        const queryUrl = findChild(settings, "engineQueryUrl");
+        const suggestUrl = findChild(settings, "engineSuggestUrl");
+        const keyword = findChild(settings, "engineKeyword");
+        const add = findChild(settings, "addSearchEngineButton");
+        const caption = findChild(settings, "engineSuggestUrlCaption");
+        try {
+            verify(suggestUrl !== null);
+            compare(suggestUrl.placeholderText, "optional suggest URL with {query}");
+            compare(caption.text, "Answers in OpenSearch suggestions JSON. Leave empty if the "
+                    + "engine offers none.");
+            // Between the query URL and the keyword, with its caption under it.
+            const top = function (item) {
+                return item.mapToItem(settings, 0, 0).y;
+            };
+            verify(top(queryUrl) < top(suggestUrl));
+            verify(top(suggestUrl) < top(caption));
+            verify(top(caption) < top(keyword));
+
+            name.text = "Proposing";
+            queryUrl.text = "https://proposing.example/?q={query}";
+            suggestUrl.text = "https://proposing.example/ac?q={query}";
+            add.clicked();
+            compare(browser.searchEngine("proposing").suggestUrl,
+                    "https://proposing.example/ac?q={query}");
+            compare(suggestUrl.text, "");
+
+            name.text = "Quiet";
+            queryUrl.text = "https://quiet.example/?q={query}";
+            add.clicked();
+            compare(browser.searchEngine("quiet").suggestUrl, "");
+
+            // A suggest URL with nowhere to put the terms is refused, as a
+            // query URL would be.
+            name.text = "Broken";
+            queryUrl.text = "https://broken.example/?q={query}";
+            suggestUrl.text = "https://broken.example/ac";
+            verify(!add.enabled);
+        } finally {
+            name.text = "";
+            queryUrl.text = "";
+            suggestUrl.text = "";
+            browser.deleteSearchEngine("proposing");
+            browser.deleteSearchEngine("quiet");
+            browser.setDefaultSearchEngine("duckduckgo");
+            window.settingsOpen = false;
+        }
+    }
+
     function omnibarRowItem(rows, index) {
         tryVerify(function () {
             return rows.itemAtIndex(index) !== null;
@@ -7538,15 +7720,18 @@ TestCase {
 
     function test_settingsExposeNetworkAndDownloadPolicy() {
         const settingsButton = findChild(window.contentItem, "settingsButton");
-        const remoteSuggestionsStatus = findChild(window.contentItem, "remoteSuggestionsStatus");
+        const engineSuggestionsSwitch = findChild(window.contentItem, "engineSuggestions");
         const automaticRequestsStatus = findChild(window.contentItem, "automaticRequestsStatus");
         const keyboardNavigationEnabled = findChild(window.contentItem,
                                                     "keyboardNavigationEnabled");
         verify(settingsButton !== null);
-        verify(remoteSuggestionsStatus !== null);
+        verify(engineSuggestionsSwitch !== null);
         verify(automaticRequestsStatus !== null);
         verify(keyboardNavigationEnabled !== null);
-        compare(remoteSuggestionsStatus.text, "Remote search suggestions: Off");
+        // Off until the reader turns it on, and bound to the browser's one
+        // setting.
+        compare(engineSuggestionsSwitch.checked, false);
+        compare(engineSuggestionsSwitch.checked, engineSuggestions.enabled);
         verify(automaticRequestsStatus.text.indexOf("automatic network requests") >= 0);
         // A keyboard-driven browser ships with its keymap live.
         compare(keyboardNavigationEnabled.checked, true);
