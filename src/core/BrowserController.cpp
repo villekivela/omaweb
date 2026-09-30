@@ -356,7 +356,8 @@ QStringList BrowserController::splittableTabIds() const
 {
     QStringList ids;
     for (const auto &tab : m_tabs.items()) {
-        if (!tab.pinned && tab.splitPartnerId.isEmpty() && tab.id != m_activeTabId) {
+        if (!tab.pinned && tab.splitPartnerId.isEmpty() && tab.id != m_activeTabId
+            && tab.url != agentActivityAddress()) {
             ids.append(tab.id);
         }
     }
@@ -798,8 +799,11 @@ QString BrowserController::splitEntryTab(const QString &tabId) const
 
 bool BrowserController::addSplit(const QString &tabId)
 {
+    // The Agent activity page is drawn over the page area alone, so it has no
+    // pane to take in a split.
     const auto *active = m_tabs.find(m_activeTabId);
-    if (!active || active->pinned || !active->splitPartnerId.isEmpty()) {
+    if (!active || active->pinned || !active->splitPartnerId.isEmpty()
+        || active->url == agentActivityAddress()) {
         return false;
     }
     const auto activeRow = tabRow(m_activeTabId);
@@ -817,7 +821,8 @@ bool BrowserController::addSplit(const QString &tabId)
         pairTabs(leftTabId, blank.id);
     } else {
         const auto *partner = m_tabs.find(tabId);
-        if (!partner || partner->pinned || !partner->splitPartnerId.isEmpty()) {
+        if (!partner || partner->pinned || !partner->splitPartnerId.isEmpty()
+            || partner->url == agentActivityAddress()) {
             return false;
         }
         const auto partnerRow = tabRow(tabId);
@@ -1276,19 +1281,7 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
     }
 
     if (inNewTab) {
-        if (auto *current = m_tabs.find(m_activeTabId)) {
-            current->active = false;
-            m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
-        }
-
-        TabState tab;
-        tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        tab.spaceId = m_activeSpaceId;
-        tab.url = url;
-        tab.title = url.host().isEmpty() ? QStringLiteral("New tab") : url.host();
-        tab.active = true;
-        m_tabs.append(tab);
-        m_activeTabId = tab.id;
+        appendActiveTab(url, url.host().isEmpty() ? QStringLiteral("New tab") : url.host());
     } else if (auto *tab = m_tabs.find(m_activeTabId)) {
         tab->url = url;
         tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
@@ -1309,6 +1302,39 @@ bool BrowserController::retryActiveUrlInsecurely()
     }
     url.setScheme(QStringLiteral("http"));
     openInput(url.toString(), false);
+    return true;
+}
+
+void BrowserController::appendActiveTab(const QUrl &url, const QString &title)
+{
+    if (auto *current = m_tabs.find(m_activeTabId)) {
+        current->active = false;
+        m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
+    }
+    TabState tab;
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = m_activeSpaceId;
+    tab.url = url;
+    tab.title = title;
+    tab.active = true;
+    m_tabs.append(tab);
+    m_activeTabId = tab.id;
+}
+
+QUrl BrowserController::agentActivityAddress()
+{
+    return QUrl(QStringLiteral("omaweb:agent-activity"));
+}
+
+bool BrowserController::openAgentActivity()
+{
+    if (m_privateBrowsing) {
+        return false;
+    }
+    appendActiveTab(agentActivityAddress(), QStringLiteral("Agent activity"));
+    refreshSoundSuppression();
+    schedulePersistTabs();
+    emit activeTabChanged();
     return true;
 }
 

@@ -439,6 +439,30 @@ item under every page on show takes the reader's pointer first. Keeping an anima
 rendered costs about what the same page costs on show, and the window draws at its frame rate
 (#376).
 
+### Agent activity
+
+`AgentControl` writes every verb it answers to `AgentActivityLog`, refused ones included, once the
+answer is known: the time, the connection's name, the Space by id and by the name it had then, the
+tab and its address, the verb, its target and `ok` or the refusal's code. The target is what the
+verb named: the address `open` resolved to, a Space or a command. For `do` it is each step's action
+and hint label, such as `fill 7, click 9`, and never the text a step filled, the option it chose,
+the key it pressed, what it waited for, the text a dialog was answered with or the files an upload
+gave, since any of those can be what the reader typed. A dialog step keeps `accept` or `dismiss`. A
+step whose target is not a label keeps its action alone. `read` keeps no selector and `eval` no
+source. Every address loses its query, fragment and credentials, where a form's values and a site's
+tokens go, and an address `open` refused is not kept at all. A request that names no verb, or
+reaches a Private window, is not written down.
+
+The log is `agent-activity.jsonl` in the application data directory, mode 0600, one JSON object per
+line. Opening it at start drops lines older than 7 days and writes the file again; while the browser
+runs, a line added when the oldest has expired does the same. The log holds at most 100,000 lines,
+dropping the oldest.
+
+**Show agent activity** in the command scope opens `omaweb:agent-activity` in a new tab of the Space
+on show. No engine loads that address. The page area draws `AgentActivityPage` over the tab instead,
+newest first and filtered by Agent and by Space. It takes no pane of a split, the page verbs refuse
+the tab even in an Agent Space, and a Private window has no such command.
+
 ### MCP server
 
 `omaweb mcp` is a second front end on the same socket. `AgentMcp` maps each tool call to the request

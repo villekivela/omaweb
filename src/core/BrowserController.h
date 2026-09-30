@@ -96,6 +96,9 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // to. Nothing else outlives its Space's suspension, and what does is named
     // here so the reader can see what is holding a renderer they cannot see.
     Q_PROPERTY(QVariantList retainedTabs READ retainedTabs NOTIFY retainedTabsChanged)
+    // The address of the Agent activity page, which the interface draws itself
+    // and no engine loads.
+    Q_PROPERTY(QUrl agentActivityAddress READ agentActivityAddress CONSTANT)
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
@@ -234,6 +237,10 @@ public:
     Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
+    static QUrl agentActivityAddress();
+    // Opens the Agent activity page in a new tab of the Space on show and
+    // selects it. A Private window has no Agents and opens nothing.
+    Q_INVOKABLE bool openAgentActivity();
     Q_INVOKABLE bool retryActiveUrlInsecurely();
     Q_INVOKABLE void closeTab(const QString &tabId);
     Q_INVOKABLE void closeActiveTab();
@@ -558,6 +565,8 @@ private:
     QUrl iconToShow(const TabState &tab, const QUrl &pageIcon) const;
     void keepFavicon(const QString &spaceId, const QUrl &pageUrl, const QUrl &iconUrl);
     void schedulePersistTabs();
+    // A new tab of the Space on show, selected.
+    void appendActiveTab(const QUrl &url, const QString &title);
     void setActiveTab(const QString &tabId);
     qsizetype pinnedTabCount() const;
     qsizetype tabRow(const QString &tabId) const;

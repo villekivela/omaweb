@@ -19,6 +19,7 @@
 
 namespace omaweb {
 
+class AgentActivityLog;
 class BrowserController;
 
 // What an Agent may do through the control socket, and the one setting that
@@ -151,6 +152,10 @@ public:
     // What the interface needs to build an Agent tab's page: `tabId`,
     // `spaceId`, `url`, `zoom` and `muted`. Empty for a tab that is not one.
     Q_INVOKABLE QVariantMap agentTab(const QString &tabId) const;
+
+    // Where every verb is written down once it is answered. Without one,
+    // nothing is.
+    void setActivityLog(AgentActivityLog *log);
 
     QStringList agentWindowIds() const;
     // An Auxiliary window the page of `openerTabId` opened. While the opener
@@ -287,7 +292,6 @@ private:
     void askGrant(const QString &spaceId, const QString &name,
         const std::function<void(GrantAnswer)> &waiter);
     void finishGrant(const QString &spaceId, GrantAnswer answer);
-    QString spaceName(const QString &spaceId) const;
     void attach(const QString &tabId, const QString &name = {});
     void detach(const QString &tabId);
     void detachIdle();
@@ -320,6 +324,23 @@ private:
     QString defaultSpace(const Connection &connection) const;
     static QJsonObject noSpace(const QString &named);
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
+    // What a request is about before it runs: its tab, and the Space it
+    // names by the name it has then.
+    struct ActivityScope {
+        std::optional<TabState> tab;
+        QString spaceId;
+        QString spaceName;
+    };
+    ActivityScope activityScope(
+        const QString &verb, const QJsonObject &request, const Connection &connection) const;
+    // What a verb acted on, as the activity log keeps it: an address, a hint
+    // label, a Space or a command. Never a page's text, a value a step filled,
+    // the option it chose, a key it pressed, the text it waited for, a
+    // selector or the source it evaluated.
+    QString activityTarget(const QString &verb, const QJsonObject &request) const;
+    void logActivity(const QString &verb, const QString &name, const QJsonObject &request,
+        const QJsonObject &answer, const ActivityScope &scope);
+    QString spaceName(const QString &spaceId) const;
 
     BrowserController *m_browser;
     QString m_configRoot;
@@ -332,6 +353,7 @@ private:
     QSet<QString> m_openedTabIds;
     QFileSystemWatcher m_watcher;
     QString m_shotDirectory;
+    AgentActivityLog *m_activity = nullptr;
     int m_nextPageRequest = 1;
     int m_nextCommandRequest = 1;
     // The window's answer to the command request under way, while
