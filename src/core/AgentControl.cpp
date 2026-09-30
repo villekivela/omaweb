@@ -1464,7 +1464,7 @@ QJsonObject AgentControl::open(
             attach(tabId, name);
         }
         tab->url = url;
-        tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
+        tab->title = BrowserController::addressTitle(url);
         return success({{QStringLiteral("tab"), describeTab(*tab, connection)}});
     }
 

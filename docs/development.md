@@ -377,11 +377,10 @@ omaweb look
 omaweb do 'fill 1 reader@example.com' 'fill 2 "A Reader"' 'click 5'
 ```
 
-Each takes `--json` and `--name`, which defaults to the parent process's name. These words, `look`,
-`read`, `do`, `shot`, `eval` and `console` among them, are verbs now. A launch used to skip a word
-that was not an address, so `omaweb open https://…` started the browser and opened the address, and
-`omaweb tabs` started it with nothing. Now both are clients, and without a running browser they exit
-with 3. A launcher that starts the browser with an address passes the address alone,
+Each takes `--json` and `--name`, which defaults to the parent process's name, and `--` ends the
+options. These words, `look`, `read`, `do`, `shot`, `eval` and `console` among them, are verbs, so
+`omaweb open https://…` and `omaweb tabs` are clients of a running browser and exit with 3 when
+there is none. A launcher that starts the browser with an address passes the address alone,
 `omaweb https://…`, as the desktop entry does. `space new` and `space delete` need Allow agents,
 which has no switch in Settings yet; set `"allow-agents": true` in `privacy.json` under the
 configuration root. A running browser follows the file, and turning it off there detaches every
