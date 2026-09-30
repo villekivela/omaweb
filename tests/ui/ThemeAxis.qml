@@ -36,11 +36,20 @@ QtObject {
     // a spacing token then keeps whatever the scale does. A layout measured
     // against that desktop answers for the desktop rather than for the page,
     // so a test starts here and moves one axis from a place it names.
+    //
+    // Only what differs is written. A new empty object is a change to QML
+    // however empty the old one was, and it lays out again everything bound to
+    // the tokens. A suite that shares one window calls this before every test,
+    // and a press made while that window is still moving lands on nothing.
     function useStatedTheme() {
-        Style.fontOverrides = ({});
-        Style.spacingScale = 1;
-        Style.spacingScaleWithFont = true;
-        Style.spacingOverrides = ({});
+        if (Object.keys(Style.fontOverrides).length > 0)
+            Style.fontOverrides = ({});
+        if (Style.spacingScale !== 1)
+            Style.spacingScale = 1;
+        if (!Style.spacingScaleWithFont)
+            Style.spacingScaleWithFont = true;
+        if (Object.keys(Style.spacingOverrides).length > 0)
+            Style.spacingOverrides = ({});
     }
 
     // The type the theme sets. shell.toml pins these tokens directly, and
