@@ -1015,6 +1015,13 @@ if(BUILD_TESTING)
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_pageload.py"
         )
+        # When the freezing budget's frozen reading is taken: once the process
+        # tree has stopped moving after the Space switch, or at a limit for a
+        # page that never stops.
+        add_test(NAME omaweb-benchmark-freezing
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_freezing.py"
+        )
         # The Chromium comparison's run order, ratios, matched build, history
         # lines and plot: what it reports is decided by code that runs no
         # browser.

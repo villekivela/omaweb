@@ -1183,7 +1183,10 @@ Five measurements, one subcommand each, so a developer can run the one they are 
   after the first added. That is the price of the engine profile per Space that
   [ADR 0008](adr/0008-isolate-space-storage-on-disk.md) buys.
 - `freezing` loads a page that takes a megabyte every fifth of a second into a second Space, puts
-  that Space away, and reports how much the process tree grew afterwards.
+  that Space away, and reports how much the process tree grew over the ten seconds after it had
+  settled. The whole tree is read, and a Space switch leaves the browser busy for a moment, so the
+  reading those ten seconds are measured from waits until two readings two seconds apart agree
+  within a quarter of a mebibyte, for at most thirty seconds, and the log says how long that took.
   [ADR 0033](adr/0033-stop-an-away-spaces-pages-instead-of-taking-them.md) keeps a frozen page's
   document and process and stops its timers, animations and script, so what the memory it holds buys
   is not in question; a page still running in a Space nobody is reading is. The growth while that
