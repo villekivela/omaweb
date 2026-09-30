@@ -1282,7 +1282,8 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     // Agent that could give it would take its own mark off.
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
-        QStringLiteral("private-window"), QStringLiteral("take-over-space")};
+        QStringLiteral("private-window"), QStringLiteral("take-over-space"),
+        QStringLiteral("agent-activity")};
     QStringList decided = AgentControl::publicCommands() + keptIn;
     decided.sort();
     registry.sort();

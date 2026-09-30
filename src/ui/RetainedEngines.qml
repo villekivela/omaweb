@@ -63,7 +63,7 @@ QtObject {
             const kept = wanted[index];
             if (root.host.engines[kept.tabId])
                 continue;
-            if (root.host.blankAddress(kept.url))
+            if (root.host.pagelessAddress(kept.url))
                 continue;
             const profile = root.spaceProfiles.hostFor(kept.spaceId);
             if (!profile)

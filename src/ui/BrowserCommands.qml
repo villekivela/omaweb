@@ -192,6 +192,8 @@ QtObject {
         case "history":
             window.requestHistory();
             return true;
+        case "agent-activity":
+            return browser.openAgentActivity();
         case "settings":
             window.requestSettings();
             return true;
@@ -476,6 +478,11 @@ QtObject {
                                              "history": {
                                                  group: "interface",
                                                  title: "History",
+                                                 requires: "ordinary-window"
+                                             },
+                                             "agent-activity": {
+                                                 group: "interface",
+                                                 title: "Show agent activity",
                                                  requires: "ordinary-window"
                                              },
                                              "settings": {

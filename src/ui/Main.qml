@@ -1446,14 +1446,18 @@ ApplicationWindow {
     // window: a Private window is never an Agent's.
     readonly property var agentControlSource: !window.privateWindow && typeof agentControl
                                               !== "undefined" ? agentControl : null
+    // What Agents did, which the Agent activity page lists. The ordinary
+    // window's alone, for the same reason.
+    readonly property var agentActivitySource: !window.privateWindow && typeof agentActivity
+                                               !== "undefined" ? agentActivity : null
     // Each Agent tab by id, with its Space, the connection's name, its last
     // act and whether a command is in flight, for the marks on the row, the
     // page and the Space. It is read from the page area's control, which
     // holds this window's Agent rules.
     // A Private window is never an Agent's, so it has nothing to mark.
-    readonly property var agentActivity: !window.privateWindow && engineLoader.agentControl
-                                         && engineLoader.agentControl.agentActivity
-                                         ? engineLoader.agentControl.agentActivity : ({})
+    readonly property var agentTabActivity: !window.privateWindow && engineLoader.agentControl
+                                            && engineLoader.agentControl.agentActivity
+                                            ? engineLoader.agentControl.agentActivity : ({})
     // The Spaces an Agent made that the reader has not taken over. A Private
     // window has no Spaces, and its controller lists none.
     readonly property var agentSpaceIds: window.windowBrowser.agentSpaceIds
@@ -2601,7 +2605,7 @@ ApplicationWindow {
                 browser: window.windowBrowser
                 keyMap: keymap
                 keyLabelsShown: PrimaryHold.held && !window.settingsOpen
-                agentActivity: window.agentActivity
+                agentActivity: window.agentTabActivity
                 agentSpaceIds: window.agentSpaceIds
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
@@ -2983,7 +2987,7 @@ ApplicationWindow {
                     height: engineLoader.height
                     z: 20
                     colors: window.colors
-                    agent: window.agentActivity[window.windowBrowser.activeTabId] || null
+                    agent: window.agentTabActivity[window.windowBrowser.activeTabId] || null
                     // Below the Agent Space's notice while it stands.
                     labelTop: agentSpaceBar.height
                     visible: agent !== null && !window.startPageShown && !window.settingsOpen &&
@@ -3000,7 +3004,7 @@ ApplicationWindow {
                     height: engineLoader.height
                     z: 20
                     colors: window.colors
-                    agent: window.agentActivity[engineLoader.tabBesideId] || null
+                    agent: window.agentTabActivity[engineLoader.tabBesideId] || null
                     // Below the Agent Space's notice while it stands.
                     labelTop: agentSpaceBar.height
                     visible: engineLoader.splitOnShow && agent !== null && !window.startPageShown
@@ -3145,6 +3149,17 @@ ApplicationWindow {
                         window.showNotice("error", "The Glance's page stopped working", reason,
                                           4200);
                     }
+                }
+
+                // The Agent activity page stands where the tab holding it would
+                // draw a page, under the Start page summoned over it.
+                AgentActivityPage {
+                    anchors.fill: parent
+                    z: 29
+                    colors: window.colors
+                    activity: window.agentActivitySource
+                    open: !window.privateWindow && String(window.windowBrowser.activeUrl) === String(
+                              window.windowBrowser.agentActivityAddress)
                 }
 
                 StartPage {

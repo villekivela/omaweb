@@ -4228,7 +4228,7 @@ TestCase {
         };
         control.agentActivity = activity;
         privateEngine.agentControl = control;
-        compare(Object.keys(privateBrowser.agentActivity).length, 0);
+        compare(Object.keys(privateBrowser.agentTabActivity).length, 0);
         verify(!findChild(privateBrowser.contentItem, "agentFrame").visible);
         const mark = findChild(privateBrowser.contentItem, "agentMark-" + tabId);
         verify(mark === null || !mark.visible);
@@ -6449,6 +6449,42 @@ TestCase {
         verify(browser.deleteSpace(workSpaceId, "History sheet work"));
 
         findChild(window.contentItem, "closeHistoryButton").clicked();
+        tryVerify(function () {
+            return !surface.visible;
+        });
+    }
+
+    // Show agent activity opens the log as a page of its own, in a new tab,
+    // newest first and filtered by Agent and by Space.
+    function test_showAgentActivityOpensTheLogInANewTab() {
+        const before = browser.activeTabId;
+        verify(window.commands.run("agent-activity", -1));
+        verify(browser.activeTabId !== before);
+        compare(String(browser.activeUrl), "omaweb:agent-activity");
+
+        const surface = findChild(window.contentItem, "agentActivitySurface");
+        const list = findChild(window.contentItem, "agentActivityList");
+        const agents = findChild(window.contentItem, "agentActivityAgentFilter");
+        const spaces = findChild(window.contentItem, "agentActivitySpaceFilter");
+        verify(surface !== null);
+        tryVerify(function () {
+            return surface.visible;
+        });
+        tryCompare(list, "count", 2);
+        compare(list.model[0].agent, "script");
+        compare(list.model[1].target, "fill 7, click 9");
+
+        agents.value = "claude";
+        tryCompare(list, "count", 1);
+        compare(list.model[0].space, "Research");
+        spaces.value = "errands-space";
+        tryCompare(list, "count", 0);
+        agents.value = "";
+        tryCompare(list, "count", 1);
+        compare(list.model[0].agent, "script");
+        spaces.value = "";
+
+        browser.closeActiveTab();
         tryVerify(function () {
             return !surface.visible;
         });

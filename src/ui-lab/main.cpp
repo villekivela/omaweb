@@ -1,3 +1,4 @@
+#include "AgentActivityLog.h"
 #include "AgentControl.h"
 #include "BrowserController.h"
 #include "StoredFaviconProvider.h"
@@ -273,6 +274,54 @@ void seedSampleSpaces(omaweb::BrowserController &browser, const QVariantList &fa
     browser.switchSpace(firstSpaceId);
 }
 
+// Two Agents' last hour in two Spaces: one working in an Agent Space and one
+// granted the reader's Work Space, with one verb refused. What the Agent
+// activity page is reviewed on.
+void seedAgentActivity(omaweb::AgentActivityLog &log)
+{
+    struct SampleLine {
+        int minutesAgo;
+        const char *agent;
+        const char *spaceId;
+        const char *space;
+        const char *address;
+        const char *verb;
+        const char *target;
+        const char *outcome;
+    };
+    static const QList<SampleLine> lines = {
+        {42, "claude", "lab-research", "Research", "", "space new", "Research", "ok"},
+        {41, "claude", "lab-research", "Research", "https://shop.example/login", "open",
+            "https://shop.example/login", "ok"},
+        {41, "claude", "lab-research", "Research", "https://shop.example/login", "look", "", "ok"},
+        {40, "claude", "lab-research", "Research", "https://shop.example/login", "do",
+            "fill 7, fill 8, click 9", "ok"},
+        {39, "claude", "lab-research", "Research", "https://shop.example/account", "read", "",
+            "ok"},
+        {24, "deploy-check", "lab-work", "Work", "http://localhost:3000/", "open",
+            "http://localhost:3000/", "ok"},
+        {23, "deploy-check", "lab-work", "Work", "http://localhost:3000/", "console", "", "ok"},
+        {23, "deploy-check", "lab-work", "Work", "http://localhost:3000/", "shot", "full page",
+            "ok"},
+        {12, "deploy-check", "lab-work", "Work", "https://github.com/pulls", "eval", "", "refused"},
+        {3, "claude", "lab-research", "Research", "https://shop.example/account", "do",
+            "click 14, wait", "ok"},
+    };
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    for (const auto &line : lines) {
+        omaweb::AgentActivityLog::Entry entry;
+        entry.time = now - line.minutesAgo * 60 * 1000LL;
+        entry.agent = QString::fromUtf8(line.agent);
+        entry.spaceId = QString::fromUtf8(line.spaceId);
+        entry.space = QString::fromUtf8(line.space);
+        entry.address = QString::fromUtf8(line.address);
+        entry.verb = QString::fromUtf8(line.verb);
+        entry.target = QString::fromUtf8(line.target);
+        entry.outcome = QString::fromUtf8(line.outcome);
+        log.record(std::move(entry));
+    }
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -366,6 +415,12 @@ int main(int argc, char *argv[])
     omaweb::quickshell::installShim(engine);
     omaweb::installStoredFavicons(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
+    // `--agent-activity` seeds what the Agent activity page lists.
+    omaweb::AgentActivityLog agentActivity(dataRoot.filePath(QStringLiteral("agent-activity")));
+    if (arguments.contains(QStringLiteral("--agent-activity"))) {
+        seedAgentActivity(agentActivity);
+    }
+    engine.rootContext()->setContextProperty(QStringLiteral("agentActivity"), &agentActivity);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
     engine.rootContext()->setContextProperty(
         QStringLiteral("keyboardNavigation"), &keyboardNavigation);
@@ -588,6 +643,9 @@ int main(int argc, char *argv[])
             {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
+            // Opens the Agent activity page in a new tab, as its command does.
+            // `--agent-filter` picks one Agent's lines.
+            {QStringLiteral("agent-activity"), {}},
             // The last seeded tab's page asks for notifications, so the
             // question bar stands over it. `--private` shows the Private
             // window's wording.
@@ -718,6 +776,19 @@ int main(int argc, char *argv[])
                     });
                 }
             });
+        } else if (requested == QLatin1String("agent-activity")) {
+            browser.openAgentActivity();
+            const auto filterIndex = arguments.indexOf(QStringLiteral("--agent-filter"));
+            if (filterIndex >= 0 && filterIndex + 1 < arguments.size()) {
+                const auto agent = arguments.at(filterIndex + 1);
+                QTimer::singleShot(100, root, [root, agent] {
+                    auto *filter
+                        = root->findChild<QObject *>(QStringLiteral("agentActivityAgentFilter"));
+                    if (filter != nullptr) {
+                        filter->setProperty("value", agent);
+                    }
+                });
+            }
         } else if (state.isEmpty() && requested != QLatin1String("permission")) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;

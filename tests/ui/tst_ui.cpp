@@ -1,3 +1,4 @@
+#include "AgentActivityLog.h"
 #include "AgentControl.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
@@ -33,6 +34,7 @@
 #include <QPainter>
 #include <QQmlContext>
 #include <QDir>
+#include <QDateTime>
 #include <QFile>
 #include <QFontDatabase>
 #include <QQuickImageProvider>
@@ -249,10 +251,35 @@ public slots:
         // resolver and read what the chrome says about it.
         m_secureDns
             = std::make_unique<omaweb::SecureDns>(m_dataRoot->filePath(QStringLiteral("config")));
+        // Two Agents' lines, a minute apart, for the Agent activity page to
+        // list and filter.
+        m_agentActivity = std::make_unique<omaweb::AgentActivityLog>(
+            m_dataRoot->filePath(QStringLiteral("agent-activity")));
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        m_agentActivity->record({.time = now - 60000,
+            .agent = QStringLiteral("claude"),
+            .spaceId = QStringLiteral("research-space"),
+            .space = QStringLiteral("Research"),
+            .tabId = QStringLiteral("research-tab"),
+            .address = QStringLiteral("https://shop.example/login"),
+            .verb = QStringLiteral("do"),
+            .target = QStringLiteral("fill 7, click 9"),
+            .outcome = QStringLiteral("ok")});
+        m_agentActivity->record({.time = now,
+            .agent = QStringLiteral("script"),
+            .spaceId = QStringLiteral("errands-space"),
+            .space = QStringLiteral("Errands"),
+            .tabId = {},
+            .address = {},
+            .verb = QStringLiteral("open"),
+            .target = QStringLiteral("https://errands.example/"),
+            .outcome = QStringLiteral("refused")});
         engine->rootContext()->setContextProperty(QStringLiteral("browser"), m_browser.get());
         m_agentSpaceProbe = std::make_unique<AgentSpaceProbe>(m_browser.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("agentSpaceProbe"), m_agentSpaceProbe.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("agentActivity"), m_agentActivity.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("contentBlocker"), m_contentBlocker.get());
         engine->rootContext()->setContextProperty(
@@ -340,6 +367,7 @@ public slots:
         m_windowManager.reset();
         m_agentSpaceProbe.reset();
         m_browser.reset();
+        m_agentActivity.reset();
         m_contentBlocker.reset();
         m_secureDns.reset();
         m_keyboardNavigation.reset();
@@ -353,6 +381,7 @@ private:
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<AgentSpaceProbe> m_agentSpaceProbe;
+    std::unique_ptr<omaweb::AgentActivityLog> m_agentActivity;
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;
     std::unique_ptr<ImageProbe> m_imageProbe;
     std::unique_ptr<omaweb::SecureDns> m_secureDns;

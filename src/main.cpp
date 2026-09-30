@@ -1,3 +1,4 @@
+#include "AgentActivityLog.h"
 #include "AgentCommand.h"
 #include "AgentControl.h"
 #include "AgentMcp.h"
@@ -276,6 +277,10 @@ int main(int argc, char *argv[])
     omaweb::AgentControl agentControl(&browser, configRoot());
     agentControl.setShotDirectory(
         QFileInfo(omaweb::ControlSocket::defaultPath()).dir().filePath(QStringLiteral("shots")));
+    // Opened before the socket, so the week-old lines are gone before the
+    // first verb adds one.
+    omaweb::AgentActivityLog agentActivity(dataRoot());
+    agentControl.setActivityLog(&agentActivity);
     omaweb::ControlSocket controlSocket(&agentControl);
     const auto answeringAgents = !validatingQml
         && omaweb::openAgentSocket(controlSocket, browser, omaweb::ControlSocket::defaultPath());
@@ -404,6 +409,7 @@ int main(int argc, char *argv[])
     omaweb::installStoredFavicons(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("agentControl"), &agentControl);
+    engine.rootContext()->setContextProperty(QStringLiteral("agentActivity"), &agentActivity);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
     engine.rootContext()->setContextProperty(
         QStringLiteral("keyboardNavigation"), &keyboardNavigation);
