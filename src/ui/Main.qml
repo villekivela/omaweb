@@ -3310,6 +3310,17 @@ ApplicationWindow {
                         }
                     ]
 
+                    // The page under the notice is blurred, so it is not read
+                    // through the notice's translucent ground. The notice's own
+                    // fill and accent edge are drawn over it.
+                    PageBackdrop {
+                        objectName: "agentSpaceBarBackdrop"
+                        anchors.fill: parent
+                        z: -1
+                        source: window.startPageShown ? startPage : (window.pagelessViewport ? null :
+                                                                                               engineLoader)
+                    }
+
                     onActionTriggered: function (index) {
                         if (index === 0)
                             window.takeOverSpace();

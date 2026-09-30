@@ -4169,6 +4169,15 @@ TestCase {
         verify(bar.detail.indexOf("connection closes") >= 0);
         compare(bar.actions[0].label, "Take over");
         compare(bar.actions[1].label, "Dismiss");
+        // The page under the notice is blurred rather than read through its
+        // translucent ground, and the notice is drawn over the blur.
+        const backdrop = findChild(bar, "agentSpaceBarBackdrop");
+        verify(backdrop !== null);
+        compare(backdrop.source, findChild(window.contentItem, "engineLoader"));
+        verify(backdrop.sampling);
+        verify(backdrop.z < 0);
+        compare(backdrop.width, bar.width);
+        compare(backdrop.height, bar.height);
         verify(window.commands.available("take-over-space"));
         verify(window.commands.actions().some(function (action) {
             return action.command === "take-over-space" && action.title === "Take over Space";
@@ -4177,6 +4186,7 @@ TestCase {
         // Dismissed, it stays away until the Space is opened again.
         bar.actionTriggered(1);
         verify(!bar.open);
+        verify(!backdrop.sampling);
         verify(browser.switchSpace(drive.readersSpaceId));
         tryCompare(sidebar, "arriving", false);
         verify(!bar.open);
