@@ -186,16 +186,19 @@ jobs:
         run: su builder -c 'ctest --preset ci'
       # The engine contract skips CNAME uncloaking's test on an engine without
       # the DNS alias API, and a skip passes. ctest prints only failing
-      # output, so the result is read from its log.
+      # output, so the result is read from its log. Every result it holds for
+      # the test has to be a pass, because a log with a pass above a skip or a
+      # failure is not a test that ran.
       - name: Check CNAME uncloaking was tested
         run: |
-          result=$(grep -E '^(PASS|SKIP|FAIL!) +: QtEngineContractTest::qtRefusesATrackerBehindACname\(\)' \
-            build/ci/Testing/Temporary/LastTest.log || true)
-          echo "${result:-no result for qtRefusesATrackerBehindACname}"
-          case "$result" in
-            PASS*) ;;
-            *) echo "::error::qtRefusesATrackerBehindACname did not pass" >&2; exit 1 ;;
-          esac
+          name='QtEngineContractTest::qtRefusesATrackerBehindACname()'
+          results=$(grep -F ": $name" build/ci/Testing/Temporary/LastTest.log \
+            | grep -E '^(PASS|SKIP|FAIL!|XFAIL|XPASS|BPASS|BFAIL) +:' || true)
+          echo "${results:-no result for $name}"
+          if [ -z "$results" ] || printf '%s\n' "$results" | grep -qv '^PASS '; then
+            echo "::error::$name did not pass" >&2
+            exit 1
+          fi
       # What the browser costs at runtime, against the ceilings in
       # `performance/budget.json`. It measures the build this job has already
       # made, so it costs a few minutes rather than a second build.

@@ -1065,6 +1065,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_pkgbuild.py
         )
+        # What CI's `arch-linux` job reads to know it built on Omaweb's engine
+        # rather than a stock one it cannot tell apart by compiling (#394).
+        add_test(NAME omaweb-check-omaweb-engine
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_omaweb_engine.py
+        )
         add_test(NAME omaweb-security-baseline
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
@@ -1591,6 +1597,20 @@ if(BUILD_TESTING)
         set_tests_properties(omaweb-ui PROPERTIES
             ENVIRONMENT
                 "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
+        )
+        # The same suite on a desktop with an Omarchy theme applied. The kit
+        # reads the theme from the reader's home, CI has none, and a test that
+        # measured the desktop's theme rather than one it states passed there
+        # and failed on the maintainer's machine (#277). The home is a copy in
+        # the build tree, because the suite may write under it.
+        set(omaweb_ui_themed_home "${CMAKE_CURRENT_BINARY_DIR}/ui-themed-home")
+        configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tests/ui/desktop-theme-shell.toml"
+            "${omaweb_ui_themed_home}/.local/state/omarchy/current/theme/shell.toml" COPYONLY)
+        add_test(NAME omaweb-ui-themed COMMAND omaweb-ui-tests)
+        set_tests_properties(omaweb-ui-themed PROPERTIES
+            ENVIRONMENT
+                "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
+            ENVIRONMENT_MODIFICATION "HOME=set:${omaweb_ui_themed_home}"
         )
     endif()
 

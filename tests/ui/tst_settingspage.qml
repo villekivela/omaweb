@@ -346,19 +346,43 @@ TestCase {
     // A button the positioner has finished placing. One read before its row is
     // laid out sits on top of its neighbours, so a press meant for it lands
     // elsewhere. A width alone is not enough: the Flow gives every button its
-    // width before it moves any of them off the left edge, so this waits for a
-    // place that has stopped changing.
+    // width before it moves any of them off the left edge, and a column moves
+    // a stepper down the page after its right edge has already settled, so
+    // this waits for a place that has stopped changing on both axes.
     function settleAction(action) {
         verify(action !== null);
-        let previous = -1;
+        let previous = "";
         let steady = 0;
         tryVerify(function () {
-            const placed = action.mapToItem(testCase, 0, 0).x;
+            const point = action.mapToItem(testCase, 0, 0);
+            const placed = point.x + "," + point.y;
             steady = action.width > 0 && placed === previous ? steady + 1 : 0;
             previous = placed;
             return steady >= 2;
         });
         return action;
+    }
+
+    // Scrolls the settings pane until the control is inside the window, as a
+    // reader would before pressing it. How far down the page a control sits is
+    // decided by the host's fonts: a Mac's fallback for the page's family sets
+    // taller text than CI's, which put a stepper past the window's bottom edge,
+    // where a press lands on nothing.
+    function bringIntoView(control) {
+        let view = control.parent;
+        while (view !== null && view.contentY === undefined)
+            view = view.parent;
+        verify(view !== null);
+        const top = control.mapToItem(view.contentItem, 0, 0).y;
+        const visibleTop = view.contentY;
+        const visibleBottom = view.contentY + view.height;
+        if (top < visibleTop || top + control.height > visibleBottom) {
+            const most = Math.max(0, view.contentHeight - view.height);
+            view.contentY = Math.min(most, Math.max(0, top - (view.height - control.height) / 2));
+        }
+        settleAction(control);
+        const inWindow = control.mapToItem(testCase, 0, control.height);
+        verify(inWindow.y <= testCase.height, "the control is still below the window");
     }
 
     // The Spaces as the page draws them, top to bottom, so the order under
@@ -1065,6 +1089,7 @@ TestCase {
 
     function click(control) {
         settleAction(control);
+        bringIntoView(control);
         mouseClick(control, control.width / 2, control.height / 2);
     }
 

@@ -389,7 +389,8 @@ def children_by_parent() -> dict[int, list[int]]:
 
 
 def process_states(root: int) -> dict[int, tuple[str, str, float, int]]:
-    """Each process in a tree: its name, its state, the CPU seconds it has used, and its RSS in KiB."""
+    """Each process in a tree: its name, its state, the CPU seconds it has used,
+    and its RSS in KiB."""
     tree = children_by_parent()
     ticks = os.sysconf("SC_CLK_TCK")
     page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
@@ -1168,7 +1169,8 @@ class PageLoadSite:
         said = ("it never said how far it got" if stalled is None else
                 f"it last said: document {stalled['readyState']}, load event at "
                 f"{stalled['loadEventStart']} ms, {len(stalled['incomplete'])} images incomplete "
-                f"({', '.join(stalled['incomplete'][:3]) or 'none'}), report {stalled['reporting']}")
+                f"({', '.join(stalled['incomplete'][:3]) or 'none'}), "
+                f"report {stalled['reporting']}")
         return (f"load {load.number} ({load.case} hosts, blocking {load.mode}) was served, and "
                 f"{asked} of its {PAGELOAD_IMAGES} images were asked of the server and {answered} "
                 f"answered by it; the server's errors: {errors or 'none'}; {said}")

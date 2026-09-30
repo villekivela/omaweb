@@ -185,13 +185,16 @@ TestCase {
     }
 
     // The type the theme sets, so a size the sidebar derives from it can be
-    // driven rather than read back.
+    // driven rather than read back, and the theme every test starts from, so
+    // the chrome is measured against one the suite names rather than the
+    // desktop's (#277).
     ThemeAxis {
         id: themeAxis
     }
 
     function initTestCase() {
         themeAxis.remember();
+        themeAxis.useStatedTheme();
         window = windowComponent.createObject(null);
         verify(window !== null);
         window.show();
@@ -206,6 +209,7 @@ TestCase {
     // Every test shares one window, and a test that fails part-way can leave
     // a new tab's Start page summoned over the next test's page.
     function init() {
+        themeAxis.useStatedTheme();
         window.endStartPageDrive();
         window.startPageSummoned = false;
         window.shortcutsOpen = false;
@@ -8538,7 +8542,7 @@ TestCase {
             return row.chipSize > ordinary;
         });
         tryCompare(tile, "implicitWidth", row.chipSize);
-        themeAxis.restore();
+        themeAxis.useStatedTheme();
         tryCompare(row, "chipSize", ordinary);
 
         // Pinning replaces the row, so the pin is found again rather than
@@ -8556,7 +8560,7 @@ TestCase {
         });
         tryCompare(pinnedTile, "implicitWidth", pinnedRow.chipSize);
         tryCompare(pinnedTile, "implicitHeight", pinnedRow.chipSize);
-        themeAxis.restore();
+        themeAxis.useStatedTheme();
         tryCompare(pinnedTile, "implicitWidth", ordinary);
         tryCompare(pinnedTile, "implicitHeight", ordinary);
         browser.toggleActivePinned();
