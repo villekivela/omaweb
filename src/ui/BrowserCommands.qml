@@ -160,16 +160,16 @@ QtObject {
             window.printPage();
             return true;
         case "screenshot-page":
-            window.screenshotPage(false, false);
+            window.screenshotPage(root.descriptions[command].title, false, false);
             return true;
         case "copy-screenshot":
-            window.screenshotPage(true, false);
+            window.screenshotPage(root.descriptions[command].title, true, false);
             return true;
         case "screenshot-full-page":
-            window.screenshotPage(false, true);
+            window.screenshotPage(root.descriptions[command].title, false, true);
             return true;
         case "copy-full-page-screenshot":
-            window.screenshotPage(true, true);
+            window.screenshotPage(root.descriptions[command].title, true, true);
             return true;
         case "fullscreen":
             window.toggleBrowserFullscreen();

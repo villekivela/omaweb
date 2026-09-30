@@ -1626,6 +1626,18 @@ if(BUILD_TESTING)
         set_tests_properties(omaweb-qt-engine-contract PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
+        # A screenshot is taken at the display's pixel density, which is one
+        # in the run above and so cannot tell a capture at the page's own size
+        # from one at the density. The captures run again at two.
+        add_test(NAME omaweb-qt-engine-capture-at-double-density
+            COMMAND omaweb-qt-engine-contract-tests
+                qtCapturesThePageAreaAsTheEngineDrewIt
+                qtCapturesTheWholePageAndLeavesTheReaderWhereTheyWere
+                qtRefusesAPageTallerThanAScreenshotBeforeScrollingIt
+        )
+        set_tests_properties(omaweb-qt-engine-capture-at-double-density PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=2"
+        )
     endif()
 endif()
 

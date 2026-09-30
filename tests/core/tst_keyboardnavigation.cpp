@@ -18,6 +18,7 @@ private slots:
     void rejectsUnsupportedVersionsAndCommands();
     void dropsBindingsThisBuildDoesNotKnowAndKeepsTheRest();
     void readsTheCommandPanelIdAsTheCommandScope();
+    void bindsTheScreenshotCommands();
     void persistsTheEnabledSetting();
     void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
     void replacesRetiredDefaultWithoutChangingCustomBindings();
@@ -170,6 +171,37 @@ void KeyboardNavigationTest::readsTheCommandPanelIdAsTheCommandScope()
         QStringLiteral("command-scope"));
     QCOMPARE(navigation.browserBindings().value(QStringLiteral(":")).toString(),
         QStringLiteral("command-scope"));
+}
+
+// The screenshot commands have no keys of their own, and a reader who wants
+// them on a key binds them in the file like any other.
+void KeyboardNavigationTest::bindsTheScreenshotCommands()
+{
+    QTemporaryDir root;
+    const auto path = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "j": "scroll-down" },
+        "browser": {
+            "Primary+Shift+S": "screenshot-page",
+            "Primary+Shift+C": "copy-screenshot",
+            "Primary+Alt+S": "screenshot-full-page",
+            "Primary+Alt+C": "copy-full-page-screenshot"
+        }
+    })JSON");
+    KeyboardNavigation navigation(path);
+
+    QVERIFY(navigation.valid());
+    QVERIFY2(navigation.errorMessage().isEmpty(), qPrintable(navigation.errorMessage()));
+    const auto browser = navigation.browserBindings();
+    QCOMPARE(browser.value(QStringLiteral("Primary+Shift+S")).toString(),
+        QStringLiteral("screenshot-page"));
+    QCOMPARE(browser.value(QStringLiteral("Primary+Shift+C")).toString(),
+        QStringLiteral("copy-screenshot"));
+    QCOMPARE(browser.value(QStringLiteral("Primary+Alt+S")).toString(),
+        QStringLiteral("screenshot-full-page"));
+    QCOMPARE(browser.value(QStringLiteral("Primary+Alt+C")).toString(),
+        QStringLiteral("copy-full-page-screenshot"));
 }
 
 void KeyboardNavigationTest::persistsTheEnabledSetting()

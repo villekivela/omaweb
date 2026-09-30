@@ -15,6 +15,32 @@ PageImages::PageImages(QObject *parent)
 {
 }
 
+QVariantList PageImages::stripTops(qreal pageHeight, qreal viewportHeight) const
+{
+    QVariantList tops;
+    if (viewportHeight <= 0) {
+        return tops;
+    }
+    for (qreal top = 0; top < pageHeight; top += viewportHeight) {
+        const auto clamped = qMax(qreal(0), qMin(top, pageHeight - viewportHeight));
+        if (!tops.contains(clamped)) {
+            tops.append(clamped);
+        }
+    }
+    return tops;
+}
+
+QString PageImages::heightRefusal(qreal pageHeight, qreal ratio) const
+{
+    const auto tall = qRound(pageHeight * ratio);
+    if (tall <= kHeightLimit) {
+        return {};
+    }
+    return QStringLiteral("The page is %1 pixels tall, and a screenshot holds %2")
+        .arg(tall)
+        .arg(kHeightLimit);
+}
+
 QString PageImages::reserveStrip() const
 {
     const QDir temporary(QStandardPaths::writableLocation(QStandardPaths::TempLocation));

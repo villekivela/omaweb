@@ -23,6 +23,16 @@ public:
     static constexpr int kHeightLimit = 32767;
     int heightLimit() const { return kHeightLimit; }
 
+    // Where the page is scrolled for each strip, in the page's own pixels: a
+    // screenful at a time from the top, the last only as far as the page
+    // goes, so it overlaps the one before it. Empty for a view with no height.
+    Q_INVOKABLE QVariantList stripTops(qreal pageHeight, qreal viewportHeight) const;
+
+    // Why a page `pageHeight` tall, drawn at `ratio` image pixels to one of
+    // its own, is too tall for a screenshot, naming the height and the limit;
+    // empty when it fits.
+    Q_INVOKABLE QString heightRefusal(qreal pageHeight, qreal ratio) const;
+
     // A file for one strip to be written to. The image a grab hands to
     // JavaScript does not outlive the grab, so each strip is kept as a file
     // until the page is joined.

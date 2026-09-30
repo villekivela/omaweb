@@ -760,15 +760,24 @@ Item {
     // The whole page, a screenful at a time. A view draws only what fits in
     // it, so the page is scrolled to each part in turn, the part grabbed, and
     // the parts joined. What the page fixes to the viewport would be in every
-    // part, so after the first it is hidden; it is shown again, and the page
-    // scrolled back to where the reader left it, once the last part is in.
+    // part, so after the first it is hidden. What it makes sticky would stick
+    // to every part it is scrolled past, and is laid out where it sits in the
+    // page instead, which takes the same room. Both are put back, and the page
+    // scrolled to where the reader left it, once the last part is in.
     // The page's own scripts see the scroll, as they would the reader's. The
     // bookkeeping lives in the application world, where the page cannot reach
     // it. A page taller than a screenshot holds is refused before anything
     // moves, rather than cut short.
     property var fullCapture: null
     readonly property string fullCaptureMeasureSnippet: `(() => {
-        globalThis.__omawebFullCapture = { x: scrollX, y: scrollY, hidden: [] };
+        const state = { x: scrollX, y: scrollY, hidden: [], unstuck: [] };
+        globalThis.__omawebFullCapture = state;
+        for (const element of document.querySelectorAll("body *")) {
+            if (getComputedStyle(element).position !== "sticky") continue;
+            state.unstuck.push([element, element.style.getPropertyValue("position"),
+                                element.style.getPropertyPriority("position")]);
+            element.style.setProperty("position", "static", "important");
+        }
         const root = document.scrollingElement || document.documentElement;
         return { height: root.scrollHeight, viewport: innerHeight };
     })()`
@@ -778,7 +787,7 @@ Item {
             if (${hideFixed} && state.hidden.length === 0) {
                 for (const element of document.querySelectorAll("body *")) {
                     const position = getComputedStyle(element).position;
-                    if (position !== "fixed" && position !== "sticky") continue;
+                    if (position !== "fixed") continue;
                     state.hidden.push([element, element.style.getPropertyValue("visibility"),
                                        element.style.getPropertyPriority("visibility")]);
                     element.style.setProperty("visibility", "hidden", "important");
@@ -793,6 +802,8 @@ Item {
         if (!state) return;
         for (const [element, value, priority] of state.hidden)
             element.style.setProperty("visibility", value, priority);
+        for (const [element, value, priority] of state.unstuck)
+            element.style.setProperty("position", value, priority);
         scrollTo(state.x, state.y);
         delete globalThis.__omawebFullCapture;
     })()`
@@ -802,19 +813,23 @@ Item {
     Timer {
         id: fullCaptureSettle
 
-        property var then: null
+        property var next: null
 
         interval: 150
         onTriggered: {
-            const then = fullCaptureSettle.then;
-            fullCaptureSettle.then = null;
-            if (then)
-                then();
+            const next = fullCaptureSettle.next;
+            fullCaptureSettle.next = null;
+            if (next)
+                next();
         }
     }
 
     function capturePageFully(destination) {
         root.captureWholePage(destination, null);
+    }
+    function windowPixelRatio() {
+        const window = webView.Window.window;
+        return window && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
     }
     // `answer` hears how it went instead of the shell, for a capture an Agent
     // asked for, which the reader is not told about.
@@ -843,24 +858,17 @@ Item {
                                   const capture = root.fullCapture;
                                   capture.height = page.height;
                                   capture.viewport = page.viewport;
-                                  // Device pixels to a CSS pixel, zoom and density both.
-                                  const ratio = webView.zoomFactor * (
-                                            webView.Screen.devicePixelRatio > 0
-                                            ? webView.Screen.devicePixelRatio : 1);
-                                  const tall = Math.round(page.height * ratio);
-                                  if (tall > PageImages.heightLimit) {
-                                      root.finishFullCapture(false, "The page is " + tall
-                                                             + " pixels tall, and a screenshot holds "
-                                                             + PageImages.heightLimit);
+                                  // Image pixels to a CSS pixel, zoom and density both.
+                                  // The density is the window's, which a grab is drawn
+                                  // at and which fractional scaling sets apart from
+                                  // the screen's.
+                                  const ratio = webView.zoomFactor * root.windowPixelRatio();
+                                  const refusal = PageImages.heightRefusal(page.height, ratio);
+                                  if (refusal.length > 0) {
+                                      root.finishFullCapture(false, refusal);
                                       return;
                                   }
-                                  capture.tops = [];
-                                  for (let top = 0; top < page.height; top += page.viewport) {
-                                      const clamped = Math.max(0, Math.min(top, page.height
-                                                                           - page.viewport));
-                                      if (capture.tops.indexOf(clamped) < 0)
-                                          capture.tops.push(clamped);
-                                  }
+                                  capture.tops = PageImages.stripTops(page.height, page.viewport);
                                   root.captureFullStrip(0);
                               });
     }
@@ -874,7 +882,7 @@ Item {
         }
         webView.runJavaScript(root.fullCaptureStepSnippet(capture.tops[index], index > 0),
                               WebEngineScript.ApplicationWorld, function (scrolled) {
-                                  fullCaptureSettle.then = function () {
+                                  fullCaptureSettle.next = function () {
                                       const strip = PageImages.reserveStrip();
                                       const grabbing = webView.grabToImage(function (result) {
                                           capture.strips.push(strip);

@@ -2553,6 +2553,27 @@ TestCase {
         compare(page.presses, 1);
     }
 
+    // On show over a page, the Start page stands in for it: a click on the
+    // Start page is not the page's.
+    function test_theStartPageOnShowKeepsClicksFromThePageBeneath() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const engine = openPage("https://beneath-start.example");
+        settleMotion();
+        const page = createTemporaryObject(pageCursorComponent, engine);
+        verify(page !== null);
+
+        window.startPageSummoned = true;
+        tryCompare(startPage, "opacity", 1);
+        verify(startPage.open);
+        mouseClick(page, page.width / 2, page.height - 20);
+        compare(page.presses, 0);
+
+        window.startPageSummoned = false;
+        tryCompare(startPage, "visible", false);
+        mouseClick(page, page.width / 2, page.height - 20);
+        compare(page.presses, 1);
+    }
+
     // A pin is a square holding one chip, with nothing in front of anything to
     // put a speaker before, so it wears the speaker in its top right corner.
     function test_soundingPinWearsItsSpeakerInTheCorner() {
@@ -9196,6 +9217,10 @@ TestCase {
         const previous = browser.downloadDirectory;
         verify(browser.setDownloadDirectory(directory));
         const engine = openPage("https://capture.example/article");
+        // The file is named for the page's title, so the page names itself
+        // rather than leaving the tab with whatever it held before.
+        engine.pageTitle = "Capture: the article";
+        tryCompare(browser, "activeTitle", "Capture: the article");
         engine.blurReviewPattern = true;
         const notice = findChild(window.contentItem, "pageNotice");
         const listed = window.downloads.count;
@@ -9206,8 +9231,8 @@ TestCase {
             return imageProbe.files(directory).length === 1;
         });
         const name = imageProbe.files(directory)[0];
-        // Named for the page's title, which the stand-in takes from its address.
-        verify(name.startsWith("https capture.example article 2") && name.endsWith(".png"), name);
+        // Named for the page's title, less what a file name cannot carry.
+        verify(name.startsWith("Capture the article 2") && name.endsWith(".png"), name);
         const path = directory + "/" + name;
         tryCompare(notice, "message", "Saved " + name);
         compare(window.downloads.count, listed + 1);
@@ -9218,6 +9243,18 @@ TestCase {
         compare(size.height, Math.round(engine.height * ratio));
         verify(Qt.colorEqual(imageProbe.pixel(path, Math.round(48 * ratio), 4), "#f4f0ff"));
         verify(Qt.colorEqual(imageProbe.pixel(path, Math.round(144 * ratio), 4), "#241832"));
+
+        // Its row in the downloads list shows where it landed.
+        window.settingsOpen = true;
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("downloads");
+        compare(downloadRole(0, Downloads.PathRole), path);
+        compare(downloadRole(0, Downloads.StateRole), "completed");
+        const reveal = findChild(settings, "revealDownload-0");
+        verify(reveal !== null && reveal.visible);
+        reveal.clicked();
+        compare(desktopProbe.opened()[desktopProbe.opened().length - 1], directory);
+        window.settingsOpen = false;
 
         engine.blurReviewPattern = false;
         notice.dismiss();
@@ -9313,10 +9350,68 @@ TestCase {
         browser.setDownloadDirectory(previous);
     }
 
+    // In a split the tab the reader is working in is the one captured, at its
+    // own pane's size: the striped page while it is active, and the plain one
+    // once focus moves across.
+    function test_aScreenshotInASplitTakesTheActiveTab() {
+        const directory = imageProbe.directory("split");
+        const previous = browser.downloadDirectory;
+        verify(browser.setDownloadDirectory(directory));
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const notice = findChild(window.contentItem, "pageNotice");
+        const striped = openPage("https://split-capture.example/striped");
+        const stripedTabId = browser.activeTabId;
+        browser.openInput("https://split-capture.example/plain", true);
+        const plainTabId = browser.activeTabId;
+        const plain = engineHost.engines[plainTabId];
+        browser.activateTab(stripedTabId);
+        verify(browser.addSplit(plainTabId));
+        tryCompare(engineHost, "besideEngine", plain);
+        compare(engineHost.item, striped);
+        striped.blurReviewPattern = true;
+        const ratio = striped.Screen.devicePixelRatio > 0 ? striped.Screen.devicePixelRatio : 1;
+
+        window.commands.run("screenshot-page", -1);
+        tryVerify(function () {
+            return imageProbe.files(directory).length === 1;
+        });
+        const first = directory + "/" + imageProbe.files(directory)[0];
+        tryCompare(notice, "message", "Saved " + imageProbe.files(directory)[0]);
+        compare(imageProbe.size(first).width, Math.round(striped.width * ratio));
+        verify(Qt.colorEqual(imageProbe.pixel(first, Math.round(48 * ratio), 4), "#f4f0ff"));
+        verify(Qt.colorEqual(imageProbe.pixel(first, Math.round(144 * ratio), 4), "#241832"));
+        notice.dismiss();
+
+        verify(browser.focusSplitPartner());
+        tryCompare(engineHost, "item", plain);
+        window.commands.run("screenshot-page", -1);
+        tryVerify(function () {
+            return imageProbe.files(directory).length === 2;
+        });
+        const second = imageProbe.files(directory).map(function (name) {
+            return directory + "/" + name;
+        }).filter(function (path) {
+            return path !== first;
+        })[0];
+        compare(imageProbe.size(second).width, Math.round(plain.width * ratio));
+        verify(!Qt.colorEqual(imageProbe.pixel(second, Math.round(48 * ratio), 4), "#f4f0ff") ||
+               !Qt.colorEqual(imageProbe.pixel(second, Math.round(144 * ratio), 4), "#241832"));
+
+        striped.blurReviewPattern = false;
+        tryVerify(function () {
+            return notice.message.indexOf("Saved ") === 0;
+        });
+        notice.dismiss();
+        verify(browser.separateSplit());
+        browser.closeTab(plainTabId);
+        browser.setDownloadDirectory(previous);
+    }
+
     // A tab with no page has nothing to capture, and the reader is told so
     // rather than handed a picture of Omaweb's own Start page.
     function test_aScreenshotOfNoPageSaysWhy() {
         const notice = findChild(window.contentItem, "pageNotice");
+        const startPageReason = "The Start page is not a page to capture";
         browser.openInput("about:blank", true);
         const blankTabId = browser.activeTabId;
         tryVerify(function () {
@@ -9324,12 +9419,34 @@ TestCase {
         });
         window.commands.run("screenshot-page", -1);
         tryCompare(notice, "message", "Screenshot page is not available");
+        compare(notice.detail, startPageReason);
         window.commands.run("copy-screenshot", -1);
         tryCompare(notice, "message", "Copy screenshot is not available");
+        compare(notice.detail, startPageReason);
         window.commands.run("screenshot-full-page", -1);
         tryCompare(notice, "message", "Screenshot full page is not available");
+        compare(notice.detail, startPageReason);
+        window.commands.run("copy-full-page-screenshot", -1);
+        tryCompare(notice, "message", "Copy full-page screenshot is not available");
+        compare(notice.detail, startPageReason);
         browser.closeTab(blankTabId);
         notice.dismiss();
+
+        // A Space at rest shows the Start page too. With Settings over it
+        // there is no page at all.
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceId = enterRestingSpace("Nothing to capture");
+        window.commands.run("screenshot-page", -1);
+        tryCompare(notice, "message", "Screenshot page is not available");
+        compare(notice.detail, startPageReason);
+        notice.dismiss();
+        window.settingsOpen = true;
+        window.commands.run("screenshot-page", -1);
+        tryCompare(notice, "detail", "There is no page here");
+        compare(notice.message, "Screenshot page is not available");
+        window.settingsOpen = false;
+        notice.dismiss();
+        leaveSpace(homeSpaceId, spaceId, "Nothing to capture");
     }
 
     // A render that produced nothing is a failure the reader hears about,

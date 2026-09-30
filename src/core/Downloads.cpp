@@ -347,7 +347,10 @@ QString Downloads::screenshotDestination(const QString &directory, const QString
     static const QRegularExpression unsafe(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]+"));
     static const QRegularExpression hiding(QStringLiteral("^[.\\s]+"));
     auto name = title.simplified().replace(unsafe, QStringLiteral(" ")).remove(hiding).simplified();
-    name = name.left(100).trimmed();
+    // Cut at a character's edge: a cut between the halves of a surrogate pair
+    // would leave a name that is not text.
+    const auto cut = name.size() > 100 && name.at(99).isHighSurrogate() ? 99 : 100;
+    name = name.left(cut).trimmed();
     if (name.isEmpty()) {
         name = QStringLiteral("Page");
     }

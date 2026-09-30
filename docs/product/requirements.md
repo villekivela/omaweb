@@ -273,11 +273,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   downloads location, and lists it in the downloads list as a finished download. Copy screenshot
   puts the same image on the clipboard. Screenshot full page and Copy full-page screenshot take the
   whole document from top to bottom instead, a screenful at a time, with what the page fixes to the
-  viewport drawn once at the top; the reader's scroll position, selection, and fixed elements are as
-  they were afterwards. A page taller than 32,767 device pixels is refused, naming that limit, and
-  leaves no file behind. In a split the active tab is captured; a Space at rest and the Start page
-  have no page to capture and say so. A Private window's screenshot lands in the same downloads
-  location, because the reader asked for a file.
+  viewport drawn once at the top and what it makes sticky drawn once where it sits in the page; the
+  reader's scroll position, selection, and fixed and sticky elements are as they were afterwards. A
+  page taller than 32,767 device pixels is refused, naming that limit, and leaves no file behind. In
+  a split the active tab is captured; a Space at rest and the Start page have no page to capture and
+  say so. A Private window's screenshot lands in the same downloads location, because the reader
+  asked for a file.
 - Open file uses the native file picker for an explicitly selected HTML, text, image, or PDF file.
   Local pages receive no broad filesystem access; applications that need several local resources use
   a local server.

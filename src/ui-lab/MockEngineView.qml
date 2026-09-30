@@ -688,19 +688,14 @@ Rectangle {
             root.pageCaptured(path, false, "");
             return;
         }
-        const ratio = root.Screen.devicePixelRatio > 0 ? root.Screen.devicePixelRatio : 1;
-        const tall = Math.round(length * ratio);
-        if (tall > PageImages.heightLimit) {
-            root.pageCaptured(path, false, "The page is " + tall
-                              + " pixels tall, and a screenshot holds " + PageImages.heightLimit);
+        const window = root.Window.window;
+        const refusal = PageImages.heightRefusal(length, window && window.devicePixelRatio > 0
+                                                 ? window.devicePixelRatio : 1);
+        if (refusal.length > 0) {
+            root.pageCaptured(path, false, refusal);
             return;
         }
-        const tops = [];
-        for (let top = 0; top < length; top += viewport) {
-            const clamped = Math.max(0, Math.min(top, length - viewport));
-            if (tops.indexOf(clamped) < 0)
-                tops.push(clamped);
-        }
+        const tops = PageImages.stripTops(length, viewport);
         const kept = root.pageScrollOffset;
         const strips = [];
         const step = function (index) {
@@ -713,19 +708,18 @@ Rectangle {
             const strip = PageImages.reserveStrip();
             const grabbing = root.grabToImage(function (result) {
                 strips.push(strip);
-                if (result.saveToFile(strip)) {
+                if (result.saveToFile(strip))
                     step(index + 1);
-                } else {
-                    PageImages.join(strips, [], 0, 0, "");
-                    root.pageScrollOffset = kept;
-                    root.pageCaptured(path, false, "");
-                }
+                else
+                    fail();
             });
-            if (!grabbing) {
-                PageImages.join(strips, [], 0, 0, "");
-                root.pageScrollOffset = kept;
-                root.pageCaptured(path, false, "");
-            }
+            if (!grabbing)
+                fail();
+        };
+        const fail = function () {
+            PageImages.join(strips, [], 0, 0, "");
+            root.pageScrollOffset = kept;
+            root.pageCaptured(path, false, "");
         };
         step(0);
     }
