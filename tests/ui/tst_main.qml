@@ -3146,6 +3146,30 @@ TestCase {
         window.commands.run("focus-sidebar", -1);
         compare(cursorTabId(), firstId);
 
+        // Return opens the row as l does, the tab on show too.
+        keyClick(Qt.Key_Return);
+        compare(browser.activeTabId, firstId);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        verify(!cursorDrawnOn(firstId));
+        window.commands.run("focus-sidebar", -1);
+        keyClick(Qt.Key_J);
+        const belowId = cursorTabId();
+        verify(belowId !== firstId);
+        keyClick(Qt.Key_Enter);
+        compare(browser.activeTabId, belowId);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        verify(!cursorDrawnOn(belowId));
+        browser.activateTab(firstId);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        window.commands.run("focus-sidebar", -1);
+        compare(cursorTabId(), firstId);
+
         // A press on a row focuses it, but a hand on the mouse is not steering
         // the cursor, so the row is not lit.
         const shownRow = findChild(window.contentItem, "tab-" + firstId);
@@ -3356,6 +3380,33 @@ TestCase {
         compare(window.title, browser.activeTitle + " — Notice Space — Omaweb");
         tryVerify(function () {
             return !notice.visible;
+        }, 4000);
+
+        // The page gives the developer tools their width, and the notice
+        // stands over the middle of what is left, clear of the inspector.
+        const page = findChild(window.contentItem, "engineLoader");
+        const dock = findChild(window.contentItem, "developerToolsDock");
+        openPage("https://notice-other.example/");
+        settleMotion();
+        window.commands.run("developer-tools", -1);
+        tryVerify(function () {
+            return dock.visible;
+        });
+        verify(browser.switchSpace(homeId));
+        tryVerify(function () {
+            return !notice.visible && !outline.arriving;
+        }, 4000);
+        verify(browser.switchSpace(otherId));
+        tryVerify(function () {
+            return notice.visible && !outline.arriving;
+        });
+        verify(dock.visible);
+        const overPage = notice.mapToItem(page, 0, 0);
+        fuzzyCompare(overPage.x + notice.width / 2, page.width / 2, 1);
+        verify(notice.mapToItem(dock, notice.width, 0).x <= 0);
+        window.commands.run("developer-tools", -1);
+        tryVerify(function () {
+            return !dock.visible && !notice.visible;
         }, 4000);
 
         // Without the ease the notice is shown and taken away where it stands.

@@ -2753,11 +2753,14 @@ ApplicationWindow {
             }
 
             // The Space notice belongs to the row rather than to the page, so
-            // the page's own arrival does not carry it.
+            // the page's own arrival does not carry it. It stands over the
+            // middle of the page, which gives the developer tools their width.
             SpaceNotice {
                 id: spaceNotice
                 objectName: "spaceNotice"
-                x: chromeRow.settledSeam + (chromeRow.width - chromeRow.settledSeam - width) / 2
+                x: chromeRow.settledSeam + (chromeRow.width - chromeRow.settledSeam - (
+                                                developerToolsDock.visible
+                                                ? developerToolsDock.width : 0) - width) / 2
                 z: 40
                 colors: window.colors
                 spaceName: window.windowBrowser.activeSpaceName

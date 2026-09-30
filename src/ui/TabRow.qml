@@ -162,9 +162,10 @@ Item {
     Accessible.description: showsAgent ? agentNote : ""
     Accessible.onPressAction: root.activated(root.tabId)
 
+    // Return climbs to the outline, which opens the row as l does and hands
+    // the keyboard to the page. Space opens it where it stands.
     Keys.onPressed: function (event) {
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key
-                === Qt.Key_Space) {
+        if (event.key === Qt.Key_Space) {
             root.activated(root.tabId);
             event.accepted = true;
         }
