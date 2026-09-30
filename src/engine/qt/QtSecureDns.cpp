@@ -2,13 +2,19 @@
 
 #include "SecureDns.h"
 
-#include <QWebEngineGlobalSettings>
+#include <utility>
 
 namespace omaweb {
 
 QtSecureDns::QtSecureDns(SecureDns *secureDns, QObject *parent)
+    : QtSecureDns(secureDns, &QWebEngineGlobalSettings::setDnsMode, parent)
+{
+}
+
+QtSecureDns::QtSecureDns(SecureDns *secureDns, SetDnsMode setDnsMode, QObject *parent)
     : QObject(parent)
     , m_secureDns(secureDns)
+    , m_setDnsMode(std::move(setDnsMode))
 {
     connect(m_secureDns, &SecureDns::changed, this, &QtSecureDns::apply);
     apply();
@@ -23,12 +29,12 @@ void QtSecureDns::apply()
     namespace Settings = QWebEngineGlobalSettings;
     const auto serverTemplate = m_secureDns->serverTemplate();
     const auto applied = serverTemplate.isEmpty()
-        ? Settings::setDnsMode({Settings::SecureDnsMode::SystemOnly, {}})
-        : Settings::setDnsMode({Settings::SecureDnsMode::SecureOnly, {serverTemplate}});
+        ? m_setDnsMode({Settings::SecureDnsMode::SystemOnly, {}})
+        : m_setDnsMode({Settings::SecureDnsMode::SecureOnly, {serverTemplate}});
     if (!applied && !serverTemplate.isEmpty()) {
         // A resolver the engine refused must not leave the last one in force
         // under a name the reader has moved away from.
-        Settings::setDnsMode({Settings::SecureDnsMode::SystemOnly, {}});
+        m_setDnsMode({Settings::SecureDnsMode::SystemOnly, {}});
     }
     if (applied != m_applied) {
         m_applied = applied;

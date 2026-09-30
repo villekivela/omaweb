@@ -3440,17 +3440,16 @@ Item {
                 root.applyCosmeticRules();
             else if (!root.documentSurveyed)
                 root.surveyGenericCosmeticRules();
-            if (loadRequest.status === WebEngineView.LoadSucceededStatus && root.httpsOnlyPolicy) {
-                root.httpsOnlyPolicy.arrived(root.spaceId, loadRequest.url);
-                root.arrivedThroughHttpsUpgrade = root.httpsOnlyPolicy.upgradedTo(root.spaceId,
-                                                                                  loadRequest.url);
-            }
-            // A certificate the upgraded address could not prove is the
-            // certificate interstitial's, as it is for any https page.
-            if (loadRequest.status === WebEngineView.LoadFailedStatus && root.httpsOnlyPolicy
-                    && loadRequest.errorDomain !== WebEngineView.CertificateErrorDomain) {
-                const failure = root.httpsOnlyPolicy.failure(root.spaceId, loadRequest.url);
-                if (failure.plainUrl !== undefined) {
+            if (loadRequest.status === WebEngineView.LoadSucceededStatus && root.httpsOnlyPolicy)
+                root.arrivedThroughHttpsUpgrade = root.httpsOnlyPolicy.arrived(root.spaceId,
+                                                                               loadRequest.url);
+            if (loadRequest.status === WebEngineView.LoadFailedStatus && root.httpsOnlyPolicy) {
+                // Every failure ends the load, so the policy hears of each.
+                // A certificate the upgraded address could not prove is the
+                // certificate interstitial's, as it is for any https page.
+                const failure = root.httpsOnlyPolicy.failed(root.spaceId, loadRequest.url);
+                if (failure.plainUrl !== undefined && loadRequest.errorDomain
+                        !== WebEngineView.CertificateErrorDomain) {
                     failure.error = loadRequest.errorString;
                     root.httpsUpgradeFailure = failure;
                 }
@@ -3507,6 +3506,21 @@ Item {
         }
 
         onNavigationRequested: function (request) {
+            // Qt sends a redirect's request before the interceptor can send
+            // it elsewhere, so a redirect to a plain address HTTPS-only mode
+            // would upgrade is stopped here, before it is fetched, and the
+            // address loaded as a navigation of its own, which the interceptor
+            // sends over HTTPS before it leaves.
+            if (request.isMainFrame && request.navigationType
+                    === WebEngineNavigationRequest.RedirectNavigation && root.httpsOnlyPolicy
+                    && root.httpsOnlyPolicy.sendsOverHttps(root.spaceId, request.url)) {
+                const plainUrl = request.url;
+                request.reject();
+                Qt.callLater(function () {
+                    root.currentUrl = plainUrl;
+                });
+                return;
+            }
             // A redirect is asked about here, before its destination is even
             // fetched, which is the last moment before the arriving document
             // runs its own scripts; the address property moves only once the

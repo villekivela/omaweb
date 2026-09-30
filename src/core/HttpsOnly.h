@@ -46,6 +46,9 @@ public:
     void setEnabled(bool enabled);
     void setRemembered(Remembered remembered);
 
+    // Whether a top-level load of `url` in `spaceId` would go over HTTPS now:
+    // a plain address the mode is not letting through.
+    Q_INVOKABLE bool sendsOverHttps(const QString &spaceId, const QUrl &url);
     // What a top-level navigation to `url` in `spaceId` becomes: the `https:`
     // address it is sent to instead, or an invalid URL for one that goes as
     // asked.
@@ -59,19 +62,18 @@ public:
     // round for good, so it is refused, and the shell asks the reader.
     bool refusesDowngrade(const QUrl &url, const QString &spaceId);
 
-    // A load of `url` in `spaceId` failed. When the failure is this mode's,
-    // the map names the plain address the reader asked for (`plainUrl`), its
-    // host, and why (`reason`): `unreachable` for an upgraded address that
-    // could not be loaded, `downgrade` for a site that sent the load back to
-    // plain HTTP, and `form` for a form sent to a plain address. Empty for any
-    // other failure.
-    Q_INVOKABLE QVariantMap failure(const QString &spaceId, const QUrl &url) const;
-    // Whether the page at `url` arrived in `spaceId` because this mode sent
-    // its load over HTTPS. Site information says so.
-    Q_INVOKABLE bool upgradedTo(const QString &spaceId, const QUrl &url) const;
-    // The load arrived, so a later plain request to its host is a new one
-    // rather than the site sending it back.
-    Q_INVOKABLE void arrived(const QString &spaceId, const QUrl &url);
+    // A load of `url` in `spaceId` failed, which ends it. When the failure is
+    // this mode's, the map names the plain address the reader asked for
+    // (`plainUrl`), its host, and why (`reason`): `unreachable` for an
+    // upgraded address that could not be loaded, `downgrade` for a site that
+    // sent the load back to plain HTTP, and `form` for a form sent to a plain
+    // address. Empty for any other failure.
+    Q_INVOKABLE QVariantMap failed(const QString &spaceId, const QUrl &url);
+    // The load of `url` arrived in `spaceId`, so a later plain request to its
+    // host is a new one rather than the site sending it back. Whether it
+    // arrived over HTTPS because this mode sent its host's load there, which
+    // Site information says; a redirect on the same host keeps that.
+    Q_INVOKABLE bool arrived(const QString &spaceId, const QUrl &url);
     // The reader let `url`'s origin through for the next load in `spaceId`.
     Q_INVOKABLE void allowOnce(const QString &spaceId, const QUrl &url);
 
@@ -99,6 +101,9 @@ private:
     void load();
     void save() const;
     bool exempt(const QUrl &url, const QString &spaceId);
+    bool upgradable(const QUrl &url, const QString &spaceId);
+    // Forgets the load under way to `host`, which has arrived or failed.
+    static void forgetLoad(Space &space, const QString &host);
 
     QString m_configRoot;
     bool m_enabled = true;

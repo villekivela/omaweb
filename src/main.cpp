@@ -302,14 +302,15 @@ int main(int argc, char *argv[])
     // whole process, and the first lookup has to go where the reader chose.
     omaweb::SecureDns secureDns(configRoot());
     omaweb::QtSecureDns engineSecureDns(&secureDns);
-    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &globalPrivacyControl);
     // A page's own address goes over HTTPS unless the reader let its site
     // through, which the ordinary windows' store remembers per Space. A
     // Private window's Space is the empty name, which remembers nothing.
+    // Declared before the interceptor that holds it, so it outlives it.
     omaweb::HttpsOnly httpsOnly(configRoot());
     httpsOnly.setRemembered([&browser](const QString &spaceId, const QString &origin) {
         return browser.plainHttpRemembered(spaceId, origin);
     });
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &globalPrivacyControl);
     engineContentBlocker.setHttpsOnly(&httpsOnly);
     // One filter for the process, attached to every Space's profile as it is
     // built. Third-party cookies are blocked by it; whether an origin has been
