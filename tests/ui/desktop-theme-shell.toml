@@ -1,0 +1,43 @@
+# A desktop's Omarchy theme that moves everything the kit lets a theme move,
+# for `omaweb-ui-themed` to run the chrome's tests on. The suite states the
+# theme it measures (#277), so it has to pass here as it does where no theme is
+# installed. Every token is set away from the kit's own, and the spacing scale
+# and the pinned tokens disagree, as a hand-edited theme's can.
+
+[font]
+base-size = 15
+caption = 13
+body-small = 14
+body = 15
+subtitle = 17
+title = 19
+heading = 22
+display = 30
+display-large = 36
+
+[spacing]
+scale = 3
+scale-with-font = false
+xxs = 5
+xs = 7
+sm = 9
+md = 11
+lg = 14
+xl = 17
+xxl = 20
+xxxl = 24
+huge = 30
+control-gap = 13
+control-padding-x = 16
+control-padding-y = 11
+control-height = 36
+row-gap = 14
+row-padding-x = 18
+label-gap = 9
+panel-gap = 20
+panel-padding = 24
+popup-padding = 20
+
+[controls]
+normal-border-width = 3
+selected-border-width = 2
