@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "AgentCommand.h"
+#include "AgentConsole.h"
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
 #include "EngineBuild.h"
@@ -177,6 +178,7 @@ class QtEngineContractTest final : public QObject {
 
 private slots:
     void qtRefusesATrackerBehindACname();
+    void qtLooksNothingUpForASiteWithBlockingOff();
     void qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoaded();
     void qtTakesTheReadersSecureDnsResolver();
     void qtReportsANameThatCouldNotBeLookedUp();
@@ -218,6 +220,7 @@ private slots:
     void qtAppliesEveryProceduralOperatorAndAction();
     void qtAppliesProceduralRulesToWhatThePageAddsLater();
     void qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff();
+    void qtUndoesProceduralRulesSwitchedOffWhileThePageLoads_data();
     void qtUndoesProceduralRulesSwitchedOffWhileThePageLoads();
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data();
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress();
@@ -1546,12 +1549,11 @@ public:
 
 } // namespace
 
-// A tracker served from a subdomain of the page's own site, whose CNAME chain
-// ends at the tracker's host, is refused under that name, counted, and listed
-// with it. A request its own name already refused is never looked up, so the
-// tracker's DNS server does not learn of a request Omaweb was not going to
-// make. The engine's resolver is stood in for, because a CNAME chain needs a
-// DNS server this test does not have (ADR 0050).
+// A tracker served from a subdomain of the page's own site, whose CNAME chain ends at the tracker's
+// host, is refused under that name, counted, listed with it, and its element collapsed like any
+// other refused one. A request its own name already refused is never looked up, so the tracker's
+// DNS server does not learn of a request Omaweb was not going to make. The engine's resolver is
+// stood in for, because a CNAME chain needs a DNS server this test does not have (ADR 0050).
 void QtEngineContractTest::qtRefusesATrackerBehindACname()
 {
 #if OMAWEB_CNAME_UNCLOAKING
@@ -1564,8 +1566,13 @@ void QtEngineContractTest::qtRefusesATrackerBehindACname()
     });
     const auto restore = qScopeGuard([] { QtWebEngineCore::setDnsAliasResolverForTesting({}); });
     PageServer server(QByteArray(R"HTML(<!doctype html><html><body>
-        <img src="http://metrics.site.test/pixel.gif">
+        <img id="cloaked" src="http://metrics.site.test/pixel.gif">
         <img src="http://ads.test/banner.gif">
+        <script>
+            setInterval(() => {
+                document.title = getComputedStyle(document.getElementById("cloaked")).display;
+            }, 50);
+        </script>
     </body></html>)HTML"));
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
@@ -1604,6 +1611,68 @@ void QtEngineContractTest::qtRefusesATrackerBehindACname()
         QStringLiteral("collect.tracker.test"));
     QVERIFY(lookedUp.contains(QStringLiteral("metrics.site.test")));
     QVERIFY(!lookedUp.contains(QStringLiteral("ads.test")));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("none"), 5000);
+#else
+    QSKIP("This build's engine cannot resolve a host for the interceptor.");
+#endif
+}
+
+// A site the reader turned Content blocking off for is left alone: its
+// requests are not checked, so its hosts are not looked up for the names
+// behind them either. The same page with the site switched back on looks its
+// next host up, which shows the stand-in resolver was listening. Each load
+// names a host no other test does, because the engine remembers an answer.
+void QtEngineContractTest::qtLooksNothingUpForASiteWithBlockingOff()
+{
+#if OMAWEB_CNAME_UNCLOAKING
+    QStringList lookedUp;
+    QtWebEngineCore::setDnsAliasResolverForTesting([&lookedUp](const QString &host) {
+        lookedUp.append(host);
+        return std::optional<QStringList>(QStringList {QStringLiteral("collect.tracker.test")});
+    });
+    const auto restore = qScopeGuard([] { QtWebEngineCore::setDnsAliasResolverForTesting({}); });
+    PageServer server(QByteArray(R"HTML(<!doctype html><html><body><script>
+        const image = new Image();
+        const name = location.pathname.slice(1, -".html".length);
+        image.onload = image.onerror = () => { document.title = "settled " + name; };
+        image.src = "http://" + name + ".site.test/pixel.gif";
+    </script></body></html>)HTML"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("||tracker.test^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QString site = QStringLiteral("http://127.0.0.1:%1/").arg(server.serverPort());
+    contentBlocker.setSiteEnabled(QUrl(site), false);
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(site + QStringLiteral("switched-off.html"))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("settled switched-off"), 15000);
+    QVERIFY2(lookedUp.isEmpty(), qPrintable(lookedUp.join(QStringLiteral(", "))));
+
+    contentBlocker.setSiteEnabled(QUrl(site), true);
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(site + QStringLiteral("switched-on.html"))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("settled switched-on"), 15000);
+    QCOMPARE(lookedUp, QStringList {QStringLiteral("switched-on.site.test")});
 #else
     QSKIP("This build's engine cannot resolve a host for the interceptor.");
 #endif
@@ -1746,6 +1815,22 @@ void QtEngineContractTest::qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoade
     settleAfter(adapter.get(), "reloadPage");
     QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("2"));
     QCOMPARE(server.scriptRequests(), 2);
+
+    // A site switched off is a rule change too.
+    contentBlocker.setSiteEnabled(pageUrl, false);
+    settleAfter(adapter.get(), "reloadPage");
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("3"));
+
+    // Moving within the page is not a load, so the change before it still
+    // reaches the reload after it.
+    contentBlocker.setSiteEnabled(pageUrl, true);
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(pageUrl.toString() + "#moved")));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString().endsWith(QStringLiteral(" again")), 15000);
+    settleAfter(adapter.get(), "reloadPage");
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("4"), 15000);
+    QCOMPARE(server.scriptRequests(), 4);
 }
 
 // The engine takes the resolver the reader chose, named or typed, and takes
@@ -2670,10 +2755,19 @@ void QtEngineContractTest::qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff()
 }
 
 // The procedural rules start before the page's load is over, and a site
-// switched off in between is undone when the load ends. The page's image is
-// held, so the load stays open until the test lets it end.
+// switched off in between is undone when the load ends, whether the page
+// finished or the reader stopped it. The page's image is held, so the load
+// stays open until the test lets it end.
+void QtEngineContractTest::qtUndoesProceduralRulesSwitchedOffWhileThePageLoads_data()
+{
+    QTest::addColumn<bool>("stopped");
+    QTest::newRow("finished") << false;
+    QTest::newRow("stopped") << true;
+}
+
 void QtEngineContractTest::qtUndoesProceduralRulesSwitchedOffWhileThePageLoads()
 {
+    QFETCH(bool, stopped);
     HeldServer held;
     QVERIFY(held.listen(QHostAddress::LocalHost));
     PageServer server("<!doctype html><html><body>"
@@ -2696,9 +2790,14 @@ void QtEngineContractTest::qtUndoesProceduralRulesSwitchedOffWhileThePageLoads()
     QVERIFY(view.adapter->property("loading").toBool());
 
     view.blocker->setSiteEnabled(page, false);
-    held.release();
+    if (stopped) {
+        QVERIFY(QMetaObject::invokeMethod(view.adapter.get(), "stopLoading"));
+    } else {
+        held.release();
+    }
     QTRY_VERIFY_WITH_TIMEOUT(!view.adapter->property("loading").toBool(), 15000);
     QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("shown"), 15000);
+    held.release();
 }
 
 // A subframe from another site gets the rules of its own address, not the
@@ -5122,6 +5221,15 @@ void QtEngineContractTest::qtAgentFillsAndSubmitsAFormInOneBatch()
     QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
         QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
     QCOMPARE(answer.value(QStringLiteral("steps")).toArray().size(), 5);
+    // Each step says what the page calls the element it reached, which is how
+    // the reader is told the Agent's last act.
+    QStringList reached;
+    for (const auto &step : answer.value(QStringLiteral("steps")).toArray()) {
+        reached.append(step.toObject().value(QStringLiteral("name")).toString());
+    }
+    QCOMPARE(reached,
+        QStringList({QStringLiteral("Email"), QStringLiteral("Name"), QStringLiteral("Country"),
+            QStringLiteral("I agree"), QStringLiteral("Sign up")}));
     // The reader's page kept their keyboard through all of it.
     QVERIFY(page.reader->property("pageHasFocus").toBool());
     QVERIFY(!page.adapter->property("pageHasFocus").toBool());
@@ -5451,6 +5559,38 @@ void QtEngineContractTest::qtReportsOnlyThePagesOwnConsole()
     for (const auto &text : said()) {
         QVERIFY2(!text.startsWith(QStringLiteral("__omaweb_")), qPrintable(text));
     }
+
+    // What `console` answers from those lines: the errors and warnings of the
+    // first document in order, then only what is newer than its cursor.
+    omaweb::AgentConsole console;
+    const auto keep = [&console, &logged](qsizetype from, qsizetype to) {
+        for (auto index = from; index < to; ++index) {
+            const auto &arguments = logged.at(index);
+            console.record(QStringLiteral("tab"), arguments.at(4).toString(),
+                arguments.at(0).toInt(), arguments.at(1).toString(), arguments.at(3).toString(),
+                arguments.at(2).toInt());
+        }
+    };
+    keep(0, 3);
+    const auto first = console.read(QStringLiteral("tab"), omaweb::AgentConsole::Warning, 0);
+    QCOMPARE(first.messages.size(), 2);
+    QCOMPARE(first.messages.at(0).text, QStringLiteral("careful"));
+    QCOMPARE(first.messages.at(0).level, omaweb::AgentConsole::Warning);
+    QCOMPARE(first.messages.at(1).text, QStringLiteral("boom"));
+    QCOMPARE(first.messages.at(1).level, omaweb::AgentConsole::Error);
+    QVERIFY(first.messages.at(1).source.contains(QStringLiteral("console.html")));
+    QVERIFY(first.messages.at(1).line > 0);
+    const auto errors = console.read(QStringLiteral("tab"), omaweb::AgentConsole::Error, 0);
+    QCOMPARE(errors.messages.size(), 1);
+    QCOMPARE(errors.messages.constFirst().text, QStringLiteral("boom"));
+    QVERIFY(console.read(QStringLiteral("tab"), omaweb::AgentConsole::Info, first.cursor)
+            .messages.isEmpty());
+
+    keep(3, logged.size());
+    const auto newer
+        = console.read(QStringLiteral("tab"), omaweb::AgentConsole::Warning, first.cursor);
+    QCOMPARE(newer.messages.size(), 1);
+    QCOMPARE(newer.messages.constFirst().text, QStringLiteral("second document"));
 }
 
 void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()

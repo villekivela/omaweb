@@ -91,8 +91,12 @@ show and the lab's stand-in view draws a sample page in the page palette where i
 say no engine is running. `--spaces` seeds a Work Space with pages of its own beside Personal,
 before the interface loads, so a Space switch has somewhere to go. `--sample-lists` writes EasyList
 and EasyPrivacy into the lab's content-blocking settings as current, so Content Blocking shows the
-lists a first run has without fetching them. Pass `--capture <path>` to render one frame to a PNG
-and exit, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
+lists a first run has without fetching them. `--agents` has an Agent at work under the real Agent
+rules: an Agent Space it made is on show with the tab it is driving, which it has just clicked in,
+and a second Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
+`--agents-window` has the Agent's page open an Auxiliary window and captures that window. Pass
+`--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by
+default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
 reviewing chrome changes without a desktop session. The chrome's movements are reviewed the same
 way: `--show space-step`, `tab-step`, `omnibar-step` and `settings-step` run the switch or the
 opening shortly before the capture, so the frame lands part way through it, and the `-settled`
@@ -371,8 +375,9 @@ opens is the Agent's too: `do` prints `Opened window-1`, `tabs` lists it, and `-
 points the page commands at it. `shot` prints the path it wrote, in `shots/` beside the socket;
 `--output` names the `.png` file there and takes no directory. `console` prints what the page has
 written to its console since its document loaded, one line each as level, source and line, and text,
-then `cursor` and a number to pass as `--since` for only what comes after. `--level warning` keeps
-warnings and errors, and `--level error` errors alone.
+with the text's own line breaks and tabs written as `\n`, `\r` and `\t`, then `cursor` and a number
+to pass as `--since` for only what comes after. `--level warning` keeps warnings and errors, and
+`--level error` errors alone.
 
 ```sh
 omaweb space new Checks

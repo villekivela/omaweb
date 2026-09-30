@@ -406,14 +406,16 @@ The adapter reports each line a page writes to its console through `pageConsoleM
 level, source, line and the document that wrote it, after it has read its own markers and the
 reports Omaweb's scripts send it, which never leave the adapter. The page area passes a line on to
 `AgentControl` only for an Agent tab, and `AgentConsole` keeps a tab's lines for the document on
-show: a new document starts the tab's buffer again. The page area names each document by its engine
-as well as by the engine's own count, since a tab whose page is built again, as one in a Space not
-on show is when it is given an address, counts its documents from the start. A tab keeps its newest
-500 lines, each cut to 2,000 characters, in memory only, and loses them when it stops being an Agent
-tab or Allow agents goes off. Every kept line is numbered, and an answer's cursor is the newest
-number the tab holds at any level, so `--since` with it answers only what was logged after, and says
-so when the buffer had to drop lines newer than that. A tab becomes an Agent tab when an Agent opens
-its address or reads its console, so what a page says before then is not kept.
+show: a new document starts the tab's buffer again. The page area also reports each document as it
+starts, so one that writes nothing does not answer with the last one's lines. The page area names
+each document by its engine as well as by the engine's own count, since a tab whose page is built
+again, as one in a Space not on show is when it is given an address, counts its documents from the
+start. A tab keeps its newest 500 lines, each cut to 2,000 characters, in memory only, and loses
+them when it stops being an Agent tab or Allow agents goes off. Every kept line is numbered, and an
+answer's cursor is the newest number the tab holds at any level, so `--since` with it answers only
+what was logged after, and says so when the buffer had to drop lines newer than that. A tab becomes
+an Agent tab when an Agent opens its address or reads its console, so what a page says before then
+is not kept.
 
 Input is Qt events sent to the item QtWebEngine draws the page in, which a page sees as trusted
 (#376). Keys go to whatever the page has focused, and `fill` focuses its field from the page, so
@@ -430,6 +432,13 @@ A tab an Agent opened or used a page verb on in the last five minutes is an Agen
 `AgentControl.agentTabIds` lists them. The CLI is one process per verb, so no connection stays open
 to say an Agent is still at work, and a tab left alone that long stops costing a rendered page until
 the next verb. Closing the tab or turning Allow agents off ends it at once.
+
+`AgentControl.agentActivity` reports each Agent tab's Space, the name of the connection that last
+used it, its last act in words and whether one of its page verbs is in flight. The act is told from
+what the verb did: a `do` batch reports its last step that succeeded, named by the element the page
+reached, so a click reads as `clicked "Files changed"` rather than by its label. The sidebar, the
+page frame and the footer draw their marks from it, and `BrowserController.agentSpaceIds` names the
+Agent Spaces the reader has not taken over.
 
 The page area keeps an Agent tab's engine running wherever its Space is. It builds one through the
 tab's row in the Space on show, so the sidebar hears the page change, and as a retained tab's is in

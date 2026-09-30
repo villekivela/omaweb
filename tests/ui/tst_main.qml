@@ -14,6 +14,8 @@ TestCase {
     // own cannot name it: the declaration shadows the context.
     readonly property var browserController: browser
     readonly property var syncLauncherContext: syncLauncher
+    // The Agent activity log, as the window finds it by name.
+    readonly property var agentActivityContext: agentActivity
 
     // The page's width, counted rather than sampled: what a layout costs is
     // paid once per width the viewport is given.
@@ -1865,6 +1867,14 @@ TestCase {
     // The tally says how many; the list says which. An uncloaked refusal is
     // listed under the address the page asked for, which is the one in the
     // page's own network log, with the canonical name that explains it.
+    // Settings names CNAME uncloaking as unsupported only on an engine that
+    // lacks it, and the window is what tells it which engine this build has
+    // (ADR 0050).
+    function test_settingsKnowsWhetherThisBuildsEngineUncloaks() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare(settings.cnameUncloakingAvailable, EngineBuild.cnameUncloaking);
+    }
+
     function test_siteInformationListsTheRequestsItRefused() {
         openPage("https://news.example/story");
         const sidebar = findChild(window.contentItem, "sidebar");
@@ -3635,6 +3645,8 @@ TestCase {
             property var answers: ({})
             property var agentWindowIds: []
             property var closedWindows: []
+            property var agentActivity: ({})
+            property var windowOpeners: ({})
             signal agentTabsChanged
             signal pageRequested(int requestId, var request)
             signal pageRequestsCancelled
@@ -3648,12 +3660,16 @@ TestCase {
                 if (agentTabIds.indexOf(openerTabId) < 0)
                     return "";
                 const windowId = "window-" + (agentWindowIds.length + closedWindows.length + 1);
+                windowOpeners[windowId] = openerTabId;
                 agentWindowIds = agentWindowIds.concat([windowId]);
                 return windowId;
             }
             function agentWindow(windowId) {
                 return agentWindowIds.indexOf(windowId) >= 0 ? {
                                                                    "windowId": windowId,
+                                                                   "openerTabId":
+                                                                   windowOpeners[windowId],
+                                                                   "connection": "claude-code",
                                                                    "downloadDirectory":
                                                                    "/downloads/Agents/test"
                                                                } : ({});
@@ -3664,7 +3680,28 @@ TestCase {
                 });
                 closedWindows = closedWindows.concat([windowId]);
             }
-            function recordConsoleMessage() {
+            // What the page area passed on from each page's console.
+            property var consoleMessages: []
+            property var consoleDocuments: []
+            function recordConsoleMessage(tabId, document, level, message, source, line) {
+                consoleMessages = consoleMessages.concat([
+                                                             {
+                                                                 "tabId": tabId,
+                                                                 "document": document,
+                                                                 "level": level,
+                                                                 "message": message,
+                                                                 "source": source,
+                                                                 "line": line
+                                                             }
+                                                         ]);
+            }
+            function startConsoleDocument(tabId, document) {
+                consoleDocuments = consoleDocuments.concat([
+                                                               {
+                                                                   "tabId": tabId,
+                                                                   "document": document
+                                                               }
+                                                           ]);
             }
             // How many times each request was answered: the core hears the
             // first answer only, so a second is a page answering for another.
@@ -3743,6 +3780,18 @@ TestCase {
         compare(engineOf(opened).agentOwned, true);
         compare(engineOf(opened).agentDownloadDirectory, "/downloads/Agents/test");
         compare(engineOf(opened).pageTakesFocus, false);
+        // Its console is the Agent's too, under the window's id, and a new
+        // document there starts again.
+        engineOf(opened).pageConsoleMessage(2, "popup", 1, "", engineOf(opened).pageGeneration);
+        const popupSaid = control.consoleMessages[control.consoleMessages.length - 1];
+        compare(popupSaid.tabId, "window-1");
+        compare(popupSaid.message, "popup");
+        const documentsBefore = control.consoleDocuments.length;
+        engineOf(opened).currentUrl = "https://sign-in.example/next";
+        compare(control.consoleDocuments.length, documentsBefore + 1);
+        compare(control.consoleDocuments[documentsBefore].tabId, "window-1");
+        compare(control.consoleDocuments[documentsBefore].document, String(engineOf(
+                                                                               opened).pageGeneration));
 
         control.pageRequested(21, {
                                   "verb": "look",
@@ -3788,6 +3837,71 @@ TestCase {
         gone();
 
         engineLoader.agentControl = null;
+        control.destroy();
+    }
+
+    // An Agent's window is marked as its tab is: framed in the Agent accent,
+    // with who is driving it and what it did last, and plain again once the
+    // Agent lets it go.
+    function test_anAgentTabsWindowIsFramedLikeItsTab() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+        const agentEngine = openPageInNewTab("https://agent-framed-opener.example/");
+        const agentTabId = browser.activeTabId;
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": browser.activeSpaceId,
+            "url": "https://agent-framed-opener.example/"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        const report = function (act) {
+            const activity = {};
+            activity[agentTabId] = {
+                "spaceId": browser.activeSpaceId,
+                "name": "claude-code",
+                "act": act,
+                "busy": false
+            };
+            control.agentActivity = activity;
+        };
+        report("clicked \"Sign in\"");
+        control.agentTabsChanged();
+
+        agentEngine.simulateNewWindowRequest("https://sign-in.example/", true);
+        let auxiliary = null;
+        tryVerify(function () {
+            auxiliary = findChild(window, "auxiliaryWindow");
+            return auxiliary !== null && auxiliary.visible;
+        });
+        verify(auxiliary.agentDriven);
+        const frame = findChild(auxiliary.contentItem, "auxiliaryAgentFrame");
+        verify(frame !== null);
+        verify(frame.visible);
+        compare(frame.width, auxiliary.contentItem.width);
+        compare(String(findChild(frame, "agentFrameBorder").border.color), String(
+                    window.colors.agentAccent));
+        compare(String(findChild(frame, "agentFrameLabel").color), String(
+                    window.colors.agentAccent));
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · clicked \"Sign in\"");
+        report("typed in \"Email\"");
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · typed in \"Email\"");
+
+        // Let go, the window is the reader's and plain.
+        control.agentWindowIds = [];
+        verify(!auxiliary.agentDriven);
+        verify(!frame.visible);
+        auxiliary.close();
+        tryVerify(function () {
+            return findChild(window, "auxiliaryWindow") === null;
+        });
+
+        engineLoader.agentControl = window.agentControlSource;
+        browser.closeTab(agentTabId);
         control.destroy();
     }
 
@@ -3894,6 +4008,416 @@ TestCase {
         compare(rebuilt.opacity, 1);
         tryCompare(rebuilt, "pageFrozen", false);
         control.destroy();
+    }
+
+    // The core's report of what each Agent tab's Agent is doing, with the
+    // Agent rules the page area hears.
+    Component {
+        id: agentActivityComponent
+
+        QtObject {
+            property var agentTabIds: []
+            property var tabs: ({})
+            property var agentActivity: ({})
+            signal agentTabsChanged
+            signal pageRequested(int requestId, var request)
+            signal pageRequestsCancelled
+
+            function agentTab(tabId) {
+                return tabs[tabId] || ({});
+            }
+            function answerPage(requestId, answer) {
+            }
+        }
+    }
+
+    // An Agent Space on show, holding a page an Agent is driving, which the
+    // page area hears of through a stand-in for the core's report. `report`
+    // says what the Agent did last and whether a command is in flight, and
+    // `detach` is the connection closing.
+    function driveAnAgentSpace(temporary) {
+        const readersSpaceId = browser.activeSpaceId;
+        const spaceId = agentSpaceProbe.create("Agent work", "claude-code", temporary);
+        verify(spaceId.length > 0);
+        verify(browser.switchSpace(spaceId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        openPage("https://agent-mark.example/");
+        const tabId = browser.activeTabId;
+        const control = agentActivityComponent.createObject(testCase);
+        const tabs = {};
+        tabs[tabId] = {
+            "tabId": tabId,
+            "spaceId": spaceId,
+            "url": "https://agent-mark.example/"
+        };
+        control.tabs = tabs;
+        const drive = {
+            "readersSpaceId": readersSpaceId,
+            "spaceId": spaceId,
+            "tabId": tabId,
+            "control": control,
+            "report": function (busy, act) {
+                const activity = {};
+                activity[tabId] = {
+                    "spaceId": spaceId,
+                    "name": "claude-code",
+                    "act": act,
+                    "busy": busy
+                };
+                control.agentActivity = activity;
+            },
+            "detach": function () {
+                control.agentActivity = ({});
+                control.agentTabIds = [];
+                control.agentTabsChanged();
+            }
+        };
+        drive.report(false, "clicked \"Files changed\"");
+        control.agentTabIds = [tabId];
+        findChild(window.contentItem, "engineLoader").agentControl = control;
+        control.agentTabsChanged();
+        return drive;
+    }
+
+    function endAgentDrive(drive) {
+        findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
+        verify(browser.switchSpace(drive.readersSpaceId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        // The switch back names the Space for a moment, and the next test
+        // starts from a page with nothing over it.
+        tryCompare(findChild(window.contentItem, "spaceNotice"), "visible", false, 5000);
+        for (let row = 0; row < browser.spaces.rowCount(); ++row) {
+            const model = browser.spaces;
+            if (model.data(model.index(row, 0), Qt.UserRole + 1) === drive.spaceId) {
+                verify(browser.deleteSpace(drive.spaceId, model.data(model.index(row, 0),
+                                                                     Qt.UserRole + 2)));
+                break;
+            }
+        }
+        drive.control.destroy();
+    }
+
+    // The row ends with the Agent mark in the Agent accent, which gives its
+    // place to the close button on hover, and the row then says who is
+    // driving and that the tab stays rendered.
+    function test_anAgentTabsRowCarriesTheAgentMark() {
+        const drive = driveAnAgentSpace(false);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const row = findChild(sidebar, "tab-" + drive.tabId);
+        const mark = findChild(sidebar, "agentMark-" + drive.tabId);
+        verify(mark !== null);
+        verify(mark.visible);
+        compare(mark.text, "smart_toy");
+        compare(String(mark.color), String(window.colors.agentAccent));
+        const spot = findChild(row, "agentSpot-" + drive.tabId);
+        const close = findChild(row, "close-" + drive.tabId);
+        compare(spot.mapToItem(row, spot.width / 2, 0).x, close.mapToItem(row, close.width / 2,
+                                                                          0).x);
+
+        mouseMove(row, row.width / 2, row.height / 2);
+        tryCompare(mark, "visible", false);
+        const note = findChild(spot, "agentNote-" + drive.tabId);
+        compare(note.text, "claude-code is driving this tab. It stays rendered while attached.");
+        tryCompare(note, "visible", true);
+        compare(row.Accessible.description, note.text);
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        tryCompare(mark, "visible", true);
+
+        drive.detach();
+        verify(!mark.visible);
+        endAgentDrive(drive);
+    }
+
+    // The marks draw frames only while one of the Agent's commands is in
+    // flight, and hold still while the connection is idle.
+    function test_theAgentMarksPulseOnlyWhileACommandIsInFlight() {
+        const drive = driveAnAgentSpace(false);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const rowMark = findChild(sidebar, "agentMark-" + drive.tabId);
+        const spaceMark = findChild(sidebar, "spaceAgentMark-" + drive.spaceId);
+        wait(600);
+        compare(rowMark.opacity, 1);
+        compare(spaceMark.opacity, 1);
+
+        drive.report(true, "clicked \"Files changed\"");
+        tryVerify(function () {
+            return rowMark.opacity < 0.9 && spaceMark.opacity < 0.9;
+        });
+        drive.report(false, "looked at the page");
+        compare(rowMark.opacity, 1);
+        compare(spaceMark.opacity, 1);
+        wait(600);
+        compare(rowMark.opacity, 1);
+        compare(spaceMark.opacity, 1);
+        endAgentDrive(drive);
+    }
+
+    // The page of an Agent tab on show is framed in the Agent accent, with a
+    // label at its top-right corner naming the connection and its last act.
+    // In a split, the pane showing the Agent tab is the one framed.
+    function test_anAgentTabsPageIsFramedWithWhoIsDriving() {
+        const drive = driveAnAgentSpace(false);
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const frame = findChild(window.contentItem, "agentFrame");
+        const beside = findChild(window.contentItem, "besideAgentFrame");
+        const bar = findChild(window.contentItem, "agentSpaceBar");
+        verify(frame.visible);
+        compare(frame.width, engineLoader.activePaneWidth);
+        compare(String(findChild(frame, "agentFrameBorder").border.color), String(
+                    window.colors.agentAccent));
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · clicked \"Files changed\"");
+        const label = findChild(frame, "agentFrameLabel");
+        compare(String(label.color), String(window.colors.agentAccent));
+        compare(label.x + label.width, frame.width);
+        compare(label.y, bar.height);
+        drive.report(false, "looked at the page");
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · looked at the page");
+
+        // Beside the reader's own page in a split.
+        openPageInNewTab("https://reader-beside.example/");
+        const readersTabId = browser.activeTabId;
+        verify(readersTabId !== drive.tabId);
+        browser.addSplit(drive.tabId);
+        tryCompare(engineLoader, "splitOnShow", true);
+        compare(engineLoader.tabBesideId, drive.tabId);
+        verify(!frame.visible);
+        verify(beside.visible);
+        compare(beside.x, engineLoader.x + engineLoader.besidePaneX);
+        compare(beside.width, engineLoader.besidePaneWidth);
+        browser.separateSplit();
+        browser.closeTab(readersTabId);
+        browser.activateTab(drive.tabId);
+        tryVerify(function () {
+            return frame.visible;
+        });
+
+        drive.detach();
+        verify(!frame.visible);
+        endAgentDrive(drive);
+    }
+
+    // The Space holding an Agent tab wears the mark in the Agent accent in
+    // place of its letter, readable while it is away, until the connection
+    // closes.
+    function test_aSpaceHoldingAnAgentTabWearsTheMark() {
+        const drive = driveAnAgentSpace(false);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const button = findChild(sidebar, "space-" + drive.spaceId);
+        const mark = findChild(sidebar, "spaceAgentMark-" + drive.spaceId);
+        verify(mark.visible);
+        compare(button.label, "");
+        compare(String(mark.color), String(window.colors.agentAccent));
+
+        verify(browser.switchSpace(drive.readersSpaceId));
+        tryCompare(sidebar, "arriving", false);
+        verify(mark.visible);
+        compare(String(mark.color), String(window.colors.agentAccent));
+        compare(findChild(sidebar, "space-" + drive.readersSpaceId).label.length, 1);
+
+        // Taken over with the Agent still there, it keeps the mark until the
+        // connection closes.
+        verify(browser.takeOverSpace(drive.spaceId));
+        verify(mark.visible);
+        drive.detach();
+        verify(!mark.visible);
+        compare(button.label, "A");
+        endAgentDrive(drive);
+    }
+
+    // An Agent Space no Agent is using shows the mark muted and still, turns
+    // to the Agent accent when an Agent attaches, and gets its letter back
+    // when the reader takes it over.
+    function test_anAgentSpaceNoAgentUsesIsMarkedMuted() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const idleSpaceId = agentSpaceProbe.create("Idle agent work", "claude-code", false);
+        const mark = findChild(sidebar, "spaceAgentMark-" + idleSpaceId);
+        const button = findChild(sidebar, "space-" + idleSpaceId);
+        verify(mark.visible);
+        compare(button.label, "");
+        compare(String(mark.color), String(window.colors.mutedText));
+        wait(600);
+        compare(mark.opacity, 1);
+
+        const control = agentActivityComponent.createObject(testCase);
+        const activity = {};
+        activity["elsewhere-tab"] = {
+            "spaceId": idleSpaceId,
+            "name": "claude-code",
+            "act": "",
+            "busy": false
+        };
+        control.agentActivity = activity;
+        findChild(window.contentItem, "engineLoader").agentControl = control;
+        compare(String(mark.color), String(window.colors.agentAccent));
+        findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
+        compare(String(mark.color), String(window.colors.mutedText));
+
+        verify(browser.takeOverSpace(idleSpaceId));
+        verify(!mark.visible);
+        compare(button.label, "I");
+        verify(browser.deleteSpace(idleSpaceId, "Idle agent work"));
+        control.destroy();
+    }
+
+    // Opening an Agent Space says an Agent made it, with Take over and
+    // Dismiss. The command scope takes it over too, which keeps a temporary
+    // one after its connection closes.
+    function test_openingAnAgentSpaceOffersToTakeItOver() {
+        const bar = findChild(window.contentItem, "agentSpaceBar");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        verify(!bar.open);
+        verify(!window.commands.available("take-over-space"));
+        const drive = driveAnAgentSpace(true);
+        verify(bar.open);
+        compare(bar.message, "claude-code made this Space");
+        verify(bar.detail.indexOf("connection closes") >= 0);
+        compare(bar.actions[0].label, "Take over");
+        compare(bar.actions[1].label, "Dismiss");
+        // The page under the notice is blurred rather than read through its
+        // translucent ground, and the notice is drawn over the blur.
+        const backdrop = findChild(bar, "agentSpaceBarBackdrop");
+        verify(backdrop !== null);
+        compare(backdrop.source, findChild(window.contentItem, "engineLoader"));
+        verify(backdrop.sampling);
+        verify(backdrop.z < 0);
+        compare(backdrop.width, bar.width);
+        compare(backdrop.height, bar.height);
+        verify(window.commands.available("take-over-space"));
+        verify(window.commands.actions().some(function (action) {
+            return action.command === "take-over-space" && action.title === "Take over Space";
+        }));
+
+        // Dismissed, it stays away until the Space is opened again.
+        bar.actionTriggered(1);
+        verify(!bar.open);
+        verify(!backdrop.sampling);
+        verify(browser.switchSpace(drive.readersSpaceId));
+        tryCompare(sidebar, "arriving", false);
+        verify(!bar.open);
+        verify(browser.switchSpace(drive.spaceId));
+        tryCompare(sidebar, "arriving", false);
+        verify(bar.open);
+
+        // Taken over from the command scope: the label goes, and the Space
+        // is no longer temporary.
+        verify(browser.temporarySpace(drive.spaceId));
+        verify(window.commands.run("take-over-space", -1));
+        verify(browser.agentSpaceIds.indexOf(drive.spaceId) < 0);
+        verify(!browser.temporarySpace(drive.spaceId));
+        verify(!bar.open);
+        verify(!window.commands.available("take-over-space"));
+        endAgentDrive(drive);
+    }
+
+    // The window reads the Agent activity log by its context name, so nothing
+    // of the window's own may take that name: a property called
+    // `agentActivity` would be what the window found instead of the log.
+    function test_theActivityLogIsNotHiddenByTheWindowsOwnNames() {
+        verify(agentActivityContext !== null && agentActivityContext !== undefined);
+        verify(window.agentActivitySource === agentActivityContext);
+        compare(window.agentActivity, undefined);
+    }
+
+    // Agents drive Spaces, and a Private window is not one: whatever the page
+    // area hears, it marks nothing.
+    function test_aPrivateWindowMarksNothing() {
+        compare(windowManager.privateWindowCount, 0);
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        privateBrowser.windowBrowser.openInput("https://private-agent.example/", false);
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const tabId = privateBrowser.windowBrowser.activeTabId;
+        const control = agentActivityComponent.createObject(testCase);
+        const activity = {};
+        activity[tabId] = {
+            "spaceId": "",
+            "name": "claude-code",
+            "act": "looked at the page",
+            "busy": true
+        };
+        control.agentActivity = activity;
+        privateEngine.agentControl = control;
+        compare(Object.keys(privateBrowser.agentTabActivity).length, 0);
+        verify(!findChild(privateBrowser.contentItem, "agentFrame").visible);
+        const mark = findChild(privateBrowser.contentItem, "agentMark-" + tabId);
+        verify(mark === null || !mark.visible);
+        verify(!findChild(privateBrowser.contentItem, "agentSpaceBar").open);
+
+        privateEngine.agentControl = null;
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        control.destroy();
+    }
+
+    // What an Agent tab's page says to its console reaches the core, named by
+    // the tab and a document that a page built again does not share with the
+    // one before. A new document is announced even when its page says
+    // nothing, so the last page's lines are not read as the new one's, and a
+    // reader's own page is not passed on.
+    function test_anAgentTabsConsoleReachesTheCore() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+        const readerEngine = openPage("https://reader-console.example/");
+        const agentEngine = openPageInNewTab("https://agent-console.example/");
+        const agentTabId = browser.activeTabId;
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": browser.activeSpaceId,
+            "url": "https://agent-console.example/"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        control.agentTabsChanged();
+        try {
+            readerEngine.pageConsoleMessage(2, "reader", 1, "https://reader-console.example/",
+                                            readerEngine.pageGeneration);
+            compare(control.consoleMessages.length, 0);
+
+            agentEngine.pageConsoleMessage(2, "boom", 7, "https://agent-console.example/app.js",
+                                           agentEngine.pageGeneration);
+            compare(control.consoleMessages.length, 1);
+            const said = control.consoleMessages[0];
+            compare(said.tabId, agentTabId);
+            compare(said.level, 2);
+            compare(said.message, "boom");
+            compare(said.source, "https://agent-console.example/app.js");
+            compare(said.line, 7);
+            const serial = said.document.split(":")[0];
+            verify(serial.length > 0);
+            compare(said.document, serial + ":" + agentEngine.pageGeneration);
+
+            compare(control.consoleDocuments.length, 0);
+            verify(openPage("https://agent-console.example/quiet") === agentEngine);
+            verify(control.consoleDocuments.length > 0);
+            const started = control.consoleDocuments[control.consoleDocuments.length - 1];
+            compare(started.tabId, agentTabId);
+            compare(started.document, serial + ":" + agentEngine.pageGeneration);
+
+            engineLoader.discardEngine(agentTabId);
+            tryVerify(function () {
+                return engineLoader.engines[agentTabId] !== undefined;
+            });
+            const rebuilt = engineLoader.engines[agentTabId];
+            verify(rebuilt !== agentEngine);
+            rebuilt.pageConsoleMessage(1, "rebuilt", 1, "", rebuilt.pageGeneration);
+            const last = control.consoleMessages[control.consoleMessages.length - 1];
+            compare(last.message, "rebuilt");
+            verify(last.document.split(":")[0] !== serial);
+        } finally {
+            control.agentTabIds = [];
+            control.agentTabsChanged();
+            engineLoader.agentControl = null;
+            control.destroy();
+            browser.closeTab(agentTabId);
+        }
     }
 
     // The two exceptions to that policy, and nothing else: a Pinned tab the

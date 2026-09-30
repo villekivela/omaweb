@@ -184,6 +184,8 @@ void AgentCommandTest::refusesAMalformedCommand_data()
         << QStringList {QStringLiteral("space"), QStringLiteral("delete")};
     QTest::newRow("a level that is not one") << QStringList {
         QStringLiteral("console"), QStringLiteral("--level"), QStringLiteral("loud")};
+    QTest::newRow("an empty level")
+        << QStringList {QStringLiteral("console"), QStringLiteral("--level=")};
     QTest::newRow("a cursor that is not one") << QStringList {
         QStringLiteral("console"), QStringLiteral("--since"), QStringLiteral("soon")};
     QTest::newRow("console takes no argument")
@@ -289,7 +291,7 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
         {QStringLiteral("messages"),
             QJsonArray {
                 QJsonObject {{QStringLiteral("level"), QStringLiteral("error")},
-                    {QStringLiteral("message"), QStringLiteral("boom\nat app.js")},
+                    {QStringLiteral("message"), QStringLiteral("boom\nat app.js\r\tcol 3")},
                     {QStringLiteral("source"), QStringLiteral("http://localhost/app.js")},
                     {QStringLiteral("line"), 42}},
                 QJsonObject {{QStringLiteral("level"), QStringLiteral("info")},
@@ -301,7 +303,7 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
     };
     QCOMPARE(formatAgentAnswer(QStringLiteral("console"), console),
         QStringLiteral("truncated\tolder messages were dropped before this call\n"
-                       "error\thttp://localhost/app.js:42\tboom\\nat app.js\n"
+                       "error\thttp://localhost/app.js:42\tboom\\nat app.js\\r\\tcol 3\n"
                        "info\t\thi\n"
                        "cursor\t17\n"));
 }

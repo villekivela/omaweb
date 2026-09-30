@@ -172,6 +172,7 @@ private slots:
     void switchesSpaceAndSelectsATabWithAllowAgentsOff();
     void runsOnlyThePublicCommandsInTheWindow();
     void decidesEveryCommandOfTheRegistry();
+    void reportsWhatEachAgentTabsAgentIsDoing();
     void uploadsOnlyInAnAgentSpace();
     void checksADialogStep();
     void givesEachConnectionItsOwnDownloadDirectory();
@@ -1611,16 +1612,112 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     }
     QVERIFY(registry.size() > 50);
 
+    // Taking an Agent Space over is the reader's answer to an Agent, and an
+    // Agent that could give it would take its own mark off.
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
-        QStringLiteral("private-window"), QStringLiteral("agent-activity")};
+        QStringLiteral("private-window"), QStringLiteral("take-over-space"),
+        QStringLiteral("agent-activity")};
     QStringList decided = AgentControl::publicCommands() + keptIn;
     decided.sort();
     registry.sort();
     QCOMPARE(decided, registry);
 }
 
-QTEST_GUILESS_MAIN(AgentControlTest)
+// The marks on a row, a page and a Space are drawn from this: who is driving
+// each Agent tab, what it did last, and whether a command is in flight.
+void AgentControlTest::reportsWhatEachAgentTabsAgentIsDoing()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    QSignalSpy changed(&control, &AgentControl::agentActivityChanged);
+    const auto activity
+        = [&control](const QString &tabId) { return control.agentActivity().value(tabId).toMap(); };
+
+    const auto tab = openAgentTab(control, QStringLiteral("claude-code"));
+    QCOMPARE(control.agentActivity().keys(), QStringList {tab});
+    QCOMPARE(
+        activity(tab).value(QStringLiteral("spaceId")).toString(), browser->findTab(tab)->spaceId);
+    QCOMPARE(activity(tab).value(QStringLiteral("name")).toString(), QStringLiteral("claude-code"));
+    QCOMPARE(activity(tab).value(QStringLiteral("act")).toString(),
+        QStringLiteral("opened example.com"));
+    QCOMPARE(activity(tab).value(QStringLiteral("busy")).toBool(), false);
+    QVERIFY(changed.count() > 0);
+
+    // Busy from the moment the page is asked until it answers.
+    QList<QJsonObject> replies;
+    const auto reply = [&replies](const QJsonObject &answer) { replies.append(answer); };
+    control.handle(
+        {{QStringLiteral("verb"), QStringLiteral("do")},
+            {QStringLiteral("name"), QStringLiteral("claude-code")},
+            {QStringLiteral("steps"),
+                QJsonArray {QJsonObject {{QStringLiteral("action"), QStringLiteral("fill")},
+                                {QStringLiteral("target"), QStringLiteral("3")},
+                                {QStringLiteral("text"), QStringLiteral("omaweb")}},
+                    QJsonObject {{QStringLiteral("action"), QStringLiteral("click")},
+                        {QStringLiteral("target"), QStringLiteral("7")}}}}},
+        reply);
+    QCOMPARE(requested.count(), 1);
+    QCOMPARE(activity(tab).value(QStringLiteral("busy")).toBool(), true);
+
+    // A batch is told by its last step that went through, in the page's own
+    // name for what it reached.
+    control.answerPage(requested.at(0).at(0).toInt(),
+        {{QStringLiteral("ok"), true},
+            {QStringLiteral("steps"),
+                QVariantList {QVariantMap {{QStringLiteral("ok"), true},
+                                  {QStringLiteral("name"), QStringLiteral("Search")}},
+                    QVariantMap {{QStringLiteral("ok"), true},
+                        {QStringLiteral("name"), QStringLiteral("Files changed")}}}}});
+    QCOMPARE(replies.size(), 1);
+    QCOMPARE(activity(tab).value(QStringLiteral("busy")).toBool(), false);
+    QCOMPARE(activity(tab).value(QStringLiteral("act")).toString(),
+        QStringLiteral("clicked \"Files changed\""));
+
+    // A batch that failed at its second step did its first.
+    control.handle(
+        {{QStringLiteral("verb"), QStringLiteral("do")},
+            {QStringLiteral("name"), QStringLiteral("claude-code")},
+            {QStringLiteral("steps"),
+                QJsonArray {QJsonObject {{QStringLiteral("action"), QStringLiteral("fill")},
+                                {QStringLiteral("target"), QStringLiteral("3")},
+                                {QStringLiteral("text"), QStringLiteral("omaweb")}},
+                    QJsonObject {{QStringLiteral("action"), QStringLiteral("click")},
+                        {QStringLiteral("target"), QStringLiteral("7")}}}}},
+        reply);
+    control.answerPage(requested.at(1).at(0).toInt(),
+        {{QStringLiteral("ok"), false}, {QStringLiteral("code"), QStringLiteral("covered")},
+            {QStringLiteral("steps"),
+                QVariantList {QVariantMap {{QStringLiteral("ok"), true}},
+                    QVariantMap {{QStringLiteral("ok"), false}}}}});
+    QCOMPARE(
+        activity(tab).value(QStringLiteral("act")).toString(), QStringLiteral("typed in label 3"));
+
+    // A verb that failed did nothing to tell, and the last act stands.
+    control.handle({{QStringLiteral("verb"), QStringLiteral("read")},
+                       {QStringLiteral("name"), QStringLiteral("claude-code")}},
+        reply);
+    control.answerPage(requested.at(2).at(0).toInt(), {{QStringLiteral("ok"), false}});
+    QCOMPARE(
+        activity(tab).value(QStringLiteral("act")).toString(), QStringLiteral("typed in label 3"));
+    control.handle({{QStringLiteral("verb"), QStringLiteral("look")},
+                       {QStringLiteral("name"), QStringLiteral("claude-code")}},
+        reply);
+    control.answerPage(requested.at(3).at(0).toInt(), {{QStringLiteral("ok"), true}});
+    QCOMPARE(activity(tab).value(QStringLiteral("act")).toString(),
+        QStringLiteral("looked at the page"));
+
+    // A connection that stops using the tab takes the report with it.
+    QVERIFY(succeeded(ask(control, QStringLiteral("claude-code"), QStringLiteral("close"))));
+    QVERIFY(control.agentActivity().isEmpty());
+}
+
 namespace {
 
 QJsonObject uploadStep(const QString &target, const QStringList &files)
@@ -2232,5 +2329,7 @@ void AgentControlTest::withdrawsThePromptWhenAllowAgentsGoesOff()
     control.answerGrant(QStringLiteral("work"), true);
     QVERIFY(!browser->spaceGranted(QStringLiteral("work")));
 }
+
+QTEST_GUILESS_MAIN(AgentControlTest)
 
 #include "tst_agentcontrol.moc"

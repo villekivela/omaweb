@@ -3016,12 +3016,18 @@ Item {
         const fail = function (code, error) {
             done(root.agentFailure(code, error));
         };
+        // What the page names the element a step reached, so the reader is
+        // told what the Agent did in the page's own words.
+        let reached = "";
         const settle = function () {
             root.agentSettle(startGeneration, startUrl, settleMs, deadline, live, function (quiet) {
-                done({
-                         "ok": true,
-                         "settled": quiet
-                     });
+                const result = {
+                    "ok": true,
+                    "settled": quiet
+                };
+                if (reached.length > 0)
+                    result.name = reached;
+                done(result);
             });
         };
         const inPage = function (source, then) {
@@ -3032,8 +3038,10 @@ Item {
                     fail("failed", "The page did not answer.");
                 else if (result.code)
                     fail(result.code, result.error);
-                else
+                else {
+                    reached = String(result.name || "");
                     then(result);
+                }
             });
         };
         if (root.agentDialog && step.action !== "dialog") {
@@ -3422,12 +3430,14 @@ Item {
             // and verified the site stylesheet with the answer, unless the
             // survey script never reached it. The DOM is often parsed before
             // the load is over, so a rule change in between came after the
-            // survey and is put in here. One that did not load gets the site
+            // survey and is put in here, for a document the reader stopped as
+            // for one that finished. One that did not load gets the site
             // stylesheet verified here.
-            if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
-                root.applyCosmeticRules();
-            else if (root.blockingRulesChangedSinceLoad)
+            if (root.blockingRulesChangedSinceLoad && loadRequest.status
+                    !== WebEngineView.LoadFailedStatus)
                 root.reapplyBlockingRules();
+            else if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
+                root.applyCosmeticRules();
             else if (!root.documentSurveyed)
                 root.surveyGenericCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadSucceededStatus && root.httpsOnlyPolicy) {

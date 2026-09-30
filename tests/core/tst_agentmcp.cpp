@@ -1,4 +1,5 @@
 #include "AgentCommand.h"
+#include "AgentConsole.h"
 #include "AgentMcp.h"
 
 #include <QFile>
@@ -168,6 +169,7 @@ private slots:
     void startsABrowserThatNeverAnswersOnlyOnce();
     void setsAsideAnAnswerThatCameTooLate();
     void theSkillTeachesEveryVerb();
+    void offersTheLevelsTheSocketReads();
 };
 
 void AgentMcpTest::servesEachVerbAsOneTool()
@@ -754,6 +756,16 @@ void AgentMcpTest::theSkillTeachesEveryVerb()
     }
     QVERIFY(text.contains(QStringLiteral("omaweb space new [name] [--temporary]")));
     QVERIFY(text.contains(QStringLiteral("--name")));
+}
+
+// The schema lists the levels, and the socket reads them, so a level one
+// offers is one the other takes.
+void AgentMcpTest::offersTheLevelsTheSocketReads()
+{
+    for (const auto &level : omaweb::agentConsoleLevels()) {
+        auto threshold = omaweb::AgentConsole::Info;
+        QVERIFY2(omaweb::AgentConsole::parseThreshold(level, &threshold), qPrintable(level));
+    }
 }
 
 QTEST_GUILESS_MAIN(AgentMcpTest)

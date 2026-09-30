@@ -87,9 +87,9 @@ public:
     Q_INVOKABLE int refusalTally(const QString &spaceId, const QUrl &pageAddress) const;
     // The requests behind that tally, each address once, in the order they were
     // first refused: `address`, and `canonicalName` for one refused through a
-    // name from its host's CNAME chain. The tally counts every
-    // refusal and the list keeps the first hundred addresses, which is more
-    // than Site information shows.
+    // name from its host's CNAME chain. The tally counts every refusal and the
+    // list keeps the first hundred addresses, which is more than Site
+    // information shows.
     Q_INVOKABLE QVariantList refusedRequests(const QString &spaceId, const QUrl &pageAddress) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;

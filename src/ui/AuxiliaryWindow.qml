@@ -29,6 +29,30 @@ ApplicationWindow {
                                         && auxiliary.agentControl.agentWindowIds.indexOf(
                                             auxiliary.agentWindowId) >= 0
     onAgentDrivenChanged: auxiliary.markAgentEngine()
+    // The window's palette, for the frame an Agent's window wears.
+    property var colors
+    // The tab that opened this window and the connection driving it, which
+    // stay the same for as long as it is the Agent's.
+    readonly property var agentWindowInfo: auxiliary.agentDriven
+                                           ? auxiliary.agentControl.agentWindow(
+                                                 auxiliary.agentWindowId) : ({})
+    // What the Agent is doing, as its tab reports it, so the window is marked
+    // as its tab is. Before the tab has a report, the connection's name.
+    readonly property var agentReport: auxiliary.reportOf(auxiliary.agentDriven,
+                                                          auxiliary.agentWindowInfo,
+                                                          auxiliary.agentControl
+                                                          ? auxiliary.agentControl.agentActivity :
+                                                            null)
+
+    function reportOf(driven, info, activity) {
+        if (!driven)
+            return null;
+        const report = activity ? activity[info.openerTabId] : undefined;
+        return report || {
+            "name": String(info.connection || ""),
+            "act": ""
+        };
+    }
 
     function markAgentEngine() {
         const engine = engineLoader.item;
@@ -95,6 +119,17 @@ ApplicationWindow {
         }
     }
 
+    // An Agent's window is marked as its tab's page is: framed in the Agent
+    // accent, with who is driving it and what it did last.
+    AgentPageFrame {
+        objectName: "auxiliaryAgentFrame"
+        anchors.fill: parent
+        z: 1
+        visible: auxiliary.agentDriven && auxiliary.colors !== undefined
+        colors: auxiliary.colors
+        agent: auxiliary.agentReport
+    }
+
     Connections {
         target: engineLoader.item
         ignoreUnknownSignals: true
@@ -120,6 +155,11 @@ ApplicationWindow {
                 auxiliary.agentControl.recordConsoleMessage(auxiliary.agentWindowId, String(
                                                                 document), level, message, sourceId,
                                                             lineNumber);
+        }
+        function onPageGenerationChanged() {
+            if (auxiliary.agentDriven)
+                auxiliary.agentControl.startConsoleDocument(auxiliary.agentWindowId, String(
+                                                                engineLoader.item.pageGeneration));
         }
     }
 

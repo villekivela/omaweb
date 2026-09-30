@@ -56,10 +56,12 @@ The request check takes the aliases as data. Chromium keeps a host's aliases in 
 engine cannot say which is canonical, and Content blocking checks each of them. The request is
 checked again with its host replaced by each name in turn, keeping the page it came from, its type
 and the Space's site toggles, and a block, a Substitute resource or an exception applies as it would
-to a direct match. A `$removeparam` rewrite found only through the canonical name is dropped,
-because the request goes out under its own address. A canonical name on the same site as the request
-is not checked, following uBlock Origin, so a site's own CDN aliases cause no refusal a list did not
-intend.
+to a direct match. Each name is judged on its own. With Secure DNS on, a chain with a hop a rule
+names is refused even when an exception names another name in it, because nothing says which name
+the exception's author meant. A `$removeparam` rewrite found only through the canonical name is
+dropped, because the request goes out under its own address. A canonical name on the same site as
+the request is not checked, following uBlock Origin, so a site's own CDN aliases cause no refusal a
+list did not intend.
 
 An uncloaked refusal counts in the Refusal tally like any other. Site information now lists the
 refused requests beside the tally, and an uncloaked one carries the canonical name it matched, so a

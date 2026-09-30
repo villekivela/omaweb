@@ -108,6 +108,13 @@ class SyntaxDerivation(unittest.TestCase):
                     importer.SYNTAX_MINIMUM_CONTRAST)
 
 
+class AgentAccent(unittest.TestCase):
+    def test_takes_the_terminals_cyan(self):
+        # Omarchy's template names the same slot, so a theme imported from a
+        # terminal marks an Agent's work as the desktop's own theme would.
+        self.assertEqual(derive()["agentAccent"], TOKYO_NIGHT["palette"][6])
+
+
 class BuiltTheme(unittest.TestCase):
     def test_replaces_the_shipped_syntax_block_wholesale(self):
         theme = importer.build_theme(TOKYO_NIGHT)
