@@ -57,6 +57,19 @@ Rectangle {
         return parts.join(" ");
     }
 
+    // The tab's address, where the target does not already say it, and a
+    // refusal with its code where the code adds something.
+    function whereAndHow(row) {
+        let text = "";
+        if (row.address.length > 0 && row.address !== row.target)
+            text += "  ·  " + row.address;
+        if (row.outcome === "refused")
+            text += "  ·  refused";
+        else if (row.outcome !== "ok")
+            text += "  ·  refused (" + row.outcome + ")";
+        return text;
+    }
+
     onOpenChanged: if (open)
                        refresh()
 
@@ -200,14 +213,7 @@ Rectangle {
                     }
                     Text {
                         width: parent.width - x
-                        text: root.describe(line.modelData) + (line.modelData.address.length > 0
-                                                               && line.modelData.address
-                                                               !== line.modelData.target ? "  ·  "
-                                                                                           + line.modelData.address :
-                                                                                           "") + (line.refused
-                                                                                                  ? "  ·  refused ("
-                                                                                                    + line.modelData.outcome
-                                                                                                    + ")" : "")
+                        text: root.describe(line.modelData) + root.whereAndHow(line.modelData)
                         color: line.refused ? root.colors.mutedText : root.colors.text
                         elide: Text.ElideRight
                         font.family: Style.font.family
