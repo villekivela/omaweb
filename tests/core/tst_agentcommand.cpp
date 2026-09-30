@@ -21,6 +21,7 @@ private slots:
     void refusesAMalformedCommand_data();
     void refusesAMalformedCommand();
     void namesTheConnectionAfterItsParentUnlessTold();
+    void namesTheArgumentItDoesNotTake();
     void printsOneLinePerRowForAScript();
     void readsTheStepsOfABatch();
     void printsWhatAPageVerbSaw();
@@ -140,6 +141,12 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
         << base(QStringLiteral("eval"),
                {{QStringLiteral("expression"), QStringLiteral("document.title + '!'")}})
         << false;
+    QTest::newRow("eval after the options end")
+        << QStringList {QStringLiteral("eval"), QStringLiteral("--json"), QStringLiteral("--"),
+               QStringLiteral("--count"), QStringLiteral("--")}
+        << base(QStringLiteral("eval"),
+               {{QStringLiteral("expression"), QStringLiteral("--count --")}})
+        << true;
 }
 
 void AgentCommandTest::readsEachVerbIntoARequest()
@@ -204,6 +211,15 @@ void AgentCommandTest::refusesAMalformedCommand()
     QFETCH(QStringList, arguments);
     arguments.prepend(QStringLiteral("omaweb"));
     QVERIFY(!readAgentCommand(arguments, QStringLiteral("claude")).error.isEmpty());
+}
+
+void AgentCommandTest::namesTheArgumentItDoesNotTake()
+{
+    const auto command = readAgentCommand(
+        {QStringLiteral("omaweb"), QStringLiteral("space"), QStringLiteral("new"),
+            QStringLiteral("Checks"), QStringLiteral("Extra")},
+        QStringLiteral("claude"));
+    QCOMPARE(command.error, QStringLiteral("`space new` takes no argument Extra."));
 }
 
 void AgentCommandTest::namesTheConnectionAfterItsParentUnlessTold()

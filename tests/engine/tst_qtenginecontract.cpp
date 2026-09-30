@@ -68,6 +68,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
+#include <QTimer>
 #include <QTemporaryDir>
 #include <QUrlQuery>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
@@ -253,7 +254,9 @@ private slots:
     void qtFindsInThePageAndKeepsTheQueryAcrossNavigation();
     void qtKeepsTheZoomItIsGivenAcrossNavigation();
     void qtAgentLooksAtAFormInFewTokens();
+    void qtAgentKeepsALookWithinBounds();
     void qtAgentLabelsStayWithTheirElements();
+    void qtAgentRunsEveryKindOfStep();
     void qtAgentFillsAndSubmitsAFormInOneBatch();
     void qtAgentStopsABatchAtTheFirstFailedStep();
     void qtAgentWaitsForThePageToSettle();
@@ -4723,6 +4726,16 @@ for (const type of ["click", "keydown"])
 </script>)HTML");
         page("/thanks.html", R"HTML(<!doctype html><title>Thanks</title>
 <h1>Thank you</h1><p id="who"></p>
+<p id="more"></p>
+<script>
+// As many targets as the form had, so a label counted again from 1 would
+// name one of them.
+for (let index = 1; index <= 8; index++) {
+  const link = document.createElement("a");
+  link.href = "#" + index;
+  link.textContent = "More " + index;
+  document.getElementById("more").append(link, " ");
+}</script>
 <script>document.getElementById("who").textContent =
   new URLSearchParams(location.search).get("email") + " / " +
   new URLSearchParams(location.search).get("country");</script>)HTML");
@@ -4739,6 +4752,18 @@ document.getElementById("go").addEventListener("click", () => {
     }, delay);
 });
 </script>)HTML");
+        // More words and more buttons than a look carries.
+        QByteArray crowded = "<!doctype html><title>Long</title><div style=\"font-size:4px\">";
+        for (int index = 0; index < 300; ++index) {
+            crowded += "<button>b" + QByteArray::number(index) + "</button>";
+        }
+        crowded += "</div>";
+        for (int index = 0; index < 200; ++index) {
+            crowded
+                += "<p>Paragraph " + QByteArray::number(index) + " " + QByteArray(90, 'w') + "</p>";
+        }
+        page("/long.html", crowded);
+        page("/slow.html", "<!doctype html><title>Slow</title><h1>Arrived</h1>");
         page("/console.html", R"HTML(<!doctype html><title>Console</title>
 <script>
 if (location.search === "?next") console.error("second document");
@@ -4779,11 +4804,20 @@ for (const id of ["report", "photos"])
             connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
                 const auto path = socket->readAll().split(' ').value(1).split('?').value(0);
                 const auto body = m_pages.value(path);
-                socket->write((body.isEmpty() ? "HTTP/1.1 404 Not Found" : "HTTP/1.1 200 OK")
-                    + QByteArray("\r\nContent-Type: text/html\r\nContent-Length: ")
-                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
-                socket->flush();
-                socket->disconnectFromHost();
+                const auto respond = [socket, body] {
+                    socket->write((body.isEmpty() ? "HTTP/1.1 404 Not Found" : "HTTP/1.1 200 OK")
+                        + QByteArray("\r\nContent-Type: text/html\r\nContent-Length: ")
+                        + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                    socket->flush();
+                    socket->disconnectFromHost();
+                };
+                // A page whose server is slow, so a navigation to it commits
+                // long after the click that started it.
+                if (path == "/slow.html") {
+                    QTimer::singleShot(1500, socket, respond);
+                } else {
+                    respond();
+                }
             });
         });
         listen(QHostAddress::LocalHost);
@@ -4948,6 +4982,32 @@ void QtEngineContractTest::qtAgentLooksAtAFormInFewTokens()
     QCOMPARE(all.value(QStringLiteral("below")).toInt(), 0);
 }
 
+// A page with more on it than a look carries: the outline stops near 1,500
+// tokens, and the targets past the most a look lists are counted as not
+// listed, not as below, since they are on screen.
+void QtEngineContractTest::qtAgentKeepsALookWithinBounds()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("long.html"))));
+    const auto look = page.look();
+    QCOMPARE(look.value(QStringLiteral("targets")).toArray().size(), 200);
+    QCOMPARE(look.value(QStringLiteral("unlisted")).toInt(), 100);
+    QCOMPARE(look.value(QStringLiteral("below")).toInt(), 0);
+    QVERIFY(omaweb::formatAgentAnswer(
+        QStringLiteral("look"), {{QStringLiteral("ok"), true}, {QStringLiteral("look"), look}})
+            .contains(u"100 more not listed"));
+
+    const auto all = page.ask(QStringLiteral("look"), {{QStringLiteral("all"), true}})
+                         .value(QStringLiteral("look"))
+                         .toObject();
+    const auto outline = all.value(QStringLiteral("outline")).toString();
+    QVERIFY2(outline.size() <= 6000, qPrintable(QString::number(outline.size())));
+    QVERIFY(outline.size() > 5000);
+    QVERIFY(outline.endsWith(u"…"));
+    QCOMPARE(all.value(QStringLiteral("below")).toInt(), 0);
+}
+
 void QtEngineContractTest::qtAgentLabelsStayWithTheirElements()
 {
     AgentSite site;
@@ -4988,9 +5048,55 @@ void QtEngineContractTest::qtAgentLabelsStayWithTheirElements()
             .value(QStringLiteral("ok"))
             .toBool());
     QTRY_COMPARE(page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Thanks"));
+    QVERIFY(!labelNamed(page.look(), QStringLiteral("More 8")).isEmpty());
     QCOMPARE(
         page.batch({QStringLiteral("click ") + terms}).value(QStringLiteral("code")).toString(),
         QStringLiteral("stale-label"));
+}
+
+// Every kind of step the issue names, beyond those the form's batch takes.
+void QtEngineContractTest::qtAgentRunsEveryKindOfStep()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto look = page.look();
+    const auto name = labelNamed(look, QStringLiteral("Name"));
+
+    // A character past the first 65,536 is typed whole, and + is a key.
+    auto answer = page.batch(
+        {QStringLiteral("fill ") + name + QStringLiteral(" '😀 a'"), QStringLiteral("press +")});
+    QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('name').value")),
+        QJsonValue(QStringLiteral("😀 a+")));
+
+    // A label scrolled to is brought on screen.
+    const auto far = labelNamed(page.ask(QStringLiteral("look"), {{QStringLiteral("all"), true}})
+                                    .value(QStringLiteral("look"))
+                                    .toObject(),
+        QStringLiteral("Far below"));
+    answer = page.batch({QStringLiteral("scroll ") + far});
+    QVERIFY(answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(
+        labelNamed(answer.value(QStringLiteral("look")).toObject(), QStringLiteral("Far below")),
+        far);
+
+    // Enter in a field sends its form, a wait for an address sees the next
+    // page arrive, and back returns to the form.
+    answer = page.batch({QStringLiteral("scroll top"),
+        QStringLiteral("fill ") + name + QStringLiteral(" x"), QStringLiteral("press Enter"),
+        QStringLiteral("wait url thanks.html"), QStringLiteral("back")});
+    QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
+    QCOMPARE(
+        answer.value(QStringLiteral("look")).toObject().value(QStringLiteral("title")).toString(),
+        QStringLiteral("Sign up"));
+    QCOMPARE(
+        page.batch({QStringLiteral("wait url nowhere.html")}, {{QStringLiteral("timeout"), 300}})
+            .value(QStringLiteral("code"))
+            .toString(),
+        QStringLiteral("timeout"));
 }
 
 // Five steps, and what they did read off the page they arrived at, in one call.
@@ -5101,12 +5207,33 @@ void QtEngineContractTest::qtAgentWaitsForThePageToSettle()
                 .count(u"late")
         < 3);
 
+    // The settle time is the call's own: a longer one waits that long after
+    // the last change.
+    page.evaluate(QStringLiteral("document.querySelectorAll('.late').forEach(e => e.remove())"));
+    QElapsedTimer clock;
+    clock.start();
+    const auto patient
+        = page.batch({QStringLiteral("click ") + go}, {{QStringLiteral("settle"), 1500}});
+    QVERIFY(patient.value(QStringLiteral("ok")).toBool());
+    QVERIFY2(clock.elapsed() >= 400 + 1500, qPrintable(QString::number(clock.elapsed())));
+
     // A wait step is answered once what it waits for is there.
     const auto waited = page.batch({QStringLiteral("wait text 'late 400'")});
     QVERIFY(waited.value(QStringLiteral("ok")).toBool());
     const auto missing = page.batch(
         {QStringLiteral("wait text 'never there'")}, {{QStringLiteral("timeout"), 300}});
     QCOMPARE(missing.value(QStringLiteral("code")).toString(), QStringLiteral("timeout"));
+
+    // A step that starts a navigation waits for it to commit, however long
+    // the server takes, before it waits for the next page to be quiet.
+    page.evaluate(QStringLiteral("document.body.append(Object.assign(document.createElement('a'), "
+                                 "{href: 'slow.html', textContent: 'Slow'}))"));
+    const auto slow = labelNamed(page.look(), QStringLiteral("Slow"));
+    const auto arrived = page.batch({QStringLiteral("click ") + slow});
+    QVERIFY(arrived.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(
+        arrived.value(QStringLiteral("look")).toObject().value(QStringLiteral("title")).toString(),
+        QStringLiteral("Slow"));
 }
 
 // The reader's keyboard in the tab is the reader working in it. `do` waits
@@ -5131,6 +5258,14 @@ void QtEngineContractTest::qtAgentWaitsWhileTheReaderIsInTheTab()
         QJsonValue(false));
     QVERIFY(page.ask(QStringLiteral("look")).value(QStringLiteral("ok")).toBool());
     QVERIFY(page.ask(QStringLiteral("read")).value(QStringLiteral("ok")).toBool());
+    QCOMPARE(
+        page.evaluate(QStringLiteral("document.title")), QJsonValue(QStringLiteral("Sign up")));
+    QTemporaryDir shots;
+    QVERIFY(
+        page.ask(QStringLiteral("shot"),
+                {{QStringLiteral("destination"), shots.filePath(QStringLiteral("shot.png"))}})
+            .value(QStringLiteral("ok"))
+            .toBool());
 
     // A page held at no opacity is not one the reader is using, whatever has
     // Qt's focus for a moment.
@@ -5217,9 +5352,20 @@ void QtEngineContractTest::qtAgentCapturesThePage()
     QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
         QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
     QCOMPARE(answer.value(QStringLiteral("path")).toString(), path);
-    const QImage shot(path);
+    const QImage shot(path, "PNG");
     QVERIFY(!shot.isNull());
     QVERIFY(shot.width() >= 800);
+    QVERIFY(shot.height() < 1000);
+
+    // The whole page, down past the link 3,000 pixels below the form.
+    const auto fullPath = root.filePath(QStringLiteral("full.png"));
+    const auto full = page.ask(QStringLiteral("shot"),
+        {{QStringLiteral("destination"), fullPath}, {QStringLiteral("full"), true}}, 60000);
+    QVERIFY2(full.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(full).toJson(QJsonDocument::Compact).constData());
+    const QImage whole(fullPath, "PNG");
+    QVERIFY(!whole.isNull());
+    QVERIFY2(whole.height() > 3000, qPrintable(QString::number(whole.height())));
 }
 
 // Allow agents going off calls off a batch between its steps: the page is
@@ -5247,6 +5393,24 @@ void QtEngineContractTest::qtAgentStopsWhatIsUnderWayWhenCalledOff()
     QCOMPARE(answered.count(), 0);
     QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('terms').checked")),
         QJsonValue(false));
+
+    // A screenshot called off writes nothing, since the core has let its file
+    // go and a picture written late would make it again.
+    QTemporaryDir root;
+    const auto before = answered.count();
+    for (const auto full : {false, true}) {
+        const auto path
+            = root.filePath(full ? QStringLiteral("full.png") : QStringLiteral("shot.png"));
+        QMetaObject::invokeMethod(page.adapter.get(), "answerAgentVerb", Q_ARG(QVariant, 1000),
+            Q_ARG(QVariant, QStringLiteral("shot")),
+            Q_ARG(QVariant,
+                QVariantMap(
+                    {{QStringLiteral("destination"), path}, {QStringLiteral("full"), full}})));
+        QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), "cancelAgentVerbs"));
+        QTest::qWait(1500);
+        QVERIFY2(!QFileInfo::exists(path), qPrintable(path));
+    }
+    QCOMPARE(answered.count(), before);
 }
 
 // What an Agent reads with `console`: the page's own lines, in order, with

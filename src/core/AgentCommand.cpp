@@ -432,6 +432,10 @@ namespace {
         if (below > 0) {
             text += QStringLiteral("%1 more below\n").arg(below);
         }
+        // On screen, past the most a look lists.
+        if (const auto unlisted = look.value(QStringLiteral("unlisted")).toInt(); unlisted > 0) {
+            text += QStringLiteral("%1 more not listed\n").arg(unlisted);
+        }
         return text;
     }
 
@@ -530,25 +534,32 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
     QJsonObject request {{QStringLiteral("verb"), verb}};
     QString name = defaultName;
     QStringList positionals;
+    // `--` ends the options, so an expression or an address that starts with
+    // two dashes can still be given.
+    auto optionsEnded = false;
     for (auto index = next; index < arguments.size(); ++index) {
         const auto &argument = arguments.at(index);
-        if (!argument.startsWith(u"--") || argument == u"--") {
+        if (!optionsEnded && argument == u"--") {
+            optionsEnded = true;
+            continue;
+        }
+        if (optionsEnded || !argument.startsWith(u"--")) {
             positionals.append(argument);
             continue;
         }
         auto option = argument.mid(2);
         QString value;
         const auto equals = option.indexOf(u'=');
-        const auto inline_ = equals >= 0;
-        if (inline_) {
+        const auto hasInlineValue = equals >= 0;
+        if (hasInlineValue) {
             value = option.mid(equals + 1);
             option = option.left(equals);
         }
-        if (option == u"json" && !inline_) {
+        if (option == u"json" && !hasInlineValue) {
             command.json = true;
             continue;
         }
-        if (grammar.flags.contains(option) && !inline_) {
+        if (grammar.flags.contains(option) && !hasInlineValue) {
             request.insert(option, true);
             continue;
         }
@@ -557,7 +568,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             command.error = QStringLiteral("`%1` takes no option --%2.").arg(verb, option);
             return command;
         }
-        if (!inline_) {
+        if (!hasInlineValue) {
             if (index + 1 >= arguments.size()) {
                 command.error = QStringLiteral("--%1 needs a value.").arg(option);
                 return command;
@@ -633,7 +644,8 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             ? QStringLiteral("Use `space <space>`, `space new [name]` or `space delete <space>`.")
             : verb == u"focus"
             ? QStringLiteral("`focus` takes a tab's id or a part of its address.")
-            : QStringLiteral("`%1` takes no argument %2.").arg(verb, positionals.value(0));
+            : QStringLiteral("`%1` takes no argument %2.")
+                  .arg(verb, positionals.value(std::max<qsizetype>(grammar.maximumPositionals, 0)));
         return command;
     }
     if (!positionals.isEmpty()) {

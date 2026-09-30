@@ -1,3 +1,4 @@
+#include "AgentCommand.h"
 #include "AgentControl.h"
 #include "BrowserController.h"
 #include "ControlSocket.h"
@@ -17,6 +18,9 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QThread>
+
+#include <memory>
 
 #include <sys/stat.h>
 
@@ -138,6 +142,7 @@ private slots:
     void refusesAddressesThatActInsideAPage();
     void leavesPinnedTabsAndTheReadersTabsAlone();
     void closesAndLoadsTabsOfASpaceNotOnShow();
+    void closesAnAwayTabWhoseSplitPartnerIsGone();
     void createsAnAgentSpaceOnlyWithAllowAgents();
     void keepsTheAgentSpaceLabelAcrossARestart();
     void deletesOnlyAgentSpaces();
@@ -145,6 +150,8 @@ private slots:
     void detachesEveryConnectionWhenAllowAgentsGoesOff();
     void neverListsOrReachesAPrivateWindow();
     void answersOverASocketOnlyItsUserCanOpen();
+    void putsTheSocketInTheUsersRuntimeDirectory();
+    void answersTheCommandLineWithAllowAgentsOff();
     void loadsAddressesOnlyInAnAgentsTabs();
     void deletesOnlyTheAgentSpacesItsConnectionCreated();
     void followsAllowAgentsInTheReadersFile();
@@ -155,6 +162,7 @@ private slots:
     void handsAPageVerbToThePageAndRepliesWithItsAnswer();
     void checksABatchBeforeThePageSeesIt();
     void writesScreenshotsWhereOnlyTheReaderCanRead();
+    void letsGoOfAScreenshotItDidNotTake();
     void refusesWhatIsUnderWayWhenAllowAgentsGoesOff();
     void keepsATabAnAgentTabOnlyWhileAnAgentUsesIt();
     void answersASocketsRequestsInTheOrderAsked();
@@ -354,6 +362,47 @@ void AgentControlTest::leavesPinnedTabsAndTheReadersTabsAlone()
         = opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
     QVERIFY(succeeded(ask(control, QStringLiteral("second"), QStringLiteral("close"),
         {{QStringLiteral("tab"), tabId}})));
+
+    // A tab an Agent opened is the reader's once the reader pins it.
+    const auto pinnedId = ask(control, QStringLiteral("agent"), QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://example.com/")}})
+                              .value(QStringLiteral("tab"))
+                              .toObject()
+                              .value(QStringLiteral("id"))
+                              .toString();
+    browser->activateTab(pinnedId);
+    browser->toggleActivePinned();
+    QVERIFY(browser->tabPinned(pinnedId));
+    QCOMPARE(failure(ask(control, QStringLiteral("agent"), QStringLiteral("close"),
+                 {{QStringLiteral("tab"), pinnedId}})),
+        QStringLiteral("refused"));
+    QVERIFY(browser->findTab(pinnedId));
+}
+
+// A split's partner the store no longer holds leaves the row above to take
+// over, rather than a tab past the end of the Space.
+void AgentControlTest::closesAnAwayTabWhoseSplitPartnerIsGone()
+{
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    auto *store = browser->sessionStore();
+    auto tabs = store->loadTabs(QStringLiteral("work"));
+    QCOMPARE(tabs.size(), 1);
+    auto split = tabs.constFirst();
+    split.id = QStringLiteral("work-split");
+    split.url = QUrl(QStringLiteral("https://split.example/"));
+    split.active = true;
+    split.splitPartnerId = QStringLiteral("gone");
+    tabs.first().active = false;
+    tabs.append(split);
+    QVERIFY(store->saveTabs(QStringLiteral("work"), tabs, split.id));
+
+    QVERIFY(browser->closeTabInSpace(split.id, QStringLiteral("work")));
+    const auto left = store->loadTabs(QStringLiteral("work"));
+    QCOMPARE(left.size(), 1);
+    QCOMPARE(left.constFirst().id, QStringLiteral("work-tab"));
+    QVERIFY(left.constFirst().active);
 }
 
 void AgentControlTest::closesAndLoadsTabsOfASpaceNotOnShow()
@@ -470,6 +519,11 @@ void AgentControlTest::deletesOnlyAgentSpaces()
     control.setAllowAgents(true);
 
     QCOMPARE(failure(ask(control, QStringLiteral("agent"), QStringLiteral("space delete"),
+                 {{QStringLiteral("space"), QStringLiteral("Work")}})),
+        QStringLiteral("refused"));
+    // A reader's Space has no creator, and a request that names no connection
+    // matches that without being the one that made it.
+    QCOMPARE(failure(ask(control, QString(), QStringLiteral("space delete"),
                  {{QStringLiteral("space"), QStringLiteral("Work")}})),
         QStringLiteral("refused"));
     QCOMPARE(browser->spaces()->rowCount(), 2);
@@ -628,6 +682,89 @@ void AgentControlTest::answersOverASocketOnlyItsUserCanOpen()
     QVERIFY(succeeded(request(R"({"verb":"spaces","name":"test"})")));
 }
 
+// ADR 0051 names `$XDG_RUNTIME_DIR/omaweb/control.sock`, and the macOS
+// development build's per-user temporary directory stands in for it.
+void AgentControlTest::putsTheSocketInTheUsersRuntimeDirectory()
+{
+    QTemporaryDir runtime;
+#if defined(Q_OS_MACOS)
+    const char *const variable = "TMPDIR";
+#else
+    const char *const variable = "XDG_RUNTIME_DIR";
+#endif
+    const auto savedRuntime = qgetenv(variable);
+    const auto savedOverride = qgetenv("OMAWEB_CONTROL_SOCKET");
+    qputenv(variable, QFile::encodeName(runtime.path()));
+    qunsetenv("OMAWEB_CONTROL_SOCKET");
+    const auto path = ControlSocket::defaultPath();
+    qputenv("OMAWEB_CONTROL_SOCKET", "/elsewhere/scratch.sock");
+    const auto overridden = ControlSocket::defaultPath();
+    qputenv(variable, savedRuntime);
+    if (savedOverride.isNull()) {
+        qunsetenv("OMAWEB_CONTROL_SOCKET");
+    } else {
+        qputenv("OMAWEB_CONTROL_SOCKET", savedOverride);
+    }
+
+    QCOMPARE(QDir::cleanPath(path),
+        QDir::cleanPath(QDir(runtime.path()).filePath(QStringLiteral("omaweb/control.sock"))));
+    QCOMPARE(overridden, QStringLiteral("/elsewhere/scratch.sock"));
+}
+
+// The `omaweb` command a shell runs, against a browser answering on a real
+// socket. The command blocks on its answer, so it runs beside the loop the
+// browser answers on.
+void AgentControlTest::answersTheCommandLineWithAllowAgentsOff()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    ControlSocket socket(&control);
+    const auto path = runtime.filePath(QStringLiteral("omaweb/control.sock"));
+    QVERIFY(socket.listen(path));
+    const auto run = [&path](const QStringList &arguments) {
+        auto status = -1;
+        const std::unique_ptr<QThread> shell(QThread::create(
+            [&status, &path, &arguments] { status = omaweb::runAgentCommand(arguments, path); }));
+        shell->start();
+        QDeadlineTimer deadline(10000);
+        while (!shell->isFinished() && !deadline.hasExpired()) {
+            QTest::qWait(5);
+        }
+        shell->wait();
+        return status;
+    };
+
+    QCOMPARE(run({QStringLiteral("omaweb"), QStringLiteral("spaces")}), 0);
+    QCOMPARE(run({QStringLiteral("omaweb"), QStringLiteral("open"),
+                 QStringLiteral("https://example.com/"), QStringLiteral("--space"),
+                 QStringLiteral("Work")}),
+        0);
+    QCOMPARE(browser->spaceTabs(QStringLiteral("work")).size(), 2);
+    QCOMPARE(run({QStringLiteral("omaweb"), QStringLiteral("close")}), 0);
+    QCOMPARE(browser->spaceTabs(QStringLiteral("work")).size(), 1);
+    QCOMPARE(run({QStringLiteral("omaweb"), QStringLiteral("space"), QStringLiteral("new"),
+                 QStringLiteral("Shell")}),
+        1);
+    QCOMPARE(browser->spaces()->rowCount(), 2);
+
+    // Named after the process that ran the command, as nothing else named it.
+    control.setAllowAgents(true);
+    QCOMPARE(run({QStringLiteral("omaweb"), QStringLiteral("space"), QStringLiteral("new"),
+                 QStringLiteral("Shell")}),
+        0);
+    QCOMPARE(browser->spaces()->rowCount(), 3);
+    const auto *spaces = browser->spaces();
+    const auto spaceId = spaces->index(2, 0).data(omaweb::SpaceListModel::IdRole).toString();
+    QVERIFY(browser->agentSpace(spaceId));
+    QVERIFY(!omaweb::parentProcessName().isEmpty());
+    QCOMPARE(browser->agentSpaceCreator(spaceId),
+        omaweb::agentConnectionName(omaweb::parentProcessName()));
+}
+
 // Until Space grants land an Agent reaches no tab of the reader's, the one
 // on show included, even to give it a new address.
 void AgentControlTest::loadsAddressesOnlyInAnAgentsTabs()
@@ -731,6 +868,19 @@ void AgentControlTest::followsAllowAgentsInTheReadersFile()
     write("not json");
     QTRY_VERIFY(!control.allowAgents());
     QCOMPARE(changed.count(), 4);
+
+    // An editor that writes the file where it is changes nothing in its
+    // directory, and is followed all the same.
+    const auto overwrite = [&config](const QByteArray &contents) {
+        QFile file(config.filePath(QStringLiteral("privacy.json")));
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write(contents);
+    };
+    QTRY_VERIFY(QFileInfo::exists(config.filePath(QStringLiteral("privacy.json"))));
+    overwrite(R"({"allow-agents": true})");
+    QTRY_VERIFY(control.allowAgents());
+    overwrite(R"({"allow-agents": false})");
+    QTRY_VERIFY(!control.allowAgents());
 }
 
 void AgentControlTest::boundsTheConnectionStatesItKeeps()
@@ -978,6 +1128,11 @@ void AgentControlTest::checksABatchBeforeThePageSeesIt()
         QStringLiteral("bad-request"));
     QCOMPARE(
         failure(batch({click}, {{QStringLiteral("timeout"), 5}})), QStringLiteral("bad-request"));
+    // A number past what an int holds is out of range, not converted into it.
+    for (const auto &key : {QStringLiteral("settle"), QStringLiteral("timeout")}) {
+        QCOMPARE(failure(batch({click}, {{key, 1e300}})), QStringLiteral("bad-request"));
+        QCOMPARE(failure(batch({click}, {{key, -1e300}})), QStringLiteral("bad-request"));
+    }
     QCOMPARE(requested.count(), 0);
 
     connect(&control, &AgentControl::pageRequested, this, [] { });
@@ -1047,6 +1202,66 @@ void AgentControlTest::writesScreenshotsWhereOnlyTheReaderCanRead()
     QVERIFY(destination(2).endsWith(u".png"));
     QVERIFY(QDir(shots).entryList({QStringLiteral("*.png")}, QDir::Files).size() <= 50);
     QVERIFY(QFileInfo::exists(destination(60)));
+
+    // A screenshot is a PNG, so a name that would make it anything else, or
+    // nothing the page can write, is refused before a file is made.
+    for (const auto &name : {QStringLiteral("page"), QStringLiteral("page.jpg")}) {
+        QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("shot"),
+                     {{QStringLiteral("output"), name}})),
+            QStringLiteral("bad-request"));
+        QVERIFY(!QFileInfo::exists(QDir(shots).filePath(name)));
+    }
+    QCOMPARE(requested.count(), 61);
+}
+
+// The file made for a screenshot the page did not take goes again, so it
+// neither lies there empty nor keeps its name from the next try.
+void AgentControlTest::letsGoOfAScreenshotItDidNotTake()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    const auto shots = runtime.filePath(QStringLiteral("shots"));
+    control.setShotDirectory(shots);
+    openAgentTab(control, QStringLiteral("agent"));
+    const auto named = QDir(shots).filePath(QStringLiteral("page.png"));
+    const auto shot = [&control](const QString &name = QStringLiteral("page.png")) {
+        return askPage(control, QStringLiteral("agent"), QStringLiteral("shot"),
+            {{QStringLiteral("output"), name}});
+    };
+
+    // Nothing holds a page to take it.
+    QCOMPARE(failure(shot()), QStringLiteral("unavailable"));
+    QVERIFY(!QFileInfo::exists(named));
+
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    shot();
+    QCOMPARE(requested.count(), 1);
+    QVERIFY(QFileInfo::exists(named));
+    control.answerPage(requested.at(0).at(0).toInt(),
+        {{QStringLiteral("ok"), false}, {QStringLiteral("code"), QStringLiteral("not-drawing")}});
+    QVERIFY(!QFileInfo::exists(named));
+
+    // The same name again, and one the page took stays.
+    shot();
+    QCOMPARE(requested.count(), 2);
+    control.answerPage(requested.at(1).at(0).toInt(),
+        {{QStringLiteral("ok"), true}, {QStringLiteral("path"), named}});
+    QVERIFY(QFileInfo::exists(named));
+
+    // Allow agents goes off before the page answers.
+    const auto other = QDir(shots).filePath(QStringLiteral("other.png"));
+    shot(QStringLiteral("other.png"));
+    QCOMPARE(requested.count(), 3);
+    QVERIFY(QFileInfo::exists(other));
+    control.setAllowAgents(false);
+    QVERIFY(!QFileInfo::exists(other));
+    QVERIFY(QFileInfo::exists(named));
 }
 
 // Turning Allow agents off refuses what was already asked of a page, and
@@ -1161,6 +1376,25 @@ void AgentControlTest::answersASocketsRequestsInTheOrderAsked()
     QTRY_VERIFY(client.canReadLine());
     const auto second = QJsonDocument::fromJson(client.readLine()).object();
     QVERIFY(second.contains(QStringLiteral("spaces")));
+
+    // Requests queued behind one still being answered are each held to the
+    // limit, not all of them together.
+    client.write(R"({"verb":"look","name":"agent"})"
+                 "\n");
+    const QByteArray padding(30 * 1024, 'a');
+    for (auto index = 0; index < 3; ++index) {
+        client.write(R"({"verb":"spaces","name":"agent","padding":")" + padding + "\"}\n");
+    }
+    client.flush();
+    QTRY_COMPARE(requested.count(), 2);
+    QTest::qWait(200);
+    QCOMPARE(client.state(), QLocalSocket::ConnectedState);
+    control.answerPage(requested.at(1).at(0).toInt(),
+        {{QStringLiteral("ok"), true}, {QStringLiteral("look"), QVariantMap {}}});
+    for (auto index = 0; index < 4; ++index) {
+        QTRY_VERIFY(client.canReadLine());
+        QVERIFY(succeeded(QJsonDocument::fromJson(client.readLine()).object()));
+    }
 }
 
 // What a keybind needs: another Space on show, or a tab chosen by its address,
@@ -1754,13 +1988,30 @@ void AgentControlTest::detachesEveryConnectionWhenAGrantIsRevoked()
     QCOMPARE(requested.count(), 2);
     QVERIFY(working.isEmpty());
 
+    // A screenshot under way there leaves no empty file behind.
+    QTemporaryDir shots;
+    control.setShotDirectory(shots.path());
+    QList<QJsonObject> shooting;
+    control.handle({{QStringLiteral("verb"), QStringLiteral("shot")},
+                       {QStringLiteral("name"), QStringLiteral("shooter")},
+                       {QStringLiteral("tab"), QStringLiteral("work-tab")},
+                       {QStringLiteral("output"), QStringLiteral("revoked.png")}},
+        [&shooting](const QJsonObject &answer) { shooting.append(answer); });
+    const auto shot = QDir(shots.path()).filePath(QStringLiteral("revoked.png"));
+    QVERIFY(QFileInfo::exists(shot));
+    QCOMPARE(requested.count(), 3);
+
     QVERIFY(control.revokeGrant(QStringLiteral("work")));
+    QVERIFY(!QFileInfo::exists(shot));
+    QCOMPARE(shooting.size(), 1);
+    QCOMPARE(failure(shooting.constFirst()), QStringLiteral("revoked"));
     QVERIFY(!browser->spaceGranted(QStringLiteral("work")));
     QVERIFY(control.grantedSpaces().isEmpty());
     QCOMPARE(working.size(), 1);
     QCOMPARE(failure(working.constFirst()), QStringLiteral("revoked"));
     QCOMPARE(cancelled.count(), 1);
-    QCOMPARE(cancelled.at(0).at(0).toStringList(), QStringList {QStringLiteral("work-tab")});
+    QCOMPARE(cancelled.at(0).at(0).toStringList(),
+        (QStringList {QStringLiteral("work-tab"), QStringLiteral("work-tab")}));
     QVERIFY(!control.agentTabIds().contains(QStringLiteral("work-tab")));
     QVERIFY(!control.agentTabIds().contains(secondTab));
     QVERIFY(control.agentTabIds().contains(agentTab));

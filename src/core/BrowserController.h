@@ -238,6 +238,8 @@ public:
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
     static QUrl agentActivityAddress();
+    // The title a tab carries until its page names itself.
+    static QString addressTitle(const QUrl &url);
     // Opens the Agent activity page in a new tab of the Space on show and
     // selects it. A Private window has no Agents and opens nothing.
     Q_INVOKABLE bool openAgentActivity();
@@ -604,6 +606,8 @@ private:
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
     bool saveAwayTabs(const QString &spaceId, QVector<TabState> tabs);
+    // Reads the Agent Space labels, and which are temporary, from the store.
+    void loadAgentSpaces();
     static QString normalizedOrigin(const QUrl &url);
     BrowserController(std::shared_ptr<ThreadedSessionStore> store, SpaceStorage storage,
         QString configRoot, QObject *parent);

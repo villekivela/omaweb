@@ -253,15 +253,15 @@
       }
       targets.push(describe(element, labelFor(element)));
     }
-    const answer = {
+    return {
       title: document.title,
       url: location.href,
       outline: outline(all),
       targets,
       above,
-      below: below + unlisted,
+      below,
+      unlisted,
     };
-    return answer;
   };
 
   const find = (label) => {
