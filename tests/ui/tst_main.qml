@@ -3449,6 +3449,26 @@ TestCase {
         });
     }
 
+    // A Private window's browser goes with it, and what the window still
+    // asks of it on the way out is answered rather than thrown.
+    function test_closingAPrivateWindowRaisesNoError() {
+        failOnWarning(/TypeError/);
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        privateBrowser.windowBrowser.openInput("https://private-close.example", false);
+        tryVerify(function () {
+            return findChild(privateBrowser.contentItem, "engineLoader").item !== null;
+        });
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        tryVerify(function () {
+            return window.privateWindows.length === 0;
+        });
+        wait(50);
+    }
+
     // The keyboard moves between the regions on screen by direction: the
     // outline, the page — a pane at a time while a split is on show — and the
     // inspector. A move with nothing that way leaves the keyboard where it
