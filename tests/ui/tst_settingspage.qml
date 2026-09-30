@@ -640,6 +640,9 @@ TestCase {
         const inUse = findChild(page, "secureDnsInUse");
         const address = findChild(page, "secureDnsAddress");
         verify(choice !== null && inUse !== null && address !== null);
+        compare(choice.options.map(function (option) {
+            return option.value;
+        }), ["", "quad9", "custom"]);
         compare(choice.value, "");
         compare(inUse.text, "Names are looked up by your system's resolver.");
         verify(!address.visible);

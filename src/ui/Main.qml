@@ -128,11 +128,11 @@ ApplicationWindow {
     readonly property int permissionRefused: 0
     readonly property int permissionAskedEachTime: 1
     readonly property int permissionRememberable: 2
-    // How long a remembered answer lasts, said where the reader gives one. A
-    // Private window keeps its answers in memory and loses them when it closes,
-    // so it cannot promise what a Space does.
+    // How long a remembered answer lasts, said where the reader gives one.
+    // Private windows share their answers in memory and lose them when the
+    // last of them closes, so they cannot promise what a Space does.
     readonly property string permissionMemory: window.privateWindow
-                                               ? "kept until this Private window closes" :
+                                               ? "kept until the last Private window closes" :
                                                  "remembered for this Space only"
     // Bumped whenever the core's record of granted certificate exceptions
     // changes, and read by the state below so that the state follows it. A
@@ -162,14 +162,16 @@ ApplicationWindow {
                 ? "certificate-error" : reported;
     }
     // The Secure DNS resolver that could not find the page on show, by the name
-    // Settings gives it, or empty when the system looked the name up.
+    // Settings gives it, or empty when the system looked the name up, which it
+    // also does when the engine would not take the resolver.
     // Written when the failure arrives rather than bound, so that choosing
     // another resolver afterwards does not blame it for a page it never saw.
     property string lookupFailedBy: ""
 
     function noteLookupFailure() {
         const failed = !!engineLoader.item && engineLoader.item.lastLoadNameUnresolved === true && !
-              !window.dnsResolver && window.dnsResolver.resolver !== "";
+              !window.dnsResolver && window.dnsResolver.resolver !== "" && (
+                  !window.engineDnsResolver || window.engineDnsResolver.applied);
         window.lookupFailedBy = failed ? window.dnsResolver.resolverTitle : "";
     }
     readonly property bool insecureContentBlocked: engineLoader.item === null
@@ -1294,6 +1296,12 @@ ApplicationWindow {
             window.requestTargetSave(engine, "save-media", context.mediaUrl);
             break;
         case "retry-insecure":
+            // The reader asked for this load over plain HTTP, which HTTPS-only
+            // mode would otherwise send straight back over HTTPS.
+            if (window.httpsOnlyPolicy)
+                window.httpsOnlyPolicy.allowOnce(engine.spaceId, String(
+                                                     window.windowBrowser.activeUrl).replace(
+                                                     /^https:/, "http:"));
             window.windowBrowser.retryActiveUrlInsecurely();
             break;
         }

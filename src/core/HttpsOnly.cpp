@@ -19,10 +19,13 @@ namespace {
     // few loads are ever asked about.
     constexpr qsizetype kKeptUpgrades = 64;
 
-    QString originOf(const QUrl &url)
+    // The origin as the browser keeps a site's permissions under it, so a
+    // choice the reader made for good is found again.
+    QString originOf(const QUrl &url) { return BrowserController::normalizedOrigin(url); }
+
+    bool within(const QDateTime &since, qint64 windowMs)
     {
-        return url.scheme() + QStringLiteral("://") + url.host().toLower()
-            + (url.port() >= 0 ? QStringLiteral(":%1").arg(url.port()) : QString());
+        return since.isValid() && since.msecsTo(QDateTime::currentDateTimeUtc()) <= windowMs;
     }
 
     QString addressOf(const QUrl &url) { return url.adjusted(QUrl::RemoveFragment).toString(); }
@@ -50,25 +53,41 @@ void HttpsOnly::setEnabled(bool enabled)
 
 void HttpsOnly::setRemembered(Remembered remembered) { m_remembered = std::move(remembered); }
 
+// The hosts the Omnibar sends a typed address to over plain HTTP: a
+// Local-development site's, and a name without a dot given a port, such as
+// `devbox:8080`, which is a machine on the reader's network.
 bool HttpsOnly::exempt(const QUrl &url, const QString &spaceId)
 {
-    if (BrowserController::localDevelopmentHost(url.host())) {
+    const auto host = url.host();
+    if (BrowserController::localDevelopmentHost(host)
+        || (url.port() >= 0 && !host.contains(QLatin1Char('.')))) {
         return true;
     }
     auto &space = m_spaces[spaceId];
     const auto origin = originOf(url);
-    const auto allowed = space.allowedOnce.value(origin);
-    if (allowed.isValid() && allowed.msecsTo(QDateTime::currentDateTimeUtc()) <= kLoopWindowMs) {
+    if (within(space.allowedOnce.value(origin), kLoopWindowMs)) {
         return true;
     }
     space.allowedOnce.remove(origin);
     return m_remembered && m_remembered(spaceId, origin);
 }
 
+bool HttpsOnly::upgradable(const QUrl &url, const QString &spaceId)
+{
+    return m_enabled && url.scheme() == QStringLiteral("http") && !url.host().isEmpty()
+        && !exempt(url, spaceId);
+}
+
+// A site sending an upgraded load straight back is refused, not upgraded again.
+bool HttpsOnly::sendsOverHttps(const QString &spaceId, const QUrl &url)
+{
+    return !within(m_spaces.value(spaceId).pending.value(url.host().toLower()), kLoopWindowMs)
+        && upgradable(url, spaceId);
+}
+
 QUrl HttpsOnly::upgrade(const QUrl &url, const QString &spaceId)
 {
-    if (!m_enabled || url.scheme() != QStringLiteral("http") || url.host().isEmpty()
-        || exempt(url, spaceId)) {
+    if (!upgradable(url, spaceId)) {
         return {};
     }
     auto upgraded = url;
@@ -93,13 +112,10 @@ bool HttpsOnly::refusesDowngrade(const QUrl &url, const QString &spaceId)
     }
     auto &space = m_spaces[spaceId];
     const auto host = url.host().toLower();
-    const auto since = space.pending.value(host);
-    if (!since.isValid() || since.msecsTo(QDateTime::currentDateTimeUtc()) > kLoopWindowMs) {
-        space.pending.remove(host);
+    const auto since = space.pending.take(host);
+    if (!within(since, kLoopWindowMs)) {
         return false;
     }
-
-    space.pending.remove(host);
     space.refused.insert(addressOf(url), QStringLiteral("downgrade"));
     return true;
 }
@@ -115,39 +131,45 @@ void HttpsOnly::refuse(const QUrl &url, const QString &spaceId)
     space.refused.insert(addressOf(url), QStringLiteral("form"));
 }
 
-QVariantMap HttpsOnly::failure(const QString &spaceId, const QUrl &url) const
+void HttpsOnly::forgetLoad(Space &space, const QString &host)
 {
-    const auto space = m_spaces.constFind(spaceId);
-    if (space == m_spaces.cend()) {
+    space.pending.remove(host);
+    space.upgrades.removeIf(
+        [&host](const auto &upgrade) { return QUrl(upgrade.key()).host().toLower() == host; });
+}
+
+QVariantMap HttpsOnly::failed(const QString &spaceId, const QUrl &url)
+{
+    const auto found = m_spaces.find(spaceId);
+    if (found == m_spaces.end()) {
         return {};
     }
+    auto &space = *found;
     const auto address = addressOf(url);
-    const auto refused = space->refused.constFind(address);
-    if (refused != space->refused.cend()) {
-        return {{QStringLiteral("plainUrl"), url}, {QStringLiteral("host"), url.host()},
-            {QStringLiteral("reason"), *refused}};
+    QVariantMap failure;
+    if (const auto refused = space.refused.take(address); !refused.isEmpty()) {
+        failure = {{QStringLiteral("plainUrl"), url}, {QStringLiteral("host"), url.host()},
+            {QStringLiteral("reason"), refused}};
+    } else if (const auto upgraded = space.upgrades.constFind(address);
+        upgraded != space.upgrades.cend()) {
+        failure = {{QStringLiteral("plainUrl"), upgraded->plainUrl},
+            {QStringLiteral("host"), upgraded->plainUrl.host()},
+            {QStringLiteral("reason"), QStringLiteral("unreachable")}};
     }
-    const auto upgraded = space->upgrades.constFind(address);
-    if (upgraded == space->upgrades.cend()) {
-        return {};
-    }
-    return {{QStringLiteral("plainUrl"), upgraded->plainUrl},
-        {QStringLiteral("host"), upgraded->plainUrl.host()},
-        {QStringLiteral("reason"), QStringLiteral("unreachable")}};
+    forgetLoad(space, url.host().toLower());
+    return failure;
 }
 
-bool HttpsOnly::upgradedTo(const QString &spaceId, const QUrl &url) const
-{
-    const auto space = m_spaces.constFind(spaceId);
-    return space != m_spaces.cend() && space->upgrades.contains(addressOf(url));
-}
-
-void HttpsOnly::arrived(const QString &spaceId, const QUrl &url)
+bool HttpsOnly::arrived(const QString &spaceId, const QUrl &url)
 {
     auto &space = m_spaces[spaceId];
-    space.pending.remove(url.host().toLower());
+    const auto host = url.host().toLower();
+    const auto upgraded = url.scheme() == QStringLiteral("https")
+        && within(space.pending.value(host), kLoopWindowMs);
+    forgetLoad(space, host);
     space.refused.remove(addressOf(url));
     space.allowedOnce.remove(originOf(url));
+    return upgraded;
 }
 
 void HttpsOnly::allowOnce(const QString &spaceId, const QUrl &url)

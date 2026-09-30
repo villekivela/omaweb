@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QObject>
+#include <QWebEngineGlobalSettings>
+
+#include <functional>
 
 namespace omaweb {
 
@@ -19,7 +22,12 @@ class QtSecureDns final : public QObject {
     Q_PROPERTY(bool applied READ applied NOTIFY appliedChanged)
 
 public:
+    // How a mode reaches the engine, and whether it took it. The engine offers
+    // no way to read its mode back, so a test hands in one that watches.
+    using SetDnsMode = std::function<bool(const QWebEngineGlobalSettings::DnsMode &)>;
+
     explicit QtSecureDns(SecureDns *secureDns, QObject *parent = nullptr);
+    QtSecureDns(SecureDns *secureDns, SetDnsMode setDnsMode, QObject *parent = nullptr);
 
     bool applied() const;
 
@@ -30,6 +38,7 @@ private:
     void apply();
 
     SecureDns *m_secureDns;
+    SetDnsMode m_setDnsMode;
     bool m_applied = false;
 };
 

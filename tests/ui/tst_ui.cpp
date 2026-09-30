@@ -10,6 +10,7 @@
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
+#include "HttpsOnly.h"
 #include "SecureDns.h"
 #include "FontSettings.h"
 #include "KitTheme.h"
@@ -77,6 +78,20 @@ public:
 
 signals:
     void changed();
+};
+
+// The engine's side of Secure DNS: whether it took the resolver it was given.
+// A test says it did not, which a real engine does for a template Chromium's
+// own parser refuses.
+class EngineSecureDnsProbe final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool applied MEMBER m_applied NOTIFY appliedChanged)
+
+signals:
+    void appliedChanged();
+
+private:
+    bool m_applied = true;
 };
 
 // A page's icon as a web engine's icon store hands it over: an image provider
@@ -233,6 +248,8 @@ public slots:
         // resolver and read what the chrome says about it.
         m_secureDns
             = std::make_unique<omaweb::SecureDns>(m_dataRoot->filePath(QStringLiteral("config")));
+        m_httpsOnly
+            = std::make_unique<omaweb::HttpsOnly>(m_dataRoot->filePath(QStringLiteral("config")));
         // Two Agents' lines, a minute apart, for the Agent activity page to
         // list and filter.
         m_agentActivity = std::make_unique<omaweb::AgentActivityLog>(
@@ -293,7 +310,8 @@ public slots:
             QStringLiteral("webRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("secureDns"), m_secureDns.get());
         engine->rootContext()->setContextProperty(
-            QStringLiteral("engineSecureDns"), QVariant::fromValue<QObject *>(nullptr));
+            QStringLiteral("engineSecureDns"), &m_engineSecureDns);
+        engine->rootContext()->setContextProperty(QStringLiteral("httpsOnly"), m_httpsOnly.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineWebRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
@@ -348,6 +366,7 @@ public slots:
         m_agentActivity.reset();
         m_contentBlocker.reset();
         m_secureDns.reset();
+        m_httpsOnly.reset();
         m_keyboardNavigation.reset();
         m_imageProbe.reset();
         m_dataRoot.reset();
@@ -362,6 +381,8 @@ private:
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;
     std::unique_ptr<ImageProbe> m_imageProbe;
     std::unique_ptr<omaweb::SecureDns> m_secureDns;
+    EngineSecureDnsProbe m_engineSecureDns;
+    std::unique_ptr<omaweb::HttpsOnly> m_httpsOnly;
     std::unique_ptr<omaweb::KeyboardNavigation> m_keyboardNavigation;
     std::unique_ptr<omaweb::ThemeController> m_theme;
     std::unique_ptr<omaweb::FontSettings> m_fontSettings;

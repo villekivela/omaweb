@@ -179,6 +179,8 @@ private slots:
     void qtRefusesATrackerBehindACname();
     void qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoaded();
     void qtTakesTheReadersSecureDnsResolver();
+    void qtAsksTheEngineForSecureLookupsOnly();
+    void qtFailsALookupTheResolverCannotAnswer();
     void qtReportsANameThatCouldNotBeLookedUp();
     void adaptersExposeSharedContract_data();
     void adaptersExposeSharedContract();
@@ -232,6 +234,7 @@ private slots:
     void qtCollapsesTheElementWhoseRequestItRefused();
     void qtStripsTheParametersTheListsName();
     void qtSendsAPagesPlainAddressOverHttps();
+    void qtUpgradesOnlyWhatArrivesAtAPagesOwnAddress();
     void qtAttachesBlockingToTheProfileQmlCreates();
     void qtTellsEverySiteNotToSellTheReadersData_data();
     void qtTellsEverySiteNotToSellTheReadersData();
@@ -1764,6 +1767,72 @@ void QtEngineContractTest::qtTakesTheReadersSecureDnsResolver()
     QVERIFY(engineSecureDns.applied());
     secureDns.turnOff();
     QVERIFY(engineSecureDns.applied());
+}
+
+// Secure DNS on is Chromium's secure mode with the reader's resolver and
+// nothing else: its automatic mode would fall back to the system in the
+// clear. Off is the system's resolver. A resolver the engine refuses leaves
+// the system's in force rather than the one before it (#305).
+void QtEngineContractTest::qtAsksTheEngineForSecureLookupsOnly()
+{
+    using Mode = QWebEngineGlobalSettings::SecureDnsMode;
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::SecureDns secureDns(root.filePath(QStringLiteral("config")));
+    QList<QPair<Mode, QStringList>> given;
+    const auto refused = QStringLiteral("https://refused.example/dns-query");
+    omaweb::QtSecureDns engineSecureDns(
+        &secureDns, [&given, &refused](const QWebEngineGlobalSettings::DnsMode &mode) {
+            given.append({mode.secureMode, mode.serverTemplates});
+            return !mode.serverTemplates.contains(refused);
+        });
+    const auto quad9 = QStringLiteral("https://dns.quad9.net/dns-query");
+    const auto typed = QStringLiteral("https://dns.example/dns-query{?dns}");
+
+    QVERIFY(secureDns.useResolver(QStringLiteral("quad9")));
+    QVERIFY(secureDns.useCustom(typed));
+    secureDns.turnOff();
+    QVERIFY(engineSecureDns.applied());
+    QVERIFY(secureDns.useCustom(refused));
+    QVERIFY(!engineSecureDns.applied());
+    QCOMPARE(given,
+        (QList<QPair<Mode, QStringList>> {
+            {Mode::SystemOnly, {}},
+            {Mode::SecureOnly, {quad9}},
+            {Mode::SecureOnly, {typed}},
+            {Mode::SystemOnly, {}},
+            {Mode::SecureOnly, {refused}},
+            {Mode::SystemOnly, {}},
+        }));
+}
+
+// With a resolver that cannot be reached, a lookup fails rather than going to
+// the system, and the page says its name could not be looked up. Nothing
+// listens on the discard port, so the resolver never answers.
+void QtEngineContractTest::qtFailsALookupTheResolverCannotAnswer()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::SecureDns secureDns(root.filePath(QStringLiteral("config")));
+    omaweb::QtSecureDns engineSecureDns(&secureDns);
+    QVERIFY(secureDns.useCustom(QStringLiteral("https://127.0.0.1:9/dns-query")));
+    QVERIFY(engineSecureDns.applied());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("http://example.com/"))));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("lastLoadFailed").toBool(), 30000);
+    const auto nameUnresolved = adapter->property("lastLoadNameUnresolved").toBool();
+    secureDns.turnOff();
+    QVERIFY(nameUnresolved);
 }
 
 // A page whose name could not be looked up is told apart from any other
@@ -3347,6 +3416,73 @@ void QtEngineContractTest::qtSendsAPagesPlainAddressOverHttps()
         QUrl(QStringLiteral("http://127.0.0.1:%1/local.html").arg(server.serverPort()))));
     QTRY_VERIFY_WITH_TIMEOUT(server.requested().contains(QStringLiteral("/local.html")), 15000);
     QVERIFY(adapter->property("httpsUpgradeFailure").toMap().isEmpty());
+}
+
+// Only the page's own address is upgraded, however it got there. A plain
+// image on a page is the engine's mixed-content policy's and goes as asked; a
+// redirect to a plain address is a page's address like a typed one; and a
+// form sent to a plain address is refused rather than redirected, because a
+// redirect would drop its body. Each page starts at 127.0.0.1, which the mode
+// leaves alone, and names `upgrade.example`, which it does not.
+void QtEngineContractTest::qtUpgradesOnlyWhatArrivesAtAPagesOwnAddress()
+{
+    PageServer target(R"HTML(<!doctype html><title>target</title>)HTML");
+    QVERIFY(target.listen(QHostAddress::LocalHost));
+    const auto remote
+        = QByteArray("http://upgrade.example:") + QByteArray::number(target.serverPort());
+    PageServer imagePage(R"HTML(<!doctype html><title>image</title><img src=")HTML" + remote
+        + R"HTML(/pixel.gif">)HTML");
+    QVERIFY(imagePage.listen(QHostAddress::LocalHost));
+    PageServer redirectPage(QByteArray(), remote + "/moved.html");
+    QVERIFY(redirectPage.listen(QHostAddress::LocalHost));
+    PageServer formPage(R"HTML(<!doctype html><title>form</title><form method="post" action=")HTML"
+        + remote + R"HTML(/submit"><input name="a" value="b"></form>
+<script>document.forms[0].submit();</script>)HTML");
+    QVERIFY(formPage.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::HttpsOnly httpsOnly(root.filePath(QStringLiteral("config")));
+    engineContentBlocker.setHttpsOnly(&httpsOnly);
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        {QStringLiteral("spaceId"), QStringLiteral("space-1")},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+    const auto failureReason = [&adapter] {
+        return adapter->property("httpsUpgradeFailure")
+            .toMap()
+            .value(QStringLiteral("reason"))
+            .toString();
+    };
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(imagePage.serverPort()))));
+    QTRY_VERIFY_WITH_TIMEOUT(target.requested().contains(QStringLiteral("/pixel.gif")), 15000);
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/redirect").arg(redirectPage.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(failureReason(), QStringLiteral("unreachable"), 15000);
+    QCOMPARE(
+        adapter->property("httpsUpgradeFailure").toMap().value(QStringLiteral("plainUrl")).toUrl(),
+        QUrl(QString::fromLatin1(remote + "/moved.html")));
+    QVERIFY(!target.requested().contains(QStringLiteral("/moved.html")));
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(formPage.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(failureReason(), QStringLiteral("form"), 15000);
+    QVERIFY(!target.requested().contains(QStringLiteral("/submit")));
 }
 
 // A $removeparam rule refuses nothing. The request goes out, with the tracking
