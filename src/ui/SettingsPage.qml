@@ -19,6 +19,9 @@ Rectangle {
     property var blocker
     property var keyboard
     property var syncLauncher: null
+    // What an Agent may do through the socket (ADR 0051). The ordinary
+    // window's only: a Private window has none to offer.
+    property var agentControl: null
     readonly property var sync: syncLauncher ? syncLauncher.controller : null
 
     Connections {
@@ -173,7 +176,7 @@ Rectangle {
     readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "spaces", "extensions", "sync", "about"]
+        "downloads", "search", "privacy", "spaces", "agents", "extensions", "sync", "about"]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -1957,11 +1960,102 @@ Rectangle {
                     }
                 }
 
-                // ---- extensions --------------------------------------------
+                // ---- agents -------------------------------------------------
 
                 Column {
                     width: pane.width
                     visible: root.section === 9
+                    spacing: 0
+
+                    // It opens the section, so it takes only the sliver a tall
+                    // glyph paints above its box, as privacy's does.
+                    SectionLabel {
+                        id: agentsLabel
+                        colors: root.colors
+                        topPadding: agentsLabel.overshoot
+                        text: "agents"
+                    }
+
+                    // The cost of an Agent tab is said here once, beside the
+                    // switch that lets one exist, rather than on every mark.
+                    SettingToggle {
+                        objectName: "allowAgents"
+                        visible: !!root.agentControl
+                        width: pane.width
+                        colors: root.colors
+                        title: "Allow agents"
+                        note: "Lets a coding agent on this computer make Agent Spaces and read and "
+                              + "act in their pages, and ask once for each of your Spaces it "
+                              + "wants to use. An Agent tab stays rendered while an Agent is "
+                              + "attached to it, which costs memory and GPU. Turning this off "
+                              + "detaches every Agent."
+                        accessibleName: "Allow agents"
+                        checked: !!root.agentControl && root.agentControl.allowAgents
+                        onClicked: {
+                            if (root.agentControl)
+                                root.agentControl.allowAgents = !checked;
+                        }
+                    }
+
+                    SectionLabel {
+                        visible: !!root.agentControl
+                        colors: root.colors
+                        text: "granted spaces"
+                    }
+
+                    Text {
+                        objectName: "noGrantedSpaces"
+                        width: pane.width
+                        visible: !!root.agentControl && grantedSpaceList.count === 0
+                        topPadding: Style.spacing.md
+                        text: "No Space is granted. An Agent that wants one of yours asks first, "
+                              + "over the page."
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                    }
+
+                    Repeater {
+                        id: grantedSpaceList
+                        model: root.agentControl ? root.agentControl.grantedSpaces : []
+
+                        SettingRow {
+                            required property var modelData
+                            objectName: "grantedSpace-" + modelData.spaceId
+                            width: pane.width
+                            colors: root.colors
+                            title: modelData.spaceName
+                            note: "Agents may read and act in every tab of this Space."
+
+                            ActionButton {
+                                objectName: "revokeGrant-" + modelData.spaceId
+                                colors: root.colors
+                                destructive: true
+                                label: "Revoke"
+                                accessibleName: "Revoke the grant to " + modelData.spaceName
+                                onClicked: root.agentControl.revokeGrant(modelData.spaceId)
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: pane.width
+                        visible: !root.agentControl
+                        text: root.privateWindow ? "Agents are available in a regular window." :
+                                                   "This window has no Agent socket."
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                // ---- extensions --------------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 10
                     spacing: pane.spacing
 
                     Text {
@@ -2033,7 +2127,7 @@ Rectangle {
                         visible: root.knownExtensionsAvailable && !root.privateWindow
 
                         Repeater {
-                            model: root.section === 9 ? root.knownExtensions : []
+                            model: root.section === 10 ? root.knownExtensions : []
 
                             SettingToggle {
                                 required property var modelData
@@ -2069,7 +2163,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 10
+                    visible: root.section === 11
                     spacing: pane.spacing
 
                     Text {
@@ -2386,7 +2480,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 11
+                    visible: root.section === 12
                     spacing: pane.spacing
 
                     Text {

@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QTest>
 
+using omaweb::agentAnswerTimeoutMs;
 using omaweb::AgentCommand;
 using omaweb::formatAgentAnswer;
 using omaweb::isAgentCommand;
@@ -20,11 +21,13 @@ private slots:
     void refusesAMalformedCommand_data();
     void refusesAMalformedCommand();
     void namesTheConnectionAfterItsParentUnlessTold();
+    void namesTheArgumentItDoesNotTake();
     void printsOneLinePerRowForAScript();
     void readsTheStepsOfABatch();
     void printsWhatAPageVerbSaw();
     void readsTheStepsThatAnswerAPage();
     void printsWhatAPageAsksOfTheAgent();
+    void waitsForTheReaderToGrantASpace();
 };
 
 void AgentCommandTest::tellsAVerbFromAnAddressToOpen()
@@ -138,6 +141,12 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
         << base(QStringLiteral("eval"),
                {{QStringLiteral("expression"), QStringLiteral("document.title + '!'")}})
         << false;
+    QTest::newRow("eval after the options end")
+        << QStringList {QStringLiteral("eval"), QStringLiteral("--json"), QStringLiteral("--"),
+               QStringLiteral("--count"), QStringLiteral("--")}
+        << base(QStringLiteral("eval"),
+               {{QStringLiteral("expression"), QStringLiteral("--count --")}})
+        << true;
 }
 
 void AgentCommandTest::readsEachVerbIntoARequest()
@@ -204,6 +213,15 @@ void AgentCommandTest::refusesAMalformedCommand()
     QFETCH(QStringList, arguments);
     arguments.prepend(QStringLiteral("omaweb"));
     QVERIFY(!readAgentCommand(arguments, QStringLiteral("claude")).error.isEmpty());
+}
+
+void AgentCommandTest::namesTheArgumentItDoesNotTake()
+{
+    const auto command = readAgentCommand(
+        {QStringLiteral("omaweb"), QStringLiteral("space"), QStringLiteral("new"),
+            QStringLiteral("Checks"), QStringLiteral("Extra")},
+        QStringLiteral("claude"));
+    QCOMPARE(command.error, QStringLiteral("`space new` takes no argument Extra."));
 }
 
 void AgentCommandTest::namesTheConnectionAfterItsParentUnlessTold()
@@ -456,6 +474,25 @@ void AgentCommandTest::printsWhatAPageAsksOfTheAgent()
                 {QStringLiteral("opener"), QStringLiteral("t2")}}}}};
     QCOMPARE(formatAgentAnswer(QStringLiteral("tabs"), tabs),
         QStringLiteral("window-1\t\t\twindow of t2\n"));
+}
+
+// A verb that can reach one of the reader's Spaces may wait a minute for the
+// reader's grant before the page is asked, and the CLI waits that long too,
+// so the browser's answer is the one heard. A browser command never waits.
+void AgentCommandTest::waitsForTheReaderToGrantASpace()
+{
+    const auto wait = [](const QString &verb) {
+        return agentAnswerTimeoutMs({{QStringLiteral("verb"), verb}});
+    };
+    for (const auto &verb : {QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("shot"),
+             QStringLiteral("eval"), QStringLiteral("console")}) {
+        QVERIFY2(wait(verb) >= 60000 + 10000, qPrintable(verb));
+    }
+    QVERIFY(agentAnswerTimeoutMs({{QStringLiteral("verb"), QStringLiteral("do")},
+                {QStringLiteral("steps"), QJsonArray {QJsonObject {}}}})
+        > 60000 + 65000);
+    QVERIFY(wait(QStringLiteral("look")) > 60000 + 60000);
+    QCOMPARE(wait(QStringLiteral("tabs")), 10000);
 }
 
 QTEST_GUILESS_MAIN(AgentCommandTest)

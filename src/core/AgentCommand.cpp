@@ -35,6 +35,9 @@ namespace {
     // little longer than it does, so the browser's answer is the one heard.
     constexpr int pageAnswerTimeoutMs = 65000;
     constexpr int fullShotAnswerTimeoutMs = 125000;
+    // A verb that reaches one of the reader's Spaces first waits a minute for
+    // them to grant it, before the page is asked at all.
+    constexpr int grantAnswerTimeoutMs = 60000;
 
     const auto fallbackName = QStringLiteral("agent");
 
@@ -439,6 +442,10 @@ namespace {
         if (below > 0) {
             text += QStringLiteral("%1 more below\n").arg(below);
         }
+        // On screen, past the most a look lists.
+        if (const auto unlisted = look.value(QStringLiteral("unlisted")).toInt(); unlisted > 0) {
+            text += QStringLiteral("%1 more not listed\n").arg(unlisted);
+        }
         return text;
     }
 
@@ -462,9 +469,8 @@ namespace {
         return text;
     }
 
-    int answerTimeoutFor(const QJsonObject &request)
+    int pageTimeoutFor(const QString &verb, const QJsonObject &request)
     {
-        const auto verb = request.value(QStringLiteral("verb")).toString();
         if (verb == u"shot" && request.value(QStringLiteral("full")).toBool()) {
             return fullShotAnswerTimeoutMs;
         }
@@ -479,6 +485,15 @@ namespace {
             return pageAnswerTimeoutMs;
         }
         return answerTimeoutMs;
+    }
+
+    int answerTimeoutFor(const QJsonObject &request)
+    {
+        const auto verb = request.value(QStringLiteral("verb")).toString();
+        const auto timeout = pageTimeoutFor(verb, request);
+        const auto reachesAPage = verb == u"look" || verb == u"read" || verb == u"do"
+            || verb == u"shot" || verb == u"eval" || verb == u"console";
+        return reachesAPage ? timeout + grantAnswerTimeoutMs : timeout;
     }
 
 } // namespace
@@ -529,25 +544,32 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
     QJsonObject request {{QStringLiteral("verb"), verb}};
     QString name = defaultName;
     QStringList positionals;
+    // `--` ends the options, so an expression or an address that starts with
+    // two dashes can still be given.
+    auto optionsEnded = false;
     for (auto index = next; index < arguments.size(); ++index) {
         const auto &argument = arguments.at(index);
-        if (!argument.startsWith(u"--") || argument == u"--") {
+        if (!optionsEnded && argument == u"--") {
+            optionsEnded = true;
+            continue;
+        }
+        if (optionsEnded || !argument.startsWith(u"--")) {
             positionals.append(argument);
             continue;
         }
         auto option = argument.mid(2);
         QString value;
         const auto equals = option.indexOf(u'=');
-        const auto inline_ = equals >= 0;
-        if (inline_) {
+        const auto hasInlineValue = equals >= 0;
+        if (hasInlineValue) {
             value = option.mid(equals + 1);
             option = option.left(equals);
         }
-        if (option == u"json" && !inline_) {
+        if (option == u"json" && !hasInlineValue) {
             command.json = true;
             continue;
         }
-        if (grammar.flags.contains(option) && !inline_) {
+        if (grammar.flags.contains(option) && !hasInlineValue) {
             request.insert(option, true);
             continue;
         }
@@ -556,7 +578,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             command.error = QStringLiteral("`%1` takes no option --%2.").arg(verb, option);
             return command;
         }
-        if (!inline_) {
+        if (!hasInlineValue) {
             if (index + 1 >= arguments.size()) {
                 command.error = QStringLiteral("--%1 needs a value.").arg(option);
                 return command;
@@ -631,7 +653,8 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             ? QStringLiteral("Use `space <space>`, `space new [name]` or `space delete <space>`.")
             : verb == u"focus"
             ? QStringLiteral("`focus` takes a tab's id or a part of its address.")
-            : QStringLiteral("`%1` takes no argument %2.").arg(verb, positionals.value(0));
+            : QStringLiteral("`%1` takes no argument %2.")
+                  .arg(verb, positionals.value(std::max<qsizetype>(grammar.maximumPositionals, 0)));
         return command;
     }
     if (!positionals.isEmpty()) {

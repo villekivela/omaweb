@@ -280,12 +280,21 @@ void AgentConsoleTest::listensOnlyToAgentTabs()
                  {QStringLiteral("name"), QStringLiteral("agent")}})),
         QStringList {QStringLiteral("after")});
 
+    // The reader's tab is theirs until they grant its Space, and nothing it
+    // said before is kept.
     control.recordConsoleMessage(
         QStringLiteral("personal-tab"), QStringLiteral("1"), 2, QStringLiteral("reader"), {}, 0);
     QCOMPARE(code(control.answer({{QStringLiteral("verb"), QStringLiteral("console")},
                  {QStringLiteral("name"), QStringLiteral("agent")},
                  {QStringLiteral("tab"), QStringLiteral("personal-tab")}})),
-        QStringLiteral("refused"));
+        QStringLiteral("pending"));
+    QCOMPARE(control.grantRequest().value(QStringLiteral("spaceId")).toString(),
+        QStringLiteral("personal"));
+    control.answerGrant(QStringLiteral("personal"), true);
+    QVERIFY(texts(control.answer({{QStringLiteral("verb"), QStringLiteral("console")},
+                      {QStringLiteral("name"), QStringLiteral("agent")},
+                      {QStringLiteral("tab"), QStringLiteral("personal-tab")}}))
+            .isEmpty());
 }
 
 void AgentConsoleTest::waitsForAllowAgentsAndAnAgentSpace()
@@ -307,14 +316,16 @@ void AgentConsoleTest::waitsForAllowAgentsAndAnAgentSpace()
     QCOMPARE(code(control.answer({{QStringLiteral("verb"), QStringLiteral("console")},
                  {QStringLiteral("name"), QStringLiteral("agent")}})),
         QStringLiteral("no-current-tab"));
-    // The reader's own tab, even one an Agent opened, is the reader's page.
+    // The reader's own tab, even one an Agent opened, is the reader's page,
+    // so reading its console waits for the reader to grant the Space.
     const auto opened = control.answer({{QStringLiteral("verb"), QStringLiteral("open")},
         {QStringLiteral("name"), QStringLiteral("agent")},
         {QStringLiteral("url"), QStringLiteral("https://a.example/")}});
     QVERIFY(opened.value(QStringLiteral("ok")).toBool());
     QCOMPARE(code(control.answer({{QStringLiteral("verb"), QStringLiteral("console")},
                  {QStringLiteral("name"), QStringLiteral("agent")}})),
-        QStringLiteral("refused"));
+        QStringLiteral("pending"));
+    QVERIFY(!control.grantRequest().isEmpty());
 }
 
 void AgentConsoleTest::forgetsATabThatIsNoLongerAnAgents()

@@ -289,6 +289,35 @@ bool SqliteSessionStore::forgetAgentSpace(const QString &spaceId)
     return query.exec();
 }
 
+QStringList SqliteSessionStore::spaceGrants() const
+{
+    QStringList spaceIds;
+    QSqlQuery query(m_database);
+    query.exec(QStringLiteral("SELECT space_id FROM space_grants ORDER BY granted_at, space_id"));
+    while (query.next()) {
+        spaceIds.append(query.value(0).toString());
+    }
+    return spaceIds;
+}
+
+bool SqliteSessionStore::saveSpaceGrant(const QString &spaceId)
+{
+    QSqlQuery query(m_database);
+    query.prepare(
+        QStringLiteral("INSERT OR IGNORE INTO space_grants(space_id, granted_at) VALUES(?, ?)"));
+    query.addBindValue(spaceId);
+    query.addBindValue(QDateTime::currentMSecsSinceEpoch());
+    return query.exec();
+}
+
+bool SqliteSessionStore::forgetSpaceGrant(const QString &spaceId)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM space_grants WHERE space_id = ?"));
+    query.addBindValue(spaceId);
+    return query.exec();
+}
+
 bool SqliteSessionStore::setActiveSpace(const QString &spaceId)
 {
     if (!m_database.transaction()) {
@@ -884,6 +913,10 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
             space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
             creator TEXT NOT NULL DEFAULT '',
             temporary INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS space_grants (
+            space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+            granted_at INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS pending_space_deletions (
             space_id TEXT PRIMARY KEY

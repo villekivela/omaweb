@@ -15,12 +15,17 @@ Item {
     readonly property bool canStop: kind.startsWith("javascript-")
     readonly property bool canRemember: kind === "external-protocol" && prompt.rememberable
                                         !== false
+    // An Agent asking for a Space is the browser's question, not the page's,
+    // and it can come while the reader is typing into that page. It waits
+    // for a click rather than taking the keyboard, so no keystroke meant for
+    // the page answers it.
+    readonly property bool takesFocus: kind !== "agent-grant"
 
     signal answered(bool accepted, string text, string user, string password, bool stopPrompts,
                     bool remember)
 
     visible: open
-    focus: open
+    focus: open && takesFocus
 
     // The bar is hidden between prompts rather than destroyed, so a password
     // typed into it stays resident in a live text input until something writes
@@ -42,6 +47,8 @@ Item {
     function showPrompt() {
         root.clearFields();
         answer.text = String(root.prompt.defaultText || "");
+        if (!root.takesFocus)
+            return;
         Qt.callLater(function () {
             if (root.asksForCredentials)
                 user.forceActiveFocus();
@@ -166,9 +173,11 @@ Item {
 
                 ActionButton {
                     colors: root.colors
-                    label: root.kind === "external-protocol" ? "Open" : (root.kind
-                                                                         === "http-authentication"
-                                                                         ? "Sign in" : "OK")
+                    objectName: "browserPromptAccept"
+                    label: root.kind === "external-protocol" ? "Open" : root.kind
+                                                               === "http-authentication"
+                                                               ? "Sign in" : root.kind
+                                                                 === "agent-grant" ? "Allow" : "OK"
                     primary: true
                     onClicked: root.submit(true)
                 }
@@ -176,7 +185,8 @@ Item {
                 ActionButton {
                     visible: root.kind !== "javascript-alert"
                     colors: root.colors
-                    label: "Cancel"
+                    objectName: "browserPromptRefuse"
+                    label: root.kind === "agent-grant" ? "Deny" : "Cancel"
                     onClicked: root.submit(false)
                 }
             }

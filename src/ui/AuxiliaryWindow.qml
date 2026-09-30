@@ -153,6 +153,11 @@ ApplicationWindow {
                 engineLoader.item.cancelAgentVerbs();
         }
 
+        function onPageRequestsCancelledIn(targetIds) {
+            if (engineLoader.item && targetIds.indexOf(auxiliary.agentWindowId) >= 0)
+                engineLoader.item.cancelAgentVerbs();
+        }
+
         function onWindowCloseRequested(windowId) {
             if (windowId === auxiliary.agentWindowId)
                 auxiliary.close();

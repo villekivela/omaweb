@@ -286,12 +286,12 @@ and `space delete` wait for Allow agents, which is off until the reader turns it
 directory because a write replaces the file, so turning the setting off in a running browser clears
 every connection's current tab at once.
 
-Until Space grants land, an Agent drives only its own tabs. `open` into an existing tab and `close`
-take a tab an Agent opened in this run, or an ordinary tab of an Agent Space while Allow agents is
-on. Every other tab is the reader's, the one on show included. The set of tabs an Agent opened is
-held in memory and starts empty at each launch, so after a restart only an Agent Space's tabs are
-the Agents' own. `open` also refuses a Pinned tab and any scheme but `http`, `https`, `file` and
-`about`.
+`open` into an existing tab takes a tab an Agent opened in this run, or an ordinary tab of an Agent
+Space or a granted Space while Allow agents is on. `close` takes a tab an Agent opened, or an
+ordinary tab of an Agent Space: a Space grant lets an Agent use the reader's tabs, not close them.
+The set of tabs an Agent opened is held in memory and starts empty at each launch, so after a
+restart only an Agent Space's tabs are the Agents' to close. `open` also refuses a Pinned tab, whose
+address is the reader's in every Space, and any scheme but `http`, `https`, `file` and `about`.
 
 The name picks the connection's state, so the CLI keeps its current tab across the separate
 processes it runs as. The browser keeps at most 256 of these states and drops the one used longest
@@ -313,10 +313,10 @@ which only the ordinary window listens to, and the window answers from `availabl
 returns. A command added to the registry is not public until it is added to the list, and a test
 fails until one or the other is decided.
 
-The Agent Space label lives in its own `agent_spaces` table rather than on the Space record. Sync
-copies Space records, so it never sees the label, and deleting a Space deletes its label with it.
-`AgentControl` is handed the ordinary window's controller only, and refuses every verb if given a
-Private window's.
+The Agent Space label lives in its own `agent_spaces` table rather than on the Space record, and a
+Space grant in `space_grants` beside it. Sync copies Space records, so it never sees either, and
+deleting a Space deletes its label and its grant with it. `AgentControl` is handed the ordinary
+window's controller only, and refuses every verb if given a Private window's.
 
 `space new --temporary` makes an Agent Space that lasts as long as the socket connection that asked
 for it. The label says so in the store, and the Space is deleted with its whole directory, the
@@ -339,16 +339,39 @@ is replaced, and a path that is not a socket at all is never touched.
 ### Page verbs
 
 `look`, `read`, `do`, `shot` and `eval` work on the connection's current tab, or the tab `--tab`
-names, and wait for Allow agents. Until Space grants land, that tab must be one of an Agent Space's,
-whoever opened it: a page verb reads and acts as its Space's identity, with that Space's cookies and
-logins, so a tab an Agent opened in one of the reader's Spaces is still the reader's page. Opening
-one there does not make it an Agent tab either. `AgentControl` checks what a verb may reach and what
-it asks for, then hands the request to the interface through `pageRequested` and answers the socket
-when `answerPage` brings the page's answer back. A page that takes longer than a minute, two for a
-whole-page screenshot, or than a batch's own steps allow, is answered as timed out. Turning Allow
-agents off refuses every request still out and tells the pages to stop: a batch sends nothing more
-to its page after the step under way, and nothing comes back. The socket reads a connection's next
-line only once the one before it has its answer, so answers come back in the order they were asked.
+names, and wait for Allow agents. That tab must be one of an Agent Space's or of a granted Space,
+whoever opened it, Pinned tabs included: a page verb reads and acts as its Space's identity, with
+that Space's cookies and logins, so a tab an Agent opened in one of the reader's other Spaces is
+still the reader's page, and opening one there does not make it an Agent tab.
+
+The first page verb, `console` or `open` into one of the reader's tabs that reaches a Space which is
+neither waits for the reader. `AgentControl` publishes the Space and the connection's name as
+`grantRequest`, and the ordinary window shows it in the page prompt bar over whatever page is on
+show, with Allow and Deny. The bar takes no keyboard focus, since it can come while the reader is
+typing into that page. Everyone who asks for the same Space meanwhile waits on the one prompt, and
+other Spaces wait their turn behind it. Allow keeps the grant and runs each waiting request again
+from the start; Deny answers them `denied`, and the connections denied are not asked about that
+Space again in this run, so a denied Agent cannot put the bar back over the page. A Space nobody
+answers for within a minute is answered `undecided`, and its prompt goes, as it does when the Space
+is deleted. A Space waiting behind another's prompt counts its minute from when it was asked for, so
+the call waits no longer than a minute whatever else is asked. The CLI waits that minute on top of
+the page's own time. A `do` with an upload outside an Agent Space is refused before the reader is
+asked, since no answer would let it through.
+
+Settings lists the granted Spaces under agents, beside Allow agents, each with Revoke.
+`AgentControl.revokeGrant` detaches every Agent tab of the Space at once, refuses what was asked of
+its pages as `revoked` and tells only those pages to stop through `pageRequestsCancelledIn`. Each
+connection that was using the Space is answered `revoked` on its next call, whatever it asks, and
+reaching the Space again asks the reader again. Turning Allow agents off withdraws the prompt and
+keeps the grants.
+
+`AgentControl` checks what a verb may reach and what it asks for, then hands the request to the
+interface through `pageRequested` and answers the socket when `answerPage` brings the page's answer
+back. A page that takes longer than a minute, two for a whole-page screenshot, or than a batch's own
+steps allow, is answered as timed out. Turning Allow agents off refuses every request still out and
+tells the pages to stop: a batch sends nothing more to its page after the step under way, and
+nothing comes back. The socket reads a connection's next line only once the one before it has its
+answer, so answers come back in the order they were asked.
 
 The page area hands each request to the tab's engine adapter, which answers it through
 `agentVerbAnswered`. The verbs are Omaweb's, so the adapter contract names them and each engine
@@ -356,11 +379,11 @@ answers them its own way. The Qt adapter runs `agent-page.js` in the application
 page's own script cannot see it, and installs it again in every document it finds without one.
 
 - `look` answers the title, the address, an outline of headings and text capped at 6,000 characters,
-  and the interactive targets on screen with labels, counting those above and below. `--all` takes
-  the whole page. A label is a number that names its element for as long as the document lives. The
-  adapter hands the page the next number it has not given out in this tab, and the page area keeps
-  that number for the tab and gives it to a view built again for it, so a label from a document that
-  has gone never names an element of a later one.
+  and up to 200 interactive targets on screen with labels, counting those above, below, and on
+  screen past the 200. `--all` takes the whole page. A label is a number that names its element for
+  as long as the document lives. The adapter hands the page the next number it has not given out in
+  this tab, and the page area keeps that number for the tab and gives it to a view built again for
+  it, so a label from a document that has gone never names an element of a later one.
 - `read` answers the page, or the part a selector names, as Markdown.
 - `do` runs a batch of `click`, `fill`, `press`, `select`, `scroll`, `back` and `wait` steps. After
   each, it waits until a navigation the step started has committed and the document has not changed
@@ -369,18 +392,19 @@ page's own script cannot see it, and installs it again in every document it find
   the first step that fails and answers with a fresh `look` either way. While the reader's keyboard
   focus is in the tab, `do` answers that the reader is using it.
 - `shot` writes a PNG in `shots/` beside the socket, a directory only its user can enter, under a
-  name of its own or the bare file name the Agent gives. A name that is a path is refused, and so is
-  one already taken. The file is made with mode 0600 before the page is drawn into it, and the
-  directory keeps the 50 newest screenshots of the last day. It is `grabToImage` of the view, which
-  answers only while Omaweb's window is drawing, so a shot that gets no frame within 5 s says the
-  window is not on screen.
+  name of its own or the bare `.png` file name the Agent gives. A name that is a path or another
+  kind of file is refused, and so is one already taken. The file is made with mode 0600 before the
+  page is drawn into it and removed again if the page does not draw into it, and the directory keeps
+  the 50 newest screenshots of the last day. It is `grabToImage` of the view, which answers only
+  while Omaweb's window is drawing, so a shot that gets no frame within 5 s says the window is not
+  on screen.
 - `eval` answers the JSON value of an expression run in the application world, waiting up to 30 s
   for a promise.
 
-`console` follows the same rules, Allow agents and an Agent Space's tab, but no page answers it. The
-adapter reports each line a page writes to its console through `pageConsoleMessage`, with its level,
-source, line and the document that wrote it, after it has read its own markers and the reports
-Omaweb's scripts send it, which never leave the adapter. The page area passes a line on to
+`console` follows the same rules, Allow agents and a tab an Agent may use, but no page answers it.
+The adapter reports each line a page writes to its console through `pageConsoleMessage`, with its
+level, source, line and the document that wrote it, after it has read its own markers and the
+reports Omaweb's scripts send it, which never leave the adapter. The page area passes a line on to
 `AgentControl` only for an Agent tab, and `AgentConsole` keeps a tab's lines for the document on
 show: a new document starts the tab's buffer again. The page area also reports each document as it
 starts, so one that writes nothing does not answer with the last one's lines. The page area names

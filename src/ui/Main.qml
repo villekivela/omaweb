@@ -1462,6 +1462,26 @@ ApplicationWindow {
         }
     }
 
+    // The Space grant the reader is being asked for, as the prompt bar reads a
+    // prompt. It stands over whatever page is on show, since the Space asked
+    // for is usually not the one on show.
+    readonly property var agentGrantRequest: window.agentControlSource
+                                             ? window.agentControlSource.grantRequest : ({})
+    readonly property bool agentGrantOpen: String(window.agentGrantRequest.spaceId || "").length > 0
+    readonly property var agentGrantPrompt: window.agentGrantOpen ? window.grantPrompt(
+                                                                        window.agentGrantRequest) : (
+                                                                        {})
+
+    function grantPrompt(request) {
+        const space = String(request.spaceName);
+        return {
+            "kind": "agent-grant",
+            "message": "An Agent named " + request.name + " wants to use Space " + space,
+            "detail": "It could read and act in every tab of " + space
+                      + ", Pinned tabs too, until you revoke it in Settings."
+        };
+    }
+
     // The reader let a site through HTTPS-only mode: for this load, or for
     // good in this Space, which a Private window never keeps.
     function loadPlainHttp(failure, always) {
@@ -3405,6 +3425,23 @@ ApplicationWindow {
                     }
                 }
 
+                PagePromptBar {
+                    objectName: "agentGrantBar"
+                    anchors.fill: parent
+                    z: 44
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    open: window.agentGrantOpen
+                    prompt: window.agentGrantPrompt
+
+                    onAnswered: function (accepted) {
+                        if (window.agentControlSource)
+                            window.agentControlSource.answerGrant(String(
+                                                                      window.agentGrantRequest.spaceId),
+                                                                  accepted);
+                    }
+                }
+
                 SettingsPage {
                     id: settingsSurface
                     objectName: "settingsSurface"
@@ -3441,6 +3478,7 @@ ApplicationWindow {
                     blocker: contentBlocker
                     keyboard: keyboardNavigation
                     syncLauncher: window.privateWindow ? null : window.syncLauncherService
+                    agentControl: window.agentControlSource
                     open: window.settingsOpen
                     // As the sheet does: the page itself, never the viewport
                     // that owns both.
