@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <utility>
 
 namespace omaweb {
 namespace {
@@ -22,9 +23,17 @@ namespace {
     constexpr int startTimeoutMs = 30000;
     constexpr int connectTimeoutMs = 1000;
 
-    // What `initialize` answers when a client asks for a version this does
-    // not know. The tools are all this serves, and they read the same in each.
-    const auto latestProtocol = QStringLiteral("2025-06-18");
+    // The MCP versions this answers in, oldest first. The tools are all it
+    // serves, and they read the same in each. A client that asks for a
+    // version not here is answered with the newest, as the handshake asks.
+    const QStringList &protocols()
+    {
+        static const QStringList known {QStringLiteral("2024-11-05"), QStringLiteral("2025-03-26"),
+            QStringLiteral("2025-06-18"), QStringLiteral("2025-11-25")};
+        return known;
+    }
+
+    const auto namePrefix = QStringLiteral("--name=");
 
     // Every word here is paid for by every conversation the server is
     // registered in, so it says what the tool list cannot: where the page
@@ -37,18 +46,26 @@ namespace {
         "in one call, which answers with a fresh look. A label from look lasts as long as its "
         "document.");
 
+    enum class Kind {
+        String,
+        Boolean,
+        Integer,
+        // The array of step strings `do` takes.
+        Steps,
+        // The console's level, one of agentConsoleLevels().
+        Level,
+    };
+
     struct Property {
         QString name;
-        // A JSON Schema type, or `steps` for the array of step strings and
-        // `level` for the console's level.
-        QString type;
+        Kind kind;
         // The request field it fills, when it is not the property's name.
         QString field;
     };
 
-    Property property(const QString &name, const QString &type, const QString &field = {})
+    Property property(const QString &name, Kind kind, const QString &field = {})
     {
-        return {.name = name, .type = type, .field = field};
+        return {.name = name, .kind = kind, .field = field};
     }
 
     struct Tool {
@@ -62,11 +79,11 @@ namespace {
     const QList<Tool> &tools()
     {
         static const auto list = [] {
-            const auto tab = property(QStringLiteral("tab"), QStringLiteral("string"));
-            const auto space = property(QStringLiteral("space"), QStringLiteral("string"));
-            const auto string = QStringLiteral("string");
-            const auto boolean = QStringLiteral("boolean");
-            const auto integer = QStringLiteral("integer");
+            const auto string = Kind::String;
+            const auto boolean = Kind::Boolean;
+            const auto integer = Kind::Integer;
+            const auto tab = property(QStringLiteral("tab"), string);
+            const auto space = property(QStringLiteral("space"), string);
             return QList<Tool> {
                 {.name = QStringLiteral("spaces"),
                     .verb = QStringLiteral("spaces"),
@@ -145,13 +162,12 @@ namespace {
                     .verb = QStringLiteral("do"),
                     .description = QStringLiteral(
                         "Run steps in order, each waiting for the page to settle; stops at the "
-                        "first "
-                        "that fails; answers with a look. Steps: click <label>, fill <label> "
-                        "<text>, "
-                        "press <key>, select <label> <option>, scroll <label|up|down|top|bottom>, "
-                        "back, wait text <text>, wait url <address>, dialog accept [text], "
-                        "dialog dismiss, upload <label> <path>... (Agent Spaces only)."),
-                    .properties = {property(QStringLiteral("steps"), QStringLiteral("steps")), tab,
+                        "first that fails; answers with a look. Steps: click <label>, fill "
+                        "<label> <text>, press <key>, select <label> <option>, scroll "
+                        "<label|up|down|top|bottom>, back, wait text <text>, wait url <address>, "
+                        "dialog accept [text], dialog dismiss, upload <label> <path>... (Agent "
+                        "Spaces only)."),
+                    .properties = {property(QStringLiteral("steps"), Kind::Steps), tab,
                         property(QStringLiteral("settle"), integer),
                         property(QStringLiteral("timeout"), integer)},
                     .required = {QStringLiteral("steps")}},
@@ -172,7 +188,7 @@ namespace {
                     .verb = QStringLiteral("console"),
                     .description = QStringLiteral("Console lines since the document loaded, then a "
                                                   "cursor to pass as since."),
-                    .properties = {tab, property(QStringLiteral("level"), QStringLiteral("level")),
+                    .properties = {tab, property(QStringLiteral("level"), Kind::Level),
                         property(QStringLiteral("since"), integer)},
                     .required = {}},
             };
@@ -182,29 +198,36 @@ namespace {
 
     QJsonObject schemaFor(const Property &property)
     {
-        if (property.type == u"steps") {
+        const auto type
+            = [](const QString &name) { return QJsonObject {{QStringLiteral("type"), name}}; };
+        switch (property.kind) {
+        case Kind::String:
+            return type(QStringLiteral("string"));
+        case Kind::Boolean:
+            return type(QStringLiteral("boolean"));
+        case Kind::Integer:
+            return type(QStringLiteral("integer"));
+        case Kind::Steps:
             return {{QStringLiteral("type"), QStringLiteral("array")},
-                {QStringLiteral("items"),
-                    QJsonObject {{QStringLiteral("type"), QStringLiteral("string")}}}};
+                {QStringLiteral("items"), type(QStringLiteral("string"))}};
+        case Kind::Level:
+            return {{QStringLiteral("enum"), QJsonArray::fromStringList(agentConsoleLevels())}};
         }
-        if (property.type == u"level") {
-            return {{QStringLiteral("enum"),
-                QJsonArray {
-                    QStringLiteral("error"), QStringLiteral("warning"), QStringLiteral("all")}}};
-        }
-        return {{QStringLiteral("type"), property.type}};
+        return {};
     }
 
     // Reads one argument into the request, or answers why it cannot.
     QString readArgument(const Property &property, const QJsonValue &value, QJsonObject &request)
     {
         const auto field = property.field.isEmpty() ? property.name : property.field;
-        if (property.type == u"string") {
+        switch (property.kind) {
+        case Kind::String:
             if (!value.isString()) {
                 return QStringLiteral("%1 is a string.").arg(property.name);
             }
             request.insert(field, value);
-        } else if (property.type == u"boolean") {
+            break;
+        case Kind::Boolean:
             if (!value.isBool()) {
                 return QStringLiteral("%1 is true or false.").arg(property.name);
             }
@@ -212,20 +235,26 @@ namespace {
             if (value.toBool()) {
                 request.insert(field, true);
             }
-        } else if (property.type == u"integer") {
+            break;
+        case Kind::Integer: {
             const auto number = value.toDouble(-1);
             if (!value.isDouble() || number < 0
                 || number != static_cast<double>(value.toInteger())) {
                 return QStringLiteral("%1 is a whole number.").arg(property.name);
             }
             request.insert(field, value);
-        } else if (property.type == u"level") {
-            const auto level = value.toString();
-            if (level != u"error" && level != u"warning" && level != u"all") {
+            break;
+        }
+        case Kind::Level:
+            if (!agentConsoleLevels().contains(value.toString())) {
                 return QStringLiteral("level is error, warning or all.");
             }
-            request.insert(field, level);
-        } else {
+            request.insert(field, value);
+            break;
+        case Kind::Steps: {
+            if (!value.isArray()) {
+                return QStringLiteral("do takes at least one step.");
+            }
             QStringList steps;
             for (const auto &step : value.toArray()) {
                 if (!step.isString()) {
@@ -238,10 +267,12 @@ namespace {
             if (!error.isEmpty()) {
                 return error;
             }
-            if (!value.isArray() || read.isEmpty()) {
+            if (read.isEmpty()) {
                 return QStringLiteral("do takes at least one step.");
             }
             request.insert(field, read);
+            break;
+        }
         }
         return {};
     }
@@ -297,103 +328,17 @@ namespace {
                     {QStringLiteral("code"), code}, {QStringLiteral("message"), message}}}};
     }
 
-    // The one connection this server holds to the browser.
-    class BrowserLink {
-    public:
-        explicit BrowserLink(QString path)
-            : m_path(std::move(path))
-        {
-        }
-
-        std::optional<QJsonObject> send(const QJsonObject &request, QString &error)
-        {
-            if (!connect(error)) {
-                return std::nullopt;
-            }
-            m_socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
-            m_socket.waitForBytesWritten(connectTimeoutMs);
-            QDeadlineTimer deadline(agentAnswerTimeoutMs(request));
-            while (true) {
-                while (m_socket.canReadLine()) {
-                    const auto line = m_socket.readLine();
-                    if (m_owed > 0) {
-                        --m_owed;
-                        continue;
-                    }
-                    return QJsonDocument::fromJson(line).object();
-                }
-                if (m_socket.state() != QLocalSocket::ConnectedState) {
-                    error = QStringLiteral("The browser closed the connection.");
-                    return std::nullopt;
-                }
-                if (!m_socket.waitForReadyRead(static_cast<int>(deadline.remainingTime()))
-                    && deadline.hasExpired()) {
-                    // Its answer may still come, ahead of the next one.
-                    ++m_owed;
-                    error = QStringLiteral("The browser did not answer in time.");
-                    return std::nullopt;
-                }
-            }
-        }
-
-    private:
-        bool connect(QString &error)
-        {
-            if (m_socket.state() == QLocalSocket::ConnectedState) {
-                // A browser that quit since the last call closed the
-                // connection, and only reading finds that out.
-                m_socket.waitForReadyRead(0);
-                if (m_socket.state() == QLocalSocket::ConnectedState) {
-                    return true;
-                }
-            }
-            m_socket.abort();
-            m_owed = 0;
-            if (tryConnect()) {
-                return true;
-            }
-            if (!startBrowser()) {
-                error = QStringLiteral("No Omaweb is running, and one could not be started.");
-                return false;
-            }
-            QDeadlineTimer deadline(startTimeoutMs);
-            while (!deadline.hasExpired()) {
-                if (tryConnect()) {
-                    return true;
-                }
-                QThread::msleep(100);
-            }
-            error = QStringLiteral("Omaweb was started but did not answer within 30 seconds.");
-            return false;
-        }
-
-        bool tryConnect()
-        {
-            m_socket.connectToServer(m_path);
-            if (m_socket.waitForConnected(connectTimeoutMs)) {
-                return true;
-            }
-            m_socket.abort();
-            return false;
-        }
-
-        // The browser outlives this server, and standard output is the MCP
-        // channel, so it gets none of this process's streams.
-        static bool startBrowser()
-        {
-            QProcess browser;
-            browser.setProgram(QCoreApplication::applicationFilePath());
-            browser.setStandardInputFile(QProcess::nullDevice());
-            browser.setStandardOutputFile(QProcess::nullDevice());
-            browser.setStandardErrorFile(QProcess::nullDevice());
-            return browser.startDetached();
-        }
-
-        QString m_path;
-        QLocalSocket m_socket;
-        // Answers to requests that timed out, which arrive before the next.
-        int m_owed = 0;
-    };
+    // The browser outlives this server, and standard output is the MCP
+    // channel, so it gets none of this process's streams.
+    bool startBrowser()
+    {
+        QProcess browser;
+        browser.setProgram(QCoreApplication::applicationFilePath());
+        browser.setStandardInputFile(QProcess::nullDevice());
+        browser.setStandardOutputFile(QProcess::nullDevice());
+        browser.setStandardErrorFile(QProcess::nullDevice());
+        return browser.startDetached();
+    }
 
 } // namespace
 
@@ -459,17 +404,20 @@ std::optional<QJsonObject> answerAgentMcp(
     // A notification, or an answer to a request, neither of which this server
     // sends, has no reply.
     const auto method = message.value(QStringLiteral("method")).toString();
-    if (!message.contains(QStringLiteral("id")) || method.isEmpty()) {
+    if (!message.contains(QStringLiteral("id")) || message.contains(QStringLiteral("result"))
+        || message.contains(QStringLiteral("error"))) {
         return std::nullopt;
     }
     const auto id = message.value(QStringLiteral("id"));
+    if (method.isEmpty()) {
+        return rpcError(id, -32600, QStringLiteral("A request names its method."));
+    }
     const auto params = message.value(QStringLiteral("params")).toObject();
     if (method == u"initialize") {
-        static const QStringList known {QStringLiteral("2024-11-05"), QStringLiteral("2025-03-26"),
-            latestProtocol, QStringLiteral("2025-11-25")};
         const auto asked = params.value(QStringLiteral("protocolVersion")).toString();
         return rpcResult(id,
-            {{QStringLiteral("protocolVersion"), known.contains(asked) ? asked : latestProtocol},
+            {{QStringLiteral("protocolVersion"),
+                 protocols().contains(asked) ? asked : protocols().constLast()},
                 {QStringLiteral("capabilities"),
                     QJsonObject {{QStringLiteral("tools"), QJsonObject {}}}},
                 {QStringLiteral("serverInfo"),
@@ -503,28 +451,11 @@ std::optional<QJsonObject> answerAgentMcp(
     return rpcResult(id, resultFor(call.request.value(QStringLiteral("verb")).toString(), *answer));
 }
 
-int runAgentMcp(const QStringList &arguments, const QString &socketPath)
+void serveAgentMcp(
+    std::istream &input, std::ostream &output, const QString &name, const AgentMcpSend &send)
 {
-    auto name = parentProcessName();
-    for (qsizetype index = 2; index < arguments.size(); ++index) {
-        const auto &argument = arguments.at(index);
-        if (argument == u"--name" && index + 1 < arguments.size()) {
-            name = arguments.at(++index);
-        } else if (argument.startsWith(u"--name=")) {
-            name = argument.mid(7);
-        } else {
-            std::fputs("omaweb: use `omaweb mcp [--name <name>]`.\n", stderr);
-            return 2;
-        }
-    }
-    name = agentConnectionName(name);
-
-    BrowserLink browser(socketPath);
-    const auto send = [&browser](const QJsonObject &request, QString &error) {
-        return browser.send(request, error);
-    };
     std::string line;
-    while (std::getline(std::cin, line)) {
+    while (std::getline(input, line)) {
         const auto bytes = QByteArray::fromStdString(line).trimmed();
         if (bytes.isEmpty()) {
             continue;
@@ -532,19 +463,135 @@ int runAgentMcp(const QStringList &arguments, const QString &socketPath)
         QJsonParseError parse {};
         const auto document = QJsonDocument::fromJson(bytes, &parse);
         std::optional<QJsonObject> reply;
-        if (parse.error != QJsonParseError::NoError || !document.isObject()) {
-            reply = rpcError(QJsonValue::Null, -32700,
-                QStringLiteral("A message is one JSON "
-                               "object per line."));
+        if (parse.error != QJsonParseError::NoError) {
+            reply = rpcError(
+                QJsonValue::Null, -32700, QStringLiteral("A message is one JSON object per line."));
+        } else if (!document.isObject()) {
+            // A batch among them: MCP has not sent one since 2025-06-18, and
+            // this server has never answered one.
+            reply = rpcError(
+                QJsonValue::Null, -32600, QStringLiteral("A message is one JSON object per line."));
         } else {
             reply = answerAgentMcp(document.object(), name, send);
         }
         if (reply) {
-            const auto out = QJsonDocument(*reply).toJson(QJsonDocument::Compact) + '\n';
-            std::fwrite(out.constData(), 1, static_cast<size_t>(out.size()), stdout);
-            std::fflush(stdout);
+            output << QJsonDocument(*reply).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            output.flush();
         }
     }
+}
+
+std::optional<QString> readAgentMcpName(const QStringList &arguments, const QString &defaultName)
+{
+    auto name = defaultName;
+    for (qsizetype index = 2; index < arguments.size(); ++index) {
+        const auto &argument = arguments.at(index);
+        if (argument == u"--name" && index + 1 < arguments.size()) {
+            name = arguments.at(++index);
+        } else if (argument.startsWith(namePrefix)) {
+            name = argument.mid(namePrefix.size());
+        } else {
+            return std::nullopt;
+        }
+    }
+    return name;
+}
+
+AgentMcpLink::AgentMcpLink(QString path, std::function<bool()> start, int startTimeoutMs)
+    : m_path(std::move(path))
+    , m_start(std::move(start))
+    , m_startTimeoutMs(startTimeoutMs)
+{
+}
+
+std::optional<QJsonObject> AgentMcpLink::send(const QJsonObject &request, QString &error)
+{
+    if (!connect(error)) {
+        return std::nullopt;
+    }
+    m_socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
+    m_socket.waitForBytesWritten(connectTimeoutMs);
+    QDeadlineTimer deadline(agentAnswerTimeoutMs(request));
+    while (true) {
+        while (m_socket.canReadLine()) {
+            const auto line = m_socket.readLine();
+            if (m_owed > 0) {
+                --m_owed;
+                continue;
+            }
+            return QJsonDocument::fromJson(line).object();
+        }
+        if (m_socket.state() != QLocalSocket::ConnectedState) {
+            error = QStringLiteral("The browser closed the connection.");
+            return std::nullopt;
+        }
+        if (!m_socket.waitForReadyRead(static_cast<int>(deadline.remainingTime()))
+            && deadline.hasExpired()) {
+            // Its answer may still come, ahead of the next one.
+            ++m_owed;
+            error = QStringLiteral("The browser did not answer in time.");
+            return std::nullopt;
+        }
+    }
+}
+
+bool AgentMcpLink::connect(QString &error)
+{
+    if (m_socket.state() == QLocalSocket::ConnectedState) {
+        // A browser that quit since the last call closed the connection, and
+        // only reading finds that out.
+        m_socket.waitForReadyRead(0);
+        if (m_socket.state() == QLocalSocket::ConnectedState) {
+            return true;
+        }
+    }
+    m_socket.abort();
+    m_owed = 0;
+    if (tryConnect()) {
+        return true;
+    }
+    if (m_startFailed) {
+        error = QStringLiteral("Omaweb is not answering on its Agent socket.");
+        return false;
+    }
+    if (!m_start()) {
+        error = QStringLiteral("No Omaweb is running, and one could not be started.");
+        return false;
+    }
+    QDeadlineTimer deadline(m_startTimeoutMs);
+    while (!deadline.hasExpired()) {
+        if (tryConnect()) {
+            return true;
+        }
+        QThread::msleep(100);
+    }
+    m_startFailed = true;
+    error = QStringLiteral("Omaweb was started but did not answer within %1 seconds.")
+                .arg(m_startTimeoutMs / 1000);
+    return false;
+}
+
+bool AgentMcpLink::tryConnect()
+{
+    m_socket.connectToServer(m_path);
+    if (m_socket.waitForConnected(connectTimeoutMs)) {
+        return true;
+    }
+    m_socket.abort();
+    return false;
+}
+
+int runAgentMcp(const QStringList &arguments, const QString &socketPath)
+{
+    const auto name = readAgentMcpName(arguments, parentProcessName());
+    if (!name) {
+        std::fputs("omaweb: use `omaweb mcp [--name <name>]`.\n", stderr);
+        return 2;
+    }
+    AgentMcpLink browser(socketPath, startBrowser, startTimeoutMs);
+    serveAgentMcp(std::cin, std::cout, agentConnectionName(*name),
+        [&browser](
+            const QJsonObject &request, QString &error) { return browser.send(request, error); });
     return 0;
 }
 

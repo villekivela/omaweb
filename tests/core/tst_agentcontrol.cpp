@@ -1,5 +1,6 @@
 #include "AgentCommand.h"
 #include "AgentControl.h"
+#include "AgentMcp.h"
 #include "BrowserController.h"
 #include "ControlSocket.h"
 #include "PrivateSessionFixture.h"
@@ -21,6 +22,7 @@
 #include <QThread>
 
 #include <memory>
+#include <sstream>
 
 #include <sys/stat.h>
 
@@ -152,6 +154,7 @@ private slots:
     void answersOverASocketOnlyItsUserCanOpen();
     void putsTheSocketInTheUsersRuntimeDirectory();
     void answersTheCommandLineWithAllowAgentsOff();
+    void servesAnMcpSessionOverOneConnection();
     void loadsAddressesOnlyInAnAgentsTabs();
     void deletesOnlyTheAgentSpacesItsConnectionCreated();
     void followsAllowAgentsInTheReadersFile();
@@ -764,6 +767,79 @@ void AgentControlTest::answersTheCommandLineWithAllowAgentsOff()
     QVERIFY(!omaweb::parentProcessName().isEmpty());
     QCOMPARE(browser->agentSpaceCreator(spaceId),
         omaweb::agentConnectionName(omaweb::parentProcessName()));
+}
+
+// `omaweb mcp` between an Agent and this socket: a line of JSON-RPC in, a
+// line out, and every call on the one connection, so the tab it opened is
+// the one it closes and its temporary Space lasts until the server stops.
+void AgentControlTest::servesAnMcpSessionOverOneConnection()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    ControlSocket socket(&control);
+    const auto path = runtime.filePath(QStringLiteral("omaweb/control.sock"));
+    QVERIFY(socket.listen(path));
+    const auto spacesBefore = browser->spaces()->rowCount();
+    const auto tabsBefore = browser->spaceTabs(QStringLiteral("work")).size();
+
+    std::string session;
+    auto id = 0;
+    const auto call = [&session, &id](const QString &tool, const QJsonObject &arguments) {
+        const QJsonObject message {{QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
+            {QStringLiteral("id"), ++id}, {QStringLiteral("method"), QStringLiteral("tools/call")},
+            {QStringLiteral("params"),
+                QJsonObject {
+                    {QStringLiteral("name"), tool}, {QStringLiteral("arguments"), arguments}}}};
+        session += QJsonDocument(message).toJson(QJsonDocument::Compact).toStdString() + '\n';
+    };
+    call(QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://example.com/")},
+            {QStringLiteral("space"), QStringLiteral("Work")}});
+    call(QStringLiteral("close"), {});
+    call(QStringLiteral("space_new"),
+        {{QStringLiteral("name"), QStringLiteral("Checks")}, {QStringLiteral("temporary"), true}});
+    call(QStringLiteral("spaces"), {});
+
+    std::istringstream input(session);
+    std::ostringstream output;
+    const std::unique_ptr<QThread> server(QThread::create([&input, &output, &path] {
+        omaweb::AgentMcpLink link(path, [] { return false; }, 0);
+        omaweb::serveAgentMcp(input, output, QStringLiteral("claude"),
+            [&link](
+                const QJsonObject &request, QString &error) { return link.send(request, error); });
+    }));
+    server->start();
+    QDeadlineTimer deadline(10000);
+    while (!server->isFinished() && !deadline.hasExpired()) {
+        QTest::qWait(5);
+    }
+    server->wait();
+
+    QStringList texts;
+    for (const auto &line : QString::fromStdString(output.str()).split(u'\n', Qt::SkipEmptyParts)) {
+        const auto result = QJsonDocument::fromJson(line.toUtf8())
+                                .object()
+                                .value(QStringLiteral("result"))
+                                .toObject();
+        QVERIFY2(!result.value(QStringLiteral("isError")).toBool(), qPrintable(line));
+        texts.append(result.value(QStringLiteral("content"))
+                .toArray()
+                .first()
+                .toObject()
+                .value(QStringLiteral("text"))
+                .toString());
+    }
+    QCOMPARE(texts.size(), 4);
+    const auto temporary = texts.at(2).section(u'\t', 0, 0);
+    QVERIFY(!temporary.isEmpty());
+    QVERIFY(texts.at(3).contains(temporary));
+    QCOMPARE(browser->spaceTabs(QStringLiteral("work")).size(), tabsBefore);
+    QTRY_COMPARE(browser->spaces()->rowCount(), spacesBefore);
 }
 
 // Until Space grants land an Agent reaches no tab of the reader's, the one

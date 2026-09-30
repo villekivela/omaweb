@@ -203,6 +203,11 @@ void AgentCommandTest::refusesAMalformedCommand_data()
         << QStringList {QStringLiteral("do"), QStringLiteral("wait 3")};
     QTest::newRow("a settle that is not a number") << QStringList {QStringLiteral("do"),
         QStringLiteral("back"), QStringLiteral("--settle"), QStringLiteral("soon")};
+    // As `omaweb mcp` refuses them: a wait is never shorter than none.
+    QTest::newRow("a settle before now") << QStringList {
+        QStringLiteral("do"), QStringLiteral("back"), QStringLiteral("--settle=-5")};
+    QTest::newRow("a timeout before now") << QStringList {QStringLiteral("do"),
+        QStringLiteral("back"), QStringLiteral("--timeout"), QStringLiteral("-1")};
     QTest::newRow("eval of nothing") << QStringList {QStringLiteral("eval")};
     QTest::newRow("look at one part")
         << QStringList {QStringLiteral("look"), QStringLiteral("main")};
