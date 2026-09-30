@@ -616,6 +616,8 @@ set(omaweb_ui_files
     src/ui/NavigationCluster.qml
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
+    src/ui/AgentMark.qml
+    src/ui/AgentPageFrame.qml
     src/ui/CommandDialog.qml
     src/ui/DialogPanel.qml
     src/ui/PageBackdrop.qml

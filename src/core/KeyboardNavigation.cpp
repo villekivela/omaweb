@@ -79,6 +79,7 @@ namespace {
         QStringLiteral("next-space"),
         QStringLiteral("select-space"),
         QStringLiteral("new-space"),
+        QStringLiteral("take-over-space"),
         QStringLiteral("toggle-sidebar"),
         QStringLiteral("widen-sidebar"),
         QStringLiteral("narrow-sidebar"),

@@ -393,6 +393,10 @@ QVariantMap ThemeController::fallbackPalette() const
         // names a private accent and no grounds — every palette a desktop
         // renders — gets the same private window this one does.
         {QStringLiteral("privateAccent"), QStringLiteral("#c678dd")},
+        // Whose hands are on a tab or a Space: an Agent's. It marks the row,
+        // the page frame and the footer letter of what an Agent is driving,
+        // and says nothing is wrong, as `urgent` would.
+        {QStringLiteral("agentAccent"), QStringLiteral("#56b6c2")},
         {QStringLiteral("font"), defaultFont()},
         {QStringLiteral("opacity"), defaultOpacity()},
         {QStringLiteral("syntax"), defaultSyntax()},
@@ -541,6 +545,10 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // says nothing about which window it is.
     enforceDifference(QStringLiteral("accent"), QStringLiteral("privateAccent"),
         QColor(fallback.value(QStringLiteral("privateAccent")).toString()));
+    // An Agent's mark in the colour of the reader's own selection would read
+    // as the reader's.
+    enforceDifference(QStringLiteral("accent"), QStringLiteral("agentAccent"),
+        QColor(fallback.value(QStringLiteral("agentAccent")).toString()));
 
     // Resolved here rather than with the other surfaces below, because the
     // private hover fill is this colour tinted.
@@ -672,6 +680,21 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         const auto privateResolved = adjustedForContrast(
             privateQuietest, text, privateGrounds, minimumContrast, hasNamedMutedText);
         palette.insert(QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
+    }
+
+    // The Agent accent is read as well as seen: the page frame's label is
+    // the window colour written on it, and the mark on a row or a Space is
+    // drawn on the sidebar. So it keeps its hue and changes lightness only
+    // until it clears 4.5:1 against both, which a cyan named for a dark
+    // terminal does not on a light theme.
+    const QColor agentAccent(palette.value(QStringLiteral("agentAccent")).toString());
+    const auto agentGrounds = coloursFor({QStringLiteral("window"), QStringLiteral("sidebar")});
+    if (text.isValid() && agentAccent.isValid() && !agentGrounds.isEmpty()) {
+        constexpr auto minimumAgentContrast = 4.5;
+        palette.insert(QStringLiteral("agentAccent"),
+            adjustedForContrast(
+                agentAccent, text, agentGrounds, minimumAgentContrast, /*preserveHue=*/true)
+                .name(QColor::HexRgb));
     }
 
     // The grounds a border is actually drawn on, which is every Omaweb surface

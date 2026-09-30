@@ -39,6 +39,34 @@ Rectangle {
     // where nothing asks GitHub anything.
     property var releaseWatch: null
     property bool savedFileNoticeShowing: false
+    // What the Agents are doing, as the core reports it: each Agent tab by id,
+    // with its `spaceId`, the connection's `name`, and `busy` while one of its
+    // commands is in flight. And the Spaces an Agent made that the reader has
+    // not taken over.
+    property var agentActivity: ({})
+    property var agentSpaceIds: []
+
+    function agentOf(tabId) {
+        return root.agentActivity[tabId] || null;
+    }
+
+    // Whether an Agent is attached to one of a Space's tabs, and whether one
+    // of its commands is in flight there.
+    function agentWorkIn(spaceId) {
+        let attached = false;
+        let busy = false;
+        for (const tabId in root.agentActivity) {
+            const agent = root.agentActivity[tabId];
+            if (agent.spaceId !== spaceId)
+                continue;
+            attached = true;
+            busy = busy || agent.busy === true;
+        }
+        return {
+            "attached": attached,
+            "busy": busy
+        };
+    }
 
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
@@ -955,6 +983,7 @@ Rectangle {
                     tintFavicons: root.tintFavicons
                     keyLabel: root.tabLabel(tabId)
                     keyLabelShown: root.keyLabelsShown
+                    agent: root.agentOf(tabId)
                     onActivated: function (id) {
                         root.tabActivated(id);
                     }
@@ -1034,6 +1063,7 @@ Rectangle {
                         tintFavicons: root.tintFavicons
                         keyLabel: root.tabLabel(tabId)
                         keyLabelShown: root.keyLabelsShown
+                        agent: root.agentOf(tabId)
                         onActivated: function (id) {
                             root.tabActivated(id);
                         }
@@ -1150,12 +1180,27 @@ Rectangle {
                     required property bool active
                     required property int index
 
+                    // A Space an Agent is working in, or one an Agent made,
+                    // wears the Agent's mark in place of its letter, so it
+                    // can be read while the Space is away. The mark is in the
+                    // Agent accent while an Agent is attached to one of the
+                    // Space's tabs, and muted in an Agent Space no Agent is
+                    // using. The letter comes back when the connection closes,
+                    // or when the reader takes the Space over.
+                    readonly property var agentWork: root.agentWorkIn(spaceId)
+                    readonly property bool agentMade: root.agentSpaceIds.indexOf(spaceId) >= 0
+                    readonly property bool showsAgent: agentWork.attached || agentMade
+
                     objectName: "space-" + spaceId
                     width: 30
                     height: 28
-                    label: spaceName.length > 0 ? spaceName.charAt(0).toUpperCase() : "·"
-                    accessibleName: active ? "Current Space: " + spaceName : "Switch to "
-                                             + spaceName
+                    label: showsAgent ? "" : (spaceName.length > 0 ? spaceName.charAt(0).toUpperCase(
+                                                                         ) : "·")
+                    accessibleName: (active ? "Current Space: " + spaceName : "Switch to "
+                                              + spaceName) + (agentWork.attached
+                                                              ? " (an Agent is working here)" : (
+                                                                    agentMade ? " (Agent Space)" :
+                                                                                ""))
                     // The letter is the theme's, not the Space's own colour:
                     // the kit derives a control's fill and its border from its
                     // foreground, so a coloured Space painted the whole button
@@ -1173,6 +1218,16 @@ Rectangle {
                     bordered: active && !root.easeSpaces
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
+
+                    AgentMark {
+                        objectName: "spaceAgentMark-" + spaceButton.spaceId
+                        anchors.centerIn: parent
+                        visible: spaceButton.showsAgent
+                        busy: spaceButton.agentWork.busy
+                        color: spaceButton.agentWork.attached ? root.colors.agentAccent :
+                                                                root.colors.mutedText
+                        font.family: root.iconFontFamily
+                    }
 
                     KeyLabel {
                         objectName: "keyLabel-space-" + spaceButton.spaceId

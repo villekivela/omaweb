@@ -11,6 +11,7 @@
   "border": "{{ muted }}",
   "urgent": "{{ red }}",
   "privateAccent": "{{ magenta }}",
+  "agentAccent": "{{ cyan }}",
   "syntax": {
     "keyword": "{{ magenta }}",
     "string": "{{ green }}",

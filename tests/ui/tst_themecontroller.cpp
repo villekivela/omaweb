@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QMap>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -27,6 +28,8 @@ private slots:
     void appliesSemanticOpacityToChromeSurfaces();
     void givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency();
     void namesOneColourForSomethingBeingWrong();
+    void keepsTheAgentAccentLegibleAndApartFromTheAccent();
+    void fillsTheAgentAccentFromTheDesktopsCyan();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
     void handsAPageTheQuietTextTheThemeNamed();
@@ -1397,6 +1400,86 @@ void ThemeControllerTest::followsADesktopThatSwitchesThemeByRelinking()
     QTRY_COMPARE_WITH_TIMEOUT(
         QColor(controller.palette().value(QStringLiteral("window")).toString()),
         QColor(QStringLiteral("#303030")), 10000);
+}
+
+// The Agent accent defaults to the terminal cyan Omaweb's own palette names,
+// and on a light theme it darkens, keeping its hue, until the label written on
+// it and the mark drawn on the sidebar read.
+void ThemeControllerTest::keepsTheAgentAccentLegibleAndApartFromTheAccent()
+{
+    QTemporaryDir root;
+    QFile dark(root.filePath(QStringLiteral("dark.json")));
+    QVERIFY(dark.open(QIODevice::WriteOnly));
+    dark.write(R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa" })JSON");
+    dark.close();
+    QCOMPARE(QColor(ThemeController(dark.fileName())
+                     .palette()
+                     .value(QStringLiteral("agentAccent"))
+                     .toString()),
+        QColor(QStringLiteral("#56b6c2")));
+
+    QFile light(root.filePath(QStringLiteral("light.json")));
+    QVERIFY(light.open(QIODevice::WriteOnly));
+    light.write(R"JSON({
+        "window": "#ffffff",
+        "sidebar": "#f4f4f4",
+        "text": "#1a1a1a",
+        "accent": "#3b6fd6",
+        "agentAccent": "#56b6c2"
+    })JSON");
+    light.close();
+    const auto palette = ThemeController(light.fileName()).palette();
+    const QColor agent(palette.value(QStringLiteral("agentAccent")).toString());
+    for (const auto *key : {"window", "sidebar"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(contrastRatio(agent, ground) >= 4.5, key);
+    }
+    QVERIFY(std::abs(agent.hslHueF() - QColor(QStringLiteral("#56b6c2")).hslHueF()) < 0.02);
+
+    // A theme whose accent is its cyan still tells the reader's selection from
+    // an Agent's hands.
+    QFile cyan(root.filePath(QStringLiteral("cyan.json")));
+    QVERIFY(cyan.open(QIODevice::WriteOnly));
+    cyan.write(R"JSON({
+        "window": "#16151d",
+        "sidebar": "#1d1b29",
+        "text": "#f3f1fa",
+        "accent": "#56b6c2",
+        "agentAccent": "#56b6c2"
+    })JSON");
+    cyan.close();
+    const auto cyanPalette = ThemeController(cyan.fileName()).palette();
+    QVERIFY(QColor(cyanPalette.value(QStringLiteral("agentAccent")).toString())
+        != QColor(cyanPalette.value(QStringLiteral("accent")).toString()));
+}
+
+// Omarchy renders the Agent accent from the theme's own terminal cyan, the
+// colour the template names for it, so each desktop theme marks an Agent's
+// work in a hue it already draws.
+void ThemeControllerTest::fillsTheAgentAccentFromTheDesktopsCyan()
+{
+    QFile shipped(QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
+    QVERIFY(shipped.open(QIODevice::ReadOnly));
+    auto rendered = QString::fromUtf8(shipped.readAll());
+    QVERIFY(rendered.contains(QStringLiteral("\"agentAccent\": \"{{ cyan }}\"")));
+    rendered.replace(QStringLiteral("{{ cyan }}"), QStringLiteral("#2ac3de"));
+    rendered.replace(QStringLiteral("{{ accent }}"), QStringLiteral("#7aa2f7"));
+    rendered.replace(QStringLiteral("{{ darker_background }}"), QStringLiteral("#16161e"));
+    rendered.replace(QStringLiteral("{{ dark_background }}"), QStringLiteral("#1a1b26"));
+    rendered.replace(QStringLiteral("{{ foreground }}"), QStringLiteral("#c0caf5"));
+    static const QRegularExpression token(QStringLiteral("\\{\\{ [a-z_]+ \\}\\}"));
+    rendered.replace(token, QStringLiteral("#565f89"));
+
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("omaweb.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(rendered.toUtf8());
+    theme.close();
+    QCOMPARE(QColor(ThemeController(theme.fileName())
+                     .palette()
+                     .value(QStringLiteral("agentAccent"))
+                     .toString()),
+        QColor(QStringLiteral("#2ac3de")));
 }
 
 // QFontDatabase needs a GUI application, so this suite is no longer guiless.

@@ -5016,6 +5016,15 @@ void QtEngineContractTest::qtAgentFillsAndSubmitsAFormInOneBatch()
     QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
         QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
     QCOMPARE(answer.value(QStringLiteral("steps")).toArray().size(), 5);
+    // Each step says what the page calls the element it reached, which is how
+    // the reader is told the Agent's last act.
+    QStringList reached;
+    for (const auto &step : answer.value(QStringLiteral("steps")).toArray()) {
+        reached.append(step.toObject().value(QStringLiteral("name")).toString());
+    }
+    QCOMPARE(reached,
+        QStringList({QStringLiteral("Email"), QStringLiteral("Name"), QStringLiteral("Country"),
+            QStringLiteral("I agree"), QStringLiteral("Sign up")}));
     // The reader's page kept their keyboard through all of it.
     QVERIFY(page.reader->property("pageHasFocus").toBool());
     QVERIFY(!page.adapter->property("pageHasFocus").toBool());

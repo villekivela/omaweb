@@ -1451,6 +1451,31 @@ ApplicationWindow {
     readonly property var agentActivitySource: !window.privateWindow && typeof agentActivity
                                                !== "undefined" ? agentActivity : null
 
+    // Each Agent tab by id, with its Space, the connection's name, its last
+    // act and whether a command is in flight, for the marks on the row, the
+    // page and the Space. It is read from the page area's control, which
+    // holds this window's Agent rules.
+    // A Private window is never an Agent's, so it has nothing to mark.
+    readonly property var agentTabActivity: !window.privateWindow && engineLoader.agentControl
+                                            && engineLoader.agentControl.agentActivity
+                                            ? engineLoader.agentControl.agentActivity : ({})
+    // The Spaces an Agent made that the reader has not taken over. A Private
+    // window has no Spaces, and its controller lists none.
+    readonly property var agentSpaceIds: window.windowBrowser.agentSpaceIds
+    readonly property bool agentSpaceOnShow: window.agentSpaceIds.indexOf(
+                                                 window.windowBrowser.activeSpaceId) >= 0
+    // The Agent Space whose notice the reader dismissed, for as long as it
+    // stays on show: opening it again asks again.
+    property string dismissedAgentSpaceId: ""
+
+    // Taking an Agent Space over removes its mark and, for a temporary one,
+    // keeps it after the connection that made it closes.
+    function takeOverSpace() {
+        if (!window.agentSpaceOnShow)
+            return false;
+        return window.windowBrowser.takeOverSpace(window.windowBrowser.activeSpaceId);
+    }
+
     // `omaweb commands` and `omaweb run` reach this window's command registry,
     // and only the ordinary window's.
     Connections {
@@ -2581,6 +2606,8 @@ ApplicationWindow {
                 browser: window.windowBrowser
                 keyMap: keymap
                 keyLabelsShown: PrimaryHold.held && !window.settingsOpen
+                agentActivity: window.agentTabActivity
+                agentSpaceIds: window.agentSpaceIds
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
@@ -2950,6 +2977,43 @@ ApplicationWindow {
                              !engineLoader.siteFullscreenActive
                 }
 
+                // Each pane of the page area that shows an Agent tab is framed,
+                // the tab beside a split's active one included.
+                AgentPageFrame {
+                    id: agentFrame
+                    objectName: "agentFrame"
+                    x: engineLoader.x + engineLoader.activePaneX
+                    y: engineLoader.y
+                    width: engineLoader.activePaneWidth
+                    height: engineLoader.height
+                    z: 20
+                    colors: window.colors
+                    agent: window.agentTabActivity[window.windowBrowser.activeTabId] || null
+                    // Below the Agent Space's notice while it stands.
+                    labelTop: agentSpaceBar.height
+                    visible: agent !== null && !window.startPageShown && !window.settingsOpen &&
+                             !window.historyOpen && !window.shortcutsOpen && !window.glanceOpen &&
+                             !engineLoader.siteFullscreenActive
+                }
+
+                AgentPageFrame {
+                    id: besideAgentFrame
+                    objectName: "besideAgentFrame"
+                    x: engineLoader.x + engineLoader.besidePaneX
+                    y: engineLoader.y
+                    width: engineLoader.besidePaneWidth
+                    height: engineLoader.height
+                    z: 20
+                    colors: window.colors
+                    agent: window.agentTabActivity[engineLoader.tabBesideId] || null
+                    // Below the Agent Space's notice while it stands.
+                    labelTop: agentSpaceBar.height
+                    visible: engineLoader.splitOnShow && agent !== null && !window.startPageShown
+                             && !window.settingsOpen && !window.historyOpen &&
+                             !window.shortcutsOpen && !window.glanceOpen &&
+                             !engineLoader.siteFullscreenActive
+                }
+
                 DeveloperToolsDock {
                     id: developerToolsDock
                     objectName: "developerToolsDock"
@@ -3222,6 +3286,71 @@ ApplicationWindow {
                     z: 42
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
+                }
+
+                // An Agent made the Space on show. The reader can take it over,
+                // which removes the mark and keeps the Space, or put the notice
+                // away until the Space is opened again. It leaves the keyboard
+                // where it was: a Space switch hands it to the page, and the
+                // `take-over-space` command reaches the same answer.
+                PageQuestionBar {
+                    id: agentSpaceBar
+                    objectName: "agentSpaceBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 39
+                    focus: false
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    open: window.agentSpaceOnShow && window.dismissedAgentSpaceId
+                          !== window.windowBrowser.activeSpaceId
+                    glyph: "smart_toy"
+                    readonly property string creator: agentSpaceBar.open
+                                                      ? window.windowBrowser.agentSpaceCreator(
+                                                            window.windowBrowser.activeSpaceId) : ""
+                    readonly property bool temporary: agentSpaceBar.open
+                                                      && window.windowBrowser.temporarySpace(
+                                                          window.windowBrowser.activeSpaceId)
+                    message: (agentSpaceBar.creator.length > 0 ? agentSpaceBar.creator :
+                                                                 "An Agent") + " made this Space"
+                    detail: agentSpaceBar.temporary
+                            ? "It goes when the Agent's connection closes. Take it over to keep it." :
+                              "Take it over to make it yours."
+                    actions: [
+                        {
+                            "label": "Take over"
+                        },
+                        {
+                            "label": "Dismiss"
+                        }
+                    ]
+
+                    // The page under the notice is blurred, so it is not read
+                    // through the notice's translucent ground. The notice's own
+                    // fill and accent edge are drawn over it.
+                    PageBackdrop {
+                        objectName: "agentSpaceBarBackdrop"
+                        anchors.fill: parent
+                        z: -1
+                        source: window.startPageShown ? startPage : (window.pagelessViewport ? null :
+                                                                                               engineLoader)
+                    }
+
+                    onActionTriggered: function (index) {
+                        if (index === 0)
+                            window.takeOverSpace();
+                        else
+                            window.dismissedAgentSpaceId = window.windowBrowser.activeSpaceId;
+                    }
+
+                    Connections {
+                        target: window.windowBrowser
+                        function onActiveSpaceChanged() {
+                            if (window.dismissedAgentSpaceId !== window.windowBrowser.activeSpaceId)
+                                window.dismissedAgentSpaceId = "";
+                        }
+                    }
                 }
 
                 PageQuestionBar {
@@ -3783,6 +3912,7 @@ ApplicationWindow {
 
         AuxiliaryWindow {
             engineSource: engineViewSource
+            colors: window.colors
             permissionController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker

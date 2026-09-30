@@ -407,6 +407,13 @@ A tab an Agent opened or used a page verb on in the last five minutes is an Agen
 to say an Agent is still at work, and a tab left alone that long stops costing a rendered page until
 the next verb. Closing the tab or turning Allow agents off ends it at once.
 
+`AgentControl.agentActivity` reports each Agent tab's Space, the name of the connection that last
+used it, its last act in words and whether one of its page verbs is in flight. The act is told from
+what the verb did: a `do` batch reports its last step that succeeded, named by the element the page
+reached, so a click reads as `clicked "Files changed"` rather than by its label. The sidebar, the
+page frame and the footer draw their marks from it, and `BrowserController.agentSpaceIds` names the
+Agent Spaces the reader has not taken over.
+
 The page area keeps an Agent tab's engine running wherever its Space is. It builds one through the
 tab's row in the Space on show, so the sidebar hears the page change, and as a retained tab's is in
 a Space that is away. While the reader is not looking at it, the engine stays visible to QtWebEngine
