@@ -112,7 +112,7 @@ void PageImagesTest::scrollsAScreenfulAtATimeAndEndsAtTheBottom()
     const PageImages images;
     QCOMPARE(images.stripTops(250, 100), QVariantList({0.0, 100.0, 150.0}));
     QCOMPARE(images.stripTops(300, 100), QVariantList({0.0, 100.0, 200.0}));
-    QCOMPARE(images.stripTops(80, 100), QVariantList({0.0}));
+    QCOMPARE(images.stripTops(80, 100), QVariantList {0.0});
     QCOMPARE(images.stripTops(250, 0), QVariantList());
 }
 
