@@ -483,6 +483,7 @@ void Downloads::forgetSpace(const QString &spaceId)
     if (m_store) {
         m_store->forgetSpaceDownloads(spaceId);
     }
+    auto removed = false;
     for (auto index = m_rows.size() - 1; index >= 0; --index) {
         if (m_rows.at(index).spaceId != spaceId) {
             continue;
@@ -490,9 +491,12 @@ void Downloads::forgetSpace(const QString &spaceId)
         beginRemoveRows({}, static_cast<int>(index), static_cast<int>(index));
         m_rows.removeAt(index);
         endRemoveRows();
+        removed = true;
     }
-    emit countChanged();
-    emit activityChanged();
+    if (removed) {
+        emit countChanged();
+        emit activityChanged();
+    }
 }
 
 QString Downloads::fileNameOf(const QString &path)
