@@ -31,6 +31,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QImage>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
 #include <QQmlContext>
@@ -154,6 +155,57 @@ public:
     Q_INVOKABLE int shape(QWindow *window) const { return window->cursor().shape(); }
 };
 
+// The window losing the keyboard to another one. The offscreen platform has no
+// other window to hand it to, so the event the compositor's would cause is sent.
+class WindowFocusProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE void deactivate(QWindow *window) const
+    {
+        QEvent deactivate(QEvent::WindowDeactivate);
+        QCoreApplication::sendEvent(window, &deactivate);
+    }
+};
+
+// A browser key the reader moves in their keybindings file, and the keymap
+// reading the file again as it does after a Sync.
+class KeymapProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    KeymapProbe(omaweb::KeyboardNavigation *keymap, QString path)
+        : m_keymap(keymap)
+        , m_path(std::move(path))
+    {
+    }
+    Q_INVOKABLE bool rebind(const QString &from, const QString &to)
+    {
+        QFile file(m_path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            return false;
+        }
+        auto configuration = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        auto browser = configuration.value(QStringLiteral("browser")).toObject();
+        if (!browser.contains(from)) {
+            return false;
+        }
+        browser.insert(to, browser.take(from));
+        configuration.insert(QStringLiteral("browser"), browser);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            return false;
+        }
+        file.write(QJsonDocument(configuration).toJson());
+        file.close();
+        return m_keymap->reload();
+    }
+
+private:
+    omaweb::KeyboardNavigation *m_keymap;
+    QString m_path;
+};
+
 // An Agent Space, which only the Agent socket makes in the browser.
 class AgentSpaceProbe final : public QObject {
     Q_OBJECT
@@ -274,6 +326,7 @@ public slots:
         QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
         QFile::setPermissions(keybindingsPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
         m_keyboardNavigation = std::make_unique<omaweb::KeyboardNavigation>(keybindingsPath);
+        m_keymapProbe = std::make_unique<KeymapProbe>(m_keyboardNavigation.get(), keybindingsPath);
         m_theme = std::make_unique<omaweb::ThemeController>(QStringLiteral(OMAWEB_THEME_PATH));
         // A config root of its own, so a test can set a size and the reader's
         // configuration never learns of it.
@@ -330,6 +383,10 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(QStringLiteral("imageProbe"), m_imageProbe.get());
         engine->rootContext()->setContextProperty(QStringLiteral("cursorProbe"), &m_cursorProbe);
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("windowFocusProbe"), &m_windowFocusProbe);
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("keymapProbe"), m_keymapProbe.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("fontSettings"), m_fontSettings.get());
         // These tests run no engine, so there is nothing to draw a page's
@@ -407,6 +464,7 @@ public slots:
         m_contentBlocker.reset();
         m_secureDns.reset();
         m_httpsOnly.reset();
+        m_keymapProbe.reset();
         m_keyboardNavigation.reset();
         m_imageProbe.reset();
         m_dataRoot.reset();
@@ -415,6 +473,7 @@ public slots:
 private:
     SyncLauncherProbe m_syncLauncher;
     CursorProbe m_cursorProbe;
+    WindowFocusProbe m_windowFocusProbe;
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<AgentSpaceProbe> m_agentSpaceProbe;
@@ -425,6 +484,7 @@ private:
     EngineSecureDnsProbe m_engineSecureDns;
     std::unique_ptr<omaweb::HttpsOnly> m_httpsOnly;
     std::unique_ptr<omaweb::KeyboardNavigation> m_keyboardNavigation;
+    std::unique_ptr<KeymapProbe> m_keymapProbe;
     std::unique_ptr<omaweb::ThemeController> m_theme;
     std::unique_ptr<omaweb::FontSettings> m_fontSettings;
     std::unique_ptr<omaweb::KitTheme> m_kitTheme;

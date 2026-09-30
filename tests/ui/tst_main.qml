@@ -3086,8 +3086,14 @@ TestCase {
         settleMotion();
         const order = sidebarOrder();
         verify(order.indexOf(pinId) < order.indexOf(firstId));
+        window.commands.run("focus-page", -1);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        const shownPage = engineHost.item;
+        const typed = shownPage.keyboardInput;
 
-        window.commands.run("focus-sidebar", -1);
+        keyClick(Qt.Key_E, Qt.ControlModifier);
         compare(cursorTabId(), secondId);
         verify(cursorDrawnOn(secondId));
 
@@ -3110,6 +3116,8 @@ TestCase {
         for (let step = order.indexOf(pinId); step < order.length - 1; ++step)
             keyClick(Qt.Key_K);
         compare(cursorTabId(), pinId);
+        // The keys went to the sidebar and none of them to the page.
+        compare(shownPage.keyboardInput, typed);
 
         for (let step = order.indexOf(pinId); step < order.indexOf(firstId); ++step)
             keyClick(Qt.Key_J);
@@ -3125,6 +3133,17 @@ TestCase {
         keyClick(Qt.Key_J);
         verify(cursorTabId() !== firstId);
         keyClick(Qt.Key_H);
+        compare(cursorTabId(), firstId);
+
+        // Opening the tab already on show changes no page, and still hands the
+        // keyboard over.
+        keyClick(Qt.Key_L);
+        compare(browser.activeTabId, firstId);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        verify(!cursorDrawnOn(firstId));
+        window.commands.run("focus-sidebar", -1);
         compare(cursorTabId(), firstId);
 
         // A press on a row focuses it, but a hand on the mouse is not steering
@@ -3259,6 +3278,32 @@ TestCase {
         keyRelease(Qt.Key_Control);
         verify(!label.visible);
 
+        // A key the reader moves is labelled where it now is.
+        const collapseLabel = findChild(window.contentItem, "keyLabel-collapseButton");
+        verify(keymapProbe.rebind("Primary+B", "Primary+Y"));
+        keyPress(Qt.Key_Control);
+        tryVerify(function () {
+            return collapseLabel.visible;
+        });
+        compare(collapseLabel.text, "Y");
+        verify(collapseLabel.chord);
+        keyRelease(Qt.Key_Control);
+        verify(keymapProbe.rebind("Primary+Y", "Primary+B"));
+
+        // The window losing the keyboard takes the labels with it, though
+        // Primary never came up in it.
+        keyPress(Qt.Key_Control);
+        tryVerify(function () {
+            return label.visible;
+        });
+        windowFocusProbe.deactivate(window);
+        verify(!label.visible);
+        keyRelease(Qt.Key_Control);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
         window.commands.run("focus-page", -1);
         browser.closeTab(browser.activeTabId);
         if (browser.activeTabId !== firstId)
@@ -3271,6 +3316,7 @@ TestCase {
     function test_aSpaceSwitchNamesTheSpaceAtTheTopOfThePage() {
         const outline = findChild(window.contentItem, "sidebar");
         const notice = findChild(window.contentItem, "spaceNotice");
+        const viewport = findChild(window.contentItem, "engineViewport");
         verify(notice !== null);
         window.settingsOpen = false;
         window.sidebarCollapsed = false;
@@ -3290,17 +3336,23 @@ TestCase {
 
         const otherId = browser.createSpace("Notice Space");
         verify(browser.switchSpace(otherId));
-        tryVerify(function () {
-            return notice.visible;
-        });
-        compare(notice.text, "Notice Space");
         const places = [];
         while (outline.arriving) {
             places.push(notice.mapToItem(window.contentItem, 0, 0).x);
             wait(10);
         }
+        verify(places.length > 1);
         for (let index = 1; index < places.length; ++index)
             compare(places[index], places[0]);
+        tryVerify(function () {
+            return notice.visible;
+        });
+        compare(notice.text, "Notice Space");
+
+        // It stands at the top of the page, over the middle of it.
+        const place = notice.mapToItem(viewport, 0, 0);
+        verify(place.y >= 0 && place.y < 24, place.y);
+        fuzzyCompare(place.x + notice.width / 2, viewport.width / 2, 1);
         compare(window.title, browser.activeTitle + " — Notice Space — Omaweb");
         tryVerify(function () {
             return !notice.visible;
@@ -3319,6 +3371,31 @@ TestCase {
         window.easeChrome = true;
 
         verify(browser.deleteSpace(otherId, "Notice Space"));
+    }
+
+    // A Private window has no Space to name: its title says only what it is,
+    // and it never shows a Space notice, since it cannot be switched to
+    // another Space.
+    function test_aPrivateWindowNamesNoSpace() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const notice = findChild(privateBrowser.contentItem, "spaceNotice");
+        verify(notice !== null);
+
+        privateBrowser.windowBrowser.openInput("https://private-title.example", false);
+        tryVerify(function () {
+            return privateBrowser.windowBrowser.activeTitle.length > 0;
+        });
+        compare(privateBrowser.title, "Private — Omaweb");
+        compare(privateBrowser.windowBrowser.createSpace("Private Space"), "");
+        verify(!notice.visible);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        tryVerify(function () {
+            return window.privateWindows.length === 0;
+        });
     }
 
     // The keyboard moves between the regions on screen by direction: the

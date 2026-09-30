@@ -17,9 +17,12 @@ Rectangle {
     readonly property alias text: name.text
     // How far above its place the notice is, while it comes and goes.
     property real drop: 0
+    // Where it comes from and goes back to: above its place, or at it when the
+    // ease is refused.
+    readonly property real rise: ease ? -8 : 0
 
     function show() {
-        root.drop = root.ease ? -8 : 0;
+        root.drop = root.rise;
         showing.restart();
     }
 
@@ -74,7 +77,7 @@ Rectangle {
             NumberAnimation {
                 target: root
                 property: "drop"
-                to: root.ease ? -8 : 0
+                to: root.rise
                 duration: 120
                 easing.type: Easing.InCubic
             }

@@ -2752,12 +2752,8 @@ ApplicationWindow {
                 }
             }
 
-            // The Space notice: a switch names the Space it arrived in at the
-            // top of the page, where the reader is looking, since the footer
-            // names it only with a letter. It comes down from the top edge as
-            // a page notice does and goes back up. It belongs to the row
-            // rather than to the page, so the page's own arrival does not
-            // carry it: it stands over the middle of where the page settles.
+            // The Space notice belongs to the row rather than to the page, so
+            // the page's own arrival does not carry it.
             SpaceNotice {
                 id: spaceNotice
                 objectName: "spaceNotice"
