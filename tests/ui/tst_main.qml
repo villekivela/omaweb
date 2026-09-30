@@ -14,6 +14,8 @@ TestCase {
     // own cannot name it: the declaration shadows the context.
     readonly property var browserController: browser
     readonly property var syncLauncherContext: syncLauncher
+    // The Agent activity log, as the window finds it by name.
+    readonly property var agentActivityContext: agentActivity
 
     // The page's width, counted rather than sampled: what a layout costs is
     // paid once per width the viewport is given.
@@ -4203,6 +4205,15 @@ TestCase {
         verify(!bar.open);
         verify(!window.commands.available("take-over-space"));
         endAgentDrive(drive);
+    }
+
+    // The window reads the Agent activity log by its context name, so nothing
+    // of the window's own may take that name: a property called
+    // `agentActivity` would be what the window found instead of the log.
+    function test_theActivityLogIsNotHiddenByTheWindowsOwnNames() {
+        verify(agentActivityContext !== null && agentActivityContext !== undefined);
+        verify(window.agentActivitySource === agentActivityContext);
+        compare(window.agentActivity, undefined);
     }
 
     // Agents drive Spaces, and a Private window is not one: whatever the page
