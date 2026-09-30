@@ -142,11 +142,15 @@ public:
 
     // A line an Agent tab's page wrote to its console, at the engine's level
     // (0 info, 1 warning, 2 error), for `console`. `document` changes when the
-    // tab loads another document, or its page is built again. A tab that is not an Agent tab is not
-    // listened to, and a tab's lines are forgotten when it stops being one.
-    // The page area passes only the page's own lines, never Omaweb's reports.
+    // tab loads another document, or its page is built again. A tab that is
+    // not an Agent tab is not listened to, and a tab's lines are forgotten
+    // when it stops being one. The page area passes only the page's own
+    // lines, never Omaweb's reports.
     Q_INVOKABLE void recordConsoleMessage(const QString &tabId, const QString &document, int level,
         const QString &message, const QString &source, int line);
+    // An Agent tab's page has gone on to `document`, named as for
+    // `recordConsoleMessage`, whether or not it says anything.
+    Q_INVOKABLE void startConsoleDocument(const QString &tabId, const QString &document);
 
     QStringList agentTabIds() const;
     // What the interface needs to build an Agent tab's page: `tabId`,

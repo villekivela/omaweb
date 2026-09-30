@@ -371,8 +371,9 @@ opens is the Agent's too: `do` prints `Opened window-1`, `tabs` lists it, and `-
 points the page commands at it. `shot` prints the path it wrote, in `shots/` beside the socket;
 `--output` names the `.png` file there and takes no directory. `console` prints what the page has
 written to its console since its document loaded, one line each as level, source and line, and text,
-then `cursor` and a number to pass as `--since` for only what comes after. `--level warning` keeps
-warnings and errors, and `--level error` errors alone.
+with the text's own line breaks and tabs written as `\n`, `\r` and `\t`, then `cursor` and a number
+to pass as `--since` for only what comes after. `--level warning` keeps warnings and errors, and
+`--level error` errors alone.
 
 ```sh
 omaweb space new Checks

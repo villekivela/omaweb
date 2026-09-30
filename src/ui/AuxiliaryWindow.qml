@@ -121,6 +121,11 @@ ApplicationWindow {
                                                                 document), level, message, sourceId,
                                                             lineNumber);
         }
+        function onPageGenerationChanged() {
+            if (auxiliary.agentDriven)
+                auxiliary.agentControl.startConsoleDocument(auxiliary.agentWindowId, String(
+                                                                engineLoader.item.pageGeneration));
+        }
     }
 
     Connections {

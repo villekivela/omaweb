@@ -132,6 +132,13 @@ namespace {
             .left(maximumAddressLength);
     }
 
+    // Whether a verb is about one tab's page: a page verb, or `console`, which
+    // the core answers from what that page has logged.
+    bool readsTab(const QString &verb)
+    {
+        return AgentControl::pageVerb(verb) || verb == u"console";
+    }
+
 } // namespace
 
 AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObject *parent)
@@ -237,7 +244,7 @@ void AgentControl::apply(bool allowed)
 
 bool AgentControl::gated(const QString &verb)
 {
-    return verb == u"space new" || verb == u"space delete" || pageVerb(verb) || verb == u"console";
+    return verb == u"space new" || verb == u"space delete" || readsTab(verb);
 }
 
 bool AgentControl::pageVerb(const QString &verb)
@@ -751,7 +758,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
     }
     if (gated(verb) && !m_allowAgents) {
         return refusal(QStringLiteral("allow-agents"),
-            pageVerb(verb) || verb == u"console"
+            readsTab(verb)
                 ? QStringLiteral("Allow agents is off. The reader must turn it on before an Agent "
                                  "can read or drive a page.")
                 : QStringLiteral("Allow agents is off. The reader must turn it on before an Agent "
@@ -948,7 +955,7 @@ AgentControl::ActivityScope AgentControl::activityScope(
     QString tabId;
     if (verb == u"focus") {
         tabId = request.value(QStringLiteral("target")).toString();
-    } else if (pageVerb(verb) || verb == u"console" || verb == u"close"
+    } else if (readsTab(verb) || verb == u"close"
         || (verb == u"open" && request.value(QStringLiteral("space")).toString().isEmpty()
             && !request.value(QStringLiteral("new")).toBool())) {
         tabId = request.value(QStringLiteral("tab")).toString();
@@ -1308,6 +1315,11 @@ void AgentControl::recordConsoleMessage(const QString &tabId, const QString &doc
         return;
     }
     m_console.record(tabId, document, level, message, source, line);
+}
+
+void AgentControl::startConsoleDocument(const QString &tabId, const QString &document)
+{
+    m_console.start(tabId, document);
 }
 
 // Checked before whether the Agent may read the page at all, so that nothing

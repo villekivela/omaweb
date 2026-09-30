@@ -3664,7 +3664,28 @@ TestCase {
                 });
                 closedWindows = closedWindows.concat([windowId]);
             }
-            function recordConsoleMessage() {
+            // What the page area passed on from each page's console.
+            property var consoleMessages: []
+            property var consoleDocuments: []
+            function recordConsoleMessage(tabId, document, level, message, source, line) {
+                consoleMessages = consoleMessages.concat([
+                                                             {
+                                                                 "tabId": tabId,
+                                                                 "document": document,
+                                                                 "level": level,
+                                                                 "message": message,
+                                                                 "source": source,
+                                                                 "line": line
+                                                             }
+                                                         ]);
+            }
+            function startConsoleDocument(tabId, document) {
+                consoleDocuments = consoleDocuments.concat([
+                                                               {
+                                                                   "tabId": tabId,
+                                                                   "document": document
+                                                               }
+                                                           ]);
             }
             // How many times each request was answered: the core hears the
             // first answer only, so a second is a page answering for another.
@@ -3743,6 +3764,18 @@ TestCase {
         compare(engineOf(opened).agentOwned, true);
         compare(engineOf(opened).agentDownloadDirectory, "/downloads/Agents/test");
         compare(engineOf(opened).pageTakesFocus, false);
+        // Its console is the Agent's too, under the window's id, and a new
+        // document there starts again.
+        engineOf(opened).pageConsoleMessage(2, "popup", 1, "", engineOf(opened).pageGeneration);
+        const popupSaid = control.consoleMessages[control.consoleMessages.length - 1];
+        compare(popupSaid.tabId, "window-1");
+        compare(popupSaid.message, "popup");
+        const documentsBefore = control.consoleDocuments.length;
+        engineOf(opened).currentUrl = "https://sign-in.example/next";
+        compare(control.consoleDocuments.length, documentsBefore + 1);
+        compare(control.consoleDocuments[documentsBefore].tabId, "window-1");
+        compare(control.consoleDocuments[documentsBefore].document, String(engineOf(
+                                                                               opened).pageGeneration));
 
         control.pageRequested(21, {
                                   "verb": "look",
@@ -3894,6 +3927,71 @@ TestCase {
         compare(rebuilt.opacity, 1);
         tryCompare(rebuilt, "pageFrozen", false);
         control.destroy();
+    }
+
+    // What an Agent tab's page says to its console reaches the core, named by
+    // the tab and a document that a page built again does not share with the
+    // one before. A new document is announced even when its page says
+    // nothing, so the last page's lines are not read as the new one's, and a
+    // reader's own page is not passed on.
+    function test_anAgentTabsConsoleReachesTheCore() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+        const readerEngine = openPage("https://reader-console.example/");
+        const agentEngine = openPageInNewTab("https://agent-console.example/");
+        const agentTabId = browser.activeTabId;
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": browser.activeSpaceId,
+            "url": "https://agent-console.example/"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        control.agentTabsChanged();
+        try {
+            readerEngine.pageConsoleMessage(2, "reader", 1, "https://reader-console.example/",
+                                            readerEngine.pageGeneration);
+            compare(control.consoleMessages.length, 0);
+
+            agentEngine.pageConsoleMessage(2, "boom", 7, "https://agent-console.example/app.js",
+                                           agentEngine.pageGeneration);
+            compare(control.consoleMessages.length, 1);
+            const said = control.consoleMessages[0];
+            compare(said.tabId, agentTabId);
+            compare(said.level, 2);
+            compare(said.message, "boom");
+            compare(said.source, "https://agent-console.example/app.js");
+            compare(said.line, 7);
+            const serial = said.document.split(":")[0];
+            verify(serial.length > 0);
+            compare(said.document, serial + ":" + agentEngine.pageGeneration);
+
+            compare(control.consoleDocuments.length, 0);
+            verify(openPage("https://agent-console.example/quiet") === agentEngine);
+            verify(control.consoleDocuments.length > 0);
+            const started = control.consoleDocuments[control.consoleDocuments.length - 1];
+            compare(started.tabId, agentTabId);
+            compare(started.document, serial + ":" + agentEngine.pageGeneration);
+
+            engineLoader.discardEngine(agentTabId);
+            tryVerify(function () {
+                return engineLoader.engines[agentTabId] !== undefined;
+            });
+            const rebuilt = engineLoader.engines[agentTabId];
+            verify(rebuilt !== agentEngine);
+            rebuilt.pageConsoleMessage(1, "rebuilt", 1, "", rebuilt.pageGeneration);
+            const last = control.consoleMessages[control.consoleMessages.length - 1];
+            compare(last.message, "rebuilt");
+            verify(last.document.split(":")[0] !== serial);
+        } finally {
+            control.agentTabIds = [];
+            control.agentTabsChanged();
+            engineLoader.agentControl = null;
+            control.destroy();
+            browser.closeTab(agentTabId);
+        }
     }
 
     // The two exceptions to that policy, and nothing else: a Pinned tab the

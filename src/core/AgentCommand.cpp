@@ -1,5 +1,7 @@
 #include "AgentCommand.h"
 
+#include "AgentConsole.h"
+
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -38,6 +40,14 @@ namespace {
     constexpr int grantAnswerTimeoutMs = 60000;
 
     const auto fallbackName = QStringLiteral("agent");
+
+    // The levels `console --level` takes, which the socket reads the same way.
+    // Written out on the command line, so an empty one is a mistake.
+    bool namesConsoleLevel(const QString &name)
+    {
+        auto level = AgentConsole::Info;
+        return !name.isEmpty() && AgentConsole::parseThreshold(name, &level);
+    }
 
     struct Grammar {
         // The options this verb takes a value for, and those it takes alone.
@@ -593,8 +603,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
                 return command;
             }
             request.insert(option, static_cast<double>(cursor));
-        } else if (option == u"level" && value != u"error" && value != u"warning"
-            && value != u"all") {
+        } else if (option == u"level" && !namesConsoleLevel(value)) {
             command.error = QStringLiteral("--level is error, warning or all.");
             return command;
         } else {
@@ -659,8 +668,9 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
 namespace {
 
     // One message a line: its level, where it was logged, and what it said,
-    // with its own line breaks written out so each stays one line. The last
-    // line is the cursor to pass as `--since` next time.
+    // with its own line breaks and tabs written out so each stays one line of
+    // three fields. The last line is the cursor to pass as `--since` next
+    // time.
     QString formatConsole(const QJsonObject &answer)
     {
         QString text;
@@ -670,7 +680,10 @@ namespace {
         for (const auto &value : answer.value(QStringLiteral("messages")).toArray()) {
             const auto message = value.toObject();
             auto said = message.value(QStringLiteral("message")).toString();
-            said.replace(u'\\', QStringLiteral("\\\\")).replace(u'\n', QStringLiteral("\\n"));
+            said.replace(u'\\', QStringLiteral("\\\\"))
+                .replace(u'\n', QStringLiteral("\\n"))
+                .replace(u'\r', QStringLiteral("\\r"))
+                .replace(u'\t', QStringLiteral("\\t"));
             const auto line = message.value(QStringLiteral("line")).toInt();
             const auto source = message.value(QStringLiteral("source")).toString();
             text += message.value(QStringLiteral("level")).toString() + u'\t'
