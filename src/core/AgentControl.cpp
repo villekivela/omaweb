@@ -14,6 +14,7 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 #include <QUuid>
@@ -141,6 +142,20 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
     m_clock.start();
     m_idleCheck.setInterval(idleCheckMs);
     connect(&m_idleCheck, &QTimer::timeout, this, &AgentControl::detachIdle);
+    if (m_browser) {
+        connect(m_browser, &BrowserController::spaceGrantsChanged, this,
+            &AgentControl::grantedSpacesChanged);
+        // A Space the reader renames is listed and asked about by its new
+        // name, and one they delete is no longer asked about.
+        const auto *spaces = m_browser->spaces();
+        for (const auto renamed :
+            {&AgentControl::grantedSpacesChanged, &AgentControl::grantRequestChanged}) {
+            connect(spaces, &QAbstractItemModel::dataChanged, this, renamed);
+            connect(spaces, &QAbstractItemModel::modelReset, this, renamed);
+        }
+        connect(spaces, &QAbstractItemModel::rowsRemoved, this, &AgentControl::dropGoneGrants);
+        connect(spaces, &QAbstractItemModel::modelReset, this, &AgentControl::dropGoneGrants);
+    }
     // Only an explicit `true` lets Agents in.
     m_allowAgents = PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false);
     if (m_configRoot.isEmpty()) {
@@ -184,6 +199,9 @@ void AgentControl::apply(bool allowed)
     }
     m_allowAgents = allowed;
     if (!allowed) {
+        while (!m_pendingGrants.isEmpty()) {
+            finishGrant(m_pendingGrants.constFirst().spaceId, GrantAnswer::Withdrawn);
+        }
         for (auto &connection : m_connections) {
             connection.currentTabId.clear();
         }
@@ -299,6 +317,220 @@ const QStringList &AgentControl::publicCommands()
 bool AgentControl::commandTakesPosition(const QString &command)
 {
     return command == u"select-tab" || command == u"select-space";
+}
+
+QVariantMap AgentControl::grantRequest() const
+{
+    if (m_pendingGrants.isEmpty()) {
+        return {};
+    }
+    const auto &pending = m_pendingGrants.constFirst();
+    return {
+        {QStringLiteral("spaceId"), pending.spaceId},
+        {QStringLiteral("spaceName"), spaceName(pending.spaceId)},
+        {QStringLiteral("name"), pending.name},
+    };
+}
+
+void AgentControl::answerGrant(const QString &spaceId, bool allowed)
+{
+    const auto asked = std::any_of(m_pendingGrants.cbegin(), m_pendingGrants.cend(),
+        [&spaceId](const PendingGrant &pending) { return pending.spaceId == spaceId; });
+    if (!asked) {
+        return;
+    }
+    if (!allowed) {
+        finishGrant(spaceId, GrantAnswer::Denied);
+        return;
+    }
+    finishGrant(spaceId,
+        m_allowAgents && m_browser->grantSpace(spaceId) ? GrantAnswer::Allowed
+                                                        : GrantAnswer::Failed);
+}
+
+QVariantList AgentControl::grantedSpaces() const
+{
+    QVariantList spaces;
+    if (!m_browser) {
+        return spaces;
+    }
+    for (const auto &spaceId : m_browser->grantedSpaceIds()) {
+        spaces.append(QVariantMap {
+            {QStringLiteral("spaceId"), spaceId},
+            {QStringLiteral("spaceName"), spaceName(spaceId)},
+        });
+    }
+    return spaces;
+}
+
+// The Space's pages are the reader's again from this moment, so nothing an
+// Agent started there is let finish, and no Agent tab of it stays rendered.
+bool AgentControl::revokeGrant(const QString &spaceId)
+{
+    if (!m_browser || !m_browser->revokeSpaceGrant(spaceId)) {
+        return false;
+    }
+    const auto name = spaceName(spaceId);
+    QSet<QString> inSpace;
+    for (const auto &tab : m_browser->spaceTabs(spaceId)) {
+        inSpace.insert(tab.id);
+    }
+    const auto reached = [this, &inSpace](const QString &target) {
+        return !target.isEmpty() && inSpace.contains(openerOf(target));
+    };
+
+    QSet<QString> users;
+    for (auto it = m_tabConnections.cbegin(); it != m_tabConnections.cend(); ++it) {
+        if (inSpace.contains(it.key())) {
+            users.insert(it.value());
+        }
+    }
+    for (auto it = m_connections.begin(); it != m_connections.end(); ++it) {
+        if (users.contains(it.key()) || reached(it->currentTabId)) {
+            it->currentTabId.clear();
+            it->revokedSpaceName = name;
+        }
+    }
+
+    QStringList cancelled;
+    QList<Reply> refused;
+    for (auto it = m_pendingPages.begin(); it != m_pendingPages.end();) {
+        if (!reached(it->tabId)) {
+            ++it;
+            continue;
+        }
+        it->deadline->stop();
+        it->deadline->deleteLater();
+        removeUntakenShot(*it);
+        cancelled.append(it->tabId);
+        refused.append(it->reply);
+        it = m_pendingPages.erase(it);
+    }
+
+    QStringList leaving;
+    for (auto it = m_attached.cbegin(); it != m_attached.cend(); ++it) {
+        if (inSpace.contains(it.key())) {
+            leaving.append(it.key());
+        }
+    }
+    for (const auto &tabId : std::as_const(leaving)) {
+        detach(tabId);
+    }
+    if (!cancelled.isEmpty()) {
+        emit pageRequestsCancelledIn(cancelled);
+    }
+    for (const auto &reply : std::as_const(refused)) {
+        reply(refusal(QStringLiteral("revoked"),
+            QStringLiteral("The reader revoked the grant to Space \"%1\", so the page was left "
+                           "as it was.")
+                .arg(name)));
+    }
+    return true;
+}
+
+void AgentControl::setGrantAnswerMs(int milliseconds) { m_grantAnswerMs = milliseconds; }
+
+QString AgentControl::spaceNeedingGrant(
+    const QString &verb, const Connection &connection, const QJsonObject &request) const
+{
+    if (!m_allowAgents) {
+        return {};
+    }
+    QString tabId;
+    if (verb == u"open") {
+        // A tab an Agent opened is its to load whatever the Space.
+        tabId = tabToLoad(connection, request);
+        if (m_openedTabIds.contains(tabId)) {
+            return {};
+        }
+    } else if (pageVerb(verb) || verb == u"console") {
+        tabId = openerOf(targetId(connection, request));
+    }
+    if (tabId.isEmpty()) {
+        return {};
+    }
+    const auto tab = m_browser->findTab(
+        tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
+    // A Pinned tab's address is refused whatever the reader would answer.
+    if (!tab || usableSpace(tab->spaceId) || (verb == u"open" && tab->pinned)) {
+        return {};
+    }
+    return tab->spaceId;
+}
+
+QString AgentControl::tabToLoad(const Connection &connection, const QJsonObject &request)
+{
+    const auto tabName = request.value(QStringLiteral("tab")).toString();
+    // An Auxiliary window is the page's to navigate, not the Agent's.
+    const auto newTab = !request.value(QStringLiteral("space")).toString().isEmpty()
+        || request.value(QStringLiteral("new")).toBool()
+        || (tabName.isEmpty()
+            && (connection.currentTabId.isEmpty() || isWindowId(connection.currentTabId)));
+    if (newTab) {
+        return {};
+    }
+    return tabName.isEmpty() ? connection.currentTabId : tabName;
+}
+
+void AgentControl::dropGoneGrants()
+{
+    QStringList gone;
+    for (const auto &pending : std::as_const(m_pendingGrants)) {
+        if (findSpace(pending.spaceId) != pending.spaceId) {
+            gone.append(pending.spaceId);
+        }
+    }
+    for (const auto &spaceId : std::as_const(gone)) {
+        finishGrant(spaceId, GrantAnswer::Gone);
+    }
+}
+
+// Everyone who asks for a Space while it is being asked for waits on the one
+// prompt, which names the connection that asked first. Each Space's wait is
+// its own and starts when it is first asked for, so one waiting behind
+// another's prompt is not kept longer than any other.
+void AgentControl::askGrant(
+    const QString &spaceId, const QString &name, const std::function<void(GrantAnswer)> &waiter)
+{
+    for (auto &pending : m_pendingGrants) {
+        if (pending.spaceId == spaceId) {
+            pending.waiters.append(waiter);
+            return;
+        }
+    }
+    auto *deadline = new QTimer(this);
+    deadline->setSingleShot(true);
+    deadline->setInterval(m_grantAnswerMs);
+    connect(deadline, &QTimer::timeout, this,
+        [this, spaceId] { finishGrant(spaceId, GrantAnswer::Undecided); });
+    m_pendingGrants.append(
+        PendingGrant {.spaceId = spaceId, .name = name, .deadline = deadline, .waiters = {waiter}});
+    deadline->start();
+    if (m_pendingGrants.size() == 1) {
+        emit grantRequestChanged();
+    }
+}
+
+void AgentControl::finishGrant(const QString &spaceId, GrantAnswer answer)
+{
+    const auto found = std::find_if(m_pendingGrants.begin(), m_pendingGrants.end(),
+        [&spaceId](const PendingGrant &pending) { return pending.spaceId == spaceId; });
+    if (found == m_pendingGrants.end()) {
+        return;
+    }
+    const auto shown = found == m_pendingGrants.begin();
+    const auto pending = *found;
+    m_pendingGrants.erase(found);
+    pending.deadline->stop();
+    pending.deadline->deleteLater();
+    // The prompt changes before anyone is answered, since an answer can ask
+    // for another Space.
+    if (shown) {
+        emit grantRequestChanged();
+    }
+    for (const auto &waiter : pending.waiters) {
+        waiter(answer);
+    }
 }
 
 QStringList AgentControl::agentTabIds() const
@@ -564,6 +796,15 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
         return;
     }
     auto &connection = connectionNamed(name);
+    if (const auto revoked = std::exchange(connection.revokedSpaceName, {}); !revoked.isEmpty()) {
+        const auto refused = refusal(QStringLiteral("revoked"),
+            QStringLiteral("The reader revoked the grant to Space \"%1\", and this connection "
+                           "was taken out of it. Using it again asks the reader again.")
+                .arg(revoked));
+        logActivity(verb, name, request, refused, {});
+        reply(refused);
+        return;
+    }
     const auto previousTabId = connection.currentTabId;
     resolveCurrentTab(connection);
     if (!previousTabId.isEmpty() && connection.currentTabId.isEmpty()) {
@@ -574,6 +815,61 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
         logActivity(verb, name, request, answer, scope);
         reply(answer);
     };
+    // An upload is refused before the reader is asked, since no answer of
+    // theirs would let it through.
+    if (verb == u"do") {
+        if (const auto refused = refuseUpload(connection, request); !refused.isEmpty()) {
+            logged(refused);
+            return;
+        }
+    }
+    if (const auto spaceId = spaceNeedingGrant(verb, connection, request); !spaceId.isEmpty()) {
+        const auto space = spaceName(spaceId);
+        const auto denied = refusal(QStringLiteral("denied"),
+            QStringLiteral("The reader denied the use of Space \"%1\". Make an Agent Space with "
+                           "`space new` and work there.")
+                .arg(space));
+        if (connection.deniedSpaceIds.contains(spaceId)) {
+            logged(denied);
+            return;
+        }
+        askGrant(spaceId, name,
+            [this, request, reply, logged, socketConnection, space, spaceId, name, denied](
+                GrantAnswer answer) {
+                switch (answer) {
+                case GrantAnswer::Allowed:
+                    handle(request, reply, socketConnection);
+                    return;
+                case GrantAnswer::Denied:
+                    if (const auto found = m_connections.find(name); found != m_connections.end()) {
+                        found->deniedSpaceIds.insert(spaceId);
+                    }
+                    logged(denied);
+                    return;
+                case GrantAnswer::Undecided:
+                    logged(refusal(QStringLiteral("undecided"),
+                        QStringLiteral("The reader has not decided whether an Agent may use Space "
+                                       "\"%1\". Asking again shows the prompt again.")
+                            .arg(space)));
+                    return;
+                case GrantAnswer::Withdrawn:
+                    logged(refusal(QStringLiteral("allow-agents"),
+                        QStringLiteral(
+                            "Allow agents was turned off, so the page was left as it was.")));
+                    return;
+                case GrantAnswer::Failed:
+                    logged(refusal(QStringLiteral("failed"),
+                        QStringLiteral("The grant to Space \"%1\" could not be kept.").arg(space)));
+                    return;
+                case GrantAnswer::Gone:
+                    logged(refusal(QStringLiteral("not-found"),
+                        QStringLiteral("Space \"%1\" was deleted while the reader was asked.")
+                            .arg(space)));
+                    return;
+                }
+            });
+        return;
+    }
     if (pageVerb(verb)) {
         askPage(verb, name, connection, request, logged);
         return;
@@ -733,10 +1029,24 @@ QJsonObject AgentControl::answer(const QJsonObject &request, quint64 socketConne
         return refusal(QStringLiteral("pending"),
             QStringLiteral("A page verb is answered by the page, through the socket."));
     }
-    QJsonObject answered;
+    // A request the reader has to answer first is answered later, when this
+    // call has returned, so the late answer goes nowhere.
+    const auto answered = std::make_shared<std::optional<QJsonObject>>();
     handle(
-        request, [&answered](const QJsonObject &result) { answered = result; }, socketConnection);
-    return answered;
+        request,
+        [answered](const QJsonObject &result) {
+            if (!*answered) {
+                *answered = result;
+            }
+        },
+        socketConnection);
+    if (!*answered) {
+        *answered = QJsonObject {};
+        return refusal(QStringLiteral("pending"),
+            QStringLiteral("The reader is being asked whether an Agent may use the Space, and "
+                           "the answer comes through the socket."));
+    }
+    return **answered;
 }
 
 QJsonObject AgentControl::answerBrowserCommand(const QString &verb, const QString &name,
@@ -937,8 +1247,9 @@ QJsonObject AgentControl::pageTab(const Connection &connection, const QJsonObjec
     }
     if (!mayRead(*tab)) {
         return refusal(QStringLiteral("refused"),
-            QStringLiteral("An Agent reads and drives only the pages of an Agent Space. Make one "
-                           "with `space new` and open the address there."));
+            QStringLiteral("An Agent reads and drives only the pages of an Agent Space, or of a "
+                           "Space the reader granted. Make one with `space new` and open the "
+                           "address there."));
     }
     return {};
 }
@@ -1024,12 +1335,6 @@ QJsonObject AgentControl::refuseUpload(
 void AgentControl::askPage(const QString &verb, const QString &name, Connection &connection,
     const QJsonObject &request, const Reply &reply)
 {
-    if (verb == u"do") {
-        if (const auto refused = refuseUpload(connection, request); !refused.isEmpty()) {
-            reply(refused);
-            return;
-        }
-    }
     std::optional<TabState> tab;
     QString target;
     if (const auto refused = pageTab(connection, request, tab, target); !refused.isEmpty()) {
@@ -1376,24 +1681,33 @@ AgentControl::Connection &AgentControl::connectionNamed(const QString &name)
     return *found;
 }
 
-// Until Space grants land, the only tabs an Agent may drive are the ones an
-// Agent opened this run and those of an Agent Space.
-bool AgentControl::mayDrive(const TabState &tab) const
+bool AgentControl::usableSpace(const QString &spaceId) const
 {
-    if (tab.pinned) {
-        return false;
-    }
-    return m_openedTabIds.contains(tab.id) || mayRead(tab);
+    return m_allowAgents && (m_browser->agentSpace(spaceId) || m_browser->spaceGranted(spaceId));
+}
+
+// A tab an Agent opened this run, or any tab of a Space it may use. A Pinned
+// tab's address is the reader's, whatever the Space.
+bool AgentControl::mayLoad(const TabState &tab) const
+{
+    return !tab.pinned && (m_openedTabIds.contains(tab.id) || mayRead(tab));
+}
+
+// A grant lets an Agent use the reader's tabs, not take them away: in a
+// granted Space it closes only the tabs an Agent opened.
+bool AgentControl::mayClose(const TabState &tab) const
+{
+    return !tab.pinned
+        && (m_openedTabIds.contains(tab.id)
+            || (m_allowAgents && m_browser->agentSpace(tab.spaceId)));
 }
 
 // A page verb reads the page and acts in it as the Space's own identity, with
-// its cookies and its logins. Until Space grants land, that is only an Agent
-// Space's, whoever opened the tab: a tab an Agent opened in one of the
-// reader's Spaces is the reader's page.
-bool AgentControl::mayRead(const TabState &tab) const
-{
-    return !tab.pinned && m_allowAgents && m_browser->agentSpace(tab.spaceId);
-}
+// its cookies and its logins. That is an Agent Space's, or a Space's the
+// reader granted, whoever opened the tab: a tab an Agent opened in any other
+// of the reader's Spaces is the reader's page. A Pinned tab is used as any
+// other, and only its pin is out of reach.
+bool AgentControl::mayRead(const TabState &tab) const { return usableSpace(tab.spaceId); }
 
 QJsonObject AgentControl::listSpaces() const
 {
@@ -1462,12 +1776,7 @@ QJsonObject AgentControl::open(
     }
     // A named tab, or the current one, moves to the address. Otherwise the
     // address gets a tab of its own.
-    // An Auxiliary window is the page's to navigate, not the Agent's.
-    const auto newTab = !spaceName.isEmpty() || request.value(QStringLiteral("new")).toBool()
-        || (tabName.isEmpty()
-            && (connection.currentTabId.isEmpty() || isWindowId(connection.currentTabId)));
-    if (!newTab) {
-        const auto tabId = tabName.isEmpty() ? connection.currentTabId : tabName;
+    if (const auto tabId = tabToLoad(connection, request); !tabId.isEmpty()) {
         auto tab = m_browser->findTab(tabId, connection.currentSpaceId);
         if (!tab) {
             return refusal(
@@ -1477,10 +1786,10 @@ QJsonObject AgentControl::open(
             return refusal(QStringLiteral("refused"),
                 QStringLiteral("A Pinned tab's address is the reader's to change."));
         }
-        if (!mayDrive(*tab)) {
+        if (!mayLoad(*tab)) {
             return refusal(QStringLiteral("refused"),
-                QStringLiteral("An Agent loads an address only in a tab an Agent opened or one of "
-                               "an Agent Space. Open a new tab instead."));
+                QStringLiteral("An Agent loads an address only in a tab an Agent opened, or one of "
+                               "an Agent Space or a granted Space. Open a new tab instead."));
         }
         if (!m_browser->navigateTab(tabId, url, tab->spaceId)) {
             return refusal(
@@ -1509,7 +1818,7 @@ QJsonObject AgentControl::open(
     m_openedTabIds.insert(tabId);
     connection.currentTabId = tabId;
     connection.currentSpaceId = spaceId;
-    if (m_allowAgents && m_browser->agentSpace(spaceId)) {
+    if (usableSpace(spaceId)) {
         attach(tabId, name);
     }
     const auto tab = m_browser->findTab(tabId, spaceId);
@@ -1517,7 +1826,7 @@ QJsonObject AgentControl::open(
 }
 
 // An Agent closes a tab an Agent opened, or any ordinary tab of an Agent
-// Space. Every other tab is the reader's.
+// Space. Every other tab is the reader's, in a granted Space too.
 QJsonObject AgentControl::close(Connection &connection, const QJsonObject &request)
 {
     auto tabId = request.value(QStringLiteral("tab")).toString();
@@ -1541,7 +1850,7 @@ QJsonObject AgentControl::close(Connection &connection, const QJsonObject &reque
         return refusal(
             QStringLiteral("not-found"), QStringLiteral("There is no tab \"%1\".").arg(tabId));
     }
-    if (!mayDrive(*tab)) {
+    if (!mayClose(*tab)) {
         return refusal(QStringLiteral("refused"),
             QStringLiteral("An Agent closes only the tabs an Agent opened."));
     }

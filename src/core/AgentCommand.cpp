@@ -33,6 +33,9 @@ namespace {
     // little longer than it does, so the browser's answer is the one heard.
     constexpr int pageAnswerTimeoutMs = 65000;
     constexpr int fullShotAnswerTimeoutMs = 125000;
+    // A verb that reaches one of the reader's Spaces first waits a minute for
+    // them to grant it, before the page is asked at all.
+    constexpr int grantAnswerTimeoutMs = 60000;
 
     const auto fallbackName = QStringLiteral("agent");
 
@@ -456,9 +459,8 @@ namespace {
         return text;
     }
 
-    int answerTimeoutFor(const QJsonObject &request)
+    int pageTimeoutFor(const QString &verb, const QJsonObject &request)
     {
-        const auto verb = request.value(QStringLiteral("verb")).toString();
         if (verb == u"shot" && request.value(QStringLiteral("full")).toBool()) {
             return fullShotAnswerTimeoutMs;
         }
@@ -473,6 +475,15 @@ namespace {
             return pageAnswerTimeoutMs;
         }
         return answerTimeoutMs;
+    }
+
+    int answerTimeoutFor(const QJsonObject &request)
+    {
+        const auto verb = request.value(QStringLiteral("verb")).toString();
+        const auto timeout = pageTimeoutFor(verb, request);
+        const auto reachesAPage = verb == u"look" || verb == u"read" || verb == u"do"
+            || verb == u"shot" || verb == u"eval" || verb == u"console";
+        return reachesAPage ? timeout + grantAnswerTimeoutMs : timeout;
     }
 
 } // namespace

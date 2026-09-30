@@ -40,6 +40,12 @@ bool PrivateSessionStore::saveAgentSpace(const QString &, const QString &, bool)
 
 bool PrivateSessionStore::forgetAgentSpace(const QString &) { return false; }
 
+QStringList PrivateSessionStore::spaceGrants() const { return {}; }
+
+bool PrivateSessionStore::saveSpaceGrant(const QString &) { return false; }
+
+bool PrivateSessionStore::forgetSpaceGrant(const QString &) { return false; }
+
 QVector<TabState> PrivateSessionStore::loadTabs(const QString &) const { return {}; }
 
 QVector<TabState> PrivateSessionStore::loadClosedTabs(const QString &) const { return {}; }

@@ -36,6 +36,10 @@ omaweb space delete <id>
 4. Read the `look` that `do` printed and decide the next batch.
 5. Delete the Space when the task is done.
 
+A page command in one of the reader's own Spaces asks the reader to grant that Space and waits up to
+a minute. Use one only when the task needs the reader's logins. After `denied` the reader is not
+asked again for that Space, so work in an Agent Space instead.
+
 ## Commands
 
 ```sh

@@ -545,6 +545,39 @@ bool BrowserController::deleteAgentSpace(const QString &spaceId)
     return deleteSpace(spaceId, m_spaces.items().at(index).name);
 }
 
+bool BrowserController::spaceGranted(const QString &spaceId) const
+{
+    return m_spaceGrants.contains(spaceId);
+}
+
+QStringList BrowserController::grantedSpaceIds() const { return m_spaceGrants; }
+
+bool BrowserController::grantSpace(const QString &spaceId)
+{
+    if (m_privateBrowsing || m_spaces.rowOf(spaceId) < 0 || m_agentSpaces.contains(spaceId)) {
+        return false;
+    }
+    if (m_spaceGrants.contains(spaceId)) {
+        return true;
+    }
+    if (!m_store->saveSpaceGrant(spaceId)) {
+        return false;
+    }
+    m_spaceGrants.append(spaceId);
+    emit spaceGrantsChanged();
+    return true;
+}
+
+bool BrowserController::revokeSpaceGrant(const QString &spaceId)
+{
+    if (!m_spaceGrants.contains(spaceId) || !m_store->forgetSpaceGrant(spaceId)) {
+        return false;
+    }
+    m_spaceGrants.removeAll(spaceId);
+    emit spaceGrantsChanged();
+    return true;
+}
+
 QVector<TabState> BrowserController::spaceTabs(const QString &spaceId) const
 {
     if (m_privateBrowsing || m_spaces.rowOf(spaceId) < 0) {
@@ -1110,6 +1143,9 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
     m_temporarySpaceIds.remove(spaceId);
     if (m_agentSpaces.remove(spaceId) > 0) {
         emit agentSpacesChanged();
+    }
+    if (m_spaceGrants.removeAll(spaceId) > 0) {
+        emit spaceGrantsChanged();
     }
     cancelHistorySuggestions();
     emit historySearchSpaceForgotten(spaceId);
@@ -3072,9 +3108,12 @@ void BrowserController::reloadSyncedState()
         space.active = space.id == m_activeSpaceId;
     }
     m_spaces.reset(std::move(spaces));
-    // Sync may have deleted an Agent Space, and the store took its label too.
+    // Sync may have deleted an Agent Space or a granted one, and the store took
+    // its label or its grant too.
     loadAgentSpaces();
+    m_spaceGrants = m_store->spaceGrants();
     emit agentSpacesChanged();
+    emit spaceGrantsChanged();
     auto tabs = m_store->loadTabs(m_activeSpaceId);
     auto active = std::ranges::find(tabs, previousTab, &TabState::id);
     if (active == tabs.end() && !tabs.isEmpty()) {
@@ -3120,6 +3159,7 @@ void BrowserController::initialize()
     // run's to delete is not known until the browser knows it is the only one
     // running.
     loadAgentSpaces();
+    m_spaceGrants = m_store->spaceGrants();
     ensureActiveTab();
     loadClosedTabs();
     // A Pinned tab marked Keep active is running before its Space is ever
