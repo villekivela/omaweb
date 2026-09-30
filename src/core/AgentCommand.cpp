@@ -587,7 +587,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         } else if (option == u"settle" || option == u"timeout") {
             bool number = false;
             const auto milliseconds = value.toInt(&number);
-            if (!number) {
+            if (!number || milliseconds < 0) {
                 command.error = QStringLiteral("--%1 is a number of milliseconds.").arg(option);
                 return command;
             }
