@@ -348,12 +348,16 @@ omaweb space Work && omaweb run toggle-sidebar
 ```
 
 The last six read and drive the connection's current tab, or the one `--tab` names, and need Allow
-agents. That tab has to be in an Agent Space, so make one and open the address there. A step of `do`
-is one argument, or several separated by `;`: `click <label>`, `fill <label> <text>`, `press <key>`,
-`select <label> <option>`, `scroll <label|up|down|top|bottom>`, `back`, `wait text <text>`,
-`wait url <address>`, `dialog accept [text]`, `dialog dismiss` and `upload <label> <file>...`. Quote
-a text with spaces to keep its spacing. Labels come from `look`, and `do` prints a fresh `look`
-after its steps.
+agents. That tab has to be in an Agent Space, or in a Space the reader granted. The first page
+command in one of the reader's other Spaces shows a prompt bar over the page on show,
+`An Agent named <name> wants to use Space <Space>`, and waits up to a minute for Allow or Deny; it
+exits refused with `denied` or `undecided` otherwise, and a denied connection is not asked again
+until the browser restarts. `open --tab` into one of the reader's tabs asks the same way. Settings,
+under agents, lists the granted Spaces with Revoke. A step of `do` is one argument, or several
+separated by `;`: `click <label>`, `fill <label> <text>`, `press <key>`, `select <label> <option>`,
+`scroll <label|up|down|top|bottom>`, `back`, `wait text <text>`, `wait url <address>`,
+`dialog accept [text]`, `dialog dismiss` and `upload <label> <file>...`. Quote a text with spaces to
+keep its spacing. Labels come from `look`, and `do` prints a fresh `look` after its steps.
 
 An Agent tab's page is the Agent's to answer. A JS dialog it opens never reaches the reader: `look`
 prints it, and the page waits for a `dialog` step. A download lands in `Agents/<name>/` under the

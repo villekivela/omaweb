@@ -141,6 +141,8 @@ public:
 // window the way `omaweb run` does and reads the answer the CLI would.
 class AgentSocketProbe final : public QObject {
     Q_OBJECT
+    // The answers `send` has had so far, in the order they came.
+    Q_PROPERTY(QVariantList replies READ replies NOTIFY repliesChanged)
 
 public:
     explicit AgentSocketProbe(omaweb::AgentControl &control)
@@ -153,8 +155,24 @@ public:
         return m_control.answer(QJsonObject::fromVariantMap(request)).toVariantMap();
     }
 
+    // A request answered later, by the page or by the reader, as a page verb
+    // is.
+    Q_INVOKABLE void send(const QVariantMap &request)
+    {
+        m_control.handle(QJsonObject::fromVariantMap(request), [this](const QJsonObject &answer) {
+            m_replies.append(answer.toVariantMap());
+            emit repliesChanged();
+        });
+    }
+
+    QVariantList replies() const { return m_replies; }
+
+signals:
+    void repliesChanged();
+
 private:
     omaweb::AgentControl &m_control;
+    QVariantList m_replies;
 };
 
 // A favicon on disk for the tests that check what colour a site's chip takes.
