@@ -493,6 +493,59 @@ TestCase {
         compare(findChild(page, "newSpaceButton").visible, false);
     }
 
+    // The agents section: Allow agents, with what an Agent tab costs said
+    // once beside it, and each granted Space with a way to take it back.
+    QtObject {
+        id: agentControlStub
+
+        property bool allowAgents: false
+        property var grantedSpaces: [
+            {
+                "spaceId": "work",
+                "spaceName": "Work"
+            }
+        ]
+        property var revoked: []
+
+        function revokeGrant(spaceId) {
+            revoked = revoked.concat([spaceId]);
+            grantedSpaces = grantedSpaces.filter(function (space) {
+                return space.spaceId !== spaceId;
+            });
+            return true;
+        }
+    }
+
+    function test_theAgentsSectionListsGrantsToRevoke() {
+        const page = makePage();
+        compare(page.sections[page.sections.indexOf("spaces") + 1], "agents");
+        page.agentControl = agentControlStub;
+        page.section = page.sections.indexOf("agents");
+
+        const toggle = findChild(page, "allowAgents");
+        verify(toggle !== null);
+        verify(toggle.visible);
+        compare(toggle.checked, false);
+        verify(toggle.note.indexOf("stays rendered while an Agent is attached") >= 0);
+        settleAction(toggle);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return agentControlStub.allowAgents;
+        });
+        verify(toggle.checked);
+
+        const row = findChild(page, "grantedSpace-work");
+        verify(row !== null);
+        compare(row.title, "Work");
+        compare(findChild(page, "noGrantedSpaces").visible, false);
+        const revoke = findChild(page, "revokeGrant-work");
+        settleAction(revoke);
+        mouseClick(revoke);
+        compare(agentControlStub.revoked, ["work"]);
+        tryCompare(findChild(page, "noGrantedSpaces"), "visible", true);
+        agentControlStub.allowAgents = false;
+    }
+
     function test_aLetterSelectsAndFocusesItsSection() {
         const page = makePage();
         const privacy = findChild(page, "settingsSection" + page.sections.indexOf("privacy"));
@@ -1661,7 +1714,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 12);
+        compare(page.sections.length, 13);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {

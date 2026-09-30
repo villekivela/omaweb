@@ -24,6 +24,10 @@ namespace {
     // holding it would let a connection grow the browser's memory at will.
     constexpr qint64 maximumRequestBytes = 64 * 1024;
 
+    // What a client may queue behind a request still being answered, a batch
+    // that can take minutes: many requests, but not memory without end.
+    constexpr qint64 maximumQueuedBytes = 4 * 1024 * 1024;
+
     // An answer is a few kilobytes. A client that lets this much wait unread
     // is not reading, and what it has not read is the browser's memory.
     constexpr qint64 maximumUnreadBytes = 4 * 1024 * 1024;
@@ -201,8 +205,10 @@ void ControlSocket::read(QLocalSocket *socket, quint64 connection)
             connection);
         *dispatching = false;
     }
-    if (socket->state() == QLocalSocket::ConnectedState
-        && socket->bytesAvailable() > maximumRequestBytes) {
+    // With no line left to read, what is there is a line too long. Behind a
+    // request still being answered it is requests queued.
+    const auto limit = m_waiting.contains(socket) ? maximumQueuedBytes : maximumRequestBytes;
+    if (socket->state() == QLocalSocket::ConnectedState && socket->bytesAvailable() > limit) {
         tooLong(socket);
     }
 }

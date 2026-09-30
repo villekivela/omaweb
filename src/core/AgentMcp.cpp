@@ -31,7 +31,8 @@ namespace {
     // tools work and the loop that uses the fewest calls.
     const auto instructions = QStringLiteral(
         "Omaweb, the reader's browser. The page tools (look, read, do, shot, eval, console) need "
-        "Allow agents on and a tab in an Agent Space: space_new, then open with that space. They "
+        "Allow agents on and a tab in an Agent Space: space_new, then open with that space. In "
+        "the reader's own Spaces they first ask the reader, once per Space. They "
         "work on the current tab, which open sets, or on tab. Loop: open, look, do several steps "
         "in one call, which answers with a fresh look. A label from look lasts as long as its "
         "document.");

@@ -74,6 +74,13 @@ public:
     virtual QStringList temporaryAgentSpaceIds() const = 0;
     virtual bool saveAgentSpace(const QString &spaceId, const QString &creator, bool temporary) = 0;
     virtual bool forgetAgentSpace(const QString &spaceId) = 0;
+    // The reader's Spaces an Agent may use, each granted once through the
+    // prompt bar (ADR 0051). Kept beside the Space records for the same reason
+    // as the Agent Space label, so a grant never opens a Space on another
+    // machine, and deleting a Space takes its grant with it.
+    virtual QStringList spaceGrants() const = 0;
+    virtual bool saveSpaceGrant(const QString &spaceId) = 0;
+    virtual bool forgetSpaceGrant(const QString &spaceId) = 0;
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
     virtual QVector<TabState> loadClosedTabs(const QString &spaceId) const = 0;

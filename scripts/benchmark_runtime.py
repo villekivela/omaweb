@@ -134,6 +134,19 @@ ON_SHOW_WINDOW = 6.0
 # instant either, so the reading it is measured from is taken after the Space has gone.
 AWAY_WINDOW = 10.0
 
+# The reading the away window is measured from waits for the engine's processes to stop moving,
+# because a Space switch leaves them busy for a moment: the Space now on show settling its page and
+# its tabs' stored favicons being looked up. Three readings in a row, each within the tolerance of
+# the one before, are still; one agreeing pair can be a pause in work that starts again. A page
+# still running while away is throttled to one timer tick a second, so the allocator page then
+# takes a megabyte a second, eight times the tolerance per interval, and never settles. The limit
+# ends the wait for such a page, and the away window then reads it as growth: ten mebibytes, twice
+# the ceiling, and still far from its 500 MiB cap when the window closes.
+STEADY_INTERVAL = 2.0
+STEADY_READINGS = 3
+STEADY_TOLERANCE = 0.25
+STEADY_LIMIT = 30.0
+
 # How long a launch may take before the run is a failure rather than a slow measurement. Well above
 # any ceiling worth recording, because crossing a ceiling has to be reported rather than timed out.
 LAUNCH_TIMEOUT = 120.0
@@ -411,11 +424,51 @@ def describe_processes(root: int) -> list[str]:
             for pid, (name, state, cpu, rss) in sorted(after.items())]
 
 
+@dataclasses.dataclass(frozen=True)
+class SettledReading:
+    """A reading taken once the tree stopped moving, or at the limit if it never did.
+
+    The first reading is kept beside it, so what the tree did during the wait can be told apart
+    from how long the wait took: a Freezing that starts late looks like a tree still growing.
+    """
+
+    first: float
+    mebibytes: float
+    seconds: float
+    settled: bool
+
+
+def settled_reading(read, sleep=time.sleep, clock=time.monotonic) -> SettledReading:
+    """Reads until `STEADY_READINGS` in a row agree within the tolerance, or the limit passes.
+
+    Agreement is on the size, not the direction: a tree that shrank is still moving, because what
+    shrank it is the browser still at work.
+    """
+    start = clock()
+    first = previous = read()
+    agreeing = 1
+    while True:
+        sleep(STEADY_INTERVAL)
+        current = read()
+        waited = clock() - start
+        agreeing = agreeing + 1 if abs(current - previous) <= STEADY_TOLERANCE else 1
+        if agreeing >= STEADY_READINGS:
+            return SettledReading(first, current, waited, True)
+        if waited >= STEADY_LIMIT:
+            return SettledReading(first, current, waited, False)
+        previous = current
+
+
 def tree_mib(root: int) -> float:
     """Proportional set size of a process and everything below it, in mebibytes."""
+    return read_pss_kib(root) / KIB_PER_MIB + below_mib(root)
+
+
+def below_mib(root: int) -> float:
+    """Proportional set size of everything below a process, without the process, in mebibytes."""
     tree = children_by_parent()
     total = 0
-    pending = [root]
+    pending = list(tree.get(root, []))
     while pending:
         pid = pending.pop()
         total += read_pss_kib(pid)
@@ -560,6 +613,15 @@ class Browser:
 
     def memory_mib(self) -> float:
         return tree_mib(self.pid)
+
+    def engine_mib(self) -> float:
+        """What the engine's processes hold, the browser's own process left out.
+
+        A page runs in a renderer, so this is where a page still running shows. The browser process
+        is where the shell's own work lands, and on CI it takes a step of about 6 MiB at no moment
+        a measurement can wait out, which is more than the whole freezing budget.
+        """
+        return below_mib(self.window_pid)
 
     def stop(self) -> None:
         """Ends the whole process group.
@@ -732,8 +794,10 @@ def measure_freezing(executable: str) -> dict:
     what it looks for is the page still running, which is what a broken Freezing looks like from
     outside and what the reader pays for in a Space they are not reading.
 
-    So the page in the away Space allocates on a timer, and the same process tree is read twice
-    while that Space is on show and twice more once it is away. The first pair is the control: a
+    So the page in the away Space allocates on a timer, and the engine's processes are read twice
+    while that Space is on show and twice more once it is away. The browser's own process is left
+    out: a page runs in a renderer, and the browser process takes steps of its own that have
+    nothing to do with any page. The first pair is the control: a
     page that did not grow while it was being read proves nothing by not growing afterwards, and
     this says so rather than reporting a flat line as a pass.
     """
@@ -747,15 +811,19 @@ def measure_freezing(executable: str) -> dict:
         keyboard.focus()
         open_space(keyboard, workspace, "away", 2, workspace.allocator_url)
         browser.await_title(ALLOCATOR_TITLE)
-        running = browser.memory_mib()
+        running = browser.engine_mib()
         time.sleep(ON_SHOW_WINDOW)
-        grew = browser.memory_mib() - running
+        grew = browser.engine_mib() - running
         log(f"  the away Space's page grew {grew:.1f} MiB in {ON_SHOW_WINDOW:.0f} s on show")
         keyboard.press("Primary+1")
-        time.sleep(SETTLE)
-        frozen = browser.memory_mib()
+        frozen = settled_reading(browser.engine_mib)
+        since_switch = SETTLE + frozen.seconds
+        moved = frozen.mebibytes - frozen.first
+        state = "settled" if frozen.settled else "were still moving"
+        log(f"  the engine's processes {state} {since_switch:.1f} s after the switch, "
+            f"having moved {moved:+.1f} MiB while it was waited for")
         time.sleep(AWAY_WINDOW)
-        growth = browser.memory_mib() - frozen
+        growth = browser.engine_mib() - frozen.mebibytes
         log(f"  and {growth:.1f} MiB in {AWAY_WINDOW:.0f} s away")
         opened = workspace.space_count()
     finally:

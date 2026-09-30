@@ -354,12 +354,16 @@ omaweb space Work && omaweb run toggle-sidebar
 ```
 
 The last six read and drive the connection's current tab, or the one `--tab` names, and need Allow
-agents. That tab has to be in an Agent Space, so make one and open the address there. A step of `do`
-is one argument, or several separated by `;`: `click <label>`, `fill <label> <text>`, `press <key>`,
-`select <label> <option>`, `scroll <label|up|down|top|bottom>`, `back`, `wait text <text>`,
-`wait url <address>`, `dialog accept [text]`, `dialog dismiss` and `upload <label> <file>...`. Quote
-a text with spaces to keep its spacing. Labels come from `look`, and `do` prints a fresh `look`
-after its steps.
+agents. That tab has to be in an Agent Space, or in a Space the reader granted. The first page
+command in one of the reader's other Spaces shows a prompt bar over the page on show,
+`An Agent named <name> wants to use Space <Space>`, and waits up to a minute for Allow or Deny; it
+exits refused with `denied` or `undecided` otherwise, and a denied connection is not asked again
+until the browser restarts. `open --tab` into one of the reader's tabs asks the same way. Settings,
+under agents, lists the granted Spaces with Revoke. A step of `do` is one argument, or several
+separated by `;`: `click <label>`, `fill <label> <text>`, `press <key>`, `select <label> <option>`,
+`scroll <label|up|down|top|bottom>`, `back`, `wait text <text>`, `wait url <address>`,
+`dialog accept [text]`, `dialog dismiss` and `upload <label> <file>...`. Quote a text with spaces to
+keep its spacing. Labels come from `look`, and `do` prints a fresh `look` after its steps.
 
 An Agent tab's page is the Agent's to answer. A JS dialog it opens never reaches the reader: `look`
 prints it, and the page waits for a `dialog` step. A download lands in `Agents/<name>/` under the
@@ -369,10 +373,11 @@ and only those, and only in an Agent Space: anywhere else an upload is how a pag
 reader's files. A file chooser the Agent did not ask for is refused. An Auxiliary window the page
 opens is the Agent's too: `do` prints `Opened window-1`, `tabs` lists it, and `--tab window-1`
 points the page commands at it. `shot` prints the path it wrote, in `shots/` beside the socket;
-`--output` names the file there and takes no directory. `console` prints what the page has written
-to its console since its document loaded, one line each as level, source and line, and text, then
-`cursor` and a number to pass as `--since` for only what comes after. `--level warning` keeps
-warnings and errors, and `--level error` errors alone.
+`--output` names the `.png` file there and takes no directory. `console` prints what the page has
+written to its console since its document loaded, one line each as level, source and line, and text,
+with the text's own line breaks and tabs written as `\n`, `\r` and `\t`, then `cursor` and a number
+to pass as `--since` for only what comes after. `--level warning` keeps warnings and errors, and
+`--level error` errors alone.
 
 ```sh
 omaweb space new Checks
@@ -381,11 +386,10 @@ omaweb look
 omaweb do 'fill 1 reader@example.com' 'fill 2 "A Reader"' 'click 5'
 ```
 
-Each takes `--json` and `--name`, which defaults to the parent process's name. These words, `look`,
-`read`, `do`, `shot`, `eval` and `console` among them, are verbs now. A launch used to skip a word
-that was not an address, so `omaweb open https://…` started the browser and opened the address, and
-`omaweb tabs` started it with nothing. Now both are clients, and without a running browser they exit
-with 3. A launcher that starts the browser with an address passes the address alone,
+Each takes `--json` and `--name`, which defaults to the parent process's name, and `--` ends the
+options. These words, `look`, `read`, `do`, `shot`, `eval` and `console` among them, are verbs, so
+`omaweb open https://…` and `omaweb tabs` are clients of a running browser and exit with 3 when
+there is none. A launcher that starts the browser with an address passes the address alone,
 `omaweb https://…`, as the desktop entry does. `space new` and `space delete` need Allow agents,
 which has no switch in Settings yet; set `"allow-agents": true` in `privacy.json` under the
 configuration root. A running browser follows the file, and turning it off there detaches every
@@ -1189,7 +1193,12 @@ Five measurements, one subcommand each, so a developer can run the one they are 
   after the first added. That is the price of the engine profile per Space that
   [ADR 0008](adr/0008-isolate-space-storage-on-disk.md) buys.
 - `freezing` loads a page that takes a megabyte every fifth of a second into a second Space, puts
-  that Space away, and reports how much the process tree grew afterwards.
+  that Space away, and reports how much the engine's processes grew over the ten seconds after they
+  had settled. The browser's own process is left out: a page runs in a renderer, and on CI the
+  browser process takes a step of about 6 MiB at a moment nothing can predict, more than the whole
+  budget. A Space switch leaves the engine busy for a moment, so the probe first reads every two
+  seconds until three readings in a row agree within a quarter of a mebibyte, for at most thirty
+  seconds. The log says how long that took and how far the reading moved meanwhile.
   [ADR 0033](adr/0033-stop-an-away-spaces-pages-instead-of-taking-them.md) keeps a frozen page's
   document and process and stops its timers, animations and script, so what the memory it holds buys
   is not in question; a page still running in a Space nobody is reading is. The growth while that

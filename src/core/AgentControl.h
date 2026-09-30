@@ -34,6 +34,12 @@ class BrowserController;
 // Agent Spaces and the page verbs (`look`, `read`, `do`, `shot` and `eval`)
 // wait for Allow agents, which is off until the reader turns it on.
 //
+// A page verb reaches the pages of an Agent Space, and of a Space the reader
+// granted. The first time one reaches any other Space, the reader is asked
+// once, through `grantRequest`, and the verb waits for the answer. A grant
+// belongs to the Space, not to the connection that asked for it, and lasts
+// until the reader revokes it.
+//
 // A page verb is answered by the page, which only the interface can reach. The
 // core checks what the verb may reach, then hands the request on through
 // `pageRequested` and replies when `answerPage` brings the answer back, or when
@@ -64,6 +70,14 @@ class AgentControl final : public QObject {
     // as it drives the tab, by these ids. The interface marks each as it
     // marks its tab.
     Q_PROPERTY(QStringList agentWindowIds READ agentWindowIds NOTIFY agentWindowsChanged)
+    // The Space grant the reader is being asked for: the `spaceId`, its
+    // `spaceName` and the `name` of the connection that asked first. Empty
+    // while nothing is asked. One Space is asked at a time, and the others
+    // wait their turn.
+    Q_PROPERTY(QVariantMap grantRequest READ grantRequest NOTIFY grantRequestChanged)
+    // The Spaces the reader has granted, as `spaceId` and `spaceName`, in the
+    // order they were granted.
+    Q_PROPERTY(QVariantList grantedSpaces READ grantedSpaces NOTIFY grantedSpacesChanged)
 
 public:
     // The most connection states kept at once. A name costs nothing to invent,
@@ -75,6 +89,10 @@ public:
     // is still working; a tab it has left alone this long stops costing the
     // reader a rendered page, and the next verb attaches it again.
     static constexpr int defaultAttachmentIdleMs = 5 * 60 * 1000;
+
+    // How long a verb waits for the reader to answer a Space grant prompt
+    // before it answers that the reader has not decided.
+    static constexpr int defaultGrantAnswerMs = 60 * 1000;
 
     using Reply = std::function<void(const QJsonObject &)>;
 
@@ -112,7 +130,9 @@ public:
     // and a request with none cannot make one.
     void handle(const QJsonObject &request, const Reply &reply, quint64 connection = 0);
     // The same, for a request that needs no page. A page verb answers
-    // `pending` here and is answered only through `handle`.
+    // `pending` here and is answered only through `handle`. So does a request
+    // that waits for the reader to grant a Space, and it still runs if they
+    // allow it, with its answer going nowhere.
     QJsonObject answer(const QJsonObject &request, quint64 connection = 0);
 
     // The socket connection is gone, and every temporary Agent Space it made
@@ -127,11 +147,15 @@ public:
 
     // A line an Agent tab's page wrote to its console, at the engine's level
     // (0 info, 1 warning, 2 error), for `console`. `document` changes when the
-    // tab loads another document, or its page is built again. A tab that is not an Agent tab is not
-    // listened to, and a tab's lines are forgotten when it stops being one.
-    // The page area passes only the page's own lines, never Omaweb's reports.
+    // tab loads another document, or its page is built again. A tab that is
+    // not an Agent tab is not listened to, and a tab's lines are forgotten
+    // when it stops being one. The page area passes only the page's own
+    // lines, never Omaweb's reports.
     Q_INVOKABLE void recordConsoleMessage(const QString &tabId, const QString &document, int level,
         const QString &message, const QString &source, int line);
+    // An Agent tab's page has gone on to `document`, named as for
+    // `recordConsoleMessage`, whether or not it says anything.
+    Q_INVOKABLE void startConsoleDocument(const QString &tabId, const QString &document);
 
     QStringList agentTabIds() const;
     QVariantMap agentActivity() const;
@@ -155,17 +179,32 @@ public:
     // The window has closed, whether the Agent closed it or the reader did.
     Q_INVOKABLE void windowClosed(const QString &windowId);
 
+    QVariantMap grantRequest() const;
+    // The reader's answer to the prompt for `spaceId`. Every verb waiting on
+    // it goes on, or is refused. An answer to a prompt that is no longer
+    // asked grants nothing.
+    Q_INVOKABLE void answerGrant(const QString &spaceId, bool allowed);
+    QVariantList grantedSpaces() const;
+    // Takes every connection out of the Space at once. What it asked of a
+    // page there is refused, and each one's next call answers that the
+    // grant was revoked.
+    Q_INVOKABLE bool revokeGrant(const QString &spaceId);
+
     // Where `shot` writes every screenshot: a directory only this user can
     // enter, beside the socket.
     void setShotDirectory(const QString &directory);
     // Tests shorten how long a tab stays an Agent tab unused.
     void setAttachmentIdleMs(int milliseconds);
+    // Tests shorten how long a verb waits for the reader.
+    void setGrantAnswerMs(int milliseconds);
 
 signals:
     void allowAgentsChanged();
     void agentTabsChanged();
     void agentActivityChanged();
     void agentWindowsChanged();
+    void grantRequestChanged();
+    void grantedSpacesChanged();
     // An Agent closed the Auxiliary window of this id.
     void windowCloseRequested(const QString &windowId);
     // A page verb for the page of `request.tabId`, with `verb`, `spaceId`, the
@@ -177,6 +216,9 @@ signals:
     // Every page request still out has been refused, and the pages working
     // on them stop without sending more input or answering.
     void pageRequestsCancelled();
+    // The page requests still out for these tabs and Auxiliary windows have
+    // been refused, and those pages stop as the ones above do.
+    void pageRequestsCancelledIn(const QStringList &targetIds);
     // `commands` or `run` for the ordinary window, which holds the command
     // registry: `verb`, the `commands` it may list or run, and for `run` the
     // `command` and its `argument`, a position counted from 0, or -1. The
@@ -190,6 +232,22 @@ private:
         // looked for first.
         QString currentSpaceId;
         quint64 lastUsed = 0;
+        // The Space whose grant the reader revoked while this connection was
+        // using it, which its next call is told.
+        QString revokedSpaceName;
+        // The Spaces the reader denied this connection in this run. It is not
+        // asked about them again, so a denial is not a prompt it can repeat
+        // over the reader's page.
+        QSet<QString> deniedSpaceIds;
+    };
+
+    enum class GrantAnswer { Allowed, Denied, Undecided, Withdrawn, Failed, Gone };
+
+    struct PendingGrant {
+        QString spaceId;
+        QString name;
+        QTimer *deadline = nullptr;
+        QList<std::function<void(GrantAnswer)>> waiters;
     };
 
     struct PendingPage {
@@ -199,6 +257,8 @@ private:
         // What was asked, so the answer can be told as the Agent's last act.
         QString verb;
         QVariantList steps;
+        // The file made for a `shot`, which is the page's to draw into.
+        QString shot;
     };
 
     struct Attachment {
@@ -244,19 +304,36 @@ private:
     // The verb's own arguments as the page is to get them, or a refusal.
     QJsonObject pageArguments(
         const QString &verb, const QJsonObject &request, QVariantMap &out) const;
+    // The Space a page verb, `console` or `open` into an existing tab would
+    // reach that the reader has not granted, or nothing when it needs no
+    // grant or cannot be reached anyway.
+    QString spaceNeedingGrant(
+        const QString &verb, const Connection &connection, const QJsonObject &request) const;
+    // The tab `open` loads its address in, or nothing when it opens a new one.
+    static QString tabToLoad(const Connection &connection, const QJsonObject &request);
+    // A Space asked for has gone, and so has its prompt.
+    void dropGoneGrants();
+    void askGrant(const QString &spaceId, const QString &name,
+        const std::function<void(GrantAnswer)> &waiter);
+    void finishGrant(const QString &spaceId, GrantAnswer answer);
     // `act` is left as it was when empty.
     void attach(
         const QString &tabId, const QString &spaceId, const QString &name, const QString &act = {});
     void detach(const QString &tabId);
     void detachIdle();
     Connection &connectionNamed(const QString &name);
-    bool mayDrive(const TabState &tab) const;
+    // Whether Allow agents is on and the Space is an Agent Space or one the
+    // reader granted.
+    bool usableSpace(const QString &spaceId) const;
+    bool mayLoad(const TabState &tab) const;
+    bool mayClose(const TabState &tab) const;
     bool mayRead(const TabState &tab) const;
     // Where the connection's downloads land: a directory of its own under the
     // reader's downloads location. Empty when there is no location.
     QString downloadDirectoryFor(const QString &name) const;
     QString reserveShot(const QString &name, QJsonObject &refused) const;
     void pruneShots() const;
+    static void removeUntakenShot(const PendingPage &pending);
 
     QJsonObject listSpaces() const;
     QJsonObject listTabs(Connection &connection, const QJsonObject &request) const;
@@ -327,6 +404,9 @@ private:
     QHash<QString, QStringList> m_newWindows;
     // The temporary Agent Spaces each socket connection made.
     QHash<quint64, QStringList> m_temporarySpaces;
+    // The Space grants asked for, the one on show first.
+    QList<PendingGrant> m_pendingGrants;
+    int m_grantAnswerMs = defaultGrantAnswerMs;
 };
 
 } // namespace omaweb
