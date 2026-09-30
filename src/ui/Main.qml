@@ -1446,6 +1446,10 @@ ApplicationWindow {
     // window: a Private window is never an Agent's.
     readonly property var agentControlSource: !window.privateWindow && typeof agentControl
                                               !== "undefined" ? agentControl : null
+    // What Agents did, which the Agent activity page lists. The ordinary
+    // window's alone, for the same reason.
+    readonly property var agentActivitySource: !window.privateWindow && typeof agentActivity
+                                               !== "undefined" ? agentActivity : null
 
     // `omaweb commands` and `omaweb run` reach this window's command registry,
     // and only the ordinary window's.
@@ -3082,6 +3086,17 @@ ApplicationWindow {
                         window.showNotice("error", "The Glance's page stopped working", reason,
                                           4200);
                     }
+                }
+
+                // The Agent activity page stands where the tab holding it would
+                // draw a page, under the Start page summoned over it.
+                AgentActivityPage {
+                    anchors.fill: parent
+                    z: 29
+                    colors: window.colors
+                    activity: window.agentActivitySource
+                    open: !window.privateWindow && String(window.windowBrowser.activeUrl) === String(
+                              window.windowBrowser.agentActivityAddress)
                 }
 
                 StartPage {
