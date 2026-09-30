@@ -819,8 +819,8 @@ def measure_freezing(executable: str) -> dict:
         frozen = settled_reading(browser.engine_mib)
         since_switch = SETTLE + frozen.seconds
         moved = frozen.mebibytes - frozen.first
-        state = "settled" if frozen.settled else "was still moving"
-        log(f"  the process tree {state} {since_switch:.1f} s after the switch, "
+        state = "settled" if frozen.settled else "were still moving"
+        log(f"  the engine's processes {state} {since_switch:.1f} s after the switch, "
             f"having moved {moved:+.1f} MiB while it was waited for")
         time.sleep(AWAY_WINDOW)
         growth = browser.engine_mib() - frozen.mebibytes
