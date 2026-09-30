@@ -1046,6 +1046,56 @@ bool BrowserController::switchSpace(const QString &spaceId)
     return true;
 }
 
+QVariantList BrowserController::awaySpaceTabs() const
+{
+    QVariantList listed;
+    if (!m_capabilities.allows(Capability::Spaces)) {
+        return listed;
+    }
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == m_activeSpaceId) {
+            continue;
+        }
+        auto tabs = m_store->loadTabs(space.id);
+        showRestoredPages(tabs);
+        for (const auto &tab : tabs) {
+            if (isBlank(tab.url)) {
+                continue;
+            }
+            listed.append(QVariantMap {
+                {QStringLiteral("tabId"), tab.id},
+                {QStringLiteral("spaceId"), space.id},
+                {QStringLiteral("spaceName"), space.name},
+                {QStringLiteral("spaceColor"), space.color},
+                {QStringLiteral("title"), tab.title},
+                {QStringLiteral("url"), tab.url},
+                {QStringLiteral("iconUrl"), tab.iconUrl},
+            });
+        }
+    }
+    return listed;
+}
+
+bool BrowserController::activateTabInSpace(const QString &spaceId, const QString &tabId)
+{
+    if (spaceId != m_activeSpaceId) {
+        if (!m_capabilities.allows(Capability::Spaces)) {
+            return false;
+        }
+        const auto tabs = m_store->loadTabs(spaceId);
+        const auto held = std::any_of(
+            tabs.cbegin(), tabs.cend(), [&](const TabState &tab) { return tab.id == tabId; });
+        if (!held || !switchSpace(spaceId)) {
+            return false;
+        }
+    }
+    if (!m_tabs.find(tabId)) {
+        return false;
+    }
+    activateTab(tabId);
+    return true;
+}
+
 bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
 {
     if (!m_capabilities.allows(Capability::Spaces)) {
@@ -1945,14 +1995,7 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId, const 
 // which may mean changing Space first.
 bool BrowserController::activateNotificationTarget(const QString &spaceId, const QString &tabId)
 {
-    if (!spaceId.isEmpty() && spaceId != m_activeSpaceId && !switchSpace(spaceId)) {
-        return false;
-    }
-    if (!m_tabs.find(tabId)) {
-        return false;
-    }
-    activateTab(tabId);
-    return true;
+    return activateTabInSpace(spaceId.isEmpty() ? m_activeSpaceId : spaceId, tabId);
 }
 
 QString BrowserController::originInteractionKey(const QUrl &url) const

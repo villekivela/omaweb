@@ -218,6 +218,9 @@ private slots:
     void keepsASplitAcrossARestartAndASpaceSwitch();
     void repairsAPairingTheStoreHandsBackBroken();
     void splitsInAPrivateWindowAndWritesNothing();
+    void listsEveryOtherSpacesTabsFromTheSession();
+    void switchesSpaceAndSelectsTheTabAsOneAction();
+    void listsNoOtherSpacesTabsInAPrivateWindow();
 };
 
 void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
@@ -3757,6 +3760,149 @@ void BrowserControllerTest::splitsInAPrivateWindowAndWritesNothing()
     QVERIFY(!controller->tabInSplit(leftId));
     QVERIFY(controller->sessionStore()->loadTabs({}).isEmpty());
     QVERIFY(entriesUnder(configRoot.path()).isEmpty());
+}
+
+namespace {
+
+SessionSpec threeSpacesWithTabs()
+{
+    return SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = QStringLiteral("personal"),
+                .name = QStringLiteral("Personal"),
+                .tabs = {TabSpec {
+                             .id = QStringLiteral("news"),
+                             .url = QUrl(QStringLiteral("https://news.example/today")),
+                             .title = QStringLiteral("Today"),
+                         },
+                    TabSpec {
+                        .id = QStringLiteral("mail"),
+                        .url = QUrl(QStringLiteral("https://mail.example/inbox")),
+                        .title = QStringLiteral("Inbox"),
+                    }},
+                .activeTabId = QStringLiteral("mail"),
+            },
+            SpaceSpec {
+                .id = QStringLiteral("work"),
+                .name = QStringLiteral("Work"),
+                .color = QStringLiteral("#ff8800"),
+                .tabs = {TabSpec {
+                             .id = QStringLiteral("board"),
+                             .url = QUrl(QStringLiteral("https://board.example/team")),
+                             .title = QStringLiteral("Board"),
+                             .pinned = true,
+                         },
+                    TabSpec {
+                        .id = QStringLiteral("spec"),
+                        .url = QUrl(QStringLiteral("https://docs.example/spec")),
+                        .title = QStringLiteral("Spec"),
+                    }},
+                .activeTabId = QStringLiteral("board"),
+            },
+            SpaceSpec {
+                .id = QStringLiteral("resting"),
+                .name = QStringLiteral("Resting"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("resting-blank"),
+                }},
+            },
+            SpaceSpec {
+                .id = QStringLiteral("reading"),
+                .name = QStringLiteral("Reading"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("essay"),
+                    .url = QUrl(QStringLiteral("https://essays.example/long")),
+                    .title = QStringLiteral("Long read"),
+                }},
+            },
+        },
+        .activeSpaceId = QStringLiteral("personal"),
+    };
+}
+
+QStringList listedTabIds(const QVariantList &tabs)
+{
+    QStringList ids;
+    for (const auto &tab : tabs) {
+        ids.append(tab.toMap().value(QStringLiteral("tabId")).toString());
+    }
+    return ids;
+}
+
+} // namespace
+
+// The Omnibar reaches a page open in another Space through what the session
+// keeps of that Space, so listing it neither suspends nor restores anything,
+// and each tab carries what its row names: the page, and the Space it is in.
+void BrowserControllerTest::listsEveryOtherSpacesTabsFromTheSession()
+{
+    SessionFixture fixture(threeSpacesWithTabs());
+    QVERIFY_SESSION_READY(fixture);
+    const auto ownedController = fixture.createController();
+    auto &controller = *ownedController;
+    QSignalSpy suspended(&controller, &BrowserController::spaceSuspended);
+    QSignalSpy restored(&controller, &BrowserController::spaceRestored);
+
+    const auto listed = controller.awaySpaceTabs();
+
+    // In Space order and each Space's own order, pins included. A Space at
+    // rest has no page to go to.
+    QCOMPARE(listedTabIds(listed),
+        (QStringList {QStringLiteral("board"), QStringLiteral("spec"), QStringLiteral("essay")}));
+    const auto board = listed.first().toMap();
+    QCOMPARE(board.value(QStringLiteral("spaceId")).toString(), QStringLiteral("work"));
+    QCOMPARE(board.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Work"));
+    QCOMPARE(board.value(QStringLiteral("spaceColor")).toString(), QStringLiteral("#ff8800"));
+    QCOMPARE(board.value(QStringLiteral("title")).toString(), QStringLiteral("Board"));
+    QCOMPARE(board.value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://board.example/team")));
+    QCOMPARE(suspended.count(), 0);
+    QCOMPARE(restored.count(), 0);
+    QCOMPARE(controller.activeSpaceId(), QStringLiteral("personal"));
+
+    // Each row draws the icon the Space's outline shows once it is on show.
+    const auto listedIcon = board.value(QStringLiteral("iconUrl")).toUrl();
+    QVERIFY(controller.switchSpace(QStringLiteral("work")));
+    const auto *tabs = controller.tabs();
+    QCOMPARE(
+        tabs->data(tabs->index(0, 0), TabListModel::IdRole).toString(), QStringLiteral("board"));
+    QCOMPARE(tabs->data(tabs->index(0, 0), TabListModel::IconUrlRole).toUrl(), listedIcon);
+
+    QCOMPARE(listedTabIds(controller.awaySpaceTabs()),
+        (QStringList {QStringLiteral("news"), QStringLiteral("mail"), QStringLiteral("essay")}));
+}
+
+// Going to another Space's tab is one action: a tab the Space does not hold
+// leaves the reader where they were rather than in that Space.
+void BrowserControllerTest::switchesSpaceAndSelectsTheTabAsOneAction()
+{
+    SessionFixture fixture(threeSpacesWithTabs());
+    QVERIFY_SESSION_READY(fixture);
+    const auto ownedController = fixture.createController();
+    auto &controller = *ownedController;
+    QSignalSpy suspended(&controller, &BrowserController::spaceSuspended);
+
+    QVERIFY(!controller.activateTabInSpace(QStringLiteral("work"), QStringLiteral("essay")));
+    QVERIFY(!controller.activateTabInSpace(QStringLiteral("gone"), QStringLiteral("spec")));
+    QCOMPARE(controller.activeSpaceId(), QStringLiteral("personal"));
+    QCOMPARE(controller.activeTabId(), QStringLiteral("mail"));
+    QCOMPARE(suspended.count(), 0);
+
+    QVERIFY(controller.activateTabInSpace(QStringLiteral("work"), QStringLiteral("spec")));
+    QCOMPARE(controller.activeSpaceId(), QStringLiteral("work"));
+    QCOMPARE(controller.activeTabId(), QStringLiteral("spec"));
+}
+
+void BrowserControllerTest::listsNoOtherSpacesTabsInAPrivateWindow()
+{
+    PrivateSessionFixture fixture;
+    const auto controller = fixture.createController();
+    controller->openInput(QStringLiteral("https://private.example"), false);
+    controller->openInput(QStringLiteral("https://other.example"), true);
+
+    QVERIFY(controller->awaySpaceTabs().isEmpty());
+    QVERIFY(!controller->activateTabInSpace(QStringLiteral("work"), QStringLiteral("spec")));
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

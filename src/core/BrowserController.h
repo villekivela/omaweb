@@ -227,6 +227,14 @@ public:
     Q_INVOKABLE QStringList splittableTabIds() const;
     Q_INVOKABLE QString createSpace(const QString &name);
     Q_INVOKABLE bool switchSpace(const QString &spaceId);
+    // The tabs of every Space but the one on show, in Space order, as the
+    // session keeps them: an away Space's pages are frozen or stopped, and
+    // listing them must not wake one. A Space at rest has none to list, and a
+    // Private window has no other Space.
+    Q_INVOKABLE QVariantList awaySpaceTabs() const;
+    // Switches to the Space and selects its tab, or does neither: a tab the
+    // Space does not hold is refused before the Space on show changes.
+    Q_INVOKABLE bool activateTabInSpace(const QString &spaceId, const QString &tabId);
     Q_INVOKABLE bool renameSpace(const QString &spaceId, const QString &name);
     Q_INVOKABLE bool deleteSpace(const QString &spaceId, const QString &confirmationName);
     // The order Spaces are listed in is the reader's, like the order of tabs
