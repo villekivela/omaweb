@@ -335,9 +335,10 @@ omaweb eval <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
 ```
 
-`space` puts a Space on show, and `focus` selects a tab by its id or else the first tab whose
-address holds the text, looking in the Space on show before the others and switching to the tab's
-Space. `commands` lists the command scope's commands that can run now, one line each as id and
+`space` puts a Space on show. A Space named `new` or `delete` is switched to by its id, since those
+words start `space new` and `space delete`. `focus` selects a tab by its id or else the first tab
+whose address holds the text, looking in the Space on show before the others and switching to the
+tab's Space. `commands` lists the command scope's commands that can run now, one line each as id and
 title, and `run` runs one in the ordinary window as the command scope would, exiting 0 when it ran.
 `select-tab` and `select-space` take a position, 1 for the first. Every command of
 `src/ui/BrowserCommands.qml` is public except `private-window`, since a Private window is never an
@@ -351,12 +352,22 @@ omaweb space Work && omaweb run toggle-sidebar
 The last six read and drive the connection's current tab, or the one `--tab` names, and need Allow
 agents. That tab has to be in an Agent Space, so make one and open the address there. A step of `do`
 is one argument, or several separated by `;`: `click <label>`, `fill <label> <text>`, `press <key>`,
-`select <label> <option>`, `scroll <label|up|down|top|bottom>`, `back`, `wait text <text>` and
-`wait url <address>`. Quote a text with spaces to keep its spacing. Labels come from `look`, and
-`do` prints a fresh `look` after its steps. `shot` prints the path it wrote, in `shots/` beside the
-socket; `--output` names the file there and takes no directory. `console` prints what the page has
-written to its console since its document loaded, one line each as level, source and line, and text,
-then `cursor` and a number to pass as `--since` for only what comes after. `--level warning` keeps
+`select <label> <option>`, `scroll <label|up|down|top|bottom>`, `back`, `wait text <text>`,
+`wait url <address>`, `dialog accept [text]`, `dialog dismiss` and `upload <label> <file>...`. Quote
+a text with spaces to keep its spacing. Labels come from `look`, and `do` prints a fresh `look`
+after its steps.
+
+An Agent tab's page is the Agent's to answer. A JS dialog it opens never reaches the reader: `look`
+prints it, and the page waits for a `dialog` step. A download lands in `Agents/<name>/` under the
+downloads location, and `look` and `do` print its path; a High-risk download still waits for the
+reader to confirm it. `upload` clicks the label and gives the file chooser it opens the files named,
+and only those, and only in an Agent Space: anywhere else an upload is how a page could take the
+reader's files. A file chooser the Agent did not ask for is refused. An Auxiliary window the page
+opens is the Agent's too: `do` prints `Opened window-1`, `tabs` lists it, and `--tab window-1`
+points the page commands at it. `shot` prints the path it wrote, in `shots/` beside the socket;
+`--output` names the file there and takes no directory. `console` prints what the page has written
+to its console since its document loaded, one line each as level, source and line, and text, then
+`cursor` and a number to pass as `--since` for only what comes after. `--level warning` keeps
 warnings and errors, and `--level error` errors alone.
 
 ```sh

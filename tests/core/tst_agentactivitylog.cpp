@@ -162,6 +162,14 @@ void AgentActivityLogTest::keepsWhatAnAgentTypedOutOfEveryLine()
         {{QStringLiteral("url"),
              QStringLiteral("https://shop.example/search?q=secret-query#secret-fragment")},
             {QStringLiteral("space"), space}});
+    // A file the reader has, named for what it must not leave in the log.
+    QTemporaryDir files;
+    const auto upload = QDir(files.path()).filePath(QStringLiteral("secret-file.txt"));
+    {
+        QFile file(upload);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("x");
+    }
     const auto step = [](const QString &action, QJsonObject fields) {
         fields.insert(QStringLiteral("action"), action);
         return fields;
@@ -176,7 +184,13 @@ void AgentActivityLogTest::keepsWhatAnAgentTypedOutOfEveryLine()
                 step(QStringLiteral("wait"),
                     {{QStringLiteral("text"), QStringLiteral("secret-wait")}}),
                 step(QStringLiteral("click"),
-                    {{QStringLiteral("target"), QStringLiteral("secret-target")}})}}});
+                    {{QStringLiteral("target"), QStringLiteral("secret-target")}}),
+                step(QStringLiteral("dialog"),
+                    {{QStringLiteral("answer"), QStringLiteral("accept")},
+                        {QStringLiteral("text"), QStringLiteral("secret-prompt")}}),
+                step(QStringLiteral("upload"),
+                    {{QStringLiteral("target"), QStringLiteral("5")},
+                        {QStringLiteral("files"), QJsonArray {upload}}})}}});
     ask(control, QStringLiteral("read"),
         {{QStringLiteral("selector"), QStringLiteral("#secret-selector")}});
     ask(control, QStringLiteral("eval"),
@@ -190,7 +204,8 @@ void AgentActivityLogTest::keepsWhatAnAgentTypedOutOfEveryLine()
     QVERIFY2(!written.contains("secret"), written.constData());
     const auto &entries = log.entries();
     QCOMPARE(entries.at(1).target, QStringLiteral("https://shop.example/search"));
-    QCOMPARE(entries.at(2).target, QStringLiteral("select 4, press, wait, click"));
+    QCOMPARE(entries.at(2).target,
+        QStringLiteral("select 4, press, wait, click, dialog accept, upload 5"));
     QCOMPARE(entries.at(2).address, QStringLiteral("https://shop.example/search"));
     QCOMPARE(entries.constLast().outcome, QStringLiteral("refused"));
 }

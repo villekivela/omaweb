@@ -1,4 +1,5 @@
 #include "AgentActivityLog.h"
+#include "AgentControl.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "EngineBuild.h"
@@ -29,6 +30,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QImage>
+#include <QJsonObject>
 #include <QPainter>
 #include <QQmlContext>
 #include <QDir>
@@ -135,6 +137,26 @@ class CursorProbe final : public QObject {
 
 public:
     Q_INVOKABLE int shape(QWindow *window) const { return window->cursor().shape(); }
+};
+
+// A request as the Agent socket hands it to the core, so a test reaches the
+// window the way `omaweb run` does and reads the answer the CLI would.
+class AgentSocketProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    explicit AgentSocketProbe(omaweb::AgentControl &control)
+        : m_control(control)
+    {
+    }
+
+    Q_INVOKABLE QVariantMap ask(const QVariantMap &request)
+    {
+        return m_control.answer(QJsonObject::fromVariantMap(request)).toVariantMap();
+    }
+
+private:
+    omaweb::AgentControl &m_control;
 };
 
 // A favicon on disk for the tests that check what colour a site's chip takes.
@@ -298,6 +320,14 @@ public slots:
             QStringLiteral("controlsStyle"), QQuickStyle::name());
         m_probeClock = std::make_unique<omaweb::test::ProbeClock>();
         engine->rootContext()->setContextProperty(QStringLiteral("probeClock"), m_probeClock.get());
+        // The core the browser answers the Agent socket with, with no config
+        // root, so Allow agents is off as it is until the reader turns it on.
+        m_agentControl = std::make_unique<omaweb::AgentControl>(m_browser.get(), QString());
+        m_agentSocket = std::make_unique<AgentSocketProbe>(*m_agentControl);
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("agentControl"), m_agentControl.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("agentSocket"), m_agentSocket.get());
         engine->addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
         engine->addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
         m_kitTheme
@@ -306,6 +336,8 @@ public slots:
 
     void cleanupTestCase()
     {
+        m_agentSocket.reset();
+        m_agentControl.reset();
         m_probeClock.reset();
         m_kitTheme.reset();
         m_runtimeSecurity.reset();
@@ -338,6 +370,8 @@ private:
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;
     std::unique_ptr<omaweb::InputMethodReport> m_inputMethod;
     std::unique_ptr<omaweb::test::ProbeClock> m_probeClock;
+    std::unique_ptr<omaweb::AgentControl> m_agentControl;
+    std::unique_ptr<AgentSocketProbe> m_agentSocket;
 };
 
 QUICK_TEST_MAIN_WITH_SETUP(omaweb_ui, UiTestSetup)

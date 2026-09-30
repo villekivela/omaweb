@@ -50,6 +50,28 @@ namespace {
     // Screenshots are the Agent's to read soon after, not an archive.
     constexpr qsizetype maximumShots = 50;
     constexpr qint64 maximumShotAgeSeconds = 24 * 60 * 60;
+    // A form takes a few files, not a directory's worth.
+    constexpr qsizetype maximumUploadFiles = 16;
+    constexpr qsizetype maximumDirectoryNameLength = 64;
+
+    // A connection's name as a directory name: nothing that leaves the
+    // directory it is put in, and nothing hidden.
+    QString directoryName(const QString &name)
+    {
+        QString cleaned;
+        for (const auto character : name) {
+            const auto safe = character.isLetterOrNumber() || character == u'-' || character == u'_'
+                || character == u'.' || character == u' ';
+            cleaned.append(safe ? character : u'-');
+        }
+        while (cleaned.startsWith(u'.') || cleaned.startsWith(u' ')) {
+            cleaned.remove(0, 1);
+        }
+        cleaned = cleaned.left(maximumDirectoryNameLength).trimmed();
+        return cleaned.isEmpty() ? QStringLiteral("agent") : cleaned;
+    }
+
+    bool isWindowId(const QString &id) { return id.startsWith(u"window-"); }
 
     // A target is an address or a name, and a log line has no use for more.
     constexpr qsizetype maximumAddressLength = 2048;
@@ -59,7 +81,8 @@ namespace {
     {
         static const QSet<QString> actions {QStringLiteral("click"), QStringLiteral("fill"),
             QStringLiteral("press"), QStringLiteral("select"), QStringLiteral("scroll"),
-            QStringLiteral("back"), QStringLiteral("wait")};
+            QStringLiteral("back"), QStringLiteral("wait"), QStringLiteral("dialog"),
+            QStringLiteral("upload")};
         return actions;
     }
 
@@ -165,6 +188,12 @@ void AgentControl::apply(bool allowed)
             connection.currentTabId.clear();
         }
         m_console.forgetAll();
+        m_tabConnections.clear();
+        m_newWindows.clear();
+        if (!m_windows.isEmpty()) {
+            m_windows.clear();
+            emit agentWindowsChanged();
+        }
         if (!m_attached.isEmpty()) {
             m_attached.clear();
             m_idleCheck.stop();
@@ -293,7 +322,107 @@ QVariantMap AgentControl::agentTab(const QString &tabId) const
         {QStringLiteral("url"), tab->url},
         {QStringLiteral("zoom"), tab->zoom},
         {QStringLiteral("muted"), tab->muted},
+        {QStringLiteral("downloadDirectory"), downloadDirectoryFor(m_tabConnections.value(tabId))},
     };
+}
+
+QStringList AgentControl::agentWindowIds() const
+{
+    auto ids = m_windows.keys();
+    ids.sort();
+    return ids;
+}
+
+QString AgentControl::attachWindow(const QString &openerTabId)
+{
+    if (!m_allowAgents || !m_attached.contains(openerTabId)) {
+        return {};
+    }
+    const auto id = QStringLiteral("window-%1").arg(m_nextWindow++);
+    m_windows.insert(id,
+        AgentWindow {
+            .openerTabId = openerTabId, .connection = m_tabConnections.value(openerTabId)});
+    m_newWindows[openerTabId].append(id);
+    emit agentWindowsChanged();
+    return id;
+}
+
+QVariantMap AgentControl::agentWindow(const QString &windowId) const
+{
+    const auto found = m_windows.constFind(windowId);
+    if (found == m_windows.cend()) {
+        return {};
+    }
+    const auto opener = m_browser->findTab(found->openerTabId);
+    return {
+        {QStringLiteral("windowId"), windowId},
+        {QStringLiteral("openerTabId"), found->openerTabId},
+        {QStringLiteral("spaceId"), opener ? opener->spaceId : QString {}},
+        {QStringLiteral("connection"), found->connection},
+        {QStringLiteral("downloadDirectory"), downloadDirectoryFor(found->connection)},
+    };
+}
+
+void AgentControl::windowClosed(const QString &windowId)
+{
+    if (forgetWindow(windowId)) {
+        emit agentWindowsChanged();
+    }
+}
+
+bool AgentControl::forgetWindow(const QString &windowId)
+{
+    const auto window = m_windows.take(windowId);
+    if (window.openerTabId.isEmpty()) {
+        return false;
+    }
+    m_console.forget(windowId);
+    m_newWindows[window.openerTabId].removeAll(windowId);
+    for (auto &connection : m_connections) {
+        if (connection.currentTabId == windowId) {
+            connection.currentTabId.clear();
+        }
+    }
+    return true;
+}
+
+// A window is the Agent's only while its opener is an Agent tab. Once no
+// Agent holds the opener, nobody is left to answer what the window asks, so
+// it goes back to the reader with it.
+void AgentControl::releaseWindowsOf(const QString &openerTabId)
+{
+    QStringList released;
+    for (auto it = m_windows.cbegin(); it != m_windows.cend(); ++it) {
+        if (it->openerTabId == openerTabId) {
+            released.append(it.key());
+        }
+    }
+    for (const auto &windowId : std::as_const(released)) {
+        forgetWindow(windowId);
+    }
+    if (!released.isEmpty()) {
+        emit agentWindowsChanged();
+    }
+}
+
+QString AgentControl::openerOf(const QString &target) const
+{
+    return isWindowId(target) ? m_windows.value(target).openerTabId : target;
+}
+
+QJsonObject AgentControl::noWindow(const QString &windowId)
+{
+    return refusal(QStringLiteral("not-found"),
+        QStringLiteral("There is no window \"%1\". It has closed.").arg(windowId));
+}
+
+QString AgentControl::downloadDirectoryFor(const QString &name) const
+{
+    const auto root = m_browser->downloadDirectory();
+    if (root.isEmpty()) {
+        return {};
+    }
+    return QDir(root).filePath(QStringLiteral("Agents/") + directoryName(name));
 }
 
 void AgentControl::setShotDirectory(const QString &directory) { m_shotDirectory = directory; }
@@ -304,14 +433,20 @@ void AgentControl::setAttachmentIdleMs(int milliseconds)
     m_idleCheck.setInterval(std::min(idleCheckMs, std::max(milliseconds / 2, 1)));
 }
 
-void AgentControl::attach(const QString &tabId)
+void AgentControl::attach(const QString &tabId, const QString &name)
 {
     const auto known = m_attached.contains(tabId);
     m_attached.insert(tabId, m_clock.elapsed());
+    // Another connection using the tab takes its downloads with it, which the
+    // page hears as a change to the Agent tabs.
+    const auto handedOver = !name.isEmpty() && m_tabConnections.value(tabId) != name;
+    if (!name.isEmpty()) {
+        m_tabConnections.insert(tabId, name);
+    }
     if (!m_idleCheck.isActive()) {
         m_idleCheck.start();
     }
-    if (!known) {
+    if (!known || handedOver) {
         emit agentTabsChanged();
     }
 }
@@ -319,6 +454,9 @@ void AgentControl::attach(const QString &tabId)
 void AgentControl::detach(const QString &tabId)
 {
     m_console.forget(tabId);
+    m_tabConnections.remove(tabId);
+    m_newWindows.remove(tabId);
+    releaseWindowsOf(tabId);
     if (m_attached.remove(tabId) > 0) {
         if (m_attached.isEmpty()) {
             m_idleCheck.stop();
@@ -335,7 +473,8 @@ void AgentControl::detachIdle()
     const auto now = m_clock.elapsed();
     QSet<QString> working;
     for (const auto &pending : std::as_const(m_pendingPages)) {
-        working.insert(pending.tabId);
+        // A verb in one of a tab's windows is work in the tab.
+        working.insert(openerOf(pending.tabId));
     }
     QStringList leaving;
     for (auto it = m_attached.cbegin(); it != m_attached.cend(); ++it) {
@@ -348,7 +487,10 @@ void AgentControl::detachIdle()
     }
     for (const auto &tabId : std::as_const(leaving)) {
         m_attached.remove(tabId);
+        m_tabConnections.remove(tabId);
+        m_newWindows.remove(tabId);
         m_console.forget(tabId);
+        releaseWindowsOf(tabId);
     }
     if (m_attached.isEmpty()) {
         m_idleCheck.stop();
@@ -390,6 +532,12 @@ QJsonObject AgentControl::gate(const QString &verb) const
 void AgentControl::resolveCurrentTab(Connection &connection) const
 {
     if (connection.currentTabId.isEmpty()) {
+        return;
+    }
+    if (isWindowId(connection.currentTabId)) {
+        if (!m_windows.contains(connection.currentTabId)) {
+            connection.currentTabId.clear();
+        }
         return;
     }
     const auto tab = m_browser->findTab(connection.currentTabId, connection.currentSpaceId);
@@ -466,15 +614,24 @@ QString AgentControl::activityTarget(const QString &verb, const QJsonObject &req
         return {};
     }
     // A step is its action and the hint label it acted on. What it filled,
-    // the option it chose, the key it pressed and the text or address it
-    // waited for are left out, as is a target that is not a label: any of
-    // them can be what the reader typed.
+    // the option it chose, the key it pressed, the text or address it waited
+    // for, the text a dialog was answered with and the files an upload gave
+    // are left out, as is a target that is not a label: any of them can be
+    // what the reader typed.
     static const QRegularExpression hintLabel(QStringLiteral("^[0-9]{1,9}$"));
     QStringList steps;
     for (const auto &value : request.value(QStringLiteral("steps")).toArray()) {
         const auto step = value.toObject();
         const auto action = step.value(QStringLiteral("action")).toString();
         if (!stepActions().contains(action)) {
+            continue;
+        }
+        // A dialog's answer is accept or dismiss, never the text it gave.
+        if (action == u"dialog") {
+            const auto answer = step.value(QStringLiteral("answer")).toString();
+            steps.append(answer == u"accept" || answer == u"dismiss"
+                    ? QStringLiteral("dialog %1").arg(answer)
+                    : action);
             continue;
         }
         const auto label = step.value(QStringLiteral("target")).toString();
@@ -591,7 +748,7 @@ QJsonObject AgentControl::answerBrowserCommand(const QString &verb, const QStrin
         return listTabs(connection, request);
     }
     if (verb == u"open") {
-        return open(connection, request);
+        return open(name, connection, request);
     }
     if (verb == u"close") {
         return close(connection, request);
@@ -691,7 +848,8 @@ QJsonObject AgentControl::switchToSpace(const QJsonObject &request)
 
 // A tab by its id, or else the first whose address holds the text, looked for
 // in the Space on show before the others in the sidebar's order. Selecting it
-// switches to its Space, as choosing it in the Omnibar does.
+// switches to its Space, as choosing it in the Omnibar does. A Space not on
+// show is read from its store, so each is read once, for both.
 QJsonObject AgentControl::focusTab(const QJsonObject &request)
 {
     const auto target = request.value(QStringLiteral("target")).toString();
@@ -699,27 +857,32 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
         return refusal(QStringLiteral("bad-request"),
             QStringLiteral("Name a tab, or a part of its address, to select."));
     }
-    auto tab = m_browser->findTab(target);
-    if (!tab) {
-        QStringList spaceIds {m_browser->activeSpaceId()};
-        const auto *model = m_browser->spaces();
-        for (int row = 0; row < model->rowCount(); ++row) {
-            const auto id = model->index(row, 0).data(SpaceListModel::IdRole).toString();
-            if (!spaceIds.contains(id)) {
-                spaceIds.append(id);
-            }
+    QStringList spaceIds {m_browser->activeSpaceId()};
+    const auto *model = m_browser->spaces();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const auto id = model->index(row, 0).data(SpaceListModel::IdRole).toString();
+        if (!spaceIds.contains(id)) {
+            spaceIds.append(id);
         }
-        for (const auto &spaceId : std::as_const(spaceIds)) {
-            for (const auto &each : m_browser->spaceTabs(spaceId)) {
-                if (each.url.toString().contains(target, Qt::CaseInsensitive)) {
-                    tab = each;
-                    break;
-                }
-            }
-            if (tab) {
+    }
+    std::optional<TabState> tab;
+    std::optional<TabState> byAddress;
+    for (const auto &spaceId : std::as_const(spaceIds)) {
+        for (const auto &each : m_browser->spaceTabs(spaceId)) {
+            if (each.id == target) {
+                tab = each;
                 break;
             }
+            if (!byAddress && each.url.toString().contains(target, Qt::CaseInsensitive)) {
+                byAddress = each;
+            }
         }
+        if (tab) {
+            break;
+        }
+    }
+    if (!tab) {
+        tab = byAddress;
     }
     if (!tab) {
         return refusal(QStringLiteral("not-found"),
@@ -737,19 +900,27 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
     return success({{QStringLiteral("tab"), tab->id}, {QStringLiteral("space"), tab->spaceId}});
 }
 
-// The tab a page verb or `console` is about: the one `--tab` names or the
-// connection's current one, and only a page an Agent may read.
-QJsonObject AgentControl::pageTab(
-    const Connection &connection, const QJsonObject &request, std::optional<TabState> &tab) const
+QString AgentControl::targetId(const Connection &connection, const QJsonObject &request) const
 {
-    auto tabId = request.value(QStringLiteral("tab")).toString();
-    if (tabId.isEmpty()) {
-        tabId = connection.currentTabId;
-    }
-    if (tabId.isEmpty()) {
+    const auto named = request.value(QStringLiteral("tab")).toString();
+    return named.isEmpty() ? connection.currentTabId : named;
+}
+
+// The tab a page verb or `console` is about: the one `--tab` names or the
+// connection's current one, and only a page an Agent may read. An Auxiliary
+// window an Agent tab opened is read as its opener is.
+QJsonObject AgentControl::pageTab(const Connection &connection, const QJsonObject &request,
+    std::optional<TabState> &tab, QString &target) const
+{
+    target = targetId(connection, request);
+    if (target.isEmpty()) {
         return refusal(QStringLiteral("no-current-tab"),
             QStringLiteral(
                 "This connection has no current tab. Open one, or name one with --tab."));
+    }
+    const auto tabId = openerOf(target);
+    if (tabId.isEmpty()) {
+        return noWindow(target);
     }
     tab = m_browser->findTab(
         tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
@@ -788,15 +959,16 @@ QJsonObject AgentControl::readConsole(Connection &connection, const QJsonObject 
             QStringLiteral("--since is the cursor a `console` answered."));
     }
     std::optional<TabState> tab;
-    if (const auto refused = pageTab(connection, request, tab); !refused.isEmpty()) {
+    QString target;
+    if (const auto refused = pageTab(connection, request, tab, target); !refused.isEmpty()) {
         return refused;
     }
-    connection.currentTabId = tab->id;
+    connection.currentTabId = target;
     connection.currentSpaceId = tab->spaceId;
-    attach(tab->id);
+    attach(tab->id, request.value(QStringLiteral("name")).toString());
 
     const auto reading
-        = m_console.read(tab->id, threshold, static_cast<quint64>(sinceValue.toDouble(0)));
+        = m_console.read(target, threshold, static_cast<quint64>(sinceValue.toDouble(0)));
     QJsonArray messages;
     for (const auto &message : reading.messages) {
         messages.append(QJsonObject {
@@ -808,7 +980,7 @@ QJsonObject AgentControl::readConsole(Connection &connection, const QJsonObject 
         });
     }
     return success({
-        {QStringLiteral("tab"), tab->id},
+        {QStringLiteral("tab"), target},
         {QStringLiteral("messages"), messages},
         {QStringLiteral("cursor"), static_cast<double>(reading.cursor)},
         {QStringLiteral("truncated"), reading.truncated},
@@ -820,17 +992,46 @@ void AgentControl::recordConsoleMessage(const QString &tabId, const QString &doc
 {
     // Only an Agent tab is listened to. A page the reader has to themselves
     // says nothing that is kept.
-    if (!m_allowAgents || !m_attached.contains(tabId)) {
+    if (!m_allowAgents || (!m_attached.contains(tabId) && !m_windows.contains(tabId))) {
         return;
     }
     m_console.record(tabId, document, level, message, source, line);
 }
 
+// Checked before whether the Agent may read the page at all, so that nothing
+// which lets an Agent into one of the reader's Spaces, a Space grant included,
+// lets it upload there.
+QJsonObject AgentControl::refuseUpload(
+    const Connection &connection, const QJsonObject &request) const
+{
+    const auto steps = request.value(QStringLiteral("steps")).toArray();
+    const auto uploads = std::any_of(steps.begin(), steps.end(), [](const QJsonValue &step) {
+        return step.toObject().value(QStringLiteral("action")).toString() == u"upload";
+    });
+    if (!uploads) {
+        return {};
+    }
+    const auto tab = m_browser->findTab(openerOf(targetId(connection, request)));
+    if (!tab || m_browser->agentSpace(tab->spaceId)) {
+        return {};
+    }
+    return refusal(QStringLiteral("refused"),
+        QStringLiteral("An Agent uploads files only in an Agent Space. Anywhere else an upload is "
+                       "how a page could take the reader's files."));
+}
+
 void AgentControl::askPage(const QString &verb, const QString &name, Connection &connection,
     const QJsonObject &request, const Reply &reply)
 {
+    if (verb == u"do") {
+        if (const auto refused = refuseUpload(connection, request); !refused.isEmpty()) {
+            reply(refused);
+            return;
+        }
+    }
     std::optional<TabState> tab;
-    if (const auto refused = pageTab(connection, request, tab); !refused.isEmpty()) {
+    QString target;
+    if (const auto refused = pageTab(connection, request, tab, target); !refused.isEmpty()) {
         reply(refused);
         return;
     }
@@ -846,9 +1047,9 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
         return;
     }
 
-    connection.currentTabId = tabId;
+    connection.currentTabId = target;
     connection.currentSpaceId = tab->spaceId;
-    attach(tabId);
+    attach(tabId, name);
 
     auto budget = pageAnswerMs;
     if (verb == u"shot" && arguments.value(QStringLiteral("full")).toBool()) {
@@ -874,15 +1075,17 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
             refusal(QStringLiteral("timeout"), QStringLiteral("The page did not answer in time.")));
     });
     m_pendingPages.insert(
-        requestId, PendingPage {.reply = reply, .deadline = deadline, .tabId = tabId});
+        requestId, PendingPage {.reply = reply, .deadline = deadline, .tabId = target});
     deadline->start();
     emit pageRequested(requestId,
         QVariantMap {
             {QStringLiteral("verb"), verb},
-            {QStringLiteral("tabId"), tabId},
+            {QStringLiteral("tabId"), target},
+            {QStringLiteral("window"), target != tabId},
             {QStringLiteral("spaceId"), tab->spaceId},
             {QStringLiteral("url"), tab->url},
             {QStringLiteral("name"), name},
+            {QStringLiteral("downloadDirectory"), downloadDirectoryFor(name)},
             {QStringLiteral("arguments"), arguments},
         });
 }
@@ -904,6 +1107,11 @@ void AgentControl::answerPage(int requestId, const QVariantMap &answer)
     result.insert(QStringLiteral("tab"), pending.tabId);
     if (m_attached.contains(pending.tabId)) {
         m_attached.insert(pending.tabId, m_clock.elapsed());
+    }
+    // The windows the page opened since it last answered, which the Agent
+    // reaches by these ids.
+    if (const auto opened = m_newWindows.take(pending.tabId); !opened.isEmpty()) {
+        result.insert(QStringLiteral("opened"), QJsonArray::fromStringList(opened));
     }
     pending.reply(result);
 }
@@ -1041,6 +1249,44 @@ QJsonObject AgentControl::pageArguments(
         if (action == u"press" && step.value(QStringLiteral("key")).toString().isEmpty()) {
             return at(QStringLiteral("`press` needs a key."));
         }
+        if (action == u"dialog") {
+            const auto answer = step.value(QStringLiteral("answer")).toString();
+            if (answer != u"accept" && answer != u"dismiss") {
+                return at(QStringLiteral("`dialog` is answered with accept or dismiss."));
+            }
+            if (!text.isUndefined() && !text.isString()) {
+                return at(QStringLiteral("`dialog accept` takes the text to answer with."));
+            }
+        }
+        if (action == u"upload") {
+            const auto files = step.value(QStringLiteral("files")).toArray();
+            if (target.isEmpty() || files.isEmpty()) {
+                return at(QStringLiteral("`upload` needs a label and at least one file."));
+            }
+            if (files.size() > maximumUploadFiles) {
+                return at(
+                    QStringLiteral("`upload` takes at most %1 files.").arg(maximumUploadFiles));
+            }
+            // Named by the Agent in full, and each one a file the reader can
+            // read, so what the page is given is exactly what was named.
+            QVariantList paths;
+            for (const auto &file : files) {
+                const QFileInfo info(file.toString());
+                if (!info.isAbsolute()) {
+                    return at(
+                        QStringLiteral("give the file's whole path: %1").arg(file.toString()));
+                }
+                if (!info.isFile() || !info.isReadable()) {
+                    return at(
+                        QStringLiteral("there is no file to read at %1").arg(file.toString()));
+                }
+                paths.append(info.canonicalFilePath());
+            }
+            auto checkedStep = step.toVariantMap();
+            checkedStep.insert(QStringLiteral("files"), paths);
+            checked.append(checkedStep);
+            continue;
+        }
         if (action == u"wait") {
             const auto forText = !step.value(QStringLiteral("text")).toString().isEmpty();
             const auto forUrl = !step.value(QStringLiteral("url")).toString().isEmpty();
@@ -1147,12 +1393,26 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
     for (const auto &tab : m_browser->spaceTabs(spaceId)) {
         tabs.append(describeTab(tab, connection));
     }
+    for (auto it = m_windows.cbegin(); it != m_windows.cend(); ++it) {
+        const auto opener = m_browser->findTab(it->openerTabId);
+        if (!opener || opener->spaceId != spaceId) {
+            continue;
+        }
+        tabs.append(QJsonObject {
+            {QStringLiteral("id"), it.key()},
+            {QStringLiteral("space"), spaceId},
+            {QStringLiteral("window"), true},
+            {QStringLiteral("opener"), it->openerTabId},
+            {QStringLiteral("current"), it.key() == connection.currentTabId},
+        });
+    }
     return success({{QStringLiteral("space"), spaceId}, {QStringLiteral("tabs"), tabs}});
 }
 
 // Opening an address is a browser command, as the desktop's own handover is.
 // It never selects the tab, so the page in front of the reader stays there.
-QJsonObject AgentControl::open(Connection &connection, const QJsonObject &request)
+QJsonObject AgentControl::open(
+    const QString &name, Connection &connection, const QJsonObject &request)
 {
     const auto input = request.value(QStringLiteral("url")).toString();
     const auto url = m_browser->resolveAddress(input);
@@ -1172,8 +1432,10 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
     }
     // A named tab, or the current one, moves to the address. Otherwise the
     // address gets a tab of its own.
+    // An Auxiliary window is the page's to navigate, not the Agent's.
     const auto newTab = !spaceName.isEmpty() || request.value(QStringLiteral("new")).toBool()
-        || (tabName.isEmpty() && connection.currentTabId.isEmpty());
+        || (tabName.isEmpty()
+            && (connection.currentTabId.isEmpty() || isWindowId(connection.currentTabId)));
     if (!newTab) {
         const auto tabId = tabName.isEmpty() ? connection.currentTabId : tabName;
         auto tab = m_browser->findTab(tabId, connection.currentSpaceId);
@@ -1199,7 +1461,7 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
         // The page an Agent loads is one it means to read, so it starts
         // loading behind the page on show rather than at the first look.
         if (mayRead(*tab)) {
-            attach(tabId);
+            attach(tabId, name);
         }
         tab->url = url;
         tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
@@ -1218,7 +1480,7 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
     connection.currentTabId = tabId;
     connection.currentSpaceId = spaceId;
     if (m_allowAgents && m_browser->agentSpace(spaceId)) {
-        attach(tabId);
+        attach(tabId, name);
     }
     const auto tab = m_browser->findTab(tabId, spaceId);
     return success({{QStringLiteral("tab"), tab ? describeTab(*tab, connection) : QJsonObject {}}});
@@ -1235,6 +1497,14 @@ QJsonObject AgentControl::close(Connection &connection, const QJsonObject &reque
     if (tabId.isEmpty()) {
         return refusal(QStringLiteral("no-current-tab"),
             QStringLiteral("This connection has no current tab. Name one with --tab."));
+    }
+    if (isWindowId(tabId)) {
+        if (!m_windows.contains(tabId)) {
+            return noWindow(tabId);
+        }
+        emit windowCloseRequested(tabId);
+        windowClosed(tabId);
+        return success({{QStringLiteral("closed"), tabId}});
     }
     const auto tab = m_browser->findTab(tabId, connection.currentSpaceId);
     if (!tab) {

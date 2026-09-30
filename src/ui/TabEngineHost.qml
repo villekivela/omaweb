@@ -778,6 +778,7 @@ Item {
                                                            })];
         root.engines[tabId] = engine;
         root.engineSpaces[tabId] = spaceId !== undefined ? spaceId : root.spaceId;
+        root.markAgentEngine(tabId, engine);
         engine.pageHasFocusChanged.connect(function () {
             root.keepKeyboardOff(engine);
         });
@@ -935,6 +936,26 @@ Item {
         return root.agentTabIds[tabId] === true;
     }
 
+    // The tab an engine is the page of, when an Agent holds it, or nothing.
+    function agentTabIdOf(engine) {
+        for (const tabId in root.engines) {
+            if (root.engines[tabId] === engine)
+                return root.agentAttached(tabId) ? tabId : "";
+        }
+        return "";
+    }
+
+    // Whose the page's dialogs, file choosers and downloads are: the Agent's
+    // while it holds the tab, and the reader's again once it does not.
+    function markAgentEngine(tabId, engine) {
+        if (engine.agentOwned === undefined)
+            return;
+        const attached = root.agentAttached(tabId) && root.agentControl !== null;
+        engine.agentOwned = attached;
+        engine.agentDownloadDirectory = attached ? String(root.agentControl.agentTab(
+                                                              tabId).downloadDirectory || "") : "";
+    }
+
     function syncAgentTabs() {
         const named = root.agentControl ? root.agentControl.agentTabIds : [];
         const previous = root.agentTabIds;
@@ -946,12 +967,16 @@ Item {
         for (const tabId in next) {
             if (previous[tabId] !== true)
                 root.ensureAgentEngine(tabId);
+            else if (root.engines[tabId])
+                root.markAgentEngine(tabId, root.engines[tabId]);
         }
         // A tab that stopped being an Agent's goes back to what any page the
         // reader cannot see is: hidden and frozen.
         for (const tabId in previous) {
-            if (next[tabId] !== true && root.engines[tabId])
+            if (next[tabId] !== true && root.engines[tabId]) {
                 root.setEngineVisible(tabId, root.shownTabIds[tabId] === true);
+                root.markAgentEngine(tabId, root.engines[tabId]);
+            }
         }
     }
 
@@ -962,6 +987,7 @@ Item {
             return null;
         if (root.engines[tabId]) {
             root.setEngineVisible(tabId, root.shownTabIds[tabId] === true);
+            root.markAgentEngine(tabId, root.engines[tabId]);
             return root.engines[tabId];
         }
         const tab = root.agentControl.agentTab(tabId);
@@ -985,6 +1011,9 @@ Item {
     }
 
     function answerAgentRequest(requestId, request) {
+        // An Auxiliary window answers for itself.
+        if (request.window === true)
+            return;
         const engine = root.ensureAgentEngine(request.tabId);
         if (!engine) {
             root.agentControl.answerPage(requestId, {
@@ -999,6 +1028,9 @@ Item {
                                          || 1);
 
 
+        // The connection asking now is the one its downloads go to.
+        if (engine.agentDownloadDirectory !== undefined)
+            engine.agentDownloadDirectory = String(request.downloadDirectory || "");
         engine.answerAgentVerb(requestId, request.verb, request.arguments);
     }
 

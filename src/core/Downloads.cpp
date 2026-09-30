@@ -6,6 +6,7 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QQmlEngine>
@@ -16,6 +17,9 @@
 namespace omaweb {
 
 namespace {
+
+    // Within what a Linux file system takes, with room for a copy's number.
+    constexpr qsizetype maximumAgentFileNameLength = 200;
 
     bool isRunning(const QString &state)
     {
@@ -203,6 +207,53 @@ QVariantMap Downloads::disposition(const QUrl &origin, const QString &fileName,
         && QFileInfo::exists(QDir(directory).filePath(fileName))) {
         return decide(BrowserController::SaveDownloadAs);
     }
+    return decide(BrowserController::AcceptDownload);
+}
+
+QVariantMap Downloads::agentDisposition(const QUrl &origin, const QString &fileName,
+    const QString &mimeType, const QString &directory, bool answered) const
+{
+    const auto normalized = m_permissions ? m_permissions->permissionOrigin(origin) : QString {};
+    const auto kind = DownloadPolicy::riskKind(fileName, mimeType);
+    QVariantMap answer {
+        {QStringLiteral("risk"), kind},
+        {QStringLiteral("fileName"), fileName},
+        {QStringLiteral("origin"), normalized},
+    };
+    const auto decide = [&answer](BrowserController::DownloadDisposition disposition) {
+        answer.insert(QStringLiteral("disposition"), static_cast<int>(disposition));
+        return answer;
+    };
+    if (!normalized.isEmpty()
+        && m_permissions->automaticDownloadDecision(normalized) == BrowserController::Block) {
+        return decide(BrowserController::RefuseDownload);
+    }
+    if (!kind.isEmpty() && !answered) {
+        return decide(BrowserController::ConfirmDownload);
+    }
+    if (directory.isEmpty() || !QDir().mkpath(directory)
+        || !QFile::setPermissions(
+            directory, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner)) {
+        return decide(BrowserController::RefuseDownload);
+    }
+    // The name is the page's to choose, so a separator that would leave the
+    // directory is taken out, and so is a leading dot that would hide the file.
+    static const QRegularExpression unsafe(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]+"));
+    static const QRegularExpression hiding(QStringLiteral("^[.\\s]+"));
+    auto name = QString(fileName).replace(unsafe, QStringLiteral(" ")).remove(hiding).simplified();
+    name = name.left(maximumAgentFileNameLength).trimmed();
+    if (name.isEmpty()) {
+        name = QStringLiteral("download");
+    }
+    const QDir target(directory);
+    const QFileInfo named(name);
+    const auto stem = named.completeBaseName();
+    const auto suffix = named.suffix().isEmpty() ? QString() : u'.' + named.suffix();
+    auto path = target.filePath(name);
+    for (int copy = 2; QFileInfo::exists(path); ++copy) {
+        path = target.filePath(stem + QStringLiteral(" (%1)").arg(copy) + suffix);
+    }
+    answer.insert(QStringLiteral("path"), path);
     return decide(BrowserController::AcceptDownload);
 }
 

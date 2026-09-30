@@ -423,11 +423,12 @@ answer is known: the time, the connection's name, the Space by id and by the nam
 tab and its address, the verb, its target and `ok` or the refusal's code. The target is what the
 verb named: the address `open` resolved to, a Space or a command. For `do` it is each step's action
 and hint label, such as `fill 7, click 9`, and never the text a step filled, the option it chose,
-the key it pressed or what it waited for, since any of those can be what the reader typed. A step
-whose target is not a label keeps its action alone. `read` keeps no selector and `eval` no source.
-Every address loses its query, fragment and credentials, where a form's values and a site's tokens
-go, and an address `open` refused is not kept at all. A request that names no verb, or reaches a
-Private window, is not written down.
+the key it pressed, what it waited for, the text a dialog was answered with or the files an upload
+gave, since any of those can be what the reader typed. A dialog step keeps `accept` or `dismiss`. A
+step whose target is not a label keeps its action alone. `read` keeps no selector and `eval` no
+source. Every address loses its query, fragment and credentials, where a form's values and a site's
+tokens go, and an address `open` refused is not kept at all. A request that names no verb, or
+reaches a Private window, is not written down.
 
 The log is `agent-activity.jsonl` in the application data directory, mode 0600, one JSON object per
 line. Opening it at start drops lines older than 7 days and writes the file again; while the browser

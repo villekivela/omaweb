@@ -152,6 +152,10 @@ private slots:
     void switchesSpaceAndSelectsATabWithAllowAgentsOff();
     void runsOnlyThePublicCommandsInTheWindow();
     void decidesEveryCommandOfTheRegistry();
+    void uploadsOnlyInAnAgentSpace();
+    void checksADialogStep();
+    void givesEachConnectionItsOwnDownloadDirectory();
+    void drivesTheWindowsAnAgentTabOpens();
 };
 
 void AgentControlTest::gatesOnlyAgentSpacesBehindAllowAgents()
@@ -1167,6 +1171,10 @@ void AgentControlTest::switchesSpaceAndSelectsATabWithAllowAgentsOff()
     QVERIFY(succeeded(ask(control, script, QStringLiteral("focus"),
         {{QStringLiteral("target"), QStringLiteral("personal-pin")}})));
     QCOMPARE(browser->activeTabId(), QStringLiteral("personal-pin"));
+    QVERIFY(!browser
+            ->openTabInSpace(QStringLiteral("personal"),
+                QUrl(QStringLiteral("https://search.example/?q=work-tab")))
+            .isEmpty());
     QVERIFY(succeeded(ask(control, script, QStringLiteral("focus"),
         {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
     QCOMPARE(browser->activeSpaceId(), QStringLiteral("work"));
@@ -1279,4 +1287,277 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
 }
 
 QTEST_GUILESS_MAIN(AgentControlTest)
+namespace {
+
+QJsonObject uploadStep(const QString &target, const QStringList &files)
+{
+    return {{QStringLiteral("action"), QStringLiteral("upload")},
+        {QStringLiteral("target"), target},
+        {QStringLiteral("files"), QJsonArray::fromStringList(files)}};
+}
+
+} // namespace
+
+// An upload is how a page an Agent was sent to could take the reader's files,
+// so it is refused outside an Agent Space before anything else is asked about
+// the page. That holds whatever lets an Agent into one of the reader's Spaces,
+// a Space grant included: the refusal is its own, not the one for a page the
+// Agent may not read.
+void AgentControlTest::uploadsOnlyInAnAgentSpace()
+{
+    QTemporaryDir config;
+    QTemporaryDir files;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+
+    const auto report = QDir(files.path()).filePath(QStringLiteral("report.pdf"));
+    QFile file(report);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("%PDF");
+    file.close();
+    const auto batch
+        = [&control](const QString &name, const QJsonArray &steps, QJsonObject fields = {}) {
+              fields.insert(QStringLiteral("steps"), steps);
+              return askPage(control, name, QStringLiteral("do"), fields);
+          };
+
+    // The reader's own Spaces: a tab of theirs, and one the Agent opened there.
+    const auto opened = ask(control, QStringLiteral("agent"), QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://reader.example/")},
+            {QStringLiteral("space"), QStringLiteral("work")}})
+                            .value(QStringLiteral("tab"))
+                            .toObject()
+                            .value(QStringLiteral("id"))
+                            .toString();
+    for (const auto &tabId : {opened, QStringLiteral("personal-tab"), QStringLiteral("work-tab")}) {
+        const auto refused = batch(QStringLiteral("agent"),
+            {uploadStep(QStringLiteral("4"), {report})}, {{QStringLiteral("tab"), tabId}});
+        QCOMPARE(failure(refused), QStringLiteral("refused"));
+        QVERIFY2(refused.value(QStringLiteral("error")).toString().contains(u"upload"),
+            qPrintable(refused.value(QStringLiteral("error")).toString()));
+        // A batch without one is refused only for being the reader's page.
+        const auto reading = batch(QStringLiteral("agent"),
+            {QJsonObject {{QStringLiteral("action"), QStringLiteral("back")}}},
+            {{QStringLiteral("tab"), tabId}});
+        QCOMPARE(failure(reading), QStringLiteral("refused"));
+        QVERIFY(!reading.value(QStringLiteral("error")).toString().contains(u"upload"));
+    }
+    QCOMPARE(requested.count(), 0);
+
+    // In an Agent Space the files named, and only those, reach the page, each
+    // one named in full and there to read.
+    const auto agentTab = openAgentTab(control, QStringLiteral("agent"));
+    QCOMPARE(failure(batch(QStringLiteral("agent"), {uploadStep(QStringLiteral("4"), {})})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(failure(batch(QStringLiteral("agent"),
+                 {uploadStep(QStringLiteral("4"), {QStringLiteral("report.pdf")})})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(failure(batch(QStringLiteral("agent"),
+                 {uploadStep(QStringLiteral("4"),
+                     {QDir(files.path()).filePath(QStringLiteral("missing.pdf"))})})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(
+        failure(batch(QStringLiteral("agent"), {uploadStep(QStringLiteral("4"), {files.path()})})),
+        QStringLiteral("bad-request"));
+    QStringList tooMany;
+    for (auto index = 0; index < 17; ++index) {
+        tooMany.append(report);
+    }
+    QCOMPARE(failure(batch(QStringLiteral("agent"), {uploadStep(QStringLiteral("4"), tooMany)})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(requested.count(), 0);
+
+    const auto roundabout = QDir(files.path())
+                                .filePath(QStringLiteral("../") + QFileInfo(files.path()).fileName()
+                                    + QStringLiteral("/report.pdf"));
+    batch(QStringLiteral("agent"), {uploadStep(QStringLiteral("4"), {roundabout})});
+    QCOMPARE(requested.count(), 1);
+    const auto request = requested.at(0).at(1).toMap();
+    QCOMPARE(request.value(QStringLiteral("tabId")).toString(), agentTab);
+    const auto step = request.value(QStringLiteral("arguments"))
+                          .toMap()
+                          .value(QStringLiteral("steps"))
+                          .toList()
+                          .constFirst()
+                          .toMap();
+    QCOMPARE(step.value(QStringLiteral("files")).toStringList(),
+        QStringList {QFileInfo(report).canonicalFilePath()});
+}
+
+void AgentControlTest::checksADialogStep()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    openAgentTab(control, QStringLiteral("agent"));
+
+    const auto dialog = [&control](QJsonObject step) {
+        step.insert(QStringLiteral("action"), QStringLiteral("dialog"));
+        return askPage(control, QStringLiteral("agent"), QStringLiteral("do"),
+            {{QStringLiteral("steps"), QJsonArray {step}}});
+    };
+    QCOMPARE(failure(dialog({})), QStringLiteral("bad-request"));
+    QCOMPARE(failure(dialog({{QStringLiteral("answer"), QStringLiteral("maybe")}})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(failure(dialog({{QStringLiteral("answer"), QStringLiteral("accept")},
+                 {QStringLiteral("text"), 5}})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(requested.count(), 0);
+    dialog({{QStringLiteral("answer"), QStringLiteral("accept")},
+        {QStringLiteral("text"), QStringLiteral("Helsinki")}});
+    dialog({{QStringLiteral("answer"), QStringLiteral("dismiss")}});
+    QCOMPARE(requested.count(), 2);
+}
+
+// A download from an Agent tab lands in a directory of the connection's own,
+// under the reader's downloads location, and whatever the connection calls
+// itself the directory stays inside it.
+void AgentControlTest::givesEachConnectionItsOwnDownloadDirectory()
+{
+    QTemporaryDir config;
+    QTemporaryDir downloads;
+    SessionFixture fixture(readersSession(), config.path());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    QVERIFY(browser->setDownloadDirectory(downloads.path()));
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+
+    const auto agents = QDir(downloads.path()).filePath(QStringLiteral("Agents"));
+    const auto tab = openAgentTab(control, QStringLiteral("claude"));
+    QCOMPARE(control.agentTab(tab).value(QStringLiteral("downloadDirectory")).toString(),
+        QDir(agents).filePath(QStringLiteral("claude")));
+    askPage(control, QStringLiteral("claude"), QStringLiteral("look"));
+    QCOMPARE(requested.at(0).at(1).toMap().value(QStringLiteral("downloadDirectory")).toString(),
+        QDir(agents).filePath(QStringLiteral("claude")));
+
+    // Another connection using the same tab takes its downloads with it,
+    // which the page hears.
+    QSignalSpy handedOver(&control, &AgentControl::agentTabsChanged);
+    const auto sly = QStringLiteral("../../.ssh/x");
+    askPage(control, sly, QStringLiteral("look"), {{QStringLiteral("tab"), tab}});
+    const auto directory
+        = requested.at(1).at(1).toMap().value(QStringLiteral("downloadDirectory")).toString();
+    QCOMPARE(QFileInfo(directory).absolutePath(), QFileInfo(agents).absoluteFilePath());
+    QVERIFY(!QFileInfo(directory).fileName().startsWith(u'.'));
+    QCOMPARE(
+        control.agentTab(tab).value(QStringLiteral("downloadDirectory")).toString(), directory);
+    QCOMPARE(handedOver.count(), 1);
+    // Nothing is made until something is downloaded.
+    QVERIFY(!QFileInfo::exists(agents));
+}
+
+// An Auxiliary window an Agent tab's page opens is the Agent's: `do` names it,
+// `tabs` lists it, the page verbs reach it by its id, `close` closes it, and
+// it stops being the Agent's when Allow agents goes off.
+void AgentControlTest::drivesTheWindowsAnAgentTabOpens()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    QSignalSpy windows(&control, &AgentControl::agentWindowsChanged);
+    QSignalSpy closing(&control, &AgentControl::windowCloseRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+
+    // A window the reader's own page opens stays the reader's.
+    QVERIFY(control.attachWindow(QStringLiteral("personal-tab")).isEmpty());
+    const auto tab = openAgentTab(control, QStringLiteral("agent"));
+    const auto spaceId = browser->findTab(tab)->spaceId;
+
+    // The click that opens it is answered with its id.
+    QList<QJsonObject> replies;
+    control.handle(
+        {{QStringLiteral("verb"), QStringLiteral("do")},
+            {QStringLiteral("name"), QStringLiteral("agent")},
+            {QStringLiteral("steps"),
+                QJsonArray {QJsonObject {{QStringLiteral("action"), QStringLiteral("click")},
+                    {QStringLiteral("target"), QStringLiteral("2")}}}}},
+        [&replies](const QJsonObject &answer) { replies.append(answer); });
+    const auto window = control.attachWindow(tab);
+    QVERIFY(!window.isEmpty());
+    QCOMPARE(windows.count(), 1);
+    QCOMPARE(control.agentWindowIds(), QStringList {window});
+    QCOMPARE(control.agentWindow(window).value(QStringLiteral("openerTabId")).toString(), tab);
+    QCOMPARE(control.agentWindow(window).value(QStringLiteral("spaceId")).toString(), spaceId);
+    QCOMPARE(control.agentWindow(window).value(QStringLiteral("connection")).toString(),
+        QStringLiteral("agent"));
+    control.answerPage(requested.at(0).at(0).toInt(), {{QStringLiteral("ok"), true}});
+    QCOMPARE(replies.constFirst().value(QStringLiteral("opened")).toArray(), QJsonArray {window});
+    // Said once.
+    control.handle({{QStringLiteral("verb"), QStringLiteral("look")},
+                       {QStringLiteral("name"), QStringLiteral("agent")}},
+        [&replies](const QJsonObject &answer) { replies.append(answer); });
+    control.answerPage(requested.at(1).at(0).toInt(), {{QStringLiteral("ok"), true}});
+    QVERIFY(!replies.constLast().contains(QStringLiteral("opened")));
+
+    const auto listed = ask(control, QStringLiteral("agent"), QStringLiteral("tabs"))
+                            .value(QStringLiteral("tabs"))
+                            .toArray();
+    QVERIFY(ids(listed).contains(window));
+
+    // A page verb reaches the window, answered by it and not by the tab.
+    askPage(control, QStringLiteral("agent"), QStringLiteral("look"),
+        {{QStringLiteral("tab"), window}});
+    const auto request = requested.at(2).at(1).toMap();
+    QCOMPARE(request.value(QStringLiteral("tabId")).toString(), window);
+    QCOMPARE(request.value(QStringLiteral("window")).toBool(), true);
+    QCOMPARE(request.value(QStringLiteral("spaceId")).toString(), spaceId);
+    // Answered, so nothing is left waiting on a reply this test has let go.
+    control.answerPage(requested.at(2).at(0).toInt(), {{QStringLiteral("ok"), true}});
+    // Its lines are kept, as an Agent tab's are.
+    control.recordConsoleMessage(window, QStringLiteral("1"), 2, QStringLiteral("boom"), {}, 1);
+    const auto console = ask(control, QStringLiteral("agent"), QStringLiteral("console"),
+        {{QStringLiteral("tab"), window}});
+    QCOMPARE(console.value(QStringLiteral("messages")).toArray().size(), 1);
+
+    // `close` closes it, and it is gone.
+    QVERIFY(succeeded(ask(control, QStringLiteral("agent"), QStringLiteral("close"),
+        {{QStringLiteral("tab"), window}})));
+    QCOMPARE(closing.count(), 1);
+    QCOMPARE(closing.at(0).at(0).toString(), window);
+    QVERIFY(control.agentWindowIds().isEmpty());
+    QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("look"),
+                 {{QStringLiteral("tab"), window}})),
+        QStringLiteral("not-found"));
+
+    // Once no Agent holds the opener, its windows are the reader's again:
+    // when the Agent closes the opener, and when it has left it alone.
+    const auto orphaned = control.attachWindow(tab);
+    QVERIFY(!orphaned.isEmpty());
+    const auto other = openAgentTab(control, QStringLiteral("other"));
+    QVERIFY(!control.attachWindow(other).isEmpty());
+    QVERIFY(succeeded(ask(control, QStringLiteral("agent"), QStringLiteral("close"),
+        {{QStringLiteral("tab"), tab}})));
+    QVERIFY(!control.agentWindowIds().contains(orphaned));
+    QCOMPARE(control.agentWindowIds().size(), 1);
+    control.setAttachmentIdleMs(50);
+    QTRY_VERIFY(control.agentWindowIds().isEmpty());
+    control.setAttachmentIdleMs(AgentControl::defaultAttachmentIdleMs);
+
+    // Allow agents off: the window is the reader's again.
+    const auto opener = openAgentTab(control, QStringLiteral("agent"));
+    const auto second = control.attachWindow(opener);
+    QVERIFY(!second.isEmpty());
+    control.setAllowAgents(false);
+    QVERIFY(control.agentWindowIds().isEmpty());
+    QVERIFY(control.agentWindow(second).isEmpty());
+    control.windowClosed(second);
+}
+
 #include "tst_agentcontrol.moc"
