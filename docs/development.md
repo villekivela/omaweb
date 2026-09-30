@@ -95,9 +95,10 @@ and EasyPrivacy into the lab's content-blocking settings as current, so Content 
 lists a first run has without fetching them. `--agents` has an Agent at work under the real Agent
 rules: an Agent Space it made is on show with the tab it is driving, which it has just clicked in,
 and a second Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
-`--agents-window` has the Agent's page open an Auxiliary window and captures that window. Pass
-`--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by
-default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
+`--agents-window` has the Agent's page open an Auxiliary window and captures that window.
+`--agents-grant` has the Agent ask for the reader's page on show, so the grant prompt stands over
+it. Pass `--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700
+ms by default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
 reviewing chrome changes without a desktop session. The chrome's movements are reviewed the same
 way: `--show space-step`, `tab-step`, `omnibar-step` and `settings-step` run the switch or the
 opening shortly before the capture, so the frame lands part way through it, and the `-settled`

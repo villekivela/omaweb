@@ -493,9 +493,11 @@ int main(int argc, char *argv[])
     // no Agent is using. `--agents-away` leaves the reader's first Space on
     // show instead, with the Agent's Space marked in the footer.
     // `--agents-window` has the Agent's page open an Auxiliary window, and the
-    // capture is of that window. The Agent is the real Agent rules answered by
-    // the stand-in page.
-    const auto agentsAway = arguments.contains(QStringLiteral("--agents-away"));
+    // capture is of that window. `--agents-grant` has the Agent ask for the
+    // reader's page on show, so the grant prompt stands over it. The Agent is
+    // the real Agent rules answered by the stand-in page.
+    const auto agentsGrant = arguments.contains(QStringLiteral("--agents-grant"));
+    const auto agentsAway = agentsGrant || arguments.contains(QStringLiteral("--agents-away"));
     const auto agentsWindow = arguments.contains(QStringLiteral("--agents-window"));
     const auto agents
         = agentsAway || agentsWindow || arguments.contains(QStringLiteral("--agents"));
@@ -540,6 +542,17 @@ int main(int argc, char *argv[])
                             {QStringLiteral("target"), QStringLiteral("12")},
                             {QStringLiteral("name"), QStringLiteral("Files changed")},
                         }}},
+                },
+                [](const QJsonObject &) { });
+        });
+    }
+    if (agentControl && agentsGrant) {
+        QTimer::singleShot(300, &application, [&agentControl, &browser, agentName] {
+            agentControl->handle(
+                {
+                    {QStringLiteral("verb"), QStringLiteral("look")},
+                    {QStringLiteral("name"), agentName},
+                    {QStringLiteral("tab"), browser.activeTabId()},
                 },
                 [](const QJsonObject &) { });
         });
