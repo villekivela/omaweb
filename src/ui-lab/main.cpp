@@ -436,10 +436,14 @@ int main(int argc, char *argv[])
     // `--agents` has an Agent at work, so its marks can be reviewed: an Agent
     // Space it made with a tab it is driving, on show, and a second Agent Space
     // no Agent is using. `--agents-away` leaves the reader's first Space on
-    // show instead, with the Agent's Space marked in the footer. The Agent is
-    // the real Agent rules answered by the stand-in page.
+    // show instead, with the Agent's Space marked in the footer.
+    // `--agents-window` has the Agent's page open an Auxiliary window, and the
+    // capture is of that window. The Agent is the real Agent rules answered by
+    // the stand-in page.
     const auto agentsAway = arguments.contains(QStringLiteral("--agents-away"));
-    const auto agents = agentsAway || arguments.contains(QStringLiteral("--agents"));
+    const auto agentsWindow = arguments.contains(QStringLiteral("--agents-window"));
+    const auto agents
+        = agentsAway || agentsWindow || arguments.contains(QStringLiteral("--agents"));
     std::optional<omaweb::AgentControl> agentControl;
     const auto agentName = QStringLiteral("claude-code");
     QString agentTabId;
@@ -483,6 +487,20 @@ int main(int argc, char *argv[])
                         }}},
                 },
                 [](const QJsonObject &) { });
+        });
+    }
+    if (agentsWindow && !engine.rootObjects().isEmpty()) {
+        auto *root = engine.rootObjects().constFirst();
+        QTimer::singleShot(400, &application, [root] {
+            auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
+            auto *page = host ? host->property("item").value<QObject *>() : nullptr;
+            if (page == nullptr) {
+                qCritical("No Agent page to open a window from for --agents-window");
+                return;
+            }
+            QMetaObject::invokeMethod(page, "simulateNewWindowRequest",
+                Q_ARG(QVariant, QStringLiteral("https://forge.example/login/oauth")),
+                Q_ARG(QVariant, true));
         });
     }
 
@@ -767,12 +785,15 @@ int main(int argc, char *argv[])
         const auto delay = delayIndex >= 0 && delayIndex + 1 < arguments.size()
             ? arguments.at(delayIndex + 1).toInt()
             : 700;
-        QTimer::singleShot(delay, &application, [&engine, capturePath] {
+        QTimer::singleShot(delay, &application, [&engine, capturePath, agentsWindow] {
             if (engine.rootObjects().isEmpty()) {
                 QCoreApplication::exit(1);
                 return;
             }
             auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+            if (agentsWindow && window != nullptr) {
+                window = window->findChild<QQuickWindow *>(QStringLiteral("auxiliaryWindow"));
+            }
             if (!window || !window->grabWindow().save(capturePath)) {
                 qCritical("Could not capture %s", qPrintable(capturePath));
                 QCoreApplication::exit(1);
