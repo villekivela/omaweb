@@ -650,6 +650,9 @@ int main(int argc, char *argv[])
             // question bar stands over it. `--private` shows the Private
             // window's wording.
             {QStringLiteral("permission"), {}},
+            // The same page asks a JavaScript question, so the prompt bar
+            // stands over it.
+            {QStringLiteral("prompt"), {}},
             // The last two seeded tabs side by side, the last one active.
             {QStringLiteral("split"), {{"", "sidebarPeeked", false}}},
             // Steps to the next Space shortly before a capture, so the frame
@@ -674,26 +677,35 @@ int main(int argc, char *argv[])
                 browser.activateTab(tabId);
             }
         }
-        if (requested == QLatin1String("permission")) {
+        if (requested == QLatin1String("permission") || requested == QLatin1String("prompt")) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
-                qCritical("--show permission needs a page; pass --tabs");
+                qCritical("--show %s needs a page; pass --tabs", qPrintable(requested));
                 return 1;
             }
             browser.activateTab(tabId);
             // The page's engine is built once the tab is on show, so the
             // question waits for it.
-            QTimer::singleShot(300, root, [root] {
+            QTimer::singleShot(300, root, [root, requested] {
                 auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
                 auto *view = host ? host->property("item").value<QObject *>() : nullptr;
                 if (view == nullptr) {
-                    qCritical("No page to ask from for --show permission");
+                    qCritical("No page to ask from for --show %s", qPrintable(requested));
                     return;
                 }
                 const auto origin
                     = view->property("currentUrl")
                           .toUrl()
                           .adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+                if (requested == QLatin1String("prompt")) {
+                    QMetaObject::invokeMethod(view, "simulateJavaScriptPrompt",
+                        Q_ARG(QVariant, QStringLiteral("confirm")),
+                        Q_ARG(QVariant, origin.toString()),
+                        Q_ARG(QVariant,
+                            QStringLiteral("Leave this page? Changes you made may not be saved.")),
+                        Q_ARG(QVariant, QString()));
+                    return;
+                }
                 QMetaObject::invokeMethod(view, "simulateSitePermission",
                     Q_ARG(QVariant, origin.toString()),
                     Q_ARG(QVariant, QStringLiteral("notifications")));
@@ -789,7 +801,8 @@ int main(int argc, char *argv[])
                     }
                 });
             }
-        } else if (state.isEmpty() && requested != QLatin1String("permission")) {
+        } else if (state.isEmpty() && requested != QLatin1String("permission")
+            && requested != QLatin1String("prompt")) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;
         }

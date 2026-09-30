@@ -197,6 +197,11 @@ ApplicationWindow {
     // Whether the Start page draws its road. Local to this installation, like
     // the Glance: Sync carries neither.
     property bool startPageRoad: true
+    // What a bar over the page blurs under its ground: the Start page or the
+    // page on show, and nothing over a blank viewport.
+    readonly property Item pageBarBackdropSource: window.startPageShown ? startPage : (
+                                                                              window.pagelessViewport
+                                                                              ? null : engineLoader)
     readonly property bool startPageShown: (window.pagelessViewport || window.startPageSummoned
                                             || window.startPageDriving) && !window.settingsOpen &&
                                            !window.historyOpen
@@ -3303,6 +3308,7 @@ ApplicationWindow {
                     focus: false
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
                     open: window.agentSpaceOnShow && window.dismissedAgentSpaceId
                           !== window.windowBrowser.activeSpaceId
                     glyph: "smart_toy"
@@ -3325,17 +3331,6 @@ ApplicationWindow {
                             "label": "Dismiss"
                         }
                     ]
-
-                    // The page under the notice is blurred, so it is not read
-                    // through the notice's translucent ground. The notice's own
-                    // fill and accent edge are drawn over it.
-                    PageBackdrop {
-                        objectName: "agentSpaceBarBackdrop"
-                        anchors.fill: parent
-                        z: -1
-                        source: window.startPageShown ? startPage : (window.pagelessViewport ? null :
-                                                                                               engineLoader)
-                    }
 
                     onActionTriggered: function (index) {
                         if (index === 0)
@@ -3362,6 +3357,7 @@ ApplicationWindow {
                     z: 40
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
                     open: window.permissionOpen
                     glyph: "shield_person"
                     // What Omaweb will do with the answer is the core's rule,
@@ -3426,6 +3422,7 @@ ApplicationWindow {
                     z: 41
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
                     open: window.certificateQuestionOpen
                     glyph: "warning"
                     message: String(window.pendingCertificateFailure.origin || "")
@@ -3468,6 +3465,7 @@ ApplicationWindow {
                     z: 42
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
                     open: window.downloadQuestionOpen
                     glyph: "download"
                     readonly property var held: window.downloadQuestion || ({})
@@ -3525,6 +3523,7 @@ ApplicationWindow {
                     z: 43
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
                     open: window.browserPromptOpen
                     prompt: window.pendingBrowserPrompt
 

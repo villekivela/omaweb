@@ -124,6 +124,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   there is no page to blur, as in a Space at rest, the surface takes the sidebar's translucency
   instead, and the desktop behind it is left to the window system, which blurs it or not exactly as
   it does behind the sidebar.
+- A bar at the top of the page, a page question or a page prompt, keeps its translucent ground and
+  blurs the page under that ground, so the page shows through as colour and shape but its text
+  cannot be read against the bar's.
 - Tabs can show site favicons or a two-character host code. The reader can turn favicons off and can
   choose whether favicon artwork is recoloured to the host-derived tint. With favicons off, the host
   code is drawn in the colour of the site's own favicon, and in a neutral colour where the favicon

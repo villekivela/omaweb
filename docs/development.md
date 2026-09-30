@@ -80,7 +80,8 @@ is how a layout change is reviewed at a font size the page was not written at: p
 `OMAWEB_THEME_FILE` at a theme whose `font.size` is larger and capture each section in turn.
 `--show site` opens Site information, which is a click on the address trigger.
 `--tabs --show permission` has the last seeded tab's page ask for notifications, so the question bar
-stands over it; add `--private` to read the Private window's wording. `--agent-activity` seeds the
+stands over it; add `--private` to read the Private window's wording. `--show prompt` has the same
+page ask a JavaScript confirm, so the prompt bar stands over it. `--agent-activity` seeds the
 activity log with two Agents' last hour in two Spaces, and `--show agent-activity` opens the Agent
 activity page on it, as its command does; `--agent-filter <name>` shows one Agent's lines. Pass
 `--tabs` to seed the Space with a day's worth of tabs, some of them pinned: the lab otherwise comes

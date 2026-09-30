@@ -16,6 +16,9 @@ Item {
     // Index 0 is the primary action, drawn filled; Escape picks the last one,
     // which every caller sets to the refusing answer.
     property var actions: []
+    // The page the bar stands over, blurred under its translucent ground so it
+    // shows through as colour and shape but cannot be read. Null over no page.
+    property Item backdropSource: null
 
     signal actionTriggered(int index)
 
@@ -28,6 +31,12 @@ Item {
             root.actionTriggered(root.actions.length - 1);
             event.accepted = true;
         }
+    }
+
+    PageBackdrop {
+        objectName: "pageBarBackdrop"
+        anchors.fill: parent
+        source: root.backdropSource
     }
 
     Rectangle {

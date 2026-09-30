@@ -539,6 +539,58 @@ TestCase {
         verify(!bar.visible);
     }
 
+    // A bar over the page is translucent, so the page under its ground is
+    // blurred rather than read through it. The blur covers the ground alone and
+    // stops sampling once the bar closes.
+    function test_thePageUnderAPageBarIsBlurred() {
+        const engine = openPage("https://blurred.example/");
+        const engineHost = findChild(window.contentItem, "engineLoader");
+
+        const promptBar = findChild(window.contentItem, "browserPromptBar");
+        const promptBackdrop = findChild(promptBar, "pageBarBackdrop");
+        verify(promptBackdrop !== null);
+        verify(!promptBackdrop.sampling);
+        engine.simulateJavaScriptPrompt("confirm", "https://blurred.example", "Leave the page?",
+                                        "");
+        tryCompare(window, "browserPromptOpen", true);
+        compare(promptBackdrop.source, engineHost);
+        verify(promptBackdrop.sampling);
+        const promptGround = findChild(promptBar, "pagePromptGround");
+        compare(promptBackdrop.y, promptGround.y);
+        compare(promptBackdrop.width, promptGround.width);
+        compare(promptBackdrop.height, promptGround.height);
+        verify(promptBackdrop.height < promptBar.height);
+        window.respondToBrowserPrompt(false, "", "", "", false, false);
+        verify(!promptBackdrop.sampling);
+
+        const questionBar = findChild(window.contentItem, "sitePermissionBar");
+        const questionBackdrop = findChild(questionBar, "pageBarBackdrop");
+        verify(questionBackdrop !== null);
+        verify(engine.simulateSitePermission("https://blurred.example", "notifications").length
+               > 0);
+        tryCompare(window, "permissionOpen", true);
+        compare(questionBackdrop.source, engineHost);
+        verify(questionBackdrop.sampling);
+        compare(questionBackdrop.width, questionBar.width);
+        compare(questionBackdrop.height, questionBar.height);
+        window.respondToPermission(BrowserController.Block);
+        verify(!questionBackdrop.sampling);
+
+        // Every bar over the page, not only the two opened here, blurs the
+        // page on show.
+        const backdrops = [];
+        const collect = function (item) {
+            if (item.objectName === "pageBarBackdrop")
+                backdrops.push(item);
+            for (let index = 0; index < item.children.length; ++index)
+                collect(item.children[index]);
+        };
+        collect(window.contentItem);
+        verify(backdrops.length >= 5);
+        for (let index = 0; index < backdrops.length; ++index)
+            compare(backdrops[index].parent.backdropSource, engineHost);
+    }
+
     function test_pagePromptDoesNotFollowTheReaderToAnotherTab() {
         const engine = openPage("https://prompt-tab.example/");
         const promptTabId = browser.activeTabId;
@@ -4171,11 +4223,10 @@ TestCase {
         compare(bar.actions[1].label, "Dismiss");
         // The page under the notice is blurred rather than read through its
         // translucent ground, and the notice is drawn over the blur.
-        const backdrop = findChild(bar, "agentSpaceBarBackdrop");
+        const backdrop = findChild(bar, "pageBarBackdrop");
         verify(backdrop !== null);
         compare(backdrop.source, findChild(window.contentItem, "engineLoader"));
         verify(backdrop.sampling);
-        verify(backdrop.z < 0);
         compare(backdrop.width, bar.width);
         compare(backdrop.height, bar.height);
         verify(window.commands.available("take-over-space"));
@@ -4228,7 +4279,7 @@ TestCase {
         };
         control.agentActivity = activity;
         privateEngine.agentControl = control;
-        compare(Object.keys(privateBrowser.agentActivity).length, 0);
+        compare(Object.keys(privateBrowser.agentTabActivity).length, 0);
         verify(!findChild(privateBrowser.contentItem, "agentFrame").visible);
         const mark = findChild(privateBrowser.contentItem, "agentMark-" + tabId);
         verify(mark === null || !mark.visible);

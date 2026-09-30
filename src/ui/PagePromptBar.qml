@@ -9,6 +9,8 @@ Item {
     property string iconFontFamily
     property bool open: false
     property var prompt: ({})
+    // As PageQuestionBar's: the page under the ground, blurred.
+    property Item backdropSource: null
     readonly property string kind: String(prompt.kind || "")
     readonly property bool asksForText: kind === "javascript-prompt"
     readonly property bool asksForCredentials: kind === "http-authentication"
@@ -78,7 +80,15 @@ Item {
         anchors.fill: parent
     }
 
+    PageBackdrop {
+        objectName: "pageBarBackdrop"
+        anchors.fill: ground
+        source: root.backdropSource
+    }
+
     Rectangle {
+        id: ground
+        objectName: "pagePromptGround"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
