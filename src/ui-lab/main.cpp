@@ -677,7 +677,10 @@ int main(int argc, char *argv[])
                 browser.activateTab(tabId);
             }
         }
-        if (requested == QLatin1String("permission") || requested == QLatin1String("prompt")) {
+        // Both are asked by the page on show rather than set on the window.
+        const auto pageAsks
+            = requested == QLatin1String("permission") || requested == QLatin1String("prompt");
+        if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
                 qCritical("--show %s needs a page; pass --tabs", qPrintable(requested));
@@ -801,8 +804,7 @@ int main(int argc, char *argv[])
                     }
                 });
             }
-        } else if (state.isEmpty() && requested != QLatin1String("permission")
-            && requested != QLatin1String("prompt")) {
+        } else if (state.isEmpty() && !pageAsks) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;
         }

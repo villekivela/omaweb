@@ -9,7 +9,8 @@ Item {
     property string iconFontFamily
     property bool open: false
     property var prompt: ({})
-    // As PageQuestionBar's: the page under the ground, blurred.
+    // The page the bar stands over, blurred under its ground so it shows
+    // through as colour and shape but cannot be read. Null over no page.
     property Item backdropSource: null
     readonly property string kind: String(prompt.kind || "")
     readonly property bool asksForText: kind === "javascript-prompt"

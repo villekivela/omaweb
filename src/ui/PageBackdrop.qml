@@ -13,6 +13,10 @@ import QtQuick.Effects
 // that takes the whole page area is a plate of the same kind, not a dialog
 // floating over one, and the two read as one window rather than two materials.
 //
+// A bar at the top of the page, a page question or a page prompt, stands on
+// one too, with no tint: its own translucent ground goes on top, and the blur
+// keeps the page's text from being read through it.
+//
 // `source` must not be an ancestor of this item, or the effect would feed on
 // its own output. Nothing is sampled while the surface is hidden: a live
 // texture of the whole viewport is not worth a frame nobody sees.
@@ -22,8 +26,8 @@ Item {
     property Item source: null
     property color tint: "transparent"
     // The source's coordinates are explicit because this surface may be
-    // reparented above the item it samples. Full-page surfaces share their
-    // source's origin and need no override.
+    // reparented above the item it samples. Full-page surfaces and the bars at
+    // the top of the page share their source's origin and need no override.
     property rect sourceRect: Qt.rect(0, 0, width, height)
     property real textureScale: 1
 

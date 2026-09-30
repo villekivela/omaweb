@@ -589,6 +589,17 @@ TestCase {
         verify(backdrops.length >= 5);
         for (let index = 0; index < backdrops.length; ++index)
             compare(backdrops[index].parent.backdropSource, engineHost);
+
+        // Beside a page, a blank tab's Start page fills its own pane alone.
+        // The page host holds both panes, so it is what the bars blur.
+        const pageTabId = browser.activeTabId;
+        verify(browser.addSplit(""));
+        tryCompare(browser, "splitOnShow", true);
+        tryCompare(window, "startPageShown", true);
+        compare(window.pageBarBackdropSource, engineHost);
+        verify(browser.separateSplit());
+        browser.closeActiveTab();
+        browser.activateTab(pageTabId);
     }
 
     function test_pagePromptDoesNotFollowTheReaderToAnotherTab() {

@@ -198,10 +198,13 @@ ApplicationWindow {
     // the Glance: Sync carries neither.
     property bool startPageRoad: true
     // What a bar over the page blurs under its ground: the Start page or the
-    // page on show, and nothing over a blank viewport.
-    readonly property Item pageBarBackdropSource: window.startPageShown ? startPage : (
-                                                                              window.pagelessViewport
-                                                                              ? null : engineLoader)
+    // page on show, and nothing over a blank viewport. In a split the Start
+    // page fills one pane, and the page host holds both.
+    readonly property Item pageBarBackdropSource: window.windowBrowser.splitOnShow ? engineLoader :
+                                                                                     window.startPageShown
+                                                                                     ? startPage :
+                                                                                       window.pagelessViewport
+                                                                                       ? null : engineLoader
     readonly property bool startPageShown: (window.pagelessViewport || window.startPageSummoned
                                             || window.startPageDriving) && !window.settingsOpen &&
                                            !window.historyOpen
