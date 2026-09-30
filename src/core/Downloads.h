@@ -87,6 +87,15 @@ public:
     Q_INVOKABLE QVariantMap disposition(const QUrl &origin, const QString &fileName,
         const QString &mimeType, const QString &directory, bool answered = false) const;
 
+    // What becomes of a download an Agent tab's page asked for (ADR 0051). It
+    // lands in `directory`, the connection's own, under a name nothing there
+    // has yet, so it neither replaces a file nor asks the reader where it
+    // goes; `path` says where. A High-risk file is still held for the reader
+    // to confirm, until `answered`, and an origin the reader blocked from
+    // downloading stays blocked. A directory that cannot be made refuses.
+    Q_INVOKABLE QVariantMap agentDisposition(const QUrl &origin, const QString &fileName,
+        const QString &mimeType, const QString &directory, bool answered = false) const;
+
     // Intake. The runtime id is `namespace + ":" + id`, and the namespace is
     // how a cancel or a retry finds the engine profile that started it.
     Q_INVOKABLE void started(const QString &runtimeId, const QUrl &sourceUrl, const QUrl &pageUrl,

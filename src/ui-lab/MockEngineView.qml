@@ -370,6 +370,8 @@ Rectangle {
                               int document)
     property bool pageTakesFocus: true
     property int agentNextLabel: 1
+    property bool agentOwned: false
+    property string agentDownloadDirectory: ""
     property int agentCancels: 0
     function cancelAgentVerbs() {
         root.agentCancels += 1;
