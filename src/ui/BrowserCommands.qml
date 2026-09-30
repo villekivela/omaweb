@@ -697,19 +697,18 @@ QtObject {
         if (!window.privateWindow) {
             // What the session keeps of each other Space, so listing them
             // wakes none of their pages.
-            const away = awayTabs || [];
-            for (let row = 0; row < away.length; ++row) {
+            for (let row = 0; row < awayTabs.length; ++row) {
                 list.push({
                               kind: "tab",
-                              title: away[row].title,
-                              url: String(away[row].url),
-                              icon: String(away[row].iconUrl),
-                              spaceId: away[row].spaceId,
-                              spaceName: away[row].spaceName,
-                              spaceColor: away[row].spaceColor,
+                              title: awayTabs[row].title,
+                              url: String(awayTabs[row].url),
+                              icon: String(awayTabs[row].iconUrl),
+                              spaceId: awayTabs[row].spaceId,
+                              spaceName: awayTabs[row].spaceName,
+                              spaceColor: awayTabs[row].spaceColor,
                               enabled: true,
                               command: "activate-tab",
-                              argument: away[row].tabId
+                              argument: awayTabs[row].tabId
                           });
             }
 

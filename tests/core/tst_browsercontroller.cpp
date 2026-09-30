@@ -3833,7 +3833,7 @@ QStringList listedTabIds(const QVariantList &tabs)
 } // namespace
 
 // The Omnibar reaches a page open in another Space through what the session
-// keeps of that Space, so listing it neither suspends nor restores anything,
+// keeps of that Space, so listing it neither puts a Space away nor brings one back,
 // and each tab carries what its row names: the page, and the Space it is in.
 void BrowserControllerTest::listsEveryOtherSpacesTabsFromTheSession()
 {
@@ -3889,9 +3889,15 @@ void BrowserControllerTest::switchesSpaceAndSelectsTheTabAsOneAction()
     QCOMPARE(controller.activeTabId(), QStringLiteral("mail"));
     QCOMPARE(suspended.count(), 0);
 
+    // The Space arrives with the chosen tab on show, never passing through
+    // the tab the reader last left there.
+    QStringList shown;
+    connect(&controller, &BrowserController::activeTabChanged, &controller,
+        [&] { shown.append(controller.activeTabId()); });
     QVERIFY(controller.activateTabInSpace(QStringLiteral("work"), QStringLiteral("spec")));
     QCOMPARE(controller.activeSpaceId(), QStringLiteral("work"));
     QCOMPARE(controller.activeTabId(), QStringLiteral("spec"));
+    QVERIFY(!shown.contains(QStringLiteral("board")));
 }
 
 void BrowserControllerTest::listsNoOtherSpacesTabsInAPrivateWindow()

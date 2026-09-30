@@ -38,6 +38,11 @@ TestCase {
         signalName: "pageFrozenChanged"
     }
 
+    SignalSpy {
+        id: otherAwayPageSpy
+        signalName: "pageFrozenChanged"
+    }
+
     // Whether the Space on show changed, even for a moment, while the other
     // Spaces' tabs were only being listed.
     SignalSpy {
@@ -6624,6 +6629,10 @@ TestCase {
 
     // Two Spaces away from the one on show, each with a page the reader
     // opened and then left, and a tab of the Space on show beside the start.
+    // Long enough that its row has to give way for the Space's name.
+    readonly property string alphaTitle: "The orbit plan for boards, with every milestone, owner "
+                                         + "and date the team agreed on over the spring"
+
     function openTabsInOtherSpaces() {
         const engineHost = findChild(window.contentItem, "engineLoader");
         const homeSpaceId = browser.activeSpaceId;
@@ -6637,8 +6646,8 @@ TestCase {
         verify(browser.switchSpace(alphaSpaceId));
         openPage("https://plans.example/orbit");
         const alphaTabId = browser.activeTabId;
-        browser.reportTabPageState(alphaTabId, "https://plans.example/orbit", "The orbit plan", "",
-                                   false, false);
+        browser.reportTabPageState(alphaTabId, "https://plans.example/orbit", alphaTitle, "", false,
+                                   false);
         const alphaEngine = engineHost.item;
         const betaSpaceId = browser.createSpace("Beta");
         verify(browser.switchSpace(betaSpaceId));
@@ -6681,6 +6690,8 @@ TestCase {
         const engineCount = Object.keys(engineHost.engines).length;
         awayPageSpy.clear();
         awayPageSpy.target = opened.alphaEngine;
+        otherAwayPageSpy.clear();
+        otherAwayPageSpy.target = opened.betaEngine;
         listingSpaceSpy.clear();
         listingSpaceSpy.target = browser;
         const panel = findChild(window.contentItem, "omnibar");
@@ -6705,14 +6716,26 @@ TestCase {
         const alphaRow = spaces.index(spaces.rowCount() - 2, 0);
         compare(spaces.data(alphaRow, Qt.UserRole + 2), "Alpha");
         verify(Qt.colorEqual(suffix.color, spaces.data(alphaRow, Qt.UserRole + 3)));
-        compare(findChild(away, "omnibarRowTitle").text, "The orbit plan");
+        compare(findChild(away, "omnibarRowTitle").text, alphaTitle);
         compare(findChild(away, "omnibarRowHost").text, "plans.example");
         compare(away.action, "switch tab →");
-        compare(away.Accessible.name, "Switch to tab The orbit plan in Alpha");
+        // The title gives way before the host, and the Space's name never
+        // does: it is drawn whole, at the title's size, inside the row's
+        // text.
+        const awayTitle = findChild(away, "omnibarRowTitle");
+        verify(awayTitle.truncated);
+        verify(!findChild(away, "omnibarRowHost").truncated);
+        compare(suffix.font.pixelSize, awayTitle.font.pixelSize);
+        compare(suffix.width, suffix.implicitWidth);
+        verify(suffix.x >= awayTitle.x + awayTitle.width);
+        verify(suffix.x + suffix.width <= suffix.parent.width);
+        compare(away.Accessible.name, "Switch to tab " + alphaTitle + " in Alpha");
 
         compare(Object.keys(engineHost.engines).length, engineCount);
         compare(awayPageSpy.count, 0);
         awayPageSpy.target = null;
+        compare(otherAwayPageSpy.count, 0);
+        otherAwayPageSpy.target = null;
         compare(listingSpaceSpy.count, 0);
         listingSpaceSpy.target = null;
         compare(opened.alphaEngine.pageFrozen, true);
@@ -6737,6 +6760,15 @@ TestCase {
         window.openOmnibar(false);
         input.text = "orbit";
         compare(panel.selected, -1);
+
+        // The tab the text starts is the one named, even where another
+        // Space's weaker match stands above it in Space order.
+        input.text = "board";
+        compare(omnibarRowsOf(panel, "tab").map(function (row) {
+            return row.argument;
+        }), [opened.alphaTabId, opened.betaTabId]);
+        verify(panel.selected >= 0);
+        compare(panel.rows[panel.selected].argument, opened.betaTabId);
 
         input.text = "orbit b";
         compare(omnibarRowsOf(panel, "tab").length, 1);

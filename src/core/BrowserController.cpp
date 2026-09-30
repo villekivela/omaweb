@@ -1046,6 +1046,8 @@ bool BrowserController::switchSpace(const QString &spaceId)
     return true;
 }
 
+// An away Space's pages are frozen or stopped, and the store is what its
+// outline shows once it is on show again.
 QVariantList BrowserController::awaySpaceTabs() const
 {
     QVariantList listed;
@@ -1082,10 +1084,25 @@ bool BrowserController::activateTabInSpace(const QString &spaceId, const QString
         if (!m_capabilities.allows(Capability::Spaces)) {
             return false;
         }
-        const auto tabs = m_store->loadTabs(spaceId);
-        const auto held = std::any_of(
-            tabs.cbegin(), tabs.cend(), [&](const TabState &tab) { return tab.id == tabId; });
-        if (!held || !switchSpace(spaceId)) {
+        auto tabs = m_store->loadTabs(spaceId);
+        const auto chosen = std::ranges::find(tabs, tabId, &TabState::id);
+        if (chosen == tabs.end()) {
+            return false;
+        }
+        // The Space is recorded as left on the chosen tab, so the switch
+        // arrives on it rather than first showing the tab the reader last
+        // left there. Entering a split's half is what the split is later
+        // re-entered on, as it is for a tab chosen in the Space on show.
+        for (auto &tab : tabs) {
+            tab.active = tab.id == tabId;
+            if (!chosen->splitPartnerId.isEmpty() && tab.id == chosen->splitPartnerId) {
+                tab.splitFocused = false;
+            }
+        }
+        if (!chosen->splitPartnerId.isEmpty()) {
+            chosen->splitFocused = true;
+        }
+        if (!saveAwayTabs(spaceId, std::move(tabs)) || !switchSpace(spaceId)) {
             return false;
         }
     }

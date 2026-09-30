@@ -286,6 +286,16 @@ Item {
             return right.strength - left.strength || kindOrder.indexOf(left.row.kind)
                     - kindOrder.indexOf(right.row.kind) || left.order - right.order;
         });
+        // The typed text is the selection, except where it starts an open
+        // tab's title or host: the reader is naming that tab, and Return goes
+        // to it rather than opening it a second time. Another Space's tab is
+        // named only where no tab of the Space on show holds the text.
+        let named = widened && ranked.length > 0 && ranked[0].row.kind === "tab"
+            && ranked[0].strength === 3 ? ranked[0].row : null;
+        if (named !== null && named.spaceId && ranked.some(function (entry) {
+            return entry.row.kind === "tab" && !entry.row.spaceId;
+        }))
+            named = null;
         keepSpaceOnShowTabsFirst(ranked);
         const next = [];
         let listedCommands = 0;
@@ -295,11 +305,7 @@ Item {
             next.push(ranked[index].row);
         }
         rows = next;
-        // The typed text is the selection, except where it starts an open
-        // tab's title or host: the reader is naming that tab, and Return goes
-        // to it rather than opening it a second time.
-        selected = widened && ranked.length > 0 && ranked[0].row.kind === "tab"
-                && ranked[0].strength === 3 ? 0 : -1;
+        selected = named === null ? -1 : next.indexOf(named);
     }
 
     // The tabs of the Space on show come before any other Space's, however
@@ -940,7 +946,7 @@ Item {
                         id: rowText
                         // What the title and the host share once another
                         // Space's name has its place.
-                        readonly property real room: width - rowSpace.room
+                        readonly property real sharedWidth: width - rowSpace.reservedWidth
 
                         anchors.left: picture.right
                         anchors.leftMargin: 10
@@ -958,11 +964,12 @@ Item {
                             objectName: "omnibarRowTitle"
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.min(implicitWidth, rowText.room - (rowHost.visible
-                                                                           ? Math.min(
-                                                                                 rowHost.implicitWidth,
-                                                                                 rowText.room / 2)
-                                                                             + 10 : 0))
+                            width: Math.min(implicitWidth, rowText.sharedWidth - (rowHost.visible
+                                                                                  ? Math.min(
+                                                                                        rowHost.implicitWidth,
+                                                                                        rowText.sharedWidth
+                                                                                        / 2) + 10 :
+                                                                                    0))
                             text: modelData.kind === "command" ? root.commands.highlight(row.title,
                                                                                          input.text) :
                                                                  row.title
@@ -982,7 +989,7 @@ Item {
                             anchors.leftMargin: 10
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: rowSpace.room
+                            anchors.rightMargin: rowSpace.reservedWidth
                             visible: row.host.length > 0
                             text: row.host
                             color: root.colors.mutedText
@@ -994,7 +1001,7 @@ Item {
                         Text {
                             id: rowSpace
                             objectName: "omnibarRowSpace"
-                            readonly property real room: visible ? implicitWidth + 10 : 0
+                            readonly property real reservedWidth: visible ? implicitWidth + 10 : 0
                             x: (rowHost.visible ? rowHost.x + Math.min(rowHost.implicitWidth,
                                                                        rowHost.width) :
                                                   rowTitle.width) + 10
