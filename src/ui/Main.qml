@@ -767,6 +767,23 @@ ApplicationWindow {
         window.shortcutsOpen = !window.shortcutsOpen;
     }
 
+    // An Auxiliary window opened by an Agent tab's page is the Agent's, under
+    // the id the core gives it, and the core lists it so it is marked as its
+    // tab is.
+    function openAuxiliaryWindow(engine, request, requestedUrl) {
+        const openerTabId = engineLoader.agentTabIdOf(engine);
+        const control = engineLoader.agentControl;
+        const windowId = control && openerTabId.length > 0 ? control.attachWindow(openerTabId) : "";
+        return auxiliaryWindowComponent.createObject(window, {
+                                                         "openerEngine": engine,
+                                                         "request": request,
+                                                         "requestedUrl": requestedUrl,
+                                                         "agentControl": windowId.length > 0
+                                                                         ? control : null,
+                                                         "agentWindowId": windowId
+                                                     });
+    }
+
     // What a page's new-tab request becomes when it is not a Glance: a tab,
     // active, with the request handed to that tab's engine.
     function openRequestedTab(request, requestedUrl) {
@@ -2786,17 +2803,19 @@ ApplicationWindow {
                     spaceId: window.windowBrowser.activeSpaceId
 
                     onAuxiliaryWindowRequested: function (engine, request, requestedUrl) {
-                        auxiliaryWindowComponent.createObject(window, {
-                                                                  "openerEngine": engine,
-                                                                  "request": request,
-                                                                  "requestedUrl": requestedUrl
-                                                              });
+                        window.openAuxiliaryWindow(engine, request, requestedUrl);
                     }
 
                     // A Glance is opened by the page on show. A page the
                     // reader cannot see, a Keep active tab say, has nothing
                     // to stand its Glance over, and gets a tab as before.
+                    // An Agent tab's page opens a window the Agent drives
+                    // instead, since a tab would take the reader's view.
                     onNewTabRequested: function (engine, request, requestedUrl) {
+                        if (engineLoader.agentTabIdOf(engine).length > 0) {
+                            window.openAuxiliaryWindow(engine, request, requestedUrl);
+                            return;
+                        }
                         if (window.glanceEnabled && engine === engineLoader.item
                                 && window.openGlance(request, requestedUrl))
                             return;

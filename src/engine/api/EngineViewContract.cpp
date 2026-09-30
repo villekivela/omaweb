@@ -123,6 +123,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // keeps it for the tab and hands it to a new view of it, so a label
         // from a page that has gone never names an element of the next.
         {"agentNextLabel", QMetaType::Int},
+        // An Agent holds the page: its JS dialogs go to the Agent and never
+        // in front of the reader, a file chooser takes only the files an
+        // `upload` step names, and a download lands in
+        // `agentDownloadDirectory`, the connection's own.
+        {"agentOwned", QMetaType::Bool},
+        {"agentDownloadDirectory", QMetaType::QString},
     };
     static constexpr Method requiredMethods[] = {
         {"goBack", false, 0},
