@@ -386,6 +386,14 @@
       "canonicalName": "cdn-tracker.example",
       "blocked": true,
       "substitute": "noop.js"
+    },
+    {
+      "name": "a parameter rule found through the canonical name rewrites nothing",
+      "url": "https://links.news.example/go?utm_source=feed",
+      "source": "https://news.example/",
+      "type": "xmlhttprequest",
+      "canonicalName": "campaign.example",
+      "blocked": false
     }
   ],
   "procedural": [

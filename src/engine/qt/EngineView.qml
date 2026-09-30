@@ -3422,12 +3422,14 @@ Item {
             // and verified the site stylesheet with the answer, unless the
             // survey script never reached it. The DOM is often parsed before
             // the load is over, so a rule change in between came after the
-            // survey and is put in here. One that did not load gets the site
+            // survey and is put in here, for a document the reader stopped as
+            // for one that finished. One that did not load gets the site
             // stylesheet verified here.
-            if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
-                root.applyCosmeticRules();
-            else if (root.blockingRulesChangedSinceLoad)
+            if (root.blockingRulesChangedSinceLoad && loadRequest.status
+                    !== WebEngineView.LoadFailedStatus)
                 root.reapplyBlockingRules();
+            else if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
+                root.applyCosmeticRules();
             else if (!root.documentSurveyed)
                 root.surveyGenericCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadSucceededStatus && root.httpsOnlyPolicy) {

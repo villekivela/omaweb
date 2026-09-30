@@ -1865,6 +1865,14 @@ TestCase {
     // The tally says how many; the list says which. An uncloaked refusal is
     // listed under the address the page asked for, which is the one in the
     // page's own network log, with the canonical name that explains it.
+    // Settings names CNAME uncloaking as unsupported only on an engine that
+    // lacks it, and the window is what tells it which engine this build has
+    // (ADR 0050).
+    function test_settingsKnowsWhetherThisBuildsEngineUncloaks() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare(settings.cnameUncloakingAvailable, EngineBuild.cnameUncloaking);
+    }
+
     function test_siteInformationListsTheRequestsItRefused() {
         openPage("https://news.example/story");
         const sidebar = findChild(window.contentItem, "sidebar");
