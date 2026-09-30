@@ -91,5 +91,32 @@ class SettledReadingTest(unittest.TestCase):
         self.assertEqual(tree.reads, steps + 1)
 
 
+class EngineReadingTest(unittest.TestCase):
+    """The frozen page lives in the engine's processes, and the browser's own is left out."""
+
+    def setUp(self):
+        # launcher 1 -> browser 2 -> engine processes 3 and 4, and 4 has a child 5.
+        self.tree = {1: [2], 2: [3, 4], 4: [5]}
+        self.pss_kib = {1: 1024, 2: 400 * 1024, 3: 20 * 1024, 4: 50 * 1024, 5: 2 * 1024}
+        self.saved = runtime.children_by_parent, runtime.read_pss_kib
+        runtime.children_by_parent = lambda: self.tree
+        runtime.read_pss_kib = lambda pid: self.pss_kib[pid]
+
+    def tearDown(self):
+        runtime.children_by_parent, runtime.read_pss_kib = self.saved
+
+    def test_the_whole_tree_counts_every_process(self):
+        self.assertEqual(runtime.tree_mib(1), 473.0)
+
+    def test_the_engine_reading_leaves_out_the_process_it_is_read_below(self):
+        self.assertEqual(runtime.below_mib(2), 72.0)
+
+    # What a Freezing check saw cross its ceiling: a step in the browser's own process.
+    def test_a_step_in_the_browser_process_does_not_move_the_engine_reading(self):
+        before = runtime.below_mib(2)
+        self.pss_kib[2] += 6 * 1024
+        self.assertEqual(runtime.below_mib(2), before)
+
+
 if __name__ == "__main__":
     unittest.main()
