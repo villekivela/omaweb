@@ -532,6 +532,10 @@ QtObject {
     // unavailable rather than missing: the reader learns it exists, and why it
     // is not on offer here.
     function available(command) {
+        // A Private window's browser is destroyed before the window is, and a
+        // window with no browser left has nothing on offer.
+        if (!browser)
+            return false;
         const description = descriptions[command];
         switch (description ? description.requires : "") {
         case "page":

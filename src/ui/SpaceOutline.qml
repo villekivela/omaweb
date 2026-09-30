@@ -587,9 +587,9 @@ Rectangle {
     // While the outline holds the keyboard, h j k l move the sidebar cursor as
     // the keys move through a list anywhere else on the desktop: j and k walk
     // the rows without touching the page, l, towards the page, opens the row
-    // under the cursor and hands the keyboard over, and h, away from it, brings
-    // the cursor back to the tab on show. A field in the outline takes its own
-    // letters before they climb this far.
+    // under the cursor and hands the keyboard over, as Return does, and h, away
+    // from it, brings the cursor back to the tab on show. A field in the outline
+    // takes its own letters before they climb this far.
     Keys.onPressed: function (event) {
         if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier
                                | Qt.ShiftModifier))
@@ -599,7 +599,8 @@ Rectangle {
             root.stepCursor(1);
         } else if (event.key === Qt.Key_K) {
             root.stepCursor(-1);
-        } else if (event.key === Qt.Key_L) {
+        } else if (event.key === Qt.Key_L || event.key === Qt.Key_Return || event.key
+                   === Qt.Key_Enter) {
             const row = root.cursorRows().find(function (candidate) {
                 return candidate.activeFocus;
             });
