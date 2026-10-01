@@ -271,13 +271,13 @@ def released_engine_version(fetch=fetch_listing, exists=url_exists,
     `scripts/newest-engine.sh` applies the same rule."""
     found = []
     for series in versions(fetch(f"{releases}qt/"), SERIES):
-        shipped = [
+        shipped = next((
             release
             for release in versions(fetch(f"{releases}qt/{series}/"), RELEASE)
             if exists(f"{releases}qt/{series}/{release}/submodules/"
-                      f"qtwebengine-everywhere-src-{release}.tar.xz")]
+                      f"qtwebengine-everywhere-src-{release}.tar.xz")), None)
         if shipped:
-            found.append(shipped[0])
+            found.append(shipped)
             break
     engine = f"{releases}qtwebengine/"
     listing = fetch(engine)
