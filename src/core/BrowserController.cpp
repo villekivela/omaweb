@@ -60,6 +60,9 @@ namespace {
     constexpr int engineSuggestionPauseMilliseconds = 150;
     // The most Engine suggestion rows the Omnibar lists, under its own.
     constexpr qsizetype engineSuggestionLimit = 4;
+    // The reader's own Space shown most recently, kept on this machine: the Sync
+    // projection names the preferences it copies, and this is not one of them.
+    constexpr auto readersSpaceKey = "readers-space-shown";
 
     // A query or suggest URL: somewhere to put the terms, in an address.
     bool isSearchTemplate(const QString &url)
@@ -229,8 +232,11 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     // tab, a tab opened, reopened or duplicated as much as one selected, is a
     // route to a new answer.
     connect(this, &BrowserController::activeTabChanged, this, [this] { refreshSplit(); });
+    connect(this, &BrowserController::activeSpaceChanged, this,
+        &BrowserController::rememberReadersSpace);
     loadDownloadDirectory();
     initialize();
+    rememberReadersSpace();
     // Built once the store is open, because it reads the Space's Download
     // records to come up with the list it already has.
     m_downloads = new Downloads(m_store.get(), this, this);
@@ -744,6 +750,40 @@ std::optional<TabState> BrowserController::findTab(
 QUrl BrowserController::resolveAddress(const QString &input) const
 {
     return resolveConfiguredInput(input);
+}
+
+QString BrowserController::readersSpace() const
+{
+    if (m_privateBrowsing) {
+        return {};
+    }
+    if (!agentSpace(m_activeSpaceId)) {
+        return m_activeSpaceId;
+    }
+    const auto shown = preference(QString::fromLatin1(readersSpaceKey));
+    if (m_spaces.rowOf(shown) >= 0 && !agentSpace(shown)) {
+        return shown;
+    }
+    for (const auto &space : m_spaces.items()) {
+        if (!agentSpace(space.id)) {
+            return space.id;
+        }
+    }
+    return {};
+}
+
+void BrowserController::rememberReadersSpace()
+{
+    // An Agent never switches Space (ADR 0051), so a Space on show was the
+    // reader's choice. An Agent Space is passed over all the same: it is the
+    // Agent's to fill and, when temporary, to delete with what is in it.
+    if (m_privateBrowsing || !m_ready || agentSpace(m_activeSpaceId)) {
+        return;
+    }
+    const auto key = QString::fromLatin1(readersSpaceKey);
+    if (preference(key) != m_activeSpaceId) {
+        setPreference(key, m_activeSpaceId);
+    }
 }
 
 QString BrowserController::openTabInSpace(const QString &spaceId, const QUrl &url)

@@ -634,7 +634,7 @@ void SyncModuleTest::keepsTheLastLaunchedReleaseOutOfSync()
     first.follow(&browser);
     omaweb::ReleaseWatch upgraded(QStringLiteral("0.9.0"));
     upgraded.follow(&browser);
-    QVERIFY(!upgraded.takeUpgradeNotes().isEmpty());
+    QVERIFY(!upgraded.openUpgradeNotes().isEmpty());
 
     QTest::qWait(10);
     QCOMPARE(changed.count(), 0);

@@ -126,6 +126,11 @@ class BrowserControllerTest final : public QObject {
 private slots:
     void createsPersonalSpaceAndBlankTab();
     void createsAndSwitchesSpaces();
+    void readersSpaceIsTheSpaceOnShow();
+    void readersSpacePassesOverAnAgentSpaceOnShow_data();
+    void readersSpacePassesOverAnAgentSpaceOnShow();
+    void readersSpaceFallsBackToTheFirstOfTheReaders();
+    void readersSpaceIsNothingWhenEverySpaceIsAnAgents();
     void switchesSpacesWithoutReportingAStructuralChange();
     void renamesSpacePersistently();
     void reordersSpacesPersistently();
@@ -245,6 +250,77 @@ void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
     QCOMPARE(controller.spaces()->rowCount(), 1);
     QCOMPARE(controller.tabs()->rowCount(), 1);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("about:blank")));
+}
+
+// Where Omaweb puts something of its own for the reader, such as the notes of
+// an upgrade. The Space on show, unless an Agent made it.
+void BrowserControllerTest::readersSpaceIsTheSpaceOnShow()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    QVERIFY(!controller.activeSpaceId().isEmpty());
+    QCOMPARE(controller.readersSpace(), controller.activeSpaceId());
+}
+
+void BrowserControllerTest::readersSpacePassesOverAnAgentSpaceOnShow_data()
+{
+    QTest::addColumn<bool>("temporary");
+    QTest::newRow("an Agent Space") << false;
+    QTest::newRow("a temporary Agent Space") << true;
+}
+
+// The reader's own Space shown most recently, including across a restart:
+// the Space on show is what a launch comes back to.
+void BrowserControllerTest::readersSpacePassesOverAnAgentSpaceOnShow()
+{
+    QFETCH(bool, temporary);
+    QTemporaryDir root;
+    QString workSpaceId;
+    QString agentSpaceId;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        agentSpaceId = controller.createAgentSpace(
+            QStringLiteral("Checks"), QStringLiteral("agent"), temporary);
+        QVERIFY(!agentSpaceId.isEmpty());
+        QVERIFY(controller.switchSpace(agentSpaceId));
+        QCOMPARE(controller.readersSpace(), workSpaceId);
+    }
+
+    BrowserController restarted(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(restarted.activeSpaceId(), agentSpaceId);
+    QCOMPARE(restarted.readersSpace(), workSpaceId);
+}
+
+// A Space shown before this was recorded, or one deleted since, leaves the
+// first of the reader's Spaces.
+void BrowserControllerTest::readersSpaceFallsBackToTheFirstOfTheReaders()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalSpaceId = controller.activeSpaceId();
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    const auto agentSpaceId
+        = controller.createAgentSpace(QStringLiteral("Checks"), QStringLiteral("agent"));
+    QVERIFY(controller.switchSpace(agentSpaceId));
+    QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
+
+    QCOMPARE(controller.readersSpace(), personalSpaceId);
+}
+
+void BrowserControllerTest::readersSpaceIsNothingWhenEverySpaceIsAnAgents()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalSpaceId = controller.activeSpaceId();
+    const auto agentSpaceId
+        = controller.createAgentSpace(QStringLiteral("Checks"), QStringLiteral("agent"));
+    QVERIFY(controller.switchSpace(agentSpaceId));
+    QVERIFY(controller.deleteSpace(personalSpaceId, QStringLiteral("Personal")));
+
+    QVERIFY(controller.readersSpace().isEmpty());
 }
 
 void BrowserControllerTest::createsAndSwitchesSpaces()

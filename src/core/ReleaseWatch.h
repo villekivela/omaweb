@@ -65,10 +65,12 @@ public:
     // dismissing is for a release, not for the feature.
     Q_INVOKABLE void dismiss();
 
-    // The release notes this launch owes the reader, once: the running
-    // release's page when it is newer than any launched here before,
-    // and an empty URL otherwise or when a window has already taken them.
-    Q_INVOKABLE QUrl takeUpgradeNotes();
+    // Opens the release notes this launch owes the reader, once, as a tab
+    // behind the page on show in the browser this follows, and answers their
+    // address. Nothing is opened when the launch is no upgrade, when a window
+    // has already opened them, or when there is no Space of the reader's to
+    // open them in. Only an ordinary window asks.
+    Q_INVOKABLE QUrl openUpgradeNotes();
 
     // Asks, if a day has passed since the last answer. Silent about every way
     // it can fail — an unreachable endpoint is being offline, which is not a

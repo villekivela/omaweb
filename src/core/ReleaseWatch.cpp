@@ -250,13 +250,20 @@ void ReleaseWatch::rememberRunningRelease()
     remember(QString::fromLatin1(launchedKey), m_runningVersion);
 }
 
-QUrl ReleaseWatch::takeUpgradeNotes()
+QUrl ReleaseWatch::openUpgradeNotes()
 {
-    const auto notes = std::exchange(m_upgradeNotes, QUrl());
-    if (!notes.isEmpty()) {
-        rememberRunningRelease();
+    if (!m_browser || m_upgradeNotes.isEmpty()) {
+        return {};
     }
-    return notes;
+    // Never an Agent Space: it is the Agent's to fill and, when temporary, to
+    // delete with what is in it. With no Space of the reader's at all, the
+    // notes wait for a launch that has one.
+    const auto spaceId = m_browser->readersSpace();
+    if (spaceId.isEmpty() || m_browser->openTabInSpace(spaceId, m_upgradeNotes).isEmpty()) {
+        return {};
+    }
+    rememberRunningRelease();
+    return std::exchange(m_upgradeNotes, QUrl());
 }
 
 void ReleaseWatch::checkIfDue()

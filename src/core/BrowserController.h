@@ -482,6 +482,11 @@ public:
     // machine and never reaches Sync. Taking the Space over removes it and
     // keeps everything else.
     Q_INVOKABLE bool agentSpace(const QString &spaceId) const;
+    // Where Omaweb puts something of its own for the reader, such as the notes
+    // of an upgrade: the Space on show when it is the reader's own, otherwise
+    // the reader's own Space shown most recently, otherwise the first of
+    // theirs. Nothing when every Space is an Agent's, or in a Private window.
+    Q_INVOKABLE QString readersSpace() const;
     QStringList agentSpaceIds() const;
     // The connection name that created an Agent Space, or nothing.
     Q_INVOKABLE QString agentSpaceCreator(const QString &spaceId) const;
@@ -587,6 +592,7 @@ signals:
     void awayTabDiscarded(const QString &tabId);
 
 private:
+    void rememberReadersSpace();
     // Facts held by pages that survived a Space switch. The session store does
     // not write either one, and a process restart starts them empty again.
     struct LivePageState {
