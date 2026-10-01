@@ -10,14 +10,15 @@ if (menu) {
   });
 }
 
-// The night radio, on the M key: each press tunes to the next station, and the last one's press
-// turns it off. Nothing plays until a reader finds it.
-if (window.OmawebRadio && window.AudioContext) {
-  const radio = window.OmawebRadio();
+// The night radio, on the M key: one song, Night road, on a loop, and a second press stops it.
+// Nothing loads or plays until a reader finds it.
+const radio = document.querySelector(".radio");
+if (radio) {
   document.addEventListener("keydown", (event) => {
     if (event.key.toLowerCase() !== "m" || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.target.closest("input, textarea, select, [contenteditable]")) return;
-    radio.tune();
+    if (radio.paused) radio.play().catch(() => {});
+    else radio.pause();
   });
 }
 

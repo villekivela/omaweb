@@ -26,9 +26,8 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
   the film is an ordinary video.
 - `scene.js` is the Scene host and `crt-road.js` the one Scene the site ships. The contract between
   them is below.
-- `audio.js` is the night radio: two stations of drive music synthesized live with the Web Audio
-  API. It makes no sound until a reader presses `M`, and each press tunes to the next station, then
-  off.
+- `assets/audio/nightroad.mp3` is the night radio: one song, Night road, which `script.js` plays on
+  a loop when a reader presses `M` and stops on the next press. Nothing loads before that.
 - `assets/film/` holds the introduction film and its poster. The files there now are placeholders
   for #498.
 - `assets/art/` holds the textures and `assets/fonts/` the self-hosted faces, each beside its SIL
