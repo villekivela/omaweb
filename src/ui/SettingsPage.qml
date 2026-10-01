@@ -1968,50 +1968,39 @@ Rectangle {
                                         spacing: 4
 
                                         Repeater {
-                                            model: spaceRow.agentMade ? [] : [
-                                                                            {
-                                                                                "name": "green",
-                                                                                "spoken": "Green"
-                                                                            },
-                                                                            {
-                                                                                "name": "yellow",
-                                                                                "spoken": "Yellow"
-                                                                            },
-                                                                            {
-                                                                                "name": "blue",
-                                                                                "spoken": "Blue"
-                                                                            },
-                                                                            {
-                                                                                "name": "bright_green",
-                                                                                "spoken": "Bright green"
-                                                                            },
-                                                                            {
-                                                                                "name": "bright_yellow",
-                                                                                "spoken": "Bright yellow"
-                                                                            },
-                                                                            {
-                                                                                "name": "bright_blue",
-                                                                                "spoken": "Bright blue"
-                                                                            }
-                                                                        ]
+                                            // The theme says which: a light theme
+                                            // offers only the plain three.
+                                            model: spaceRow.agentMade ? [] :
+                                                                        root.colors.spaceColourNames
+                                                                        || []
 
                                             AbstractButton {
                                                 id: swatch
-                                                required property var modelData
+                                                required property string modelData
+                                                readonly property string spoken: modelData.charAt(
+                                                                                     0).toUpperCase(
+                                                                                     ) + modelData.slice(
+                                                                                     1).replace("_",
+                                                                                                " ")
                                                 objectName: "spaceSwatch-" + spaceRow.spaceId + "-"
-                                                            + modelData.name
+                                                            + modelData
                                                 width: 22
                                                 height: 26
                                                 checkable: false
-                                                checked: spaceRow.spaceColor === modelData.name
+                                                checked: spaceRow.spaceColor === modelData || (
+                                                             spaceRow.spaceColor === "bright_"
+                                                             + modelData && (
+                                                                 root.colors.spaceColourNames
+                                                                 || []).indexOf(
+                                                                 spaceRow.spaceColor) < 0)
                                                 activeFocusOnTab: true
                                                 focusPolicy: Qt.StrongFocus
                                                 Accessible.role: Accessible.RadioButton
-                                                Accessible.name: modelData.spoken + " for "
+                                                Accessible.name: swatch.spoken + " for "
                                                                  + spaceRow.spaceName
                                                 Accessible.checked: checked
                                                 onClicked: root.browser.setSpaceColour(
-                                                               spaceRow.spaceId, modelData.name)
+                                                               spaceRow.spaceId, modelData)
 
                                                 background: Item {}
                                                 contentItem: Item {
@@ -2037,7 +2026,7 @@ Rectangle {
                                                         height: width
                                                         radius: 2
                                                         color: root.colors.spaces
-                                                               ? root.colors.spaces[swatch.modelData.name] :
+                                                               ? root.colors.spaces[swatch.modelData] :
                                                                  root.colors.accent
                                                     }
                                                 }

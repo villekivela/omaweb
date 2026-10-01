@@ -44,7 +44,9 @@ TestCase {
                                                   bright_green: "#b5e890",
                                                   bright_yellow: "#f0d197",
                                                   bright_blue: "#8cc8ff"
-                                              }
+                                              },
+                                              spaceColourNames: ["green", "yellow", "blue",
+                                                  "bright_green", "bright_yellow", "bright_blue"]
                                           })
 
     // The content-blocking section only offers the default lists back when
@@ -564,6 +566,26 @@ TestCase {
             return findChild(page, "spaceSwatch-work-green").checked && !findChild(page,
                                                                                    "spaceSwatch-work-yellow").checked;
         });
+    }
+
+    // A light theme offers the three plain colours, since each bright one is
+    // repaired onto its twin there. A Space set to a bright one is drawn as
+    // the twin, so that is the square marked as its own.
+    function test_aLightThemeOffersThePlainColours() {
+        const page = makeSpacesPage();
+        const light = Object.assign({}, colorsFixture);
+        light.spaceColourNames = ["green", "yellow", "blue"];
+        page.colors = light;
+        verify(browserStub.setSpaceColour("work", "bright_blue"));
+        tryVerify(function () {
+            return findChild(page, "spaceSwatch-work-bright_blue") === null;
+        });
+        for (const name of ["green", "yellow", "blue"])
+            verify(findChild(page, "spaceSwatch-work-" + name) !== null, name);
+        compare(findChild(page, "spaceSwatch-work-bright_green"), null);
+        verify(findChild(page, "spaceSwatch-work-blue").checked);
+        verify(!findChild(page, "spaceSwatch-work-green").checked);
+        resetSpacesFixture();
     }
 
     // The reader's Spaces come before the Agent Spaces, and a move does not

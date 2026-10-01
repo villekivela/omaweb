@@ -4561,17 +4561,21 @@ TestCase {
         endAgentDrive(drive);
     }
 
-    // The Space holding an Agent tab wears the mark in the Agent accent in
-    // place of its square, readable while it is away, until the connection
-    // closes.
+    // An Agent Space is the Agent's mark, in the Agent accent while an Agent
+    // is attached, readable while it is away. Once the reader has taken it
+    // over it is a square in a colour of its own, and while the Agent is
+    // still attached it wears a small Agent badge in a corner, which goes
+    // when the connection closes.
     function test_aSpaceHoldingAnAgentTabWearsTheMark() {
         const drive = driveAnAgentSpace(false);
         const sidebar = findChild(window.contentItem, "sidebar");
         const button = findChild(sidebar, "space-" + drive.spaceId);
         const mark = findChild(sidebar, "spaceAgentMark-" + drive.spaceId);
         const square = findChild(sidebar, "spaceMark-" + drive.spaceId);
+        const badge = findChild(sidebar, "spaceAgentBadge-" + drive.spaceId);
         verify(mark.visible);
         verify(!square.visible);
+        verify(!badge.visible);
         compare(button.label, "");
         compare(String(mark.color), String(window.colors.agentAccent));
 
@@ -4580,13 +4584,21 @@ TestCase {
         verify(mark.visible);
         compare(String(mark.color), String(window.colors.agentAccent));
         verify(findChild(sidebar, "spaceMark-" + drive.readersSpaceId).visible);
+        verify(!findChild(sidebar, "spaceAgentBadge-" + drive.readersSpaceId).visible);
 
-        // Taken over with the Agent still there, it keeps the mark until the
-        // connection closes.
+        // Taken over with the Agent still there: the reader's square, in
+        // the reader's order, with the badge in its top right corner.
         verify(browser.takeOverSpace(drive.spaceId));
-        verify(mark.visible);
-        drive.detach();
         verify(!mark.visible);
+        verify(square.visible);
+        verify(badge.visible);
+        compare(String(badge.color), String(window.colors.agentAccent));
+        verify(badge.font.pixelSize < mark.font.pixelSize);
+        const corner = badge.mapToItem(button, badge.width, 0);
+        verify(corner.x > button.width / 2);
+        verify(corner.y + badge.height < button.height / 2 + 2);
+        drive.detach();
+        verify(!badge.visible);
         verify(square.visible);
         endAgentDrive(drive);
     }
@@ -4825,13 +4837,40 @@ TestCase {
                                                                                                    0, 0).x);
         verify(switcher.contentX === undefined);
 
-        // A Space key reaches one that is left out.
+        // A Space key reaches one that is left out, and the Space on show
+        // always has a place in the row: it takes the last one shown, and
+        // the Space that stood there joins the count.
         verify(hidden.indexOf(ids[8]) >= 0);
+        const shownBefore = ids.filter(function (id) {
+            return hidden.indexOf(id) < 0;
+        });
+        const displaced = shownBefore[shownBefore.length - 1];
+        const hiddenBefore = hidden.length;
         window.activateSpaceAt(8);
         compare(browser.activeSpaceId, ids[8]);
         tryCompare(sidebar, "arriving", false);
+        const onShow = findChild(sidebar, "space-" + ids[8]);
+        tryVerify(function () {
+            return onShow.visible && !findChild(sidebar, "space-" + displaced).visible && measure();
+        });
+        compare(hidden.length, hiddenBefore);
+        compare(onShow.x + onShow.width, rightmost);
+        compare(overflow.text, "+" + hidden.length);
+        mouseClick(overflow, overflow.width / 2, overflow.height / 2);
+        tryCompare(menu, "visible", true);
+        verify(menu.items.some(function (item) {
+            return item.spaceId === displaced;
+        }));
+        verify(!menu.items.some(function (item) {
+            return item.spaceId === ids[8];
+        }));
+        keyClick(Qt.Key_Escape);
+        tryCompare(menu, "visible", false);
         verify(browser.switchSpace(personalId));
         tryCompare(sidebar, "arriving", false);
+        tryVerify(function () {
+            return findChild(sidebar, "space-" + displaced).visible && !onShow.visible && measure();
+        });
 
         // The menu lists exactly the Spaces left out, in footer order, and
         // choosing one switches to it.

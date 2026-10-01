@@ -66,6 +66,38 @@ Rectangle {
         return shown;
     }
 
+    // Where the Space on show is in the list, kept as the list changes: a
+    // binding over model data does not see the model change.
+    property int activeRow: activeSpaceRow()
+    Connections {
+        target: root.browser ? root.browser.spaces : null
+        function onDataChanged() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onRowsInserted() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onRowsRemoved() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onRowsMoved() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onModelReset() {
+            root.activeRow = root.activeSpaceRow();
+        }
+    }
+
+    // Whether the footer draws a Space. The Space on show always has a place:
+    // when it would be left out, it takes the last place there is room for,
+    // and the Space that stood there is counted instead.
+    function spaceInRow(row) {
+        const shown = spaceSwitcher.shown;
+        if (root.activeRow < shown)
+            return row < shown;
+        return row < shown - 1 || row === root.activeRow;
+    }
+
     // The Spaces the footer left out, in its order, and where their count
     // stands, for the window to hang their menu from.
     function openHiddenSpaces() {
@@ -73,7 +105,9 @@ Rectangle {
             return;
         const spaces = root.browser.spaces;
         const hidden = [];
-        for (let row = spaceSwitcher.shown; row < spaces.rowCount(); ++row) {
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            if (root.spaceInRow(row))
+                continue;
             const index = spaces.index(row, 0);
             const spaceId = spaces.data(index, Qt.UserRole + 1);
             hidden.push({
@@ -1232,15 +1266,14 @@ Rectangle {
                     // An Agent Space wears the Agent's mark: in the Agent
                     // accent while an Agent is attached to one of its tabs,
                     // muted while none is. One of the reader's Spaces an Agent
-                    // is working in wears it too, in place of its square, so
-                    // it can be read while the Space is away, and the square
-                    // comes back when the connection closes.
+                    // is working in keeps its square and its place, with a
+                    // small Agent badge in a corner while the Agent is
+                    // attached, so it can be read while the Space is away.
                     readonly property var agentWork: root.agentWorkIn(spaceId)
                     readonly property bool agentMade: root.agentSpaceIds.indexOf(spaceId) >= 0
-                    readonly property bool showsAgent: agentWork.attached || agentMade
 
                     objectName: "space-" + spaceId
-                    visible: index < spaceSwitcher.shown
+                    visible: root.spaceInRow(index)
                     width: root.spaceSlot
                     height: 28
                     accessibleName: (active ? "Current Space: " + spaceName : "Switch to "
@@ -1261,7 +1294,7 @@ Rectangle {
                         objectName: "spaceMark-" + spaceButton.spaceId
                         readonly property int side: spaceButton.active ? 12 : 8
                         anchors.centerIn: parent
-                        visible: !spaceButton.showsAgent
+                        visible: !spaceButton.agentMade
                         width: side
                         height: side
                         radius: 2
@@ -1286,12 +1319,24 @@ Rectangle {
                     AgentMark {
                         objectName: "spaceAgentMark-" + spaceButton.spaceId
                         anchors.centerIn: parent
-                        visible: spaceButton.showsAgent
+                        visible: spaceButton.agentMade
                         busy: spaceButton.agentWork.busy
                         color: spaceButton.agentWork.attached ? root.colors.agentAccent :
                                                                 root.colors.mutedText
                         font.family: root.iconFontFamily
                         font.pixelSize: Style.font.icon
+                    }
+
+                    AgentMark {
+                        objectName: "spaceAgentBadge-" + spaceButton.spaceId
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.topMargin: 2
+                        visible: !spaceButton.agentMade && spaceButton.agentWork.attached
+                        busy: spaceButton.agentWork.busy
+                        color: root.colors.agentAccent
+                        font.family: root.iconFontFamily
+                        font.pixelSize: Style.font.caption
                     }
 
                     Omarchy.PanelToolTip {

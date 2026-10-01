@@ -736,7 +736,26 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         }
         spaces.insert(it.key(), colour.name(QColor::HexRgb));
     }
+    // Repaired for a light ground, each bright colour lands on its plain twin
+    // or near enough that two Spaces could not be told apart, so a light theme
+    // offers the three plain ones and draws a bright one as its twin. Light is
+    // text darker than the sidebar it is read on.
+    QStringList spaceColourNames {
+        QStringLiteral("green"), QStringLiteral("yellow"), QStringLiteral("blue")};
+    const QColor sidebar(palette.value(QStringLiteral("sidebar")).toString());
+    const auto lightTheme = text.isValid() && sidebar.isValid()
+        && relativeLuminance(text) < relativeLuminance(sidebar);
+    for (const auto &plain : QStringList(spaceColourNames)) {
+        const auto bright = QStringLiteral("bright_") + plain;
+        if (lightTheme) {
+            spaces.insert(bright, spaces.value(plain));
+        } else {
+            spaceColourNames.append(bright);
+        }
+    }
     palette.insert(QStringLiteral("spaces"), spaces);
+    // The colours Settings offers, in the order it offers them.
+    palette.insert(QStringLiteral("spaceColourNames"), spaceColourNames);
 
     // The grounds a border is actually drawn on, which is every Omaweb surface
     // except a hover fill: the rules and frames this role paints sit on a

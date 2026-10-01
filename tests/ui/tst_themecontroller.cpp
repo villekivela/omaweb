@@ -35,6 +35,7 @@ private slots:
     void fillsTheAgentAccentFromTheDesktopsCyan();
     void namesTheSixSpaceColoursAndKeepsThemLegible();
     void fillsTheSpaceColoursFromTheDesktopsPalette();
+    void offersOnlyThePlainSpaceColoursOnALightTheme();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
     void handsAPageTheQuietTextTheThemeNamed();
@@ -1546,6 +1547,46 @@ void ThemeControllerTest::namesTheSixSpaceColoursAndKeepsThemLegible()
         }
         QVERIFY2(std::abs(colour.hslHueF() - QColor(named.value(name).toString()).hslHueF()) < 0.02,
             qPrintable(name));
+    }
+}
+
+// Repaired to read on a light ground, each bright colour comes out as its
+// plain twin, so a light theme offers three: a Space set to a bright one is
+// drawn in the plain one. A dark theme offers all six, each its own.
+void ThemeControllerTest::offersOnlyThePlainSpaceColoursOnALightTheme()
+{
+    const QStringList six {QStringLiteral("green"), QStringLiteral("yellow"),
+        QStringLiteral("blue"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow"),
+        QStringLiteral("bright_blue")};
+    const QStringList plain {
+        QStringLiteral("green"), QStringLiteral("yellow"), QStringLiteral("blue")};
+    QTemporaryDir root;
+    QFile light(root.filePath(QStringLiteral("light.json")));
+    QVERIFY(light.open(QIODevice::WriteOnly));
+    light.write(R"JSON({
+        "window": "#dce0e8", "sidebar": "#e6e9ef", "overlay": "#e6e9ef", "text": "#4c4f69",
+        "spaces": {
+            "green": "#40a02b", "yellow": "#df8e1d", "blue": "#1e66f5",
+            "bright_green": "#5fb84a", "bright_yellow": "#e9a64a", "bright_blue": "#4d86f7"
+        }
+    })JSON");
+    light.close();
+    const auto palette = ThemeController(light.fileName()).palette();
+    QCOMPARE(palette.value(QStringLiteral("spaceColourNames")).toStringList(), plain);
+    const auto spaces = palette.value(QStringLiteral("spaces")).toMap();
+    for (const auto &name : plain) {
+        QCOMPARE(spaces.value(QStringLiteral("bright_") + name), spaces.value(name));
+    }
+
+    QFile dark(root.filePath(QStringLiteral("dark.json")));
+    QVERIFY(dark.open(QIODevice::WriteOnly));
+    dark.write(R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa" })JSON");
+    dark.close();
+    const auto darkPalette = ThemeController(dark.fileName()).palette();
+    QCOMPARE(darkPalette.value(QStringLiteral("spaceColourNames")).toStringList(), six);
+    const auto darkSpaces = darkPalette.value(QStringLiteral("spaces")).toMap();
+    for (const auto &name : plain) {
+        QVERIFY(darkSpaces.value(QStringLiteral("bright_") + name) != darkSpaces.value(name));
     }
 }
 

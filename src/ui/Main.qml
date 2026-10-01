@@ -881,7 +881,7 @@ ApplicationWindow {
 
     function openSpaceOverflowMenu(spaces, origin) {
         window.spaceOverflowMenuItems = spaces.map(function (space) {
-            const marked = space.agentMade || space.attached;
+            const marked = space.agentMade;
             const palette = window.colors.spaces;
             return {
                 "label": space.spaceName,

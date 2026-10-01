@@ -647,6 +647,11 @@ int main(int argc, char *argv[])
     if (agents && !agentsAway && browser.switchSpace(agentSpaceId)) {
         browser.activateTab(agentTabId);
     }
+    // `--agents-taken-over` has the reader take the Agent's Space over while
+    // the Agent is still attached, so a Space of the reader's wears the badge.
+    if (agents && arguments.contains(QStringLiteral("--agents-taken-over"))) {
+        browser.takeOverSpace(agentSpaceId);
+    }
     // `--narrow` puts the sidebar at its minimum width.
     if (arguments.contains(QStringLiteral("--narrow")) && !engine.rootObjects().isEmpty()) {
         auto *window = engine.rootObjects().constFirst();
