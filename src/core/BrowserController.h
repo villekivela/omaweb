@@ -238,6 +238,8 @@ public:
     // Space does not hold is refused before the Space on show changes.
     Q_INVOKABLE bool activateTabInSpace(const QString &spaceId, const QString &tabId);
     Q_INVOKABLE bool renameSpace(const QString &spaceId, const QString &name);
+    // One of spaceColourNames(), whichever other Space has it already.
+    Q_INVOKABLE bool setSpaceColour(const QString &spaceId, const QString &colour);
     Q_INVOKABLE bool deleteSpace(const QString &spaceId, const QString &confirmationName);
     // The order Spaces are listed in is the reader's, like the order of tabs
     // within a Space, and it is a property of the Space records rather than of
@@ -660,6 +662,17 @@ private:
     bool saveAwayTabs(const QString &spaceId, QVector<TabState> tabs);
     // Reads the Agent Space labels, and which are temporary, from the store.
     void loadAgentSpaces();
+    // The colour fewest of the reader's Spaces have, leaving one Space out of
+    // the count. Agent Spaces are drawn in no palette colour, so they take up
+    // none.
+    QString nextSpaceColour(const QString &excludedId = {}) const;
+    QString createSpaceRecord(const QString &name, bool agentMade);
+    // Puts the list in footer order, the reader's Spaces before the Agent
+    // Spaces, and gives a palette name to each Space that holds none, as one
+    // stored before Spaces had colours does. Writes back only what changed.
+    void settleSpaces();
+    // How many Spaces the list holds before the first Agent Space.
+    qsizetype readerSpaceCount() const;
     BrowserController(std::shared_ptr<ThreadedSessionStore> store, SpaceStorage storage,
         QString configRoot, QObject *parent);
     // The thread the store takes its calls on, when it has one, is where the

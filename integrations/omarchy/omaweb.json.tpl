@@ -12,6 +12,14 @@
   "urgent": "{{ red }}",
   "privateAccent": "{{ magenta }}",
   "agentAccent": "{{ cyan }}",
+  "spaces": {
+    "green": "{{ green }}",
+    "yellow": "{{ yellow }}",
+    "blue": "{{ blue }}",
+    "bright_green": "{{ bright_green }}",
+    "bright_yellow": "{{ bright_yellow }}",
+    "bright_blue": "{{ bright_blue }}"
+  },
   "syntax": {
     "keyword": "{{ magenta }}",
     "string": "{{ green }}",

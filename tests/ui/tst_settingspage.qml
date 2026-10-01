@@ -36,7 +36,15 @@ TestCase {
                                               sidebar: "#26232fcc",
                                               sheet: "#26232f99",
                                               overlay: "#1f1d27f2",
-                                              windowOpaque: "#16151d"
+                                              windowOpaque: "#16151d",
+                                              spaces: {
+                                                  green: "#98c379",
+                                                  yellow: "#e5c07b",
+                                                  blue: "#61afef",
+                                                  bright_green: "#b5e890",
+                                                  bright_yellow: "#f0d197",
+                                                  bright_blue: "#8cc8ff"
+                                              }
                                           })
 
     // The content-blocking section only offers the default lists back when
@@ -126,21 +134,21 @@ TestCase {
         ListElement {
             spaceId: "personal"
             spaceName: "Personal"
-            spaceColor: "#9b87ff"
+            spaceColor: "green"
             active: true
         }
 
         ListElement {
             spaceId: "work"
             spaceName: "Work"
-            spaceColor: "#7ad3ff"
+            spaceColor: "yellow"
             active: false
         }
 
         ListElement {
             spaceId: "reading"
             spaceName: "Reading"
-            spaceColor: "#ffb37a"
+            spaceColor: "blue"
             active: false
         }
     }
@@ -153,6 +161,17 @@ TestCase {
         property string activeSpaceName: "Personal"
         property string downloadDirectory: "/home/reader/Downloads"
         property var spaces: spacesFixture
+        property var agentSpaceIds: []
+
+        function setSpaceColour(spaceId, colour) {
+            for (let row = 0; row < spacesFixture.count; ++row) {
+                if (spacesFixture.get(row).spaceId === spaceId) {
+                    spacesFixture.setProperty(row, "spaceColor", colour);
+                    return true;
+                }
+            }
+            return false;
+        }
 
         function moveSpaceBy(spaceId, offset) {
             for (let row = 0; row < spacesFixture.count; ++row) {
@@ -299,6 +318,7 @@ TestCase {
         resetSpacesFixture();
         theme.restore();
         fontSettings.resetInterfaceFontSize();
+        browserStub.agentSpaceIds = [];
         if (livePage !== null) {
             livePage.destroy();
             livePage = null;
@@ -318,19 +338,19 @@ TestCase {
         spacesFixture.append({
                                  spaceId: "personal",
                                  spaceName: "Personal",
-                                 spaceColor: "#9b87ff",
+                                 spaceColor: "green",
                                  active: true
                              });
         spacesFixture.append({
                                  spaceId: "work",
                                  spaceName: "Work",
-                                 spaceColor: "#7ad3ff",
+                                 spaceColor: "yellow",
                                  active: false
                              });
         spacesFixture.append({
                                  spaceId: "reading",
                                  spaceName: "Reading",
-                                 spaceColor: "#ffb37a",
+                                 spaceColor: "blue",
                                  active: false
                              });
     }
@@ -502,6 +522,58 @@ TestCase {
             return spaceOrder(page)[0] === "Work";
         });
         compare(spaceOrder(page), ["Work", "Personal", "Reading"]);
+    }
+
+    // Each of the reader's Spaces offers the six colours as small squares, in
+    // the theme's values, the Space's own larger, as the footer draws the
+    // Space on show. Any of them may be chosen, one another Space has
+    // included. An Agent Space has no colour on screen, so its row offers
+    // none.
+    function test_eachSpaceRowOffersTheSixColours() {
+        const names = ["green", "yellow", "blue", "bright_green", "bright_yellow", "bright_blue"];
+        const spoken = ["Green", "Yellow", "Blue", "Bright green", "Bright yellow", "Bright blue"];
+        browserStub.agentSpaceIds = ["reading"];
+        const page = makeSpacesPage();
+        for (let index = 0; index < names.length; ++index) {
+            const swatch = findChild(page, "spaceSwatch-work-" + names[index]);
+            verify(swatch !== null, names[index]);
+            verify(swatch.visible);
+            verify(Qt.colorEqual(findChild(swatch, "spaceSwatchFill").color,
+                                 colorsFixture.spaces[names[index]]));
+            compare(swatch.Accessible.name, spoken[index] + " for Work");
+            compare(swatch.checked, names[index] === "yellow");
+            verify(swatch.activeFocusOnTab);
+            const fill = findChild(swatch, "spaceSwatchFill");
+            compare(fill.width, fill.height);
+            verify(fill.radius > 0 && fill.radius < fill.width / 2);
+        }
+        verify(findChild(findChild(page, "spaceSwatch-work-yellow"), "spaceSwatchFill").width
+               > findChild(findChild(page, "spaceSwatch-work-green"), "spaceSwatchFill").width);
+        // Before Rename, on the same line.
+        const rename = settleAction(findChild(page, "renameSpace-work")).mapToItem(page, 0, 0);
+        const last = findChild(page, "spaceSwatch-work-bright_blue").mapToItem(page, 0, 0);
+        verify(last.x < rename.x);
+        verify(Math.abs(last.y - rename.y) < 8);
+        compare(findChild(page, "spaceSwatch-reading-green"), null);
+
+        // The colour Personal has already.
+        const green = settleAction(findChild(page, "spaceSwatch-work-green"));
+        mouseClick(green, green.width / 2, green.height / 2);
+        tryCompare(spacesFixture.get(1), "spaceColor", "green");
+        tryVerify(function () {
+            return findChild(page, "spaceSwatch-work-green").checked && !findChild(page,
+                                                                                   "spaceSwatch-work-yellow").checked;
+        });
+    }
+
+    // The reader's Spaces come before the Agent Spaces, and a move does not
+    // cross from one to the other, so the arrows that would say so first.
+    function test_aMoveStaysOnItsSideOfTheAgentSpaces() {
+        browserStub.agentSpaceIds = ["reading"];
+        const page = makeSpacesPage();
+        verify(!settleAction(findChild(page, "moveSpaceDown-work")).enabled);
+        verify(!settleAction(findChild(page, "moveSpaceUp-reading")).enabled);
+        verify(findChild(page, "moveSpaceUp-work").enabled);
     }
 
     // Space management belongs to a regular window, so a Private window is

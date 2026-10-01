@@ -29,6 +29,10 @@ Item {
     // The name is still what the row answers to, for the screen reader and for
     // anything asking what the row is.
     property bool labelsVisible: true
+    // The face a row's `glyph` is drawn in. A row may carry a `glyph` and its
+    // `glyphColor`, or a `swatch` colour drawn as a small square, larger where
+    // `swatchLarge` says so, in place of an image `icon`.
+    property string iconFontFamily: ""
 
     signal triggered(int index)
     signal dismissed
@@ -142,6 +146,9 @@ Item {
                     // type against the left edge.
                     readonly property url iconSource: modelData.icon !== undefined ? modelData.icon :
                                                                                      ""
+                    readonly property bool marked: !separator && (iconSource.toString().length > 0
+                                                                  || modelData.glyph !== undefined
+                                                                  || modelData.swatch !== undefined)
 
                     objectName: separator ? "chromeMenuSeparator" + index : "chromeMenuItem" + index
                     width: parent.width
@@ -188,10 +195,33 @@ Item {
                         asynchronous: true
                     }
 
+                    Rectangle {
+                        objectName: "chromeMenuSwatch" + index
+                        visible: modelData.swatch !== undefined && !parent.separator
+                        anchors.horizontalCenter: mark.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: modelData.swatchLarge === true ? 12 : 8
+                        height: width
+                        radius: 2
+                        color: modelData.swatch !== undefined ? modelData.swatch : "transparent"
+                    }
+
+                    Text {
+                        objectName: "chromeMenuGlyph" + index
+                        visible: modelData.glyph !== undefined && !parent.separator
+                        anchors.horizontalCenter: mark.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.glyph !== undefined ? modelData.glyph : ""
+                        color: modelData.glyphColor !== undefined ? modelData.glyphColor :
+                                                                    root.colors.mutedText
+                        font.family: root.iconFontFamily
+                        font.pixelSize: Style.font.icon
+                    }
+
                     Text {
                         visible: !parent.separator && root.labelsVisible
                         anchors.left: parent.left
-                        anchors.leftMargin: mark.visible ? 14 + mark.width + 8 : 14
+                        anchors.leftMargin: parent.marked ? 14 + mark.width + 8 : 14
                         anchors.right: parent.right
                         anchors.rightMargin: 14
                         anchors.verticalCenter: parent.verticalCenter

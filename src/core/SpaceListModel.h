@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QStringList>
 #include <QVector>
 
 namespace omaweb {
@@ -8,9 +9,22 @@ namespace omaweb {
 struct SpaceState {
     QString id;
     QString name;
+    // A palette name from spaceColourNames(), which the theme resolves: the
+    // Space is drawn in the theme's own value for it and follows a theme
+    // change. A store from before Spaces had one holds a hex value here until
+    // the controller replaces it at start.
     QString color;
     bool active = false;
 };
+
+// The palette names a Space may be drawn in, in the order a new Space is
+// offered them. Red, magenta and cyan are not among them: they say urgent,
+// Private and Agent.
+const QStringList &spaceColourNames();
+bool isSpaceColourName(const QString &name);
+// The name fewest of these Spaces use, the earliest in spaceColourNames() on a
+// tie. A Space that holds no palette name counts towards none.
+QString leastUsedSpaceColour(const QVector<SpaceState> &spaces);
 
 class SpaceListModel final : public QAbstractListModel {
     Q_OBJECT

@@ -315,6 +315,13 @@ ApplicationWindow {
             "key": entry.key
         };
     })
+    // The menu the footer's count of the Spaces it left out opens, and those
+    // Spaces, each drawn the way the footer draws it.
+    property bool spaceOverflowMenuOpen: false
+    property real spaceOverflowMenuX: 0
+    property real spaceOverflowMenuY: 0
+    property real spaceOverflowMenuTop: 0
+    property var spaceOverflowMenuItems: []
     property var omnibarSuggestions: []
     // The latest Engine suggestion answer for the Omnibar's text, as the
     // browser gave it: the engine asked, the terms, and its proposals.
@@ -870,6 +877,26 @@ ApplicationWindow {
         window.extensionMenuTop = mark.y;
         window.extensionMenuOpen = true;
         return true;
+    }
+
+    function openSpaceOverflowMenu(spaces, origin) {
+        window.spaceOverflowMenuItems = spaces.map(function (space) {
+            const marked = space.agentMade || space.attached;
+            const palette = window.colors.spaces;
+            return {
+                "label": space.spaceName,
+                "spaceId": space.spaceId,
+                "swatch": marked ? undefined : (palette && palette[space.spaceColor]
+                                                ? palette[space.spaceColor] : window.colors.accent),
+                "swatchLarge": space.active,
+                "glyph": marked ? "smart_toy" : undefined,
+                "glyphColor": space.attached ? window.colors.agentAccent : window.colors.mutedText
+            };
+        });
+        window.spaceOverflowMenuX = origin.x + origin.width;
+        window.spaceOverflowMenuY = origin.y + origin.height;
+        window.spaceOverflowMenuTop = origin.y;
+        window.spaceOverflowMenuOpen = true;
     }
 
     function runExtensionMenu(index) {
@@ -2746,6 +2773,9 @@ ApplicationWindow {
                 onTabMenuRequested: function (tabId, anchorX, anchorY) {
                     window.openTabMenu(tabId, anchorX, anchorY);
                 }
+                onHiddenSpacesRequested: function (spaces, origin) {
+                    window.openSpaceOverflowMenu(spaces, origin);
+                }
                 onSpaceActivated: function (spaceId) {
                     window.windowBrowser.switchSpace(spaceId);
                 }
@@ -4253,6 +4283,29 @@ ApplicationWindow {
     }
 
     ChromeMenu {
+        id: spaceOverflowMenu
+        objectName: "spaceOverflowMenu"
+        anchors.fill: parent
+        z: 56
+        colors: window.colors
+        iconFontFamily: materialSymbols.name
+        open: window.spaceOverflowMenuOpen
+        itemWidth: 200
+        anchorX: window.spaceOverflowMenuX
+        anchorY: window.spaceOverflowMenuY
+        anchorTop: window.spaceOverflowMenuTop
+        items: window.spaceOverflowMenuItems
+
+        onDismissed: window.spaceOverflowMenuOpen = false
+        onTriggered: function (index) {
+            const item = window.spaceOverflowMenuItems[index];
+            window.spaceOverflowMenuOpen = false;
+            if (item)
+                window.windowBrowser.switchSpace(item.spaceId);
+        }
+    }
+
+    ChromeMenu {
         id: pageMenu
         objectName: "pageMenu"
         anchors.fill: parent
@@ -4495,6 +4548,8 @@ ApplicationWindow {
         colors: window.colors
         commands: browserCommands
         browser: window.windowBrowser
+        agentSpaceIds: window.agentSpaceIds
+        agentActivity: window.agentTabActivity
         iconFontFamily: materialSymbols.name
         useFavicons: window.useFavicons
         tintFavicons: window.tintFavicons

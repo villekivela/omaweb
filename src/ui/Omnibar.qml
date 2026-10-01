@@ -79,6 +79,25 @@ Item {
     // each Space switch rather than for each keystroke, since the read asks
     // the store for every Space.
     property var awayTabs: []
+    // The Spaces an Agent made, and what the Agents are attached to, so a
+    // Space is named in the colour the footer draws it in.
+    property var agentSpaceIds: []
+    property var agentActivity: ({})
+
+    // A Space of the reader's is drawn in the theme's colour for its palette
+    // name. An Agent Space has none on screen: the Agent accent while an Agent
+    // is attached to one of its tabs, muted while none is.
+    function spaceColourOf(spaceId, colourName) {
+        if (agentSpaceIds.indexOf(spaceId) >= 0) {
+            for (const tabId in agentActivity) {
+                if (agentActivity[tabId].spaceId === spaceId)
+                    return colors.agentAccent;
+            }
+            return colors.mutedText;
+        }
+        const spaces = colors.spaces;
+        return spaces && spaces[colourName] ? spaces[colourName] : colors.accent;
+    }
 
     // The engine a typed keyword selected, drawn as a chip ahead of the terms
     // the field then holds. Null while the field holds plain text.
@@ -1002,7 +1021,7 @@ Item {
                             width: 14
                             height: 14
                             radius: 3
-                            color: modelData.color ? modelData.color : root.colors.accent
+                            color: root.spaceColourOf(modelData.argument, modelData.color)
                         }
 
                         Text {
@@ -1081,7 +1100,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: row.spaceName.length > 0
                             text: row.spaceName
-                            color: modelData.spaceColor ? modelData.spaceColor : root.colors.accent
+                            color: root.spaceColourOf(modelData.spaceId, modelData.spaceColor)
                             font.family: Style.font.family
                             font.pixelSize: Style.font.body
                         }

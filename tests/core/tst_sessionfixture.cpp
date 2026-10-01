@@ -71,7 +71,7 @@ void SessionFixtureTest::restoresDeclaredStateWithDomainDefaults()
 
     const auto space = controller->spaces()->index(0, 0);
     QCOMPARE(controller->spaces()->data(space, SpaceListModel::ColorRole).toString(),
-        QStringLiteral("#7c6cff"));
+        QStringLiteral("green"));
 
     const auto tab = controller->tabs()->index(0, 0);
     QVERIFY(!controller->tabs()->data(tab, TabListModel::PinnedRole).toBool());
@@ -103,7 +103,7 @@ void SessionFixtureTest::restoresOrderedSpacesSelectionsAndSpaceAtRest()
             SpaceSpec {
                 .id = QStringLiteral("work"),
                 .name = QStringLiteral("Work"),
-                .color = QStringLiteral("#123456"),
+                .color = QStringLiteral("bright_blue"),
                 .tabs = {
                     TabSpec {
                         .id = QStringLiteral("work-one"),
@@ -132,7 +132,7 @@ void SessionFixtureTest::restoresOrderedSpacesSelectionsAndSpaceAtRest()
         QStringLiteral("work"));
     QCOMPARE(
         controller->spaces()->data(controller->spaces()->index(1, 0), SpaceListModel::ColorRole),
-        QStringLiteral("#123456"));
+        QStringLiteral("bright_blue"));
     QCOMPARE(controller->activeSpaceId(), QStringLiteral("work"));
     QCOMPARE(controller->activeTabId(), QStringLiteral("work-two"));
     QCOMPARE(controller->activeTitle(), QStringLiteral("Two"));

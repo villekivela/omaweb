@@ -493,6 +493,15 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+    // `--many-spaces` seeds three more of the reader's Spaces, each taking a
+    // colour of its own, and with `--agents` six more Agent Spaces, so the
+    // footer runs out of room and counts the rest.
+    const auto manySpaces = arguments.contains(QStringLiteral("--many-spaces"));
+    if (manySpaces) {
+        for (const auto *name : {"Home", "Travel", "Research"}) {
+            browser.createSpace(QString::fromUtf8(name));
+        }
+    }
     // `--spaces` seeds the Spaces to switch between; see seedSampleSpaces.
     if (arguments.contains(QStringLiteral("--spaces"))) {
         seedSampleSpaces(browser, mockFavicons);
@@ -532,6 +541,12 @@ int main(int argc, char *argv[])
         agentTabId
             = opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
         browser.createAgentSpace(QStringLiteral("Scratch"), agentName);
+        if (manySpaces) {
+            for (const auto *name : {"Signup flow", "Pricing check", "Docs crawl", "Changelog",
+                     "Benchmarks", "Triage"}) {
+                browser.createAgentSpace(QString::fromUtf8(name), agentName);
+            }
+        }
         engine.rootContext()->setContextProperty(
             QStringLiteral("agentControl"), &agentControl.value());
     }
@@ -631,6 +646,22 @@ int main(int argc, char *argv[])
     // After the sample day, which is seeded into the Space on show.
     if (agents && !agentsAway && browser.switchSpace(agentSpaceId)) {
         browser.activateTab(agentTabId);
+    }
+    // `--narrow` puts the sidebar at its minimum width.
+    if (arguments.contains(QStringLiteral("--narrow")) && !engine.rootObjects().isEmpty()) {
+        auto *window = engine.rootObjects().constFirst();
+        window->setProperty("sidebarWidth", window->property("sidebarMinimumWidth"));
+    }
+    // `--space-overflow` opens the menu of the Spaces the footer left out, which
+    // is a click on its count. Late enough that a compositor has given the
+    // window its size: the menu hangs from where the count stands then.
+    if (arguments.contains(QStringLiteral("--space-overflow")) && !engine.rootObjects().isEmpty()) {
+        auto *window = engine.rootObjects().constFirst();
+        QTimer::singleShot(1500, window, [window] {
+            if (auto *sidebar = window->findChild<QObject *>(QStringLiteral("sidebar"))) {
+                QMetaObject::invokeMethod(sidebar, "openHiddenSpaces");
+            }
+        });
     }
     // Private chrome is a whole palette of its own, and the lab is where it is
     // reviewed. Nothing else about the window changes.

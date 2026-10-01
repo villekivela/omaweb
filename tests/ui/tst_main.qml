@@ -3,6 +3,7 @@ import QtTest
 import Omaweb
 import Omaweb.Engine
 import "../../src/ui" as Omaweb
+import qs.Commons
 
 TestCase {
     id: testCase
@@ -4561,14 +4562,16 @@ TestCase {
     }
 
     // The Space holding an Agent tab wears the mark in the Agent accent in
-    // place of its letter, readable while it is away, until the connection
+    // place of its square, readable while it is away, until the connection
     // closes.
     function test_aSpaceHoldingAnAgentTabWearsTheMark() {
         const drive = driveAnAgentSpace(false);
         const sidebar = findChild(window.contentItem, "sidebar");
         const button = findChild(sidebar, "space-" + drive.spaceId);
         const mark = findChild(sidebar, "spaceAgentMark-" + drive.spaceId);
+        const square = findChild(sidebar, "spaceMark-" + drive.spaceId);
         verify(mark.visible);
+        verify(!square.visible);
         compare(button.label, "");
         compare(String(mark.color), String(window.colors.agentAccent));
 
@@ -4576,7 +4579,7 @@ TestCase {
         tryCompare(sidebar, "arriving", false);
         verify(mark.visible);
         compare(String(mark.color), String(window.colors.agentAccent));
-        compare(findChild(sidebar, "space-" + drive.readersSpaceId).label.length, 1);
+        verify(findChild(sidebar, "spaceMark-" + drive.readersSpaceId).visible);
 
         // Taken over with the Agent still there, it keeps the mark until the
         // connection closes.
@@ -4584,13 +4587,13 @@ TestCase {
         verify(mark.visible);
         drive.detach();
         verify(!mark.visible);
-        compare(button.label, "A");
+        verify(square.visible);
         endAgentDrive(drive);
     }
 
     // An Agent Space no Agent is using shows the mark muted and still, turns
-    // to the Agent accent when an Agent attaches, and gets its letter back
-    // when the reader takes it over.
+    // to the Agent accent when an Agent attaches, and becomes a square in a
+    // colour of its own when the reader takes it over.
     function test_anAgentSpaceNoAgentUsesIsMarkedMuted() {
         const sidebar = findChild(window.contentItem, "sidebar");
         const idleSpaceId = agentSpaceProbe.create("Idle agent work", "claude-code", false);
@@ -4598,6 +4601,7 @@ TestCase {
         const button = findChild(sidebar, "space-" + idleSpaceId);
         verify(mark.visible);
         compare(button.label, "");
+        verify(!findChild(sidebar, "spaceMark-" + idleSpaceId).visible);
         compare(String(mark.color), String(window.colors.mutedText));
         wait(600);
         compare(mark.opacity, 1);
@@ -4618,9 +4622,246 @@ TestCase {
 
         verify(browser.takeOverSpace(idleSpaceId));
         verify(!mark.visible);
-        compare(button.label, "I");
+        const square = findChild(sidebar, "spaceMark-" + idleSpaceId);
+        verify(square.visible);
+        verify(Qt.colorEqual(square.color, window.colors.spaces[spaceColourName(idleSpaceId)]));
         verify(browser.deleteSpace(idleSpaceId, "Idle agent work"));
         control.destroy();
+    }
+
+    // The palette name the core gave a Space.
+    function spaceColourName(spaceId) {
+        const spaces = browser.spaces;
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            const index = spaces.index(row, 0);
+            if (spaces.data(index, Qt.UserRole + 1) === spaceId)
+                return spaces.data(index, Qt.UserRole + 3);
+        }
+        return "";
+    }
+
+    // Each of the reader's Spaces is a small square in its colour, which the
+    // theme resolves from the Space's palette name: no letter, and no plate,
+    // border or fill around the one on show, which is the larger square. Two
+    // Spaces made in turn differ, and both follow a theme change. Hovering a
+    // square names its Space.
+    function test_eachOfTheReadersSpacesIsASquareInItsColour() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const personalId = browser.activeSpaceId;
+        const workId = browser.createSpace("Work");
+        const personal = findChild(sidebar, "spaceMark-" + personalId);
+        const work = findChild(sidebar, "spaceMark-" + workId);
+        verify(personal.visible);
+        verify(work.visible);
+        const personalColour = spaceColourName(personalId);
+        const workColour = spaceColourName(workId);
+        verify(personalColour !== workColour);
+        verify(Qt.colorEqual(personal.color, window.colors.spaces[personalColour]));
+        verify(Qt.colorEqual(work.color, window.colors.spaces[workColour]));
+        verify(!Qt.colorEqual(personal.color, work.color));
+        compare(work.width, work.height);
+        verify(work.radius > 0 && work.radius < work.width / 2);
+        tryVerify(function () {
+            return personal.width > work.width;
+        });
+
+        const workButton = findChild(sidebar, "space-" + workId);
+        const personalButton = findChild(sidebar, "space-" + personalId);
+        compare(workButton.label, "");
+        compare(personalButton.label, "");
+        compare(findChild(sidebar, "spacePlate"), null);
+        verify(!personalButton.selected);
+        verify(!personalButton.bordered);
+        compare(String(personalButton.background), String(Qt.color("transparent")));
+
+        // The one on show is the larger square, wherever the reader goes.
+        verify(browser.switchSpace(workId));
+        tryCompare(sidebar, "arriving", false);
+        tryVerify(function () {
+            return work.width > personal.width;
+        });
+        compare(workButton.accessibleName, "Current Space: Work");
+        compare(personalButton.accessibleName, "Switch to Personal");
+        verify(browser.switchSpace(personalId));
+        tryCompare(sidebar, "arriving", false);
+
+        const note = findChild(workButton, "spaceNote-" + workId);
+        verify(!note.visible);
+        mouseMove(workButton, workButton.width / 2, workButton.height / 2);
+        tryCompare(note, "visible", true);
+        compare(note.text, "Work");
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        tryCompare(note, "visible", false);
+
+        // A theme change redraws both from the new theme.
+        const changed = Object.assign({}, window.colors);
+        changed.spaces = {
+            "green": "#00aa44",
+            "yellow": "#aa8800",
+            "blue": "#0044aa",
+            "bright_green": "#22cc66",
+            "bright_yellow": "#ccaa22",
+            "bright_blue": "#2266cc"
+        };
+        window.colors = changed;
+        verify(Qt.colorEqual(personal.color, changed.spaces[personalColour]));
+        verify(Qt.colorEqual(work.color, changed.spaces[workColour]));
+        window.colors = Qt.binding(function () {
+            return theme.palette;
+        });
+
+        // The reader's choice, from Settings or anywhere else.
+        verify(browser.setSpaceColour(workId, "bright_blue"));
+        verify(Qt.colorEqual(work.color, window.colors.spaces.bright_blue));
+        verify(browser.deleteSpace(workId, "Work"));
+    }
+
+    // Agent Spaces follow the reader's squares, each the Agent mark, small:
+    // muted while no Agent uses it, the Agent accent while one is attached,
+    // and named on hover. One made before a Space of the reader's leaves that
+    // Space its number.
+    function test_agentSpacesFollowTheReadersSquares() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const personalId = browser.activeSpaceId;
+        const agentId = agentSpaceProbe.create("Signup flow", "claude-code", false);
+        const workId = browser.createSpace("Work");
+        const agentButton = findChild(sidebar, "space-" + agentId);
+        const mark = findChild(sidebar, "spaceAgentMark-" + agentId);
+        verify(mark.visible);
+        verify(mark.font.pixelSize < Style.font.iconLarge);
+        verify(!findChild(sidebar, "spaceMark-" + agentId).visible);
+        verify(Qt.colorEqual(mark.color, window.colors.mutedText));
+        tryVerify(function () {
+            return agentButton.x > findChild(sidebar, "space-" + workId).x;
+        });
+
+        const note = findChild(agentButton, "spaceNote-" + agentId);
+        mouseMove(agentButton, agentButton.width / 2, agentButton.height / 2);
+        tryCompare(note, "visible", true);
+        compare(note.text, "Signup flow");
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        tryCompare(note, "visible", false);
+
+        // The reader's Spaces keep 1 and 2, as their Key labels say, and the
+        // Agent Space is 3.
+        const workLabel = findChild(sidebar, "keyLabel-space-" + workId);
+        keyPress(Qt.Key_Control);
+        tryVerify(function () {
+            return workLabel.visible;
+        });
+        const numberFor = function (position) {
+            return bindingFor("select-space", position).slice("Primary+".length);
+        };
+        compare(findChild(sidebar, "keyLabel-space-" + personalId).text, numberFor(1));
+        compare(workLabel.text, numberFor(2));
+        compare(findChild(sidebar, "keyLabel-space-" + agentId).text, numberFor(3));
+        keyRelease(Qt.Key_Control);
+        window.activateSpaceAt(1);
+        compare(browser.activeSpaceId, workId);
+        tryCompare(sidebar, "arriving", false);
+        window.activateSpaceAt(0);
+        compare(browser.activeSpaceId, personalId);
+        tryCompare(sidebar, "arriving", false);
+
+        verify(browser.deleteSpace(workId, "Work"));
+        verify(browser.deleteSpace(agentId, "Signup flow"));
+    }
+
+    // A footer too narrow for every Space leaves out the ones that do not fit
+    // and counts them in plain muted text. Nothing scrolls and nothing lands
+    // under the controls beside the row. The count opens a menu of the Spaces
+    // left out, and the Space keys still reach them.
+    function test_spacesThatDoNotFitAreCountedAndListed() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const switcher = findChild(sidebar, "spaceSwitcher");
+        const overflow = findChild(sidebar, "spaceOverflow");
+        const menu = findChild(window.contentItem, "spaceOverflowMenu");
+        const personalId = browser.activeSpaceId;
+        window.setSidebarWidth(window.sidebarMinimumWidth);
+        verify(!overflow.visible);
+        const names = ["Work", "Home", "Travel", "Reading", "Music", "Garden", "Kitchen", "Cars", "Signup flow",
+                       "Crawler"];
+        const made = [];
+        for (const name of names.slice(0, 8))
+            made.push(browser.createSpace(name));
+        made.push(agentSpaceProbe.create("Signup flow", "claude-code", false));
+        made.push(agentSpaceProbe.create("Crawler", "claude-code", false));
+        tryVerify(function () {
+            return overflow.visible;
+        });
+
+        // In footer order, with whatever Spaces the window had already.
+        const ids = [];
+        for (let row = 0; row < browser.spaces.rowCount(); ++row)
+            ids.push(browser.spaces.data(browser.spaces.index(row, 0), Qt.UserRole + 1));
+        compare(ids[0], personalId);
+        compare(ids[ids.length - 1], made[made.length - 1]);
+        let hidden = [];
+        let rightmost = 0;
+        const measure = function () {
+            hidden = [];
+            rightmost = 0;
+            for (const id of ids) {
+                const item = findChild(sidebar, "space-" + id);
+                if (!item.visible) {
+                    hidden.push(id);
+                    continue;
+                }
+                rightmost = Math.max(rightmost, item.x + item.width);
+            }
+            return rightmost <= overflow.x;
+        };
+        tryVerify(measure);
+        verify(hidden.length > 0);
+        compare(overflow.text, "+" + hidden.length);
+        verify(Qt.colorEqual(overflow.color, window.colors.mutedText));
+        compare(overflow.Accessible.role, Accessible.Button);
+        // The ones left out are the last in footer order.
+        compare(hidden[hidden.length - 1], made[made.length - 1]);
+        verify(findChild(sidebar, "space-" + personalId).visible);
+        verify(overflow.x + overflow.width <= switcher.width);
+        const settings = findChild(sidebar, "settingsButton");
+        verify(switcher.mapToItem(sidebar, overflow.x + overflow.width, 0).x <= settings.mapToItem(sidebar,
+                                                                                                   0, 0).x);
+        verify(switcher.contentX === undefined);
+
+        // A Space key reaches one that is left out.
+        verify(hidden.indexOf(ids[8]) >= 0);
+        window.activateSpaceAt(8);
+        compare(browser.activeSpaceId, ids[8]);
+        tryCompare(sidebar, "arriving", false);
+        verify(browser.switchSpace(personalId));
+        tryCompare(sidebar, "arriving", false);
+
+        // The menu lists exactly the Spaces left out, in footer order, and
+        // choosing one switches to it.
+        mouseClick(overflow, overflow.width / 2, overflow.height / 2);
+        tryCompare(menu, "visible", true);
+        compare(menu.items.map(function (item) {
+            return item.spaceId;
+        }), hidden);
+        compare(menu.items.map(function (item) {
+            return item.label;
+        }), hidden.map(function (id) {
+            return browser.spaces.data(browser.spaces.index(ids.indexOf(id), 0), Qt.UserRole + 2);
+        }));
+        const agentRow = menu.items[menu.items.length - 1];
+        compare(agentRow.glyph, "smart_toy");
+        verify(Qt.colorEqual(agentRow.glyphColor, window.colors.mutedText));
+        const choice = findChild(menu, "chromeMenuItem" + (hidden.length - 1));
+        mouseClick(choice, choice.width / 2, choice.height / 2);
+        tryCompare(browser, "activeSpaceId", hidden[hidden.length - 1]);
+        tryCompare(menu, "visible", false);
+        tryCompare(sidebar, "arriving", false);
+
+        verify(browser.switchSpace(personalId));
+        tryCompare(sidebar, "arriving", false);
+        for (let index = made.length - 1; index >= 0; --index)
+            verify(browser.deleteSpace(made[index], names[index]));
+        window.setSidebarWidth(window.sidebarDefaultWidth);
+        tryVerify(function () {
+            return !overflow.visible;
+        });
     }
 
     // Opening an Agent Space says an Agent made it, with Take over and
@@ -5928,6 +6169,9 @@ TestCase {
         verify(!spaceSwitcher.visible);
         verify(!pinnedList.visible);
         verify(!newSpaceButton.visible);
+        // Nor a menu of Spaces left out of a row it does not have.
+        findChild(privateBrowser.contentItem, "sidebar").openHiddenSpaces();
+        verify(!findChild(privateBrowser.contentItem, "spaceOverflowMenu").visible);
         // The window names itself with its palette and the mask in the footer.
         // Nothing is drawn over the page to say it.
         verify(findChild(privateBrowser.contentItem, "privateIndicator") === null);
@@ -6672,6 +6916,65 @@ TestCase {
         };
     }
 
+    // An Agent Space has no palette colour on screen, so the Omnibar names it
+    // as the footer draws it: muted while no Agent uses it, in the Agent
+    // accent while one is attached.
+    function test_omnibarNamesAnAgentSpaceInTheAgentsColours() {
+        const homeSpaceId = browser.activeSpaceId;
+        const agentId = agentSpaceProbe.create("Crawler", "claude-code", false);
+        verify(browser.switchSpace(agentId));
+        openPage("https://crawl.example/quasar");
+        browser.reportTabPageState(browser.activeTabId, "https://crawl.example/quasar",
+                                   "Quasar crawl", "", false, false);
+        verify(browser.switchSpace(homeSpaceId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+
+        window.openOmnibar(false);
+        input.text = "quasar";
+        const tabRow = function () {
+            return omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]));
+        };
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "tab").length === 1;
+        });
+        const suffix = findChild(tabRow(), "omnibarRowSpace");
+        compare(suffix.text, "Crawler");
+        verify(Qt.colorEqual(suffix.color, window.colors.mutedText));
+        input.text = "crawler";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "space").length === 1;
+        });
+        const spaceRow = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]));
+        verify(Qt.colorEqual(findChild(spaceRow, "omnibarRowSpaceColor").color,
+                             window.colors.mutedText));
+
+        const control = agentActivityComponent.createObject(testCase);
+        const activity = {};
+        activity["elsewhere-tab"] = {
+            "spaceId": agentId,
+            "name": "claude-code",
+            "act": "",
+            "busy": false
+        };
+        control.agentActivity = activity;
+        findChild(window.contentItem, "engineLoader").agentControl = control;
+        verify(Qt.colorEqual(findChild(spaceRow, "omnibarRowSpaceColor").color,
+                             window.colors.agentAccent));
+        input.text = "quasar";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "tab").length === 1;
+        });
+        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color,
+                             window.colors.agentAccent));
+        findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
+        control.destroy();
+        window.closeOmnibar();
+        verify(browser.deleteSpace(agentId, "Crawler"));
+    }
+
     function closeTabsInOtherSpaces(opened) {
         window.closeOmnibar();
         verify(browser.switchSpace(opened.homeSpaceId));
@@ -6715,7 +7018,31 @@ TestCase {
         const spaces = browser.spaces;
         const alphaRow = spaces.index(spaces.rowCount() - 2, 0);
         compare(spaces.data(alphaRow, Qt.UserRole + 2), "Alpha");
-        verify(Qt.colorEqual(suffix.color, spaces.data(alphaRow, Qt.UserRole + 3)));
+        // In the colour the theme gives the Space's palette name, which
+        // differs from the next Space's, and both follow a theme change.
+        const alphaColour = spaces.data(alphaRow, Qt.UserRole + 3);
+        const betaColour = spaces.data(spaces.index(spaces.rowCount() - 1, 0), Qt.UserRole + 3);
+        verify(Qt.colorEqual(suffix.color, window.colors.spaces[alphaColour]));
+        const beta = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[2]));
+        const betaSuffix = findChild(beta, "omnibarRowSpace");
+        compare(betaSuffix.text, "Beta");
+        verify(Qt.colorEqual(betaSuffix.color, window.colors.spaces[betaColour]));
+        verify(!Qt.colorEqual(betaSuffix.color, suffix.color));
+        const changed = Object.assign({}, window.colors);
+        changed.spaces = {
+            "green": "#00aa44",
+            "yellow": "#aa8800",
+            "blue": "#0044aa",
+            "bright_green": "#22cc66",
+            "bright_yellow": "#ccaa22",
+            "bright_blue": "#2266cc"
+        };
+        window.colors = changed;
+        verify(Qt.colorEqual(suffix.color, changed.spaces[alphaColour]));
+        verify(Qt.colorEqual(betaSuffix.color, changed.spaces[betaColour]));
+        window.colors = Qt.binding(function () {
+            return theme.palette;
+        });
         compare(findChild(away, "omnibarRowTitle").text, alphaTitle);
         compare(findChild(away, "omnibarRowHost").text, "plans.example");
         compare(away.action, "switch tab →");
@@ -7174,8 +7501,8 @@ TestCase {
             if (browser.spaces.data(index, Qt.UserRole + 1) === edgeSpaceId)
                 edgeSpaceColor = browser.spaces.data(index, Qt.UserRole + 3);
         }
-        verify(!Qt.colorEqual(edgeSpaceColor, window.colors.accent));
-        verify(Qt.colorEqual(spaceColor.color, edgeSpaceColor));
+        verify(window.colors.spaces[edgeSpaceColor] !== undefined);
+        verify(Qt.colorEqual(spaceColor.color, window.colors.spaces[edgeSpaceColor]));
 
         // A keyword's tile is its engine's own site.
         input.text = "br";

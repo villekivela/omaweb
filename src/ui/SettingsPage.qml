@@ -1927,7 +1927,21 @@ Rectangle {
                                 required property int index
                                 required property string spaceId
                                 required property string spaceName
+                                required property string spaceColor
                                 required property bool active
+                                // An Agent Space is drawn in no palette colour,
+                                // so it is offered none.
+                                readonly property bool agentMade: root.browser
+                                                                  && root.browser.agentSpaceIds
+                                                                  ? root.browser.agentSpaceIds.indexOf(
+                                                                        spaceId) >= 0 : false
+                                // Whether the row a step away is the same kind,
+                                // the reader's or an Agent's: a move never
+                                // crosses from one to the other.
+                                function besideOwnKind(offset) {
+                                    const beside = spaceList.itemAt(index + offset);
+                                    return beside !== null && beside.agentMade === agentMade;
+                                }
                                 objectName: "settingsSpace-" + spaceId
                                 width: pane.width
                                 colors: root.colors
@@ -1938,10 +1952,98 @@ Rectangle {
 
                                 Flow {
                                     id: spaceActions
-                                    width: Math.min(pane.width * 0.7, renameSpace.implicitWidth
+                                    width: Math.min(pane.width * 0.7, spaceSwatches.width
+                                                    + renameSpace.implicitWidth
                                                     + deleteSpace.implicitWidth + moveSpaceUp.width
-                                                    + moveSpaceDown.width + spacing * 3)
+                                                    + moveSpaceDown.width + spacing * 4)
                                     spacing: Style.spacing.sm
+
+                                    // The six colours a Space may be drawn in,
+                                    // each in the theme's own value. The
+                                    // Space's own is the larger square. Two
+                                    // Spaces may share a colour.
+                                    Row {
+                                        id: spaceSwatches
+                                        height: 26
+                                        spacing: 4
+
+                                        Repeater {
+                                            model: spaceRow.agentMade ? [] : [
+                                                                            {
+                                                                                "name": "green",
+                                                                                "spoken": "Green"
+                                                                            },
+                                                                            {
+                                                                                "name": "yellow",
+                                                                                "spoken": "Yellow"
+                                                                            },
+                                                                            {
+                                                                                "name": "blue",
+                                                                                "spoken": "Blue"
+                                                                            },
+                                                                            {
+                                                                                "name": "bright_green",
+                                                                                "spoken": "Bright green"
+                                                                            },
+                                                                            {
+                                                                                "name": "bright_yellow",
+                                                                                "spoken": "Bright yellow"
+                                                                            },
+                                                                            {
+                                                                                "name": "bright_blue",
+                                                                                "spoken": "Bright blue"
+                                                                            }
+                                                                        ]
+
+                                            AbstractButton {
+                                                id: swatch
+                                                required property var modelData
+                                                objectName: "spaceSwatch-" + spaceRow.spaceId + "-"
+                                                            + modelData.name
+                                                width: 22
+                                                height: 26
+                                                checkable: false
+                                                checked: spaceRow.spaceColor === modelData.name
+                                                activeFocusOnTab: true
+                                                focusPolicy: Qt.StrongFocus
+                                                Accessible.role: Accessible.RadioButton
+                                                Accessible.name: modelData.spoken + " for "
+                                                                 + spaceRow.spaceName
+                                                Accessible.checked: checked
+                                                onClicked: root.browser.setSpaceColour(
+                                                               spaceRow.spaceId, modelData.name)
+
+                                                background: Item {}
+                                                contentItem: Item {
+                                                    // Where the keyboard is, and
+                                                    // nothing more: the chosen
+                                                    // colour is the larger
+                                                    // square, as the Space on
+                                                    // show is in the footer.
+                                                    Rectangle {
+                                                        anchors.centerIn: parent
+                                                        width: 20
+                                                        height: 20
+                                                        radius: 4
+                                                        color: "transparent"
+                                                        visible: swatch.activeFocus
+                                                        border.width: 1
+                                                        border.color: root.colors.text
+                                                    }
+                                                    Rectangle {
+                                                        objectName: "spaceSwatchFill"
+                                                        anchors.centerIn: parent
+                                                        width: swatch.checked ? 14 : 10
+                                                        height: width
+                                                        radius: 2
+                                                        color: root.colors.spaces
+                                                               ? root.colors.spaces[swatch.modelData.name] :
+                                                                 root.colors.accent
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
 
                                     ActionButton {
                                         id: renameSpace
@@ -1983,7 +2085,7 @@ Rectangle {
                                         foreground: root.colors.mutedText
                                         accent: root.colors.accent
                                         accessibleName: "Move " + spaceRow.spaceName + " up"
-                                        enabled: spaceRow.index > 0
+                                        enabled: spaceRow.index > 0 && spaceRow.besideOwnKind(-1)
                                         onClicked: root.browser.moveSpaceBy(spaceRow.spaceId, -1)
                                     }
 
@@ -1998,6 +2100,7 @@ Rectangle {
                                         accent: root.colors.accent
                                         accessibleName: "Move " + spaceRow.spaceName + " down"
                                         enabled: spaceRow.index < spaceList.count - 1
+                                                 && spaceRow.besideOwnKind(1)
                                         onClicked: root.browser.moveSpaceBy(spaceRow.spaceId, 1)
                                     }
                                 }
