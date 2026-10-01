@@ -19,11 +19,17 @@ source of truth for the routine; this skill runs it and reports.
 1. **Find the version.** The issue that brought you here names it. Otherwise ask Qt directly:
 
    ```sh
-   curl -fsSL https://download.qt.io/official_releases/qt/6.11/ | grep -o 'href="6\.11\.[0-9]*/"'
+   ~/Projects/villekivela/omaweb-qtwebengine-patches/scripts/newest-engine.sh
    ```
 
+   The version is the engine's, not Qt's. From Qt 6.12 the engine is released on its own and
+   versioned after its Chromium, so 6.140.0 is Chromium 140 and Qt 6.12.0 has no engine at all. A
+   version that names a Qt release without a `qtwebengine` tarball is a tracker mistake, not a
+   conflict: say so rather than looking for one.
+
 2. **Read what the release carries** before spending hours on it. Qt's release notes say whether it
-   has security fixes, which is what decides urgency.
+   has security fixes, which is what decides urgency. The tree's `CHROMIUM_VERSION` file states the
+   Chromium release whose security fixes it carries.
 
 3. **Apply the series.** This is minutes and it is where most trouble appears:
 
