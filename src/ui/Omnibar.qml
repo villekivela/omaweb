@@ -72,6 +72,10 @@ Item {
     property int selected: 0
     // The open tabs' icons by host, read when the rows are ranked.
     property var siteIcons: ({})
+    // Every other Space's tabs, read from the session for each opening and
+    // each Space switch rather than for each keystroke, since the read asks
+    // the store for every Space.
+    property var awayTabs: []
 
     // The engine a typed keyword selected, drawn as a chip ahead of the terms
     // the field then holds. Null while the field holds plain text.
@@ -185,9 +189,25 @@ Item {
 
     // The field as a fresh opening leaves it, wherever the keyboard is.
     function clearField() {
+        readAwayTabs();
         engine = null;
         input.text = commandScope ? "" : presetText;
         refresh();
+    }
+
+    function readAwayTabs() {
+        awayTabs = browser === null ? [] : browser.awaySpaceTabs();
+    }
+
+    Connections {
+        target: root.browser
+        enabled: root.open
+
+        function onActiveSpaceChanged() {
+            root.readAwayTabs();
+            if (!root.commandScope)
+                root.rank();
+        }
     }
 
     function focusField() {
@@ -249,7 +269,7 @@ Item {
         // are a search, so neither is asked of the tabs or the commands.
         const widened = engine === null && query.length > 0 && input.text !== presetText;
         if (widened) {
-            candidates = candidates.concat(commands.destinations(), commands.actions().map(
+            candidates = candidates.concat(commands.destinations(awayTabs), commands.actions().map(
                                                asCommand));
         }
         const ranked = [];
@@ -266,6 +286,17 @@ Item {
             return right.strength - left.strength || kindOrder.indexOf(left.row.kind)
                     - kindOrder.indexOf(right.row.kind) || left.order - right.order;
         });
+        // The typed text is the selection, except where it starts an open
+        // tab's title or host: the reader is naming that tab, and Return goes
+        // to it rather than opening it a second time. Another Space's tab is
+        // named only where no tab of the Space on show holds the text.
+        let named = widened && ranked.length > 0 && ranked[0].row.kind === "tab"
+            && ranked[0].strength === 3 ? ranked[0].row : null;
+        if (named !== null && named.spaceId && ranked.some(function (entry) {
+            return entry.row.kind === "tab" && !entry.row.spaceId;
+        }))
+            named = null;
+        keepSpaceOnShowTabsFirst(ranked);
         const next = [];
         let listedCommands = 0;
         for (let index = 0; index < ranked.length; ++index) {
@@ -274,11 +305,29 @@ Item {
             next.push(ranked[index].row);
         }
         rows = next;
-        // The typed text is the selection, except where it starts an open
-        // tab's title or host: the reader is naming that tab, and Return goes
-        // to it rather than opening it a second time.
-        selected = widened && ranked.length > 0 && ranked[0].row.kind === "tab"
-                && ranked[0].strength === 3 ? 0 : -1;
+        selected = named === null ? -1 : next.indexOf(named);
+    }
+
+    // The tabs of the Space on show come before any other Space's, however
+    // weakly they hold the text, and the others keep their Space order. Tab
+    // rows trade places only among themselves, so every other row stays
+    // where its strength put it.
+    function keepSpaceOnShowTabsFirst(ranked) {
+        const slots = [];
+        const local = [];
+        const away = [];
+        for (let index = 0; index < ranked.length; ++index) {
+            if (ranked[index].row.kind !== "tab")
+                continue;
+            slots.push(index);
+            (ranked[index].row.spaceId ? away : local).push(ranked[index]);
+        }
+        away.sort(function (left, right) {
+            return left.order - right.order;
+        });
+        const ordered = local.concat(away);
+        for (let slot = 0; slot < slots.length; ++slot)
+            ranked[slots[slot]] = ordered[slot];
     }
 
     function asCommand(action) {
@@ -804,6 +853,11 @@ Item {
                                                                                    ? modelData.keys
                                                                                      || "" : "")
                     readonly property bool usable: modelData.enabled !== false
+                    // Another Space's tab names its Space, since committing
+                    // the row switches to it.
+                    readonly property string spaceName: modelData.kind === "tab"
+                                                        && modelData.spaceName
+                                                        ? modelData.spaceName : ""
 
                     width: rowList.width
                     height: 28
@@ -814,7 +868,9 @@ Item {
                                           "history": "Open history result ",
                                           "keyword": "Search ",
                                           "command": "Run "
-                                      })[modelData.kind] + row.title
+                                      })[modelData.kind] + row.title + (row.spaceName.length > 0
+                                                                        ? " in " + row.spaceName :
+                                                                          "")
                     // The row shows a history result's host; the whole address
                     // is still there to be heard.
                     Accessible.description: modelData.kind === "history" ? modelData.url : ""
@@ -887,6 +943,11 @@ Item {
                     }
 
                     Item {
+                        id: rowText
+                        // What the title and the host share once another
+                        // Space's name has its place.
+                        readonly property real sharedWidth: width - rowSpace.reservedWidth
+
                         anchors.left: picture.right
                         anchors.leftMargin: 10
                         anchors.right: rowEdge.left
@@ -895,17 +956,20 @@ Item {
                         anchors.bottom: parent.bottom
 
                         // The title gives way before the host does, since the
-                        // host is what names the site.
+                        // host is what names the site, and both give way
+                        // before another Space's name, which says where
+                        // committing the row goes.
                         Text {
                             id: rowTitle
                             objectName: "omnibarRowTitle"
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.min(implicitWidth, parent.width - (rowHost.visible
-                                                                           ? Math.min(
-                                                                                 rowHost.implicitWidth,
-                                                                                 parent.width / 2)
-                                                                             + 10 : 0))
+                            width: Math.min(implicitWidth, rowText.sharedWidth - (rowHost.visible
+                                                                                  ? Math.min(
+                                                                                        rowHost.implicitWidth,
+                                                                                        rowText.sharedWidth
+                                                                                        / 2) + 10 :
+                                                                                    0))
                             text: modelData.kind === "command" ? root.commands.highlight(row.title,
                                                                                          input.text) :
                                                                  row.title
@@ -925,10 +989,26 @@ Item {
                             anchors.leftMargin: 10
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: rowSpace.reservedWidth
                             visible: row.host.length > 0
                             text: row.host
                             color: root.colors.mutedText
                             elide: Text.ElideMiddle
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
+
+                        Text {
+                            id: rowSpace
+                            objectName: "omnibarRowSpace"
+                            readonly property real reservedWidth: visible ? implicitWidth + 10 : 0
+                            x: (rowHost.visible ? rowHost.x + Math.min(rowHost.implicitWidth,
+                                                                       rowHost.width) :
+                                                  rowTitle.width) + 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: row.spaceName.length > 0
+                            text: row.spaceName
+                            color: modelData.spaceColor ? modelData.spaceColor : root.colors.accent
                             font.family: Style.font.family
                             font.pixelSize: Style.font.body
                         }

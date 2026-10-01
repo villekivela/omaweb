@@ -669,10 +669,11 @@ QtObject {
     }
 
     // Where the Omnibar can switch to without opening anything: every open
-    // tab but the one on show, then every Space but the active one. A Private
-    // window has no Spaces to offer. Neither row carries its number keys: the
-    // sidebar and the Shortcut sheet teach those.
-    function destinations() {
+    // tab but the one on show, then every other Space's tabs, then every Space
+    // but the active one. A Private window has no Spaces to offer. None of
+    // these rows carries its number keys: the sidebar and the Shortcut sheet
+    // teach those.
+    function destinations(awayTabs) {
         const list = [];
         const tabs = browser.tabs;
         for (let row = 0; row < tabs.rowCount(); ++row) {
@@ -694,6 +695,23 @@ QtObject {
         }
 
         if (!window.privateWindow) {
+            // What the session keeps of each other Space, so listing them
+            // wakes none of their pages.
+            for (let row = 0; row < awayTabs.length; ++row) {
+                list.push({
+                              kind: "tab",
+                              title: awayTabs[row].title,
+                              url: String(awayTabs[row].url),
+                              icon: String(awayTabs[row].iconUrl),
+                              spaceId: awayTabs[row].spaceId,
+                              spaceName: awayTabs[row].spaceName,
+                              spaceColor: awayTabs[row].spaceColor,
+                              enabled: true,
+                              command: "activate-tab",
+                              argument: awayTabs[row].tabId
+                          });
+            }
+
             const spaces = browser.spaces;
             for (let row = 0; row < spaces.rowCount(); ++row) {
                 const index = spaces.index(row, 0);
@@ -734,7 +752,10 @@ QtObject {
 
     function invoke(action) {
         if (action.command === "activate-tab") {
-            browser.activateTab(action.argument);
+            if (action.spaceId)
+                browser.activateTabInSpace(action.spaceId, action.argument);
+            else
+                browser.activateTab(action.argument);
             return;
         }
         if (action.command === "switch-space") {
