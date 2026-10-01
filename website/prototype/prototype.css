@@ -2,10 +2,7 @@
    as a theme, the switcher bar, the Scene canvas, the chrome drawer and its
    mock. Each variant's own layout lives in variants/<key>.css. */
 
-@import url("variants/a.css");
-@import url("variants/b.css");
-@import url("variants/c.css");
-@import url("variants/d.css");
+@import url("variants/drive.css");
 
 /* The site's own palette, offered beside the Omarchy themes. */
 [data-theme="omaweb"] {

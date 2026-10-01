@@ -5,23 +5,35 @@ asks one question: what one design language should the website and the browser s
 page's night road as its anchor?
 
 ```sh
-scripts/serve_website.sh 8440      # then open http://localhost:8440/?variant=a
+scripts/serve_website.sh 8440      # then open http://localhost:8440/?variant=drive
 ```
 
-The variants mount on localhost only. A floating bar at the bottom switches them (`←` and `→` also
-work), switches the Scene, and opens the Chrome drawer, which shows what the variant would ask of
-the browser's own chrome.
+The page mounts on localhost only. A floating bar at the bottom switches between `current`, the page
+as it is, and `drive`, the prototype (`←` and `→` also work). It also switches the Scene and opens
+the Chrome drawer, which shows what the page would ask of the browser's own chrome.
 
-| Key       | Name           | What it tries                                                           |
-| --------- | -------------- | ----------------------------------------------------------------------- |
-| `current` | The page as is | Today's page, for reference                                             |
-| `a`       | Start page     | The site opens as the browser's Start page; the walk is Omnibar rows    |
-| `b`       | Display        | The pixel display is the material: lit dot-matrix type, Scene strips    |
-| `c`       | The drive      | One Scene behind the whole page; scrolling drives it; content as signs  |
-| `d`       | The window     | The site is an Omaweb window; sections are tabs, themes are Space cells |
+`drive` is the user's combination of two earlier variants, A and C, kept in commit `bd04d5c` of this
+branch. The first screen is the Start page: the Omnibar resting on the road's horizon, its rows the
+walk. Scrolling past it is the drive. The road dims under a scrim, speeds up with the scroll, and
+the rest of the page passes as signs set close together: the walk with one pinned capture, a gantry
+of features, the keys and the install. On a phone or with reduced motion the road holds a still
+frame and the signs read as an ordinary list.
 
-`?theme=` takes any theme the page offers (`omaweb` is the site's own palette) and `?scene=` takes
-`night-road` or `tunnel`. Both are remembered for the next visit.
+The Scenes are five treatments of the night drive, for comparing live:
+
+| `?scene=` | Name          | What it changes                                                          |
+| --------- | ------------- | ------------------------------------------------------------------------ |
+| `vector`  | Vector        | Thin crisp lines in the accent, a deep sky, sparse stars, fog; no pixels |
+| `led`     | LED matrix    | A coarse sign of round LEDs with soft bloom; the headline in the matrix  |
+| `dither`  | Dither        | One bit: the theme's ground or accent per pixel, by an 8 by 8 Bayer      |
+| `pixel`   | Refined pixel | Today's road with larger pixels, five theme tones, no seams or halo      |
+| `crt`     | CRT           | Scanlines, phosphor bloom, a rolling refresh band and a faint flicker    |
+
+The CRT's flicker darkens the picture by 2 to 4.5 percent, never a flash, and like the band it stops
+for reduced motion.
+
+`?theme=` takes any theme the page offers (`omaweb` is the site's own palette). The theme and the
+Scene are remembered for the next visit.
 
 The captures in `assets/shots/` are new: `start`, `omnibar` and `agents` join the existing states,
 all from `scripts/build_website_themes.py`. The Start page and the Omnibar are drawn with
@@ -45,23 +57,31 @@ Each frame, `draw(ctx, input)` gets a 2D context the size of its display and:
 | `width, height` | The display's size in display pixels: the area divided by the Scene's `pitch` |
 | `pitch`         | Logical pixels per display pixel, as the Scene declared it                    |
 | `time`          | Seconds the Scene has run. It stops while the Scene is not drawing            |
-| `reducedMotion` | The reader asked for less motion. Draw one still frame that reads on its own  |
+| `navigating`    | How hard the reader is navigating now, 0 to 1. See below                      |
+| `reducedMotion` | Hold still: the reader asked for less motion, or the host is on a phone       |
 | `state`         | A plain object kept between frames and cleared on a resize or a theme change  |
+
+`navigating` is the reader moving through the web. In the browser it is 1 from the moment a
+destination is committed until its page paints, the night road's drive today. On the website it is
+the scroll's speed, easing back to 0 when the scroll stops. A Scene shows it however it likes; the
+road Scenes speed up toward it and light the sun with it. Under `reducedMotion` it is always 0.
 
 ### What a Scene may do
 
-- Draw anything into the context, in the palette's colours. `display.js` offers the Start page's
-  lit-display pass (colourise to the accent, ordered dither) and a layer cache for what does not
-  move.
-- Keep caches in `state`.
-- Declare `pitch` (default 1) and `seams` (draw the dark grid between display pixels).
+- Draw anything into the context, in the palette's colours. `road.js` holds the night drive the road
+  Scenes share: its geometry, palette mixes and motion, and the road filled in the theme's colours
+  for a Scene to map to a display of its own. `display.js` offers colour mixing.
+- Keep caches, and its own motion, in `state`.
+- Declare `pitch`: logical pixels per display pixel (default 1), or `"device"` for one display pixel
+  per device pixel. Declare `seams` to draw the dark grid between display pixels.
 
 ### What it may not do
 
 - Start or stop itself, set timers, or ask for frames. The host draws it only while it is on screen,
   the tab is shown, the window has focus and motion is allowed, which is the Start page's own rule.
 - Read the page, the network or storage, or draw outside its context.
-- Depend on anything but its inputs: the same inputs draw the same frame.
+- Depend on anything but its inputs: the same inputs, from the same start, draw the same frames.
+- Flash. Any flicker stays within a few percent of brightness and stops for `reducedMotion`.
 
 ### Adding one
 
@@ -80,14 +100,14 @@ OmawebScenes.register({
 });
 ```
 
-`night-road.js` is `src/ui/NightRoad.qml` ported line for line; `tunnel.js` is a new Scene written
-to the contract alone.
+`road.js` is `src/ui/NightRoad.qml` ported line for line. Each treatment is one file under
+`scenes/`.
 
 ### The same contract in the browser
 
-Not built here. If a variant wins, the app side is its own ticket. A Scene there would be a QML
-component a reader drops into `~/.config/omaweb/scenes/<name>/Scene.qml`, chosen in Settings'
-interface section where the road's switch is today:
+Not built here. The app side is its own ticket. A Scene there would be a QML component a reader
+drops into `~/.config/omaweb/scenes/<name>/Scene.qml`, chosen in Settings' interface section where
+the road's switch is today:
 
 ```qml
 // The host sets these; the Scene binds to them and nothing else.
@@ -95,14 +115,13 @@ Item {
     property var colors        // the palette the window draws, the same object NightRoad gets
     property bool dark
     property real time         // advanced by the host's FrameAnimation, only while running
+    property real navigating   // 1 from a commit until its page paints
     property bool reducedMotion
     // width and height come from the host's anchors
 }
 ```
 
 `NightRoad.qml` nearly fits already: it takes `colors` and `running` and owns its own clock. It
-moves to the contract by taking `time` from the host instead of a FrameAnimation of its own. Two of
-its inputs sit outside the contract and would stay host effects: the Private window's lights-off
-road, which is a palette the host passes, and the drive on commit, which speeds the road while a
-page loads. Whether the drive becomes a sixth input or stays the night road's alone is an open
-question for that ticket.
+moves to the contract by taking `time` from the host instead of a FrameAnimation of its own, and its
+`driving` becomes `navigating`. The Private window's lights-off road stays a host effect: a palette
+the host passes.

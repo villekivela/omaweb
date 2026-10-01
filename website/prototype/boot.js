@@ -1,7 +1,7 @@
-// PROTOTYPE (#440). Throwaway: never merged. Four variants of the landing page
-// on its own route, picked with `?variant=a|b|c|d` (`current` is the page as
-// it is), a floating switcher at the bottom, a Scene switch, and a drawer that
-// shows what each variant would mean for the browser's chrome. Mounted on
+// PROTOTYPE (#440). Throwaway: never merged. The combined landing page on its
+// own route, `?variant=drive` (`current` is the page as it is), a floating
+// switcher at the bottom, a switch between the four night drive Scenes, and a
+// drawer that shows what the page would mean for the browser's chrome. Mounted on
 // localhost only, so a stray deploy of this file shows nobody anything.
 
 (function () {
@@ -13,16 +13,17 @@
     "prototype/content.js",
     "prototype/scenes/display.js",
     "prototype/scenes/host.js",
-    "prototype/scenes/night-road.js",
-    "prototype/scenes/tunnel.js",
+    "prototype/scenes/road.js",
+    "prototype/scenes/vector.js",
+    "prototype/scenes/led.js",
+    "prototype/scenes/dither.js",
+    "prototype/scenes/pixel.js",
+    "prototype/scenes/crt.js",
     "prototype/chrome.js",
-    "prototype/variants/a.js",
-    "prototype/variants/b.js",
-    "prototype/variants/c.js",
-    "prototype/variants/d.js",
+    "prototype/variants/drive.js",
   ];
 
-  var PV = (window.PV = { variants: {}, order: ["current", "a", "b", "c", "d"] });
+  var PV = (window.PV = { variants: {}, order: ["current", "drive"] });
   var params = new URLSearchParams(location.search);
 
   function stored(key, fallback) {
@@ -42,7 +43,7 @@
 
   PV.variant = params.get("variant") || "current";
   PV.theme = stored("theme", "omaweb");
-  PV.scene = stored("scene", "night-road");
+  PV.scene = stored("scene", "vector");
 
   PV.el = function (tag, className, html) {
     var node = document.createElement(tag);
@@ -139,6 +140,9 @@
     PV.scene = id;
     remember("scene", id);
     OmawebScenes.use(id);
+    document.querySelectorAll("[data-pv-themed]").forEach(function (node) {
+      node.dataset.scene = id;
+    });
     var label = document.querySelector(".pvbar__scene");
     if (label) label.textContent = sceneName();
   };
@@ -159,12 +163,21 @@
   }
 
   function mount() {
+    // A Scene remembered from an earlier build of this prototype may be gone.
+    if (
+      !OmawebScenes.list().some(function (scene) {
+        return scene.id === PV.scene;
+      })
+    ) {
+      PV.scene = OmawebScenes.list()[0].id;
+    }
     var variant = PV.variants[PV.variant];
     document.documentElement.dataset.pvVariant = PV.variant;
     if (variant) {
       var root = PV.el("div", "pv pv-" + PV.variant);
       root.dataset.pvThemed = "";
       root.dataset.theme = PV.theme;
+      root.dataset.scene = PV.scene;
       document.body.insertBefore(root, document.body.firstChild);
       variant.mount(root);
     }

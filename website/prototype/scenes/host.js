@@ -8,6 +8,13 @@
   var registry = [];
   var hosts = [];
   var reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
+  // A phone holds the road still too: motion there costs battery for a page
+  // read in passing. The Scene is told as it is for reduced motion.
+  var phoneQuery = matchMedia("(max-width: 860px)");
+
+  function still() {
+    return reduceQuery.matches || phoneQuery.matches;
+  }
 
   function register(scene) {
     registry = registry.filter(function (s) {
@@ -70,6 +77,7 @@
     this.ctx = canvas.getContext("2d", { willReadFrequently: true });
     this.clock = options.clock || "time";
     this.time = options.time || 0;
+    this.navigating = 0;
     this.visible = false;
     this.frame = 0;
     this.last = 0;
@@ -98,9 +106,15 @@
     this.layout();
   };
 
+  // A Scene's pitch: logical pixels per display pixel, or "device" for one
+  // display pixel per device pixel, which keeps thin lines crisp.
+  function pitchOf(scene) {
+    return scene.pitch === "device" ? 1 / (window.devicePixelRatio || 1) : scene.pitch || 1;
+  }
+
   Host.prototype.layout = function () {
     if (!this.scene) return;
-    var pitch = this.scene.pitch || 1;
+    var pitch = pitchOf(this.scene);
     var rect = this.canvas.getBoundingClientRect();
     var w = Math.max(1, Math.ceil(rect.width / pitch));
     var h = Math.max(1, Math.ceil(rect.height / pitch));
@@ -124,6 +138,12 @@
     this.layout();
   };
 
+  // How hard the reader is navigating, 0 to 1: the page sets it from the
+  // scroll's speed, the browser from a commit until its page paints.
+  Host.prototype.setNavigating = function (value) {
+    this.navigating = Math.max(0, Math.min(1, value));
+  };
+
   Host.prototype.setTime = function (time) {
     this.time = time;
     if (this.visible) this.draw();
@@ -134,11 +154,12 @@
     this.scene.draw(this.ctx, {
       width: this.canvas.width,
       height: this.canvas.height,
-      pitch: this.scene.pitch || 1,
+      pitch: pitchOf(this.scene),
       time: this.time,
+      navigating: still() ? 0 : this.navigating,
       palette: this.themed.palette,
       dark: this.themed.dark,
-      reducedMotion: reduceQuery.matches,
+      reducedMotion: still(),
       state: this.state,
     });
   };
@@ -152,7 +173,7 @@
       this.visible &&
       !document.hidden &&
       document.hasFocus() &&
-      !reduceQuery.matches &&
+      !still() &&
       this.scene &&
       this.scene.animated !== false
     );
@@ -184,10 +205,13 @@
   document.addEventListener("visibilitychange", updateAll);
   addEventListener("focus", updateAll);
   addEventListener("blur", updateAll);
-  reduceQuery.addEventListener("change", function () {
-    hosts.forEach(function (host) {
-      host.draw();
-      host.update();
+  [reduceQuery, phoneQuery].forEach(function (query) {
+    query.addEventListener("change", function () {
+      hosts.forEach(function (host) {
+        host.state = {};
+        host.draw();
+        host.update();
+      });
     });
   });
 

@@ -1,0 +1,558 @@
+/* PROTOTYPE (#440). The combined page: the Start page, then the drive.
+   One effect at a time: the Scene. Everything over it is flat, opaque and
+   square-edged, in the theme's ground, text and one accent. */
+
+.pv-drive {
+  --col: min(100% - 32px, 1180px);
+  --plate: var(--bg);
+  --edge: color-mix(in srgb, var(--fg) 72%, var(--bg));
+  position: relative;
+  background: #000;
+}
+
+.dr-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Past the Start page the road sinks under the theme's ground. */
+.dr-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pv-drive > :not(.dr-scene):not(.dr-scrim) {
+  position: relative;
+  z-index: 1;
+}
+
+.pv-drive h1,
+.pv-drive h2,
+.pv-drive h3 {
+  font-family: var(--display);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--display-track);
+  line-height: 1.06;
+  margin: 0;
+}
+
+/* ---- Header */
+
+/* The theme's ground fades in behind the header, so the nav reads over any
+   Scene. */
+.pv-drive::before {
+  content: "";
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 140px;
+  background: linear-gradient(var(--bg), transparent);
+  pointer-events: none;
+}
+
+.dr-top {
+  width: var(--col);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 0;
+}
+
+.dr-brand .wordmark {
+  height: 18px;
+  width: auto;
+  fill: var(--fg);
+  display: block;
+}
+
+.dr-brand .wordmark__mark {
+  fill: var(--accent);
+}
+
+.dr-top nav {
+  display: flex;
+  gap: 22px;
+  font-size: 13px;
+}
+
+.dr-top nav a {
+  text-decoration: none;
+  color: var(--ink2);
+}
+
+.dr-top nav a:hover {
+  color: var(--fg);
+}
+
+/* ---- The Start page */
+
+.dr-start {
+  height: max(640px, calc(100svh - 58px));
+  position: relative;
+}
+
+/* Above the sun, whose radius is 15% of the road's height. */
+.dr-sky {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(50% + 15svh + 8px);
+  text-align: center;
+}
+
+.dr-kicker {
+  margin: 0 0 12px;
+  color: var(--ink2);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dr-title {
+  font-size: clamp(32px, min(4.6vw, 7svh), 64px);
+}
+
+/* With the LED matrix the headline is lit in the same matrix. */
+.pv[data-scene="led"] .dr-title {
+  color: var(--fg);
+  -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 62%);
+  mask-image: radial-gradient(circle, #000 55%, transparent 62%);
+  -webkit-mask-size: 6px 6px;
+  mask-size: 6px 6px;
+}
+
+.dr-omnibar {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 50px);
+  width: min(100% - 32px, 720px);
+  transform: translateX(-50%);
+  background: var(--plate);
+  border: 1px solid var(--accent);
+}
+
+.dr-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 50px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 17px;
+  cursor: text;
+}
+
+.dr-field input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  outline: none;
+  caret-color: var(--accent);
+}
+
+.dr-field input::placeholder {
+  color: color-mix(in srgb, var(--fg) 45%, var(--bg));
+}
+
+.dr-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.dr-row {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 16px;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+
+.dr-row__label {
+  color: var(--ink2);
+}
+
+.dr-row[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 14%, var(--plate));
+  border-left-color: var(--accent);
+}
+
+.dr-row[aria-selected="true"] .dr-row__label {
+  color: var(--fg);
+}
+
+.dr-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  color: var(--ink2);
+}
+
+.dr-theme {
+  margin-left: auto;
+}
+
+.dr-theme b {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.dr-swatches .pv-swatch {
+  width: 14px;
+  height: 14px;
+}
+
+.dr-below {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 84px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: 0 16px;
+}
+
+.dr-install {
+  padding: 10px 18px;
+  background: var(--accent);
+  color: var(--bg) !important;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dr-lede {
+  margin: 0;
+  padding: 7px 12px;
+  background: var(--plate);
+  font-size: 13px;
+}
+
+/* ---- Signs: flat, opaque, square, one rule of the theme's text */
+
+.dr-sign,
+.dr-plate {
+  background: var(--plate);
+  border: 1px solid var(--edge);
+}
+
+.dr-walk {
+  width: var(--col);
+  margin: 48px auto 0;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.dr-signs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.dr-sign {
+  padding: 14px 18px 16px;
+  outline: none;
+  cursor: default;
+}
+
+.dr-sign[aria-current="step"] {
+  border-color: var(--accent);
+}
+
+.dr-sign:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dr-sign__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+.dr-sign__row kbd {
+  margin-left: auto;
+}
+
+.dr-exit {
+  padding: 1px 7px;
+  border: 1px solid var(--edge);
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.dr-sign[aria-current="step"] .dr-exit {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.dr-sign h2 {
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.dr-sign p:last-of-type {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.dr-sign__shot {
+  display: none !important;
+}
+
+.dr-mirror {
+  position: sticky;
+  top: 72px;
+  margin: 0;
+  background: var(--plate);
+  border: 1px solid var(--edge);
+  padding: 8px;
+}
+
+.dr-mirror figcaption {
+  padding: 8px 2px 0;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+.dr-gantry {
+  width: var(--col);
+  margin: 24px auto 0;
+}
+
+.dr-gantry ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.dr-plate {
+  padding: 16px 18px;
+}
+
+.dr-plate h3 {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.dr-plate p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.55;
+}
+
+.dr-pair {
+  width: var(--col);
+  margin: 10px auto 0;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.dr-pair h2 {
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.dr-keys dl {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 16px;
+  margin: 16px 0 0;
+}
+
+.dr-keys dl div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dr-keys dd {
+  margin: 0;
+}
+
+.dr-step {
+  margin: 14px 0 6px !important;
+  color: var(--fg) !important;
+}
+
+.dr-install-sign pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background: color-mix(in srgb, var(--fg) 6%, var(--bg));
+  font: 12.5px/1.7 var(--mono);
+}
+
+.dr-dollar {
+  color: var(--accent);
+}
+
+.dr-install-sign > p:last-child {
+  margin-top: 12px;
+}
+
+.dr-foot {
+  width: var(--col);
+  margin: 10px auto 0;
+  padding: 18px 0 96px;
+  display: flex;
+  gap: 24px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+/* ---- Phone, or reduced motion: the road holds still and the signs are a
+   plain list, each with its own capture. */
+
+@media (max-width: 860px), (prefers-reduced-motion: reduce) {
+  .dr-walk {
+    grid-template-columns: 1fr;
+  }
+  .dr-mirror {
+    display: none;
+  }
+  .dr-signs {
+    gap: 0;
+    background: var(--plate);
+    border-top: 1px solid var(--rule);
+  }
+  .dr-sign,
+  .dr-sign[aria-current="step"] {
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 20px 0;
+  }
+  .dr-sign[aria-current="step"] .dr-exit {
+    background: none;
+    border-color: var(--edge);
+    color: var(--fg);
+  }
+  .dr-sign__shot {
+    display: block !important;
+    margin-top: 14px;
+    border: 1px solid var(--rule);
+  }
+  .dr-scrim {
+    transition: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .dr-top nav {
+    display: none;
+  }
+  .dr-start {
+    height: auto;
+    min-height: calc(100svh - 58px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 24px;
+    padding: 24px 0 32px;
+  }
+  .dr-sky,
+  .dr-omnibar,
+  .dr-below {
+    position: relative;
+    inset: auto;
+    transform: none;
+  }
+  .dr-omnibar {
+    left: auto;
+    width: auto;
+    margin: 0 16px;
+  }
+  .dr-row {
+    grid-template-columns: 7rem 1fr;
+  }
+  .dr-row kbd {
+    display: none;
+  }
+  .dr-below {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .dr-signs,
+  .dr-plate,
+  .dr-pair {
+    border-left: 0;
+    border-right: 0;
+  }
+  .dr-walk,
+  .dr-gantry,
+  .dr-pair,
+  .dr-foot {
+    width: 100%;
+  }
+  .dr-sign {
+    padding: 20px 16px;
+  }
+  .dr-pair {
+    grid-template-columns: 1fr;
+  }
+  .dr-foot {
+    padding: 18px 16px 96px;
+    flex-wrap: wrap;
+  }
+}
+
+/* ---- The chrome mock: the road under the whole window on the Start page */
+
+.cm--c .cm-window {
+  position: relative;
+}
+
+.cm--c .cm-page {
+  position: static;
+}
+
+.cm--c .cm-scene {
+  z-index: 0;
+}
+
+.cm--c .cm-side {
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--sidebar) 62%, transparent);
+}
+
+.cm--c .cm-omnibar {
+  z-index: 1;
+  left: calc(170px + 8%);
+  right: 6%;
+}
