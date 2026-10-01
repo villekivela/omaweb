@@ -45,6 +45,11 @@ PRIVATE_ACCENT_GAIN = 1.2
 # The Agent accent is the terminal's cyan, as Omarchy's template names it.
 # Omaweb keeps it apart from the accent and legible on the window itself.
 AGENT_SLOT = 6
+# A Space is drawn in one of six palette names, each the terminal colour it is
+# named for, as Omarchy's template fills them. Red, magenta and cyan are left
+# to urgent, Private and Agent.
+SPACE_SLOTS = {"green": 2, "yellow": 3, "blue": 4,
+               "bright_green": 10, "bright_yellow": 11, "bright_blue": 12}
 
 # Where each derived surface sits between the background and the foreground,
 # measured off the shipped default theme so an imported theme has the same
@@ -453,6 +458,7 @@ def derive(source):
         "accent": to_hex(accent),
         "privateAccent": to_hex(private_accent),
         "agentAccent": to_hex(palette[AGENT_SLOT]),
+        "spaces": {name: to_hex(palette[slot]) for name, slot in SPACE_SLOTS.items()},
         "syntax": syntax,
     }
     for key, step in SURFACE_STEPS.items():

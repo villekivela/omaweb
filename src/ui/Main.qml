@@ -1487,6 +1487,9 @@ ApplicationWindow {
     // The Agent Space whose notice the reader dismissed, for as long as it
     // stays on show: opening it again asks again.
     property string dismissedAgentSpaceId: ""
+    // PROTOTYPE (#492): the footer mark under review, from the UI lab's
+    // `--variant`. Empty everywhere else, which draws the letters.
+    property string footerVariant: ""
 
     // Taking an Agent Space over removes its mark and, for a temporary one,
     // keeps it after the connection that made it closes.
@@ -2663,6 +2666,7 @@ ApplicationWindow {
                 keyLabelsShown: PrimaryHold.held && !window.settingsOpen
                 agentActivity: window.agentTabActivity
                 agentSpaceIds: window.agentSpaceIds
+                footerVariant: window.footerVariant
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
@@ -4594,5 +4598,85 @@ ApplicationWindow {
         cursorShape: Qt.SizeVerCursor
         onPressed: window.startSystemResize(Qt.BottomEdge)
         z: 100
+    }
+    // PROTOTYPE (#492): flips between the footer mark variants. Not part of
+    // any design: it exists only while `footerVariant` is set, which only the
+    // UI lab's `--variant` does. The arrow keys flip too, unless a field has
+    // the keyboard.
+    Rectangle {
+        id: prototypeSwitcher
+        readonly property var variants: ["A", "B", "C", "D"]
+        readonly property var names: ({
+                                          "A": "dot, on show larger",
+                                          "B": "dot, on show ringed",
+                                          "C": "square, on show larger",
+                                          "D": "square, on show ringed"
+                                      })
+        function step(delta) {
+            const at = variants.indexOf(window.footerVariant);
+            window.footerVariant = variants[(at + delta + variants.length) % variants.length];
+        }
+        visible: window.footerVariant.length > 0
+        z: 10000
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 18
+        width: switcherRow.implicitWidth + 16
+        height: 36
+        radius: 18
+        color: "#ff00b4"
+        border.color: "#ffffff"
+        border.width: 2
+
+        Row {
+            id: switcherRow
+            anchors.centerIn: parent
+            spacing: 10
+
+            Text {
+                text: "◀"
+                color: "#ffffff"
+                font.pixelSize: 16
+                anchors.verticalCenter: parent.verticalCenter
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -8
+                    onClicked: prototypeSwitcher.step(-1)
+                }
+            }
+            Text {
+                text: "PROTOTYPE  " + window.footerVariant + " — "
+                      + (prototypeSwitcher.names[window.footerVariant] || "")
+                color: "#ffffff"
+                font.pixelSize: 14
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: "▶"
+                color: "#ffffff"
+                font.pixelSize: 16
+                anchors.verticalCenter: parent.verticalCenter
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -8
+                    onClicked: prototypeSwitcher.step(1)
+                }
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Left"
+        enabled: window.footerVariant.length > 0 && !(window.activeFocusItem
+                                                     && window.activeFocusItem.cursorPosition
+                                                     !== undefined)
+        onActivated: prototypeSwitcher.step(-1)
+    }
+    Shortcut {
+        sequence: "Right"
+        enabled: window.footerVariant.length > 0 && !(window.activeFocusItem
+                                                     && window.activeFocusItem.cursorPosition
+                                                     !== undefined)
+        onActivated: prototypeSwitcher.step(1)
     }
 }

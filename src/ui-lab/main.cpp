@@ -493,6 +493,12 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+    // PROTOTYPE (#492): five of the reader's Spaces, each in its own colour.
+    if (arguments.contains(QStringLiteral("--prototype-spaces"))) {
+        for (const auto *name : {"Home", "Travel", "Research"}) {
+            browser.createSpace(QString::fromUtf8(name));
+        }
+    }
     // `--spaces` seeds the Spaces to switch between; see seedSampleSpaces.
     if (arguments.contains(QStringLiteral("--spaces"))) {
         seedSampleSpaces(browser, mockFavicons);
@@ -532,6 +538,14 @@ int main(int argc, char *argv[])
         agentTabId
             = opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
         browser.createAgentSpace(QStringLiteral("Scratch"), agentName);
+        // PROTOTYPE (#492): Agent Spaces enough that the footer runs out of
+        // room and counts the rest.
+        if (arguments.contains(QStringLiteral("--prototype-spaces"))) {
+            for (const auto *name : {"Signup flow", "Pricing check", "Docs crawl", "Changelog",
+                     "Benchmarks", "Issue triage", "Release notes", "Screenshots"}) {
+                browser.createAgentSpace(QString::fromUtf8(name), agentName);
+            }
+        }
         engine.rootContext()->setContextProperty(
             QStringLiteral("agentControl"), &agentControl.value());
     }
@@ -634,6 +648,13 @@ int main(int argc, char *argv[])
     }
     // Private chrome is a whole palette of its own, and the lab is where it is
     // reviewed. Nothing else about the window changes.
+    // PROTOTYPE (#492): which footer mark to draw, A to D.
+    const auto variantIndex = arguments.indexOf(QStringLiteral("--variant"));
+    if (variantIndex >= 0 && variantIndex + 1 < arguments.size()
+        && !engine.rootObjects().isEmpty()) {
+        engine.rootObjects().constFirst()->setProperty(
+            "footerVariant", arguments.at(variantIndex + 1).toUpper());
+    }
     if (arguments.contains(QStringLiteral("--private")) && !engine.rootObjects().isEmpty()) {
         engine.rootObjects().constFirst()->setProperty("privateWindow", true);
     }

@@ -46,6 +46,43 @@ Rectangle {
     property var agentActivity: ({})
     property var agentSpaceIds: []
 
+    // PROTOTYPE (#492): the footer mark under review, set by the UI lab's
+    // `--variant`. Empty draws the letters; A dot marked larger, B dot marked
+    // by a ring, C square marked larger, D square marked by a ring.
+    property string footerVariant: ""
+    readonly property bool markVariant: footerVariant.length > 0
+    readonly property bool squareMarks: footerVariant === "C" || footerVariant === "D"
+    readonly property bool ringMarks: footerVariant === "B" || footerVariant === "D"
+    // PROTOTYPE (#492): how many Spaces the row has room for, the rest left
+    // out behind the `+N` count. The reader's come first and Agent Spaces
+    // after, so this counts from the left.
+    readonly property int readerSlot: markVariant ? 18 : 30
+    readonly property int agentSlot: 14
+    readonly property int slotSpacing: 5
+    readonly property int overflowSlot: 30
+    function spacesShown(available, count, agentIds) {
+        const agents = Math.min(agentIds.length, count);
+        const readers = count - agents;
+        const widthOf = function (shown) {
+            const readersShown = Math.min(shown, readers);
+            const agentsShown = shown - readersShown;
+            return readersShown * root.readerSlot + agentsShown * root.agentSlot + Math.max(
+                        0, shown - 1) * root.slotSpacing;
+        };
+        if (widthOf(count) <= available)
+            return count;
+        let shown = count;
+        while (shown > 0 && widthOf(shown) + root.slotSpacing + root.overflowSlot > available)
+            --shown;
+        return shown;
+    }
+
+    // What a Space's palette name is drawn in under the theme on show.
+    function spaceColour(name) {
+        const spaces = root.colors ? root.colors.spaces : null;
+        return spaces && spaces[name] ? spaces[name] : root.colors.accent;
+    }
+
     function agentOf(tabId) {
         return root.agentActivity[tabId] || null;
     }
@@ -1135,17 +1172,22 @@ Rectangle {
         Accessible.name: root.privateWindow || !root.browser ? "Private" :
                                                                root.browser.activeSpaceName
 
-        // Every Space is one letter, the active one lit. The row is the
-        // switcher: spelling the active name out again would say what the
-        // lit letter already says.
+        // Every Space of the reader's is one letter, the active one lit, and
+        // every Agent Space a dot after them. The row is the switcher:
+        // spelling the active name out again would say what the lit letter
+        // already says.
         // The lit plate slides along the row to the Space on show, so the
         // switch reads in the footer as it reads in the list. The letters
         // themselves stay where they are.
         Rectangle {
-            visible: !root.privateWindow && root.easeSpaces
-            x: root.settledSpaceRow * 35
+            readonly property Item settled: spaceRepeater.count > root.settledSpaceRow
+                                            ? spaceRepeater.itemAt(root.settledSpaceRow) : null
+            objectName: "spacePlate"
+            visible: !root.privateWindow && root.easeSpaces && settled !== null && settled.visible
+                     && !root.markVariant
+            x: settled ? settled.x : 0
             anchors.verticalCenter: parent.verticalCenter
-            width: 30
+            width: settled ? settled.width : 30
             height: 28
             radius: Style.cornerRadius
             color: Style.selectedFillFor(root.colors.text, root.colors.accent)
@@ -1160,11 +1202,20 @@ Rectangle {
         }
 
         Row {
+            id: spaceSwitcher
             objectName: "spaceSwitcher"
+            readonly property int shown: root.spacesShown(width, spaceRepeater.count,
+                                                          root.agentSpaceIds)
             anchors.left: parent.left
-            anchors.right: downloadMark.visible ? downloadMark.left : (syncMark.visible
-                                                                       ? syncMark.left :
-                                                                         settingsButton.left)
+            // The row ends where the first mark standing in the footer
+            // begins, so a count of what it left out never sits under one.
+            anchors.right: releaseMark.visible ? releaseMark.left : (extensionMark.visible
+                                                                     ? extensionMark.left :
+                                                                       (downloadMark.visible
+                                                                        ? downloadMark.left : (
+                                                                              syncMark.visible
+                                                                              ? syncMark.left :
+                                                                                settingsButton.left)))
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             height: 28
@@ -1172,31 +1223,35 @@ Rectangle {
             spacing: 5
 
             Repeater {
+                id: spaceRepeater
                 model: root.browser ? root.browser.spaces : null
 
                 ChromeButton {
                     id: spaceButton
                     required property string spaceId
                     required property string spaceName
+                    required property string spaceColor
                     required property bool active
                     required property int index
 
-                    // A Space an Agent is working in, or one an Agent made,
-                    // wears the Agent's mark in place of its letter, so it
-                    // can be read while the Space is away. The mark is in the
-                    // Agent accent while an Agent is attached to one of the
-                    // Space's tabs, and muted in an Agent Space no Agent is
-                    // using. The letter comes back when the connection closes,
-                    // or when the reader takes the Space over.
+                    // An Agent Space is a dot, after every letter: in the
+                    // Agent accent while an Agent is attached to one of its
+                    // tabs, muted while none is. One of the reader's Spaces
+                    // an Agent is working in wears the Agent's mark in place
+                    // of its letter, so it can be read while the Space is
+                    // away, and the letter comes back when the connection
+                    // closes.
                     readonly property var agentWork: root.agentWorkIn(spaceId)
                     readonly property bool agentMade: root.agentSpaceIds.indexOf(spaceId) >= 0
-                    readonly property bool showsAgent: agentWork.attached || agentMade
+                    readonly property bool showsAgent: agentWork.attached && !agentMade
 
                     objectName: "space-" + spaceId
-                    width: 30
+                    visible: index < spaceSwitcher.shown
+                    width: agentMade ? root.agentSlot : root.readerSlot
                     height: 28
-                    label: showsAgent ? "" : (spaceName.length > 0 ? spaceName.charAt(0).toUpperCase(
-                                                                         ) : "·")
+                    label: showsAgent || agentMade || root.markVariant ? "" : (spaceName.length > 0
+                                                           ? spaceName.charAt(0).toUpperCase() :
+                                                             "·")
                     accessibleName: (active ? "Current Space: " + spaceName : "Switch to "
                                               + spaceName) + (agentWork.attached
                                                               ? " (an Agent is working here)" : (
@@ -1215,10 +1270,105 @@ Rectangle {
                     // so it is drawn the way the kit draws a selection and the
                     // way a current tab row is: the kit's own selected fill,
                     // bordered.
-                    selected: active && !root.easeSpaces
-                    bordered: active && !root.easeSpaces
+                    selected: active && !root.easeSpaces && !root.markVariant
+                    bordered: active && !root.easeSpaces && !root.markVariant
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
+
+                    // The Space's colour is this bar and nothing else in the
+                    // row, so the letter and the lit plate stay the theme's.
+                    // PROTOTYPE (#492): the Space as a mark in its colour,
+                    // with no letter, outline or plate. The Space on show is
+                    // the larger mark, or the mark in a ring.
+                    Rectangle {
+                        objectName: "spaceMarkRing-" + spaceButton.spaceId
+                        anchors.centerIn: parent
+                        visible: root.markVariant && root.ringMarks && spaceButton.active
+                                 && !spaceButton.agentMade
+                        width: 15
+                        height: 15
+                        radius: root.squareMarks ? 4 : width / 2
+                        color: "transparent"
+                        border.width: 1.5
+                        border.color: root.spaceColour(spaceButton.spaceColor)
+                    }
+
+                    Rectangle {
+                        objectName: "spaceMark-" + spaceButton.spaceId
+                        readonly property int size: spaceButton.active && !root.ringMarks ? 12 : 8
+                        anchors.centerIn: parent
+                        visible: root.markVariant && !spaceButton.agentMade
+                                 && !spaceButton.showsAgent
+                        width: size
+                        height: size
+                        radius: root.squareMarks ? 2 : width / 2
+                        color: root.spaceColour(spaceButton.spaceColor)
+                        Behavior on width {
+                            NumberAnimation {
+                                duration: 160
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                        Behavior on height {
+                            NumberAnimation {
+                                duration: 160
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        objectName: "spaceBar-" + spaceButton.spaceId
+                        visible: !spaceButton.agentMade && !root.markVariant
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 2
+                        width: 12
+                        height: 3
+                        radius: 1.5
+                        color: root.spaceColour(spaceButton.spaceColor)
+                        Accessible.ignored: true
+                    }
+
+                    // An Agent Space has no palette colour on screen: whose
+                    // it is, and whether an Agent is there, is what the dot
+                    // says.
+                    Rectangle {
+                        objectName: "spaceDot-" + spaceButton.spaceId
+                        anchors.centerIn: parent
+                        visible: spaceButton.agentMade
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: spaceButton.agentWork.attached ? root.colors.agentAccent :
+                                                                root.colors.mutedText
+                        Accessible.ignored: true
+
+                        SequentialAnimation on opacity {
+                            running: spaceButton.agentMade && spaceButton.agentWork.busy
+                            loops: Animation.Infinite
+                            onRunningChanged: if (!running)
+                                                  parent.opacity = 1
+                            NumberAnimation {
+                                to: 0.3
+                                duration: 450
+                                easing.type: Easing.InOutSine
+                            }
+                            NumberAnimation {
+                                to: 1
+                                duration: 450
+                                easing.type: Easing.InOutSine
+                            }
+                        }
+                    }
+
+                    // A dot has no letter to read, so it names its Space.
+                    Omarchy.PanelToolTip {
+                        objectName: "spaceDotNote-" + spaceButton.spaceId
+                        visible: (spaceButton.agentMade || root.markVariant) && spaceButton.hot
+                        text: spaceButton.spaceName
+                        fontFamily: Style.font.family
+                    }
 
                     AgentMark {
                         objectName: "spaceAgentMark-" + spaceButton.spaceId
@@ -1243,6 +1393,21 @@ Rectangle {
                         colors: root.colors
                     }
                 }
+            }
+
+            // PROTOTYPE (#492): the Spaces the row has no room for, counted.
+            // Inert here; the real one opens the Omnibar listing every Space.
+            ChromeButton {
+                objectName: "spaceOverflow"
+                readonly property int hidden: spaceRepeater.count - spaceSwitcher.shown
+                visible: hidden > 0
+                width: root.overflowSlot
+                height: 28
+                label: "+" + hidden
+                accessibleName: hidden + " more Spaces"
+                foreground: root.colors.mutedText
+                accent: root.colors.accent
+                background: "transparent"
             }
         }
 

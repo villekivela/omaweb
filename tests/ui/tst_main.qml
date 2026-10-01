@@ -4623,6 +4623,107 @@ TestCase {
         control.destroy();
     }
 
+    // Each of the reader's Spaces is a letter with a short bar under it in the
+    // Space's colour, which the theme resolves from the Space's palette name.
+    // Two Spaces made in turn differ, and both follow a theme change.
+    function test_eachOfTheReadersSpacesHasABarInItsColour() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const personalId = browser.activeSpaceId;
+        const workId = browser.createSpace("Work");
+        const personalBar = findChild(sidebar, "spaceBar-" + personalId);
+        const workBar = findChild(sidebar, "spaceBar-" + workId);
+        verify(personalBar !== null);
+        verify(workBar !== null);
+        verify(personalBar.visible);
+        verify(workBar.visible);
+        verify(Qt.colorEqual(personalBar.color, window.colors.spaces.green));
+        verify(Qt.colorEqual(workBar.color, window.colors.spaces.yellow));
+        verify(!Qt.colorEqual(personalBar.color, workBar.color));
+        // Under the letter, inside its slot, and narrower than it.
+        const letter = findChild(sidebar, "space-" + workId);
+        const barCentre = workBar.mapToItem(letter, workBar.width / 2, workBar.height);
+        fuzzyCompare(barCentre.x, letter.width / 2, 0.5);
+        verify(barCentre.y <= letter.height);
+        verify(workBar.width < letter.width);
+
+        // A theme change redraws both from the new theme.
+        const changed = Object.assign({}, window.colors);
+        changed.spaces = Object.assign({}, window.colors.spaces, {
+                                           "green": "#00aa44",
+                                           "yellow": "#aa8800"
+                                       });
+        window.colors = changed;
+        verify(Qt.colorEqual(personalBar.color, "#00aa44"));
+        verify(Qt.colorEqual(workBar.color, "#aa8800"));
+        window.colors = Qt.binding(function () {
+            return theme.palette;
+        });
+
+        // The reader's choice, from Settings or anywhere else.
+        verify(browser.setSpaceColour(workId, "bright_blue"));
+        verify(Qt.colorEqual(workBar.color, window.colors.spaces.bright_blue));
+        verify(browser.deleteSpace(workId, "Work"));
+    }
+
+    // An Agent Space is a small dot after the reader's letters, never a letter
+    // or a bar: muted while no Agent uses it, the Agent accent while one is
+    // attached, and named on hover. One made before a Space of the reader's
+    // leaves that Space its number.
+    function test_agentSpacesAreDotsAfterTheReadersLetters() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const personalId = browser.activeSpaceId;
+        const agentId = agentSpaceProbe.create("Signup flow", "claude-code", false);
+        const workId = browser.createSpace("Work");
+        const dotButton = findChild(sidebar, "space-" + agentId);
+        const dot = findChild(sidebar, "spaceDot-" + agentId);
+        verify(dot !== null);
+        verify(dot.visible);
+        compare(dotButton.label, "");
+        verify(dotButton.width < findChild(sidebar, "space-" + workId).width);
+        verify(!findChild(sidebar, "spaceBar-" + agentId).visible);
+        verify(!findChild(sidebar, "spaceAgentMark-" + agentId).visible);
+        verify(!findChild(sidebar, "spaceDot-" + workId).visible);
+        tryVerify(function () {
+            return dotButton.x > findChild(sidebar, "space-" + workId).x;
+        });
+        verify(Qt.colorEqual(dot.color, window.colors.mutedText));
+
+        // Named on hover.
+        const note = findChild(dotButton, "spaceDotNote-" + agentId);
+        verify(!note.visible);
+        mouseMove(dotButton, dotButton.width / 2, dotButton.height / 2);
+        tryCompare(note, "visible", true);
+        compare(note.text, "Signup flow");
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        tryCompare(note, "visible", false);
+
+        // The reader's Spaces keep 1 and 2.
+        window.activateSpaceAt(1);
+        compare(browser.activeSpaceId, workId);
+        tryCompare(sidebar, "arriving", false);
+        window.activateSpaceAt(0);
+        compare(browser.activeSpaceId, personalId);
+        tryCompare(sidebar, "arriving", false);
+
+        const control = agentActivityComponent.createObject(testCase);
+        const activity = {};
+        activity["elsewhere-tab"] = {
+            "spaceId": agentId,
+            "name": "claude-code",
+            "act": "",
+            "busy": false
+        };
+        control.agentActivity = activity;
+        findChild(window.contentItem, "engineLoader").agentControl = control;
+        verify(Qt.colorEqual(dot.color, window.colors.agentAccent));
+        findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
+        verify(Qt.colorEqual(dot.color, window.colors.mutedText));
+        control.destroy();
+
+        verify(browser.deleteSpace(workId, "Work"));
+        verify(browser.deleteSpace(agentId, "Signup flow"));
+    }
+
     // Opening an Agent Space says an Agent made it, with Take over and
     // Dismiss. The command scope takes it over too, which keeps a temporary
     // one after its connection closes.

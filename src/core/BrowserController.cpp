@@ -526,7 +526,7 @@ QString BrowserController::agentSpaceCreator(const QString &spaceId) const
 QString BrowserController::createAgentSpace(
     const QString &name, const QString &creator, bool temporary)
 {
-    const auto spaceId = createSpace(name);
+    const auto spaceId = createSpaceRecord(name, /*agentMade=*/true);
     if (spaceId.isEmpty()) {
         return {};
     }
@@ -553,13 +553,69 @@ void BrowserController::loadAgentSpaces()
 
 bool BrowserController::takeOverSpace(const QString &spaceId)
 {
-    if (!m_agentSpaces.contains(spaceId) || !m_store->forgetAgentSpace(spaceId)) {
+    const auto index = m_spaces.rowOf(spaceId);
+    if (!m_agentSpaces.contains(spaceId) || index < 0) {
         return false;
     }
+    // It becomes the last of the reader's Spaces, in the colour fewest of
+    // them have. The order is written before the label goes: a store that
+    // refuses the label then leaves it the first Agent Space, still on the
+    // Agents' side of the list.
+    const auto destination = readerSpaceCount();
+    auto spaces = m_spaces.items();
+    spaces[index].color = nextSpaceColour(spaceId);
+    spaces.move(index, destination);
+    if (!m_store->saveSpaces(spaces) || !m_store->forgetAgentSpace(spaceId)) {
+        return false;
+    }
+    m_spaces.move(spaceId, destination);
+    m_spaces.reset(std::move(spaces));
     m_agentSpaces.remove(spaceId);
     m_temporarySpaceIds.remove(spaceId);
     emit agentSpacesChanged();
     return true;
+}
+
+void BrowserController::settleSpaces()
+{
+    auto spaces = m_spaces.items();
+    std::ranges::stable_partition(
+        spaces, [this](const SpaceState &space) { return !m_agentSpaces.contains(space.id); });
+    // Each Space without a palette name takes one in footer order, counted
+    // among the reader's Spaces that have one by then.
+    auto changed = false;
+    for (auto &space : spaces) {
+        if (isSpaceColourName(space.color)) {
+            continue;
+        }
+        QVector<SpaceState> named;
+        for (const auto &other : spaces) {
+            if (!m_agentSpaces.contains(other.id) && isSpaceColourName(other.color)) {
+                named.append(other);
+            }
+        }
+        space.color = leastUsedSpaceColour(named);
+        changed = true;
+    }
+    const auto reordered = !std::ranges::equal(
+        spaces, m_spaces.items(), {}, &SpaceState::id, &SpaceState::id);
+    if (!changed && !reordered) {
+        return;
+    }
+    // A store that refuses keeps what it had, and the next start tries again.
+    m_store->saveSpaces(spaces);
+    m_spaces.reset(std::move(spaces));
+}
+
+QString BrowserController::nextSpaceColour(const QString &excludedId) const
+{
+    QVector<SpaceState> readers;
+    for (const auto &space : m_spaces.items()) {
+        if (space.id != excludedId && !m_agentSpaces.contains(space.id)) {
+            readers.append(space);
+        }
+    }
+    return leastUsedSpaceColour(readers);
 }
 
 bool BrowserController::temporarySpace(const QString &spaceId) const
@@ -1025,6 +1081,11 @@ void BrowserController::repairSplits(QVector<TabState> &tabs, const QString &act
 
 QString BrowserController::createSpace(const QString &name)
 {
+    return createSpaceRecord(name, /*agentMade=*/false);
+}
+
+QString BrowserController::createSpaceRecord(const QString &name, bool agentMade)
+{
     if (!m_capabilities.allows(Capability::Spaces)) {
         return {};
     }
@@ -1036,15 +1097,30 @@ QString BrowserController::createSpace(const QString &name)
     SpaceState space;
     space.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     space.name = normalizedName;
-    space.color = QStringLiteral("#7c6cff");
-    if (!m_store->saveSpace(space)) {
-        return {};
-    }
-
+    space.color = nextSpaceColour();
+    // An Agent Space joins the end of the list. One of the reader's joins the
+    // end of the reader's, ahead of every Agent Space, so the whole order is
+    // written again.
     auto spaces = m_spaces.items();
-    spaces.append(space);
+    if (agentMade) {
+        if (!m_store->saveSpace(space)) {
+            return {};
+        }
+        spaces.append(space);
+    } else {
+        spaces.insert(readerSpaceCount(), space);
+        if (!m_store->saveSpaces(spaces)) {
+            return {};
+        }
+    }
     m_spaces.reset(std::move(spaces));
     return space.id;
+}
+
+qsizetype BrowserController::readerSpaceCount() const
+{
+    return std::ranges::count_if(m_spaces.items(),
+        [this](const SpaceState &space) { return !m_agentSpaces.contains(space.id); });
 }
 
 bool BrowserController::switchSpace(const QString &spaceId)
@@ -1197,6 +1273,24 @@ bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
     return false;
 }
 
+bool BrowserController::setSpaceColour(const QString &spaceId, const QString &colour)
+{
+    if (!m_capabilities.allows(Capability::Spaces) || !isSpaceColourName(colour)) {
+        return false;
+    }
+    auto spaces = m_spaces.items();
+    const auto space = std::ranges::find(spaces, spaceId, &SpaceState::id);
+    if (space == spaces.end()) {
+        return false;
+    }
+    space->color = colour;
+    if (!m_store->saveSpace(*space)) {
+        return false;
+    }
+    m_spaces.reset(std::move(spaces));
+    return true;
+}
+
 bool BrowserController::moveSpaceBy(const QString &spaceId, int offset)
 {
     if (!m_capabilities.allows(Capability::Spaces)) {
@@ -1212,6 +1306,13 @@ bool BrowserController::moveSpaceBy(const QString &spaceId, int offset)
     }
     const auto destination = index + offset;
     if (destination < 0 || destination >= m_spaces.items().size()) {
+        return false;
+    }
+    // The reader's Spaces come first and the Agent Spaces after them, so a
+    // move that would cross from one to the other is refused like one past
+    // the end.
+    if (m_agentSpaces.contains(spaceId)
+        != m_agentSpaces.contains(m_spaces.items().at(destination).id)) {
         return false;
     }
 
@@ -3340,6 +3441,7 @@ void BrowserController::reloadSyncedState()
     // Sync may have deleted an Agent Space or a granted one, and the store took
     // its label or its grant too.
     loadAgentSpaces();
+    settleSpaces();
     m_spaceGrants = m_store->spaceGrants();
     emit agentSpacesChanged();
     emit spaceGrantsChanged();
@@ -3389,6 +3491,7 @@ void BrowserController::initialize()
     // run's to delete is not known until the browser knows it is the only one
     // running.
     loadAgentSpaces();
+    settleSpaces();
     m_spaceGrants = m_store->spaceGrants();
     ensureActiveTab();
     loadClosedTabs();
@@ -3406,7 +3509,7 @@ void BrowserController::ensureDefaultSpace()
         SpaceState personal;
         personal.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         personal.name = QStringLiteral("Personal");
-        personal.color = QStringLiteral("#7c6cff");
+        personal.color = leastUsedSpaceColour({});
         personal.active = true;
         m_store->saveSpace(personal);
         spaces.append(personal);

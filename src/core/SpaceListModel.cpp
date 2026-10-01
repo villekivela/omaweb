@@ -4,6 +4,31 @@
 
 namespace omaweb {
 
+const QStringList &spaceColourNames()
+{
+    static const QStringList names {QStringLiteral("green"), QStringLiteral("yellow"),
+        QStringLiteral("blue"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow"),
+        QStringLiteral("bright_blue")};
+    return names;
+}
+
+bool isSpaceColourName(const QString &name) { return spaceColourNames().contains(name); }
+
+QString leastUsedSpaceColour(const QVector<SpaceState> &spaces)
+{
+    const auto &names = spaceColourNames();
+    QString least;
+    auto fewest = spaces.size() + 1;
+    for (const auto &name : names) {
+        const auto uses = std::ranges::count(spaces, name, &SpaceState::color);
+        if (uses < fewest) {
+            least = name;
+            fewest = uses;
+        }
+    }
+    return least;
+}
+
 SpaceListModel::SpaceListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
