@@ -10,10 +10,12 @@ reader's machine with a signature error, which is the worst place to find out.
 `scripts/trust_omaweb_repository.sh` is the third place, because the release
 workflow and CI install the engine from that same repository through it to build
 against it (ADR 0049). A script trusting a key the pages do not publish would
-build a release against an engine nobody could verify.
+build a release against an engine nobody could verify. `scripts/install.sh`, the
+one-line install the website serves, pins the fingerprint it holds a downloaded
+key to, and is held here with the others.
 
-And the key file is the fourth, which is the one that is not a copy: the other
-three state a fingerprint, `security/repo-signing-key.asc` is the key that has
+And the key file is the last, which is the one that is not a copy: the others
+state a fingerprint, `security/repo-signing-key.asc` is the key that has
 one. The fingerprint is computed from the key packet here rather than by asking
 gpg, so this runs the same way wherever it runs.
 
@@ -24,7 +26,7 @@ any key that claims a name, so naming the one key it has to be is what makes
 
     scripts/check_repository_instructions.py
 
-Exits 0 when the two agree, 1 when they do not.
+Exits 0 when they all agree, 1 when they do not.
 """
 
 import base64
@@ -34,7 +36,12 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PAGES = ("README.md", "website/index.html", "scripts/trust_omaweb_repository.sh")
+PAGES = (
+    "README.md",
+    "website/index.html",
+    "scripts/trust_omaweb_repository.sh",
+    "scripts/install.sh",
+)
 KEY = "security/repo-signing-key.asc"
 
 # A full OpenPGP fingerprint, which is the only form worth publishing: a short
@@ -131,7 +138,7 @@ def main():
         servers[page] = addresses
 
     # The point of the check: not that each page is self-consistent, but that
-    # the two agree with each other.
+    # they agree with each other.
     for name, stated_by_page in (("fingerprint", fingerprints), ("repository address", servers)):
         values = set().union(*stated_by_page.values())
         if len(values) > 1:
@@ -140,7 +147,7 @@ def main():
                 + ", ".join(f"{page} says {sorted(found)}" for page, found in stated_by_page.items())
             )
 
-    # The key itself, against what the three places say it is. Checked after
+    # The key itself, against what the places say it is. Checked after
     # the pages agree, because a disagreement between them is the more useful
     # thing to report first.
     if not problems:

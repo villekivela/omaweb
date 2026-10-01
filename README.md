@@ -36,8 +36,18 @@ Every browser action is available from the Omnibar.
 
 ## Install
 
-Add the Omaweb repository to `/etc/pacman.conf`, and Omaweb arrives and upgrades with the rest of
-the system:
+```sh
+curl -fsSL https://omaweb.app/install | sh
+```
+
+The script, [`scripts/install.sh`](scripts/install.sh), prints the lines it adds to
+`/etc/pacman.conf`, the signing key's fingerprint and the packages it installs, then asks once
+before it uses `sudo`. `sh -s -- --yes` skips the question. It stops if the key it downloads is not
+the one below, leaves an `[omaweb]` section already in `pacman.conf` alone, keeps a copy of the file
+before changing it, and changes nothing on a second run.
+
+To make the same steps by hand, add the Omaweb repository to `/etc/pacman.conf`, and Omaweb arrives
+and upgrades with the rest of the system:
 
 ```ini
 [omaweb]

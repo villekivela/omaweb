@@ -1090,6 +1090,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_repository_instructions.py
         )
+        # The one-line install, against a stand-in root with pacman stubbed out:
+        # a first run, a second that changes nothing, and a key that is not ours.
+        add_test(NAME omaweb-install
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_install.py
+        )
         # Which construct each terminal colour is read as -- the same claim the
         # Omarchy template makes for a desktop that renders the palette itself.
         add_test(NAME omaweb-terminal-theme-import
