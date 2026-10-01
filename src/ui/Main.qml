@@ -2646,6 +2646,9 @@ ApplicationWindow {
             // the seam on its leading edge while the shell clips what runs past
             // the far one. One layout each way, not one a frame.
             readonly property real pageInset: seamEase.running ? 0 : chromeRow.settledSeam
+            // How far the page area is carried by a Space arriving: a fraction
+            // of the list's travel, from the side the list arrives from.
+            readonly property real pageArrival: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
 
             Behavior on revealed {
                 // A reader who has refused the ease gets the step the property
@@ -2864,7 +2867,7 @@ ApplicationWindow {
                 // the direction. A slide and nothing else, so the viewport is
                 // never drawn through a layer.
                 transform: Translate {
-                    x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
+                    x: chromeRow.pageArrival
                 }
 
                 // The shell around it is translucent by theme; a webpage viewport
@@ -3292,8 +3295,7 @@ ApplicationWindow {
                     roadWidth: inPane ? window.width : window.width + chromeRow.settledSeam
                     // The viewport is moved by a Space arriving, and the road
                     // is not: it reaches back past the move to the window.
-                    roadReach: inPane ? 0 : chromeRow.seam + (sidebar.arriving ? sidebar.arrivalOffset
-                                                                                 * 32 : 0)
+                    roadReach: inPane ? 0 : chromeRow.seam + chromeRow.pageArrival
                     roadEnabled: window.startPageRoad
                     glassEnabled: window.startPageGlass
                     windowActive: window.active && window.visible && window.visibility

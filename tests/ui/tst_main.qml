@@ -8726,6 +8726,9 @@ TestCase {
         // Omnibar.
         const middle = startPage.mapToItem(window.contentItem, startPage.width / 2, 0);
         compare(origin.x + scene.width / 2, middle.x);
+        // The glass is framed by the window, not by the wider road.
+        compare(scene.frame.x, 0);
+        compare(scene.frame.width, window.width);
         // Nothing between it and the window cuts it short of the window's
         // left edge.
         for (let item = scene.parent; item !== window.contentItem; item = item.parent) {

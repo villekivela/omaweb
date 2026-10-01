@@ -138,6 +138,56 @@ TestCase {
         }
     }
 
+    // The road on screen, not only its recipes: the centre line's nearest
+    // full mark and the top of the sun, drawn in the website's colours.
+    Component {
+        id: shownRoadComponent
+
+        Window {
+            property alias road: road
+
+            width: 200
+            height: 125
+            visible: true
+
+            Omaweb.NightRoad {
+                id: road
+                width: 200
+                height: 125
+                colors: crtRoadKeyColours.dark.theme
+            }
+        }
+    }
+
+    function test_theRoadIsDrawnInTheWebsitesKeyColours() {
+        const window = createTemporaryObject(shownRoadComponent, testCase);
+        const road = window.road;
+        const expected = crtRoadKeyColours.dark.colours;
+        tryVerify(function () {
+            return window.visible && road.width === 200;
+        });
+        wait(200);
+        const image = grabImage(window.contentItem);
+        const scale = image.width / window.width;
+        const pixel = function (x, y) {
+            return image.pixel(Math.floor(x * scale), Math.floor(y * scale));
+        };
+        // At rest the second mark is the nearest that is fully lit, from
+        // depth 2.15 to 2.57.
+        const line = road.parameters.centreLine;
+        const depth = 1 + line.spacing + line.length / 2;
+        const markY = (road.horizonY + road.depth / depth) / road.pitch;
+        compareColour(pixel(road.width / 2, markY), expected.centreLine, "centre line");
+        // A Scene pixel down from the sun's top, where its gradient has barely
+        // begun.
+        const sunTop = (road.horizonY - road.drawHeight * road.parameters.sun.radius) / road.pitch
+              + 1.5;
+        const drawn = Qt.color(pixel(road.width / 2, sunTop));
+        const sun = Qt.color(expected.sunTop);
+        verify(Math.abs(drawn.r - sun.r) < 0.04 && Math.abs(drawn.g - sun.g) < 0.04 && Math.abs(
+                   drawn.b - sun.b) < 0.04, "sun top: " + drawn + " against " + sun);
+    }
+
     // The host sizes the Scene in its own pixels and hands it the palette and
     // the options it declares.
     function test_theHostSizesTheSceneAtItsPitch() {

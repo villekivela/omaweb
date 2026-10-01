@@ -364,6 +364,26 @@ Item {
         onKeyChanged: draw()
     }
 
+    // The sun brightening as the reader navigates.
+    Glow {
+        gradient: root.parameters.navigatingGlow
+        radius: root.drawWidth * root.parameters.navigatingGlow.radius
+        reach: root.drawHeight
+        opacity: root.sunShown && root.sunUp > root.parameters.navigatingGlow.from ? root.sunUp : 0
+    }
+
+    // The beat swells a glow in the sky around the sun, wider and brighter on
+    // each hit. The browser plays no music, so its host hands every Scene a
+    // beat of 0 and this is never drawn there.
+    Glow {
+        readonly property var pulse: root.parameters.beatGlow
+
+        gradient: pulse
+        radius: root.drawWidth * pulse.radius * (1 + pulse.grow * root.beat)
+        reach: root.horizonY
+        opacity: root.sunShown && root.beat > pulse.from ? root.beat : 0
+    }
+
     // ---- what moves, in logical pixels scaled to the Scene's
 
     Item {
@@ -374,27 +394,6 @@ Item {
         transform: Scale {
             xScale: 1 / root.pitch
             yScale: 1 / root.pitch
-        }
-
-        // The sun brightening as the reader navigates.
-        Glow {
-            gradient: root.parameters.navigatingGlow
-            radius: root.drawWidth * root.parameters.navigatingGlow.radius
-            height: root.drawHeight
-            opacity: root.sunShown && root.sunUp > root.parameters.navigatingGlow.from ? root.sunUp :
-                                                                                         0
-        }
-
-        // The beat swells a glow in the sky around the sun, wider and brighter
-        // on each hit. The browser plays no music, so its host hands every
-        // Scene a beat of 0 and this is never drawn there.
-        Glow {
-            readonly property var pulse: root.parameters.beatGlow
-
-            gradient: pulse
-            radius: root.drawWidth * pulse.radius * (1 + pulse.grow * root.beat)
-            height: root.horizonY
-            opacity: root.sunShown && root.beat > pulse.from ? root.beat : 0
         }
 
         // A shooting star in some of its slots, for under a second.
@@ -523,26 +522,23 @@ Item {
         }
     }
 
-    // A radial glow from where the road meets the horizon, drawn once per size
-    // and theme at full strength and shown at the strength asked for.
+    // A radial glow from where the road meets the horizon, down to `reach`,
+    // drawn once per size and theme at full strength and shown at the
+    // strength asked for.
     component Glow: Layer {
         property var gradient
         property real radius: 0
+        property real reach: 0
 
-        anchors.fill: undefined
-        width: root.drawWidth
         visible: opacity > 0
-        // Drawn at the Scene's own pixels like the still layer, so its
-        // texture is as small as theirs.
-        canvasSize: Qt.size(Math.max(1, Math.ceil(width / root.pitch)), Math.max(1, Math.ceil(
-                                                                                     height / root.pitch)))
         paintWith: function (context) {
             context.fillStyle = root.radial(context, root.vanishingX, root.horizonY, radius,
                                             gradient.stops);
-            context.fillRect(0, 0, width, height);
+            context.fillRect(0, 0, root.drawWidth, reach);
         }
         onRadiusChanged: draw()
-        onHeightChanged: draw()
+        onReachChanged: draw()
+        onWidthChanged: draw()
         Component.onCompleted: draw()
 
         Connections {

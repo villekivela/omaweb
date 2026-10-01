@@ -117,6 +117,12 @@ Item {
         colors: root.colors
         unlit: root.privateWindow
         glass: root.glassEnabled
+        // What the reader sees of it: under the window, from the window's left
+        // edge to the page's right one, and otherwise the page it is clipped
+        // to.
+        frame: root.roadReach > 0 ? Qt.rect(0, 0, root.roadReach + root.width, height) : Qt.rect(-x,
+                                                                                                 0, root.width,
+                                                                                                 height)
         running: root.visible && root.roadEnabled && root.windowActive
         navigating: root.driving ? 1 : 0
         scene: Component {

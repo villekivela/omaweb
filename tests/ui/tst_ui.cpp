@@ -557,6 +557,9 @@ public slots:
         if (keyColours.open(QIODevice::ReadOnly)) {
             engine->rootContext()->setContextProperty(QStringLiteral("crtRoadKeyColours"),
                 QJsonDocument::fromJson(keyColours.readAll()).toVariant());
+        } else {
+            qWarning(
+                "Could not read the road's key colours from %s", qPrintable(keyColours.fileName()));
         }
         engine->addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
         engine->addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));

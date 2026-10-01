@@ -29,8 +29,14 @@ Item {
     // unknown one takes the option's first value.
     property var chosen: ({})
 
+    // The part of the host the reader sees, which the glass is framed by: a
+    // host wider than the window frames its vignette on the window, not on
+    // itself.
+    property rect frame: Qt.rect(0, 0, width, height)
+
     readonly property Item sceneItem: sceneLoader.item
-    // Frames drawn, for the tests that check a hidden Scene draws none.
+    // The Scene's frames, a tick of its clock each, for the tests that check a
+    // hidden Scene draws none.
     property int frames: 0
     // Seconds the Scene has run. The clock stops while the Scene does not
     // draw.
@@ -111,6 +117,15 @@ Item {
         when: !!root.sceneItem
     }
 
+    // The website's radio pulses its Scene with the song's beat. The browser
+    // plays no music, so its Scenes hear none.
+    Binding {
+        target: root.sceneItem
+        property: "beat"
+        value: 0
+        when: !!root.sceneItem
+    }
+
     Binding {
         target: root.sceneItem
         property: "navigating"
@@ -172,6 +187,10 @@ Item {
         property var bloom: bloomPicture
         property size sceneSize: Qt.size(root.sceneWidth, root.sceneHeight)
         property real glassHeight: height
+        // The frame in the glass's own coordinates, 0 to 1.
+        property rect frame: Qt.rect(root.frame.x / Math.max(1, width), root.frame.y / Math.max(1,
+                                                                                                height), root.frame.width
+                                     / Math.max(1, width), root.frame.height / Math.max(1, height))
         // The refresh band rolls down every seven seconds.
         property real bandY: ((root.time / 7) % 1) * root.sceneHeight * 1.4 - root.sceneHeight * 0.2
         property real bandReach: Math.max(4, root.sceneHeight * 0.07)
