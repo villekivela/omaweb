@@ -638,7 +638,8 @@ body:has(.drive) > .top {
   font-size: 13px;
 }
 
-/* The theme picker, in the Omnibar's hints: each swatch wears its own theme's ground and accent. */
+/* The theme picker, in the Omnibar's hints: each swatch is a small square of its own theme's
+   accent, inside a larger target, and the chosen one is ringed. */
 .themes:not([hidden]) {
   display: flex;
   align-items: center;
@@ -652,21 +653,23 @@ body:has(.drive) > .top {
 
 .themes__row {
   display: flex;
-  gap: 4px;
 }
 
 .swatch {
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--fg) 30%, transparent);
-  background: linear-gradient(135deg, var(--bg) 0 50%, var(--accent) 50% 100%);
+  width: 18px;
+  height: 18px;
+  padding: 5px;
+  border: 0;
+  background: var(--accent) content-box;
   cursor: pointer;
 }
 
+.swatch:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 35%, transparent);
+}
+
 .swatch[aria-pressed="true"] {
-  outline: 2px solid var(--fg);
-  outline-offset: 1px;
+  box-shadow: inset 0 0 0 1px var(--fg);
 }
 
 /* Plates: flat, opaque, square, edged in the theme's text. */
