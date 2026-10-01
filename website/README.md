@@ -135,10 +135,10 @@ rate limit.
 
 A release page is calm: the road as a thin still header, with no motion and no glass, then one
 column with the version, its date and its notes, and every release under them. It wears the landing
-page's theme, Retro 82 or the one the reader picked there, which `theme.js` remembers and applies in
-the head before the page paints. It also carries `<meta name="omaweb-palette">`, so in Omaweb the
-window's palette arrives as `--omaweb-*`, and every theme in `themes.css` defers to it: read in
-Omaweb, a release page is in the reader's own theme.
+page's theme, Retro 82 or the one the reader picked there, which `theme.js` keeps for the visit and
+applies in the head before the page paints. It also carries `<meta name="omaweb-palette">`, so in
+Omaweb the window's palette arrives as `--omaweb-*`, and every theme in `themes.css` defers to it:
+read in Omaweb, a release page is in the reader's own theme.
 
 ## Regenerating the shots
 
