@@ -495,15 +495,23 @@ a {
 }
 
 /* The Start page: the headline in the sky above the sun, whose radius is 15% of the road's
-   height, the Omnibar resting on the horizon, and the way in below. */
+   height, the Omnibar resting on the horizon, and the way in below. The road fills the window, so
+   both are placed from the window's height rather than the Start page's, which is taller in a
+   short window. On the landing page the header lies over the Start page. */
+body:has(.drive) > .top {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+}
+
 .start {
   position: relative;
-  height: max(640px, calc(100svh - 74px));
+  height: max(640px, 100svh);
 }
 
 .start__sky {
   position: absolute;
-  inset: auto 0 calc(50% + 15svh + 8px);
+  inset: auto 0 calc(100% - 35svh + 48px);
   text-align: center;
 }
 
@@ -514,7 +522,7 @@ a {
 .omnibar {
   position: absolute;
   left: 50%;
-  top: calc(50% - 50px);
+  top: calc(50svh - 50px);
   width: min(100% - 32px, 720px);
   transform: translateX(-50%);
   border: 1px solid var(--accent);
@@ -534,7 +542,7 @@ a {
 
 .omnibar__prompt {
   flex: none;
-  width: 26px;
+  width: 32px;
   height: 16px;
   fill: var(--accent);
 }
@@ -896,8 +904,8 @@ a {
     justify-content: center;
     gap: 24px;
     height: auto;
-    min-height: calc(100svh - 74px);
-    padding: 24px 0 32px;
+    min-height: 100svh;
+    padding: 80px 0 32px;
   }
 
   .start__sky,
