@@ -27,7 +27,9 @@ running, because a reader may have installed the package by hand and not taken t
 ## Response to a security-bearing Qt patch
 
 When a Qt patch release includes security fixes, qualify it and publish the raised baseline within
-two days after the baseline issue opens. The issue includes its due date.
+two days after the baseline issue opens. The issue includes its due date. From Qt 6.12, QtWebEngine
+is released on its own, versioned after its Chromium (6.140 is Chromium 140), and the release that
+counts is the engine's rather than Qt's.
 
 The clock starts when Qt publishes. The two days cover applying the patch series, building the
 engine for both architectures, qualifying it, and publishing both packages, because all of that is

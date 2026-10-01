@@ -156,6 +156,69 @@ class TrackingIssue(unittest.TestCase):
         self.assertIn("Closed #42", output)
 
 
+RELEASES = "https://qt.example/"
+
+
+class Mirror:
+    """download.qt.io with the network taken out: directory listings built from
+    the files placed in it, and an empty answer for a directory that is not
+    there, as `fetch_listing` gives for a 404."""
+
+    def __init__(self, *files):
+        self.files = set(files)
+
+    def fetch(self, url):
+        path = url.removeprefix(RELEASES)
+        names = {file.removeprefix(path).split("/")[0] + "/"
+                 for file in self.files
+                 if file.startswith(path) and "/" in file.removeprefix(path)}
+        return "".join(f'<a href="{name}">{name}</a>' for name in sorted(names))
+
+    def exists(self, url):
+        return url.removeprefix(RELEASES) in self.files
+
+    def newest(self):
+        return baseline.released_engine_version(self.fetch, self.exists,
+                                                RELEASES)
+
+
+def qt(release, engine=True):
+    series = release.rsplit(".", 1)[0]
+    module = "qtwebengine" if engine else "qtbase"
+    return (f"qt/{series}/{release}/submodules/"
+            f"{module}-everywhere-src-{release}.tar.xz")
+
+
+class ReleasedEngine(unittest.TestCase):
+    def test_before_the_split_it_is_the_newest_qt_release(self):
+        mirror = Mirror(qt("6.9.3"), qt("6.11.2"), qt("6.11.10"))
+
+        self.assertEqual(mirror.newest(), "6.11.10")
+
+    def test_a_qt_release_without_an_engine_is_not_an_engine_release(self):
+        # The day #482 and #484 were opened: Qt 6.12.0 was out, it has no
+        # engine, and it was taken for one.
+        mirror = Mirror(qt("6.11.2"), qt("6.12.0", engine=False))
+
+        self.assertEqual(mirror.newest(), "6.11.2")
+
+    def test_a_separate_release_in_a_directory_per_series(self):
+        mirror = Mirror(qt("6.11.2"), qt("6.12.0", engine=False),
+                        "qtwebengine/6.140/6.140.0/src.tar.xz",
+                        "qtwebengine/6.140/6.140.1/src.tar.xz")
+
+        self.assertEqual(mirror.newest(), "6.140.1")
+
+    def test_a_separate_release_in_a_directory_per_version(self):
+        mirror = Mirror(qt("6.11.2"), "qtwebengine/6.140.0/src.tar.xz",
+                        "qtwebengine/6.146.0-rc/src.tar.xz")
+
+        self.assertEqual(mirror.newest(), "6.140.0")
+
+    def test_no_engine_anywhere_is_no_version(self):
+        self.assertEqual(Mirror(qt("6.12.0", engine=False)).newest(), "")
+
+
 class BaselineFile(unittest.TestCase):
     def test_the_approved_baseline_names_every_version_it_promises(self):
         approved = json.loads(baseline.BASELINE.read_text())

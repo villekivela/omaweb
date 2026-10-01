@@ -28,13 +28,14 @@ import json
 import subprocess
 import sys
 import re
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "security" / "baseline.json"
 
-QT_RELEASES = "https://download.qt.io/official_releases/qt/"
+QT_RELEASES = "https://download.qt.io/official_releases/"
 CHROMIUM_STABLE = ("https://chromiumdash.appspot.com/fetch_releases"
                    "?channel=Stable&platform=Linux&num=1")
 
@@ -223,21 +224,67 @@ def fetch_text(url: str) -> str:
         return response.read().decode("utf-8", "replace")
 
 
-def newest(listing: str, pattern: str) -> str:
-    """The highest version named by a download.qt.io directory listing."""
-    found = re.findall(pattern, listing)
-    return max(found, key=version) if found else ""
+def fetch_listing(url: str) -> str:
+    """A download.qt.io directory listing, or nothing where there is none: the
+    engine's own release directory does not exist until its first release."""
+    try:
+        return fetch_text(url)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return ""
+        raise
 
 
-def released_engine_version() -> str:
+def url_exists(url: str) -> bool:
+    request = urllib.request.Request(url, method="HEAD")
+    try:
+        with urllib.request.urlopen(request, timeout=30):
+            return True
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return False
+        raise
+
+
+def versions(listing: str, pattern: str) -> list[str]:
+    """The versions a download.qt.io directory listing names, highest first."""
+    return sorted(set(re.findall(pattern, listing)), key=version, reverse=True)
+
+
+SERIES = r'href="(\d+\.\d+)/"'
+RELEASE = r'href="(\d+\.\d+\.\d+)/"'
+
+
+def released_engine_version(fetch=fetch_listing, exists=url_exists,
+                            releases: str = QT_RELEASES) -> str:
     """The newest QtWebEngine Qt itself has published. Qt is the upstream that
     matters here rather than a distribution's package, because the distribution
-    lags Qt by days and the response window starts when Qt publishes."""
-    series = newest(fetch_text(QT_RELEASES), r'href="(\d+\.\d+)/"')
-    if not series:
-        return ""
-    return newest(fetch_text(f"{QT_RELEASES}{series}/"),
-                  r'href="(\d+\.\d+\.\d+)/"')
+    lags Qt by days and the response window starts when Qt publishes.
+
+    Up to 6.11 the engine was a module of Qt's release and carried its version.
+    From Qt 6.12 it is released on its own and versioned after its Chromium, so
+    Qt 6.12.0 has no engine and the newest Qt release is no longer the newest
+    engine (#484). Both are read: the newest Qt release that ships an engine,
+    and the newest separate engine release, and the higher wins. Where separate
+    releases will sit is not known before the first one, so a directory per
+    series and a directory per version are both read. The series' own
+    `scripts/newest-engine.sh` applies the same rule."""
+    found = []
+    for series in versions(fetch(f"{releases}qt/"), SERIES):
+        shipped = [
+            release
+            for release in versions(fetch(f"{releases}qt/{series}/"), RELEASE)
+            if exists(f"{releases}qt/{series}/{release}/submodules/"
+                      f"qtwebengine-everywhere-src-{release}.tar.xz")]
+        if shipped:
+            found.append(shipped[0])
+            break
+    engine = f"{releases}qtwebengine/"
+    listing = fetch(engine)
+    found += versions(listing, RELEASE)
+    for series in versions(listing, SERIES):
+        found += versions(fetch(f"{engine}{series}/"), RELEASE)
+    return max(found, key=version) if found else ""
 
 
 def chromium_stable_version() -> str:
