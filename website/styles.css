@@ -879,12 +879,29 @@ body:has(.drive) > .top {
   border-top: 1px solid var(--rule);
 }
 
+/* Every key hint is the same keycap: one size wherever it stands, a key to a cap, with a deeper
+   lower edge for the key's side. */
 .drive kbd {
-  padding: 0.15em 0.45em;
-  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 3px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--plate));
   color: var(--accent);
-  font: 500 0.85em/1 var(--mono);
+  font: 500 12px/1 var(--mono);
+  vertical-align: middle;
+}
+
+.keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* On a phone, or with reduced motion, the road holds a still frame and the features are an
@@ -929,7 +946,8 @@ body:has(.drive) > .top {
     grid-template-columns: 7rem 1fr;
   }
 
-  .omnibar__rows kbd {
+  .omnibar__rows kbd,
+  .omnibar__rows .keys {
     display: none;
   }
 
