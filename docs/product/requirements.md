@@ -74,15 +74,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   Sync. A Space stored before Spaces had colours is given one at start, in footer order.
 - The footer draws each of the reader's Spaces as a small square in its colour, with no letter, and
   the Space on show as the larger square, with no plate or border around it. Agent Spaces follow as
-  small Agent marks. One of the reader's Spaces with an Agent attached keeps its square and its
-  place, with a small Agent badge in a corner while the Agent is attached. Hovering a Space names
-  it. The reader's Spaces come first and Agent Spaces after them, so `select-space` 1 to 9 and the
-  Key labels count the reader's from 1 and an Agent making a Space never renumbers them. Taking an
-  Agent Space over makes it the last of the reader's. Spaces the row has no room for are left out,
-  last first, and a `+N` count in muted text says how many; nothing scrolls. The Space on show is
-  never left out: it takes the last place there is room for, and the Space that stood there is
-  counted instead. Pressing the count opens a menu of the Spaces left out, and each stays reachable
-  by its key.
+  small Agent marks. One of the reader's Spaces with an Agent attached is drawn as the Agent mark in
+  the Space's own colour, in its square's place, until the Agent leaves. Hovering a Space names it.
+  The reader's Spaces come first and Agent Spaces after them, so `select-space` 1 to 9 and the Key
+  labels count the reader's from 1 and an Agent making a Space never renumbers them. Taking an Agent
+  Space over makes it the last of the reader's. Spaces the row has no room for are left out, last
+  first, and a `+N` count in muted text says how many; nothing scrolls. The Space on show is never
+  left out: it takes the last place there is room for, and the Space that stood there is counted
+  instead. Pressing the count opens a menu of the Spaces left out, and each stays reachable by its
+  key.
 - While the sidebar holds the keyboard, `j` and `k` move the Sidebar cursor through its rows, pins
   first, without changing the page. `l` or `Return` opens the row under it and focuses the page, and
   `h` returns the cursor to the tab on show. A single key the reader binds to a command takes
@@ -97,8 +97,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   attached. While an Agent tab is on show, its page is framed in the Agent accent, with a label at
   the top-right corner naming the connection and its last act. An Agent Space shows the mark in the
   Agent accent while an Agent is attached and muted otherwise, and one of the reader's Spaces
-  holding an Agent tab shows a small Agent badge beside its square. Each mark pulses only while one
-  of the Agent's commands is in flight, so idle chrome draws no frames.
+  holding an Agent tab shows it in the Space's own colour. Each mark pulses only while one of the
+  Agent's commands is in flight, so idle chrome draws no frames.
 - Opening an Agent Space shows a notice at the top of the page that an Agent made it, with Take over
   and Dismiss, and the Take over Space command does the same. Taking it over removes the mark and
   keeps a temporary Agent Space after its connection closes. A Private window is never an Agent's

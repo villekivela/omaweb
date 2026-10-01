@@ -542,8 +542,8 @@ int main(int argc, char *argv[])
         agentTabId
             = opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
         // Once Review is the reader's, the Agent is still at work in a Space
-        // of its own, so both an attached Agent Space and a badged Space of
-        // the reader's are in the footer.
+        // of its own, so both an attached Agent Space and a Space of the
+        // reader's wearing the mark in its own colour are in the footer.
         if (agentsTakenOver) {
             agentControl->answer({
                 {QStringLiteral("verb"), QStringLiteral("space new")},
@@ -665,7 +665,7 @@ int main(int argc, char *argv[])
         browser.activateTab(agentTabId);
     }
     // `--agents-taken-over` has the reader take the Agent's Space over while
-    // the Agent is still attached, so a Space of the reader's wears the badge.
+    // the Agent is still attached, so a Space of the reader's wears the mark.
     if (agentsTakenOver) {
         browser.takeOverSpace(agentSpaceId);
     }

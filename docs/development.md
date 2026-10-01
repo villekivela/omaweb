@@ -101,9 +101,9 @@ it. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` s
 Spaces, so the footer counts the ones it has no room for; `--narrow` puts the sidebar at its minimum
 width and `--space-overflow` opens the menu of the Spaces left out. `--agents-taken-over` has the
 reader take the Agent's Space over while the Agent is still attached, so a Space of the reader's
-wears the Agent badge, and has the Agent at work in a second Agent Space of its own. Pass
-`--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by
-default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
+wears the Agent mark in its own colour, and has the Agent at work in a second Agent Space of its
+own. Pass `--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700
+ms by default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
 reviewing chrome changes without a desktop session. The chrome's movements are reviewed the same
 way: `--show space-step`, `tab-step`, `omnibar-step` and `settings-step` run the switch or the
 opening shortly before the capture, so the frame lands part way through it, and the `-settled`

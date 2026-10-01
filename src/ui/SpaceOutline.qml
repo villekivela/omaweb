@@ -1266,11 +1266,13 @@ Rectangle {
                     // An Agent Space wears the Agent's mark: in the Agent
                     // accent while an Agent is attached to one of its tabs,
                     // muted while none is. One of the reader's Spaces an Agent
-                    // is working in keeps its square and its place, with a
-                    // small Agent badge in a corner while the Agent is
-                    // attached, so it can be read while the Space is away.
+                    // is working in wears it too while the Agent is attached,
+                    // in the Space's own colour and in its square's place, so
+                    // it can be read while the Space is away; the square comes
+                    // back when the Agent leaves.
                     readonly property var agentWork: root.agentWorkIn(spaceId)
                     readonly property bool agentMade: root.agentSpaceIds.indexOf(spaceId) >= 0
+                    readonly property bool showsAgent: agentMade || agentWork.attached
 
                     objectName: "space-" + spaceId
                     visible: root.spaceInRow(index)
@@ -1294,7 +1296,7 @@ Rectangle {
                         objectName: "spaceMark-" + spaceButton.spaceId
                         readonly property int side: spaceButton.active ? 12 : 8
                         anchors.centerIn: parent
-                        visible: !spaceButton.agentMade
+                        visible: !spaceButton.showsAgent
                         width: side
                         height: side
                         radius: 2
@@ -1319,24 +1321,14 @@ Rectangle {
                     AgentMark {
                         objectName: "spaceAgentMark-" + spaceButton.spaceId
                         anchors.centerIn: parent
-                        visible: spaceButton.agentMade
+                        visible: spaceButton.showsAgent
                         busy: spaceButton.agentWork.busy
-                        color: spaceButton.agentWork.attached ? root.colors.agentAccent :
-                                                                root.colors.mutedText
+                        color: !spaceButton.agentMade ? root.spaceColour(spaceButton.spaceColor) : (
+                                                            spaceButton.agentWork.attached
+                                                            ? root.colors.agentAccent :
+                                                              root.colors.mutedText)
                         font.family: root.iconFontFamily
                         font.pixelSize: Style.font.icon
-                    }
-
-                    AgentMark {
-                        objectName: "spaceAgentBadge-" + spaceButton.spaceId
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.topMargin: 2
-                        visible: !spaceButton.agentMade && spaceButton.agentWork.attached
-                        busy: spaceButton.agentWork.busy
-                        color: root.colors.agentAccent
-                        font.family: root.iconFontFamily
-                        font.pixelSize: Style.font.caption
                     }
 
                     Omarchy.PanelToolTip {

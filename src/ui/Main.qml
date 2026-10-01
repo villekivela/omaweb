@@ -881,16 +881,22 @@ ApplicationWindow {
 
     function openSpaceOverflowMenu(spaces, origin) {
         window.spaceOverflowMenuItems = spaces.map(function (space) {
-            const marked = space.agentMade;
+            // Each drawn as the footer draws it: an Agent Space as the Agent's
+            // mark, one of the reader's as its square, or as the mark in its
+            // own colour while an Agent is attached.
             const palette = window.colors.spaces;
+            const colour = palette && palette[space.spaceColor] ? palette[space.spaceColor] :
+                                                                  window.colors.accent;
+            const marked = space.agentMade || space.attached;
             return {
                 "label": space.spaceName,
                 "spaceId": space.spaceId,
-                "swatch": marked ? undefined : (palette && palette[space.spaceColor]
-                                                ? palette[space.spaceColor] : window.colors.accent),
+                "swatch": marked ? undefined : colour,
                 "swatchLarge": space.active,
                 "glyph": marked ? "smart_toy" : undefined,
-                "glyphColor": space.attached ? window.colors.agentAccent : window.colors.mutedText
+                "glyphColor": !space.agentMade ? colour : (space.attached
+                                                           ? window.colors.agentAccent :
+                                                             window.colors.mutedText)
             };
         });
         window.spaceOverflowMenuX = origin.x + origin.width;

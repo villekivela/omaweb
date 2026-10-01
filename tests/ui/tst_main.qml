@@ -4563,42 +4563,64 @@ TestCase {
 
     // An Agent Space is the Agent's mark, in the Agent accent while an Agent
     // is attached, readable while it is away. Once the reader has taken it
-    // over it is a square in a colour of its own, and while the Agent is
-    // still attached it wears a small Agent badge in a corner, which goes
-    // when the connection closes.
+    // over it is one of the reader's: while the Agent is still attached it is
+    // the Agent's mark in the Space's own colour, in the square's place, and
+    // the square comes back when the connection closes. The menu of the
+    // Spaces left out draws it the same way.
     function test_aSpaceHoldingAnAgentTabWearsTheMark() {
         const drive = driveAnAgentSpace(false);
         const sidebar = findChild(window.contentItem, "sidebar");
         const button = findChild(sidebar, "space-" + drive.spaceId);
         const mark = findChild(sidebar, "spaceAgentMark-" + drive.spaceId);
         const square = findChild(sidebar, "spaceMark-" + drive.spaceId);
-        const badge = findChild(sidebar, "spaceAgentBadge-" + drive.spaceId);
         verify(mark.visible);
         verify(!square.visible);
-        verify(!badge.visible);
         compare(button.label, "");
         compare(String(mark.color), String(window.colors.agentAccent));
+        compare(findChild(sidebar, "spaceAgentBadge-" + drive.spaceId), null);
 
         verify(browser.switchSpace(drive.readersSpaceId));
         tryCompare(sidebar, "arriving", false);
         verify(mark.visible);
         compare(String(mark.color), String(window.colors.agentAccent));
         verify(findChild(sidebar, "spaceMark-" + drive.readersSpaceId).visible);
-        verify(!findChild(sidebar, "spaceAgentBadge-" + drive.readersSpaceId).visible);
+        verify(!findChild(sidebar, "spaceAgentMark-" + drive.readersSpaceId).visible);
 
-        // Taken over with the Agent still there: the reader's square, in
-        // the reader's order, with the badge in its top right corner.
+        // Taken over with the Agent still there.
+        const before = button.x;
         verify(browser.takeOverSpace(drive.spaceId));
-        verify(!mark.visible);
-        verify(square.visible);
-        verify(badge.visible);
-        compare(String(badge.color), String(window.colors.agentAccent));
-        verify(badge.font.pixelSize < mark.font.pixelSize);
-        const corner = badge.mapToItem(button, badge.width, 0);
-        verify(corner.x > button.width / 2);
-        verify(corner.y + badge.height < button.height / 2 + 2);
+        verify(mark.visible);
+        verify(!square.visible);
+        const colour = window.colors.spaces[spaceColourName(drive.spaceId)];
+        verify(Qt.colorEqual(mark.color, colour));
+        tryVerify(function () {
+            return button.x <= before;
+        });
+        drive.report(true, "clicked \"Files changed\"");
+        tryVerify(function () {
+            return mark.opacity < 0.9;
+        });
+        drive.report(false, "looked at the page");
+        compare(mark.opacity, 1);
+
+        window.openSpaceOverflowMenu([
+                                         {
+                                             "spaceId": drive.spaceId,
+                                             "spaceName": "Agent work",
+                                             "spaceColor": spaceColourName(drive.spaceId),
+                                             "active": false,
+                                             "agentMade": false,
+                                             "attached": true
+                                         }
+                                     ], Qt.rect(0, window.height - 30, 20, 20));
+        const row = findChild(window.contentItem, "spaceOverflowMenu").items[0];
+        compare(row.glyph, "smart_toy");
+        verify(Qt.colorEqual(row.glyphColor, colour));
+        compare(row.swatch, undefined);
+        window.spaceOverflowMenuOpen = false;
+
         drive.detach();
-        verify(!badge.visible);
+        verify(!mark.visible);
         verify(square.visible);
         endAgentDrive(drive);
     }
