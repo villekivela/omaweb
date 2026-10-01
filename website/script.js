@@ -10,17 +10,21 @@ if (menu) {
   });
 }
 
-// The night radio, on the header's Radio button and the M key: one song, Night road, on a loop,
+// The night radio, on a Radio button and the M key: one song, Night road, on a loop,
 // and a second press stops it. Nothing loads or plays until a reader asks for it.
 const radio = document.querySelector(".radio");
-const radioToggle = document.querySelector(".radio-toggle");
-if (radio && radioToggle) {
+const radioToggles = document.querySelectorAll(".radio-toggle");
+if (radio) {
   const toggle = () => (radio.paused ? radio.play().catch(() => {}) : radio.pause());
-  const show = () => radioToggle.setAttribute("aria-pressed", String(!radio.paused));
+  const show = () => {
+    for (const button of radioToggles) button.setAttribute("aria-pressed", String(!radio.paused));
+  };
   radio.addEventListener("play", show);
   radio.addEventListener("pause", show);
-  radioToggle.addEventListener("click", toggle);
-  radioToggle.hidden = false;
+  for (const button of radioToggles) {
+    button.addEventListener("click", toggle);
+    button.hidden = false;
+  }
   document.addEventListener("keydown", (event) => {
     if (event.key.toLowerCase() !== "m" || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.target.closest("input, textarea, select, [contenteditable]")) return;

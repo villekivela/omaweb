@@ -313,7 +313,20 @@ a {
   color: var(--accent);
 }
 
-/* The radio's button: three level bars, still while the radio is off and moving while it plays. */
+/* The radio's button: three level bars, still while the radio is off and moving while it plays.
+   The landing page has it on the Omnibar's hints, beside the theme, and the release pages, which
+   have no Omnibar, in the header. */
+body:has(.omnibar) .nav .radio-toggle {
+  display: none;
+}
+
+.omnibar__hints .radio-toggle {
+  margin-left: auto;
+}
+
+.omnibar__hints .radio-toggle:not([hidden]) + .themes {
+  margin-left: 0;
+}
 .radio-toggle:not([hidden]) {
   display: inline-flex;
   align-items: center;

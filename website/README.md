@@ -27,8 +27,8 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 - `scene.js` is the Scene host and `crt-road.js` the one Scene the site ships. The contract between
   them is below.
 - `assets/audio/nightroad.mp3` is the night radio: one song, Night road, which `script.js` plays on
-  a loop from the header's Radio button or the `M` key, and stops on the next press. Nothing loads
-  before that.
+  a loop from the Radio button, on the Omnibar or a release page's header, or the `M` key, and stops
+  on the next press. Nothing loads before that.
 - `assets/film/` holds the introduction film and its poster. The files there now are placeholders
   for #498.
 - `assets/art/` holds the textures and `assets/fonts/` the self-hosted faces, each beside its SIL
