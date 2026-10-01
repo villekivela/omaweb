@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "EngineSuggestions.h"
 #include "HistoryQuery.h"
 #include "KnownExtensions.h"
 #include "PrivateSessionFixture.h"
@@ -6,6 +7,7 @@
 #include "SpaceListModel.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
+#include "SuggestServer.h"
 #include "StoredFavicons.h"
 #include "TabListModel.h"
 #include "WindowManager.h"
@@ -14,8 +16,10 @@
 #include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
@@ -171,6 +175,14 @@ private slots:
     void addsPredefinedSearchEngineProviders();
     void namesTheEngineATypedKeywordSelects();
     void offersTheKeywordsATypedPrefixCouldBecome();
+    void givesAnEngineAnOptionalSuggestUrl();
+    void fillsPresetSuggestUrlsOnceForUnchangedPresets();
+    void asksNothingWhileEngineSuggestionsAreOff();
+    void asksTheEngineTheTypedTermsWouldSearch();
+    void asksOnlyForSearchTerms();
+    void answersOnlyTheLatestEngineSuggestionRequest();
+    void answersASlowEngineWithNothing();
+    void searchesTheEngineThatProposedASuggestion();
     void allowsEveryWindowCapabilityInAMainWindow();
     void refusesEveryWindowCapabilityInAPrivateWindow();
     void clearsSelectedBrowsingDataWithinConfirmedScope();
@@ -1563,7 +1575,7 @@ void BrowserControllerTest::migratesAndUsesSearchEngineConfiguration()
     QFile migrated(legacy.fileName());
     QVERIFY(migrated.open(QIODevice::ReadOnly));
     const auto document = QJsonDocument::fromJson(migrated.readAll());
-    QCOMPARE(document.object().value(QStringLiteral("version")).toInt(), 2);
+    QCOMPARE(document.object().value(QStringLiteral("version")).toInt(), 3);
     migrated.close();
 
     // Given once: an engine deleted after the migration stays deleted.
@@ -1725,6 +1737,417 @@ void BrowserControllerTest::offersTheKeywordsATypedPrefixCouldBecome()
     QCOMPARE(controller.searchKeywordOffers(QStringLiteral("b ")).size(), 0);
 }
 
+// An engine names where to ask for Engine suggestions, or nothing. Kagi's
+// endpoint needs a subscriber's session token, so it ships with none.
+void BrowserControllerTest::givesAnEngineAnOptionalSuggestUrl()
+{
+    QTemporaryDir root;
+    BrowserController controller(
+        SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
+        root.filePath(QStringLiteral("config")));
+
+    const QHash<QString, QString> shipped {
+        {QStringLiteral("duckduckgo"),
+            QStringLiteral("https://duckduckgo.com/ac/?q={query}&type=list")},
+        {QStringLiteral("google"),
+            QStringLiteral("https://www.google.com/complete/search?client=firefox&q={query}")},
+        {QStringLiteral("bing"), QStringLiteral("https://api.bing.com/osjson.aspx?query={query}")},
+        {QStringLiteral("brave"), QStringLiteral("https://search.brave.com/api/suggest?q={query}")},
+        {QStringLiteral("kagi"), QString {}},
+        {QStringLiteral("ecosia"),
+            QStringLiteral("https://ac.ecosia.org/autocomplete?q={query}&type=list")},
+        {QStringLiteral("startpage"),
+            QStringLiteral("https://www.startpage.com/osuggestions?q={query}")},
+    };
+    QCOMPARE(controller.searchEngines().size(), shipped.size());
+    for (const auto &value : controller.searchEngines()) {
+        const auto engine = value.toMap();
+        const auto id = engine.value(QStringLiteral("id")).toString();
+        QCOMPARE(engine.value(QStringLiteral("suggestUrl")).toString(), shipped.value(id));
+        QCOMPARE(controller.searchEngine(id).value(QStringLiteral("suggestUrl")).toString(),
+            shipped.value(id));
+    }
+    for (const auto &value : controller.searchEnginePresets()) {
+        const auto preset = value.toMap();
+        QCOMPARE(preset.value(QStringLiteral("suggestUrl")).toString(),
+            shipped.value(preset.value(QStringLiteral("id")).toString()));
+    }
+
+    QVERIFY(controller.addSearchEngine(QStringLiteral("Docs"),
+        QStringLiteral("https://docs.example/?q={query}"), QStringLiteral("do"),
+        QStringLiteral(" https://docs.example/suggest?q={query} ")));
+    QCOMPARE(controller.searchEngine(QStringLiteral("docs"))
+                 .value(QStringLiteral("suggestUrl"))
+                 .toString(),
+        QStringLiteral("https://docs.example/suggest?q={query}"));
+    QVERIFY(controller.addSearchEngine(QStringLiteral("Wiki"),
+        QStringLiteral("https://wiki.example/?q={query}"), QStringLiteral("w")));
+    QCOMPARE(controller.searchEngine(QStringLiteral("wiki")).value(QStringLiteral("suggestUrl")),
+        QVariant(QString {}));
+    // The same rule as the query URL: a suggest URL has somewhere to put the
+    // terms.
+    QVERIFY(!controller.addSearchEngine(QStringLiteral("Broken"),
+        QStringLiteral("https://broken.example/?q={query}"), {},
+        QStringLiteral("https://broken.example/suggest")));
+    QVERIFY(controller.searchEngine(QStringLiteral("broken")).isEmpty());
+
+    // What was written is what a later window reads.
+    BrowserController reopened(
+        SpaceStorage(root.filePath(QStringLiteral("reopened")), QStringLiteral("test")),
+        root.filePath(QStringLiteral("config")));
+    QCOMPARE(reopened.searchEngine(QStringLiteral("docs"))
+                 .value(QStringLiteral("suggestUrl"))
+                 .toString(),
+        QStringLiteral("https://docs.example/suggest?q={query}"));
+    QCOMPARE(reopened.searchEngine(QStringLiteral("wiki"))
+                 .value(QStringLiteral("suggestUrl"))
+                 .toString(),
+        QString {});
+}
+
+// A list saved before engines had suggest URLs is given the presets' once,
+// and only where the preset is still the preset: an engine whose query URL
+// the reader changed is theirs.
+void BrowserControllerTest::fillsPresetSuggestUrlsOnceForUnchangedPresets()
+{
+    QTemporaryDir root;
+    const auto configRoot = root.filePath(QStringLiteral("config"));
+    QVERIFY(QDir().mkpath(configRoot));
+    const auto path = QDir(configRoot).filePath(QStringLiteral("search-engines.json"));
+    QFile saved(path);
+    QVERIFY(saved.open(QIODevice::WriteOnly));
+    const auto written = saved.write(R"JSON({
+        "version": 2,
+        "default": "google",
+        "engines": [
+            {"id": "duckduckgo", "name": "DuckDuckGo",
+             "queryUrl": "https://duckduckgo.com/?q={query}", "keyword": "d"},
+            {"id": "google", "name": "Google",
+             "queryUrl": "https://www.google.com/search?q={query}&hl=fi", "keyword": "g"},
+            {"id": "kagi", "name": "Kagi",
+             "queryUrl": "https://kagi.com/search?q={query}", "keyword": "k"},
+            {"id": "docs", "name": "Docs",
+             "queryUrl": "https://docs.example/?q={query}", "keyword": "do"}
+        ]
+    })JSON");
+    QVERIFY(written > 0);
+    saved.close();
+
+    {
+        BrowserController controller(
+            SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
+            configRoot);
+        QCOMPARE(controller.searchEngines().size(), 4);
+        QCOMPARE(controller.searchEngine(QStringLiteral("duckduckgo"))
+                     .value(QStringLiteral("suggestUrl"))
+                     .toString(),
+            QStringLiteral("https://duckduckgo.com/ac/?q={query}&type=list"));
+        QCOMPARE(controller.searchEngine(QStringLiteral("google"))
+                     .value(QStringLiteral("suggestUrl"))
+                     .toString(),
+            QString {});
+        QCOMPARE(controller.searchEngine(QStringLiteral("kagi"))
+                     .value(QStringLiteral("suggestUrl"))
+                     .toString(),
+            QString {});
+        QCOMPARE(controller.searchEngine(QStringLiteral("docs"))
+                     .value(QStringLiteral("suggestUrl"))
+                     .toString(),
+            QString {});
+        QCOMPARE(controller.searchEngine(QStringLiteral("google"))
+                     .value(QStringLiteral("queryUrl"))
+                     .toString(),
+            QStringLiteral("https://www.google.com/search?q={query}&hl=fi"));
+    }
+
+    // Once: a suggest URL the reader has since gone without stays gone. The
+    // Settings form cannot edit an engine, so the file stands in for a reader
+    // who took it out by hand.
+    QVERIFY(saved.open(QIODevice::ReadOnly));
+    auto document = QJsonDocument::fromJson(saved.readAll()).object();
+    saved.close();
+    QVERIFY(document.value(QStringLiteral("version")).toInt() > 2);
+    auto engines = document.value(QStringLiteral("engines")).toArray();
+    auto first = engines.at(0).toObject();
+    QCOMPARE(first.value(QStringLiteral("id")).toString(), QStringLiteral("duckduckgo"));
+    first.insert(QStringLiteral("suggestUrl"), QString {});
+    engines.replace(0, first);
+    document.insert(QStringLiteral("engines"), engines);
+    QVERIFY(saved.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QVERIFY(saved.write(QJsonDocument(document).toJson()) > 0);
+    saved.close();
+
+    BrowserController reopened(
+        SpaceStorage(root.filePath(QStringLiteral("reopened")), QStringLiteral("test")),
+        configRoot);
+    QCOMPARE(reopened.searchEngine(QStringLiteral("duckduckgo"))
+                 .value(QStringLiteral("suggestUrl"))
+                 .toString(),
+        QString {});
+}
+
+namespace {
+
+// A browser whose default engine asks `server` for Engine suggestions, with a
+// second engine behind the `do` keyword that asks it too, and a third behind
+// `w` that offers none.
+struct SuggestingBrowser {
+    explicit SuggestingBrowser(const omaweb::test::SuggestServer &server)
+        : setting(root.filePath(QStringLiteral("config")))
+        , controller(SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
+              root.filePath(QStringLiteral("config")))
+    {
+        controller.addSearchEngine(QStringLiteral("Wiki"),
+            QStringLiteral("https://wiki.example/?q={query}"), QStringLiteral("w"));
+        controller.addSearchEngine(QStringLiteral("Docs"),
+            QStringLiteral("https://docs.example/?q={query}"), QStringLiteral("do"),
+            server.suggestUrl(QStringLiteral("/docs")));
+        controller.addSearchEngine(QStringLiteral("Home"),
+            QStringLiteral("https://home.example/search?q={query}"), {}, server.suggestUrl());
+        controller.setEngineSuggestions(&setting);
+        setting.setEnabled(true);
+    }
+
+    QTemporaryDir root;
+    omaweb::EngineSuggestions setting;
+    BrowserController controller;
+};
+
+// Long enough for the pause after typing, a request and its answer on
+// loopback, several times over.
+constexpr int quietMilliseconds = 600;
+
+} // namespace
+
+// Off, nothing typed leaves the browser, and the Omnibar is answered with no
+// rows.
+void BrowserControllerTest::asksNothingWhileEngineSuggestionsAreOff()
+{
+    omaweb::test::SuggestServer server;
+    SuggestingBrowser browser(server);
+    browser.setting.setEnabled(false);
+    QSignalSpy answered(&browser.controller, &BrowserController::engineSuggestionsReady);
+
+    browser.controller.requestEngineSuggestions(QStringLiteral("weath"));
+    QTest::qWait(quietMilliseconds);
+    QCOMPARE(server.requests().size(), 0);
+    QCOMPARE(answered.size(), 1);
+    QVERIFY(answered.first()
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
+}
+
+// The terms go to the engine Return would search, through core's own client:
+// no cookie, whatever the engine set before, and a user agent that names the
+// browser and nothing more.
+void BrowserControllerTest::asksTheEngineTheTypedTermsWouldSearch()
+{
+    omaweb::test::SuggestServer server;
+    server.body = R"(["weath", ["Weath", "weather", "weather radar", "weather today",
+        "weather tomorrow", "weather week"]])";
+    server.extraHeaders = "Set-Cookie: session=reader; Path=/\r\n";
+    SuggestingBrowser browser(server);
+    QSignalSpy answered(&browser.controller, &BrowserController::engineSuggestionsReady);
+
+    browser.controller.requestEngineSuggestions(QStringLiteral("weath"));
+    QTRY_COMPARE(answered.size(), 1);
+    QCOMPARE(server.requests().size(), 1);
+    QCOMPARE(server.requests().first().target, QByteArray("/suggest?q=weath"));
+    QCOMPARE(server.requests().first().headers.value("user-agent"), QByteArray("Omaweb"));
+    const auto answer = answered.first().first().toMap();
+    QCOMPARE(answer.value(QStringLiteral("engineId")).toString(), QStringLiteral("home"));
+    QCOMPARE(answer.value(QStringLiteral("engineName")).toString(), QStringLiteral("Home"));
+    QCOMPARE(answer.value(QStringLiteral("siteUrl")).toString(),
+        QStringLiteral("https://home.example/"));
+    QCOMPARE(answer.value(QStringLiteral("terms")).toString(), QStringLiteral("weath"));
+    // The typed terms again are not a suggestion, whatever their case, and
+    // four is the most listed.
+    QCOMPARE(answer.value(QStringLiteral("suggestions")).toStringList(),
+        (QStringList {QStringLiteral("weather"), QStringLiteral("weather radar"),
+            QStringLiteral("weather today"), QStringLiteral("weather tomorrow")}));
+
+    // A keyword chooses the engine asked.
+    browser.controller.requestEngineSuggestions(QStringLiteral("do weather ra"));
+    QTRY_COMPARE(answered.size(), 2);
+    QCOMPARE(server.requests().size(), 2);
+    QCOMPARE(server.requests().at(1).target, QByteArray("/docs?q=weather%20ra"));
+    QVERIFY(!server.requests().at(1).headers.contains("cookie"));
+    QCOMPARE(answered.at(1).first().toMap().value(QStringLiteral("engineId")).toString(),
+        QStringLiteral("docs"));
+    QCOMPARE(answered.at(1).first().toMap().value(QStringLiteral("terms")).toString(),
+        QStringLiteral("weather ra"));
+}
+
+// An address is opened, not searched; command scope is the interface's and
+// never reaches here; and a keyword alone, blank text, or an engine without a
+// suggest URL has nothing to ask. A Private window never asks at all.
+void BrowserControllerTest::asksOnlyForSearchTerms()
+{
+    omaweb::test::SuggestServer server;
+    server.body = R"(["x", ["x ray"]])";
+    SuggestingBrowser browser(server);
+    QSignalSpy answered(&browser.controller, &BrowserController::engineSuggestionsReady);
+
+    const QStringList nothingToAsk {QStringLiteral("github.com/foo"),
+        QStringLiteral("localhost:8080"), QStringLiteral("https://example.com/?q=x"), QString {},
+        QStringLiteral("   "), QStringLiteral("do"), QStringLiteral("do "),
+        QStringLiteral("w wikis")};
+    for (const auto &text : nothingToAsk) {
+        browser.controller.requestEngineSuggestions(text);
+    }
+    QTest::qWait(quietMilliseconds);
+    QCOMPARE(server.requests().size(), 0);
+    QCOMPARE(answered.size(), nothingToAsk.size());
+    for (const auto &arguments : answered) {
+        QVERIFY(arguments.first()
+                .toMap()
+                .value(QStringLiteral("suggestions"))
+                .toStringList()
+                .isEmpty());
+    }
+
+    PrivateSessionFixture privateSession(browser.root.filePath(QStringLiteral("config")));
+    auto privateController = privateSession.createController();
+    privateController->setEngineSuggestions(&browser.setting);
+    QSignalSpy privateAnswered(privateController.get(), &BrowserController::engineSuggestionsReady);
+    privateController->requestEngineSuggestions(QStringLiteral("weath"));
+    QTest::qWait(quietMilliseconds);
+    QCOMPARE(server.requests().size(), 0);
+    QCOMPARE(privateAnswered.size(), 1);
+    QVERIFY(privateAnswered.first()
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
+}
+
+// Typing faster than the pause asks once, for the text that stayed. An
+// answer to text the reader has typed past arrives and is dropped.
+void BrowserControllerTest::answersOnlyTheLatestEngineSuggestionRequest()
+{
+    omaweb::test::SuggestServer server;
+    SuggestingBrowser browser(server);
+    QSignalSpy answered(&browser.controller, &BrowserController::engineSuggestionsReady);
+
+    browser.controller.requestEngineSuggestions(QStringLiteral("t"));
+    browser.controller.requestEngineSuggestions(QStringLiteral("th"));
+    server.body = R"(["thu", ["thunder"]])";
+    browser.controller.requestEngineSuggestions(QStringLiteral("thu"));
+    QTRY_COMPARE(answered.size(), 1);
+    QTest::qWait(quietMilliseconds);
+    QCOMPARE(server.requests().size(), 1);
+    QCOMPARE(server.requests().first().target, QByteArray("/suggest?q=thu"));
+    QCOMPARE(answered.size(), 1);
+
+    server.holding = true;
+    browser.controller.requestEngineSuggestions(QStringLiteral("weat"));
+    QTRY_COMPARE(server.requests().size(), 2);
+    server.holding = false;
+    server.body = R"(["weath", ["weather radar"]])";
+    browser.controller.requestEngineSuggestions(QStringLiteral("weath"));
+    QTRY_COMPARE(server.requests().size(), 3);
+    QTRY_COMPARE(answered.size(), 2);
+    server.release(R"(["weat", ["weat stale"]])");
+    QTest::qWait(quietMilliseconds);
+    QCOMPARE(answered.size(), 2);
+    QCOMPARE(answered.at(1).first().toMap().value(QStringLiteral("suggestions")).toStringList(),
+        QStringList {QStringLiteral("weather radar")});
+
+    // Closing the Omnibar abandons what was asked.
+    browser.controller.requestEngineSuggestions(QStringLiteral("weathe"));
+    browser.controller.cancelEngineSuggestions();
+    QTest::qWait(quietMilliseconds);
+    QCOMPARE(server.requests().size(), 3);
+    QCOMPARE(answered.size(), 2);
+}
+
+// A request that has no answer after about a second, or an answer that is
+// not OpenSearch suggestions, lists nothing and says nothing.
+void BrowserControllerTest::answersASlowEngineWithNothing()
+{
+    omaweb::test::SuggestServer server;
+    server.holding = true;
+    SuggestingBrowser browser(server);
+    QSignalSpy answered(&browser.controller, &BrowserController::engineSuggestionsReady);
+
+    QElapsedTimer waited;
+    waited.start();
+    browser.controller.requestEngineSuggestions(QStringLiteral("weath"));
+    QTRY_COMPARE_WITH_TIMEOUT(answered.size(), 1, 3000);
+    QVERIFY(waited.elapsed() >= 1000);
+    QVERIFY(waited.elapsed() < 2500);
+    QVERIFY(answered.first()
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
+
+    server.holding = false;
+    server.body = R"({"suggestions": ["weather"]})";
+    browser.controller.requestEngineSuggestions(QStringLiteral("weathe"));
+    QTRY_COMPARE(answered.size(), 2);
+    QVERIFY(answered.at(1)
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
+
+    // An engine that answers in error lists nothing, whatever its body says.
+    server.status = "503 Service Unavailable";
+    server.body = R"(["weather", ["weather radar"]])";
+    browser.controller.requestEngineSuggestions(QStringLiteral("weather"));
+    QTRY_COMPARE(answered.size(), 3);
+    QVERIFY(answered.at(2)
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
+
+    // The second is for the whole answer: one that keeps arriving a byte at a
+    // time is as late as one that never starts.
+    server.status = "200 OK";
+    server.trickleMilliseconds = 100;
+    waited.restart();
+    browser.controller.requestEngineSuggestions(QStringLiteral("weather r"));
+    QTRY_COMPARE_WITH_TIMEOUT(answered.size(), 4, 5000);
+    QVERIFY(waited.elapsed() < 2500);
+    QVERIFY(answered.at(3)
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
+}
+
+// A suggestion is terms for the engine that proposed it, even one that reads
+// as an address.
+void BrowserControllerTest::searchesTheEngineThatProposedASuggestion()
+{
+    omaweb::test::SuggestServer server;
+    SuggestingBrowser browser(server);
+
+    QCOMPARE(browser.controller.searchAddress(QStringLiteral("docs"), QStringLiteral("github.com")),
+        QStringLiteral("https://docs.example/?q=github.com"));
+    QCOMPARE(browser.controller.searchAddress(QStringLiteral("home"), QStringLiteral("a&b #c")),
+        QStringLiteral("https://home.example/search?q=a%26b%20%23c"));
+    QCOMPARE(
+        browser.controller.searchAddress(QStringLiteral("gone"), QStringLiteral("x")), QString {});
+
+    browser.controller.openInput(
+        browser.controller.searchAddress(QStringLiteral("docs"), QStringLiteral("github.com")),
+        false);
+    QCOMPARE(browser.controller.activeUrl().host(), QStringLiteral("docs.example"));
+    QCOMPARE(QUrlQuery(browser.controller.activeUrl()).queryItemValue(QStringLiteral("q")),
+        QStringLiteral("github.com"));
+}
+
 namespace {
 
 // The four capabilities a window either has or has not, asked of a window that
@@ -1832,6 +2255,39 @@ void exerciseClearBrowsingData(Window window)
     QCOMPARE(controller->history({}).size(), 0);
 }
 
+void exerciseEngineSuggestions(Window window)
+{
+    const bool allowed = window == Window::Main;
+    omaweb::test::SuggestServer server;
+    server.body = R"(["weath", ["weather"]])";
+    QTemporaryDir root;
+    const auto configRoot = root.filePath(QStringLiteral("config"));
+    omaweb::EngineSuggestions setting(configRoot);
+    setting.setEnabled(true);
+    {
+        BrowserController configuring(
+            SpaceStorage(root.filePath(QStringLiteral("configuring")), QStringLiteral("test")),
+            configRoot);
+        QVERIFY(configuring.addSearchEngine(QStringLiteral("Home"),
+            QStringLiteral("https://home.example/?q={query}"), {}, server.suggestUrl()));
+    }
+    PrivateSessionFixture privateSession(configRoot);
+    auto controller = window == Window::Private
+        ? privateSession.createController()
+        : std::make_unique<BrowserController>(
+              SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
+              configRoot);
+    controller->setEngineSuggestions(&setting);
+    QSignalSpy readySpy(controller.get(), &BrowserController::engineSuggestionsReady);
+
+    controller->requestEngineSuggestions(QStringLiteral("weath"));
+    QTRY_COMPARE(readySpy.count(), 1);
+    QCOMPARE(server.requests().size(), allowed ? 1 : 0);
+    QCOMPARE(
+        readySpy.takeFirst().first().toMap().value(QStringLiteral("suggestions")).toStringList(),
+        allowed ? QStringList {QStringLiteral("weather")} : QStringList {});
+}
+
 } // namespace
 
 void BrowserControllerTest::allowsEveryWindowCapabilityInAMainWindow()
@@ -1839,6 +2295,7 @@ void BrowserControllerTest::allowsEveryWindowCapabilityInAMainWindow()
     exerciseSpaces(Window::Main);
     exercisePinnedTabs(Window::Main);
     exerciseHistorySearch(Window::Main);
+    exerciseEngineSuggestions(Window::Main);
     exerciseClearBrowsingData(Window::Main);
 }
 
@@ -1847,6 +2304,7 @@ void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
     exerciseSpaces(Window::Private);
     exercisePinnedTabs(Window::Private);
     exerciseHistorySearch(Window::Private);
+    exerciseEngineSuggestions(Window::Private);
     exerciseClearBrowsingData(Window::Private);
 }
 

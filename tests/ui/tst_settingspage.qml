@@ -642,6 +642,78 @@ TestCase {
     }
 
     QtObject {
+        id: engineSuggestionsStub
+
+        property bool enabled: false
+    }
+
+    readonly property var suggestingEngines: [
+        {
+            id: "kagi",
+            name: "Kagi",
+            queryUrl: "https://kagi.com/search?q={query}",
+            suggestUrl: "",
+            keyword: "k",
+            default: false
+        },
+        {
+            id: "duckduckgo",
+            name: "DuckDuckGo",
+            queryUrl: "https://duckduckgo.com/?q={query}",
+            suggestUrl: "https://duckduckgo.com/ac/?q={query}&type=list",
+            keyword: "d",
+            default: true
+        }
+    ]
+
+    // Engine suggestions are one switch for the whole browser under network,
+    // where it takes the place of the old fixed status. Its note names where
+    // the typing goes, which is the default engine, and says so plainly when
+    // that engine has nowhere to ask.
+    function test_engineSuggestionsIsOneSwitchUnderNetwork() {
+        const page = makePage();
+        page.section = page.sections.indexOf("network");
+        const toggle = findChild(page, "engineSuggestions");
+        verify(toggle !== null);
+        verify(!toggle.visible);
+        compare(findChild(page, "remoteSuggestionsStatus"), null);
+
+        engineSuggestionsStub.enabled = false;
+        page.engines = testCase.suggestingEngines;
+        page.engineSuggestions = engineSuggestionsStub;
+        verify(toggle.visible);
+        compare(toggle.title, "Engine suggestions");
+        compare(toggle.note, "Sends what you type in the Omnibar to DuckDuckGo as you type, "
+                + "without your cookies. Never in a Private window.");
+        verify(!toggle.checked);
+        settleAction(toggle);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return engineSuggestionsStub.enabled;
+        });
+        verify(toggle.checked);
+
+        // The switch keeps its value and stays usable when the default engine
+        // has no suggest URL; only the note changes.
+        page.engines = testCase.suggestingEngines.map(function (engine) {
+            return Object.assign({}, engine, {
+                                     "default": engine.id === "kagi"
+                                 });
+        });
+        compare(toggle.note, "Kagi doesn't offer suggestions.");
+        verify(toggle.checked);
+        verify(toggle.enabled);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return !engineSuggestionsStub.enabled;
+        });
+
+        const filterNote = findChild(page, "automaticRequestsStatus");
+        verify(filterNote.text.indexOf("automatic network requests") >= 0);
+        compare(filterNote.text.indexOf("suggestion"), -1);
+    }
+
+    QtObject {
         id: httpsOnlyStub
 
         property bool enabled: true

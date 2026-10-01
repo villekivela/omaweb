@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "EngineSuggestions.h"
 #include "BrowserStateExchange.h"
 #include "LocalSyncState.h"
 #include "SyncModule.h"
@@ -635,6 +636,14 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
     QVERIFY(!projectedTab.audible);
     QVERIFY(browser.setPreference(
         QStringLiteral("not-in-the-sync-projection"), QStringLiteral("local-only")));
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+    QCOMPARE(localState.checkpoint().generation, initial.generation);
+    // Engine suggestions are this installation's: turning them on sends what
+    // is typed here to a search engine, which another machine's reader has
+    // not agreed to.
+    omaweb::EngineSuggestions engineSuggestions(configRoot.path());
+    engineSuggestions.setEnabled(true);
     QTest::qWait(10);
     QCOMPARE(changed.count(), 0);
     QCOMPARE(localState.checkpoint().generation, initial.generation);

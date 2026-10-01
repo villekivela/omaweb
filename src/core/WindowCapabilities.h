@@ -8,8 +8,10 @@ namespace omaweb {
 //
 // A Private window keeps nothing, so there is nothing for a Space to hold, a
 // Pinned tab to survive in, a search to read, or a clear command to remove
-// (ADR 0012). Whether a window is private is a separate fact and stays where it
-// is: this says what the window is entitled to do, not which kind it is.
+// (ADR 0012). Nor does what is typed in it go to a search engine before a
+// commit, whatever the Engine suggestions setting says. Whether a window is
+// private is a separate fact and stays where it is: this says what the window
+// is entitled to do, not which kind it is.
 //
 // A capability is answered for by both kinds of window or by neither: the two
 // tables are built through one constructor that takes every answer, so adding
@@ -27,18 +29,20 @@ public:
         PinnedTabs,
         // The Omnibar's search of what has been visited.
         HistorySearch,
+        // Asking a search engine what to suggest for the Omnibar's text.
+        EngineSuggestions,
         // Removing what has been kept.
         ClearBrowsingData,
     };
 
     static constexpr WindowCapabilities mainWindow()
     {
-        return WindowCapabilities(true, true, true, true);
+        return WindowCapabilities(true, true, true, true, true);
     }
 
     static constexpr WindowCapabilities privateWindow()
     {
-        return WindowCapabilities(false, false, false, false);
+        return WindowCapabilities(false, false, false, false, false);
     }
 
     constexpr bool allows(Capability capability) const
@@ -50,6 +54,8 @@ public:
             return m_pinnedTabs;
         case Capability::HistorySearch:
             return m_historySearch;
+        case Capability::EngineSuggestions:
+            return m_engineSuggestions;
         case Capability::ClearBrowsingData:
             return m_clearBrowsingData;
         }
@@ -57,11 +63,12 @@ public:
     }
 
 private:
-    constexpr WindowCapabilities(
-        bool spaces, bool pinnedTabs, bool historySearch, bool clearBrowsingData)
+    constexpr WindowCapabilities(bool spaces, bool pinnedTabs, bool historySearch,
+        bool engineSuggestions, bool clearBrowsingData)
         : m_spaces(spaces)
         , m_pinnedTabs(pinnedTabs)
         , m_historySearch(historySearch)
+        , m_engineSuggestions(engineSuggestions)
         , m_clearBrowsingData(clearBrowsingData)
     {
     }
@@ -69,6 +76,7 @@ private:
     bool m_spaces;
     bool m_pinnedTabs;
     bool m_historySearch;
+    bool m_engineSuggestions;
     bool m_clearBrowsingData;
 };
 

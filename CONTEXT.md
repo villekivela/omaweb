@@ -203,6 +203,11 @@ off the interface's thread while the reader types. It reads one Space, the one o
 only the most recent request. A Private window keeps no history, so it has none to search and is
 answered with nothing. _Avoid_: Autocomplete, suggestions, omnibox search
 
+**Engine suggestion**: A search term a search engine proposes for the text typed into the Omnibar so
+far. Omaweb asks for them only after the reader turns them on, never in a Private window, and only
+from an engine that names where to ask. Choosing one searches for it with the engine that proposed
+it. _Avoid_: Remote suggestion, search suggestion, autocomplete
+
 **Site information**: What Omaweb states about the site on show, for the Space it is on show in: its
 origin, the connection the engine reports and the certificate it arrived over, the requests Content
 blocking refused, the site data the Space holds, the origin's Site permissions, and the confirmed

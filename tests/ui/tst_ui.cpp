@@ -11,6 +11,8 @@
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
 #include "HttpsOnly.h"
+#include "EngineSuggestions.h"
+#include "../core/SuggestServer.h"
 #include "SecureDns.h"
 #include "FontSettings.h"
 #include "KitTheme.h"
@@ -50,6 +52,36 @@
 #include <memory>
 
 namespace {
+
+// A search engine's suggest endpoint on loopback, for the Omnibar's Engine
+// suggestion rows to be asked for and answered without the network.
+class SuggestServerProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE QString suggestUrl() { return server().suggestUrl(); }
+    Q_INVOKABLE int requestCount() { return static_cast<int>(server().requests().size()); }
+    Q_INVOKABLE QString lastTarget()
+    {
+        return server().requests().isEmpty()
+            ? QString {}
+            : QString::fromUtf8(server().requests().constLast().target);
+    }
+    Q_INVOKABLE void answer(const QString &body) { server().body = body.toUtf8(); }
+
+private:
+    // Built on first use rather than with the harness, which exists before
+    // the application's event loop does and so could not accept a socket.
+    omaweb::test::SuggestServer &server()
+    {
+        if (!m_server) {
+            m_server = std::make_unique<omaweb::test::SuggestServer>();
+        }
+        return *m_server;
+    }
+
+    std::unique_ptr<omaweb::test::SuggestServer> m_server;
+};
 
 class SyncLauncherProbe final : public QObject {
     Q_OBJECT
@@ -334,10 +366,13 @@ public slots:
         m_inputMethod = std::make_unique<omaweb::InputMethodReport>(omaweb::InputMethodHost {});
         omaweb::registerInputMethodReport(m_inputMethod.get());
         m_dataRoot = std::make_unique<QTemporaryDir>();
+        m_engineSuggestions = std::make_unique<omaweb::EngineSuggestions>(
+            m_dataRoot->filePath(QStringLiteral("config")));
         // A config root of its own, so a test can save a search engine.
         m_browser = std::make_unique<omaweb::BrowserController>(
             omaweb::SpaceStorage(m_dataRoot->path(), QStringLiteral("mock")),
             m_dataRoot->filePath(QStringLiteral("config")));
+        m_browser->setEngineSuggestions(m_engineSuggestions.get());
         m_contentBlocker = std::make_unique<omaweb::ContentBlocker>(m_dataRoot->path());
         m_imageProbe = std::make_unique<ImageProbe>(m_dataRoot->filePath(QStringLiteral("images")));
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));
@@ -428,6 +463,10 @@ public slots:
             QStringLiteral("engineSecureDns"), &m_engineSecureDns);
         engine->rootContext()->setContextProperty(QStringLiteral("httpsOnly"), m_httpsOnly.get());
         engine->rootContext()->setContextProperty(
+            QStringLiteral("engineSuggestions"), m_engineSuggestions.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("suggestServer"), &m_suggestServer);
+        engine->rootContext()->setContextProperty(
             QStringLiteral("engineWebRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
@@ -479,6 +518,7 @@ public slots:
         m_windowManager.reset();
         m_agentSpaceProbe.reset();
         m_browser.reset();
+        m_engineSuggestions.reset();
         m_agentActivity.reset();
         m_contentBlocker.reset();
         m_secureDns.reset();
@@ -495,6 +535,8 @@ private:
     DesktopProbe m_desktopProbe;
     WindowFocusProbe m_windowFocusProbe;
     std::unique_ptr<QTemporaryDir> m_dataRoot;
+    SuggestServerProbe m_suggestServer;
+    std::unique_ptr<omaweb::EngineSuggestions> m_engineSuggestions;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<AgentSpaceProbe> m_agentSpaceProbe;
     std::unique_ptr<omaweb::AgentActivityLog> m_agentActivity;

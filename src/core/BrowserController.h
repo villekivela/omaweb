@@ -10,7 +10,9 @@
 #include "TabListModel.h"
 #include "WindowCapabilities.h"
 
+#include <QNetworkReply>
 #include <QObject>
+#include <QPointer>
 #include <QThread>
 #include <QHash>
 #include <QSet>
@@ -26,6 +28,7 @@
 
 namespace omaweb {
 
+class EngineSuggestions;
 class HistorySearch;
 class ThreadedSessionStore;
 
@@ -349,6 +352,17 @@ public:
     // Holds every search open for this long. Only a test sets it, to have
     // input arrive while a search is still running.
     Q_INVOKABLE void setHistorySearchDelayForTests(int milliseconds);
+    // The Engine suggestion setting this window reads. A window that is
+    // never given one never asks.
+    void setEngineSuggestions(EngineSuggestions *suggestions);
+    // The Omnibar's Engine suggestions for `text`, as Return would search it.
+    // Every keystroke may ask; a request goes out once typing pauses, and
+    // only the answer to the latest reaches engineSuggestionsReady. Text that
+    // has nothing to ask is answered at once with no suggestions.
+    Q_INVOKABLE void requestEngineSuggestions(const QString &text);
+    // Abandons what was asked and not yet answered: the Omnibar has closed or
+    // left the text it asked about.
+    Q_INVOKABLE void cancelEngineSuggestions();
     Q_INVOKABLE QVariantList history(const QString &query, int limit = 500) const;
     Q_INVOKABLE bool deleteHistoryVisit(qint64 id);
     Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
@@ -358,9 +372,15 @@ public:
     Q_INVOKABLE QVariantMap searchEngine(const QString &id) const;
     Q_INVOKABLE QVariantList searchEnginePresets() const;
     Q_INVOKABLE bool addSearchEnginePreset(const QString &id);
-    Q_INVOKABLE bool addSearchEngine(
-        const QString &name, const QString &queryUrl, const QString &keyword = {});
+    // An empty suggest URL is an engine that offers no Engine suggestions.
+    Q_INVOKABLE bool addSearchEngine(const QString &name, const QString &queryUrl,
+        const QString &keyword = {}, const QString &suggestUrl = {});
     Q_INVOKABLE bool deleteSearchEngine(const QString &id);
+    // The address that searches one engine for `terms`, fully encoded, or
+    // empty for an engine that is not configured. Whatever the terms read
+    // as, this is a search: an Engine suggestion that looks like an address
+    // is still one.
+    Q_INVOKABLE QString searchAddress(const QString &engineId, const QString &terms) const;
     Q_INVOKABLE bool setDefaultSearchEngine(const QString &id);
     // What committing `text` would search: `engineId`, `engineName`, the
     // `terms`, and the lowercased `keyword` that chose the engine, empty when
@@ -545,6 +565,11 @@ signals:
     // The suggestions for the request the Omnibar is still waiting on. A
     // Private window is answered with none.
     void historySuggestionsReady(const QVariantList &suggestions);
+    // The answer to the latest Engine suggestion request: the `engineId`,
+    // `engineName` and `siteUrl` of the engine asked, the `terms` it was asked
+    // for, and at most four `suggestions`, none of them the terms again.
+    // Empty suggestions for anything that was not asked or not answered.
+    void engineSuggestionsReady(const QVariantMap &answer);
     // Carried to the search thread. Nothing outside this class connects them.
     void historySearchRequested(
         const QString &spaceId, const QString &text, int limit, quint64 generation);
@@ -566,9 +591,18 @@ private:
         QUrl iconUrl;
         bool audible = false;
     };
+    // One Engine suggestion request: the engine asked and the terms it is
+    // asked for, which is what its answer names.
+    struct EngineSuggestionRequest {
+        QVariantMap engine;
+        QString terms;
+    };
 
     void initialize();
     void startHistorySearch(const QString &text, int limit);
+    void askEngineForSuggestions();
+    void answerEngineSuggestions(
+        const EngineSuggestionRequest &request, const QStringList &suggestions);
     void historySearchAnswered(
         const QString &spaceId, const QVariantList &suggestions, quint64 generation);
     void ensureDefaultSpace();
@@ -654,6 +688,14 @@ private:
     // The search, on the store's thread. Absent in a Private window, which
     // has no history to search.
     HistorySearch *m_historySearch = nullptr;
+    QPointer<EngineSuggestions> m_engineSuggestions;
+    // Engine suggestions wait for typing to pause, then ask once. The
+    // generation names the request the Omnibar is waiting for, so an answer
+    // to text the reader has typed past is dropped when it arrives.
+    QTimer m_engineSuggestionPause;
+    QPointer<QNetworkReply> m_engineSuggestionReply;
+    quint64 m_engineSuggestionGeneration = 0;
+    EngineSuggestionRequest m_engineSuggestionRequest;
     // Which request the interface is waiting for. A result carrying an earlier
     // generation belongs to input the reader has already replaced.
     quint64 m_historyGeneration = 0;

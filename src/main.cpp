@@ -15,6 +15,7 @@
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
 #include "FontSettings.h"
+#include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
 #include "SecureDns.h"
@@ -268,8 +269,12 @@ int main(int argc, char *argv[])
         // better than none, so this carries on as an ordinary launch.
     }
 
+    // Before the browser that asks through it, so it is still there while the
+    // browser lets go of a request it has in flight.
+    omaweb::EngineSuggestions engineSuggestions(configRoot());
     omaweb::BrowserController browser(
         omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")), configRoot());
+    browser.setEngineSuggestions(&engineSuggestions);
     // The Agent socket is always open for browser commands, and Allow agents
     // decides what else it answers. It opens before the shell loads, so a
     // temporary Agent Space a crash left behind is gone before anything shows
@@ -429,6 +434,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(QStringLiteral("httpsOnly"), &httpsOnly);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineSuggestions"), &engineSuggestions);
     engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);
     engine.rootContext()->setContextProperty(QStringLiteral("secureDns"), &secureDns);
     engine.rootContext()->setContextProperty(QStringLiteral("engineSecureDns"), &engineSecureDns);

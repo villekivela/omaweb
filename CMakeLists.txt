@@ -242,6 +242,8 @@ add_library(omaweb-core STATIC
     src/core/HistoryQuery.h
     src/core/EnginePaths.cpp
     src/core/EnginePaths.h
+    src/core/EngineSuggestions.cpp
+    src/core/EngineSuggestions.h
     src/core/ExtensionInstaller.cpp
     src/core/ExtensionInstaller.h
     src/core/ExtensionPackage.cpp
@@ -1266,6 +1268,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-global-privacy-control-tests)
     add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
+
+    qt_add_executable(omaweb-engine-suggestions-tests tests/core/tst_enginesuggestions.cpp)
+    target_link_libraries(omaweb-engine-suggestions-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-engine-suggestions-tests)
+    add_test(NAME omaweb-engine-suggestions COMMAND omaweb-engine-suggestions-tests)
 
     qt_add_executable(omaweb-https-only-tests tests/core/tst_httpsonly.cpp)
     target_link_libraries(omaweb-https-only-tests PRIVATE omaweb-core Qt6::Test)

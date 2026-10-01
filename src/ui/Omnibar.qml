@@ -24,6 +24,9 @@ Item {
     property bool newTabIntent: false
     property string presetText: ""
     property var suggestions: []
+    // The browser's latest Engine suggestion answer: the engine it asked,
+    // the terms, and that engine's proposals, four at most.
+    property var engineSuggestions: ({})
 
     // The item to sample for the blur. It must not be an ancestor of this
     // panel, or the effect source would feed on its own output.
@@ -223,6 +226,10 @@ Item {
         if (!commandScope)
             rank();
     }
+    onEngineSuggestionsChanged: {
+        if (!commandScope)
+            rank();
+    }
 
     function refresh() {
         if (commandScope || browser === null) {
@@ -304,7 +311,7 @@ Item {
                 continue;
             next.push(ranked[index].row);
         }
-        rows = next;
+        rows = next.concat(proposedRows());
         selected = named === null ? -1 : next.indexOf(named);
     }
 
@@ -328,6 +335,71 @@ Item {
         const ordered = local.concat(away);
         for (let slot = 0; slot < slots.length; ++slot)
             ranked[slots[slot]] = ordered[slot];
+    }
+
+    // Engine suggestions come after every row of the reader's own, and only
+    // for the search the text makes now. An answer stays listed while the
+    // reader types on past the terms it was asked for, so the rows do not
+    // blink out on each keystroke, but not once the text has left them or a
+    // keyword has chosen another engine. A proposal of the terms themselves
+    // is the typed text again, which Return already is.
+    function proposedRows() {
+        const answer = engineSuggestions;
+        const terms = (intent.terms || "").toLowerCase();
+        if (!answer.suggestions || terms.length === 0 || answer.engineId !== intent.engineId)
+            return [];
+        if (!terms.startsWith(answer.terms.toLowerCase()))
+            return [];
+        return answer.suggestions.filter(function (suggestion) {
+            return suggestion.toLowerCase() !== terms;
+        }).map(function (suggestion) {
+            return {
+                "kind": "suggestion",
+                "title": suggestion,
+                "typed": intent.terms,
+                "engineId": answer.engineId,
+                "engineName": answer.engineName,
+                "siteUrl": answer.siteUrl
+            };
+        });
+    }
+
+    // What the engine proposed beyond what was typed is bold. The proposal
+    // is the engine's text, so it is escaped before any markup is added:
+    // styled text would otherwise draw what an engine sent as tags.
+    function proposalMarkup(proposal, typed) {
+        const kept = proposal.toLowerCase().startsWith(typed.toLowerCase()) ? typed.length : 0;
+        return escaped(proposal.substring(0, kept)) + "<b>" + escaped(proposal.substring(kept))
+                + "</b>";
+    }
+
+    // What a screen reader hears for a row: what committing it does, and to
+    // what.
+    function spokenName(row, title) {
+        if (row.kind === "suggestion")
+            return "Search " + row.engineName + " for " + title;
+        const verbs = {
+            "tab": "Switch to tab ",
+            "space": "Switch to Space ",
+            "history": "Open history result ",
+            "keyword": "Search ",
+            "command": "Run "
+        };
+        return verbs[row.kind] + title;
+    }
+
+    // A command shows where the typed letters fell and a proposal what it
+    // adds to them. Every other title is plain text.
+    function titleText(row, title) {
+        if (row.kind === "command")
+            return commands.highlight(title, input.text);
+        if (row.kind === "suggestion")
+            return proposalMarkup(title, row.typed);
+        return title;
+    }
+
+    function escaped(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     function asCommand(action) {
@@ -436,6 +508,12 @@ Item {
             const row = rows[selected];
             if (row.kind === "history") {
                 root.committed(row.url);
+                return;
+            }
+            if (row.kind === "suggestion") {
+                // A search of the engine that proposed it, whatever it
+                // reads as: never an address to open.
+                root.committed(browser.searchAddress(row.engineId, row.title));
                 return;
             }
             if (row.kind === "keyword") {
@@ -831,10 +909,11 @@ Item {
                                                    === "history" ? root.commands.host(
                                                                        modelData.url) : ""
                     // The site a tile draws: the page for a tab or a history
-                    // row, the engine's own site for a keyword.
-                    readonly property string site: modelData.kind === "keyword" ? modelData.siteUrl :
-                                                                                  (modelData.url
-                                                                                   || "")
+                    // row, the engine's own site for a keyword or an Engine
+                    // suggestion.
+                    readonly property string site: modelData.kind === "keyword" || modelData.kind
+                                                   === "suggestion" ? modelData.siteUrl : (
+                                                                          modelData.url || "")
                     // What committing the row does, at its right edge. A
                     // command runs, which its keys already say.
                     readonly property string action: ({
@@ -842,6 +921,7 @@ Item {
                                                           "space": "switch space →",
                                                           "history": "open →",
                                                           "keyword": "search →",
+                                                          "suggestion": "search →",
                                                           "command": ""
                                                       })[modelData.kind]
                     // The keys that reach a command without the Omnibar, and a
@@ -862,15 +942,10 @@ Item {
                     width: rowList.width
                     height: 28
                     Accessible.role: Accessible.Button
-                    Accessible.name: ({
-                                          "tab": "Switch to tab ",
-                                          "space": "Switch to Space ",
-                                          "history": "Open history result ",
-                                          "keyword": "Search ",
-                                          "command": "Run "
-                                      })[modelData.kind] + row.title + (row.spaceName.length > 0
-                                                                        ? " in " + row.spaceName :
-                                                                          "")
+                    Accessible.name: root.spokenName(modelData, row.title) + (row.spaceName.length
+                                                                              > 0 ? " in "
+                                                                                    + row.spaceName :
+                                                                                    "")
                     // The row shows a history result's host; the whole address
                     // is still there to be heard.
                     Accessible.description: modelData.kind === "history" ? modelData.url : ""
@@ -970,11 +1045,9 @@ Item {
                                                                                         rowText.sharedWidth
                                                                                         / 2) + 10 :
                                                                                     0))
-                            text: modelData.kind === "command" ? root.commands.highlight(row.title,
-                                                                                         input.text) :
-                                                                 row.title
-                            textFormat: modelData.kind === "command" ? Text.StyledText :
-                                                                       Text.PlainText
+                            text: root.titleText(modelData, row.title)
+                            textFormat: modelData.kind === "command" || modelData.kind
+                                        === "suggestion" ? Text.StyledText : Text.PlainText
                             color: row.usable ? root.colors.text : root.colors.mutedText
                             opacity: row.usable ? 1 : 0.6
                             elide: Text.ElideRight

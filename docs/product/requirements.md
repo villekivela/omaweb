@@ -195,13 +195,29 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the split back. While the Start page is on show, `Primary+L` and `o` focus its Omnibar.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
   search keywords, and browser commands in one list. The tab on show is never a row, and a Private
-  window lists no Spaces and no history. Remote search suggestions are off by default.
+  window lists no Spaces and no history.
 - The Omnibar searches every Space's open tabs. The active Space's tab rows come before any other
   Space's, however weakly they hold the typed text, and the other Spaces' follow in Space order. A
   tab row from another Space names its Space after the host, in the Space's colour, and committing
   it switches to that Space with the tab on show as one action: a tab the Space no longer holds
   leaves the reader where they were. The rows are read from what the session keeps of each Space, so
   listing them resumes, loads or thaws no page. A Private window lists only its own tabs.
+- Engine suggestions, an installation-wide setting in Settings' network section, are off by default
+  and stay out of Sync. With them on, the Omnibar asks a search engine for Engine suggestions only
+  when Return on the current text would search: never for an address such as `github.com/foo` or
+  `localhost:8080`, in command scope, for empty terms, or in a Private window. It asks the engine in
+  the keyword chip, or the default engine, and only one with a suggest URL. It waits about 150 ms
+  after the last keystroke, drops an answer for text that is no longer current, and gives up after
+  about a second. A failed or slow answer lists nothing and reports nothing. The request goes
+  through the browser's own network client with no cookies, no Space and the `Omaweb` user agent,
+  and only an OpenSearch suggestions answer (`["typed", ["s1", "s2"]]`) is read.
+- At most four Engine suggestion rows list below every local row, and one equal to the typed terms
+  is dropped. A row shows the proposing engine's site tile, drawn as a keyword row's is, then the
+  suggestion with the typed prefix in regular weight and the rest in bold, and `search →` at its
+  right edge. Its screen-reader name is "Search <engine> for <suggestion>". Choosing it searches
+  that engine for the suggestion, which is never opened as an address even when it looks like one.
+  The Settings switch's note names the default engine, or says that engine doesn't offer
+  suggestions.
 - Each Omnibar row leads with a picture of what it names. A tab row draws the site's tile as the
   sidebar does, following the Use favicons and tint settings, so with favicons off it is the host
   code in the site's tint. A history row draws the same tile for its page and a keyword row for its
@@ -325,11 +341,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Settings clears selected cookies, storage, cache, permissions, and history for one Space and time
   range by default. Clearing every Space is a separate explicit choice. Deleting a Space removes all
   of its browser-managed data after confirmation.
-- A configurable local search-engine list stores a name, query URL, and optional keyword. Omaweb
-  ships DuckDuckGo (`d`), Google (`g`), Bing (`b`), Brave Search (`br`), Kagi (`k`), Ecosia (`e`)
-  and Startpage (`sp`) configured, with DuckDuckGo as the default. A list saved before they shipped
-  is given the ones it lacks once, and an engine deleted afterwards stays deleted. Remote
-  suggestions remain off.
+- A configurable local search-engine list stores a name, query URL, optional suggest URL, and
+  optional keyword. Omaweb ships DuckDuckGo (`d`), Google (`g`), Bing (`b`), Brave Search (`br`),
+  Kagi (`k`), Ecosia (`e`) and Startpage (`sp`) configured, with DuckDuckGo as the default. A list
+  saved before they shipped is given the ones it lacks once, and an engine deleted afterwards stays
+  deleted. Each ships with a suggest URL that answers in OpenSearch suggestions JSON, except Kagi,
+  whose endpoint needs a subscriber's session token. A list saved before suggest URLs existed gives
+  a shipped engine its suggest URL once, and only while its query URL is still the shipped one. The
+  add-engine form takes a suggest URL with `{query}` between the query URL and the keyword. Left
+  empty, the engine offers no Engine suggestions.
 - A keyword is matched case-insensitively and stored lowercased, so two keywords that differ only in
   case cannot both be saved. The Omnibar names the engine a typed keyword selects while it is typed:
   the space after the keyword moves the engine into a chip ahead of the terms, Backspace on empty
