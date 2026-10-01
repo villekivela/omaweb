@@ -196,6 +196,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
   search keywords, and browser commands in one list. The tab on show is never a row, and a Private
   window lists no Spaces and no history.
+- The Omnibar searches every Space's open tabs. The active Space's tab rows come before any other
+  Space's, however weakly they hold the typed text, and the other Spaces' follow in Space order. A
+  tab row from another Space names its Space after the host, in the Space's colour, and committing
+  it switches to that Space with the tab on show as one action: a tab the Space no longer holds
+  leaves the reader where they were. The rows are read from what the session keeps of each Space, so
+  listing them resumes, loads or thaws no page. A Private window lists only its own tabs.
 - Engine suggestions, an installation-wide setting in Settings' network section, are off by default
   and stay out of Sync. With them on, the Omnibar asks a search engine for Engine suggestions only
   when Return on the current text would search: never for an address such as `github.com/foo` or
@@ -218,8 +224,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   engine's site. They take the favicon of an open tab on the same site in the same window, and
   otherwise the one the Space stored for the page or its site, as a restored tab does, with the host
   code and tint for a site the Space never loaded. They never show another Space's or window's
-  artwork. A Space row shows the Space's colour, and a command row its group's symbol. Omaweb never
-  fetches an icon from the network to fill a row.
+  artwork. Another Space's tab row draws the favicon that Space stored for its page, as the Space's
+  outline does once it is on show. A Space row shows the Space's colour, and a command row its
+  group's symbol. Omaweb never fetches an icon from the network to fill a row.
 - A tab or history row reads as the title, then the host in the muted colour; a history row gives
   its full address to a screen reader as the row's description. At its right edge a row says what
   committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by
@@ -227,7 +234,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   its keys there instead. Every row's accessible name still says what it does.
 - `Return` commits the typed address or search, even when a row matches elsewhere in its title. When
   an open tab's title or host starts with the typed text, that tab's row is selected instead and
-  `Return` switches to it. A field still holding the preset address commits it as typed.
+  `Return` switches to it, and to another Space's tab only when no tab of the active Space holds the
+  typed text. A field still holding the preset address commits it as typed.
 - `Primary+K` and `:` open the Omnibar in command scope, shown as a leading `:` in the field: every
   action Omaweb can perform is fuzzy-searchable there, and each result shows the keys that invoke
   it, so the Omnibar is also how the keymap is learned. Its rows look like the rest of the

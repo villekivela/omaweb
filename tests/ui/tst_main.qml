@@ -31,6 +31,25 @@ TestCase {
         signalName: "widthChanged"
     }
 
+    // Whether a page of a Space that is away stopped or started while it was
+    // only being listed.
+    SignalSpy {
+        id: awayPageSpy
+        signalName: "pageFrozenChanged"
+    }
+
+    SignalSpy {
+        id: otherAwayPageSpy
+        signalName: "pageFrozenChanged"
+    }
+
+    // Whether the Space on show changed, even for a moment, while the other
+    // Spaces' tabs were only being listed.
+    SignalSpy {
+        id: listingSpaceSpy
+        signalName: "activeSpaceChanged"
+    }
+
     Component {
         id: windowComponent
         Omaweb.Main {}
@@ -6608,6 +6627,179 @@ TestCase {
         browser.activateTab(startTabId);
     }
 
+    // Two Spaces away from the one on show, each with a page the reader
+    // opened and then left, and a tab of the Space on show beside the start.
+    // Long enough that its row has to give way for the Space's name.
+    readonly property string alphaTitle: "The orbit plan for boards, with every milestone, owner "
+                                         + "and date the team agreed on over the spring"
+
+    function openTabsInOtherSpaces() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const homeSpaceId = browser.activeSpaceId;
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://notes.example/orbit");
+        const localTabId = browser.activeTabId;
+        browser.reportTabPageState(localTabId, "https://notes.example/orbit", "Notes on orbit", "",
+                                   false, false);
+        browser.activateTab(startTabId);
+        const alphaSpaceId = browser.createSpace("Alpha");
+        verify(browser.switchSpace(alphaSpaceId));
+        openPage("https://plans.example/orbit");
+        const alphaTabId = browser.activeTabId;
+        browser.reportTabPageState(alphaTabId, "https://plans.example/orbit", alphaTitle, "", false,
+                                   false);
+        const alphaEngine = engineHost.item;
+        const betaSpaceId = browser.createSpace("Beta");
+        verify(browser.switchSpace(betaSpaceId));
+        openPage("https://boards.example/orbit");
+        const betaTabId = browser.activeTabId;
+        browser.reportTabPageState(betaTabId, "https://boards.example/orbit", "Orbit board", "",
+                                   false, false);
+        const betaEngine = engineHost.item;
+        verify(browser.switchSpace(homeSpaceId));
+        tryCompare(alphaEngine, "pageFrozen", true);
+        tryCompare(betaEngine, "pageFrozen", true);
+        return {
+            homeSpaceId: homeSpaceId,
+            startTabId: startTabId,
+            localTabId: localTabId,
+            alphaSpaceId: alphaSpaceId,
+            alphaTabId: alphaTabId,
+            alphaEngine: alphaEngine,
+            betaSpaceId: betaSpaceId,
+            betaTabId: betaTabId,
+            betaEngine: betaEngine
+        };
+    }
+
+    function closeTabsInOtherSpaces(opened) {
+        window.closeOmnibar();
+        verify(browser.switchSpace(opened.homeSpaceId));
+        verify(browser.deleteSpace(opened.alphaSpaceId, "Alpha"));
+        verify(browser.deleteSpace(opened.betaSpaceId, "Beta"));
+        browser.closeTab(opened.localTabId);
+        browser.activateTab(opened.startTabId);
+    }
+
+    // Every Space's open tabs are one list: the Space on show's first,
+    // however weakly they hold the text, then each other Space's in Space
+    // order, each naming its Space. Listing them wakes no page.
+    function test_omnibarListsTheTabsOfEverySpace() {
+        const opened = openTabsInOtherSpaces();
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const engineCount = Object.keys(engineHost.engines).length;
+        awayPageSpy.clear();
+        awayPageSpy.target = opened.alphaEngine;
+        otherAwayPageSpy.clear();
+        otherAwayPageSpy.target = opened.betaEngine;
+        listingSpaceSpy.clear();
+        listingSpaceSpy.target = browser;
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+
+        window.openOmnibar(false);
+        input.text = "orbit";
+        compare(omnibarRowsOf(panel, "tab").map(function (row) {
+            return row.argument;
+        }), [opened.localTabId, opened.alphaTabId, opened.betaTabId]);
+
+        const local = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]));
+        compare(findChild(local, "omnibarRowSpace").visible, false);
+        compare(local.Accessible.name, "Switch to tab Notes on orbit");
+
+        const away = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[1]));
+        const suffix = findChild(away, "omnibarRowSpace");
+        compare(suffix.visible, true);
+        compare(suffix.text, "Alpha");
+        const spaces = browser.spaces;
+        const alphaRow = spaces.index(spaces.rowCount() - 2, 0);
+        compare(spaces.data(alphaRow, Qt.UserRole + 2), "Alpha");
+        verify(Qt.colorEqual(suffix.color, spaces.data(alphaRow, Qt.UserRole + 3)));
+        compare(findChild(away, "omnibarRowTitle").text, alphaTitle);
+        compare(findChild(away, "omnibarRowHost").text, "plans.example");
+        compare(away.action, "switch tab →");
+        // The title gives way before the host, and the Space's name never
+        // does: it is drawn whole, at the title's size, inside the row's
+        // text.
+        const awayTitle = findChild(away, "omnibarRowTitle");
+        verify(awayTitle.truncated);
+        verify(!findChild(away, "omnibarRowHost").truncated);
+        compare(suffix.font.pixelSize, awayTitle.font.pixelSize);
+        compare(suffix.width, suffix.implicitWidth);
+        verify(suffix.x >= awayTitle.x + awayTitle.width);
+        verify(suffix.x + suffix.width <= suffix.parent.width);
+        compare(away.Accessible.name, "Switch to tab " + alphaTitle + " in Alpha");
+
+        compare(Object.keys(engineHost.engines).length, engineCount);
+        compare(awayPageSpy.count, 0);
+        awayPageSpy.target = null;
+        compare(otherAwayPageSpy.count, 0);
+        otherAwayPageSpy.target = null;
+        compare(listingSpaceSpy.count, 0);
+        listingSpaceSpy.target = null;
+        compare(opened.alphaEngine.pageFrozen, true);
+        compare(opened.betaEngine.pageFrozen, true);
+        compare(browser.activeSpaceId, opened.homeSpaceId);
+
+        closeTabsInOtherSpaces(opened);
+    }
+
+    // Committing another Space's tab switches to that Space with the tab on
+    // show, in one step, and the page it wakes is the one that was left.
+    // Text that starts its title names it for Return when no tab of the Space
+    // on show holds the text.
+    function test_omnibarSwitchesSpaceAndSelectsTheTab() {
+        const opened = openTabsInOtherSpaces();
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+
+        // A tab of the Space on show that holds the text keeps Return on the
+        // typed text, whatever another Space's tab holds.
+        window.openOmnibar(false);
+        input.text = "orbit";
+        compare(panel.selected, -1);
+
+        // The tab the text starts is the one named, even where another
+        // Space's weaker match stands above it in Space order.
+        input.text = "board";
+        compare(omnibarRowsOf(panel, "tab").map(function (row) {
+            return row.argument;
+        }), [opened.alphaTabId, opened.betaTabId]);
+        verify(panel.selected >= 0);
+        compare(panel.rows[panel.selected].argument, opened.betaTabId);
+
+        input.text = "orbit b";
+        compare(omnibarRowsOf(panel, "tab").length, 1);
+        verify(panel.selected >= 0);
+        compare(panel.rows[panel.selected].argument, opened.betaTabId);
+        panel.accept();
+        tryCompare(window, "omnibarShown", false);
+        compare(browser.activeSpaceId, opened.betaSpaceId);
+        compare(browser.activeTabId, opened.betaTabId);
+        tryVerify(function () {
+            return engineHost.item === opened.betaEngine;
+        });
+        tryCompare(opened.betaEngine, "pageFrozen", false);
+        compare(opened.alphaEngine.pageFrozen, true);
+
+        // The Space it came from is now one of the others, whether the
+        // Omnibar opens after the switch or was open through it.
+        window.openOmnibar(false);
+        input.text = "orbit";
+        compare(omnibarRowsOf(panel, "tab").map(function (row) {
+            return row.argument;
+        }), [opened.localTabId, opened.alphaTabId]);
+        verify(browser.switchSpace(opened.alphaSpaceId));
+        compare(window.omnibarShown, true);
+        compare(omnibarRowsOf(panel, "tab").map(function (row) {
+            return row.argument;
+        }), [opened.localTabId, opened.betaTabId]);
+
+        closeTabsInOtherSpaces(opened);
+    }
+
     // Spaces and commands are named in the same list, each row saying what
     // committing it does.
     function test_omnibarListsSpacesAndCommandsBesideTheAddress() {
@@ -7210,6 +7402,37 @@ TestCase {
         });
         verify(browser.deleteSpace(probeSpaceId, "Private probe space"));
         verify(browser.deleteHistoryOrigin("https://private-probe.example/"));
+    }
+
+    // A Private window's own tabs are the only ones its Omnibar lists; the
+    // ordinary Spaces' stay in the ordinary window.
+    function test_aPrivateOmnibarListsOnlyItsOwnTabs() {
+        const opened = openTabsInOtherSpaces();
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateSession = privateBrowser.windowBrowser;
+        privateSession.openInput("https://orbit-private.example/one", false);
+        const privateTabId = privateSession.activeTabId;
+        privateSession.openInput("https://elsewhere-private.example/two", true);
+        const panel = findChild(privateBrowser.contentItem, "omnibar");
+        const input = findChild(privateBrowser.contentItem, "omnibarInput");
+
+        privateBrowser.openOmnibar(false);
+        input.text = "orbit";
+        compare(omnibarRowsOf(panel, "tab").map(function (row) {
+            return row.argument;
+        }), [privateTabId]);
+        privateBrowser.closeOmnibar();
+
+        privateSession.closeActiveTab();
+        privateSession.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        closeTabsInOtherSpaces(opened);
     }
 
     // A Private window's Start page drives with the lights off, and the

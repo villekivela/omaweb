@@ -1099,6 +1099,73 @@ bool BrowserController::switchSpace(const QString &spaceId)
     return true;
 }
 
+// An away Space's pages are frozen or stopped, and the store is what its
+// outline shows once it is on show again.
+QVariantList BrowserController::awaySpaceTabs() const
+{
+    QVariantList listed;
+    if (!m_capabilities.allows(Capability::Spaces)) {
+        return listed;
+    }
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == m_activeSpaceId) {
+            continue;
+        }
+        auto tabs = m_store->loadTabs(space.id);
+        showRestoredPages(tabs);
+        for (const auto &tab : tabs) {
+            if (isBlank(tab.url)) {
+                continue;
+            }
+            listed.append(QVariantMap {
+                {QStringLiteral("tabId"), tab.id},
+                {QStringLiteral("spaceId"), space.id},
+                {QStringLiteral("spaceName"), space.name},
+                {QStringLiteral("spaceColor"), space.color},
+                {QStringLiteral("title"), tab.title},
+                {QStringLiteral("url"), tab.url},
+                {QStringLiteral("iconUrl"), tab.iconUrl},
+            });
+        }
+    }
+    return listed;
+}
+
+bool BrowserController::activateTabInSpace(const QString &spaceId, const QString &tabId)
+{
+    if (spaceId != m_activeSpaceId) {
+        if (!m_capabilities.allows(Capability::Spaces)) {
+            return false;
+        }
+        auto tabs = m_store->loadTabs(spaceId);
+        const auto chosen = std::ranges::find(tabs, tabId, &TabState::id);
+        if (chosen == tabs.end()) {
+            return false;
+        }
+        // The Space is recorded as left on the chosen tab, so the switch
+        // arrives on it rather than first showing the tab the reader last
+        // left there. Entering a split's half is what the split is later
+        // re-entered on, as it is for a tab chosen in the Space on show.
+        for (auto &tab : tabs) {
+            tab.active = tab.id == tabId;
+            if (!chosen->splitPartnerId.isEmpty() && tab.id == chosen->splitPartnerId) {
+                tab.splitFocused = false;
+            }
+        }
+        if (!chosen->splitPartnerId.isEmpty()) {
+            chosen->splitFocused = true;
+        }
+        if (!saveAwayTabs(spaceId, std::move(tabs)) || !switchSpace(spaceId)) {
+            return false;
+        }
+    }
+    if (!m_tabs.find(tabId)) {
+        return false;
+    }
+    activateTab(tabId);
+    return true;
+}
+
 bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
 {
     if (!m_capabilities.allows(Capability::Spaces)) {
@@ -1998,14 +2065,7 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId, const 
 // which may mean changing Space first.
 bool BrowserController::activateNotificationTarget(const QString &spaceId, const QString &tabId)
 {
-    if (!spaceId.isEmpty() && spaceId != m_activeSpaceId && !switchSpace(spaceId)) {
-        return false;
-    }
-    if (!m_tabs.find(tabId)) {
-        return false;
-    }
-    activateTab(tabId);
-    return true;
+    return activateTabInSpace(spaceId.isEmpty() ? m_activeSpaceId : spaceId, tabId);
 }
 
 QString BrowserController::originInteractionKey(const QUrl &url) const
