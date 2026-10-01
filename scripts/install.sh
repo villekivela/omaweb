@@ -93,7 +93,8 @@ main() {
     fi
     say ""
     say "2. Add the key the packages are signed with to pacman's keyring and sign it locally,"
-    say "   unless that is done already. It came from $KEY_ADDRESS"
+    say "   unless that is done already. It came from"
+    say "     $KEY_ADDRESS"
     say "   and is the one key it has to be:"
     say "     $FINGERPRINT"
     say ""
