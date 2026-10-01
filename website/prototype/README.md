@@ -22,14 +22,14 @@ frame and the signs read as an ordinary list.
 The Scenes are treatments of the night drive, for comparing live. The user's pick is `crt-pixel`,
 the default:
 
-| `?scene=`   | Name           | What it changes                                                          |
-| ----------- | -------------- | ------------------------------------------------------------------------ |
-| `vector`    | Vector         | Thin crisp lines in the accent, a deep sky, sparse stars, fog; no pixels |
-| `led`       | LED matrix     | A coarse sign of round LEDs with soft bloom; the headline in the matrix  |
-| `dither`    | Dither         | One bit: the theme's ground or accent per pixel, by an 8 by 8 Bayer      |
-| `pixel`     | Refined pixel  | Today's road with larger pixels, five theme tones, no seams or halo      |
-| `crt-pixel` | CRT pixel road | Refined pixel's road, nearest-neighbour, through the CRT's glass; 30 fps |
-| `crt`       | CRT            | Scanlines, phosphor bloom, a rolling refresh band and a faint flicker    |
+| `?scene=`   | Name           | What it changes                                                                     |
+| ----------- | -------------- | ----------------------------------------------------------------------------------- |
+| `vector`    | Vector         | Thin crisp lines in the accent, a deep sky, sparse stars, fog; no pixels            |
+| `led`       | LED matrix     | A coarse sign of round LEDs with soft bloom; the headline in the matrix             |
+| `dither`    | Dither         | One bit: the theme's ground or accent per pixel, by an 8 by 8 Bayer                 |
+| `pixel`     | Refined pixel  | Today's road with larger pixels, five theme tones, no seams or halo                 |
+| `crt-pixel` | CRT pixel road | The road in full colour at a 4 px pitch, nearest-neighbour, through the CRT; 30 fps |
+| `crt`       | CRT            | Scanlines, phosphor bloom, a rolling refresh band and a faint flicker               |
 
 The CRT's flicker darkens the picture by 2 to 4.5 percent, never a flash, and like the band it stops
 for reduced motion.

@@ -110,17 +110,18 @@
     },
   });
 
-  // The pixel road through the glass: the Refined pixel picture, painted at
-  // its own six-pixel resolution and scaled up nearest-neighbour, so each
-  // road pixel is a crisp block the scanlines cross.
-  var PIXEL = 6;
+  // The pixel road through the glass: the road in its full colours, its
+  // gradients and the sun's halo kept, painted at the Start page's own
+  // four-pixel pitch and scaled up nearest-neighbour, so each road pixel is a
+  // crisp block the scanlines cross and the bloom still has light to spread.
+  var PIXEL = 4;
 
   window.OmawebScenes.register({
     id: "crt-pixel",
     name: "CRT pixel road",
     pitch: "device",
-    // Six-pixel blocks move in whole steps; 30 frames a second is all the
-    // motion shows, at half the cost.
+    // Pixel blocks move in whole steps; 30 frames a second is all the motion
+    // shows, at half the cost.
     fps: 30,
     draw: function (ctx, input) {
       var scale = 1 / input.pitch;
@@ -132,18 +133,9 @@
         Math.ceil(input.width / scale / PIXEL),
         Math.ceil(input.height / scale / PIXEL),
       );
-      var p = pic.getContext("2d", { willReadFrequently: true });
-      window.OmawebPixel.paint(
-        p,
-        {
-          width: pic.width,
-          height: pic.height,
-          pitch: PIXEL,
-          palette: input.palette,
-          dark: input.dark,
-        },
-        R.motion(input, 0.8),
-      );
+      var p = pic.getContext("2d");
+      p.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
+      R.fill(p, R.geometry(pic.width * PIXEL, pic.height * PIXEL), c, R.motion(input, 0.8));
       glass(ctx, input, s, c, pic, false);
     },
   });
