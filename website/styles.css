@@ -567,12 +567,15 @@ a {
   list-style: none;
 }
 
+/* Eight rows on the Start page, set tight enough that the field still rests on the horizon and
+   the way in below it stays on a 900 pixel screen. */
 .omnibar__rows a {
   display: grid;
   grid-template-columns: 9.5rem 1fr auto;
   align-items: center;
   gap: 14px;
-  padding: 6px 16px;
+  padding: 4px 16px;
+  line-height: 1.4;
   border-left: 2px solid transparent;
   text-decoration: none;
 }
@@ -603,7 +606,7 @@ a {
 
 .start__below {
   position: absolute;
-  inset: auto 0 32px;
+  inset: auto 0 24px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -800,10 +803,11 @@ a {
   --w: 1360;
 }
 
+/* The sidebar's footer, the box ending at the capture's bottom edge. */
 .card__shot--agents {
   --x: 0;
-  --y: 735;
-  --w: 296;
+  --y: 700;
+  --w: 284;
 }
 
 /* The same window in three themes, a slice of each. */
