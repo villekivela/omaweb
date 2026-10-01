@@ -77,6 +77,55 @@ html[data-pv-variant]:not([data-pv-variant="current"]) body {
   image-rendering: pixelated;
 }
 
+/* The CRT glass a Scene can ask for: layers over its canvas, composited by
+   the browser. The canvas itself is the low-resolution picture, scaled up. */
+.scene-crt .scene-canvas {
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.crt-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.crt-bloom {
+  opacity: 0.22;
+}
+
+.crt-scan {
+  background: repeating-linear-gradient(transparent 0 2px, rgb(0 0 0 / 38%) 2px 3px);
+}
+
+.crt-band {
+  height: 120px;
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--fg) 5%, transparent),
+    transparent
+  );
+  will-change: transform;
+}
+
+/* A faint flicker, set each frame by the host: a few percent, never a flash. */
+.crt-flicker {
+  background: #000;
+  opacity: 0.03;
+}
+
+.crt-vignette {
+  background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-band {
+    display: none;
+  }
+}
+
 /* The dark seam between display pixels, as NightRoad.qml draws it. */
 .scene-seams::after {
   content: "";
@@ -525,4 +574,12 @@ html[data-pv-variant]:not([data-pv-variant="current"]) body {
 .pv [class] > figure,
 .pv [class] > article {
   min-width: 0;
+}
+
+/* Measurement runs: the Scene in one fixed box, so browsers compare. */
+html[data-perf] .dr-scene {
+  right: auto;
+  bottom: auto;
+  width: 1440px;
+  height: 900px;
 }

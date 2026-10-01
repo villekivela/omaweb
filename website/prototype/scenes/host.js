@@ -127,9 +127,64 @@
     this.canvas.style.setProperty("--pitch", pitch + "px");
     this.canvas.parentElement.style.setProperty("--pitch", pitch + "px");
     this.canvas.parentElement.classList.toggle("scene-seams", !!this.scene.seams);
+    this.glass();
     this.themed = readPalette(this.canvas);
     this.draw();
     this.update();
+  };
+
+  // A Scene that declares `glass: "crt"` is shown through a CRT the host
+  // composites over the canvas: scanlines, a bloom, a rolling band, a faint
+  // flicker and darker corners, as CSS layers the browser draws on the GPU.
+  // Only the bloom changes with the picture, and it is a tiny copy of it.
+  Host.prototype.glass = function () {
+    var frame = this.canvas.parentElement;
+    var want = this.scene && this.scene.glass === "crt";
+    frame.classList.toggle("scene-crt", !!want);
+    if (!want) {
+      if (this.bloom) {
+        frame.querySelectorAll(".crt-layer").forEach(function (layer) {
+          layer.remove();
+        });
+        this.bloom = null;
+      }
+      return;
+    }
+    if (!this.bloom) {
+      this.bloom = document.createElement("canvas");
+      this.bloom.className = "crt-layer crt-bloom";
+      frame.appendChild(this.bloom);
+      var made = {};
+      ["crt-scan", "crt-vignette"].forEach(function (name) {
+        var layer = document.createElement("div");
+        layer.className = "crt-layer " + name;
+        frame.appendChild(layer);
+        made[name] = layer;
+      });
+    }
+    this.bloom.width = Math.max(1, Math.ceil(this.canvas.width / 3));
+    this.bloom.height = Math.max(1, Math.ceil(this.canvas.height / 3));
+  };
+
+  // The CRT's refresh band rolling down every 7 s and its flicker, a few
+  // percent darker at most, drawn over the Scene's picture.
+  Host.prototype.crtMotion = function () {
+    var ctx = this.ctx;
+    var w = this.canvas.width;
+    var h = this.canvas.height;
+    var t = this.time;
+    var text = this.themed.palette.text;
+    var y = ((t / 7) % 1) * h * 1.4 - h * 0.2;
+    var reach = Math.max(4, h * 0.07);
+    var band = ctx.createLinearGradient(0, y - reach, 0, y + reach);
+    band.addColorStop(0, "rgba(255,255,255,0)");
+    band.addColorStop(0.5, "rgba(" + text.join(",") + ",0.05)");
+    band.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = band;
+    ctx.fillRect(0, y - reach, w, reach * 2);
+    var f = 0.02 + 0.025 * Math.abs(Math.sin(t * 37.1) * Math.sin(t * 11.3));
+    ctx.fillStyle = "rgba(0,0,0," + f.toFixed(3) + ")";
+    ctx.fillRect(0, 0, w, h);
   };
 
   // A new theme: the palette is read again and the Scene redraws, even when
@@ -178,6 +233,13 @@
     if (!this.stats) this.resetStats();
     var started = performance.now();
     this.drawScene();
+    if (this.bloom) {
+      // The band and the flicker are drawn into the small picture itself, on
+      // the Scene's clock: two more full-screen layers would be composited
+      // every frame for what a few pixels here show as well.
+      if (!still()) this.crtMotion();
+      this.bloom.getContext("2d").drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
+    }
     var spent = performance.now() - started;
     this.stats.draws += 1;
     this.stats.drawMs += spent;
@@ -207,7 +269,7 @@
       this.clock === "time" &&
       this.visible &&
       !document.hidden &&
-      document.hasFocus() &&
+      (document.hasFocus() || window.OmawebScenes.ignoreFocus) &&
       !still() &&
       this.scene &&
       this.scene.animated !== false
@@ -216,6 +278,8 @@
 
   Host.prototype.update = function () {
     var self = this;
+    // The glass's own motion stops with the Scene's.
+    this.canvas.parentElement.classList.toggle("scene-still", !this.running());
     if (this.running()) {
       if (this.frame) return;
       this.last = performance.now();

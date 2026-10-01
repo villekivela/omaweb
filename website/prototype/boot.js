@@ -231,6 +231,7 @@
     }
     bar();
     PV.setTheme(PV.theme);
+    if (params.get("perf") && OmawebScenes.hosts.length) measure();
   }
 
   function bar() {
@@ -310,6 +311,91 @@
     }
     drawer.classList.toggle("is-open", open);
   };
+
+  // PROTOTYPE measurement: `?perf=1` measures the Scene for 8 s at rest on the
+  // Start page, then 8 s while scrolling, and reports each to the local
+  // server as a GET it logs: frames drawn, main-thread milliseconds per draw,
+  // and the interval between drawn frames.
+  function measure() {
+    // The same work in every browser: a window not in front still draws, and
+    // the Scene fills one 1440 by 900 box whatever the window's size.
+    // `perf=idle` measures the page with its Scene not drawing: the floor.
+    OmawebScenes.ignoreFocus = params.get("perf") !== "idle";
+    document.documentElement.dataset.perf = "";
+    var host = OmawebScenes.hosts[0];
+    host.layout();
+    host.update();
+    var gaps = [];
+    var last = 0;
+    var watching = false;
+    var draw = host.draw;
+    host.draw = function () {
+      draw.call(host);
+      var now = performance.now();
+      if (watching && last) gaps.push(now - last);
+      last = now;
+    };
+    function phase(name, seconds, then) {
+      fetch("/__perf?start=" + name).catch(function () {});
+      OmawebScenes.parts = { pic: 0, glass: 0 };
+      host.resetStats();
+      gaps = [];
+      last = 0;
+      watching = true;
+      setTimeout(function () {
+        watching = false;
+        var s = host.stats;
+        var secs = (performance.now() - s.since) / 1000;
+        gaps.sort(function (a, b) {
+          return a - b;
+        });
+        var at = function (q) {
+          return gaps.length
+            ? gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * q))].toFixed(1)
+            : "-";
+        };
+        var report = [
+          "phase=" + name,
+          "ua=" +
+            encodeURIComponent(
+              navigator.userAgent.replace(
+                /.*(Firefox\/[\d.]+|Chrome\/[\d.]+|Version\/[\d.]+ Safari).*/,
+                "$1",
+              ),
+            ),
+          "viewport=" + innerWidth + "x" + innerHeight + "@" + devicePixelRatio,
+          "scene=" + PV.scene,
+          "fps=" + (s.draws / secs).toFixed(1),
+          "drawMs=" + (s.drawMs / Math.max(1, s.draws)).toFixed(2),
+          "maxMs=" + s.maxMs.toFixed(1),
+          "gapP50=" + at(0.5),
+          "gapP95=" + at(0.95),
+          "focus=" + document.hasFocus(),
+          "picMs=" + (((OmawebScenes.parts || {}).pic || 0) / Math.max(1, s.draws)).toFixed(2),
+          "glassMs=" + (((OmawebScenes.parts || {}).glass || 0) / Math.max(1, s.draws)).toFixed(2),
+        ].join("&");
+        fetch("/__perf?" + report).catch(function () {});
+        then();
+      }, seconds * 1000);
+    }
+    window.scrollTo(0, 0);
+    setTimeout(function () {
+      phase("hero", 8, function () {
+        var dir = 1;
+        var scroller = setInterval(function () {
+          if (window.scrollY > 2000) dir = -1;
+          if (window.scrollY < 200) dir = 1;
+          window.scrollBy(0, 14 * dir);
+        }, 16);
+        setTimeout(function () {
+          phase("scroll", 8, function () {
+            clearInterval(scroller);
+            window.scrollTo(0, 0);
+          });
+        }, 1000);
+      });
+    }, 4000);
+  }
 
   var css = document.createElement("link");
   css.rel = "stylesheet";

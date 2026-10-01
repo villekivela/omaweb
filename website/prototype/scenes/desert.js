@@ -11,7 +11,6 @@
 
   var D = window.OmawebDisplay;
   var R = window.OmawebRoad;
-  var CRT = window.OmawebCRT;
   var BLACK = [0, 0, 0];
   var WHITE = [255, 255, 255];
   var PIXEL = 4;
@@ -83,13 +82,20 @@
 
   var KINDS = [saguaro, rock, saguaro, sign, rock, saguaro];
 
-  function draw(ctx, input) {
+  // The scene in two layers: "still", everything that only changes with the
+  // size, the theme or an option, drawn once into a cached canvas; and
+  // "moving", the shooting star, the centre line, the roadside and the
+  // sun brightening as the reader navigates, drawn every frame over it.
+  function draw(ctx, input, layer) {
+    var still = layer === "still";
     var opts = input.options || {};
     var bands = Number(opts.bands) || 4;
     var g = R.geometry(input.width * PIXEL, input.height * PIXEL);
-    g.halfWidth = g.w * (ROADS[opts.road] || ROADS.wide);
+    g.halfWidth = g.w * (ROADS[opts.road] || ROADS.widest);
     var c = R.colours(input);
-    var m = R.motion(input, 0.8);
+    var m = still ? { travel: 0, speed: 1, lit: 0 } : R.motion(input, 0.8);
+
+    if (!still) return moving(ctx, input, g, c, m);
 
     // The sky, with about half the stars and a few of them brighter.
     var sky = ctx.createLinearGradient(0, 0, 0, g.horizonY);
@@ -103,29 +109,6 @@
       ctx.fillStyle = D.css(c.light, bright > 0.93 ? 1 : (0.25 + 0.6 * bright) * (1 - high * 0.8));
       ctx.fillRect(across * g.w, high * g.horizonY * 0.9, size, size);
     });
-
-    // A rare shooting star: one every fourteen seconds or so, for under a second.
-    if (!input.reducedMotion) {
-      var slot = Math.floor(input.time / 14);
-      var into = input.time - slot * 14;
-      if (into < 0.8 && hash(slot) > 0.35) {
-        var sx = (0.15 + 0.7 * hash(slot + 1)) * g.w;
-        var sy = (0.08 + 0.3 * hash(slot + 2)) * g.horizonY;
-        var run = into / 0.8;
-        var len = g.w * 0.12;
-        var hx = sx + len * run;
-        var hy = sy + len * 0.35 * run;
-        var trail = ctx.createLinearGradient(hx - len * 0.5, hy - len * 0.175, hx, hy);
-        trail.addColorStop(0, D.css(c.light, 0));
-        trail.addColorStop(1, D.css(D.mix(c.light, WHITE, 0.5), 1 - run * 0.6));
-        ctx.strokeStyle = trail;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(hx - len * 0.5, hy - len * 0.175);
-        ctx.lineTo(hx, hy);
-        ctx.stroke();
-      }
-    }
 
     // The sunrise glow, then the sun with its bands.
     var halo = ctx.createRadialGradient(g.vx, g.horizonY, 0, g.vx, g.horizonY, g.w * 0.55);
@@ -214,6 +197,40 @@
     line.addColorStop(1, D.css(c.glow, 0));
     ctx.fillStyle = line;
     ctx.fillRect(0, g.horizonY - 1, g.w, 2);
+  }
+
+  function moving(ctx, input, g, c, m) {
+    // The sun and its glow brighten as the reader navigates.
+    if (m.lit > 0.02) {
+      var halo = ctx.createRadialGradient(g.vx, g.horizonY, 0, g.vx, g.horizonY, g.w * 0.4);
+      halo.addColorStop(0, D.css(c.sunLow, 0.3 * m.lit));
+      halo.addColorStop(1, D.css(c.sunLow, 0));
+      ctx.fillStyle = halo;
+      ctx.fillRect(0, 0, g.w, g.h);
+    }
+
+    // A rare shooting star: one every fourteen seconds or so, for under a second.
+    if (!input.reducedMotion) {
+      var slot = Math.floor(input.time / 14);
+      var into = input.time - slot * 14;
+      if (into < 0.8 && hash(slot) > 0.35) {
+        var sx = (0.15 + 0.7 * hash(slot + 1)) * g.w;
+        var sy = (0.08 + 0.3 * hash(slot + 2)) * g.horizonY;
+        var run = into / 0.8;
+        var len = g.w * 0.12;
+        var hx = sx + len * run;
+        var hy = sy + len * 0.35 * run;
+        var trail = ctx.createLinearGradient(hx - len * 0.5, hy - len * 0.175, hx, hy);
+        trail.addColorStop(0, D.css(c.light, 0));
+        trail.addColorStop(1, D.css(D.mix(c.light, WHITE, 0.5), 1 - run * 0.6));
+        ctx.strokeStyle = trail;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(hx - len * 0.5, hy - len * 0.175);
+        ctx.lineTo(hx, hy);
+        ctx.stroke();
+      }
+    }
 
     // The dashed centre line, and only that, from the shared motion.
     var mark = D.css(D.mix(c.sunTop, WHITE, 0.35));
@@ -240,25 +257,15 @@
       KINDS[i](ctx, x, y, size);
     }
     ctx.globalAlpha = 1;
-
-    var v = ctx.createRadialGradient(
-      g.vx,
-      g.horizonY,
-      0,
-      g.vx,
-      g.horizonY,
-      Math.max(g.w, g.h) * 0.85,
-    );
-    v.addColorStop(0.45, "rgba(0,0,0,0)");
-    v.addColorStop(1, "rgba(0,0,0,0.5)");
-    ctx.fillStyle = v;
-    ctx.fillRect(0, 0, g.w, g.h);
   }
 
   window.OmawebScenes.register({
     id: "crt-road",
     name: "CRT road",
-    pitch: "device",
+    // The canvas is the picture at the Start page's 4 px pitch; the host
+    // scales it up pixelated and composites the CRT glass over it.
+    pitch: PIXEL,
+    glass: "crt",
     // Pixel blocks move in whole steps; 30 frames a second is all the motion
     // shows, at half the cost.
     fps: 30,
@@ -266,33 +273,29 @@
     // `input.options`. The first value is the default.
     options: {
       bands: ["4", "3"],
-      road: ["wide", "wider", "widest"],
+      road: ["widest", "wider", "wide"],
     },
     draw: function (ctx, input) {
-      var scale = 1 / input.pitch;
       var s = input.state;
-      var c = R.colours(input);
-      var pic = CRT.canvas(
-        s,
-        "pic",
-        Math.ceil(input.width / scale / PIXEL),
-        Math.ceil(input.height / scale / PIXEL),
-      );
-      var p = pic.getContext("2d");
-      p.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
-      draw(p, {
-        width: pic.width,
-        height: pic.height,
-        palette: input.palette,
-        dark: input.dark,
-        time: input.time,
-        navigating: input.navigating,
-        reducedMotion: input.reducedMotion,
-        options: input.options,
-        state: s,
-      });
-      p.setTransform(1, 0, 0, 1, 0, 0);
-      CRT.glass(ctx, input, s, c, pic, false);
+      var t0 = performance.now();
+      // What does not move, once per size, theme and option: the host clears
+      // the state on each of those.
+      if (!s.still || s.still.width !== input.width || s.still.height !== input.height) {
+        s.still = document.createElement("canvas");
+        s.still.width = input.width;
+        s.still.height = input.height;
+        var sc = s.still.getContext("2d");
+        sc.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
+        draw(sc, input, "still");
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(s.still, 0, 0);
+      ctx.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
+      draw(ctx, input, "moving");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      var parts = (window.OmawebScenes.parts = window.OmawebScenes.parts || { pic: 0, glass: 0 });
+      parts.pic += performance.now() - t0;
     },
   });
 })();

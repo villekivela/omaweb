@@ -36,8 +36,24 @@ road edges are gone; the desert is a smooth gradient lit by the sun's glow, the 
 silhouettes in layered tones, a saguaro, a rock or a lone sign now and then passes at the roadside,
 and a shooting star crosses about every half minute. About half the stars, a few brighter. Its two
 options are on the bar: the sun's bands (4, the default, or 3) and the road's width at the
-foreground (wide, wider, widest; today's road is narrower than all three). It draws at 30 fps for
-about 0.8 ms of main thread a frame in Chrome 154 on this Mac, 1440 by 900 at 2x.
+foreground (widest, the default, wider or wide; today's road is narrower than all three).
+
+### Performance
+
+`?perf=1` measures the Scene for 8 s at rest on the Start page, then 8 s while scrolling, in a fixed
+1440 by 900 box at the device's density, and reports to the local server; `?perf=idle` does the same
+with the Scene not drawing, which is the page's own floor. Measured on this Mac:
+
+| Browser     | Before: fps, main thread a frame | After: fps, main thread a frame | CPU over the floor, after |
+| ----------- | -------------------------------- | ------------------------------- | ------------------------- |
+| Firefox 156 | 10, 94 ms                        | 30, 0.7 ms                      | about 7 to 13%            |
+| Chrome 154  | 30, 0.9 ms                       | 30, 0.3 ms                      | about 10%                 |
+| Safari 26.6 | 6.5, 0.3 ms                      | 30, 0.2 ms                      | about 20%                 |
+
+Before, the CRT was five passes of 2D canvas at the full device resolution every frame: 93 ms of
+Firefox's main thread, and in Safari a GPU stall that held it at 6.5 fps. Now the Scene draws a 360
+by 225 picture from a cached still layer, the band and the flicker go into that picture, and the
+scanlines, bloom and vignette are layers the browser composites.
 
 The CRT's flicker darkens the picture by 2 to 4.5 percent, never a flash, and like the band it stops
 for reduced motion.
@@ -85,8 +101,11 @@ road Scenes speed up toward it and light the sun with it. Under `reducedMotion` 
 - Keep caches, and its own motion, in `state`.
 - Declare `pitch`: logical pixels per display pixel (default 1), or `"device"` for one display pixel
   per device pixel. Declare `seams` to draw the dark grid between display pixels, and `fps` to cap
-  its frame rate at what its motion needs. Declare `options`, each a name and its values, for
-  choices the reader makes; the site shows them on the bar, the browser would show them in Settings.
+  its frame rate at what its motion needs. Declare `glass: "crt"` to be shown through the CRT the
+  host composites over the canvas: scanlines, a bloom, the rolling band, the flicker and the
+  vignette. The Scene then draws only its low-resolution picture; in the browser the glass would be
+  one ShaderEffect over the Scene. Declare `options`, each a name and its values, for choices the
+  reader makes; the site shows them on the bar, the browser would show them in Settings.
 
 ### What it may not do
 
