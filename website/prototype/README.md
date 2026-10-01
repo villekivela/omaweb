@@ -35,9 +35,9 @@ CRT road is the user's refinement of the pixel road under the CRT. The ground gr
 road edges are gone; the desert is a smooth gradient lit by the sun's glow, the ridges are filled
 silhouettes in layered tones, a saguaro, a rock or a lone sign now and then passes at the roadside,
 and a shooting star crosses about every half minute. About half the stars, a few brighter. Its two
-options are on the bar: the sun's bands (3 or 4) and the road's width at the foreground (wide,
-wider, widest; today's road is narrower than all three). It draws at 30 fps for about 0.8 ms of main
-thread a frame in Chrome 154 on this Mac, 1440 by 900 at 2x.
+options are on the bar: the sun's bands (4, the default, or 3) and the road's width at the
+foreground (wide, wider, widest; today's road is narrower than all three). It draws at 30 fps for
+about 0.8 ms of main thread a frame in Chrome 154 on this Mac, 1440 by 900 at 2x.
 
 The CRT's flicker darkens the picture by 2 to 4.5 percent, never a flash, and like the band it stops
 for reduced motion.

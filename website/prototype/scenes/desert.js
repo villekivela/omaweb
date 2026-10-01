@@ -85,7 +85,7 @@
 
   function draw(ctx, input) {
     var opts = input.options || {};
-    var bands = Number(opts.bands) || 3;
+    var bands = Number(opts.bands) || 4;
     var g = R.geometry(input.width * PIXEL, input.height * PIXEL);
     g.halfWidth = g.w * (ROADS[opts.road] || ROADS.wide);
     var c = R.colours(input);
@@ -157,47 +157,54 @@
       ctx.fill();
     });
 
-    // The desert: a smooth gradient from the lit horizon to the dark
-    // foreground, and the sun's glow lying on it.
+    // The desert at night: lit near the horizon and where the sun's glow
+    // lies on it, falling quickly to dark sand in the foreground.
     var sand = ctx.createLinearGradient(0, g.horizonY, 0, g.h);
-    sand.addColorStop(0, D.css(D.mix(c.sunLow, c.ground, 0.55)));
-    sand.addColorStop(0.25, D.css(D.mix(c.ground, c.glow, 0.12)));
-    sand.addColorStop(1, D.css(D.mix(c.groundNear, BLACK, 0.3)));
+    sand.addColorStop(0, D.css(D.mix(c.sunLow, c.ground, 0.6)));
+    sand.addColorStop(0.1, D.css(D.mix(c.ground, c.groundNear, 0.35)));
+    sand.addColorStop(0.35, D.css(D.mix(c.groundNear, BLACK, 0.2)));
+    sand.addColorStop(1, D.css(D.mix(c.groundNear, BLACK, 0.5)));
     ctx.fillStyle = sand;
     ctx.fillRect(0, g.horizonY, g.w, g.depth);
     ctx.save();
     ctx.translate(g.vx, g.horizonY);
-    ctx.scale(1, 0.32);
-    var lie = ctx.createRadialGradient(0, 0, 0, 0, 0, g.w * 0.5);
-    lie.addColorStop(0, D.css(c.sunLow, 0.45 + 0.2 * m.lit));
+    ctx.scale(1, 0.3);
+    var lie = ctx.createRadialGradient(0, 0, 0, 0, 0, g.w * 0.45);
+    lie.addColorStop(0, D.css(c.sunLow, 0.4 + 0.2 * m.lit));
+    lie.addColorStop(0.5, D.css(c.sunLow, 0.12));
     lie.addColorStop(1, D.css(c.sunLow, 0));
     ctx.fillStyle = lie;
-    ctx.fillRect(-g.w / 2, 0, g.w, g.depth / 0.32);
+    ctx.fillRect(-g.w / 2, 0, g.w, g.depth / 0.3);
     ctx.restore();
 
-    // The road: asphalt from the vanishing point, the sun on it, no edges.
-    var asphalt = ctx.createLinearGradient(0, g.horizonY, 0, g.h);
-    asphalt.addColorStop(0, D.css(D.mix(c.sunLow, c.ground, 0.5)));
-    asphalt.addColorStop(0.15, D.css(D.mix(c.ground, c.groundNear, 0.4)));
-    asphalt.addColorStop(1, D.css(D.mix(c.groundNear, BLACK, 0.45)));
-    ctx.fillStyle = asphalt;
-    ctx.beginPath();
-    ctx.moveTo(g.vx - 1, g.horizonY);
-    ctx.lineTo(g.vx + 1, g.horizonY);
-    ctx.lineTo(g.screenX(1, 1), g.h);
-    ctx.lineTo(g.screenX(-1, 1), g.h);
-    ctx.closePath();
-    ctx.fill();
+    // The road: the sand darkened a step at every depth, so it reads as a
+    // road through the desert, lit where the desert is. Two slightly wider
+    // passes give it a soft, stepped edge against the sand rather than a line.
+    function wedge(spread, shade) {
+      ctx.fillStyle = "rgba(0,0,0," + shade + ")";
+      ctx.beginPath();
+      ctx.moveTo(g.vx - 1, g.horizonY);
+      ctx.lineTo(g.vx + 1, g.horizonY);
+      ctx.lineTo(g.screenX(spread, 1), g.h);
+      ctx.lineTo(g.screenX(-spread, 1), g.h);
+      ctx.closePath();
+      ctx.fill();
+    }
+    wedge(1.08, 0.1);
+    wedge(1.04, 0.1);
+    wedge(1, 0.14);
+
+    // The sun on the asphalt, half the road wide, as wide as the road allows.
     var streak = ctx.createLinearGradient(0, g.horizonY, 0, g.h);
-    streak.addColorStop(0, D.css(c.sunTop, 0.35));
-    streak.addColorStop(0.4, D.css(c.sunLow, 0.08));
+    streak.addColorStop(0, D.css(c.sunTop, 0.4));
+    streak.addColorStop(0.45, D.css(c.sunLow, 0.1));
     streak.addColorStop(1, D.css(c.sunLow, 0));
     ctx.fillStyle = streak;
     ctx.beginPath();
     ctx.moveTo(g.vx - 2, g.horizonY);
     ctx.lineTo(g.vx + 2, g.horizonY);
-    ctx.lineTo(g.screenX(0.25, 1), g.h);
-    ctx.lineTo(g.screenX(-0.25, 1), g.h);
+    ctx.lineTo(g.screenX(0.5, 1), g.h);
+    ctx.lineTo(g.screenX(-0.5, 1), g.h);
     ctx.closePath();
     ctx.fill();
 
@@ -258,7 +265,7 @@
     // Choices the reader makes; the host passes the chosen value in
     // `input.options`. The first value is the default.
     options: {
-      bands: ["3", "4"],
+      bands: ["4", "3"],
       road: ["wide", "wider", "widest"],
     },
     draw: function (ctx, input) {
