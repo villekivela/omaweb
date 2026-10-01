@@ -13,8 +13,10 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
 
 ## Highlights
 
+- The Omnibar is where every new tab starts, resting on the Start page's night road. It opens
+  addresses, searches the web with the engine's suggestions, switches to an open tab in any Space,
+  and runs commands.
 - Spaces keep cookies, logins, history, permissions, sessions, and tabs separate.
-- The Omnibar opens addresses, searches the web, switches tabs and Spaces, and runs commands.
 - Keyboard navigation includes configurable bindings, link hints, and a shortcut sheet generated
   from the active keymap.
 - Pinned tabs, Private windows, site-requested Auxiliary windows, and recently closed tabs are built

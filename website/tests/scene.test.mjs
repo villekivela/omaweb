@@ -1,0 +1,108 @@
+// What the Scene host hands a Scene and when it lets one draw, through `scene.js`'s exports. The
+// host itself needs a browser; these are the decisions it makes, which do not.
+
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import { STILL_MEDIA, drawsFrames, frameDue, sceneInput } from "../scene.js";
+
+const road = { id: "road", pitch: 4 };
+const retro82 = { ground: "#020c17", text: "#f6dcac", accent: "#faa968", muted: "#3f8f8a" };
+
+test("input: the theme's roles arrive as RGB, and a dark ground is dark", () => {
+  const input = sceneInput(road, { palette: retro82, width: 1440, height: 900 });
+  assert.deepEqual(input.palette, {
+    ground: [2, 12, 23],
+    text: [246, 220, 172],
+    accent: [250, 169, 104],
+    muted: [63, 143, 138],
+  });
+  assert.equal(input.dark, true);
+});
+
+test("input: a light theme's ground is not dark", () => {
+  const latte = { ground: "#eff1f5", text: "#4c4f69", accent: "#1e66f5", muted: "#9ca0b0" };
+  assert.equal(sceneInput(road, { palette: latte, width: 10, height: 10 }).dark, false);
+});
+
+test("input: the display is the area in the Scene's pixels, rounded up", () => {
+  const input = sceneInput(road, { palette: retro82, width: 1441, height: 900 });
+  assert.deepEqual([input.width, input.height, input.pitch], [361, 225, 4]);
+});
+
+test("input: each declared option is the reader's choice, or else its first value", () => {
+  const scene = { ...road, options: { bands: ["4", "3"], road: ["widest", "wider", "wide"] } };
+  const base = { palette: retro82, width: 10, height: 10 };
+  assert.deepEqual(sceneInput(scene, base).options, { bands: "4", road: "widest" });
+  assert.deepEqual(sceneInput(scene, { ...base, chosen: { bands: "3", road: "narrow" } }).options, {
+    bands: "3",
+    road: "widest",
+  });
+});
+
+test("input: moving, the Scene gets the time and how hard the reader navigates, 0 to 1", () => {
+  const input = sceneInput(road, {
+    palette: retro82,
+    width: 10,
+    height: 10,
+    time: 12.5,
+    navigating: 3,
+  });
+  assert.deepEqual([input.time, input.navigating, input.reducedMotion], [12.5, 1, false]);
+});
+
+test("input: with reduced motion or on a phone the Scene holds still and nobody navigates", () => {
+  for (const still of [{ reducedMotion: true }, { phone: true }]) {
+    const environment = { palette: retro82, width: 10, height: 10, navigating: 0.8, ...still };
+    const input = sceneInput(road, environment);
+    assert.deepEqual([input.reducedMotion, input.navigating], [true, 0]);
+  }
+});
+
+test("frames: only while on screen, in a shown tab, in the focused window, and moving", () => {
+  const moving = { onScreen: true, pageHidden: false, focused: true };
+  assert.equal(drawsFrames(moving), true);
+  for (const change of [
+    { onScreen: false },
+    { pageHidden: true },
+    { focused: false },
+    { reducedMotion: true },
+    { phone: true },
+  ]) {
+    assert.equal(drawsFrames({ ...moving, ...change }), false, JSON.stringify(change));
+  }
+});
+
+test("frames: a Scene capped at 30 fps draws on every other 60 Hz tick", () => {
+  const ticks = [0, 16.7, 33.3, 50, 66.7, 83.3, 100];
+  let last = -Infinity;
+  const drawn = ticks.filter((now) => {
+    if (!frameDue(now, last, 30)) return false;
+    last = now;
+    return true;
+  });
+  assert.deepEqual(drawn, [0, 33.3, 66.7, 100]);
+});
+
+test("frames: a Scene with no cap draws on every tick", () => {
+  assert.equal(frameDue(16.7, 0, undefined), true);
+});
+
+// The road holds still and the feature cards become a plain list on the same screens: the host's
+// query and the stylesheet's fallback are one string, so they cannot drift apart.
+test("fallback: the features read as a list exactly where the road holds still", () => {
+  const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  assert.equal(STILL_MEDIA, "(max-width: 860px), (prefers-reduced-motion: reduce)");
+  const block = styles.split(`@media ${STILL_MEDIA} {`)[1];
+  assert.ok(block, "styles.css has no fallback block for the still media");
+  assert.match(block.split(/\n}\n/)[0], /\.cards\b/);
+});
+
+// A release page shows the road as a still header: its host holds the Scene still whatever the
+// reader's settings, and draws the one frame it lays out with.
+test("input: a host held still tells the Scene to hold still and draws no frames", () => {
+  const environment = { palette: retro82, width: 10, height: 10, navigating: 1, held: true };
+  assert.equal(sceneInput(road, environment).reducedMotion, true);
+  assert.equal(drawsFrames({ ...environment, onScreen: true, focused: true }), false);
+});

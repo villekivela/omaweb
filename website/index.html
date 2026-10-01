@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="retro-82">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,7 +8,7 @@
       name="description"
       content="Omaweb is a keyboard-first web browser for Linux, with separate Spaces, built-in content blocking and no telemetry. Free and open source."
     />
-    <meta name="theme-color" content="#141210" />
+    <meta name="theme-color" content="#020c17" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="assets/shots/themes.css" />
@@ -47,490 +47,459 @@
     </header>
 
     <main>
-      <!-- The cockpit is one wide panorama. Its box is sized by the hero's height and centred,
-           so the signs and the address bar stay in view at every width while the edges crop. The
-           words on the signs are elements laid over the empty frames painted in the art. -->
-      <section class="hero">
-        <div class="hero__art">
-          <div class="scene">
-            <img src="assets/art/road.webp" width="2087" height="441" alt="" />
-            <a class="sign sign--left" href="https://github.com/villekivela/omaweb">
-              GitHub <span aria-hidden="true">←</span>
+      <div class="drive">
+        <!-- The road behind the whole page: crt-road.js draws it through scene.js, and a scrim of the
+           theme's ground deepens over it once the reader scrolls past the Start page. Without the
+           script the Start page's own gradient stands in for it. -->
+        <div class="drive__scene" aria-hidden="true"><canvas></canvas></div>
+        <div class="drive__scrim" aria-hidden="true"></div>
+
+        <!-- The Start page: what Omaweb shows on a new tab, the Omnibar resting on the horizon. Its rows
+           are the features below, and each one is a link to its card. -->
+        <section class="start" aria-labelledby="start-title">
+          <div class="start__sky">
+            <p class="kicker">Web navigation system</p>
+            <h1 class="display start__title" id="start-title">
+              A browser<br />for driving<br />the web.
+            </h1>
+          </div>
+          <div class="omnibar" role="search">
+            <label class="omnibar__field">
+              <svg class="omnibar__prompt" viewBox="20.2 97.1 31.3 19.2" aria-hidden="true">
+                <path
+                  transform="translate(1.3101755,0.8976725)"
+                  d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+                />
+              </svg>
+              <span class="omnibar__placeholder">Where to?</span>
+              <input
+                class="omnibar__input"
+                type="text"
+                role="combobox"
+                aria-expanded="true"
+                aria-controls="omnibar-rows"
+                aria-label="Find on this page"
+                placeholder="Where to?"
+                autocomplete="off"
+                spellcheck="false"
+                hidden
+              />
+              <kbd>o</kbd>
+            </label>
+            <ul class="omnibar__rows" id="omnibar-rows" role="listbox">
+              <li role="option" id="row-omnibar" aria-selected="true">
+                <a href="#omnibar" data-card="omnibar"
+                  ><span class="omnibar__label">Omnibar</span><span>One field for everything.</span
+                  ><kbd>o</kbd></a
+                >
+              </li>
+              <li role="option" id="row-spaces" aria-selected="false">
+                <a href="#spaces" data-card="spaces"
+                  ><span class="omnibar__label">Spaces</span><span>A colour for every Space.</span
+                  ><kbd>J K</kbd></a
+                >
+              </li>
+              <li role="option" id="row-keyboard" aria-selected="false">
+                <a href="#keyboard" data-card="keyboard"
+                  ><span class="omnibar__label">Keyboard</span><span>Keyboard first.</span
+                  ><kbd>f</kbd></a
+                >
+              </li>
+              <li role="option" id="row-theme" aria-selected="false">
+                <a href="#theme" data-card="theme"
+                  ><span class="omnibar__label">Theme</span><span>Follows your Omarchy theme.</span
+                  ><kbd>T</kbd></a
+                >
+              </li>
+              <li role="option" id="row-private" aria-selected="false">
+                <a href="#private" data-card="private"
+                  ><span class="omnibar__label">Privacy</span><span>Private by default.</span></a
+                >
+              </li>
+              <li role="option" id="row-blocking" aria-selected="false">
+                <a href="#blocking" data-card="blocking"
+                  ><span class="omnibar__label">Blocking</span><span>Blocking, built in.</span></a
+                >
+              </li>
+              <li role="option" id="row-pros" aria-selected="false">
+                <a href="#pros" data-card="pros"
+                  ><span class="omnibar__label">For pros</span
+                  ><span>Split view and docked DevTools.</span></a
+                >
+              </li>
+              <li role="option" id="row-agents" aria-selected="false">
+                <a href="#agents" data-card="agents"
+                  ><span class="omnibar__label">Agents</span
+                  ><span>Agents drive their own Spaces.</span></a
+                >
+              </li>
+            </ul>
+            <div class="omnibar__hints">
+              <span>&uarr;&darr; select</span><span>&crarr; go</span>
+              <div class="themes" role="group" aria-label="Theme" hidden>
+                <span class="themes__label">Theme <kbd>T</kbd></span>
+                <span class="themes__name" aria-live="polite">Retro 82</span>
+                <span class="themes__row">
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="matte-black"
+                    data-theme-choice="matte-black"
+                    data-name="Matte Black"
+                    aria-label="Matte Black"
+                    title="Matte Black"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="ristretto"
+                    data-theme-choice="ristretto"
+                    data-name="Ristretto"
+                    aria-label="Ristretto"
+                    title="Ristretto"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="retro-82"
+                    data-theme-choice="retro-82"
+                    data-name="Retro 82"
+                    aria-label="Retro 82"
+                    title="Retro 82"
+                    aria-pressed="true"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="gruvbox"
+                    data-theme-choice="gruvbox"
+                    data-name="Gruvbox"
+                    aria-label="Gruvbox"
+                    title="Gruvbox"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="everforest"
+                    data-theme-choice="everforest"
+                    data-name="Everforest"
+                    aria-label="Everforest"
+                    title="Everforest"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="catppuccin"
+                    data-theme-choice="catppuccin"
+                    data-name="Catppuccin"
+                    aria-label="Catppuccin"
+                    title="Catppuccin"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="tokyo-night"
+                    data-theme-choice="tokyo-night"
+                    data-name="Tokyo Night"
+                    aria-label="Tokyo Night"
+                    title="Tokyo Night"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="nord"
+                    data-theme-choice="nord"
+                    data-name="Nord"
+                    aria-label="Nord"
+                    title="Nord"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="hackerman"
+                    data-theme-choice="hackerman"
+                    data-name="Hackerman"
+                    aria-label="Hackerman"
+                    title="Hackerman"
+                    aria-pressed="false"
+                  ></button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="start__below">
+            <a class="start__install" href="#install">
+              <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg>
+              Install Omaweb
             </a>
-            <a class="sign sign--mid" href="#work"> Work <span aria-hidden="true">↑</span> </a>
-            <a class="sign sign--right" href="https://github.com/villekivela/omaweb#readme">
-              Docs <span aria-hidden="true">→</span>
-            </a>
-            <!-- The night radio, as an easter egg: an unmarked latching button on the console between
-                 the keyboards, for the drive theme in audio.js, and M from anywhere. Off until a
-                 reader finds it; nothing plays by itself. -->
-            <button
-              class="radio"
-              type="button"
-              aria-pressed="false"
-              aria-label="Night radio"
-              data-radio
-              hidden
-            >
-              <span class="radio__cap" aria-hidden="true"><span class="radio__led"></span></span>
-            </button>
-            <p class="dash" aria-hidden="true">
-              <span class="dash__prompt">$</span>
-              <span class="dash__url" data-type="omaweb.app">omaweb.app</span
-              ><span class="caret"></span>
-              <span class="dash__go">→</span>
+            <p class="start__lede">
+              Keyboard first. Private. Open. For people who know where they&rsquo;re going.
             </p>
           </div>
-        </div>
+        </section>
 
-        <div class="hero__copy wrap">
-          <p class="kicker">Web navigation system</p>
-          <h1 class="display">A browser<br />for driving<br />the web.</h1>
-          <p class="lede">
-            Keyboard first. Private. Open.<br />For people who know where they&rsquo;re going.
-          </p>
-          <a class="btn" href="#install">
-            <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg>
-            Install Omaweb
-          </a>
-          <p class="platforms">
-            <svg class="icon icon--lg icon--fill" aria-label="Linux" role="img">
-              <use href="#i-linux" />
-            </svg>
-            <span>Made for Linux.<br />Free and open source.</span>
-          </p>
-        </div>
-      </section>
+        <!-- The introduction: a short film, silent and looping, with its captions burned in. It
+           plays muted while it is on screen and stops when it leaves; under reduced motion it waits
+           on its poster frame for the reader to press play. The film itself is #498: these files are
+           placeholders at the paths it replaces. -->
+        <section class="film" aria-label="Omaweb in a minute">
+          <div class="film__frame">
+            <video
+              class="film__video"
+              controls
+              muted
+              loop
+              playsinline
+              preload="metadata"
+              poster="assets/film/poster.webp"
+            >
+              <source src="assets/film/omaweb.webm" type="video/webm" />
+              <source src="assets/film/omaweb.mp4" type="video/mp4" />
+            </video>
+            <button class="film__play" type="button" aria-label="Play the introduction" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+            </button>
+          </div>
+        </section>
 
-      <section class="features" id="features" aria-label="Features">
-        <ul class="features__list wrap" role="list">
-          <li>
-            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-bolt" /></svg>
-            <h2>Keyboard first</h2>
-            <p>Link hints, Vim-style keys and a command panel. The mouse is optional.</p>
-          </li>
-          <li>
-            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-windows" /></svg>
-            <h2>Spaces</h2>
-            <p>Work and personal in one window, each with its own logins, history and tabs.</p>
-          </li>
-          <li id="work">
-            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-code" /></svg>
-            <h2>For pros</h2>
-            <p>Split view for two pages at once, docked DevTools, and a Space for every client.</p>
-          </li>
-          <li>
-            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-shield" /></svg>
-            <h2>Private by default</h2>
-            <p>Content blocking built in. No account to make and no telemetry to turn off.</p>
-          </li>
-        </ul>
-      </section>
-
-      <section class="reel" id="navigation">
-        <!-- The real window: captures of Omaweb's own interface, taken headlessly by
-             scripts/build_website_themes.py, one set per Omarchy theme. The page inside the window
-             is the lab's drawn stand-in, since the lab runs no engine.
-
-             One card per view, in a reel that scrolls sideways and snaps card to card. The bar
-             under it pages the reel and picks the theme, which every card's frame takes. Without
-             the script the reel still scrolls, the bar stays hidden and each window is a link to
-             its full-size capture. -->
-        <div class="reel__intro">
-          <p class="kicker">Navigation</p>
-          <h2 class="display display--md">Go anywhere,<br />faster.</h2>
-          <p>
-            Press <kbd>o</kbd> to go somewhere new, <kbd>f</kbd> to follow a link, and
-            <kbd>J</kbd> and <kbd>K</kbd> to move between tabs. The rest of the window is a key away
-            too.
-          </p>
-          <p class="reel__hint" hidden>
-            The reel answers the same keys: try <kbd>o</kbd>, <kbd>Ctrl</kbd>+<kbd>B</kbd> or
-            <kbd>T</kbd>.
-          </p>
-        </div>
-
-        <div class="reel__track" role="region" aria-label="Omaweb, view by view" tabindex="0">
-          <article class="reel__card" data-step="omnibar">
-            <figure class="shot" data-theme="matte-black">
-              <a class="shot__open" href="assets/shots/matte-black/omnibar.webp">
+        <!-- What Omaweb does, one card each with a crop of the real interface. The crops are the
+           captures from scripts/build_website_themes.py, framed by the card's modifier class in
+           styles.css; data-shot names the state, and the theme picker swaps the theme. Agents come
+           last. -->
+        <section class="features" id="features" aria-label="Features">
+          <ul class="cards">
+            <li class="card" id="omnibar">
+              <div class="card__shot card__shot--omnibar">
                 <img
-                  src="assets/shots/matte-black/omnibar.webp"
+                  data-shot="omnibar"
+                  src="assets/shots/retro-82/omnibar.webp"
                   width="2720"
                   height="1720"
-                  alt="The Omnibar open over the page, matching a web search, open tabs and history"
-                  decoding="async"
-                />
-              </a>
-            </figure>
-            <div class="reel__words">
-              <p class="kicker"><span class="reel__index">01</span> Omnibar <kbd>o</kbd></p>
-              <h3>One box for everything.</h3>
-              <p>
-                Type a few letters and it finds the page: a web search, an open tab, a visit from
-                this Space&rsquo;s history. The same box switches Spaces and runs any browser
-                command.
-              </p>
-            </div>
-          </article>
-          <article class="reel__card" data-step="space">
-            <figure class="shot" data-theme="matte-black">
-              <a class="shot__open" href="assets/shots/matte-black/space.webp">
-                <img
-                  src="assets/shots/matte-black/space.webp"
-                  width="2720"
-                  height="1720"
-                  alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
+                  alt="The Omnibar listing open tabs in two Spaces, history and engine suggestions"
                   loading="lazy"
                   decoding="async"
                 />
-              </a>
-            </figure>
-            <div class="reel__words">
-              <p class="kicker"><span class="reel__index">02</span> Spaces</p>
-              <h3>A sidebar for every Space.</h3>
+              </div>
+              <h2>One field for everything</h2>
               <p>
-                The sidebar lists a Space&rsquo;s tabs: pinned ones at the top, the rest below. Each
-                Space has its own set, and <kbd>J</kbd> and <kbd>K</kbd> move through them without
-                leaving the page.
+                Type a few letters and the Omnibar finds the page: an open tab in this Space or
+                another, a visit from history, a search with your engine&rsquo;s suggestions. Every
+                browser command runs from the same field. <kbd>o</kbd>
               </p>
-            </div>
-          </article>
-          <article class="reel__card" data-step="collapsed">
-            <figure class="shot" data-theme="matte-black">
-              <a class="shot__open" href="assets/shots/matte-black/collapsed.webp">
+            </li>
+            <li class="card" id="spaces">
+              <div class="card__shot card__shot--spaces">
                 <img
-                  src="assets/shots/matte-black/collapsed.webp"
+                  data-shot="space"
+                  src="assets/shots/retro-82/space.webp"
                   width="2720"
                   height="1720"
-                  alt="Omaweb with the sidebar hidden and the page filling the window"
+                  alt="The sidebar with pinned tabs and the tabs of one Space"
                   loading="lazy"
                   decoding="async"
                 />
-              </a>
-            </figure>
-            <div class="reel__words">
-              <p class="kicker">
-                <span class="reel__index">03</span> No sidebar <kbd>Ctrl</kbd>+<kbd>B</kbd>
-              </p>
-              <h3>The page gets the whole window.</h3>
+              </div>
+              <h2>A colour for every Space</h2>
               <p>
-                Hide the sidebar and nothing is left but the page. Your tabs are still a key away:
-                <kbd>J</kbd> and <kbd>K</kbd> keep moving between them, and <kbd>Ctrl</kbd>+<kbd
-                  >B</kbd
-                >
-                brings the sidebar back.
+                Work and personal in one window, each Space with its own logins, history and tabs,
+                and its own colour from your theme. <kbd>J</kbd> and <kbd>K</kbd> move through its
+                tabs.
               </p>
-            </div>
-          </article>
-          <article class="reel__card" data-step="blocking">
-            <figure class="shot" data-theme="matte-black">
-              <a class="shot__open" href="assets/shots/matte-black/blocking.webp">
+            </li>
+            <li class="card" id="keyboard">
+              <div class="card__shot card__shot--keyboard">
                 <img
-                  src="assets/shots/matte-black/blocking.webp"
+                  data-shot="shortcuts"
+                  src="assets/shots/retro-82/shortcuts.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The shortcut sheet over a page, listing the keys Omaweb binds"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <h2>Keyboard first</h2>
+              <p>
+                Link hints on <kbd>f</kbd>, Vim-style keys, and every binding yours to change in
+                <code>keybindings.json</code>. The mouse is optional.
+              </p>
+            </li>
+            <li class="card" id="theme">
+              <div class="card__shot card__shot--themes">
+                <img
+                  src="assets/shots/ristretto/start.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The Start page in Ristretto"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <img
+                  src="assets/shots/tokyo-night/start.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The Start page in Tokyo Night"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <img
+                  src="assets/shots/everforest/start.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The Start page in Everforest"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <h2>Follows your Omarchy theme</h2>
+              <p>
+                Switch your Omarchy theme and Omaweb switches with it: its colours, its fonts, its
+                opacity, and the road on every new tab. This page follows the theme you pick here.
+                <kbd>T</kbd>
+              </p>
+            </li>
+            <li class="card" id="private">
+              <div class="card__shot card__shot--privacy">
+                <img
+                  data-shot="privacy"
+                  src="assets/shots/retro-82/privacy.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The privacy settings"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <h2>Private by default</h2>
+              <p>
+                No telemetry, and no account to make. Every request the browser makes on its own is
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/network-requests.md"
+                  >written down</a
+                >.
+              </p>
+            </li>
+            <li class="card" id="blocking">
+              <div class="card__shot card__shot--blocking">
+                <img
+                  data-shot="blocking"
+                  src="assets/shots/retro-82/blocking.webp"
                   width="2720"
                   height="1720"
                   alt="The Content Blocking settings, with filter lists and user rules"
                   loading="lazy"
                   decoding="async"
                 />
-              </a>
-            </figure>
-            <div class="reel__words">
-              <p class="kicker"><span class="reel__index">04</span> Content blocking</p>
-              <h3>Blocking, built in.</h3>
+              </div>
+              <h2>Blocking, built in</h2>
               <p>
-                EasyList and EasyPrivacy are on from the first run, with cosmetic rules and a count
-                of what was blocked. Add lists, write your own rules, or turn blocking off for one
-                site.
+                EasyList and EasyPrivacy from the first run, with cosmetic rules and a count of what
+                was blocked. Add lists, write your own rules, or turn blocking off for one site.
               </p>
-              <a class="more" href="#features"
-                >Explore features <span aria-hidden="true">→</span></a
-              >
-            </div>
-          </article>
-        </div>
-
-        <div class="reel__bar" hidden>
-          <div class="themes" role="group" aria-label="Theme" hidden>
-            <span class="themes__label">Theme <kbd>T</kbd></span>
-            <span class="themes__name" aria-live="polite">Matte Black</span>
-            <span class="themes__row">
-              <button
-                type="button"
-                class="swatch"
-                data-theme="matte-black"
-                data-theme-choice="matte-black"
-                data-name="Matte Black"
-                aria-label="Matte Black"
-                title="Matte Black"
-                aria-pressed="true"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="ristretto"
-                data-theme-choice="ristretto"
-                data-name="Ristretto"
-                aria-label="Ristretto"
-                title="Ristretto"
-                aria-pressed="false"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="retro-82"
-                data-theme-choice="retro-82"
-                data-name="Retro 82"
-                aria-label="Retro 82"
-                title="Retro 82"
-                aria-pressed="false"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="gruvbox"
-                data-theme-choice="gruvbox"
-                data-name="Gruvbox"
-                aria-label="Gruvbox"
-                title="Gruvbox"
-                aria-pressed="false"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="everforest"
-                data-theme-choice="everforest"
-                data-name="Everforest"
-                aria-label="Everforest"
-                title="Everforest"
-                aria-pressed="false"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="catppuccin"
-                data-theme-choice="catppuccin"
-                data-name="Catppuccin"
-                aria-label="Catppuccin"
-                title="Catppuccin"
-                aria-pressed="false"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="tokyo-night"
-                data-theme-choice="tokyo-night"
-                data-name="Tokyo Night"
-                aria-label="Tokyo Night"
-                title="Tokyo Night"
-                aria-pressed="false"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="nord"
-                data-theme-choice="nord"
-                data-name="Nord"
-                aria-label="Nord"
-                title="Nord"
-                aria-pressed="false"
-              ></button>
-              <button
-                type="button"
-                class="swatch"
-                data-theme="hackerman"
-                data-theme-choice="hackerman"
-                data-name="Hackerman"
-                aria-label="Hackerman"
-                title="Hackerman"
-                aria-pressed="false"
-              ></button>
-            </span>
-          </div>
-          <div class="reel__nav">
-            <button class="reel__step" type="button" data-step-by="-1" aria-label="Previous view">
-              ←
-            </button>
-            <span class="reel__count" aria-live="polite">1 / 4</span>
-            <button class="reel__step" type="button" data-step-by="1" aria-label="Next view">
-              →
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- The full-size capture, over the page. A dialog, so Escape, the backdrop and focus come
-           with it; without the script the window is a plain link to the image instead. -->
-      <dialog class="viewer" aria-label="Screenshot">
-        <img class="viewer__image" alt="" />
-        <button class="viewer__close" type="button" aria-label="Close">×</button>
-      </dialog>
-
-      <!-- The cream poster. The drawing is one image with its left half bare paper; the logo, the
-           headline and the tagline are type laid over it. -->
-      <section class="poster" aria-label="104 keys. Zero reason to point.">
-        <div class="poster__frame">
-          <img src="assets/art/poster.webp" width="1337" height="307" alt="" />
-          <!-- The full wordmark, copied from website/assets/icons/omaweb.svg, set inline rather than
-               by reference so the stylesheet can colour the mark apart from the letters. -->
-          <div class="poster__logo">
-            <svg
-              class="wordmark poster__wordmark"
-              viewBox="0 0 160 20"
-              role="img"
-              aria-label="Omaweb"
-            >
-              <g transform="translate(-20.528031,-97.174413)">
-                <path
-                  class="wordmark__mark"
-                  transform="translate(1.3101755,0.8976725)"
-                  d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+            </li>
+            <li class="card" id="pros">
+              <div class="card__shot card__shot--split">
+                <img
+                  data-shot="split"
+                  src="assets/shots/retro-82/split.webp"
+                  width="2720"
+                  height="1720"
+                  alt="Two pages side by side in split view"
+                  loading="lazy"
+                  decoding="async"
                 />
-                <path
-                  d="m 75.336749,116.72525 q -3.463561,0 -5.510211,-1.88922 -2.046649,-1.91545 -2.046649,-5.45773 v -4.40817 q 0,-3.54228 2.046649,-5.43149 2.04665,-1.915455 5.510211,-1.915455 3.463561,0 5.510211,1.915455 2.04665,1.88921 2.04665,5.43149 v 4.40817 q 0,3.54228 -2.04665,5.45773 -2.04665,1.88922 -5.510211,1.88922 z m 0,-3.09621 q 1.941694,0 3.017497,-1.12829 1.075803,-1.12828 1.075803,-3.01749 v -4.61808 q 0,-1.88922 -1.075803,-3.0175 -1.075803,-1.12828 -3.017497,-1.12828 -1.915454,0 -3.017496,1.12828 -1.075803,1.12828 -1.075803,3.0175 v 4.61808 q 0,1.88921 1.075803,3.01749 1.102042,1.12829 3.017496,1.12829 z M 86.20194,116.3579 V 97.990533 h 6.428579 l 3.174932,16.005847 h 0.472303 l 3.174931,-16.005847 h 6.428575 V 116.3579 h -3.3586 v -15.82217 h -0.4723 l -3.148696,15.82217 h -5.720123 l -3.148692,-15.82217 h -0.472304 v 15.82217 z m 22.14799,0 4.82799,-18.367367 h 6.035 l 4.82799,18.367367 h -3.56852 l -0.99708,-4.04082 h -6.55978 l -0.99708,4.04082 z m 5.37901,-7.24199 h 4.93295 l -2.23032,-8.94753 h -0.4723 z m 13.77775,7.24199 -2.414,-18.367367 h 3.43732 l 1.78426,15.953377 h 0.4723 l 2.30904,-15.953377 h 5.98252 l 2.30904,15.953377 h 0.4723 l 1.78426,-15.953377 h 3.43732 l -2.41399,18.367367 h -5.98252 l -2.36152,-16.32072 h -0.4723 l -2.36152,16.32072 z m 22.35792,0 V 97.990533 h 11.80759 v 3.148687 h -8.34403 v 4.38193 h 7.60934 v 3.1487 h -7.60934 v 4.53936 h 8.50147 v 3.14869 z m 14.27628,0 v -3.04373 h 2.414 v -12.2799 h -2.414 v -3.043737 h 9.44608 q 1.6793,0 2.91254,0.57726 1.25947,0.551021 1.94169,1.600587 0.70845,1.02332 0.70845,2.46647 v 0.26239 q 0,1.25948 -0.4723,2.07289 -0.4723,0.78718 -1.12828,1.23324 -0.62974,0.41983 -1.207,0.6035 v 0.4723 q 0.57726,0.15744 1.25948,0.6035 0.68221,0.41983 1.15452,1.23324 0.49854,0.81341 0.49854,2.12537 v 0.26239 q 0,1.52187 -0.70845,2.62391 -0.70846,1.0758 -1.96794,1.65306 -1.23323,0.57726 -2.8863,0.57726 z m 5.87756,-3.14869 h 3.25365 q 1.12828,0 1.81049,-0.55102 0.70846,-0.55102 0.70846,-1.57435 v -0.26239 q 0,-1.02332 -0.68222,-1.57434 -0.68221,-0.55102 -1.83673,-0.55102 h -3.25365 z m 0,-7.66182 h 3.20117 q 1.0758,0 1.75802,-0.55102 0.70845,-0.55102 0.70845,-1.52187 v -0.26239 q 0,-0.99708 -0.68221,-1.52186 -0.68222,-0.55103 -1.78426,-0.55103 h -3.20117 z"
+              </div>
+              <h2>For pros</h2>
+              <p>
+                Two pages side by side in split view, DevTools docked beside the page, and a Space
+                for every client.
+              </p>
+            </li>
+            <li class="card card--last" id="agents">
+              <div class="card__shot card__shot--agents">
+                <img
+                  data-shot="agents"
+                  src="assets/shots/retro-82/agents.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The sidebar footer with the reader's Spaces and the marks of Agents at work"
+                  loading="lazy"
+                  decoding="async"
                 />
-              </g>
-            </svg>
-            <span class="poster__slogan">Web navigation system</span>
-          </div>
-          <p class="poster__headline" aria-hidden="true">
-            <span>104 keys.</span><span>Zero reason</span><span>to point.</span>
-          </p>
-        </div>
-        <div class="ticker">
-          <ul role="list">
-            <li>Link hints</li>
-            <li>Spaces</li>
-            <li>Split view</li>
-            <li>Command panel</li>
-            <li>History</li>
-            <li>Content blocking</li>
-            <li>And beyond</li>
-          </ul>
-          <span>Omaweb alpha</span>
-        </div>
-      </section>
-
-      <section class="keyboard" id="keyboard">
-        <div class="keyboard__copy">
-          <p class="kicker">Keyboard</p>
-          <h2 class="display display--sm">Learn once.<br />Move faster<br />forever.</h2>
-          <p>
-            A small set of memorable keys, borrowed from Vim, gives you instant control. Spend less
-            time clicking and more time actually using the web.
-          </p>
-          <a
-            class="more"
-            href="https://github.com/villekivela/omaweb/blob/main/assets/keybindings/Default.json"
-            >See every binding <span aria-hidden="true">→</span></a
-          >
-        </div>
-
-        <div class="keyboard__photo">
-          <img src="assets/art/keycaps.webp" width="1490" height="839" alt="" loading="lazy" />
-        </div>
-
-        <div class="keyboard__panel">
-          <div class="control">
-            <p class="kicker">Navigation control</p>
-            <dl class="keys">
-              <div>
-                <dt><kbd>J</kbd></dt>
-                <dd>Down</dd>
               </div>
-              <div>
-                <dt><kbd>K</kbd></dt>
-                <dd>Up</dd>
-              </div>
-              <div>
-                <dt><kbd>F</kbd></dt>
-                <dd>Links</dd>
-              </div>
-              <div>
-                <dt><kbd>/</kbd></dt>
-                <dd>Find</dd>
-              </div>
-              <div>
-                <dt><kbd>?</kbd></dt>
-                <dd>Help</dd>
-              </div>
-            </dl>
-          </div>
-          <div class="everywhere">
-            <p class="kicker">Yours to rebind</p>
-            <p>
-              Every binding lives in one <code>keybindings.json</code>. A site that needs a key can
-              have it back.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Installing, set as the dashboard's own screens: the same glass, glow and scanlines as the
-           address screen in the hero. The commands are the README's, and the fingerprint is the
-           one the key in security/ carries; change them there first. The road behind them runs
-           the page's full width, so the section is full width and its content keeps the column. -->
-      <section class="install" id="install">
-        <div class="install__body wrap">
-          <div class="install__intro">
-            <p class="kicker">Install</p>
-            <h2 class="display display--md">Get on<br />the road.</h2>
-            <p>
-              Omaweb ships from its own pacman repository, so it installs and upgrades with the rest
-              of your system. Two steps, once.
-            </p>
-            <p class="install__more">
-              A single package or a build from source instead? The
-              <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
-            </p>
-          </div>
-
-          <div class="install__screens">
-            <figure class="hud">
-              <figcaption class="hud__bar">
-                <span>01 &middot; Add the repository</span>
-                <span class="hud__meta"
-                  >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
-                    Copy
-                  </button></span
+              <h2>Agents drive their own Spaces</h2>
+              <p>
+                An Agent works in a Space of its own, marked in the footer, and never in yours
+                unless you let it.
+                <a
+                  href="https://github.com/villekivela/omaweb/blob/main/docs/adr/0051-hand-the-browser-to-an-agent.md"
+                  >How Agents work</a
                 >
-              </figcaption>
-              <div class="hud__screen">
-                <pre><code>[omaweb]
+              </p>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Installing. The commands are the README's and the fingerprint is the one the key in
+           security/ carries; change them there first, scripts/check_repository_instructions.py
+           holds the three to each other. A one-line install (#497) goes first, above the steps. -->
+        <section class="plate install" id="install" aria-labelledby="install-title">
+          <h2 id="install-title">Get on the road.</h2>
+          <p>
+            Omaweb ships from its own pacman repository, so it installs and upgrades with the rest
+            of your system. Two steps, once.
+          </p>
+          <figure class="hud">
+            <figcaption class="hud__bar">
+              <span>1 Add the repository</span>
+              <span class="hud__meta"
+                >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
+                  Copy
+                </button></span
+              >
+            </figcaption>
+            <div class="hud__screen">
+              <pre><code>[omaweb]
 SigLevel = Required DatabaseRequired
 Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</code></pre>
-              </div>
-            </figure>
-
-            <figure class="hud">
-              <figcaption class="hud__bar">
-                <span>02 &middot; Trust the key, then install</span>
-                <span class="hud__meta"
-                  >terminal<button class="hud__copy" type="button" data-copy hidden>
-                    Copy
-                  </button></span
-                >
-              </figcaption>
-              <div class="hud__screen">
-                <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
+            </div>
+          </figure>
+          <figure class="hud">
+            <figcaption class="hud__bar">
+              <span>2 Trust the key, then install</span>
+              <span class="hud__meta"
+                >terminal<button class="hud__copy" type="button" data-copy hidden>
+                  Copy
+                </button></span
+              >
+            </figcaption>
+            <div class="hud__screen">
+              <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --add repo-signing-key.asc
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --lsign-key <mark>FDA535B2185755EA718BEA585DBF15FE484EFA64</mark>
-<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman -Syu omaweb<span class="caret" aria-hidden="true"></span></code></pre>
-              </div>
-              <p class="hud__note">
-                The fingerprint is the one thing to check. It comes from here, not from a keyserver,
-                and pacman installs nothing that key did not sign.
-              </p>
-            </figure>
-
-            <p class="install__after">
-              <span class="install__lamp" aria-hidden="true"></span>
-              <span>From then on, <code>sudo pacman -Syu</code> keeps it current.</span>
-            </p>
-          </div>
-        </div>
-      </section>
+<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman -Syu omaweb</code></pre>
+            </div>
+          </figure>
+          <p>
+            The fingerprint is the one thing to check. It comes from here, not from a keyserver, and
+            pacman installs nothing that key did not sign. From then on,
+            <code>sudo pacman -Syu</code>
+            keeps it current. A single package or a build from source instead? The
+            <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
+          </p>
+          <p class="install__notes">
+            <a class="more" href="releases/"
+              >What changed in each release <span aria-hidden="true">&rarr;</span></a
+            >
+          </p>
+        </section>
+      </div>
     </main>
 
     <footer class="foot">
@@ -591,5 +560,6 @@ Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</cod
 
     <script src="audio.js"></script>
     <script src="script.js"></script>
+    <script type="module" src="drive.js"></script>
   </body>
 </html>

@@ -29,11 +29,12 @@ const WEBSITE = resolve(HERE, "..");
 const OUTPUT = join(WEBSITE, "dist");
 const RELEASES = join(OUTPUT, "releases");
 
-// Not the site: `build/` is this script, its tests and the release template, `dist/` is where it
-// writes, `node_modules/` and the package files are the build's own dependency, `.vercel` is the
+// Not the site: `build/` is this script, its tests and the release template, `tests/` holds the
+// page's own tests, `dist/` is where it writes, `node_modules/` and the package files are the build's own dependency, `.vercel` is the
 // CLI's state, and `vercel.json` is read from the project root rather than served.
 const NOT_DEPLOYED = new Set([
   "build",
+  "tests",
   "dist",
   "node_modules",
   ".vercel",

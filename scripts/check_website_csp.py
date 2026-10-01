@@ -15,7 +15,11 @@ Blocked by `default-src 'self'`:
 - a `src` or `href` naming another origin, or a protocol-relative `//host/path`
 - `url()` in a stylesheet naming another origin
 - a `<script>` with a body and no `src`, which `script-src 'self'` blocks
-- a `style` attribute, which `style-src 'self'` blocks
+- a script importing or fetching from another origin, which `script-src` and
+  `connect-src` block
+- a `style` attribute, which `style-src 'self'` blocks, whether it is in the
+  HTML or in markup a script builds; a script setting `element.style` goes
+  through the CSSOM, which the policy allows
 
 `<a href>` is a navigation rather than a subresource, so a link to github.com
 is left alone. `application/ld+json` is data the browser never executes, so it
@@ -24,29 +28,27 @@ adding one means widening the policy on purpose rather than by accident.
 
 Usage:
 
-    scripts/check_website_csp.py
+    scripts/check_website_csp.py [--website DIR]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
 from pathlib import Path
 
 WEBSITE = Path(__file__).resolve().parent.parent / "website"
-POLICY = WEBSITE / "vercel.json"
 
-# `website/build/site.mjs` writes the deployable site here. Skipped, so this
-# check reads the same files whether or not someone has run a local build. What
-# lands in there is the sources below plus the release markup, and
-# `website/build/render.mjs` emits links and nothing the browser fetches.
-BUILT = WEBSITE / "dist"
-
-# The build's one dependency. It is a Markdown parser that runs at build time
-# and nothing in it is served, so it is not this check's to read; a package
-# shipping an example page would otherwise fail a policy it never meets.
-INSTALLED = WEBSITE / "node_modules"
+# Not served, so not this check's to read. `dist/` is where
+# `website/build/site.mjs` writes the deployable site, skipped so this check
+# reads the same files whether or not someone has run a local build; what lands
+# there is the sources plus the release markup, and `website/build/render.mjs`
+# emits links and nothing the browser fetches. `build/` and `tests/` run in
+# Node, and `node_modules/` is the build's Markdown parser: a package shipping
+# an example page would otherwise fail a policy it never meets.
+UNSERVED = ("dist", "build", "tests", "node_modules")
 
 # An origin this page may not reach: an absolute URL, or a protocol-relative
 # one. `data:` is caught separately so it can say something more useful.
@@ -60,7 +62,13 @@ SUBRESOURCE = re.compile(
     re.IGNORECASE,
 )
 ATTRIBUTE = re.compile(r"""\b(?P<name>src|href)\s*=\s*["'](?P<value>[^"']*)["']""", re.I)
-STYLE_ATTRIBUTE = re.compile(r"""\bstyle\s*=\s*["']""", re.IGNORECASE)
+STYLE_ATTRIBUTE = re.compile(r"""\bstyle\s*=\s*\\?["']""", re.IGNORECASE)
+# What a script loads by address: a static or dynamic import, a fetch, and the
+# constructors that open a connection or a worker.
+SCRIPT_LOAD = re.compile(
+    r"""(?:\bimport\s*(?:[\w${}\s,*]+\s+from\s*)?\(?|\bfetch\s*\(|"""
+    r"""\bnew\s+(?:Worker|SharedWorker|EventSource|WebSocket)\s*\()\s*["'`](?P<value>[^"'`]+)["'`]"""
+)
 CSS_URL = re.compile(r"""url\(\s*["']?(?P<value>[^"')]+)["']?\s*\)""", re.IGNORECASE)
 SCRIPT_BLOCK = re.compile(
     r"""<script(?P<attributes>[^>]*)>(?P<body>.*?)</script>""",
@@ -77,7 +85,7 @@ def line_of(text: str, index: int) -> int:
 
 
 def report(problems: list[str], path: Path, line: int, message: str) -> None:
-    problems.append(f"{path.relative_to(WEBSITE.parent)}:{line}: {message}")
+    problems.append(f"{path}:{line}: {message}")
 
 
 def check_markup(path: Path, problems: list[str]) -> None:
@@ -106,6 +114,17 @@ def check_markup(path: Path, problems: list[str]) -> None:
         report(problems, path, line_of(text, attribute.start()), "style attribute")
 
 
+def check_script(path: Path, problems: list[str]) -> None:
+    """Markup a script builds meets the same policy as markup in a page."""
+    text = path.read_text(encoding="utf-8")
+    for load in SCRIPT_LOAD.finditer(text):
+        value = load.group("value").strip()
+        if FOREIGN.match(value) or value.startswith("data:"):
+            report(problems, path, line_of(text, load.start()), f"script loads {value}")
+    for attribute in STYLE_ATTRIBUTE.finditer(text):
+        report(problems, path, line_of(text, attribute.start()), "style attribute")
+
+
 def check_stylesheet(path: Path, problems: list[str]) -> None:
     text = path.read_text(encoding="utf-8")
     for reference in CSS_URL.finditer(text):
@@ -117,12 +136,12 @@ def check_stylesheet(path: Path, problems: list[str]) -> None:
             report(problems, path, line, "url() loads a data: URI")
 
 
-def check_policy(problems: list[str]) -> None:
+def check_policy(policy: Path, problems: list[str]) -> None:
     """The policy this script assumes is the one the site actually sends."""
-    if not POLICY.exists():
-        problems.append(f"{POLICY.relative_to(WEBSITE.parent)}: missing")
+    if not policy.exists():
+        problems.append(f"{policy}: missing")
         return
-    document = json.loads(POLICY.read_text(encoding="utf-8"))
+    document = json.loads(policy.read_text(encoding="utf-8"))
     sent = {
         header["key"].lower(): header["value"]
         for rule in document.get("headers", [])
@@ -131,23 +150,34 @@ def check_policy(problems: list[str]) -> None:
     policy = sent.get("content-security-policy", "")
     if "default-src 'self'" not in policy:
         problems.append(
-            f"{POLICY.relative_to(WEBSITE.parent)}: "
-            "no `default-src 'self'`, so this check no longer describes the site"
+            f"{policy}: no `default-src 'self'`, so this check no longer describes the site"
         )
 
 
-def main() -> int:
-    problems: list[str] = []
-    check_policy(problems)
+def served(website: Path, pattern: str) -> list[Path]:
+    """The site's files matching `pattern`, leaving out what is never served."""
+    return sorted(
+        path
+        for path in website.rglob(pattern)
+        if not set(path.relative_to(website).parts) & set(UNSERVED)
+    )
 
-    for path in sorted(WEBSITE.rglob("*.html")):
-        if BUILT in path.parents or INSTALLED in path.parents:
-            continue
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--website", type=Path, default=WEBSITE, help="the site to check")
+    website = parser.parse_args().website.resolve()
+    problems: list[str] = []
+    check_policy(website / "vercel.json", problems)
+    for path in served(website, "*.html"):
         check_markup(path, problems)
-    for path in sorted(WEBSITE.rglob("*.css")):
-        if BUILT in path.parents or INSTALLED in path.parents:
-            continue
+    for path in served(website, "*.css"):
         check_stylesheet(path, problems)
+    for pattern in ("*.js", "*.mjs"):
+        for path in served(website, pattern):
+            check_script(path, problems)
+    # Named from the directory holding the site, as `website/index.html:12`.
+    problems = [problem.replace(f"{website.parent}/", "") for problem in problems]
 
     if problems:
         print("The website would break under its own Content-Security-Policy:\n")

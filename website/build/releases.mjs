@@ -84,7 +84,15 @@ export function chrome(landing, root, meta) {
       /(<meta\s+name="description"\s+content=")[^"]*(")/,
       `$1${escapeHtml(meta.description)}$2`,
     )
-    .replace(/(<a href="[^"]*\/releases\/")>/, '$1 aria-current="true">');
+    .replace(/(<a href="[^"]*\/releases\/")>/, '$1 aria-current="true">')
+    // A release page is read in the reader's own theme, not the one the landing page wears: Omaweb
+    // hands a page that asks the window's palette as `--omaweb-*`, which styles.css prefers, and
+    // any other browser shows Omaweb's own colours.
+    .replace(/<html lang="en" data-theme="[^"]*">/, '<html lang="en">')
+    .replace(
+      /(\n\s*)(<meta name="viewport")/,
+      '$1<meta name="omaweb-palette" content="follow" />$1$2',
+    );
   return (body) => `${before}<main>\n${body}\n    </main>${after}`;
 }
 

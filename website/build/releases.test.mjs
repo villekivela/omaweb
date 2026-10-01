@@ -84,6 +84,16 @@ test("chrome: the landing page's addresses reach back to the root from a release
   assert.match(html, /<main>\n<p>body<\/main>|<main>\n<p>body<\/p>\n {4}<\/main>/);
 });
 
+// The landing page wears a theme the reader picks there. A release page is read in the reader's own
+// theme instead: it asks Omaweb for the window's palette, and wears Omaweb's own colours elsewhere.
+test("chrome: a release page asks for the reader's palette and wears no theme of its own", () => {
+  assert.match(LANDING, /<html lang="en" data-theme="retro-82">/);
+  assert.doesNotMatch(LANDING, /omaweb-palette/);
+  const html = chrome(LANDING, "../..", { title: "t", description: "d" })("<p>body</p>");
+  assert.match(html, /<html lang="en">/);
+  assert.match(html, /<meta name="omaweb-palette" content="follow" \/>\n/);
+});
+
 test("fallback: a build that could not read the releases still says where they are", () => {
   const html = fallbackPage(LANDING);
   assert.match(html, /The releases are on GitHub\./);
