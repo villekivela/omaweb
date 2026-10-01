@@ -4244,7 +4244,7 @@ SessionSpec threeSpacesWithTabs()
             SpaceSpec {
                 .id = QStringLiteral("work"),
                 .name = QStringLiteral("Work"),
-                .color = QStringLiteral("#ff8800"),
+                .color = QStringLiteral("yellow"),
                 .tabs = {TabSpec {
                              .id = QStringLiteral("board"),
                              .url = QUrl(QStringLiteral("https://board.example/team")),
@@ -4311,7 +4311,7 @@ void BrowserControllerTest::listsEveryOtherSpacesTabsFromTheSession()
     const auto board = listed.first().toMap();
     QCOMPARE(board.value(QStringLiteral("spaceId")).toString(), QStringLiteral("work"));
     QCOMPARE(board.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Work"));
-    QCOMPARE(board.value(QStringLiteral("spaceColor")).toString(), QStringLiteral("#ff8800"));
+    QCOMPARE(board.value(QStringLiteral("spaceColor")).toString(), QStringLiteral("yellow"));
     QCOMPARE(board.value(QStringLiteral("title")).toString(), QStringLiteral("Board"));
     QCOMPARE(board.value(QStringLiteral("url")).toUrl(),
         QUrl(QStringLiteral("https://board.example/team")));

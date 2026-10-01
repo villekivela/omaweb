@@ -5,6 +5,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QHash>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMap>
 #include <QRegularExpression>
 #include <QSignalSpy>
@@ -30,6 +33,9 @@ private slots:
     void namesOneColourForSomethingBeingWrong();
     void keepsTheAgentAccentLegibleAndApartFromTheAccent();
     void fillsTheAgentAccentFromTheDesktopsCyan();
+    void namesTheSixSpaceColoursAndKeepsThemLegible();
+    void fillsTheSpaceColoursFromTheDesktopsPalette();
+    void offersOnlyThePlainSpaceColoursOnALightTheme();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
     void handsAPageTheQuietTextTheThemeNamed();
@@ -1480,6 +1486,145 @@ void ThemeControllerTest::fillsTheAgentAccentFromTheDesktopsCyan()
                      .value(QStringLiteral("agentAccent"))
                      .toString()),
         QColor(QStringLiteral("#2ac3de")));
+}
+
+// A Space is drawn in one of six palette names and never in red, magenta or
+// cyan, which say urgent, Private and Agent. A colour a dark terminal names
+// keeps its hue on a light theme and darkens until a Space's name written in
+// it reads on every ground it is drawn on, in a Private window too.
+void ThemeControllerTest::namesTheSixSpaceColoursAndKeepsThemLegible()
+{
+    const QStringList names {QStringLiteral("green"), QStringLiteral("yellow"),
+        QStringLiteral("blue"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow"),
+        QStringLiteral("bright_blue")};
+    QTemporaryDir root;
+    QFile dark(root.filePath(QStringLiteral("dark.json")));
+    QVERIFY(dark.open(QIODevice::WriteOnly));
+    dark.write(R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa",
+        "spaces": { "green": "#98c379", "red": "#e06c75" } })JSON");
+    dark.close();
+    const auto darkSpaces
+        = ThemeController(dark.fileName()).palette().value(QStringLiteral("spaces")).toMap();
+    auto keys = darkSpaces.keys();
+    keys.sort();
+    auto expected = names;
+    expected.sort();
+    QCOMPARE(keys, expected);
+    QCOMPARE(QColor(darkSpaces.value(QStringLiteral("green")).toString()),
+        QColor(QStringLiteral("#98c379")));
+    for (const auto &name : names) {
+        QVERIFY2(QColor(darkSpaces.value(name).toString()).isValid(), qPrintable(name));
+    }
+
+    const auto light = QString::fromUtf8(R"JSON({
+        "window": "#ffffff",
+        "sidebar": "#f4f4f4",
+        "overlay": "#eeeeee",
+        "text": "#1a1a1a",
+        "accent": "#3b6fd6",
+        "spaces": {
+            "green": "#98c379", "yellow": "#e5c07b", "blue": "#61afef",
+            "bright_green": "#b5e890", "bright_yellow": "#f0d197", "bright_blue": "#8cc8ff"
+        }
+    })JSON");
+    QFile lightFile(root.filePath(QStringLiteral("light.json")));
+    QVERIFY(lightFile.open(QIODevice::WriteOnly));
+    lightFile.write(light.toUtf8());
+    lightFile.close();
+    const auto palette = ThemeController(lightFile.fileName()).palette();
+    const auto named = QJsonDocument::fromJson(light.toUtf8())
+                           .object()
+                           .value(QStringLiteral("spaces"))
+                           .toObject();
+    const auto spaces = palette.value(QStringLiteral("spaces")).toMap();
+    for (const auto &name : names) {
+        const QColor colour(spaces.value(name).toString());
+        for (const auto *key : {"windowOpaque", "sidebarOpaque", "overlayOpaque",
+                 "privateWindowOpaque", "privateSidebarOpaque", "privateOverlayOpaque"}) {
+            const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+            QVERIFY2(ground.isValid(), key);
+            QVERIFY2(contrastRatio(colour, ground) >= 4.5, qPrintable(name + u' ' + key));
+        }
+        QVERIFY2(std::abs(colour.hslHueF() - QColor(named.value(name).toString()).hslHueF()) < 0.02,
+            qPrintable(name));
+    }
+}
+
+// Repaired to read on a light ground, each bright colour comes out as its
+// plain twin, so a light theme offers three: a Space set to a bright one is
+// drawn in the plain one. A dark theme offers all six, each its own.
+void ThemeControllerTest::offersOnlyThePlainSpaceColoursOnALightTheme()
+{
+    const QStringList six {QStringLiteral("green"), QStringLiteral("yellow"),
+        QStringLiteral("blue"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow"),
+        QStringLiteral("bright_blue")};
+    const QStringList plain {
+        QStringLiteral("green"), QStringLiteral("yellow"), QStringLiteral("blue")};
+    QTemporaryDir root;
+    QFile light(root.filePath(QStringLiteral("light.json")));
+    QVERIFY(light.open(QIODevice::WriteOnly));
+    light.write(R"JSON({
+        "window": "#dce0e8", "sidebar": "#e6e9ef", "overlay": "#e6e9ef", "text": "#4c4f69",
+        "spaces": {
+            "green": "#40a02b", "yellow": "#df8e1d", "blue": "#1e66f5",
+            "bright_green": "#5fb84a", "bright_yellow": "#e9a64a", "bright_blue": "#4d86f7"
+        }
+    })JSON");
+    light.close();
+    const auto palette = ThemeController(light.fileName()).palette();
+    QCOMPARE(palette.value(QStringLiteral("spaceColourNames")).toStringList(), plain);
+    const auto spaces = palette.value(QStringLiteral("spaces")).toMap();
+    for (const auto &name : plain) {
+        QCOMPARE(spaces.value(QStringLiteral("bright_") + name), spaces.value(name));
+    }
+
+    QFile dark(root.filePath(QStringLiteral("dark.json")));
+    QVERIFY(dark.open(QIODevice::WriteOnly));
+    dark.write(R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa" })JSON");
+    dark.close();
+    const auto darkPalette = ThemeController(dark.fileName()).palette();
+    QCOMPARE(darkPalette.value(QStringLiteral("spaceColourNames")).toStringList(), six);
+    const auto darkSpaces = darkPalette.value(QStringLiteral("spaces")).toMap();
+    for (const auto &name : plain) {
+        QVERIFY(darkSpaces.value(QStringLiteral("bright_") + name) != darkSpaces.value(name));
+    }
+}
+
+// Omarchy renders each Space colour from the terminal colour of the same name,
+// so a desktop theme's Spaces are drawn in hues it already draws.
+void ThemeControllerTest::fillsTheSpaceColoursFromTheDesktopsPalette()
+{
+    QFile shipped(QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
+    QVERIFY(shipped.open(QIODevice::ReadOnly));
+    auto rendered = QString::fromUtf8(shipped.readAll());
+    const QHash<QString, QString> terminal {{QStringLiteral("green"), QStringLiteral("#9ece6a")},
+        {QStringLiteral("yellow"), QStringLiteral("#e0af68")},
+        {QStringLiteral("blue"), QStringLiteral("#7aa2f7")},
+        {QStringLiteral("bright_green"), QStringLiteral("#73daca")},
+        {QStringLiteral("bright_yellow"), QStringLiteral("#ff9e64")},
+        {QStringLiteral("bright_blue"), QStringLiteral("#7dcfff")}};
+    for (auto it = terminal.cbegin(); it != terminal.cend(); ++it) {
+        const auto token = QStringLiteral("{{ %1 }}").arg(it.key());
+        QVERIFY2(rendered.contains(QStringLiteral("\"%1\": \"%2\"").arg(it.key(), token)),
+            qPrintable(it.key()));
+        rendered.replace(token, it.value());
+    }
+    rendered.replace(QStringLiteral("{{ darker_background }}"), QStringLiteral("#16161e"));
+    rendered.replace(QStringLiteral("{{ dark_background }}"), QStringLiteral("#1a1b26"));
+    rendered.replace(QStringLiteral("{{ foreground }}"), QStringLiteral("#c0caf5"));
+    static const QRegularExpression token(QStringLiteral("\\{\\{ [a-z_]+ \\}\\}"));
+    rendered.replace(token, QStringLiteral("#565f89"));
+
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("omaweb.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(rendered.toUtf8());
+    theme.close();
+    const auto spaces
+        = ThemeController(theme.fileName()).palette().value(QStringLiteral("spaces")).toMap();
+    for (auto it = terminal.cbegin(); it != terminal.cend(); ++it) {
+        QCOMPARE(QColor(spaces.value(it.key()).toString()), QColor(it.value()));
+    }
 }
 
 // QFontDatabase needs a GUI application, so this suite is no longer guiless.

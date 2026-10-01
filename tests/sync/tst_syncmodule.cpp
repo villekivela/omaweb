@@ -25,6 +25,7 @@
 #include <QTest>
 #include <QUrlQuery>
 
+#include <algorithm>
 #include <utility>
 
 using omaweb::BrowserController;
@@ -320,7 +321,7 @@ void SyncModuleTest::writesEncryptedBrowserStateToAGitRemote()
     SqliteSessionStore store(dataRoot.path());
     QVERIFY(store.open(&error));
     QVERIFY(store.saveSpace(SpaceState {QStringLiteral("space-personal"),
-        QStringLiteral("Personal"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("Personal"), QStringLiteral("green"), true}));
     QVERIFY(store.saveTabs(QStringLiteral("space-personal"),
         {TabState {.id = QStringLiteral("tab-secret"),
             .spaceId = QStringLiteral("space-personal"),
@@ -378,7 +379,7 @@ void SyncModuleTest::restoresBrowserStateOnASecondMachine()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(firstStore.saveSpace(SpaceState {
-        QStringLiteral("space-work"), QStringLiteral("Work"), QStringLiteral("#42a5f5"), true}));
+        QStringLiteral("space-work"), QStringLiteral("Work"), QStringLiteral("blue"), true}));
     QVERIFY(firstStore.saveTabs(QStringLiteral("space-work"),
         {TabState {.id = QStringLiteral("tab-pinned"),
              .spaceId = QStringLiteral("space-work"),
@@ -403,7 +404,7 @@ void SyncModuleTest::restoresBrowserStateOnASecondMachine()
     SqliteSessionStore secondStore(secondDataRoot.path());
     QVERIFY(secondStore.open(&error));
     QVERIFY(secondStore.saveSpace(SpaceState {QStringLiteral("generated-default"),
-        QStringLiteral("Personal"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("Personal"), QStringLiteral("green"), true}));
     QVERIFY(secondStore.saveTabs(QStringLiteral("generated-default"),
         {TabState {.id = QStringLiteral("generated-tab"),
             .spaceId = QStringLiteral("generated-default"),
@@ -426,7 +427,7 @@ void SyncModuleTest::restoresBrowserStateOnASecondMachine()
     QCOMPARE(spaces.size(), 1);
     QCOMPARE(spaces.constFirst().id, QStringLiteral("space-work"));
     QCOMPARE(spaces.constFirst().name, QStringLiteral("Work"));
-    QCOMPARE(spaces.constFirst().color, QStringLiteral("#42a5f5"));
+    QCOMPARE(spaces.constFirst().color, QStringLiteral("blue"));
     const auto tabs = secondStore.loadTabs(QStringLiteral("space-work"));
     QCOMPARE(tabs.size(), 2);
     QCOMPARE(tabs.at(0).id, QStringLiteral("tab-pinned"));
@@ -566,7 +567,7 @@ void SyncModuleTest::leavesTheRemoteUntouchedWhenNothingChanged()
     SqliteSessionStore store(dataRoot.path());
     QVERIFY(store.open(&error));
     QVERIFY(store.saveSpace(SpaceState {
-        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
     QVERIFY(store.saveTabs(QStringLiteral("space-1"),
         {TabState {.id = QStringLiteral("tab-1"),
             .spaceId = QStringLiteral("space-1"),
@@ -688,6 +689,15 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
 
     QVERIFY(browser.renameSpace(workSpace, QStringLiteral("Projects")));
     QTRY_COMPARE(changed.count(), 1);
+
+    // A Space's colour is a palette name, and it is part of the Space.
+    changed.clear();
+    QVERIFY(browser.setSpaceColour(workSpace, QStringLiteral("bright_blue")));
+    QTRY_COMPARE(changed.count(), 1);
+    const auto recoloured = exchange.capture({});
+    const auto work = std::ranges::find(recoloured.spaces, workSpace, &omaweb::SpaceState::id);
+    QVERIFY(work != recoloured.spaces.cend());
+    QCOMPARE(work->color, QStringLiteral("bright_blue"));
 }
 
 void SyncModuleTest::localSyncStateRefusesIneligibleBrowserState()
@@ -857,7 +867,7 @@ void SyncModuleTest::twoMachinesConvergeWhenTheyChangeDifferentRecords()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(firstStore.saveSpace(SpaceState {
-        QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("green"), true}));
     const auto originalTab = TabState {.id = QStringLiteral("tab-1"),
         .spaceId = QStringLiteral("space-1"),
         .url = QUrl(QStringLiteral("https://example.com")),
@@ -880,7 +890,7 @@ void SyncModuleTest::twoMachinesConvergeWhenTheyChangeDifferentRecords()
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     QVERIFY(firstStore.saveSpace(SpaceState {
-        QStringLiteral("space-1"), QStringLiteral("Renamed"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("space-1"), QStringLiteral("Renamed"), QStringLiteral("green"), true}));
     OMAWEB_VERIFY_SYNC(settle(first, firstStore));
     auto changedTab = originalTab;
     changedTab.title = QStringLiteral("Changed title");
@@ -917,7 +927,7 @@ void SyncModuleTest::preservesUnappliedRemoteChangesDuringALocalEdit()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(firstStore.saveSpace(SpaceState {
-        QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("green"), true}));
     SyncModule first({.dataRoot = firstDataRoot.path(),
         .configRoot = firstConfigRoot.path(),
         .remoteUrl = remote,
@@ -937,7 +947,7 @@ void SyncModuleTest::preservesUnappliedRemoteChangesDuringALocalEdit()
     OMAWEB_VERIFY_SYNC(second.applyRemoteState(secondStore));
 
     QVERIFY(firstStore.saveSpace(SpaceState {QStringLiteral("space-1"),
-        QStringLiteral("Remote rename"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("Remote rename"), QStringLiteral("green"), true}));
     const auto remoteTab = TabState {.id = QStringLiteral("remote-tab"),
         .spaceId = QStringLiteral("space-1"),
         .url = QUrl(QStringLiteral("https://remote.example")),
@@ -990,7 +1000,7 @@ void SyncModuleTest::laterRecordWinsWhenTwoMachinesChangeTheSameRecord()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(firstStore.saveSpace(SpaceState {
-        QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("green"), true}));
     SyncModule first({.dataRoot = firstDataRoot.path(),
         .configRoot = firstConfigRoot.path(),
         .remoteUrl = remote,
@@ -1010,12 +1020,12 @@ void SyncModuleTest::laterRecordWinsWhenTwoMachinesChangeTheSameRecord()
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     firstNow = 2'000;
-    QVERIFY(firstStore.saveSpace(SpaceState {QStringLiteral("space-1"),
-        QStringLiteral("Older rename"), QStringLiteral("#7c6cff"), true}));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Older rename"), QStringLiteral("green"), true}));
     OMAWEB_VERIFY_SYNC(settle(first, firstStore));
     secondNow = 3'000;
-    QVERIFY(secondStore.saveSpace(SpaceState {QStringLiteral("space-1"),
-        QStringLiteral("Newer rename"), QStringLiteral("#7c6cff"), true}));
+    QVERIFY(secondStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Newer rename"), QStringLiteral("green"), true}));
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
     OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
@@ -1044,7 +1054,7 @@ void SyncModuleTest::aClosedTabDoesNotReturnFromAnotherMachine()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(firstStore.saveSpace(SpaceState {
-        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("#7c6cff"), true}));
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
     const auto kept = TabState {.id = QStringLiteral("tab-kept"),
         .spaceId = QStringLiteral("space-1"),
         .url = QUrl(QStringLiteral("https://kept.example")),

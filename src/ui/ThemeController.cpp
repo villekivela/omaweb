@@ -394,9 +394,13 @@ QVariantMap ThemeController::fallbackPalette() const
         // renders — gets the same private window this one does.
         {QStringLiteral("privateAccent"), QStringLiteral("#c678dd")},
         // Whose hands are on a tab or a Space: an Agent's. It marks the row,
-        // the page frame and the footer letter of what an Agent is driving,
+        // the page frame and the footer mark of what an Agent is driving,
         // and says nothing is wrong, as `urgent` would.
         {QStringLiteral("agentAccent"), QStringLiteral("#56b6c2")},
+        // What each Space is drawn in, by the palette name the Space keeps.
+        // Six of a terminal's colours, and none that says something else
+        // already: red is urgent, magenta Private, cyan an Agent.
+        {QStringLiteral("spaces"), defaultSpaceColours()},
         {QStringLiteral("font"), defaultFont()},
         {QStringLiteral("opacity"), defaultOpacity()},
         {QStringLiteral("syntax"), defaultSyntax()},
@@ -421,6 +425,18 @@ QVariantMap ThemeController::defaultSyntax()
         {QStringLiteral("variable"), QStringLiteral("#e06c75")},
         {QStringLiteral("function"), QStringLiteral("#61afef")},
         {QStringLiteral("type"), QStringLiteral("#56b6c2")},
+    };
+}
+
+QVariantMap ThemeController::defaultSpaceColours()
+{
+    return {
+        {QStringLiteral("green"), QStringLiteral("#98c379")},
+        {QStringLiteral("yellow"), QStringLiteral("#e5c07b")},
+        {QStringLiteral("blue"), QStringLiteral("#61afef")},
+        {QStringLiteral("bright_green"), QStringLiteral("#b5e890")},
+        {QStringLiteral("bright_yellow"), QStringLiteral("#f0d197")},
+        {QStringLiteral("bright_blue"), QStringLiteral("#8cc8ff")},
     };
 }
 
@@ -617,7 +633,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         }
     }
 
-    // Muted text is not decoration. It is a tab's title, a Space's letters,
+    // Muted text is not decoration. It is a tab's title, a Space's name,
     // the footer's controls — content the reader has to read, drawn quieter
     // than the rest so the rest can lead. A palette derived from a terminal's
     // sixteen colours has nothing to say about it: Omarchy offers
@@ -696,6 +712,50 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
                 agentAccent, text, agentGrounds, minimumAgentContrast, /*preserveHue=*/true)
                 .name(QColor::HexRgb));
     }
+
+    // A Space's colour is read as well as seen: the Omnibar writes a Space's
+    // name in it, and the footer and Settings draw it on the sidebar and the
+    // sheet. So, as with the Agent accent, each keeps its hue and changes
+    // lightness only until it clears 4.5:1 on every ground, a Private
+    // window's too. A name the theme gives that is not one of the six is
+    // dropped, and one it leaves out is Omaweb's own.
+    const auto themeSpaces = palette.value(QStringLiteral("spaces")).toMap();
+    const auto spaceGrounds = coloursFor({QStringLiteral("window"), QStringLiteral("sidebar"),
+        QStringLiteral("overlay"), QStringLiteral("sheet"), QStringLiteral("privateWindow"),
+        QStringLiteral("privateSidebar"), QStringLiteral("privateOverlay"),
+        QStringLiteral("privateSheet")});
+    QVariantMap spaces;
+    const auto spaceDefaults = defaultSpaceColours();
+    for (auto it = spaceDefaults.cbegin(); it != spaceDefaults.cend(); ++it) {
+        const QColor named(themeSpaces.value(it.key()).toString());
+        auto colour = named.isValid() ? named : QColor(it.value().toString());
+        if (text.isValid() && !spaceGrounds.isEmpty()) {
+            constexpr auto minimumSpaceContrast = 4.5;
+            colour = adjustedForContrast(
+                colour, text, spaceGrounds, minimumSpaceContrast, /*preserveHue=*/true);
+        }
+        spaces.insert(it.key(), colour.name(QColor::HexRgb));
+    }
+    // Repaired for a light ground, each bright colour lands on its plain twin
+    // or near enough that two Spaces could not be told apart, so a light theme
+    // offers the three plain ones and draws a bright one as its twin. Light is
+    // text darker than the sidebar it is read on.
+    QStringList spaceColourNames {
+        QStringLiteral("green"), QStringLiteral("yellow"), QStringLiteral("blue")};
+    const QColor sidebar(palette.value(QStringLiteral("sidebar")).toString());
+    const auto lightTheme = text.isValid() && sidebar.isValid()
+        && relativeLuminance(text) < relativeLuminance(sidebar);
+    for (const auto &plain : QStringList(spaceColourNames)) {
+        const auto bright = QStringLiteral("bright_") + plain;
+        if (lightTheme) {
+            spaces.insert(bright, spaces.value(plain));
+        } else {
+            spaceColourNames.append(bright);
+        }
+    }
+    palette.insert(QStringLiteral("spaces"), spaces);
+    // The colours Settings offers, in the order it offers them.
+    palette.insert(QStringLiteral("spaceColourNames"), spaceColourNames);
 
     // The grounds a border is actually drawn on, which is every Omaweb surface
     // except a hover fill: the rules and frames this role paints sit on a

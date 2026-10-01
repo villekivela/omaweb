@@ -46,6 +46,90 @@ Rectangle {
     property var agentActivity: ({})
     property var agentSpaceIds: []
 
+    // How wide a Space is in the footer, and the count of those left out.
+    readonly property int spaceSlot: 18
+    readonly property int slotSpacing: 4
+    readonly property int overflowSlot: 28
+
+    // How many Spaces the row has room for. The reader's come first and the
+    // Agent Spaces after them, so the ones left out are the last in that
+    // order, and room is kept for the count of them.
+    function spacesShown(available, count) {
+        const widthOf = function (shown) {
+            return shown * root.spaceSlot + Math.max(0, shown - 1) * root.slotSpacing;
+        };
+        if (widthOf(count) <= available)
+            return count;
+        let shown = count;
+        while (shown > 0 && widthOf(shown) + root.slotSpacing + root.overflowSlot > available)
+            --shown;
+        return shown;
+    }
+
+    // Where the Space on show is in the list, kept as the list changes: a
+    // binding over model data does not see the model change.
+    property int activeRow: activeSpaceRow()
+    Connections {
+        target: root.browser ? root.browser.spaces : null
+        function onDataChanged() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onRowsInserted() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onRowsRemoved() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onRowsMoved() {
+            root.activeRow = root.activeSpaceRow();
+        }
+        function onModelReset() {
+            root.activeRow = root.activeSpaceRow();
+        }
+    }
+
+    // Whether the footer draws a Space. The Space on show always has a place:
+    // when it would be left out, it takes the last place there is room for,
+    // and the Space that stood there is counted instead.
+    function spaceInRow(row) {
+        const shown = spaceSwitcher.shown;
+        if (root.activeRow < shown)
+            return row < shown;
+        return row < shown - 1 || row === root.activeRow;
+    }
+
+    // The Spaces the footer left out, in its order, and where their count
+    // stands, for the window to hang their menu from.
+    function openHiddenSpaces() {
+        if (root.privateWindow || !root.browser || spaceOverflow.hidden <= 0)
+            return;
+        const spaces = root.browser.spaces;
+        const hidden = [];
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            if (root.spaceInRow(row))
+                continue;
+            const index = spaces.index(row, 0);
+            const spaceId = spaces.data(index, Qt.UserRole + 1);
+            hidden.push({
+                            "spaceId": spaceId,
+                            "spaceName": spaces.data(index, Qt.UserRole + 2),
+                            "spaceColor": spaces.data(index, Qt.UserRole + 3),
+                            "active": spaces.data(index, Qt.UserRole + 4),
+                            "agentMade": root.agentSpaceIds.indexOf(spaceId) >= 0,
+                            "attached": root.agentWorkIn(spaceId).attached
+                        });
+        }
+        const corner = spaceOverflow.mapToItem(null, 0, 0);
+        root.hiddenSpacesRequested(hidden, Qt.rect(corner.x, corner.y, spaceOverflow.width,
+                                                   spaceOverflow.height));
+    }
+
+    // What a Space's palette name is drawn in under the theme on show.
+    function spaceColour(name) {
+        const spaces = root.colors ? root.colors.spaces : null;
+        return spaces && spaces[name] ? spaces[name] : root.colors.accent;
+    }
+
     function agentOf(tabId) {
         return root.agentActivity[tabId] || null;
     }
@@ -81,7 +165,7 @@ Rectangle {
 
     // Spaces are a row, the row the footer draws them in, and switching one
     // slides the outline along it: the Space to the right arrives from the
-    // right as the one on show leaves to the left, the lit letter slides
+    // right as the one on show leaves to the left, the larger square moves
     // along the footer with it, and the page arrives the same way. One
     // movement, in the direction the reader chose. The leaving list is a
     // picture taken while it was at rest, since the models have already
@@ -285,6 +369,10 @@ Rectangle {
     // and nothing about the rows around it.
     signal tabDropped(string tabId, int destination)
     signal spaceActivated(string spaceId)
+    // The count of Spaces the footer had no room for was pressed: those
+    // Spaces, each as `{ spaceId, spaceName, spaceColor, active, agentMade,
+    // attached }`, and where the count stands.
+    signal hiddenSpacesRequested(var spaces, rect origin)
     signal settingsRequested
     signal syncRequested
     signal backRequested
@@ -1135,99 +1223,119 @@ Rectangle {
         Accessible.name: root.privateWindow || !root.browser ? "Private" :
                                                                root.browser.activeSpaceName
 
-        // Every Space is one letter, the active one lit. The row is the
-        // switcher: spelling the active name out again would say what the
-        // lit letter already says.
-        // The lit plate slides along the row to the Space on show, so the
-        // switch reads in the footer as it reads in the list. The letters
-        // themselves stay where they are.
-        Rectangle {
-            visible: !root.privateWindow && root.easeSpaces
-            x: root.settledSpaceRow * 35
-            anchors.verticalCenter: parent.verticalCenter
-            width: 30
-            height: 28
-            radius: Style.cornerRadius
-            color: Style.selectedFillFor(root.colors.text, root.colors.accent)
-            border.color: Style.normalBorderFor(root.colors.text, root.colors.accent)
-            border.width: Style.normalBorderWidth
-            Behavior on x {
-                NumberAnimation {
-                    duration: 240
-                    easing.type: Easing.OutCubic
-                }
-            }
-        }
-
+        // Every Space of the reader's is a small square in its colour, and
+        // every Agent Space the Agent's mark after them. The row is the
+        // switcher: the Space on show is the larger square, with no plate,
+        // border or fill around it, so the one coloured thing in the footer
+        // stays the Spaces' own colours. A name is what hovering says.
+        //
+        // Nothing scrolls: a Space the row has no room for is left out and
+        // counted, and stays reachable by its key and from the count's menu.
         Row {
+            id: spaceSwitcher
             objectName: "spaceSwitcher"
+            readonly property int shown: root.spacesShown(width, spaceRepeater.count)
             anchors.left: parent.left
-            anchors.right: downloadMark.visible ? downloadMark.left : (syncMark.visible
-                                                                       ? syncMark.left :
-                                                                         settingsButton.left)
+            // The row ends where the first mark standing in the footer
+            // begins, so no Space and no count sits under one.
+            anchors.right: releaseMark.visible ? releaseMark.left : (extensionMark.visible
+                                                                     ? extensionMark.left : (
+                                                                           downloadMark.visible
+                                                                           ? downloadMark.left : (
+                                                                                 syncMark.visible
+                                                                                 ? syncMark.left :
+                                                                                   settingsButton.left)))
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             height: 28
             visible: !root.privateWindow
-            spacing: 5
+            spacing: root.slotSpacing
 
             Repeater {
+                id: spaceRepeater
                 model: root.browser ? root.browser.spaces : null
 
                 ChromeButton {
                     id: spaceButton
                     required property string spaceId
                     required property string spaceName
+                    required property string spaceColor
                     required property bool active
                     required property int index
 
-                    // A Space an Agent is working in, or one an Agent made,
-                    // wears the Agent's mark in place of its letter, so it
-                    // can be read while the Space is away. The mark is in the
-                    // Agent accent while an Agent is attached to one of the
-                    // Space's tabs, and muted in an Agent Space no Agent is
-                    // using. The letter comes back when the connection closes,
-                    // or when the reader takes the Space over.
+                    // An Agent Space wears the Agent's mark: in the Agent
+                    // accent while an Agent is attached to one of its tabs,
+                    // muted while none is. One of the reader's Spaces an Agent
+                    // is working in wears it too while the Agent is attached,
+                    // in the Space's own colour and in its square's place, so
+                    // it can be read while the Space is away; the square comes
+                    // back when the Agent leaves.
                     readonly property var agentWork: root.agentWorkIn(spaceId)
                     readonly property bool agentMade: root.agentSpaceIds.indexOf(spaceId) >= 0
-                    readonly property bool showsAgent: agentWork.attached || agentMade
+                    readonly property bool showsAgent: agentMade || agentWork.attached
 
                     objectName: "space-" + spaceId
-                    width: 30
+                    visible: root.spaceInRow(index)
+                    width: root.spaceSlot
                     height: 28
-                    label: showsAgent ? "" : (spaceName.length > 0 ? spaceName.charAt(0).toUpperCase(
-                                                                         ) : "·")
                     accessibleName: (active ? "Current Space: " + spaceName : "Switch to "
                                               + spaceName) + (agentWork.attached
                                                               ? " (an Agent is working here)" : (
                                                                     agentMade ? " (Agent Space)" :
                                                                                 ""))
-                    // The letter is the theme's, not the Space's own colour:
-                    // the kit derives a control's fill and its border from its
-                    // foreground, so a coloured Space painted the whole button
-                    // in it — a lit plate louder than anything else in the
-                    // outline, for the one thing the reader already knows.
-                    // Being the only lit letter in the row is what says which
-                    // Space is on show.
+                    // The kit derives a control's fill and border from its
+                    // foreground, which is why the Space's colour is the
+                    // square's alone and never the button's: a coloured Space
+                    // once painted its whole plate.
                     foreground: active ? root.colors.text : root.colors.mutedText
                     accent: root.colors.accent
-                    // The Space on show is the one selected thing in this row,
-                    // so it is drawn the way the kit draws a selection and the
-                    // way a current tab row is: the kit's own selected fill,
-                    // bordered.
-                    selected: active && !root.easeSpaces
-                    bordered: active && !root.easeSpaces
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
+
+                    Rectangle {
+                        objectName: "spaceMark-" + spaceButton.spaceId
+                        readonly property int side: spaceButton.active ? 12 : 8
+                        anchors.centerIn: parent
+                        visible: !spaceButton.showsAgent
+                        width: side
+                        height: side
+                        radius: 2
+                        color: root.spaceColour(spaceButton.spaceColor)
+                        Accessible.ignored: true
+                        Behavior on width {
+                            enabled: root.easeSpaces
+                            NumberAnimation {
+                                duration: 160
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                        Behavior on height {
+                            enabled: root.easeSpaces
+                            NumberAnimation {
+                                duration: 160
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
 
                     AgentMark {
                         objectName: "spaceAgentMark-" + spaceButton.spaceId
                         anchors.centerIn: parent
                         visible: spaceButton.showsAgent
                         busy: spaceButton.agentWork.busy
-                        color: spaceButton.agentWork.attached ? root.colors.agentAccent :
-                                                                root.colors.mutedText
+                        color: !spaceButton.agentMade ? root.spaceColour(spaceButton.spaceColor) : (
+                                                            spaceButton.agentWork.attached
+                                                            ? root.colors.agentAccent :
+                                                              root.colors.mutedText)
                         font.family: root.iconFontFamily
+                        font.pixelSize: Style.font.icon
+                    }
+
+                    Omarchy.PanelToolTip {
+                        objectName: "spaceNote-" + spaceButton.spaceId
+                        visible: spaceButton.hot
+                        text: spaceButton.spaceName
+                        fontFamily: Style.font.family
                     }
 
                     KeyLabel {
@@ -1242,6 +1350,36 @@ Rectangle {
                         shown: root.keyLabelsShown
                         colors: root.colors
                     }
+                }
+            }
+
+            // How many Spaces the row left out, as plain muted text. It opens
+            // a menu of them.
+            Text {
+                id: spaceOverflow
+                objectName: "spaceOverflow"
+                readonly property int hidden: spaceRepeater.count - spaceSwitcher.shown
+                visible: hidden > 0
+                width: root.overflowSlot
+                height: 28
+                text: "+" + hidden
+                color: root.colors.mutedText
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                activeFocusOnTab: visible
+                Accessible.role: Accessible.Button
+                Accessible.name: hidden === 1 ? "1 more Space" : hidden + " more Spaces"
+                Accessible.onPressAction: root.openHiddenSpaces()
+                Keys.onReturnPressed: root.openHiddenSpaces()
+                Keys.onEnterPressed: root.openHiddenSpaces()
+                Keys.onSpacePressed: root.openHiddenSpaces()
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.openHiddenSpaces()
                 }
             }
         }

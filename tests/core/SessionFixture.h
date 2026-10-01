@@ -30,7 +30,7 @@ struct TabSpec {
 struct SpaceSpec {
     QString id {};
     QString name {};
-    QString color = QStringLiteral("#7c6cff");
+    QString color = QStringLiteral("green");
     QVector<TabSpec> tabs {};
     QVector<TabSpec> recentCloses {};
     QString activeTabId {};

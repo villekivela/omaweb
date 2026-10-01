@@ -21,6 +21,10 @@ _Avoid_: Trusted site, Project site
 and tabs. Switching Spaces does not expose one Space's browsing identity to another. _Avoid_:
 Workspace, container, profile (a Space is a browsing identity, not an Engine profile)
 
+**Space colour**: A palette name from the theme that a Space is drawn in: green, yellow, blue,
+bright green, bright yellow or bright blue. The theme resolves it, so the Space follows a theme
+change. _Avoid_: Space hex, accent
+
 **Engine profile**: The directory where one web engine keeps its own state for one Space: cookies,
 site storage, cache, and whatever else that engine writes for itself. A Space has one per engine
 that has run in it, and a Private window's engine profile is temporary and shared. _Avoid_: Profile
@@ -133,7 +137,7 @@ single keys are answered. The labels read the live keymap and go the moment Prim
 another key joins it. _Avoid_: Shortcut badge, key hint
 
 **Space notice**: The name of the Space a switch arrived in, shown at the top of the page for about
-a second. With the window title, it names the Space the footer shows only by its letter. A Private
+a second. With the window title, it names the Space the footer shows only by its colour. A Private
 window has none. _Avoid_: Space toast, Space banner
 
 **Developer tools**: The inspector supplied by the current web engine and attached to one tab.

@@ -59,25 +59,46 @@ reports the gap and remains experimental rather than imitating behavior it canno
   current-address trigger, pinned tabs, ordinary tabs, and footer. Pinned tabs use icon-only buttons
   in full-width rows with capacity for three to five tabs. Incomplete rows divide their width among
   their tabs. Ordinary tabs use single-line rows. The navigation row puts the sidebar and
-  command-scope buttons first, followed by back, forward, and reload. The footer contains the Space
-  letters, Spaces menu, active Download mark, and settings. Private windows replace the Space
-  letters with a mask. New tabs remain available through the Omnibar and keyboard commands rather
-  than a sidebar button.
+  command-scope buttons first, followed by back, forward, and reload. The footer contains the
+  Spaces, active Download mark, and settings. Private windows replace the Spaces with a mask. New
+  tabs remain available through the Omnibar and keyboard commands rather than a sidebar button.
+- Each Space has a Space colour, one of six palette names: green, yellow, blue, bright green, bright
+  yellow and bright blue. It is drawn in the theme's own value for that name, with the contrast
+  repair the theme's other colours get, so it follows a theme change. Red, magenta and cyan stay
+  with urgent, Private and Agent. A new Space, the reader's or an Agent's, takes the colour fewest
+  of the reader's Spaces have, and taking an Agent Space over gives it one the same way. The reader
+  sets any of the six in Settings' Spaces section, where each of the reader's Spaces offers them as
+  small squares, the chosen one larger, and two Spaces may share one. Repaired to read on a light
+  theme, each bright colour lands on its plain twin, so a light theme offers only green, yellow and
+  blue and draws a Space set to a bright colour in its plain one. The colour is part of the Space in
+  Sync. A Space stored before Spaces had colours is given one at start, in footer order.
+- The footer draws each of the reader's Spaces as a small square in its colour, with no letter, and
+  the Space on show as the larger square, with no plate or border around it. Agent Spaces follow as
+  small Agent marks. One of the reader's Spaces with an Agent attached is drawn as the Agent mark in
+  the Space's own colour, in its square's place, until the Agent leaves. Hovering a Space names it.
+  The reader's Spaces come first and Agent Spaces after them, so `select-space` 1 to 9 and the Key
+  labels count the reader's from 1 and an Agent making a Space never renumbers them. Taking an Agent
+  Space over makes it the last of the reader's. Spaces the row has no room for are left out, last
+  first, and a `+N` count in muted text says how many; nothing scrolls. The Space on show is never
+  left out: it takes the last place there is room for, and the Space that stood there is counted
+  instead. Pressing the count opens a menu of the Spaces left out, and each stays reachable by its
+  key.
 - While the sidebar holds the keyboard, `j` and `k` move the Sidebar cursor through its rows, pins
   first, without changing the page. `l` or `Return` opens the row under it and focuses the page, and
   `h` returns the cursor to the tab on show. A single key the reader binds to a command takes
   precedence.
 - Holding Primary on its own for 400 ms shows Key labels over the navigation row, the address
-  trigger, the Space letters and the first nine tabs, read from the live keymap. Releasing Primary,
+  trigger, the Spaces and the first nine tabs, read from the live keymap. Releasing Primary,
   pressing another key, or the window losing the keyboard removes them.
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
 - An Agent tab's row ends with an Agent mark in the Agent accent, in the place the close button
   takes on hover. Hovering the row names the connection and says the tab stays rendered while
   attached. While an Agent tab is on show, its page is framed in the Agent accent, with a label at
-  the top-right corner naming the connection and its last act. A Space holding an Agent tab shows
-  the mark in place of its letter, and an Agent Space with no Agent attached shows it muted. Each
-  mark pulses only while one of the Agent's commands is in flight, so idle chrome draws no frames.
+  the top-right corner naming the connection and its last act. An Agent Space shows the mark in the
+  Agent accent while an Agent is attached and muted otherwise, and one of the reader's Spaces
+  holding an Agent tab shows it in the Space's own colour. Each mark pulses only while one of the
+  Agent's commands is in flight, so idle chrome draws no frames.
 - Opening an Agent Space shows a notice at the top of the page that an Agent made it, with Take over
   and Dismiss, and the Take over Space command does the same. Taking it over removes the mark and
   keeps a temporary Agent Space after its connection closes. A Private window is never an Agent's
@@ -141,10 +162,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   beside the sidebar. While the sidebar is hidden, the navigation controls, the sidebar toggle and
   the command-scope trigger float over the bottom-left of the page instead of taking a band from it.
 - `Primary+B` hides the sidebar entirely. In that chromeless state the page keeps the whole window,
-  the floating controls appear, and a stripe in the Space colour along the window's leading edge
-  keeps the browsing identity visible. Hiding or showing the sidebar eases the seam and the page
-  travels with it, keeping one width for the whole movement: the page lays out once rather than at
-  every width the seam crosses, and the sidebar's rows keep their own width as it goes.
+  the floating controls appear. Hiding or showing the sidebar eases the seam and the page travels
+  with it, keeping one width for the whole movement: the page lays out once rather than at every
+  width the seam crosses, and the sidebar's rows keep their own width as it goes.
 - The floating controls and the eased seam are defaults rather than fixtures. Settings' interface
   section turns each off: without the floating controls a hidden sidebar leaves the page the whole
   window, and without the ease the seam and the page arrive at their settled widths in one step.
@@ -198,9 +218,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   window lists no Spaces and no history.
 - The Omnibar searches every Space's open tabs. The active Space's tab rows come before any other
   Space's, however weakly they hold the typed text, and the other Spaces' follow in Space order. A
-  tab row from another Space names its Space after the host, in the Space's colour, and committing
-  it switches to that Space with the tab on show as one action: a tab the Space no longer holds
-  leaves the reader where they were. The rows are read from what the session keeps of each Space, so
+  tab row from another Space names its Space after the host, in the Space colour, or for an Agent
+  Space in the Agent accent while an Agent is attached and muted otherwise, and committing it
+  switches to that Space with the tab on show as one action: a tab the Space no longer holds leaves
+  the reader where they were. The rows are read from what the session keeps of each Space, so
   listing them resumes, loads or thaws no page. A Private window lists only its own tabs.
 - Engine suggestions, an installation-wide setting in Settings' network section, are off by default
   and stay out of Sync. With them on, the Omnibar asks a search engine for Engine suggestions only
@@ -255,14 +276,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   families, sizes and label spacing, and the tinting of tab tiles. Semantic opacity values control
   transparent surfaces, which fall back to an opaque color where accessibility settings require it.
   Blurring the desktop behind them is the window system's and is not required for them to read.
-- Quiet text is content, not decoration: a tab's title, a Space's letters, the footer's controls.
-  Whatever a theme names for it, Omaweb holds it to WCAG AA against every ordinary and Private
-  surface it is drawn on, and therefore clear of the disabled rendering of ordinary text. A reader
-  must never have to guess whether something is merely quiet or actually unavailable. Borders clear
-  the WCAG AA non-text threshold against every surface they separate. Contrast repair keeps a
-  colour's theme-supplied hue. Where a palette's own surfaces put a threshold out of reach, the
-  colour that reads best on the worst of them is used and the rest of the theme is kept: the browser
-  always follows the desktop's colours.
+- Quiet text is content, not decoration: a tab's title, the footer's controls. Whatever a theme
+  names for it, Omaweb holds it to WCAG AA against every ordinary and Private surface it is drawn
+  on, and therefore clear of the disabled rendering of ordinary text. A reader must never have to
+  guess whether something is merely quiet or actually unavailable. Borders clear the WCAG AA
+  non-text threshold against every surface they separate. Contrast repair keeps a colour's
+  theme-supplied hue. Where a palette's own surfaces put a threshold out of reach, the colour that
+  reads best on the worst of them is used and the rest of the theme is kept: the browser always
+  follows the desktop's colours.
 - The Agent accent keeps its theme-supplied hue and clears 4.5:1 against the window and the sidebar,
   since the page frame's label is written on it. It is kept apart from the accent.
 - Private windows must remain visually distinct. Reduced-motion, increased-contrast, and

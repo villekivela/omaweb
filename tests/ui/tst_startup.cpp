@@ -128,7 +128,7 @@ void StartupProbes::aSpaceAtItsBoundsIsRestoredInsideItsBudget()
         SpaceState space;
         space.id = spaceId;
         space.name = QStringLiteral("Work");
-        space.color = QStringLiteral("#7c6cff");
+        space.color = QStringLiteral("green");
         space.active = true;
         QVERIFY(store.saveSpace(space));
         QVERIFY(store.setActiveSpace(spaceId));

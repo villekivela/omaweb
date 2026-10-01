@@ -38,7 +38,7 @@ SpaceState makeSpace()
     SpaceState space;
     space.id = QStringLiteral("space-1");
     space.name = QStringLiteral("Personal");
-    space.color = QStringLiteral("#7c6cff");
+    space.color = QStringLiteral("green");
     space.active = true;
     return space;
 }

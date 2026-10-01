@@ -97,7 +97,12 @@ rules: an Agent Space it made is on show with the tab it is driving, which it ha
 and a second Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
 `--agents-window` has the Agent's page open an Auxiliary window and captures that window.
 `--agents-grant` has the Agent ask for the reader's page on show, so the grant prompt stands over
-it. Pass `--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700
+it. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` six more Agent
+Spaces, so the footer counts the ones it has no room for; `--narrow` puts the sidebar at its minimum
+width and `--space-overflow` opens the menu of the Spaces left out. `--agents-taken-over` has the
+reader take the Agent's Space over while the Agent is still attached, so a Space of the reader's
+wears the Agent mark in its own colour, and has the Agent at work in a second Agent Space of its
+own. Pass `--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700
 ms by default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
 reviewing chrome changes without a desktop session. The chrome's movements are reviewed the same
 way: `--show space-step`, `tab-step`, `omnibar-step` and `settings-step` run the switch or the

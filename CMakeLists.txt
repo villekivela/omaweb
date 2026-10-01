@@ -1125,6 +1125,16 @@ if(BUILD_TESTING)
     omaweb_declarative_fixture_target(omaweb-temporary-agent-spaces-tests)
     add_test(NAME omaweb-temporary-agent-spaces COMMAND omaweb-temporary-agent-spaces-tests)
 
+    qt_add_executable(omaweb-space-colours-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_spacecolours.cpp"
+    )
+    target_link_libraries(omaweb-space-colours-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-space-colours-tests)
+    omaweb_declarative_fixture_target(omaweb-space-colours-tests)
+    add_test(NAME omaweb-space-colours COMMAND omaweb-space-colours-tests)
+
     qt_add_executable(omaweb-agent-console-tests
         "tests/core/SessionFixture.cpp"
         "tests/core/SessionFixture.h"
