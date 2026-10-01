@@ -1,0 +1,201 @@
+{
+  "description": "The CRT road: the night drive behind the Start page, as the website draws it (website/crt-road.js) and the browser is to (#496). Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, sunTop, sunLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. website/README.md documents the contract.",
+  "id": "crt-road",
+  "name": "CRT road",
+  "pitch": 4,
+  "fps": 30,
+  "glass": "crt",
+  "options": {
+    "bands": ["4", "3"],
+    "road": ["widest", "wider", "wide"]
+  },
+  "roadWidth": {
+    "widest": 1,
+    "wider": 0.8,
+    "wide": 0.62
+  },
+  "night": {
+    "lightThemeGround": 0.45,
+    "deep": 0.45,
+    "deepLightTheme": 0.72,
+    "skyLow": 0.28,
+    "groundNear": 0.35,
+    "sunTop": 0.4,
+    "sunLow": 0.25
+  },
+  "horizon": {
+    "at": 0.5,
+    "lineHeight": 2,
+    "line": [
+      [0, "glow", 0],
+      [0.5, "sunTop", 0.9],
+      [1, "glow", 0]
+    ]
+  },
+  "sky": [
+    [0, "skyTop"],
+    [0.55, { "mix": ["skyTop", "skyLow", 0.35] }],
+    [1, "skyLow"]
+  ],
+  "stars": {
+    "count": 120,
+    "across": [12.9898, 43758.5453],
+    "height": [78.233, 12543.123],
+    "heightPower": 1.6,
+    "brightness": [39.425, 9321.77],
+    "reach": 0.9,
+    "brightAbove": 0.93,
+    "mediumAbove": 0.75,
+    "sizes": { "bright": 3, "medium": 1.8, "dim": 1.2 },
+    "alpha": { "base": 0.25, "range": 0.6, "horizonFade": 0.8 }
+  },
+  "halo": {
+    "radius": 0.55,
+    "stops": [
+      [0, "sunLow", 0.6],
+      [0.18, "sunLow", 0.28],
+      [0.45, "glow", 0.1],
+      [1, "glow", 0]
+    ]
+  },
+  "sun": {
+    "radius": 0.15,
+    "cap": 0.4,
+    "firstGap": 0.5,
+    "stops": [
+      [0, "sunTop"],
+      [1, "sunLow"]
+    ]
+  },
+  "ridges": {
+    "points": 220,
+    "floor": 0.25,
+    "harmonics": [
+      { "frequency": 6.3, "phase": 1, "weight": 0.55, "sharpness": 1.6 },
+      { "frequency": 15.7, "phase": 2.3, "weight": 0.3, "sharpness": 2 },
+      { "frequency": 37.1, "phase": 5.1, "weight": 0.15, "sharpness": 2 }
+    ],
+    "layers": [
+      { "seed": 1.3, "height": 0.3, "notch": 0.16, "tone": { "mix": ["skyLow", "skyTop", 0.2] } },
+      { "seed": 4.2, "height": 0.2, "notch": 0.22, "tone": { "mix": ["skyLow", "skyTop", 0.55] } },
+      { "seed": 8.9, "height": 0.11, "notch": 0.3, "tone": { "mix": ["skyTop", "black", 0.25] } }
+    ]
+  },
+  "desert": {
+    "stops": [
+      [0, { "mix": ["sunLow", "ground", 0.6] }],
+      [0.1, { "mix": ["ground", "groundNear", 0.35] }],
+      [0.35, { "mix": ["groundNear", "black", 0.2] }],
+      [1, { "mix": ["groundNear", "black", 0.5] }]
+    ],
+    "glow": {
+      "squash": 0.3,
+      "radius": 0.45,
+      "stops": [
+        [0, "sunLow", 0.4],
+        [0.5, "sunLow", 0.12],
+        [1, "sunLow", 0]
+      ]
+    }
+  },
+  "road": {
+    "tip": 2,
+    "edges": [
+      { "spread": 1.08, "shade": 0.1 },
+      { "spread": 1.04, "shade": 0.1 },
+      { "spread": 1, "shade": 0.14 }
+    ],
+    "reflection": {
+      "spread": 0.5,
+      "stops": [
+        [0, "sunTop", 0.4],
+        [0.45, "sunLow", 0.1],
+        [1, "sunLow", 0]
+      ]
+    }
+  },
+  "centreLine": {
+    "marks": 26,
+    "spacing": 1.15,
+    "length": 0.42,
+    "stretch": 0.1,
+    "stretchMost": 0.7,
+    "width": 12,
+    "widthAtRoad": 0.42,
+    "fadeFrom": 1.3,
+    "fadeFar": 30,
+    "fadeNear": 2.5,
+    "colour": { "mix": ["sunTop", "white", 0.35] }
+  },
+  "roadside": {
+    "span": 44,
+    "nearest": 1.15,
+    "scatter": 3,
+    "out": [1.25, 1.4],
+    "fadeFar": 10,
+    "fadeNear": 3,
+    "seeds": { "side": 10, "out": 20 },
+    "colour": { "mix": ["groundNear", "black", 0.55] },
+    "order": ["saguaro", "rock", "saguaro", "sign", "rock", "saguaro"],
+    "shapes": {
+      "saguaro": {
+        "height": 0.55,
+        "rects": [
+          [-0.065, -1, 0.13, 1],
+          [-0.286, -0.62, 0.221, 0.104],
+          [-0.286, -0.86, 0.104, 0.3],
+          [0.065, -0.48, 0.195, 0.104],
+          [0.156, -0.74, 0.104, 0.3]
+        ]
+      },
+      "rock": {
+        "height": 0.35,
+        "polygon": [
+          [-0.45, 0],
+          [-0.32, -0.22],
+          [-0.05, -0.3],
+          [0.28, -0.18],
+          [0.42, 0]
+        ]
+      },
+      "sign": {
+        "height": 0.35,
+        "rects": [
+          [-0.025, -0.7, 0.05, 0.7],
+          [-0.22, -0.9, 0.44, 0.24]
+        ]
+      }
+    }
+  },
+  "motion": {
+    "speed": 1.6,
+    "pace": 0.8,
+    "navigatingSpeed": 8,
+    "ease": 2.2,
+    "lightEase": 3,
+    "stillTravel": 0.7,
+    "longestStep": 0.1
+  },
+  "navigatingGlow": {
+    "from": 0.02,
+    "radius": 0.4,
+    "stops": [
+      [0, "sunLow", 0.3],
+      [1, "sunLow", 0]
+    ]
+  },
+  "shootingStar": {
+    "every": 14,
+    "lasts": 0.8,
+    "chance": 0.35,
+    "across": [0.15, 0.7],
+    "height": [0.08, 0.3],
+    "length": 0.12,
+    "slope": 0.35,
+    "tail": 0.5,
+    "width": 3,
+    "fade": 0.6,
+    "colour": { "mix": ["light", "white", 0.5] }
+  },
+  "scatter": [91.345, 7.13, 47453.5453]
+}

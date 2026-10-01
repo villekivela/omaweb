@@ -18,7 +18,7 @@
 // page that says where the releases are, so the site deploys a page that is thin rather than not
 // deploying at all.
 
-import { cp, mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,6 +47,13 @@ const NOT_DEPLOYED = new Set([
 
 const LOCAL = process.argv.includes("--local");
 
+// Files the site shares with the browser, kept outside website/ so both read one copy: the CRT
+// road's parameters, which the browser's own road reads too (#496). Each is served at the address
+// it is listed under.
+export const SHARED = {
+  "crt-road.json": new URL("../../share/scenes/crt-road.json", import.meta.url).href,
+};
+
 // Entry by entry rather than one `cp` of the whole directory: the output lives inside the input,
 // and `cp` refuses that however the filter is written. The READMEs say how the files are made and
 // are for this repository's readers, not the site's; a hidden file is some tool's own.
@@ -64,6 +71,9 @@ async function main() {
   await rm(OUTPUT, { recursive: true, force: true });
   await mkdir(OUTPUT, { recursive: true });
   await copyStaticFiles();
+  for (const [address, source] of Object.entries(SHARED)) {
+    await copyFile(fileURLToPath(source), join(OUTPUT, address));
+  }
 
   const landing = await readFile(join(WEBSITE, "index.html"), "utf8");
   if (LOCAL) {
@@ -86,4 +96,5 @@ async function main() {
   }
 }
 
-await main();
+// The build runs when this file is run, not when a test imports it for SHARED.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

@@ -3,14 +3,22 @@
 // all of the page's script: without it the road is a gradient, the Omnibar's rows are links to
 // their cards, and the introduction is an ordinary video.
 
-import { crtRoad } from "./crt-road.js";
+import { createCrtRoad } from "./crt-road.js";
 import { SceneHost } from "./scene.js";
+
+// The road's parameters, shared with the browser's own road and served beside this script. A
+// page that cannot fetch them keeps the gradient the road would have stood on.
+const crtRoad = await fetch(new URL("crt-road.json", import.meta.url))
+  .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
+  .then(createCrtRoad)
+  .catch(() => null);
 
 const drive = document.querySelector(".drive");
 if (drive) {
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   const typing = (event) => event.target.closest("input, textarea, select, [contenteditable]");
-  const host = new SceneHost(drive.querySelector(".drive__scene canvas"), crtRoad);
+  const canvas = drive.querySelector(".drive__scene canvas");
+  const host = crtRoad ? new SceneHost(canvas, crtRoad) : { setNavigating() {} };
 
   // Past the Start page the road sinks under a scrim of the theme's ground so the cards read
   // against it, and the scroll's speed is how hard the reader is navigating: the road speeds up
@@ -114,9 +122,18 @@ if (drive) {
   let theme = document.documentElement.dataset.theme;
   const picker = omnibar.querySelector(".themes");
   const swatches = [...picker.querySelectorAll("[data-theme-choice]")];
-  const paint = (next) => {
+  // The pick is remembered, so the release pages and the next visit open in it; theme.js applies
+  // it.
+  const paint = (next, remember = true) => {
     theme = next;
     document.documentElement.dataset.theme = theme;
+    if (remember) {
+      try {
+        localStorage.setItem("omaweb-theme", theme);
+      } catch {
+        // Storage can be blocked; the pick then lasts as long as the page.
+      }
+    }
     for (const swatch of swatches) {
       const on = swatch.dataset.themeChoice === theme;
       swatch.setAttribute("aria-pressed", String(on));
@@ -130,6 +147,7 @@ if (drive) {
     swatch.addEventListener("click", () => paint(swatch.dataset.themeChoice));
   }
   picker.hidden = false;
+  paint(theme, false);
 
   // The browser's own keys: o to the Omnibar, T to the next theme and Shift+T to the one before.
   addEventListener("keydown", (event) => {
@@ -149,4 +167,4 @@ if (drive) {
 // A release page: the road as a thin header, one still frame without the glass, in the reader's
 // palette.
 const header = document.querySelector(".log__road canvas");
-if (header) new SceneHost(header, crtRoad, { held: true });
+if (header && crtRoad) new SceneHost(header, crtRoad, { held: true });

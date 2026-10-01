@@ -85,10 +85,8 @@ export function chrome(landing, root, meta) {
       `$1${escapeHtml(meta.description)}$2`,
     )
     .replace(/(<a href="[^"]*\/releases\/")>/, '$1 aria-current="true">')
-    // A release page is read in the reader's own theme, not the one the landing page wears: Omaweb
-    // hands a page that asks the window's palette as `--omaweb-*`, which styles.css prefers, and
-    // any other browser shows Omaweb's own colours.
-    .replace(/<html lang="en" data-theme="[^"]*">/, '<html lang="en">')
+    // A release page wears the landing page's theme, and asks Omaweb for the reader's own palette:
+    // Omaweb hands a page that asks it as `--omaweb-*`, which themes.css prefers over every theme.
     .replace(
       /(\n\s*)(<meta name="viewport")/,
       '$1<meta name="omaweb-palette" content="follow" />$1$2',

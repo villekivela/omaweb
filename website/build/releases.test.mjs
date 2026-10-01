@@ -84,13 +84,12 @@ test("chrome: the landing page's addresses reach back to the root from a release
   assert.match(html, /<main>\n<p>body<\/main>|<main>\n<p>body<\/p>\n {4}<\/main>/);
 });
 
-// The landing page wears a theme the reader picks there. A release page is read in the reader's own
-// theme instead: it asks Omaweb for the window's palette, and wears Omaweb's own colours elsewhere.
-test("chrome: a release page asks for the reader's palette and wears no theme of its own", () => {
-  assert.match(LANDING, /<html lang="en" data-theme="retro-82">/);
+// A release page wears the theme the landing page does, Retro 82 or the reader's pick, and asks
+// Omaweb for the reader's own palette, which themes.css lets win where Omaweb hands it over.
+test("chrome: a release page keeps the landing page's theme and asks for the reader's palette", () => {
   assert.doesNotMatch(LANDING, /omaweb-palette/);
   const html = chrome(LANDING, "../..", { title: "t", description: "d" })("<p>body</p>");
-  assert.match(html, /<html lang="en">/);
+  assert.match(html, /<html lang="en" data-theme="retro-82">/);
   assert.match(html, /<meta name="omaweb-palette" content="follow" \/>\n/);
 });
 

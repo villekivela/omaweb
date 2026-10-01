@@ -97,10 +97,28 @@ costs the same however large the window.
 
 `crt-road.js` is the night drive: a desert under a banded sun, its ground lit by the sun's glow,
 layered ridges, the widest road with only its dashed centre line, now and then a saguaro, a rock or
-a lone sign at the roadside, and a rare shooting star. Its geometry and palette are
-`src/ui/NightRoad.qml`'s. What does not move is drawn once per size and theme into a layer the Scene
-keeps; each frame copies it and draws the centre line, the roadside and the shooting star. It
-declares `bands` (4 or 3) and `road` (widest, wider or wide), and the site takes the defaults.
+a lone sign at the roadside, and a rare shooting star. What does not move is drawn once per size and
+theme into a layer the Scene keeps; each frame copies it and draws the centre line, the roadside and
+the shooting star. It declares `bands` (4 or 3) and `road` (widest, wider or wide), and the site
+takes the defaults.
+
+Everything it draws by is in `share/scenes/crt-road.json`, outside `website/`, because the browser's
+own Start page road reads the same file (#496). The script holds only how it draws:
+
+- `pitch`, `fps`, `glass` and `options` are the Scene's declarations, and `roadWidth` the half width
+  at the foreground each `road` option means.
+- `night` is how the night's colours are mixed from the theme's roles; every other colour names a
+  role (`ground`, `light`, `glow`, `skyTop`, `skyLow`, `groundNear`, `sunTop`, `sunLow`, `black`,
+  `white`) or a `mix` of two at an amount, and a gradient is a list of `[position, colour]` or
+  `[position, colour, alpha]` stops.
+- `horizon`, `sky`, `stars`, `halo`, `sun`, `ridges`, `desert` and `road` are the still layer;
+  `centreLine`, `roadside`, `shootingStar` and `navigatingGlow` are what moves, at the `motion`
+  timings, and `scatter` seeds the repeatable placing.
+
+Lengths are shares of the Scene's width or height unless the key says otherwise, and times are in
+seconds. `build/site.mjs` copies the file into `dist/` beside the page, and `drive.js` fetches it
+before the road starts; a page that cannot fetch it keeps the gradient the road stands on. Change
+the road's look there, not in the script.
 
 Measured with the Scene in a 1440 by 900 box at twice the density, at rest on the Start page and
 while scrolling, it holds 30 frames a second in Firefox, Chrome and Safari for about a millisecond
@@ -116,10 +134,11 @@ per release at `dist/releases/<tag>/`. Each page is `index.html` with its `<main
 rate limit.
 
 A release page is calm: the road as a thin still header, with no motion and no glass, then one
-column with the version, its date and its notes, and every release under them. It is read in the
-reader's own theme rather than the landing page's: it carries `<meta name="omaweb-palette">`, so
-Omaweb hands it the window's palette as `--omaweb-*`, and `styles.css` falls back to Omaweb's own
-colours in any other browser.
+column with the version, its date and its notes, and every release under them. It wears the landing
+page's theme, Retro 82 or the one the reader picked there, which `theme.js` remembers and applies in
+the head before the page paints. It also carries `<meta name="omaweb-palette">`, so in Omaweb the
+window's palette arrives as `--omaweb-*`, and every theme in `themes.css` defers to it: read in
+Omaweb, a release page is in the reader's own theme.
 
 ## Regenerating the shots
 

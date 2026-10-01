@@ -73,9 +73,7 @@ body {
   margin: 0;
   color: var(--ink);
   font: 400 15px/1.6 var(--mono);
-  /* The grain is a seamless tile of dark speckle in its alpha, so it adds tooth to the ground
-     without changing the ground's colour. */
-  background: var(--bg) url("assets/art/paper-grain.webp") 0 0 / 320px;
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
