@@ -20,23 +20,32 @@ private slots:
     void aBuildThatDoesNotKnowItsVersionRecordsNoLaunch();
 
 private:
-    // One run of the browser on the profile under `root`: the watch follows
-    // the browser as main.cpp has it do, and a window asks for the notes once,
-    // or not at all when `windowAsks` is false.
-    static QUrl launch(const QTemporaryDir &root, const QString &version,
-        ReleaseWatch::Ask ask = ReleaseWatch::Ask::GitHub, bool windowAsks = true);
-};
+    // The windows a run opens. Only an ordinary one asks for the notes.
+    enum class Windows { Ordinary, PrivateOnly };
 
-QUrl ReleaseWatchTest::launch(
-    const QTemporaryDir &root, const QString &version, ReleaseWatch::Ask ask, bool windowAsks)
-{
-    BrowserController browser(SpaceStorage(root.path(), QStringLiteral("test")));
+    // One run of the browser on the profile under `root`: the watch follows
+    // the browser as main.cpp has it do, and what the first window was given
+    // is the answer.
+    static QUrl launch(const QTemporaryDir &root, const QString &version,
+        ReleaseWatch::Ask ask = ReleaseWatch::Ask::GitHub, Windows windows = Windows::Ordinary);
     // The daily question goes to GitHub, which a test does not ask. Turning it
     // off leaves the launch to answer for itself.
+    static void stayOffline(BrowserController &browser);
+};
+
+void ReleaseWatchTest::stayOffline(BrowserController &browser)
+{
     browser.setPreference(QStringLiteral("release-check"), QStringLiteral("false"));
+}
+
+QUrl ReleaseWatchTest::launch(
+    const QTemporaryDir &root, const QString &version, ReleaseWatch::Ask ask, Windows windows)
+{
+    BrowserController browser(SpaceStorage(root.path(), QStringLiteral("test")));
+    stayOffline(browser);
     ReleaseWatch watch(version, ask);
     watch.follow(&browser);
-    return windowAsks ? watch.takeUpgradeNotes() : QUrl();
+    return windows == Windows::Ordinary ? watch.takeUpgradeNotes() : QUrl();
 }
 
 void ReleaseWatchTest::opensTheNotesOnceAfterAnUpgrade()
@@ -46,7 +55,7 @@ void ReleaseWatchTest::opensTheNotesOnceAfterAnUpgrade()
 
     {
         BrowserController browser(SpaceStorage(root.path(), QStringLiteral("test")));
-        browser.setPreference(QStringLiteral("release-check"), QStringLiteral("false"));
+        stayOffline(browser);
         ReleaseWatch watch(QStringLiteral("0.9.0"));
         watch.follow(&browser);
         QCOMPARE(
@@ -74,6 +83,8 @@ void ReleaseWatchTest::opensNothingAfterADowngrade()
     QTemporaryDir root;
     QVERIFY(launch(root, QStringLiteral("0.9.0")).isEmpty());
     QVERIFY(launch(root, QStringLiteral("0.8.1")).isEmpty());
+    // Back on the release the reader already had the notes for.
+    QVERIFY(launch(root, QStringLiteral("0.9.0")).isEmpty());
 }
 
 // A run whose only window is a Private one never asks for the notes. The
@@ -82,7 +93,7 @@ void ReleaseWatchTest::keepsTheNotesForALaunchThatOpenedNoWindowForThem()
 {
     QTemporaryDir root;
     QVERIFY(launch(root, QStringLiteral("0.8.0")).isEmpty());
-    launch(root, QStringLiteral("0.9.0"), ReleaseWatch::Ask::GitHub, false);
+    launch(root, QStringLiteral("0.9.0"), ReleaseWatch::Ask::GitHub, Windows::PrivateOnly);
     QCOMPARE(launch(root, QStringLiteral("0.9.0")),
         QUrl(QStringLiteral("https://omaweb.app/releases/v0.9.0/")));
 }

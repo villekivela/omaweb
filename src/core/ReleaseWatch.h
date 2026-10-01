@@ -19,7 +19,7 @@ class BrowserController;
 // anything: pacman owns /usr, and a browser that rewrites its own binary is a
 // security surface this project does not want.
 //
-// It also remembers the release last launched on this machine, so the first
+// It also remembers the newest release launched on this machine, so the first
 // launch after an upgrade can open that release's notes once.
 //
 // The decisions are all in ReleaseCheck, which needs no network to answer them.
@@ -66,7 +66,7 @@ public:
     Q_INVOKABLE void dismiss();
 
     // The release notes this launch owes the reader, once: the running
-    // release's page when it is an upgrade from the one last launched here,
+    // release's page when it is newer than any launched here before,
     // and an empty URL otherwise or when a window has already taken them.
     Q_INVOKABLE QUrl takeUpgradeNotes();
 
@@ -81,9 +81,10 @@ signals:
 private:
     QString preference(const QString &name, const QString &fallback = {}) const;
     void remember(const QString &name, const QString &value);
-    // Compares this launch with the last one on this machine, and keeps the
-    // notes an upgrade owes until a window takes them.
+    // Compares this launch with the newest release launched on this machine,
+    // and keeps the notes an upgrade owes until a window takes them.
     void rememberLaunch();
+    void rememberRunningRelease();
     // Asks pacman how this browser got here, once, and only when there is a
     // notice to put an instruction in. Two questions in sequence, then the
     // answer.

@@ -134,9 +134,11 @@ QUrl notesPage(const QString &releaseTag)
     return QUrl(releases + releaseTag + QLatin1Char('/'));
 }
 
-QUrl upgradeNotes(const QString &lastLaunched, const QString &runningVersion)
+QUrl upgradeNotes(const QString &newestLaunched, const QString &runningVersion)
 {
-    if (!behind(lastLaunched, runningVersion)) {
+    // `behind` asks whether its first version is older than its second, which
+    // here are the newest launch so far and this one.
+    if (!behind(newestLaunched, runningVersion)) {
         return {};
     }
     // Every release is tagged `v` and its number (ADR 0028), and the page is

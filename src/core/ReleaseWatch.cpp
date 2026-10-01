@@ -30,10 +30,10 @@ namespace {
     constexpr auto lastCheckKey = "release-check-last";
     constexpr auto newestKey = "release-check-newest";
     constexpr auto dismissedKey = "release-check-dismissed";
-    // Kept on this machine: the Sync projection names the preferences it copies,
-    // and this is not one of them. Another installation's last launch says
-    // nothing about what was upgraded here.
-    constexpr auto launchedKey = "release-last-launched";
+    // The newest release launched on this machine. Kept here: the Sync
+    // projection names the preferences it copies, and this is not one of them.
+    // Another installation's launches say nothing about what was upgraded here.
+    constexpr auto launchedKey = "release-newest-launched";
 
 } // namespace
 
@@ -233,20 +233,28 @@ void ReleaseWatch::rememberLaunch()
     if (m_ask != Ask::GitHub) {
         return;
     }
-    m_upgradeNotes = ReleaseCheck::upgradeNotes(
-        preference(QString::fromLatin1(launchedKey)), m_runningVersion);
+    const auto newestLaunched = preference(QString::fromLatin1(launchedKey));
+    m_upgradeNotes = ReleaseCheck::upgradeNotes(newestLaunched, m_runningVersion);
     // An upgrade is remembered once a window has opened its notes, so a run
-    // whose only window is a Private one leaves them for the next run.
-    if (m_upgradeNotes.isEmpty()) {
-        remember(QString::fromLatin1(launchedKey), m_runningVersion);
+    // whose only window is a Private one leaves them for the next run. A
+    // downgrade is not remembered at all: the reader has read the notes of the
+    // release they left, and going back to it is not an upgrade to tell them
+    // about again.
+    if (m_upgradeNotes.isEmpty() && !ReleaseCheck::behind(m_runningVersion, newestLaunched)) {
+        rememberRunningRelease();
     }
+}
+
+void ReleaseWatch::rememberRunningRelease()
+{
+    remember(QString::fromLatin1(launchedKey), m_runningVersion);
 }
 
 QUrl ReleaseWatch::takeUpgradeNotes()
 {
     const auto notes = std::exchange(m_upgradeNotes, QUrl());
     if (!notes.isEmpty()) {
-        remember(QString::fromLatin1(launchedKey), m_runningVersion);
+        rememberRunningRelease();
     }
     return notes;
 }

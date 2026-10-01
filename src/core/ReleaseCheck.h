@@ -58,11 +58,11 @@ QString releaseNumber(const QString &version);
 // there.
 QUrl notesPage(const QString &releaseTag);
 
-// The notes to open on a launch, given the version launched before it on this
-// machine: the running release's page when the launch is an upgrade, and an
-// empty URL otherwise. A first install, the same release, a downgrade and a
+// The notes to open on a launch, given the newest version launched before it on
+// this machine: the running release's page when the launch is an upgrade, and
+// an empty URL otherwise. A first install, the same release, a downgrade and a
 // version either side cannot read are none of them an upgrade.
-QUrl upgradeNotes(const QString &lastLaunched, const QString &runningVersion);
+QUrl upgradeNotes(const QString &newestLaunched, const QString &runningVersion);
 
 // Whether a check is owed. At most one a day, counted from the last one that
 // finished.

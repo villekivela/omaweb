@@ -382,11 +382,11 @@ void ReleaseCheckTest::announcesTheNextReleaseAfterADismissedOne()
         .dismissedRelease = QStringLiteral("v0.5.0")}));
 }
 
-// The release a launch runs, against the one launched before it on this
+// The release a launch runs, against the newest one launched before it on this
 // machine. A launch that upgraded is told what changed, on that release's page.
 void ReleaseCheckTest::opensTheNotesOfTheReleaseUpgradedTo_data()
 {
-    QTest::addColumn<QString>("lastLaunched");
+    QTest::addColumn<QString>("newestLaunched");
     QTest::addColumn<QString>("running");
     QTest::addColumn<QUrl>("notes");
 
@@ -406,16 +406,16 @@ void ReleaseCheckTest::opensTheNotesOfTheReleaseUpgradedTo_data()
 
 void ReleaseCheckTest::opensTheNotesOfTheReleaseUpgradedTo()
 {
-    QFETCH(QString, lastLaunched);
+    QFETCH(QString, newestLaunched);
     QFETCH(QString, running);
     QFETCH(QUrl, notes);
 
-    QCOMPARE(omaweb::ReleaseCheck::upgradeNotes(lastLaunched, running), notes);
+    QCOMPARE(omaweb::ReleaseCheck::upgradeNotes(newestLaunched, running), notes);
 }
 
 void ReleaseCheckTest::opensNoNotesWithoutAnUpgrade_data()
 {
-    QTest::addColumn<QString>("lastLaunched");
+    QTest::addColumn<QString>("newestLaunched");
     QTest::addColumn<QString>("running");
 
     // Nothing launched here before. A new reader has no old browser to compare
@@ -435,10 +435,10 @@ void ReleaseCheckTest::opensNoNotesWithoutAnUpgrade_data()
 
 void ReleaseCheckTest::opensNoNotesWithoutAnUpgrade()
 {
-    QFETCH(QString, lastLaunched);
+    QFETCH(QString, newestLaunched);
     QFETCH(QString, running);
 
-    QVERIFY(omaweb::ReleaseCheck::upgradeNotes(lastLaunched, running).isEmpty());
+    QVERIFY(omaweb::ReleaseCheck::upgradeNotes(newestLaunched, running).isEmpty());
 }
 
 QTEST_APPLESS_MAIN(ReleaseCheckTest)
