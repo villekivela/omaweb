@@ -50,7 +50,9 @@ namespace {
     // the one that has them: a version-1 file was seeded with DuckDuckGo
     // alone, and is given the rest once. Version 3 gives the shipped engines
     // their suggest URLs, once.
-    constexpr int searchEnginesVersion = 3;
+    constexpr int searchEnginesWithPresetsVersion = 2;
+    constexpr int searchEnginesWithSuggestUrlsVersion = 3;
+    constexpr int searchEnginesVersion = searchEnginesWithSuggestUrlsVersion;
     const auto defaultSearchEngineId = QStringLiteral("duckduckgo");
 
     // How long typing has to pause before the Omnibar's text goes to a search
@@ -2446,19 +2448,19 @@ void BrowserController::requestEngineSuggestions(const QString &text)
 {
     cancelEngineSuggestions();
     const auto intent = searchIntent(text);
-    const auto engine = searchEngine(intent.value(QStringLiteral("engineId")).toString());
-    const auto terms = intent.value(QStringLiteral("terms")).toString();
+    const EngineSuggestionRequest request {
+        .engine = searchEngine(intent.value(QStringLiteral("engineId")).toString()),
+        .terms = intent.value(QStringLiteral("terms")).toString()};
     // An address, blank text and a keyword alone have no search intent or no
     // terms, so they are never sent, and nor is anything from a window that
     // may not ask.
     if (!m_capabilities.allows(Capability::EngineSuggestions) || !m_engineSuggestions
-        || !m_engineSuggestions->enabled() || terms.isEmpty()
-        || engine.value(QStringLiteral("suggestUrl")).toString().isEmpty()) {
-        answerEngineSuggestions(engine, terms, {});
+        || !m_engineSuggestions->enabled() || request.terms.isEmpty()
+        || request.engine.value(QStringLiteral("suggestUrl")).toString().isEmpty()) {
+        answerEngineSuggestions(request, {});
         return;
     }
-    m_engineSuggestionEngine = engine;
-    m_engineSuggestionTerms = terms;
+    m_engineSuggestionRequest = request;
     m_engineSuggestionPause.start();
 }
 
@@ -2474,13 +2476,16 @@ void BrowserController::cancelEngineSuggestions()
 
 void BrowserController::askEngineForSuggestions()
 {
-    const auto engine = m_engineSuggestionEngine;
-    const auto terms = m_engineSuggestionTerms;
+    const auto request = m_engineSuggestionRequest;
+    if (!m_engineSuggestions) {
+        answerEngineSuggestions(request, {});
+        return;
+    }
     const auto generation = m_engineSuggestionGeneration;
-    auto *reply = m_engineSuggestions->ask(
-        filledTemplate(engine.value(QStringLiteral("suggestUrl")).toString(), terms));
+    auto *reply = m_engineSuggestions->ask(filledTemplate(
+        request.engine.value(QStringLiteral("suggestUrl")).toString(), request.terms));
     m_engineSuggestionReply = reply;
-    connect(reply, &QNetworkReply::finished, this, [this, reply, engine, terms, generation] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, generation] {
         reply->deleteLater();
         if (generation != m_engineSuggestionGeneration) {
             return;
@@ -2490,7 +2495,7 @@ void BrowserController::askEngineForSuggestions()
         QStringList suggestions;
         if (reply->error() == QNetworkReply::NoError) {
             for (const auto &suggestion : EngineSuggestions::parse(reply->readAll())) {
-                if (suggestion.compare(terms, Qt::CaseInsensitive) == 0) {
+                if (suggestion.compare(request.terms, Qt::CaseInsensitive) == 0) {
                     continue;
                 }
                 suggestions.append(suggestion);
@@ -2499,17 +2504,18 @@ void BrowserController::askEngineForSuggestions()
                 }
             }
         }
-        answerEngineSuggestions(engine, terms, suggestions);
+        answerEngineSuggestions(request, suggestions);
     });
 }
 
 void BrowserController::answerEngineSuggestions(
-    const QVariantMap &engine, const QString &terms, const QStringList &suggestions)
+    const EngineSuggestionRequest &request, const QStringList &suggestions)
 {
+    const auto &engine = request.engine;
     emit engineSuggestionsReady({{QStringLiteral("engineId"), engine.value(QStringLiteral("id"))},
         {QStringLiteral("engineName"), engine.value(QStringLiteral("name"))},
         {QStringLiteral("siteUrl"), engine.isEmpty() ? QString {} : engineSite(engine)},
-        {QStringLiteral("terms"), terms}, {QStringLiteral("suggestions"), suggestions}});
+        {QStringLiteral("terms"), request.terms}, {QStringLiteral("suggestions"), suggestions}});
 }
 
 QVariantList BrowserController::history(const QString &query, int limit) const
@@ -3504,7 +3510,7 @@ bool BrowserController::loadSearchEngines()
         return false;
     }
     const auto version = object.value(QStringLiteral("version")).toInt();
-    if (version < 2) {
+    if (version < searchEnginesWithPresetsVersion) {
         // The shipped engines the file does not have yet, once: a reader who
         // deletes one afterwards is not given it again. An engine of the
         // reader's own keeps a keyword a shipped one would have used.
@@ -3522,9 +3528,9 @@ bool BrowserController::loadSearchEngines()
             engines.append(engine);
         }
     }
-    if (version < 3) {
-        // A shipped engine still asking where it shipped asking is given the
-        // suggest URL it now ships with. One whose query URL the reader
+    if (version < searchEnginesWithSuggestUrlsVersion) {
+        // A shipped engine whose query URL is still the shipped one is given
+        // the suggest URL it now ships with. One whose query URL the reader
         // changed is the reader's own, and is left as it is.
         for (auto &value : engines) {
             auto engine = value.toMap();

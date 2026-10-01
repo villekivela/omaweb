@@ -25,10 +25,8 @@ Item {
     property string presetText: ""
     property var suggestions: []
     // The browser's latest Engine suggestion answer: the engine it asked,
-    // the terms, and that engine's proposals.
+    // the terms, and that engine's proposals, four at most.
     property var engineSuggestions: ({})
-    // Past this many, an engine's proposals stop being listed.
-    readonly property int engineSuggestionRows: 4
 
     // The item to sample for the blur. It must not be an ancestor of this
     // panel, or the effect source would feed on its own output.
@@ -291,21 +289,25 @@ Item {
     }
 
     // Engine suggestions come after every row of the reader's own, and only
-    // from the engine the text would search now: an answer from the engine a
-    // keyword has since replaced is not this search's. A proposal of the
-    // terms themselves is the typed text again, which Return already is.
+    // for the search the text makes now. An answer stays listed while the
+    // reader types on past the terms it was asked for, so the rows do not
+    // blink out on each keystroke, but not once the text has left them or a
+    // keyword has chosen another engine. A proposal of the terms themselves
+    // is the typed text again, which Return already is.
     function proposedRows() {
         const answer = engineSuggestions;
-        const terms = intent.terms || "";
+        const terms = (intent.terms || "").toLowerCase();
         if (!answer.suggestions || terms.length === 0 || answer.engineId !== intent.engineId)
             return [];
+        if (!terms.startsWith(answer.terms.toLowerCase()))
+            return [];
         return answer.suggestions.filter(function (suggestion) {
-            return suggestion.toLowerCase() !== terms.toLowerCase();
-        }).slice(0, engineSuggestionRows).map(function (suggestion) {
+            return suggestion.toLowerCase() !== terms;
+        }).map(function (suggestion) {
             return {
                 "kind": "suggestion",
                 "title": suggestion,
-                "typed": terms,
+                "typed": intent.terms,
                 "engineId": answer.engineId,
                 "engineName": answer.engineName,
                 "siteUrl": answer.siteUrl

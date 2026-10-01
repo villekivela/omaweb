@@ -217,6 +217,8 @@ ApplicationWindow {
     // The browser's Global Privacy Control, named apart from its context
     // property for the same reason.
     readonly property var privacyControl: globalPrivacyControl
+    // Engine suggestions' setting, named apart from its context property
+    // because the Omnibar and Settings each have a property of that name.
     readonly property var engineSuggestionSetting: engineSuggestions
     readonly property var webRtcAddressPolicy: webRtcPolicy
     readonly property var dnsResolver: secureDns

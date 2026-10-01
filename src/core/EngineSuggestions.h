@@ -36,7 +36,8 @@ public:
     void setEnabled(bool enabled);
 
     // Sends the request for one suggest address. The reply belongs to the
-    // caller, and gives up on its own after a second.
+    // caller, and aborts itself when the whole answer has not arrived within
+    // a second.
     QNetworkReply *ask(const QUrl &address);
 
     // The proposals in an OpenSearch suggestions answer, `["typed", ["s1",

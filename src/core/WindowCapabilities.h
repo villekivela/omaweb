@@ -9,8 +9,9 @@ namespace omaweb {
 // A Private window keeps nothing, so there is nothing for a Space to hold, a
 // Pinned tab to survive in, a search to read, or a clear command to remove
 // (ADR 0012). Nor does what is typed in it go to a search engine before a
-// commit, whatever the Engine suggestions setting says. Whether a window is private is a separate
-// fact and stays where it is: this says what the window is entitled to do, not which kind it is.
+// commit, whatever the Engine suggestions setting says. Whether a window is
+// private is a separate fact and stays where it is: this says what the window
+// is entitled to do, not which kind it is.
 //
 // A capability is answered for by both kinds of window or by neither: the two
 // tables are built through one constructor that takes every answer, so adding

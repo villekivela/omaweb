@@ -2094,6 +2094,33 @@ void BrowserControllerTest::answersASlowEngineWithNothing()
             .value(QStringLiteral("suggestions"))
             .toStringList()
             .isEmpty());
+
+    // An engine that answers in error lists nothing, whatever its body says.
+    server.status = "503 Service Unavailable";
+    server.body = R"(["weather", ["weather radar"]])";
+    browser.controller.requestEngineSuggestions(QStringLiteral("weather"));
+    QTRY_COMPARE(answered.size(), 3);
+    QVERIFY(answered.at(2)
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
+
+    // The second is for the whole answer: one that keeps arriving a byte at a
+    // time is as late as one that never starts.
+    server.status = "200 OK";
+    server.trickleMilliseconds = 100;
+    waited.restart();
+    browser.controller.requestEngineSuggestions(QStringLiteral("weather r"));
+    QTRY_COMPARE_WITH_TIMEOUT(answered.size(), 4, 5000);
+    QVERIFY(waited.elapsed() < 2500);
+    QVERIFY(answered.at(3)
+            .first()
+            .toMap()
+            .value(QStringLiteral("suggestions"))
+            .toStringList()
+            .isEmpty());
 }
 
 // A suggestion is terms for the engine that proposed it, even one that reads

@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QTimer>
 
 #include <utility>
 
@@ -54,8 +55,11 @@ QNetworkReply *EngineSuggestions::ask(const QUrl &address)
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Omaweb"));
     request.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
     request.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
-    request.setTransferTimeout(answerTimeoutMilliseconds);
-    return m_network->get(request);
+    auto *reply = m_network->get(request);
+    // The whole answer, not the silence between its bytes: an engine that
+    // trickles is as late as one that says nothing.
+    QTimer::singleShot(answerTimeoutMilliseconds, reply, &QNetworkReply::abort);
+    return reply;
 }
 
 QStringList EngineSuggestions::parse(const QByteArray &body)

@@ -6714,6 +6714,27 @@ TestCase {
             row = omnibarRowItem(rows, first + 2);
             compare(findChild(row, "omnibarRowTitle").text, "Weath<b>er &lt;img src=x&gt;</b>");
 
+            // Typing on past the asked terms keeps the answer listed, and
+            // leaving them drops it at once, before any new answer arrives.
+            input.text = "weathe";
+            compare(omnibarRowsOf(panel, "suggestion").length, 4);
+            compare(findChild(omnibarRowItem(rows, first), "omnibarRowTitle").text,
+                    "weathe<b>r</b>");
+            suggestServer.answer('["wind", ["windy"]]');
+            input.text = "wind";
+            compare(omnibarRowsOf(panel, "suggestion").length, 0);
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "suggestion").length === 1;
+            });
+            suggestServer.answer(
+                        '["weath", ["weather", "WEATH", "weather.com", "Weather <img src=x>",'
+                        + ' "weather today", "weather week"]]');
+            input.text = "weath";
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "suggestion").length === 4
+                        && panel.engineSuggestions.terms === "weath";
+            });
+
             // An address-looking proposal is still a search of its engine.
             panel.selected = first + 1;
             panel.accept();

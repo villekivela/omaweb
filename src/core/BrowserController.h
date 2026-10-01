@@ -584,12 +584,18 @@ private:
         QUrl iconUrl;
         bool audible = false;
     };
+    // One Engine suggestion request: the engine asked and the terms it is
+    // asked for, which is what its answer names.
+    struct EngineSuggestionRequest {
+        QVariantMap engine;
+        QString terms;
+    };
 
     void initialize();
     void startHistorySearch(const QString &text, int limit);
     void askEngineForSuggestions();
     void answerEngineSuggestions(
-        const QVariantMap &engine, const QString &terms, const QStringList &suggestions);
+        const EngineSuggestionRequest &request, const QStringList &suggestions);
     void historySearchAnswered(
         const QString &spaceId, const QVariantList &suggestions, quint64 generation);
     void ensureDefaultSpace();
@@ -682,8 +688,7 @@ private:
     QTimer m_engineSuggestionPause;
     QPointer<QNetworkReply> m_engineSuggestionReply;
     quint64 m_engineSuggestionGeneration = 0;
-    QVariantMap m_engineSuggestionEngine;
-    QString m_engineSuggestionTerms;
+    EngineSuggestionRequest m_engineSuggestionRequest;
     // Which request the interface is waiting for. A result carrying an earlier
     // generation belongs to input the reader has already replaced.
     quint64 m_historyGeneration = 0;
