@@ -131,7 +131,7 @@ if (drive) {
   }
   picker.hidden = false;
 
-  // The browser's own keys: o to the Omnibar, T to the next theme.
+  // The browser's own keys: o to the Omnibar, T to the next theme and Shift+T to the one before.
   addEventListener("keydown", (event) => {
     if (typing(event) || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.key === "o") {

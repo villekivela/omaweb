@@ -147,8 +147,7 @@ def check_policy(policy: Path, problems: list[str]) -> None:
         for rule in document.get("headers", [])
         for header in rule.get("headers", [])
     }
-    policy = sent.get("content-security-policy", "")
-    if "default-src 'self'" not in policy:
+    if "default-src 'self'" not in sent.get("content-security-policy", ""):
         problems.append(
             f"{policy}: no `default-src 'self'`, so this check no longer describes the site"
         )

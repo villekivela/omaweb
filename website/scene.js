@@ -3,7 +3,11 @@
 // it everything it may know; README.md has the contract. The decisions are plain functions so
 // they can be tested without a browser.
 
+// A colour as hex, as the landing page's themes give it, or as rgb(), as Omaweb gives a page the
+// reader's palette.
 function rgb(value) {
+  const channels = value.match(/^\s*rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/);
+  if (channels) return channels.slice(1, 4).map(Number);
   let hex = value.trim().replace(/^#/, "");
   if (hex.length === 3) hex = [...hex].map((digit) => digit + digit).join("");
   return [0, 2, 4].map((at) => parseInt(hex.slice(at, at + 2), 16));

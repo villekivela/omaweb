@@ -505,7 +505,9 @@ int main(int argc, char *argv[])
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     if (!suggestUrl.isEmpty()) {
         // The default engine keeps DuckDuckGo's name and query address, so
-        // the rows read as a reader's would.
+        // the rows read as a reader's would. The preset already holds the id
+        // `duckduckgo`, so the engine added under the same name is given
+        // `duckduckgo-2`, and the preset goes.
         browser.addSearchEngine(QStringLiteral("DuckDuckGo"),
             QStringLiteral("https://duckduckgo.com/?q={query}"), {}, suggestUrl);
         browser.setDefaultSearchEngine(QStringLiteral("duckduckgo-2"));

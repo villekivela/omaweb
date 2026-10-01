@@ -47,7 +47,6 @@ window.OmawebRadio = () => {
   let station = 0;
   let bus = null;
   let stopping = 0;
-  const level = new Float32Array(1024);
 
   function noiseBuffer(seconds) {
     const buffer = context.createBuffer(1, context.sampleRate * seconds, context.sampleRate);
@@ -79,10 +78,7 @@ window.OmawebRadio = () => {
     const compressor = context.createDynamicsCompressor();
     compressor.threshold.value = -20;
     compressor.ratio.value = 3;
-    const analyser = context.createAnalyser();
-    analyser.fftSize = 1024;
     master.connect(compressor).connect(context.destination);
-    master.connect(analyser);
 
     const reverb = context.createConvolver();
     reverb.buffer = impulse(4.5);
@@ -146,7 +142,7 @@ window.OmawebRadio = () => {
       drift.start();
     }
 
-    graph = { master, analyser, reverb, delay, noise, wobble, hall: impulse(1.2) };
+    graph = { master, reverb, delay, noise, wobble, hall: impulse(1.2) };
   }
 
   // A station's own bus. Everything it plays goes out through `out`; the pads and bass go through
@@ -644,14 +640,6 @@ window.OmawebRadio = () => {
       else if (station < STATIONS.length - 1) tuneTo(station + 1);
       else stop();
       return this.station;
-    },
-    // How loud it is right now, from 0 to about 1, for the screen to glow with.
-    level() {
-      if (!graph) return 0;
-      graph.analyser.getFloatTimeDomainData(level);
-      let sum = 0;
-      for (const sample of level) sum += sample * sample;
-      return Math.min(1, Math.sqrt(sum / level.length) * 3);
     },
   };
 };

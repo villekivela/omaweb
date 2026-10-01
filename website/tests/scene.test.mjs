@@ -21,6 +21,20 @@ test("input: the theme's roles arrive as RGB, and a dark ground is dark", () => 
   assert.equal(input.dark, true);
 });
 
+// Omaweb hands a page that asks the reader's palette as `rgb()` (EngineView.qml), and a browser
+// can report a colour in either comma or space syntax; the landing page's themes are hex.
+test("input: a role given as rgb() arrives as the same RGB as its hex", () => {
+  const given = { ...retro82, ground: "rgb(2 12 23)", text: " rgb(246, 220, 172)" };
+  const input = sceneInput(road, { palette: given, width: 10, height: 10 });
+  assert.deepEqual(
+    [input.palette.ground, input.palette.text],
+    [
+      [2, 12, 23],
+      [246, 220, 172],
+    ],
+  );
+});
+
 test("input: a light theme's ground is not dark", () => {
   const latte = { ground: "#eff1f5", text: "#4c4f69", accent: "#1e66f5", muted: "#9ca0b0" };
   assert.equal(sceneInput(road, { palette: latte, width: 10, height: 10 }).dark, false);

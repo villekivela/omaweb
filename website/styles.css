@@ -118,11 +118,6 @@ a {
   stroke: none;
 }
 
-.icon--lg {
-  width: 28px;
-  height: 28px;
-}
-
 .kicker {
   margin: 0 0 14px;
   color: var(--dim);
@@ -147,11 +142,6 @@ a {
 
 .display--md {
   font-size: clamp(32px, 3.6vw, 46px);
-}
-
-.display--sm {
-  font-size: clamp(26px, 2.4vw, 32px);
-  line-height: 1.15;
 }
 
 /* A key, not a label: the face sits on a darker base edge that the press pushes it down onto, so
@@ -1028,9 +1018,9 @@ a {
   display: none;
 }
 
-/* One line a release, whatever its name: chip, name, date, and the name cut off before it wraps. */
-/* A lamp column, then chip, name and date. The release on show lights its lamp and its text,
-   the way the dashboard lights up, rather than sitting in a box of its own. */
+/* One line a release, whatever its name: a lamp column, then chip, name and date, the name cut
+   off before it wraps. The release on show lights its lamp and its text rather than sitting in a
+   box of its own. */
 .log__list a {
   display: grid;
   grid-template-columns: 6px 98px minmax(0, 1fr) auto;
