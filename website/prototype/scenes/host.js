@@ -78,6 +78,7 @@
     this.clock = options.clock || "time";
     this.time = options.time || 0;
     this.navigating = 0;
+    this.chosen = options.chosen || {};
     this.visible = false;
     this.frame = 0;
     this.last = 0;
@@ -138,6 +139,24 @@
     this.layout();
   };
 
+  // The reader's choice for one of the Scene's declared options.
+  Host.prototype.setOption = function (name, value) {
+    this.chosen[name] = value;
+    this.state = {};
+    this.draw();
+  };
+
+  // Every option the Scene declares, at the reader's choice or its first value.
+  Host.prototype.optionValues = function () {
+    var declared = (this.scene && this.scene.options) || {};
+    var values = {};
+    for (var name in declared) {
+      var choice = this.chosen[name];
+      values[name] = declared[name].indexOf(choice) >= 0 ? choice : declared[name][0];
+    }
+    return values;
+  };
+
   // How hard the reader is navigating, 0 to 1: the page sets it from the
   // scroll's speed, the browser from a commit until its page paints.
   Host.prototype.setNavigating = function (value) {
@@ -175,6 +194,7 @@
       palette: this.themed.palette,
       dark: this.themed.dark,
       reducedMotion: still(),
+      options: this.optionValues(),
       state: this.state,
     });
   };

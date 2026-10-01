@@ -19,17 +19,25 @@ the rest of the page passes as signs set close together: the walk with one pinne
 of features, the keys and the install. On a phone or with reduced motion the road holds a still
 frame and the signs read as an ordinary list.
 
-The Scenes are treatments of the night drive, for comparing live. The user's pick is `crt-pixel`,
-the default:
+The Scenes are treatments of the night drive, for comparing live. The user's pick is `crt-road`, the
+default:
 
-| `?scene=`   | Name           | What it changes                                                                     |
-| ----------- | -------------- | ----------------------------------------------------------------------------------- |
-| `vector`    | Vector         | Thin crisp lines in the accent, a deep sky, sparse stars, fog; no pixels            |
-| `led`       | LED matrix     | A coarse sign of round LEDs with soft bloom; the headline in the matrix             |
-| `dither`    | Dither         | One bit: the theme's ground or accent per pixel, by an 8 by 8 Bayer                 |
-| `pixel`     | Refined pixel  | Today's road with larger pixels, five theme tones, no seams or halo                 |
-| `crt-pixel` | CRT pixel road | The road in full colour at a 4 px pitch, nearest-neighbour, through the CRT; 30 fps |
-| `crt`       | CRT            | Scanlines, phosphor bloom, a rolling refresh band and a faint flicker               |
+| `?scene=`  | Name          | What it changes                                                          |
+| ---------- | ------------- | ------------------------------------------------------------------------ |
+| `vector`   | Vector        | Thin crisp lines in the accent, a deep sky, sparse stars, fog; no pixels |
+| `led`      | LED matrix    | A coarse sign of round LEDs with soft bloom; the headline in the matrix  |
+| `dither`   | Dither        | One bit: the theme's ground or accent per pixel, by an 8 by 8 Bayer      |
+| `pixel`    | Refined pixel | Today's road with larger pixels, five theme tones, no seams or halo      |
+| `crt-road` | CRT road      | The refined desert drive through the CRT; bands and road width options   |
+| `crt`      | CRT           | Scanlines, phosphor bloom, a rolling refresh band and a faint flicker    |
+
+CRT road is the user's refinement of the pixel road under the CRT. The ground grid, rail posts and
+road edges are gone; the desert is a smooth gradient lit by the sun's glow, the ridges are filled
+silhouettes in layered tones, a saguaro, a rock or a lone sign now and then passes at the roadside,
+and a shooting star crosses about every half minute. About half the stars, a few brighter. Its two
+options are on the bar: the sun's bands (3 or 4) and the road's width at the foreground (wide,
+wider, widest; today's road is narrower than all three). It draws at 30 fps for about 0.8 ms of main
+thread a frame in Chrome 154 on this Mac, 1440 by 900 at 2x.
 
 The CRT's flicker darkens the picture by 2 to 4.5 percent, never a flash, and like the band it stops
 for reduced motion.
@@ -62,6 +70,7 @@ Each frame, `draw(ctx, input)` gets a 2D context the size of its display and:
 | `navigating`    | How hard the reader is navigating now, 0 to 1. See below                      |
 | `reducedMotion` | Hold still: the reader asked for less motion, or the host is on a phone       |
 | `state`         | A plain object kept between frames and cleared on a resize or a theme change  |
+| `options`       | The reader's choice for each option the Scene declares, or its first value    |
 
 `navigating` is the reader moving through the web. In the browser it is 1 from the moment a
 destination is committed until its page paints, the night road's drive today. On the website it is
@@ -76,7 +85,8 @@ road Scenes speed up toward it and light the sun with it. Under `reducedMotion` 
 - Keep caches, and its own motion, in `state`.
 - Declare `pitch`: logical pixels per display pixel (default 1), or `"device"` for one display pixel
   per device pixel. Declare `seams` to draw the dark grid between display pixels, and `fps` to cap
-  its frame rate at what its motion needs.
+  its frame rate at what its motion needs. Declare `options`, each a name and its values, for
+  choices the reader makes; the site shows them on the bar, the browser would show them in Settings.
 
 ### What it may not do
 
@@ -119,6 +129,7 @@ Item {
     property bool dark
     property real time         // advanced by the host's FrameAnimation, only while running
     property real navigating   // 1 from a commit until its page paints
+    property var options       // the reader's choices, from Settings
     property bool reducedMotion
     // width and height come from the host's anchors
 }

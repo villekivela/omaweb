@@ -19,6 +19,7 @@
     "prototype/scenes/dither.js",
     "prototype/scenes/pixel.js",
     "prototype/scenes/crt.js",
+    "prototype/scenes/desert.js",
     "prototype/chrome.js",
     "prototype/variants/drive.js",
   ];
@@ -43,7 +44,7 @@
 
   PV.variant = params.get("variant") || "current";
   PV.theme = stored("theme", "omaweb");
-  PV.scene = stored("scene", "crt-pixel");
+  PV.scene = stored("scene", "crt-road");
 
   PV.el = function (tag, className, html) {
     var node = document.createElement(tag);
@@ -131,11 +132,51 @@
     return row;
   };
 
+  // The reader's choices for Scene options, by option name.
+  PV.chosen = {};
+
   PV.hostScene = function (canvas, options) {
     options = options || {};
     options.scene = PV.scene;
+    options.chosen = PV.chosen;
     return new OmawebScenes.Host(canvas, options);
   };
+
+  function sceneOptions() {
+    var list = OmawebScenes.list().filter(function (scene) {
+      return scene.id === PV.scene;
+    });
+    return (list[0] && list[0].options) || {};
+  }
+
+  // One bar button per option the Scene declares, cycling its values.
+  function optionButtons() {
+    var holder = document.querySelector(".pvbar__options");
+    if (!holder) return;
+    holder.textContent = "";
+    var declared = sceneOptions();
+    Object.keys(declared).forEach(function (name) {
+      var values = declared[name];
+      var button = PV.el("button", "pvbar__toggle");
+      button.type = "button";
+      function label() {
+        var value = values.indexOf(PV.chosen[name]) >= 0 ? PV.chosen[name] : values[0];
+        button.textContent = name.charAt(0).toUpperCase() + name.slice(1) + ": " + value;
+        return value;
+      }
+      label();
+      button.addEventListener("click", function () {
+        var at = values.indexOf(label());
+        PV.chosen[name] = values[(at + 1) % values.length];
+        remember("opt-" + name, PV.chosen[name]);
+        OmawebScenes.hosts.forEach(function (host) {
+          host.setOption(name, PV.chosen[name]);
+        });
+        label();
+      });
+      holder.appendChild(button);
+    });
+  }
   PV.setScene = function (id) {
     PV.scene = id;
     remember("scene", id);
@@ -145,6 +186,7 @@
     });
     var label = document.querySelector(".pvbar__scene");
     if (label) label.textContent = sceneName();
+    optionButtons();
   };
   function sceneName() {
     var list = OmawebScenes.list();
@@ -163,6 +205,12 @@
   }
 
   function mount() {
+    OmawebScenes.list().forEach(function (scene) {
+      Object.keys(scene.options || {}).forEach(function (name) {
+        var value = stored("opt-" + name, "");
+        if (value) PV.chosen[name] = value;
+      });
+    });
     // A Scene remembered from an earlier build of this prototype may be gone.
     if (
       !OmawebScenes.list().some(function (scene) {
@@ -207,6 +255,7 @@
         '<button type="button" class="pvbar__step" data-by="1" aria-label="Next variant">→</button>' +
         '<span class="pvbar__sep"></span>' +
         '<button type="button" class="pvbar__toggle" data-scene>Scene: <span class="pvbar__scene"></span></button>' +
+        '<span class="pvbar__options"></span>' +
         '<button type="button" class="pvbar__toggle" data-chrome aria-pressed="false">Chrome</button>',
     );
     node.querySelector(".pvbar__scene").textContent = sceneName();
@@ -230,6 +279,7 @@
     });
     if (PV.variant === "current") chromeButton.hidden = true;
     document.body.appendChild(node);
+    optionButtons();
     document.addEventListener("keydown", function (event) {
       var t = event.target;
       if (t.closest && t.closest("input, textarea, [contenteditable]")) return;

@@ -1,4 +1,4 @@
-// PROTOTYPE (#440). Scenes "CRT" and "CRT pixel road": the road on a cathode-ray tube. Drawn soft at
+// PROTOTYPE (#440). Scene "CRT": the road on a cathode-ray tube. Drawn soft at
 // a low resolution and scaled up, with scanlines, a phosphor bloom, darker
 // corners, a refresh band rolling down the glass and a faint flicker. The
 // flicker moves the brightness by a few percent at most, never a flash, and
@@ -110,33 +110,6 @@
     },
   });
 
-  // The pixel road through the glass: the road in its full colours, its
-  // gradients and the sun's halo kept, painted at the Start page's own
-  // four-pixel pitch and scaled up nearest-neighbour, so each road pixel is a
-  // crisp block the scanlines cross and the bloom still has light to spread.
-  var PIXEL = 4;
-
-  window.OmawebScenes.register({
-    id: "crt-pixel",
-    name: "CRT pixel road",
-    pitch: "device",
-    // Pixel blocks move in whole steps; 30 frames a second is all the motion
-    // shows, at half the cost.
-    fps: 30,
-    draw: function (ctx, input) {
-      var scale = 1 / input.pitch;
-      var s = input.state;
-      var c = R.colours(input);
-      var pic = canvas(
-        s,
-        "pic",
-        Math.ceil(input.width / scale / PIXEL),
-        Math.ceil(input.height / scale / PIXEL),
-      );
-      var p = pic.getContext("2d");
-      p.setTransform(1 / PIXEL, 0, 0, 1 / PIXEL, 0, 0);
-      R.fill(p, R.geometry(pic.width * PIXEL, pic.height * PIXEL), c, R.motion(input, 0.8));
-      glass(ctx, input, s, c, pic, false);
-    },
-  });
+  // The glass, for the Scenes that show their own picture through it.
+  window.OmawebCRT = { glass: glass, canvas: canvas };
 })();
