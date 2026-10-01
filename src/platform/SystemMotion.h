@@ -7,6 +7,7 @@
 #include <QVariant>
 
 #include <array>
+#include <cstddef>
 
 namespace omaweb {
 
@@ -42,11 +43,13 @@ signals:
 private:
     enum class Source { Portal, Hyprland, Gnome, MacAccessibility, Count };
 
-    void setAsks(Source source, bool asks);
+    void setReducedBy(Source source, bool reduces);
 
-    std::array<bool, static_cast<std::size_t>(Source::Count)> m_asks {};
-    // The macOS notification token, held as the header is read by C++ too.
+    std::array<bool, static_cast<std::size_t>(Source::Count)> m_reducedBy {};
+#ifdef Q_OS_MACOS
+    // The notification token, held untyped since the header is read by C++.
     void *m_macObserver = nullptr;
+#endif
 };
 
 // The portal's `reduced-motion` answer: 1 asks for reduced motion, 0 is no

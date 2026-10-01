@@ -9,12 +9,12 @@
 
 namespace omaweb {
 
-bool SystemMotion::reduced() const { return std::ranges::any_of(m_asks, std::identity {}); }
+bool SystemMotion::reduced() const { return std::ranges::any_of(m_reducedBy, std::identity {}); }
 
-void SystemMotion::setAsks(Source source, bool asks)
+void SystemMotion::setReducedBy(Source source, bool reduces)
 {
     const auto wasReduced = reduced();
-    m_asks.at(static_cast<std::size_t>(source)) = asks;
+    m_reducedBy.at(static_cast<std::size_t>(source)) = reduces;
     if (reduced() != wasReduced) {
         emit reducedChanged();
     }

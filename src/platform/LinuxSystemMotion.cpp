@@ -5,10 +5,13 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusVariant>
+#include <QFileInfo>
 #include <QLocalSocket>
+#include <QTimer>
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 namespace omaweb {
 
@@ -21,6 +24,9 @@ namespace {
     const auto kReducedMotion = QStringLiteral("reduced-motion");
     const auto kGnomeInterface = QStringLiteral("org.gnome.desktop.interface");
     const auto kEnableAnimations = QStringLiteral("enable-animations");
+    // Long enough not to spin against a compositor that is not there, short
+    // enough that a restarted one is heard from before the reader notices.
+    constexpr int kReconnectMs = 5000;
 
     // The portal hands a setting back wrapped in a variant, and the older
     // `Read` wraps it twice.
@@ -65,9 +71,9 @@ SystemMotion::SystemMotion(QObject *parent)
     const auto answer
         = [this](const QString &nameSpace, const QString &key, const QVariant &value) {
               if (nameSpace == kAppearance && key == kReducedMotion) {
-                  setAsks(Source::Portal, portalAsksToReduceMotion(value));
+                  setReducedBy(Source::Portal, portalAsksToReduceMotion(value));
               } else if (nameSpace == kGnomeInterface && key == kEnableAnimations) {
-                  setAsks(Source::Gnome, gnomeAsksToReduceMotion(value));
+                  setReducedBy(Source::Gnome, gnomeAsksToReduceMotion(value));
               }
           };
 
@@ -111,7 +117,7 @@ SystemMotion::SystemMotion(QObject *parent)
         // Hyprland answers and closes, so the whole answer is in hand once
         // the socket is.
         connect(socket, &QLocalSocket::disconnected, this, [this, socket] {
-            setAsks(Source::Hyprland, hyprlandAsksToReduceMotion(socket->readAll()));
+            setReducedBy(Source::Hyprland, hyprlandAsksToReduceMotion(socket->readAll()));
             socket->deleteLater();
         });
         connect(socket, &QLocalSocket::errorOccurred, socket, [socket](auto) {
@@ -133,6 +139,32 @@ SystemMotion::SystemMotion(QObject *parent)
         pending->remove(0, end);
         if (hyprlandConfigurationReloaded(whole)) {
             askHyprland();
+        }
+    });
+    // A socket that was not up yet, or that the compositor dropped, is tried
+    // again a few seconds on, and asked again once it answers, since a reload
+    // may have come and gone in between. A socket that is gone for good stops
+    // being tried: a restarted Hyprland is another instance, under a
+    // signature this process was never given.
+    auto *retry = new QTimer(this);
+    retry->setSingleShot(true);
+    retry->setInterval(kReconnectMs);
+    connect(retry, &QTimer::timeout, eventSocket, [eventSocket, events] {
+        if (QFileInfo::exists(events)) {
+            eventSocket->connectToServer(events);
+        }
+    });
+    auto connectedBefore = std::make_shared<bool>(false);
+    connect(eventSocket, &QLocalSocket::connected, this, [pending, askHyprland, connectedBefore] {
+        pending->clear();
+        if (std::exchange(*connectedBefore, true)) {
+            askHyprland();
+        }
+    });
+    connect(eventSocket, &QLocalSocket::disconnected, retry, qOverload<>(&QTimer::start));
+    connect(eventSocket, &QLocalSocket::errorOccurred, retry, [eventSocket, retry](auto) {
+        if (eventSocket->state() == QLocalSocket::UnconnectedState) {
+            retry->start();
         }
     });
     eventSocket->connectToServer(events);

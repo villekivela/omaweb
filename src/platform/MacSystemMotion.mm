@@ -18,7 +18,7 @@ namespace {
 SystemMotion::SystemMotion(QObject *parent)
     : QObject(parent)
 {
-    setAsks(Source::MacAccessibility, macAsksToReduceMotion());
+    setReducedBy(Source::MacAccessibility, macAsksToReduceMotion());
     // This file is compiled without ARC, as the rest of Omaweb's AppKit code
     // is, so the observer's token is held here and let go with the object.
     id token = [[[NSWorkspace sharedWorkspace] notificationCenter]
@@ -26,7 +26,7 @@ SystemMotion::SystemMotion(QObject *parent)
                     object:nil
                      queue:[NSOperationQueue mainQueue]
                 usingBlock:^(NSNotification *) {
-                    setAsks(Source::MacAccessibility, macAsksToReduceMotion());
+                    setReducedBy(Source::MacAccessibility, macAsksToReduceMotion());
                 }];
     m_macObserver = [token retain];
 }

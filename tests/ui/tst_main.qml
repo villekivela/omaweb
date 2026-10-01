@@ -9341,6 +9341,16 @@ TestCase {
         compare(window.sidebarCollapsed, false);
         verify(slidThrough(sidebar, -sidebar.width, 0));
         compare(Math.round(sidebar.x), 0);
+
+        // A tap is the pointer too, whatever was pressed before it.
+        keyClick(Qt.Key_Shift);
+        settleActions(hide);
+        const tap = touchEvent(hide);
+        tap.press(0, hide, hide.width / 2, hide.height / 2).commit();
+        tap.release(0, hide, hide.width / 2, hide.height / 2).commit();
+        compare(window.sidebarCollapsed, true);
+        verify(slidThrough(sidebar, -sidebar.width, 0));
+        window.sidebarCollapsed = false;
     }
 
     // A Space switched to by its key is there at once: the list, the page

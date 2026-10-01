@@ -2695,7 +2695,7 @@ ApplicationWindow {
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
                 blocker: contentBlocker
                 easeSpaces: window.chromeEase
-                spacesMove: !window.reducedMotion
+                spacesCanMove: !window.reducedMotion
                 connectionState: window.connectionState
                 lookupFailedBy: window.lookupFailedBy
                 upgradedByHttpsOnly: !!engineLoader.item
