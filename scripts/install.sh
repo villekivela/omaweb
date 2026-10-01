@@ -56,6 +56,10 @@ main() {
             "it needs Arch Linux or a distribution built on it, such as Omarchy."
     fi
 
+    for tool in curl gpg; do
+        command -v "$tool" >/dev/null 2>&1 || fail "it needs $tool, which pacman -S $tool installs."
+    done
+
     if [ "$(id -u)" -eq 0 ]; then
         as_root=
     elif command -v sudo >/dev/null 2>&1; then
@@ -67,12 +71,15 @@ main() {
     work=$(mktemp -d)
     trap 'rm -rf "$work"' EXIT
     key=$work/repo-signing-key.asc
-    curl -fsSL -o "$key" "$KEY_ADDRESS" || fail "could not download the signing key from $KEY_ADDRESS"
+    curl -fsSL -o "$key" "$KEY_ADDRESS" || fail "could not download the key from $KEY_ADDRESS"
     mkdir -m 700 "$work/gnupg"
+    # Every primary key's fingerprint, one a line. pacman-key --add imports all of them, so the file
+    # has to hold Omaweb's key and nothing else.
     fetched=$(gpg --batch --homedir "$work/gnupg" --show-keys --with-colons "$key" 2>/dev/null \
-        | awk -F: '/^fpr:/ { print $10; exit }')
+        | awk -F: '/^pub:/ { primary = 1; next } /^fpr:/ && primary { print $10; primary = 0 }')
     if [ "$fetched" != "$FINGERPRINT" ]; then
-        fail "the signing key from $KEY_ADDRESS is ${fetched:-not a key}, not $FINGERPRINT." \
+        found=$(printf '%s' "${fetched:-not a key}" | tr '\n' ' ')
+        fail "the key from $KEY_ADDRESS is $found, not $FINGERPRINT." \
             "nothing was changed. Report this at https://github.com/villekivela/omaweb/issues."
     fi
 
@@ -86,10 +93,13 @@ main() {
     fi
     say ""
     say "2. Add the key the packages are signed with to pacman's keyring and sign it locally,"
-    say "   unless that is done already:"
+    say "   unless that is done already. It came from $KEY_ADDRESS"
+    say "   and is the one key it has to be:"
     say "     $FINGERPRINT"
     say ""
-    say "3. Upgrade the system and install Omaweb: pacman -Syu omaweb"
+    say "3. Upgrade the whole system and install Omaweb, taking pacman's default answer to"
+    say "   anything it would ask:"
+    say "     pacman -Syu --needed --noconfirm omaweb"
     say ""
 
     if [ "$yes" = no ]; then
@@ -111,10 +121,11 @@ main() {
         say "Added the repository to $CONF, and kept the original as $backup."
     fi
 
-    # pacman and pacman-key read from stdin, which is the rest of this script under `| sh`.
+    # </dev/null: under `| sh` stdin is the pipe the script came down, not the reader.
+    # A local signature is a `sig` line flagged L, whatever certification level precedes it.
     # --init makes the local master key --lsign-key signs with, and only if there is none.
     if ! $as_root pacman-key --list-sigs "$FINGERPRINT" </dev/null 2>/dev/null \
-        | grep -q '^sig *L '; then
+        | grep -Eq '^sig[ 0-9]*L '; then
         $as_root pacman-key --init </dev/null
         if ! $as_root pacman-key --list-keys "$FINGERPRINT" </dev/null >/dev/null 2>&1; then
             $as_root pacman-key --add "$key" </dev/null
@@ -123,7 +134,7 @@ main() {
     fi
 
     # --needed leaves an up-to-date omaweb alone, which a second run would otherwise reinstall.
-    # --noconfirm because the reader has been asked once already.
+    # --noconfirm because the reader has been asked once already, and step 3 said so.
     $as_root pacman -Syu --needed --noconfirm omaweb </dev/null
     say "Omaweb is installed. sudo pacman -Syu keeps it current."
 }

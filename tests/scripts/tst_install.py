@@ -33,13 +33,18 @@ import check_repository_instructions as instructions  # noqa: E402
 # read from the script, so the test can disagree with it.
 PUBLISHED = "FDA535B2185755EA718BEA585DBF15FE484EFA64"
 
-# What the script may call besides the stubs. Linked into the stand-in's own bin directory rather
-# than reached through the host's PATH, which on Arch also holds the real pacman.
 # The shells a reader's `sh` may be: bash on Arch, dash on Debian and Ubuntu, which have no pacman
 # to install with but are where a reader is told so. The tests that differ between them run in each
 # one present.
 SHELLS = tuple(shell for shell in ("sh", "dash", "bash") if shutil.which(shell))
-TOOLS = (*SHELLS, "cat", "cp", "date", "grep", "mkdir", "mktemp", "sed", "rm", "tee", "gpg", "awk", "tr")
+
+# What the script may call besides the stubs. Linked into the stand-in's own bin directory rather
+# than reached through the host's PATH, which on Arch also holds the real pacman.
+TOOLS = (
+    *SHELLS,
+    *("awk", "cat", "cp", "date", "gpg", "grep", "mkdir", "mktemp", "rm", "sed", "tee", "touch"),
+    "tr",
+)
 
 KEY_ADDRESS = (
     "https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc"
@@ -205,7 +210,8 @@ class Install(unittest.TestCase):
         for line in BLOCK.strip().splitlines():
             self.assertIn(line, result.stdout)
         self.assertIn(PUBLISHED, result.stdout)
-        self.assertIn("pacman -Syu omaweb", result.stdout)
+        self.assertIn(KEY_ADDRESS, result.stdout)
+        self.assertIn("pacman -Syu --needed --noconfirm omaweb", result.stdout)
         self.assertEqual(result.stdout.count("[y/N]"), 1)
 
     def test_an_answer_other_than_yes_changes_nothing(self):
@@ -228,11 +234,8 @@ class Install(unittest.TestCase):
         self.assertEqual(machine.conf.read_bytes(), conf)
         self.assertEqual(machine.backups(), backups)
         again = machine.log[first:]
-        changes = [
-            line
-            for line in again
-            if line.startswith(("sudo cp", "sudo tee", "sudo pacman-key --add", "sudo pacman-key --lsign"))
-        ]
+        changing = ("sudo cp", "sudo tee", "sudo pacman-key --add", "sudo pacman-key --lsign")
+        changes = [line for line in again if line.startswith(changing)]
         self.assertEqual(changes, [])
         # --needed: pacman upgrades what is out of date and leaves an up-to-date omaweb alone.
         self.assertEqual(again[-1], "pacman -Syu --needed --noconfirm omaweb")
@@ -281,11 +284,31 @@ class Install(unittest.TestCase):
                 self.assertEqual(machine.conf.read_text(encoding="utf-8"), PACMAN_CONF)
                 self.assertEqual([line for line in machine.log if line.startswith("sudo ")], [])
 
+    def test_a_key_file_carrying_a_second_key_stops_it(self):
+        """pacman-key --add imports every key in the file, so Omaweb's key first is not enough."""
+        both = Path(self.enterContext(tempfile.TemporaryDirectory())) / "both.asc"
+        both.write_text(
+            KEY.read_text(encoding="utf-8") + self.another_key().read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        machine = self.stand_in(key=both)
+        result = machine.run()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(machine.conf.read_text(encoding="utf-8"), PACMAN_CONF)
+        self.assertEqual([line for line in machine.log if not line.startswith("curl ")], [])
+
     def another_key(self) -> Path:
         """A real public key that is not Omaweb's, made for this test."""
         home = Path(self.enterContext(tempfile.TemporaryDirectory()))
         home.chmod(0o700)
         gpg = ("gpg", "--batch", "--homedir", str(home), "--passphrase", "")
+        # Generating starts an agent for the homedir; stop it before the directory goes.
+        self.addCleanup(
+            subprocess.run,
+            ("gpgconf", "--homedir", str(home), "--kill", "gpg-agent"),
+            check=False,
+            capture_output=True,
+        )
         subprocess.run(
             (*gpg, "--quick-gen-key", "Not Omaweb <not@omaweb.app>", "ed25519", "sign", "never"),
             check=True,

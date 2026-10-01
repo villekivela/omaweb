@@ -34,18 +34,18 @@ test("headers: /install is plain text, under the site's policy", () => {
   assert.match(sent["content-security-policy"], /default-src 'self'/);
 });
 
-test("page: the install leads with the one line", () => {
-  const page = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  const install = page.slice(page.indexOf('id="install"'));
+// The one line, ahead of the manual block, in the part of a document from `start` on.
+function leadsWithTheLine(text, start) {
+  const install = text.slice(text.indexOf(start));
   const first = install.indexOf(LINE);
   assert.notEqual(first, -1);
   assert.ok(first < install.indexOf("[omaweb]"), "the one line comes before the manual steps");
+}
+
+test("page: the install leads with the one line", () => {
+  leadsWithTheLine(readFileSync(new URL("../index.html", import.meta.url), "utf8"), 'id="install"');
 });
 
 test("readme: the install leads with the one line", () => {
-  const readme = readFileSync(new URL("../../README.md", import.meta.url), "utf8");
-  const install = readme.slice(readme.indexOf("## Install"));
-  const first = install.indexOf(LINE);
-  assert.notEqual(first, -1);
-  assert.ok(first < install.indexOf("[omaweb]"), "the one line comes before the manual steps");
+  leadsWithTheLine(readFileSync(new URL("../../README.md", import.meta.url), "utf8"), "## Install");
 });
