@@ -13,12 +13,46 @@ const crtRoad = await fetch(new URL("crt-road.json", import.meta.url))
   .then(createCrtRoad)
   .catch(() => null);
 
+// The radio's beat, 0 to 1, read for each frame of the road: how far the song's bass rises over
+// its own recent level, struck at once and let fall. Nothing until the radio hands over its
+// analyser, and nothing while it is paused.
+function listenToRadio() {
+  const radio = document.querySelector(".radio");
+  let analyser = null;
+  let samples = null;
+  let level = 0;
+  let beat = 0;
+  let then = 0;
+  radio?.addEventListener("listen", (event) => {
+    analyser = event.detail;
+    samples = new Float32Array(analyser.fftSize);
+  });
+  return () => {
+    if (!analyser || radio.paused) return 0;
+    const now = performance.now();
+    // The host may ask more than once a frame; the beat moves on only with time.
+    if (now - then < 16) return beat;
+    const step = Math.min(0.1, (now - then) / 1000);
+    then = now;
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (const sample of samples) sum += sample * sample;
+    const bass = Math.sqrt(sum / samples.length);
+    level += (bass - level) * Math.min(1, step * 2);
+    const hit = level > 1e-4 ? Math.min(1, Math.max(0, (bass / level - 1) * 1.5)) : 0;
+    beat = Math.max(hit, beat * Math.exp(-step * 8));
+    return beat;
+  };
+}
+
 const drive = document.querySelector(".drive");
 if (drive) {
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   const typing = (event) => event.target.closest("input, textarea, select, [contenteditable]");
   const canvas = drive.querySelector(".drive__scene canvas");
-  const host = crtRoad ? new SceneHost(canvas, crtRoad) : { setNavigating() {} };
+  const host = crtRoad
+    ? new SceneHost(canvas, crtRoad, { beat: listenToRadio() })
+    : { setNavigating() {} };
 
   // Past the Start page the road sinks under a scrim of the theme's ground so the cards read
   // against it, and the scroll's speed is how hard the reader is navigating: the road speeds up

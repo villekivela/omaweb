@@ -51,19 +51,21 @@ take the same contract (#496), so a reader's own Scene could stand behind both.
 `draw(context, input)` is called with the 2D context of a canvas the size of the Scene's display,
 and an input:
 
-| Input           | What it is                                                                                                         |
-| --------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `palette`       | The theme's roles as RGB triples: `ground`, `text`, `accent` and `muted`                                           |
-| `dark`          | Whether the theme's ground is dark. A light theme still asks for a night                                           |
-| `width, height` | The display in the Scene's pixels: the canvas's size divided by its `pitch`                                        |
-| `pitch`         | CSS pixels to one of the Scene's pixels, as the Scene declared it                                                  |
-| `time`          | Seconds the Scene has run. The clock stops while the Scene does not draw                                           |
-| `navigating`    | How hard the reader is moving, 0 to 1: the scroll's speed, or in the browser 1 from a commit until its page paints |
-| `reducedMotion` | Hold still: the reader asked for less motion, or the page is on a phone                                            |
-| `options`       | The reader's choice for each option the Scene declares, or the first value                                         |
-| `state`         | An object kept between frames and emptied on a new size or theme                                                   |
+| Input           | What it is                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `palette`       | The theme's roles as RGB triples: `ground`, `text`, `accent` and `muted`                                                             |
+| `dark`          | Whether the theme's ground is dark. A light theme still asks for a night                                                             |
+| `width, height` | The display in the Scene's pixels: the canvas's size divided by its `pitch`                                                          |
+| `pitch`         | CSS pixels to one of the Scene's pixels, as the Scene declared it                                                                    |
+| `time`          | Seconds the Scene has run. The clock stops while the Scene does not draw                                                             |
+| `navigating`    | How hard the reader is moving, 0 to 1: the scroll's speed, or in the browser 1 from a commit until its page paints                   |
+| `beat`          | The radio's beat, 0 to 1: how far the song's bass rises over its recent level, struck at once and let fall; 0 while the radio is off |
+| `reducedMotion` | Hold still: the reader asked for less motion, or the page is on a phone                                                              |
+| `options`       | The reader's choice for each option the Scene declares, or the first value                                                           |
+| `state`         | An object kept between frames and emptied on a new size or theme                                                                     |
 
-Under `reducedMotion` the Scene draws one frame that reads on its own, and `navigating` is 0.
+Under `reducedMotion` the Scene draws one frame that reads on its own, and `navigating` and `beat`
+are 0.
 
 ### What a Scene declares
 
@@ -112,8 +114,9 @@ own Start page road reads the same file (#496). The script holds only how it dra
   `white`) or a `mix` of two at an amount, and a gradient is a list of `[position, colour]` or
   `[position, colour, alpha]` stops.
 - `horizon`, `sky`, `stars`, `halo`, `sun`, `ridges`, `desert` and `road` are the still layer;
-  `centreLine`, `roadside`, `shootingStar` and `navigatingGlow` are what moves, at the `motion`
-  timings, and `scatter` seeds the repeatable placing.
+  `centreLine`, `roadside`, `shootingStar`, `navigatingGlow` and `beatGlow`, the sky around the sun
+  lit with the radio's beat, are what moves, at the `motion` timings, and `scatter` seeds the
+  repeatable placing.
 
 Lengths are shares of the Scene's width or height unless the key says otherwise, and times are in
 seconds. `build/site.mjs` copies the file into `dist/` beside the page, and `drive.js` fetches it

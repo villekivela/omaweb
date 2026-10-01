@@ -12,10 +12,33 @@ if (menu) {
 
 // The night radio, on a Radio button and the M key: one song, Night road, on a loop,
 // and a second press stops it. Nothing loads or plays until a reader asks for it.
+//
+// On the first press the song is also routed through Web Audio, to an analyser of its bass that
+// the radio hands out as a `listen` event, so the landing page's sun can pulse with the beat. The
+// audio context is made in the press itself, since a browser only lets one start from a reader's
+// gesture, and a context that never started would silence the song.
 const radio = document.querySelector(".radio");
 const radioToggles = document.querySelectorAll(".radio-toggle");
 if (radio) {
-  const toggle = () => (radio.paused ? radio.play().catch(() => {}) : radio.pause());
+  let context = null;
+  const listen = () => {
+    if (!window.AudioContext) return;
+    if (!context) {
+      context = new AudioContext();
+      const song = context.createMediaElementSource(radio);
+      song.connect(context.destination);
+      const bass = new BiquadFilterNode(context, { type: "lowpass", frequency: 150 });
+      const analyser = new AnalyserNode(context, { fftSize: 1024 });
+      song.connect(bass).connect(analyser);
+      radio.dispatchEvent(new CustomEvent("listen", { detail: analyser }));
+    }
+    context.resume().catch(() => {});
+  };
+  const toggle = () => {
+    if (!radio.paused) return radio.pause();
+    listen();
+    radio.play().catch(() => {});
+  };
   const show = () => {
     for (const button of radioToggles) button.setAttribute("aria-pressed", String(!radio.paused));
   };

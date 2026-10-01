@@ -184,6 +184,16 @@
       [1, "sunLow", 0]
     ]
   },
+  "beatGlow": {
+    "from": 0.02,
+    "radius": 0.28,
+    "grow": 0.3,
+    "stops": [
+      [0, "sunTop", 0.5],
+      [0.3, "sunLow", 0.25],
+      [1, "sunLow", 0]
+    ]
+  },
   "shootingStar": {
     "every": 14,
     "lasts": 0.8,

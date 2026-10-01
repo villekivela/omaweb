@@ -38,6 +38,7 @@ export function sceneInput(scene, environment) {
     pitch,
     time: environment.time || 0,
     navigating: still ? 0 : Math.max(0, Math.min(1, environment.navigating || 0)),
+    beat: still ? 0 : Math.max(0, Math.min(1, environment.beat || 0)),
     reducedMotion: still,
     palette,
     dark: lightness(palette.ground) <= 0.6,
@@ -81,8 +82,8 @@ const ROLES = { ground: "--bg", text: "--fg", accent: "--accent", muted: "--mute
 // Scene's `fps`. A Scene that declares `glass: "crt"` is shown through the CRT glass below.
 export class SceneHost {
   // `held` holds the Scene still and leaves out its glass: one calm frame, as a release page's
-  // header shows it.
-  constructor(canvas, scene, { chosen = {}, held = false } = {}) {
+  // header shows it. `beat` reads the radio's beat, 0 to 1, for each frame.
+  constructor(canvas, scene, { chosen = {}, held = false, beat = () => 0 } = {}) {
     this.canvas = canvas;
     // A Scene's canvas is small and redrawn every frame; kept in memory rather than on the GPU,
     // Firefox draws it several times faster.
@@ -90,6 +91,7 @@ export class SceneHost {
     this.scene = scene;
     this.chosen = chosen;
     this.held = held;
+    this.beat = beat;
     this.time = 0;
     this.navigating = 0;
     this.state = {};
@@ -139,6 +141,7 @@ export class SceneHost {
       ...this.measured,
       time: this.time,
       navigating: this.navigating,
+      beat: this.beat(),
       reducedMotion: this.reduced.matches,
       phone: this.phone.matches,
       chosen: this.chosen,

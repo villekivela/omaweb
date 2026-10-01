@@ -257,8 +257,8 @@ export function createCrtRoad(p) {
     }
   }
 
-  // What moves: the sun brightening as the reader navigates, a rare shooting star, the centre
-  // line and the roadside.
+  // What moves: the sun brightening as the reader navigates and pulsing with the radio's beat, a
+  // rare shooting star, the centre line and the roadside.
   function moving(context, g, c, m, input) {
     const glow = p.navigatingGlow;
     if (m.lit > glow.from) {
@@ -272,6 +272,15 @@ export function createCrtRoad(p) {
       );
       context.fillStyle = stops(halo, glow.stops, c, m.lit);
       context.fillRect(0, 0, g.w, g.h);
+    }
+
+    // The beat swells a glow in the sky around the sun, wider and brighter on each hit.
+    const pulse = p.beatGlow;
+    if (input.beat > pulse.from) {
+      const reach = g.w * pulse.radius * (1 + pulse.grow * input.beat);
+      const halo = context.createRadialGradient(g.vx, g.horizonY, 0, g.vx, g.horizonY, reach);
+      context.fillStyle = stops(halo, pulse.stops, c, input.beat);
+      context.fillRect(0, 0, g.w, g.horizonY);
     }
 
     // A shooting star in some of its slots, for under a second.

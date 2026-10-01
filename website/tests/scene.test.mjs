@@ -74,6 +74,14 @@ test("input: with reduced motion or on a phone the Scene holds still and nobody 
   }
 });
 
+test("input: the radio's beat reaches a moving Scene, 0 to 1, and a still one gets none", () => {
+  const moving = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, { ...moving, beat: 0.4 }).beat, 0.4);
+  assert.equal(sceneInput(road, { ...moving, beat: 2 }).beat, 1);
+  assert.equal(sceneInput(road, moving).beat, 0);
+  assert.equal(sceneInput(road, { ...moving, beat: 0.4, reducedMotion: true }).beat, 0);
+});
+
 test("frames: only while on screen, in a shown tab, in the focused window, and moving", () => {
   const moving = { onScreen: true, pageHidden: false, focused: true };
   assert.equal(drawsFrames(moving), true);
