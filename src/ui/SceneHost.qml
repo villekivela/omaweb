@@ -46,7 +46,10 @@ Item {
     readonly property int sceneWidth: Math.max(1, Math.ceil(root.width / root.pitch))
     readonly property int sceneHeight: Math.max(1, Math.ceil(root.height / root.pitch))
     readonly property bool glassShown: root.glass && !!root.sceneItem && root.sceneItem.glass
-                                       === "crt"
+                                       === "crt" && !!root.sceneItem.crt
+    // The glass's amounts, which a Scene that declares the glass gives as
+    // `crt`: share/scenes/crt-road.json's, which the website's glass reads too.
+    readonly property var crt: root.glassShown ? root.sceneItem.crt : null
 
     readonly property bool drawing: root.running && !root.reducedMotion && !!root.sceneItem
 
@@ -166,14 +169,18 @@ Item {
         textureSize: Qt.size(root.sceneWidth, root.sceneHeight)
     }
 
-    // A third-size copy, smoothed, for the glass's bloom.
+    // A smaller copy, smoothed, for the glass's bloom.
     ShaderEffectSource {
         id: bloomPicture
+        objectName: "bloomPicture"
+
+        readonly property real scale: root.crt ? root.crt.bloom.scale : 1
+
         sourceItem: root.glassShown ? sceneLoader : null
         smooth: true
-        textureSize: Qt.size(Math.max(1, Math.ceil(root.sceneWidth / 3)), Math.max(1, Math.ceil(
-                                                                                       root.sceneHeight
-                                                                                       / 3)))
+        textureSize: Qt.size(Math.max(1, Math.ceil(root.sceneWidth / scale)), Math.max(1, Math.ceil(
+                                                                                           root.sceneHeight
+                                                                                           / scale)))
     }
 
     ShaderEffect {
@@ -191,13 +198,25 @@ Item {
         property rect frame: Qt.rect(root.frame.x / Math.max(1, width), root.frame.y / Math.max(1,
                                                                                                 height), root.frame.width
                                      / Math.max(1, width), root.frame.height / Math.max(1, height))
-        // The refresh band rolls down every seven seconds.
-        property real bandY: ((root.time / 7) % 1) * root.sceneHeight * 1.4 - root.sceneHeight * 0.2
-        property real bandReach: Math.max(4, root.sceneHeight * 0.07)
-        property real bandStrength: moving ? 0.05 : 0
-        // The flicker darkens by 2 to 4.5 percent and never flashes.
-        property real flicker: moving ? 0.02 + 0.025 * Math.abs(Math.sin(root.time * 37.1)
-                                                                * Math.sin(root.time * 11.3)) : 0
+        property real bloomMix: root.crt ? root.crt.bloom.opacity : 0
+        property real scanEvery: root.crt ? root.crt.scanlines.every : 1
+        property real scanShade: root.crt ? root.crt.scanlines.shade : 0
+        property real vignetteClear: root.crt ? root.crt.vignette.clear : 1
+        property real vignetteShade: root.crt ? root.crt.vignette.shade : 0
+        // The refresh band rolls down the picture, and the flicker darkens it
+        // a little, never less than its least and never a flash.
+        readonly property var band: root.crt ? root.crt.band : null
+        readonly property var flickers: root.crt ? root.crt.flicker : null
+        property real bandY: band ? ((root.time / band.every) % 1) * root.sceneHeight * band.travel
+                                    + root.sceneHeight * band.from : 0
+        property real bandReach: band ? Math.max(band.reachAtLeast, root.sceneHeight * band.reach) :
+                                        1
+        property real bandStrength: moving && band ? band.strength : 0
+        property real flicker: moving && flickers ? flickers.least + flickers.range * Math.abs(
+                                                        Math.sin(root.time
+                                                                 * flickers.frequencies[0])
+                                                        * Math.sin(root.time
+                                                                   * flickers.frequencies[1])) : 0
         property color bandColour: root.colors ? root.colors.text : "white"
 
         fragmentShader: "qrc:/omaweb/shaders/crtglass.frag.qsb"

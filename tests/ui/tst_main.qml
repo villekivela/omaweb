@@ -8803,6 +8803,33 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting frames");
     }
 
+    // A reader who asked for less motion gets a road that holds still: no
+    // clock, so no frame is drawn for it, and the glass without its band or
+    // flicker. The window sets it from the system once it can read it.
+    function test_reducedMotionHoldsTheRoadStill() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const glass = findChild(window.contentItem, "crtGlass");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting still");
+        tryVerify(function () {
+            return startPage.roadRunning;
+        });
+
+        startPage.reducedMotion = true;
+        verify(!startPage.roadRunning);
+        const frames = startPage.roadFrames;
+        wait(250);
+        compare(startPage.roadFrames, frames);
+        compare(glass.flicker, 0);
+        compare(glass.bandStrength, 0);
+
+        startPage.reducedMotion = false;
+        tryVerify(function () {
+            return startPage.roadRunning;
+        });
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting still");
+    }
+
     // After a commit the road drives until the page first paints, for two
     // seconds at most, and a failure ends it at once.
     function test_theRoadDrivesUntilFirstPaintAndStopsOnAnError() {

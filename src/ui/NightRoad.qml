@@ -11,13 +11,14 @@ import Omaweb
 // A Scene is a drawing and nothing else. SceneHost.qml sizes it in its own
 // pixels, keeps its clock, and hands it what it may know: `colors`, `dark`,
 // `time`, `navigating`, `beat`, `options` and `reducedMotion`, and in this
-// browser `unlit`. It declares `pitch`, `fps`, `glass` and its options, and
-// the host shows it through the glass it declares. What it draws by, every
-// amount, colour recipe and timing, is share/scenes/crt-road.json, the file
-// the website's road (website/crt-road.js) reads too; this is only how it
-// draws. What does not move is drawn once per size, theme and option into a
-// canvas. What moves is scene-graph items over it, placed from the clock
-// rather than painted again on every tick.
+// browser `unlit`. It declares `pitch`, `fps`, `glass` with the glass's
+// amounts as `crt`, and its options, and the host shows it through the glass
+// it declares. What it draws by, every amount, colour recipe and timing, is
+// share/scenes/crt-road.json, the file the website's road
+// (website/crt-road.js) reads too; this is only how it draws. What does not
+// move is drawn once per size, theme and option into a canvas. What moves is
+// scene-graph items over it, placed from the clock rather than painted again
+// on every tick.
 Item {
     id: root
     objectName: "nightRoad"
@@ -49,6 +50,7 @@ Item {
     readonly property int pitch: root.parameters.pitch
     readonly property int fps: root.parameters.fps
     readonly property string glass: root.parameters.glass
+    readonly property var crt: root.parameters.crt
     readonly property var declaredOptions: root.parameters.options
 
     // ---- what it drew, for the tests

@@ -100,7 +100,7 @@ export class SceneHost {
     this.onScreen = false;
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)");
     this.phone = matchMedia(PHONE);
-    this.glass = scene.glass === "crt" && !held ? new CrtGlass(canvas) : null;
+    this.glass = scene.glass === "crt" && !held ? new CrtGlass(canvas, scene.crt) : null;
 
     new IntersectionObserver((entries) => {
       this.onScreen = entries[entries.length - 1].isIntersecting;
@@ -201,46 +201,78 @@ export class SceneHost {
   }
 }
 
+// The glass's static layers from the Scene's `crt` amounts, as styles: the bloom's opacity, one
+// darker line in every `scanlines.every` CSS pixels, and a vignette clear to `vignette.clear` of
+// the way out and `vignette.shade` dark at the corners.
+export function glassLayers(crt) {
+  const percent = (share) => `${Math.round(share * 100)}%`;
+  const { every, shade } = crt.scanlines;
+  return {
+    bloom: String(crt.bloom.opacity),
+    scan: `repeating-linear-gradient(transparent 0 ${every - 1}px, rgb(0 0 0 / ${percent(shade)}) ${every - 1}px ${every}px)`,
+    vignette: `radial-gradient(ellipse at center, transparent ${percent(crt.vignette.clear)}, rgb(0 0 0 / ${percent(crt.vignette.shade)}) 100%)`,
+  };
+}
+
+// Where the refresh band is at `time` on a picture `height` of the Scene's pixels tall, how far it
+// reaches and how strong it is, and how much the flicker darkens: never less than its least, and
+// never a flash.
+export function glassRoll(crt, { time, height }) {
+  const { band, flicker } = crt;
+  const [fast, slow] = flicker.frequencies;
+  return {
+    y: ((time / band.every) % 1) * height * band.travel + height * band.from,
+    reach: Math.max(band.reachAtLeast, height * band.reach),
+    strength: band.strength,
+    flicker:
+      flicker.least + flicker.range * Math.abs(Math.sin(time * fast) * Math.sin(time * slow)),
+  };
+}
+
 // The CRT a Scene can declare, composited by the browser rather than drawn: the Scene's small
 // canvas scaled up pixelated, a tiny copy of it scaled up smooth for the bloom, and static
 // scanline and vignette layers. Only the rolling band and the flicker are drawn, into the small
 // picture itself, so a frame costs a few hundred thousand pixels however large the window.
 class CrtGlass {
-  constructor(canvas) {
+  constructor(canvas, crt) {
+    this.crt = crt;
+    const layers = glassLayers(crt);
     const frame = canvas.parentElement;
     frame.classList.add("crt");
     this.bloom = document.createElement("canvas");
     this.bloom.className = "crt__bloom";
     this.bloom.setAttribute("aria-hidden", "true");
+    this.bloom.style.opacity = layers.bloom;
     frame.append(this.bloom);
-    for (const name of ["crt__scan", "crt__vignette"]) {
+    for (const [name, background] of [
+      ["crt__scan", layers.scan],
+      ["crt__vignette", layers.vignette],
+    ]) {
       const layer = document.createElement("div");
       layer.className = name;
+      layer.style.background = background;
       frame.append(layer);
     }
   }
 
   layout(input) {
-    this.bloom.width = Math.max(1, Math.ceil(input.width / 3));
-    this.bloom.height = Math.max(1, Math.ceil(input.height / 3));
+    this.bloom.width = Math.max(1, Math.ceil(input.width / this.crt.bloom.scale));
+    this.bloom.height = Math.max(1, Math.ceil(input.height / this.crt.bloom.scale));
   }
 
   draw(context, input) {
     if (!input.reducedMotion) {
-      const { width, height, time } = input;
-      // The refresh band rolls down every seven seconds.
-      const y = ((time / 7) % 1) * height * 1.4 - height * 0.2;
-      const reach = Math.max(4, height * 0.07);
+      const { width } = input;
+      // The refresh band rolls down the picture, and the flicker darkens it a little.
+      const { y, reach, strength, flicker } = glassRoll(this.crt, input);
       const band = context.createLinearGradient(0, y - reach, 0, y + reach);
       band.addColorStop(0, "rgba(255, 255, 255, 0)");
-      band.addColorStop(0.5, `rgba(${input.palette.text.join(", ")}, 0.05)`);
+      band.addColorStop(0.5, `rgba(${input.palette.text.join(", ")}, ${strength})`);
       band.addColorStop(1, "rgba(255, 255, 255, 0)");
       context.fillStyle = band;
       context.fillRect(0, y - reach, width, reach * 2);
-      // The flicker darkens by 2 to 4.5 percent and never flashes.
-      const flicker = 0.02 + 0.025 * Math.abs(Math.sin(time * 37.1) * Math.sin(time * 11.3));
       context.fillStyle = `rgba(0, 0, 0, ${flicker.toFixed(3)})`;
-      context.fillRect(0, 0, width, height);
+      context.fillRect(0, 0, width, input.height);
     }
     this.bloom
       .getContext("2d")

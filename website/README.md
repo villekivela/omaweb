@@ -85,7 +85,8 @@ export const myScene = {
 scanlines and darker corners the browser composites, and a rolling band and a faint flicker drawn
 into the Scene's picture. The flicker darkens by 2 to 4.5 percent and never flashes, and both stop
 under `reducedMotion`. The CRT is the host's, so a Scene draws only its small picture and a frame
-costs the same however large the window.
+costs the same however large the window. A Scene that declares the glass also gives its amounts as
+`crt`, which the host draws by.
 
 ### What a Scene may not do
 
@@ -109,6 +110,9 @@ own Start page road reads the same file (#496). The script holds only how it dra
 
 - `pitch`, `fps`, `glass` and `options` are the Scene's declarations, and `roadWidth` the half width
   at the foreground each `road` option means.
+- `crt` is the glass's amounts, which both hosts draw by: the bloom's scale and opacity, the
+  scanlines' spacing and shade, the vignette, the band's timing and strength, and the flicker's
+  least, range and frequencies.
 - `night` is how the night's colours are mixed from the theme's roles; every other colour names a
   role (`ground`, `light`, `glow`, `skyTop`, `skyLow`, `groundNear`, `sunTop`, `sunLow`, `black`,
   `white`) or a `mix` of two at an amount, and a gradient is a list of `[position, colour]` or

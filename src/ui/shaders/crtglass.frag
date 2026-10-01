@@ -2,9 +2,9 @@
 
 // The CRT glass a Scene can declare, as one pass over the Scene's small
 // picture: its pixels shown square, a rolling refresh band, a flicker, the
-// bloom of a third-size copy, scanlines and a vignette. The amounts are the
-// website's (website/scene.js and the `.crt` layers in website/styles.css), so
-// the road reads the same through either glass.
+// bloom of a smaller copy, scanlines and a vignette. The amounts are the
+// Scene's `crt` block, which the website's glass draws by too, so the road
+// reads the same through either glass.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -26,6 +26,15 @@ layout(std140, binding = 0) uniform buf {
     float bandStrength;
     float flicker;
     vec4 bandColour;
+    // How much of the bloom shows over the picture.
+    float bloomMix;
+    // One line in `scanEvery` logical pixels, darkened by `scanShade`.
+    float scanEvery;
+    float scanShade;
+    // The vignette is clear to `vignetteClear` of the way from the frame's
+    // middle to its corners, and `vignetteShade` darker at them.
+    float vignetteClear;
+    float vignetteShade;
 };
 
 layout(binding = 1) uniform sampler2D source;
@@ -41,18 +50,16 @@ void main()
     float band = max(0.0, 1.0 - abs(row - bandY) / bandReach) * bandStrength;
     colour = mix(colour, bandColour.rgb, band);
 
-    colour = mix(colour, texture(bloom, uv).rgb, 0.22);
+    colour = mix(colour, texture(bloom, uv).rgb, bloomMix);
     colour *= 1.0 - flicker;
 
-    // Every third line of the glass is drawn at 62% of the others.
-    if (mod(uv.y * glassHeight, 3.0) >= 2.0)
-        colour *= 0.62;
+    if (mod(uv.y * glassHeight, scanEvery) >= scanEvery - 1.0)
+        colour *= 1.0 - scanShade;
 
-    // Clear to 55% of the way from the frame's middle to its corners, then
-    // darkening to 55% darker at them.
     vec2 inFrame = (uv - frame.xy) / frame.zw;
     float reach = length((inFrame - 0.5) * 2.0) / sqrt(2.0);
-    colour *= 1.0 - clamp((reach - 0.55) / 0.45, 0.0, 1.0) * 0.55;
+    colour *= 1.0 - clamp((reach - vignetteClear) / (1.0 - vignetteClear), 0.0, 1.0)
+        * vignetteShade;
 
     fragColor = vec4(colour, 1.0) * qt_Opacity;
 }

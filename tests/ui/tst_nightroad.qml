@@ -278,6 +278,82 @@ TestCase {
         verify(plain.visible);
     }
 
+    // A Scene that declares the glass with amounts of its own, which no
+    // amount in the host could match by chance.
+    Component {
+        id: oddGlassScene
+
+        Item {
+            property var colors
+            property bool dark
+            property real time
+            property real navigating
+            property real beat
+            property var options
+            property bool reducedMotion
+            property bool unlit
+            readonly property int pitch: 4
+            readonly property int fps: 30
+            readonly property string glass: "crt"
+            readonly property var declaredOptions: ({})
+            readonly property var crt: ({
+                                            bloom: {
+                                                scale: 5,
+                                                opacity: 0.31
+                                            },
+                                            scanlines: {
+                                                every: 4,
+                                                shade: 0.27
+                                            },
+                                            vignette: {
+                                                clear: 0.61,
+                                                shade: 0.43
+                                            },
+                                            band: {
+                                                every: 9,
+                                                from: -0.1,
+                                                travel: 1.2,
+                                                reach: 0.11,
+                                                reachAtLeast: 3,
+                                                strength: 0.08
+                                            },
+                                            flicker: {
+                                                least: 0.07,
+                                                range: 0.01,
+                                                frequencies: [5, 3]
+                                            }
+                                        })
+        }
+    }
+
+    // The glass draws by the amounts its Scene declares, and the road declares
+    // the shared file's `crt` block, which the website's glass draws by too.
+    function test_theGlassTakesItsAmountsFromTheScene() {
+        compare(makeRoad().crt, makeRoad().parameters.crt);
+
+        const host = makeHost({
+                                  running: true,
+                                  scene: oddGlassScene
+                              });
+        tryVerify(function () {
+            return host.sceneItem !== null && host.sceneItem.crt !== undefined;
+        });
+        const glass = findChild(host, "crtGlass");
+        tryCompare(host, "sceneHeight", 125);
+        compare(glass.bloomMix, 0.31);
+        compare(glass.scanEvery, 4);
+        compare(glass.scanShade, 0.27);
+        compare(glass.vignetteClear, 0.61);
+        compare(glass.vignetteShade, 0.43);
+        compare(glass.bandStrength, 0.08);
+        compare(glass.bandReach, 125 * 0.11);
+        compare(findChild(host, "bloomPicture").textureSize.width, 40);
+        tryVerify(function () {
+            return host.frames > 2;
+        });
+        verify(glass.flicker >= 0.07 && glass.flicker <= 0.08, glass.flicker);
+    }
+
     // A Private window's road has its lights off: no sun, no stars and no
     // centre line, and the rest of the night still there.
     function test_anUnlitRoadHasItsLightsOff() {
