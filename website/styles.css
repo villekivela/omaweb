@@ -583,12 +583,18 @@ body:has(.drive) > .top {
   font-size: clamp(32px, min(4.6vw, 7svh), 64px);
 }
 
-.omnibar {
+/* The Omnibar resting on the horizon, and the way in a short step under it. */
+.start__deck {
   position: absolute;
-  left: 50%;
-  top: calc(50svh - 50px);
+  inset: calc(50svh - 50px) 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+}
+
+.omnibar {
   width: min(100% - 32px, 720px);
-  transform: translateX(-50%);
   border: 1px solid var(--accent);
   background: var(--plate);
 }
@@ -675,8 +681,6 @@ body:has(.drive) > .top {
 }
 
 .start__below {
-  position: absolute;
-  inset: auto 0 24px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1012,15 +1016,17 @@ kbd {
   }
 
   .start__sky,
-  .omnibar,
-  .start__below {
+  .start__deck {
     position: relative;
     inset: auto;
-    transform: none;
+  }
+
+  .start__deck {
+    align-items: stretch;
+    gap: 24px;
   }
 
   .omnibar {
-    left: auto;
     width: auto;
     margin: 0 16px;
   }

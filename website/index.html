@@ -68,191 +68,193 @@
               A browser<br />for driving<br />the web.
             </h1>
           </div>
-          <div class="omnibar" role="search">
-            <label class="omnibar__field">
-              <svg class="omnibar__prompt" viewBox="20.6 97.8 38.2 18.8" aria-hidden="true">
-                <path
-                  transform="translate(1.3101755,0.8976725)"
-                  d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+          <div class="start__deck">
+            <div class="omnibar" role="search">
+              <label class="omnibar__field">
+                <svg class="omnibar__prompt" viewBox="20.6 97.8 38.2 18.8" aria-hidden="true">
+                  <path
+                    transform="translate(1.3101755,0.8976725)"
+                    d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+                  />
+                </svg>
+                <span class="omnibar__placeholder">Where to?</span>
+                <input
+                  class="omnibar__input"
+                  type="text"
+                  role="combobox"
+                  aria-expanded="true"
+                  aria-controls="omnibar-rows"
+                  aria-label="Find on this page"
+                  placeholder="Where to?"
+                  autocomplete="off"
+                  spellcheck="false"
+                  hidden
                 />
-              </svg>
-              <span class="omnibar__placeholder">Where to?</span>
-              <input
-                class="omnibar__input"
-                type="text"
-                role="combobox"
-                aria-expanded="true"
-                aria-controls="omnibar-rows"
-                aria-label="Find on this page"
-                placeholder="Where to?"
-                autocomplete="off"
-                spellcheck="false"
-                hidden
-              />
-              <kbd>o</kbd>
-            </label>
-            <ul class="omnibar__rows" id="omnibar-rows" role="listbox">
-              <li role="option" id="row-omnibar" aria-selected="true">
-                <a href="#omnibar" data-card="omnibar"
-                  ><span class="omnibar__label">Omnibar</span><span>One field for everything.</span
-                  ><kbd>o</kbd></a
-                >
-              </li>
-              <li role="option" id="row-spaces" aria-selected="false">
-                <a href="#spaces" data-card="spaces"
-                  ><span class="omnibar__label">Spaces</span
-                  ><span>Work and personal, kept apart.</span
-                  ><span class="keys"><kbd>J</kbd><kbd>K</kbd></span></a
-                >
-              </li>
-              <li role="option" id="row-keyboard" aria-selected="false">
-                <a href="#keyboard" data-card="keyboard"
-                  ><span class="omnibar__label">Keyboard</span><span>Keyboard first.</span
-                  ><kbd>f</kbd></a
-                >
-              </li>
-              <li role="option" id="row-theme" aria-selected="false">
-                <a href="#theme" data-card="theme"
-                  ><span class="omnibar__label">Theme</span><span>Follows your Omarchy theme.</span
-                  ><kbd>T</kbd></a
-                >
-              </li>
-              <li role="option" id="row-private" aria-selected="false">
-                <a href="#private" data-card="private"
-                  ><span class="omnibar__label">Privacy</span><span>Private by default.</span></a
-                >
-              </li>
-              <li role="option" id="row-blocking" aria-selected="false">
-                <a href="#blocking" data-card="blocking"
-                  ><span class="omnibar__label">Blocking</span><span>Blocking, built in.</span></a
-                >
-              </li>
-              <li role="option" id="row-pros" aria-selected="false">
-                <a href="#pros" data-card="pros"
-                  ><span class="omnibar__label">For pros</span
-                  ><span>Split view and docked DevTools.</span></a
-                >
-              </li>
-              <li role="option" id="row-agents" aria-selected="false">
-                <a href="#agents" data-card="agents"
-                  ><span class="omnibar__label">Agents</span
-                  ><span>Agents drive their own Spaces.</span></a
-                >
-              </li>
-            </ul>
-            <div class="omnibar__hints">
-              <span class="keys"><kbd>&uarr;</kbd><kbd>&darr;</kbd> select</span
-              ><span class="keys"><kbd>&crarr;</kbd> go</span>
-              <button class="radio-toggle" type="button" aria-pressed="false" hidden>
-                <span class="radio-toggle__bars" aria-hidden="true"><i></i><i></i><i></i></span
-                >Radio <kbd>M</kbd>
-              </button>
-              <div class="themes" role="group" aria-label="Theme" hidden>
-                <span class="themes__label keys">Theme <kbd>T</kbd></span>
-                <span class="themes__name" aria-live="polite">Retro 82</span>
-                <span class="themes__row">
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="retro-82"
-                    data-theme-choice="retro-82"
-                    data-name="Retro 82"
-                    aria-label="Retro 82"
-                    title="Retro 82"
-                    aria-pressed="true"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="matte-black"
-                    data-theme-choice="matte-black"
-                    data-name="Matte Black"
-                    aria-label="Matte Black"
-                    title="Matte Black"
-                    aria-pressed="false"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="ristretto"
-                    data-theme-choice="ristretto"
-                    data-name="Ristretto"
-                    aria-label="Ristretto"
-                    title="Ristretto"
-                    aria-pressed="false"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="gruvbox"
-                    data-theme-choice="gruvbox"
-                    data-name="Gruvbox"
-                    aria-label="Gruvbox"
-                    title="Gruvbox"
-                    aria-pressed="false"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="everforest"
-                    data-theme-choice="everforest"
-                    data-name="Everforest"
-                    aria-label="Everforest"
-                    title="Everforest"
-                    aria-pressed="false"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="catppuccin"
-                    data-theme-choice="catppuccin"
-                    data-name="Catppuccin"
-                    aria-label="Catppuccin"
-                    title="Catppuccin"
-                    aria-pressed="false"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="tokyo-night"
-                    data-theme-choice="tokyo-night"
-                    data-name="Tokyo Night"
-                    aria-label="Tokyo Night"
-                    title="Tokyo Night"
-                    aria-pressed="false"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="nord"
-                    data-theme-choice="nord"
-                    data-name="Nord"
-                    aria-label="Nord"
-                    title="Nord"
-                    aria-pressed="false"
-                  ></button>
-                  <button
-                    type="button"
-                    class="swatch"
-                    data-theme="hackerman"
-                    data-theme-choice="hackerman"
-                    data-name="Hackerman"
-                    aria-label="Hackerman"
-                    title="Hackerman"
-                    aria-pressed="false"
-                  ></button>
-                </span>
+                <kbd>o</kbd>
+              </label>
+              <ul class="omnibar__rows" id="omnibar-rows" role="listbox">
+                <li role="option" id="row-omnibar" aria-selected="true">
+                  <a href="#omnibar" data-card="omnibar"
+                    ><span class="omnibar__label">Omnibar</span
+                    ><span>One field for everything.</span><kbd>o</kbd></a
+                  >
+                </li>
+                <li role="option" id="row-spaces" aria-selected="false">
+                  <a href="#spaces" data-card="spaces"
+                    ><span class="omnibar__label">Spaces</span
+                    ><span>Work and personal, kept apart.</span
+                    ><span class="keys"><kbd>J</kbd><kbd>K</kbd></span></a
+                  >
+                </li>
+                <li role="option" id="row-keyboard" aria-selected="false">
+                  <a href="#keyboard" data-card="keyboard"
+                    ><span class="omnibar__label">Keyboard</span><span>Keyboard first.</span
+                    ><kbd>f</kbd></a
+                  >
+                </li>
+                <li role="option" id="row-theme" aria-selected="false">
+                  <a href="#theme" data-card="theme"
+                    ><span class="omnibar__label">Theme</span
+                    ><span>Follows your Omarchy theme.</span><kbd>T</kbd></a
+                  >
+                </li>
+                <li role="option" id="row-private" aria-selected="false">
+                  <a href="#private" data-card="private"
+                    ><span class="omnibar__label">Privacy</span><span>Private by default.</span></a
+                  >
+                </li>
+                <li role="option" id="row-blocking" aria-selected="false">
+                  <a href="#blocking" data-card="blocking"
+                    ><span class="omnibar__label">Blocking</span><span>Blocking, built in.</span></a
+                  >
+                </li>
+                <li role="option" id="row-pros" aria-selected="false">
+                  <a href="#pros" data-card="pros"
+                    ><span class="omnibar__label">For pros</span
+                    ><span>Split view and docked DevTools.</span></a
+                  >
+                </li>
+                <li role="option" id="row-agents" aria-selected="false">
+                  <a href="#agents" data-card="agents"
+                    ><span class="omnibar__label">Agents</span
+                    ><span>Agents drive their own Spaces.</span></a
+                  >
+                </li>
+              </ul>
+              <div class="omnibar__hints">
+                <span class="keys"><kbd>&uarr;</kbd><kbd>&darr;</kbd> select</span
+                ><span class="keys"><kbd>&crarr;</kbd> go</span>
+                <button class="radio-toggle" type="button" aria-pressed="false" hidden>
+                  <span class="radio-toggle__bars" aria-hidden="true"><i></i><i></i><i></i></span
+                  >Radio <kbd>M</kbd>
+                </button>
+                <div class="themes" role="group" aria-label="Theme" hidden>
+                  <span class="themes__label keys">Theme <kbd>T</kbd></span>
+                  <span class="themes__name" aria-live="polite">Retro 82</span>
+                  <span class="themes__row">
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="retro-82"
+                      data-theme-choice="retro-82"
+                      data-name="Retro 82"
+                      aria-label="Retro 82"
+                      title="Retro 82"
+                      aria-pressed="true"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="matte-black"
+                      data-theme-choice="matte-black"
+                      data-name="Matte Black"
+                      aria-label="Matte Black"
+                      title="Matte Black"
+                      aria-pressed="false"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="ristretto"
+                      data-theme-choice="ristretto"
+                      data-name="Ristretto"
+                      aria-label="Ristretto"
+                      title="Ristretto"
+                      aria-pressed="false"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="gruvbox"
+                      data-theme-choice="gruvbox"
+                      data-name="Gruvbox"
+                      aria-label="Gruvbox"
+                      title="Gruvbox"
+                      aria-pressed="false"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="everforest"
+                      data-theme-choice="everforest"
+                      data-name="Everforest"
+                      aria-label="Everforest"
+                      title="Everforest"
+                      aria-pressed="false"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="catppuccin"
+                      data-theme-choice="catppuccin"
+                      data-name="Catppuccin"
+                      aria-label="Catppuccin"
+                      title="Catppuccin"
+                      aria-pressed="false"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="tokyo-night"
+                      data-theme-choice="tokyo-night"
+                      data-name="Tokyo Night"
+                      aria-label="Tokyo Night"
+                      title="Tokyo Night"
+                      aria-pressed="false"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="nord"
+                      data-theme-choice="nord"
+                      data-name="Nord"
+                      aria-label="Nord"
+                      title="Nord"
+                      aria-pressed="false"
+                    ></button>
+                    <button
+                      type="button"
+                      class="swatch"
+                      data-theme="hackerman"
+                      data-theme-choice="hackerman"
+                      data-name="Hackerman"
+                      aria-label="Hackerman"
+                      title="Hackerman"
+                      aria-pressed="false"
+                    ></button>
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="start__below">
-            <a class="start__install" href="#install">
-              <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg>
-              Install Omaweb
-            </a>
-            <p class="start__lede">
-              Keyboard first. Private. Open. For people who know where they&rsquo;re going.
-            </p>
+            <div class="start__below">
+              <a class="start__install" href="#install">
+                <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg>
+                Install Omaweb
+              </a>
+              <p class="start__lede">
+                Keyboard first. Private. Open. For people who know where they&rsquo;re going.
+              </p>
+            </div>
           </div>
         </section>
 
