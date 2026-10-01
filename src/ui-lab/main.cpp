@@ -31,6 +31,7 @@
 #include "WindowChrome.h"
 #include "WindowManager.h"
 
+#include <algorithm>
 #include <QAbstractItemModel>
 #include <QColor>
 #include <QCoreApplication>
@@ -778,6 +779,26 @@ int main(int argc, char *argv[])
                 }
                 state.append(rest);
             }
+        }
+        // `--settings-scroll-end` scrolls the section on show to its foot, so a
+        // capture shows a form that sits below the first screen of a long
+        // section.
+        if (state.size() > 1 && arguments.contains(QStringLiteral("--settings-scroll-end"))) {
+            QTimer::singleShot(400, root, [root] {
+                auto *pane = root->findChild<QObject *>(QStringLiteral("settingsPane"));
+                // The visual parents, which reach the ScrollView's Flickable;
+                // the object parents skip it.
+                for (auto *item = pane; item != nullptr;
+                    item = item->property("parent").value<QObject *>()) {
+                    if (item->property("contentHeight").isValid()
+                        && item->property("contentY").isValid()) {
+                        const auto end = item->property("contentHeight").toReal()
+                            - item->property("height").toReal();
+                        item->setProperty("contentY", std::max(0.0, end));
+                        return;
+                    }
+                }
+            });
         }
         if (requested.endsWith(QLatin1String("-step"))
             || requested.endsWith(QLatin1String("-settled"))) {
