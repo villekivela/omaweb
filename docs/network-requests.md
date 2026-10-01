@@ -23,6 +23,10 @@ The day is counted from the last answer rather than the last attempt. Turning of
 releases" in Settings stops the request. Omaweb never downloads or installs a release: pacman owns
 `/usr`.
 
+The first launch after an upgrade opens the running release's notes on `omaweb.app` as a tab behind
+the page on show. A tab opened behind the page loads nothing until it is selected, so the request is
+the reader's. The setting above does not cover it, because it is a page and not a check.
+
 With Secure DNS on, every name any Engine profile looks up is sent to the resolver chosen in the
 privacy section of Settings, as a DNS-over-HTTPS request to the address Settings shows, instead of
 to the system's resolver. That resolver learns every site visited, from every Space and Private

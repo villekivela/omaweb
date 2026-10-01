@@ -4164,6 +4164,20 @@ ApplicationWindow {
         window.restoreDeveloperToolsWidth();
         window.restoreTabAppearance();
         window.restoreChromeAppearance();
+        window.openUpgradeNotes(window.releases);
+    }
+
+    // The release notes an upgrade owes the reader, opened behind the page on
+    // show in the Space on show. The reader finds them beside their tabs rather
+    // than in front of what they launched the browser to do. A Private window
+    // says nothing about this installation, so it neither opens them nor takes
+    // them from the ordinary window that will.
+    function openUpgradeNotes(watch) {
+        if (window.privateWindow || !watch)
+            return;
+        const notes = String(watch.takeUpgradeNotes());
+        if (notes.length > 0)
+            window.windowBrowser.openInputInBackground(notes);
     }
 
     function forgetPrivateWindow(instance) {

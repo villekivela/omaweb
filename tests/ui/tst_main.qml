@@ -10651,6 +10651,61 @@ TestCase {
         watch.destroy();
     }
 
+    // What an upgrade owes the reader, asked of a stand-in watch that hands
+    // the notes out once, as the real one does. Whether a launch is an upgrade
+    // is answered in C++ and checked in tst_releasewatch.
+    function test_anUpgradeOpensItsNotesBesideTheReadersTabs() {
+        const watch = Qt.createQmlObject('import QtQuick\nQtObject {\n'
+                                         + '    property string notes: "https://omaweb.app/releases/v9.9.9/"\n'
+                                         + '    property int taken: 0\n'
+                                         + '    function takeUpgradeNotes() {\n'
+                                         + '        taken = taken + 1;\n'
+                                         + '        const given = notes;\n'
+                                         + '        notes = "";\n' + '        return given;\n'
+                                         + '    }\n' + '}', window, "upgradeWatchStandIn");
+        const activeTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+
+        window.openUpgradeNotes(watch);
+        compare(watch.taken, 1);
+        compare(browser.tabs.rowCount(), tabCount + 1);
+        const opened = browser.tabs.index(browser.tabs.rowCount() - 1, 0);
+        const openedId = browser.tabs.data(opened, Qt.UserRole + 1);
+        compare(String(browser.tabs.data(opened, Qt.UserRole + 3)),
+                "https://omaweb.app/releases/v9.9.9/");
+        compare(browser.tabs.data(opened, Qt.UserRole + 2), browser.activeSpaceId);
+        // Beside the reader's tabs rather than in front of them: the page on
+        // show stays on show.
+        compare(browser.activeTabId, activeTabId);
+        verify(!browser.tabs.data(opened, Qt.UserRole + 6));
+
+        // The next window of the same run opens nothing.
+        window.openUpgradeNotes(watch);
+        compare(browser.tabs.rowCount(), tabCount + 1);
+
+        // A Private window says nothing about this installation, and leaves
+        // the notes for an ordinary window to open.
+        watch.notes = "https://omaweb.app/releases/v9.9.9/";
+        const taken = watch.taken;
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateTabCount = privateBrowser.windowBrowser.tabs.rowCount();
+        privateBrowser.openUpgradeNotes(watch);
+        compare(watch.taken, taken);
+        compare(privateBrowser.windowBrowser.tabs.rowCount(), privateTabCount);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        browser.closeTab(openedId);
+        compare(browser.activeTabId, activeTabId);
+        watch.destroy();
+    }
+
     function test_theFooterMarksTheDownloadsStillRunning() {
         openPage("https://mirror.example/library");
         const host = window.spaceProfileHost;

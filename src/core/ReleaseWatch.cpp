@@ -30,6 +30,10 @@ namespace {
     constexpr auto lastCheckKey = "release-check-last";
     constexpr auto newestKey = "release-check-newest";
     constexpr auto dismissedKey = "release-check-dismissed";
+    // Kept on this machine: the Sync projection names the preferences it copies,
+    // and this is not one of them. Another installation's last launch says
+    // nothing about what was upgraded here.
+    constexpr auto launchedKey = "release-last-launched";
 
 } // namespace
 
@@ -68,6 +72,7 @@ void ReleaseWatch::follow(BrowserController *browser)
                 }
             });
     }
+    rememberLaunch();
     // The newest release as of the last answer, so a restart shows what the
     // reader was already being told without asking again for it.
     m_newestRelease = preference(QString::fromLatin1(newestKey));
@@ -217,6 +222,33 @@ void ReleaseWatch::dismiss()
     }
     remember(QString::fromLatin1(dismissedKey), m_newestRelease);
     emit changed();
+}
+
+void ReleaseWatch::rememberLaunch()
+{
+    // A build that never asks GitHub is one that does not know its version: a
+    // tagless tree falls back to a number that reads like a release and is
+    // not one. Remembering it would make the next real launch look like an
+    // upgrade, or a downgrade, from something that never shipped.
+    if (m_ask != Ask::GitHub) {
+        return;
+    }
+    m_upgradeNotes = ReleaseCheck::upgradeNotes(
+        preference(QString::fromLatin1(launchedKey)), m_runningVersion);
+    // An upgrade is remembered once a window has opened its notes, so a run
+    // whose only window is a Private one leaves them for the next run.
+    if (m_upgradeNotes.isEmpty()) {
+        remember(QString::fromLatin1(launchedKey), m_runningVersion);
+    }
+}
+
+QUrl ReleaseWatch::takeUpgradeNotes()
+{
+    const auto notes = std::exchange(m_upgradeNotes, QUrl());
+    if (!notes.isEmpty()) {
+        remember(QString::fromLatin1(launchedKey), m_runningVersion);
+    }
+    return notes;
 }
 
 void ReleaseWatch::checkIfDue()

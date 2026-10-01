@@ -134,6 +134,16 @@ QUrl notesPage(const QString &releaseTag)
     return QUrl(releases + releaseTag + QLatin1Char('/'));
 }
 
+QUrl upgradeNotes(const QString &lastLaunched, const QString &runningVersion)
+{
+    if (!behind(lastLaunched, runningVersion)) {
+        return {};
+    }
+    // Every release is tagged `v` and its number (ADR 0028), and the page is
+    // named for the tag.
+    return notesPage(QLatin1Char('v') + releaseNumber(runningVersion));
+}
+
 bool due(const QDateTime &lastCheck, const QDateTime &now)
 {
     if (!lastCheck.isValid()) {

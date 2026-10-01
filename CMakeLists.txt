@@ -1272,6 +1272,13 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-release-check-tests)
     add_test(NAME omaweb-release-check COMMAND omaweb-release-check-tests)
 
+    qt_add_executable(omaweb-release-watch-tests
+        tests/core/tst_releasewatch.cpp
+    )
+    target_link_libraries(omaweb-release-watch-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-release-watch-tests)
+    add_test(NAME omaweb-release-watch COMMAND omaweb-release-watch-tests)
+
     qt_add_executable(omaweb-global-privacy-control-tests
         tests/core/tst_globalprivacycontrol.cpp
     )
