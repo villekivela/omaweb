@@ -593,10 +593,12 @@ body:has(.drive) > .top {
   gap: 40px;
 }
 
+/* The Omnibar is glass over the road: the plate a little see-through, the road blurred behind. */
 .omnibar {
   width: min(100% - 32px, 720px);
   border: 1px solid var(--accent);
-  background: var(--plate);
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
+  backdrop-filter: blur(14px);
 }
 
 .omnibar__field {
