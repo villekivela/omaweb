@@ -281,6 +281,13 @@ the version and what to run to get it, opens the release notes, and is not shown
 window. Omaweb never installs the release itself. _Avoid_: Update badge, update banner, upgrade
 prompt
 
+**Upgrade notes**: The release notes of the running release, opened once on the first launch after
+an upgrade, as a tab behind the page on show. They open in the Space on show, or in the reader's own
+Space shown most recently when an Agent Space is on show, and wait for a later launch when every
+Space is an Agent's. The newest release launched is kept on this machine and is outside the Sync
+projection. A first install, the same release, a downgrade and a return to a release already
+launched open nothing, and a Private window never opens them. _Avoid_: What's new, changelog popup
+
 **Engine security baseline**: The approved QtWebEngine version and the latest Chromium security
 patch it includes. Settings reports whether the running build meets the baseline, and CI checks for
 upstream changes each week. Builds below the baseline are unsupported previews. _Avoid_: Minimum Qt

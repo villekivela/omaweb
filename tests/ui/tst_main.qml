@@ -10651,6 +10651,30 @@ TestCase {
         watch.destroy();
     }
 
+    // The window these tests share asked the application's watch for the
+    // notes an upgrade owes the reader as it started, and only it has: the
+    // only other windows here are Private ones. What the watch opens, where,
+    // and only once, is checked in tst_releasewatch.
+    function test_aStartingWindowAsksForTheUpgradeNotes() {
+        compare(releaseWatch.asked, 1);
+    }
+
+    // A Private window says nothing about this installation, and leaves the
+    // notes to an ordinary window.
+    function test_aPrivateWindowNeverAsksForTheUpgradeNotes() {
+        const asked = releaseWatch.asked;
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        compare(releaseWatch.asked, asked);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     function test_theFooterMarksTheDownloadsStillRunning() {
         openPage("https://mirror.example/library");
         const host = window.spaceProfileHost;

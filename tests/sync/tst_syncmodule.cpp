@@ -10,6 +10,7 @@
 #include "SessionStore.h"
 
 #include "PrivateSessionStore.h"
+#include "ReleaseWatch.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
 
@@ -285,6 +286,7 @@ private slots:
     void leavesTheRemoteUntouchedWhenNothingChanged();
     void authorizationPollBacksOffWithinItsCeiling();
     void localSyncStateRecognizesOnlyItsProjection();
+    void keepsTheLastLaunchedReleaseOutOfSync();
     void localSyncStateRefusesIneligibleBrowserState();
     void refusesAStoreThatCannotRecordBrowserState();
     void recoveryKeysDetectEntryErrors();
@@ -607,6 +609,36 @@ void SyncModuleTest::authorizationPollBacksOffWithinItsCeiling()
     }
     QCOMPARE(interval, 30);
     QCOMPARE(omaweb::backedOffPollSeconds(30, 5), 30);
+}
+
+// The release last launched is what decides whether this machine was upgraded.
+// Another installation's answer would open notes here for an upgrade that
+// happened there, or keep them from one that happened here.
+void SyncModuleTest::keepsTheLastLaunchedReleaseOutOfSync()
+{
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    QVERIFY(dataRoot.isValid());
+    QVERIFY(configRoot.isValid());
+    BrowserController browser(
+        SpaceStorage(dataRoot.path(), QStringLiteral("test")), configRoot.path());
+    // The daily question goes to GitHub, which a test does not ask.
+    QVERIFY(browser.setPreference(QStringLiteral("release-check"), QStringLiteral("false")));
+    BrowserStateExchangeAdapter exchange(
+        &browser, nullptr, nullptr, dataRoot.path(), configRoot.path());
+    LocalSyncState localState(exchange, dataRoot.path(), configRoot.path());
+    QSignalSpy changed(&localState, &LocalSyncState::meaningfulChange);
+    const auto initial = localState.checkpoint();
+
+    omaweb::ReleaseWatch first(QStringLiteral("0.8.0"));
+    first.follow(&browser);
+    omaweb::ReleaseWatch upgraded(QStringLiteral("0.9.0"));
+    upgraded.follow(&browser);
+    QVERIFY(!upgraded.openUpgradeNotes().isEmpty());
+
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+    QCOMPARE(localState.checkpoint().generation, initial.generation);
 }
 
 void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()

@@ -19,6 +19,9 @@ class BrowserController;
 // anything: pacman owns /usr, and a browser that rewrites its own binary is a
 // security surface this project does not want.
 //
+// It also remembers the newest release launched on this machine, so the first
+// launch after an upgrade can open that release's notes once.
+//
 // The decisions are all in ReleaseCheck, which needs no network to answer them.
 // What is here is the request, the stored answer, and where the reader's
 // instruction comes from.
@@ -62,6 +65,13 @@ public:
     // dismissing is for a release, not for the feature.
     Q_INVOKABLE void dismiss();
 
+    // Opens the release notes this launch owes the reader, once, as a tab
+    // behind the page on show in the browser this follows, and answers their
+    // address. Nothing is opened when the launch is no upgrade, when a window
+    // has already opened them, or when there is no Space of the reader's to
+    // open them in. Only an ordinary window asks.
+    Q_INVOKABLE QUrl openUpgradeNotes();
+
     // Asks, if a day has passed since the last answer. Silent about every way
     // it can fail — an unreachable endpoint is being offline, which is not a
     // browser fault and is not the reader's to read about.
@@ -73,6 +83,10 @@ signals:
 private:
     QString preference(const QString &name, const QString &fallback = {}) const;
     void remember(const QString &name, const QString &value);
+    // Compares this launch with the newest release launched on this machine,
+    // and keeps the notes an upgrade owes until a window takes them.
+    void rememberLaunch();
+    void rememberRunningRelease();
     // Asks pacman how this browser got here, once, and only when there is a
     // notice to put an instruction in. Two questions in sequence, then the
     // answer.
@@ -95,6 +109,7 @@ private:
     // rather than a state a reader sees.
     std::optional<ReleaseCheck::Origin> m_origin;
     bool m_askingOrigin = false;
+    QUrl m_upgradeNotes;
 };
 
 } // namespace omaweb

@@ -38,6 +38,10 @@ private slots:
     void keepsQuiet_data();
     void keepsQuiet();
     void announcesTheNextReleaseAfterADismissedOne();
+    void opensTheNotesOfTheReleaseUpgradedTo_data();
+    void opensTheNotesOfTheReleaseUpgradedTo();
+    void opensNoNotesWithoutAnUpgrade_data();
+    void opensNoNotesWithoutAnUpgrade();
 };
 
 // The running version is what CMake derived from the tag (ADR 0028), so it is
@@ -376,6 +380,65 @@ void ReleaseCheckTest::announcesTheNextReleaseAfterADismissedOne()
         .runningVersion = QStringLiteral("0.4.0"),
         .newestRelease = QStringLiteral("v0.6.0"),
         .dismissedRelease = QStringLiteral("v0.5.0")}));
+}
+
+// The release a launch runs, against the newest one launched before it on this
+// machine. A launch that upgraded is told what changed, on that release's page.
+void ReleaseCheckTest::opensTheNotesOfTheReleaseUpgradedTo_data()
+{
+    QTest::addColumn<QString>("newestLaunched");
+    QTest::addColumn<QString>("running");
+    QTest::addColumn<QUrl>("notes");
+
+    QTest::newRow("a patch") << QStringLiteral("0.8.0") << QStringLiteral("0.8.1")
+                             << QUrl(QStringLiteral("https://omaweb.app/releases/v0.8.1/"));
+    QTest::newRow("a minor") << QStringLiteral("0.8.1") << QStringLiteral("0.9.0")
+                             << QUrl(QStringLiteral("https://omaweb.app/releases/v0.9.0/"));
+    QTest::newRow("past a version with two digits")
+        << QStringLiteral("0.9.0") << QStringLiteral("0.10.0")
+        << QUrl(QStringLiteral("https://omaweb.app/releases/v0.10.0/"));
+    // A build past a tag is that release and more, and the notes it has are
+    // the release's.
+    QTest::newRow("to a build past the release")
+        << QStringLiteral("0.8.0") << QStringLiteral("0.9.0-3-gabc1234")
+        << QUrl(QStringLiteral("https://omaweb.app/releases/v0.9.0/"));
+}
+
+void ReleaseCheckTest::opensTheNotesOfTheReleaseUpgradedTo()
+{
+    QFETCH(QString, newestLaunched);
+    QFETCH(QString, running);
+    QFETCH(QUrl, notes);
+
+    QCOMPARE(omaweb::ReleaseCheck::upgradeNotes(newestLaunched, running), notes);
+}
+
+void ReleaseCheckTest::opensNoNotesWithoutAnUpgrade_data()
+{
+    QTest::addColumn<QString>("newestLaunched");
+    QTest::addColumn<QString>("running");
+
+    // Nothing launched here before. A new reader has no old browser to compare
+    // the release with.
+    QTest::newRow("a first install") << QString() << QStringLiteral("0.9.0");
+    QTest::newRow("the same release") << QStringLiteral("0.9.0") << QStringLiteral("0.9.0");
+    // Rebuilt between releases, which is a checkout moving rather than an
+    // upgrade.
+    QTest::newRow("a build past the same release")
+        << QStringLiteral("0.9.0") << QStringLiteral("0.9.0-3-gabc1234");
+    QTest::newRow("a downgrade") << QStringLiteral("0.9.0") << QStringLiteral("0.8.1");
+    QTest::newRow("a last launch it cannot read")
+        << QStringLiteral("unknown") << QStringLiteral("0.9.0");
+    QTest::newRow("a running version it cannot read")
+        << QStringLiteral("0.8.0") << QStringLiteral("unknown");
+}
+
+void ReleaseCheckTest::opensNoNotesWithoutAnUpgrade()
+{
+    QFETCH(QString, newestLaunched);
+    QFETCH(QString, running);
+
+    QVERIFY(omaweb::ReleaseCheck::upgradeNotes(newestLaunched, running).isEmpty());
 }
 
 QTEST_APPLESS_MAIN(ReleaseCheckTest)

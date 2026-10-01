@@ -46,6 +46,7 @@
 #include <QQuickStyle>
 #include <QQmlEngine>
 #include <QTemporaryDir>
+#include <QUrl>
 #include <QWindow>
 #include <QtQuickTest/quicktest.h>
 
@@ -256,6 +257,40 @@ private:
     QString m_path;
 };
 
+// The application's release watch, which these tests never let ask GitHub. It
+// announces no release, and counts the windows that ask it for the notes of an
+// upgrade. Where they open, and that they open once, is tst_releasewatch's.
+class ReleaseWatchProbe final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool checkEnabled READ checkEnabled WRITE setCheckEnabled NOTIFY changed)
+    Q_PROPERTY(bool announcing READ announcing CONSTANT)
+    Q_PROPERTY(QString release READ release CONSTANT)
+    Q_PROPERTY(QString instruction READ instruction CONSTANT)
+    Q_PROPERTY(QUrl notes READ notes CONSTANT)
+    Q_PROPERTY(int asked READ asked)
+
+public:
+    bool checkEnabled() const { return false; }
+    void setCheckEnabled(bool) { }
+    bool announcing() const { return false; }
+    QString release() const { return {}; }
+    QString instruction() const { return {}; }
+    QUrl notes() const { return {}; }
+    int asked() const { return m_asked; }
+    Q_INVOKABLE void dismiss() { }
+    Q_INVOKABLE QUrl openUpgradeNotes()
+    {
+        ++m_asked;
+        return {};
+    }
+
+signals:
+    void changed();
+
+private:
+    int m_asked = 0;
+};
+
 // An Agent Space, which only the Agent socket makes in the browser.
 class AgentSpaceProbe final : public QObject {
     Q_OBJECT
@@ -449,11 +484,8 @@ public slots:
             QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &m_syncLauncher);
         // The tests draw the chrome without asking GitHub anything, so the
-        // Release mark has no watch and is not shown. Registered rather than
-        // left out: an unregistered context property is a ReferenceError on
-        // every load.
-        engine->rootContext()->setContextProperty(
-            QStringLiteral("releaseWatch"), QVariant::fromValue<QObject *>(nullptr));
+        // watch announces no release and the Release mark is not shown.
+        engine->rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &m_releaseWatch);
         engine->rootContext()->setContextProperty(
             QStringLiteral("globalPrivacyControl"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
@@ -534,6 +566,7 @@ private:
     CursorProbe m_cursorProbe;
     DesktopProbe m_desktopProbe;
     WindowFocusProbe m_windowFocusProbe;
+    ReleaseWatchProbe m_releaseWatch;
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     SuggestServerProbe m_suggestServer;
     std::unique_ptr<omaweb::EngineSuggestions> m_engineSuggestions;

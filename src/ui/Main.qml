@@ -4164,6 +4164,12 @@ ApplicationWindow {
         window.restoreDeveloperToolsWidth();
         window.restoreTabAppearance();
         window.restoreChromeAppearance();
+        // The notes an upgrade owes the reader, which the watch opens once,
+        // behind the page on show and in a Space of the reader's own. A
+        // Private window says nothing about this installation, so it never
+        // asks, and leaves them to an ordinary window.
+        if (!window.privateWindow && window.releases)
+            window.releases.openUpgradeNotes();
     }
 
     function forgetPrivateWindow(instance) {

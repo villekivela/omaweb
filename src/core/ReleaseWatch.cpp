@@ -30,6 +30,10 @@ namespace {
     constexpr auto lastCheckKey = "release-check-last";
     constexpr auto newestKey = "release-check-newest";
     constexpr auto dismissedKey = "release-check-dismissed";
+    // The newest release launched on this machine. Kept here: the Sync
+    // projection names the preferences it copies, and this is not one of them.
+    // Another installation's launches say nothing about what was upgraded here.
+    constexpr auto launchedKey = "release-newest-launched";
 
 } // namespace
 
@@ -68,6 +72,7 @@ void ReleaseWatch::follow(BrowserController *browser)
                 }
             });
     }
+    rememberLaunch();
     // The newest release as of the last answer, so a restart shows what the
     // reader was already being told without asking again for it.
     m_newestRelease = preference(QString::fromLatin1(newestKey));
@@ -217,6 +222,48 @@ void ReleaseWatch::dismiss()
     }
     remember(QString::fromLatin1(dismissedKey), m_newestRelease);
     emit changed();
+}
+
+void ReleaseWatch::rememberLaunch()
+{
+    // A build that never asks GitHub is one that does not know its version: a
+    // tagless tree falls back to a number that reads like a release and is
+    // not one. Remembering it would make the next real launch look like an
+    // upgrade, or a downgrade, from something that never shipped.
+    if (m_ask != Ask::GitHub) {
+        return;
+    }
+    const auto newestLaunched = preference(QString::fromLatin1(launchedKey));
+    m_upgradeNotes = ReleaseCheck::upgradeNotes(newestLaunched, m_runningVersion);
+    // An upgrade is remembered once a window has opened its notes, so a run
+    // whose only window is a Private one leaves them for the next run. A
+    // downgrade is not remembered at all: the reader has read the notes of the
+    // release they left, and going back to it is not an upgrade to tell them
+    // about again.
+    if (m_upgradeNotes.isEmpty() && !ReleaseCheck::behind(m_runningVersion, newestLaunched)) {
+        rememberRunningRelease();
+    }
+}
+
+void ReleaseWatch::rememberRunningRelease()
+{
+    remember(QString::fromLatin1(launchedKey), m_runningVersion);
+}
+
+QUrl ReleaseWatch::openUpgradeNotes()
+{
+    if (!m_browser || m_upgradeNotes.isEmpty()) {
+        return {};
+    }
+    // Never an Agent Space: it is the Agent's to fill and, when temporary, to
+    // delete with what is in it. With no Space of the reader's at all, the
+    // notes wait for a launch that has one.
+    const auto spaceId = m_browser->readersSpace();
+    if (spaceId.isEmpty() || m_browser->openTabInSpace(spaceId, m_upgradeNotes).isEmpty()) {
+        return {};
+    }
+    rememberRunningRelease();
+    return std::exchange(m_upgradeNotes, QUrl());
 }
 
 void ReleaseWatch::checkIfDue()
