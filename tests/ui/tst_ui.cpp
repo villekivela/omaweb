@@ -27,6 +27,7 @@
 #include "Quickshell.h"
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
+#include "Scenes.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
@@ -399,6 +400,7 @@ public slots:
         omaweb::registerSystemClipboard();
         omaweb::registerInputOrigin();
         omaweb::registerPrimaryHold();
+        omaweb::registerScenes();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
         omaweb::registerSystemNotifier();
@@ -549,6 +551,13 @@ public slots:
             QStringLiteral("agentControl"), m_agentControl.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("agentSocket"), m_agentSocket.get());
+        // The CRT road's key colours as the website draws them, which the
+        // browser's road is held to (tests/scenes/crt-road-key-colours.mjs).
+        QFile keyColours(QStringLiteral(OMAWEB_SCENE_KEY_COLOURS_PATH));
+        if (keyColours.open(QIODevice::ReadOnly)) {
+            engine->rootContext()->setContextProperty(QStringLiteral("crtRoadKeyColours"),
+                QJsonDocument::fromJson(keyColours.readAll()).toVariant());
+        }
         engine->addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
         engine->addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
         m_kitTheme

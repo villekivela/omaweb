@@ -77,9 +77,14 @@ switch to another Space and back. _Avoid_: Tab history, recent tabs, tab stack, 
 
 **Start page**: What Omaweb shows where a webpage would be when there is none to show: a Space at
 rest, `about:blank`, and a new-tab request that has no destination yet. It is the Omnibar at rest in
-the middle of the page area, focused, over a night road drawn from the palette as a monochrome pixel
-display. It costs no engine. A new-tab request shows it over the page on show, and `Escape` gives
-that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
+the middle of the page area, focused, over the CRT road, a Scene that runs under the whole window
+with the sidebar standing over it. It costs no engine. A new-tab request shows it over the page on
+show, and `Escape` gives that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
+
+**Scene**: The drawing behind the Start page, and nothing else: the host sizes it, keeps its clock
+and shows it, through the CRT glass when it declares one. The CRT road is the one Omaweb ships, a
+night drive in the theme's colours that the website draws from the same parameter file,
+`share/scenes/crt-road.json`. _Avoid_: Wallpaper, background
 
 **Shortcut sheet**: The browser's keyboard commands and the keys that run them, read from the live
 keymap. `?` or `Primary+/` summons it over a page or over the Start page, and `Escape` closes it.

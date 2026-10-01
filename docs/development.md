@@ -3,7 +3,8 @@
 ## Requirements
 
 - A current Linux development environment, or macOS 13 or newer with Xcode 15 or newer
-- Qt 6.11 at or above the repository's approved patch, including Qt Quick, Qt SQL, and Qt WebEngine
+- Qt 6.11 at or above the repository's approved patch, including Qt Quick, Qt SQL, Qt WebEngine, and
+  Qt Shader Tools, which compiles the Start page's CRT glass at build time
 - CMake 3.30 or newer
 - Ninja
 - Clang with C++23 support
@@ -1150,6 +1151,12 @@ What each one measures:
   rasteriser draws no shader effect, so it cannot price the strip at all. On the same machine
   through Metal, `QT_QPA_PLATFORM=cocoa`, a tab switch costs 14 to 18 ms, the difference being a
   wait for the display.
+- The Start page's frame time is the same cost over one second of a resting Space, its road driving:
+  the Scene's moving parts placed thirty times a second, its small picture captured, and the CRT
+  glass drawn over the window. The window draws up to two frames for each of the road's, because a
+  `ShaderEffectSource` asks for one more frame after its source changes. Through the software
+  rasteriser on the offscreen platform it was 0.6 ms. Through Metal on an M2 Max, with the window
+  forced active since a test window there never is, it was 1.2 ms, 0.3 ms of it on the GPU.
 
 - Resident memory is read from the operating system through `ProcessResources`, the way the
   retained-tab report reads it, for four pages served over HTTP in one shared profile, as a Space's

@@ -26,6 +26,7 @@
 #include "SoundingTabs.h"
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
+#include "Scenes.h"
 #include "SystemClipboard.h"
 #include "SystemMotion.h"
 #include "SystemNotifier.h"
@@ -418,6 +419,7 @@ int main(int argc, char *argv[])
     omaweb::registerSystemClipboard();
     omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
+    omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
     omaweb::registerSystemMotion();
@@ -743,6 +745,9 @@ int main(int argc, char *argv[])
             {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
+            // The Start page's road without its CRT glass, as the Settings
+            // interface section leaves it.
+            {QStringLiteral("plain-road"), {{"", "startPageGlass", false}}},
             // Opens the Agent activity page in a new tab, as its command does.
             // `--agent-filter` picks one Agent's lines.
             {QStringLiteral("agent-activity"), {}},

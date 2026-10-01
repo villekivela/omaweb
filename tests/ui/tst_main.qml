@@ -239,6 +239,8 @@ TestCase {
         // a desktop that has not asked for reduced motion.
         InputOrigin.pointer = true;
         SystemMotion.reduced = false;
+        if (!window.startPageGlass)
+            window.setStartPageGlass(true);
     }
 
     // A Download record outlives the test that made it, and every test here
@@ -7843,8 +7845,8 @@ TestCase {
         closeTabsInOtherSpaces(opened);
     }
 
-    // A Private window's Start page drives with the lights off, and the
-    // window beside it keeps its own lit.
+    // A Private window's Start page drives with the lights off, under the
+    // glass, and the window beside it keeps its own lit.
     function test_aPrivateWindowsRoadHasItsLightsOff() {
         windowManager.openPrivateWindow();
         tryCompare(windowManager, "privateWindowCount", 1);
@@ -7853,11 +7855,15 @@ TestCase {
             return findChild(privateBrowser.contentItem, "startPage").visible;
         });
         const road = findChild(privateBrowser.contentItem, "nightRoad");
-        verify(road.visible);
-        verify(road.privateWindow);
+        const scene = findChild(privateBrowser.contentItem, "startPageScene");
+        verify(scene.visible);
+        verify(road.unlit);
+        verify(!road.sunShown);
         compare(road.stars, 0);
-        compare(road.laneMarks, 0);
-        verify(!findChild(window.contentItem, "nightRoad").privateWindow);
+        compare(road.centreMarks, 0);
+        // Under the glass all the same.
+        verify(findChild(scene, "crtGlass").visible);
+        verify(!findChild(window.contentItem, "nightRoad").unlit);
 
         privateBrowser.windowBrowser.closeActiveTab();
         tryCompare(windowManager, "privateWindowCount", 0);
@@ -8698,6 +8704,55 @@ TestCase {
         browser.activateTab(firstTabId);
     }
 
+    // On the Start page the road runs under the whole window and the sidebar
+    // stands over it in its own colour, translucent as the theme has it. Once
+    // a page has loaded the Start page and its road are gone and the sidebar
+    // stands on the window again.
+    function test_theRoadRunsUnderTheSidebarOnTheStartPage() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const startPage = findChild(window.contentItem, "startPage");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting under");
+        tryCompare(sidebar, "arriving", false);
+        tryVerify(function () {
+            return startPage.visible && sidebar.visible && sidebar.width > 0;
+        });
+
+        const origin = scene.mapToItem(window.contentItem, 0, 0);
+        compare(origin.x, 0);
+        // Its vanishing point stays in the middle of the page area, under the
+        // Omnibar.
+        const middle = startPage.mapToItem(window.contentItem, startPage.width / 2, 0);
+        compare(origin.x + scene.width / 2, middle.x);
+        // Nothing between it and the window cuts it short of the window's
+        // left edge.
+        for (let item = scene.parent; item !== window.contentItem; item = item.parent) {
+            if (item.clip)
+                verify(item.mapToItem(window.contentItem, 0, 0).x <= 0, item + " clips the road");
+        }
+        // Drawn over the road, not under it.
+        verify(sidebar.z > viewport.z);
+        compare(String(sidebar.color), String(window.colors.sidebar));
+
+        const input = findChild(window.contentItem, "omnibarInput");
+        input.text = "https://under-the-sidebar.example/";
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return findChild(window.contentItem, "engineLoader").item !== null;
+        });
+        findChild(window.contentItem, "engineLoader").item.simulateFirstPaint();
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        verify(!scene.visible);
+        verify(sidebar.z <= viewport.z);
+        compare(String(sidebar.color), String(window.colors.sidebar));
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting under");
+    }
+
     // The road moves only while the reader could see it: a window that has
     // lost the keyboard or gone from the screen schedules no frame for it.
     function test_theStartPageDrawsNoFramesHiddenOrUnfocused() {
@@ -8768,7 +8823,7 @@ TestCase {
         panel.openChanged.disconnect(noteOpening);
         compare(openings.length, 0);
         verify(window.startPageDriving);
-        verify(road.driving);
+        compare(road.navigating, 1);
         tryVerify(function () {
             return engineLoader.item !== null;
         });
@@ -8780,14 +8835,14 @@ TestCase {
         tryVerify(function () {
             return !window.startPageDriving && !startPage.open;
         }, 400);
-        // The road goes on driving, lit, while it fades into the page.
+        // Navigating falls at the first paint, and the road eases out of it,
+        // still lit, as it fades into the page.
         verify(startPage.visible);
-        verify(road.driving);
-        verify(road.lightUp > 0);
+        compare(road.navigating, 0);
+        verify(road.sunUp > 0);
         tryVerify(function () {
             return !startPage.visible;
         });
-        verify(!road.driving);
 
         // A failed load has its own page to show, straight away.
         window.commands.run("new-tab", -1);
@@ -8965,6 +9020,46 @@ TestCase {
         browser.setPreference("start-page-road", "true");
         verify(road.visible);
         leaveSpace(homeSpaceId, restingSpaceId, "Resting road");
+    }
+
+    // The CRT glass is on unless the reader turns it off, on this installation
+    // alone; off, the road is its plain pixels.
+    function test_settingsTurnsTheGlassOffLocally() {
+        const scene = findChild(window.contentItem, "startPageScene");
+        const glass = findChild(scene, "crtGlass");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting glass");
+        tryVerify(function () {
+            return scene.visible;
+        });
+        verify(scene.glass);
+        verify(glass.visible);
+
+        window.settingsOpen = true;
+        settings.section = settings.sections.indexOf("interface");
+        const toggle = findChild(settings, "startPageGlass");
+        verify(toggle !== null);
+        verify(toggle.checked);
+        toggle.clicked();
+        compare(browser.preference("start-page-glass", "true"), "false");
+        window.settingsOpen = false;
+        tryVerify(function () {
+            return scene.visible;
+        });
+        verify(!scene.glass);
+        verify(!glass.visible);
+        verify(findChild(scene, "sceneDisplay").visible);
+
+        // The stored choice is what the window follows, however it was made.
+        browser.setPreference("start-page-glass", "true");
+        verify(scene.glass);
+        browser.setPreference("start-page-glass", "false");
+        verify(!scene.glass);
+        window.setStartPageGlass(true);
+        compare(browser.preference("start-page-glass", "false"), "true");
+        verify(glass.visible);
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting glass");
     }
 
     // A blank address is not the same thing as a resting Space, and it must not

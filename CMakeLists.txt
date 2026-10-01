@@ -84,7 +84,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Qt ships privately and which is what reads a store package's archive. Writing
 # a ZIP reader by hand, or taking a dependency for one, would both be worse
 # than a header that has been in the same place since Qt 5.
-set(omaweb_qt_components Concurrent Core CorePrivate Gui Network Qml Quick QuickControls2 Sql)
+# `ShaderTools` is a build tool only: it compiles the Start page's CRT glass
+# (src/ui/shaders) to the shader packs Qt Quick loads at runtime.
+set(omaweb_qt_components
+    Concurrent Core CorePrivate Gui Network Qml Quick QuickControls2 ShaderTools Sql
+)
 if(UNIX AND NOT APPLE)
     # The desktop's notification service is a session-bus service, so the Linux
     # platform layer needs D-Bus. macOS reaches its own through AppKit.
@@ -387,6 +391,8 @@ add_library(omaweb-ui STATIC
     src/ui/InputOrigin.h
     src/ui/PrimaryHold.cpp
     src/ui/PrimaryHold.h
+    src/ui/Scenes.cpp
+    src/ui/Scenes.h
     src/ui/StoredFaviconProvider.cpp
     src/ui/StoredFaviconProvider.h
     src/ui/SystemClipboard.cpp
@@ -397,6 +403,18 @@ add_library(omaweb-ui STATIC
 target_include_directories(omaweb-ui PUBLIC src/ui)
 target_link_libraries(omaweb-ui PUBLIC omaweb-core Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
 omaweb_strict_target(omaweb-ui)
+# The Scenes' parameter files, shared with the website, which reads them from
+# the same directory.
+qt_add_resources(omaweb-ui "omaweb_scenes"
+    PREFIX "/omaweb/scenes"
+    BASE "share/scenes"
+    FILES "share/scenes/crt-road.json"
+)
+qt_add_shaders(omaweb-ui "omaweb_shaders"
+    PREFIX "/omaweb/shaders"
+    BASE "src/ui/shaders"
+    FILES "src/ui/shaders/crtglass.frag"
+)
 
 # The vendored Omarchy component kit imports Quickshell types. Omaweb supplies
 # the small subset the kit's shared components need instead of patching the
@@ -660,6 +678,7 @@ set(omaweb_ui_files
     src/ui/SpaceProfiles.qml
     src/ui/HttpsOnlyPage.qml
     src/ui/NightRoad.qml
+    src/ui/SceneHost.qml
     src/ui/ShortcutSheet.qml
     src/ui/StartPage.qml
     src/ui/TabEngineHost.qml
@@ -1625,6 +1644,7 @@ if(BUILD_TESTING)
             OMAWEB_VERSION_DERIVED=$<BOOL:${OMAWEB_VERSION_DERIVED}>
             OMAWEB_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
             QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/ui"
+            OMAWEB_SCENE_KEY_COLOURS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/scenes/crt-road-key-colours.json"
             OMAWEB_MOCK_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
             OMAWEB_MOCK_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
             OMAWEB_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"

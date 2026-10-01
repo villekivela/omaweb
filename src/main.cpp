@@ -45,6 +45,7 @@
 #include "StoredFaviconProvider.h"
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
+#include "Scenes.h"
 #include "SystemClipboard.h"
 #include "SystemMotion.h"
 #include "SystemNotifier.h"
@@ -403,6 +404,7 @@ int main(int argc, char *argv[])
     omaweb::registerSystemClipboard();
     omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
+    omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
     omaweb::registerSystemMotion();
