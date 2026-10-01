@@ -904,6 +904,25 @@ body:has(.drive) > .top {
   gap: 4px;
 }
 
+/* f's link hints: a label at each link's corner, typed to follow it. */
+.hint {
+  position: absolute;
+  top: var(--y);
+  left: var(--x);
+  z-index: 10;
+  padding: 2px 4px;
+  background: var(--accent);
+  color: var(--bg);
+  font: 600 12px/1 var(--mono);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* The card J and K last moved to. */
+.card[data-current] {
+  border-color: var(--accent);
+}
+
 /* On a phone, or with reduced motion, the road holds a still frame and the features are an
    ordinary list: one card under another, full width. scene.js holds the road still under this same
    query. */

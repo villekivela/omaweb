@@ -149,10 +149,88 @@ if (drive) {
   picker.hidden = false;
   paint(theme, false);
 
-  // The browser's own keys: o to the Omnibar, T to the next theme and Shift+T to the one before.
+  // J and K: the next and the previous card, as they move through a Space's tabs. The card in
+  // hand is the one last moved to while it is still on screen, else the one nearest the middle.
+  const cards = [...drive.querySelectorAll(".card")];
+  let current = -1;
+  const step = (by) => {
+    const onScreen = (card) => {
+      const rect = card.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < innerHeight;
+    };
+    if (!cards[current] || !onScreen(cards[current])) {
+      const middle = innerHeight / 2;
+      const below = cards.findIndex((card) => card.getBoundingClientRect().top > middle);
+      current = below < 0 ? cards.length : below;
+      if (by > 0) current -= 1;
+    }
+    current = Math.max(0, Math.min(cards.length - 1, current + by));
+    for (const card of cards) card.toggleAttribute("data-current", card === cards[current]);
+    cards[current].scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
+  };
+
+  // f: link hints. Every link and button on screen takes a label; typing a label follows it, and
+  // any other key puts the hints away. The swatches are left to T, being too small to label.
+  const LETTERS = "asdfghjkl";
+  let hints = null;
+  const hideHints = () => {
+    for (const hint of hints || []) hint.label.remove();
+    hints = null;
+  };
+  const showHints = () => {
+    const targets = [...document.querySelectorAll("a[href], button:not(.swatch)")].filter(
+      (target) => {
+        const rect = target.getBoundingClientRect();
+        return (
+          rect.width && rect.height && rect.bottom > 0 && rect.top < innerHeight && rect.right > 0
+        );
+      },
+    );
+    const long = targets.length > LETTERS.length;
+    hints = targets.map((target, at) => {
+      const text = long
+        ? LETTERS[Math.floor(at / LETTERS.length)] + LETTERS[at % LETTERS.length]
+        : LETTERS[at];
+      const rect = target.getBoundingClientRect();
+      const label = document.createElement("span");
+      label.className = "hint";
+      label.textContent = text;
+      label.style.setProperty("--x", `${rect.left + scrollX}px`);
+      label.style.setProperty("--y", `${rect.top + scrollY}px`);
+      document.body.append(label);
+      return { target, text, label };
+    });
+  };
+  let typed = "";
+  const followHint = (key) => {
+    typed += key;
+    const left = hints.filter((hint) => hint.text.startsWith(typed));
+    for (const hint of hints) hint.label.hidden = !left.includes(hint);
+    if (left.length === 1 && left[0].text === typed) {
+      hideHints();
+      left[0].target.focus({ preventScroll: true });
+      left[0].target.click();
+    } else if (!left.length) {
+      hideHints();
+    }
+  };
+
+  // The browser's own keys: o to the Omnibar, f for link hints, J and K through the cards, T to the
+  // next theme and Shift+T to the one before.
   addEventListener("keydown", (event) => {
     if (typing(event) || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.key === "o") {
+    if (hints) {
+      event.preventDefault();
+      if (LETTERS.includes(event.key)) followHint(event.key);
+      else hideHints();
+    } else if (event.key === "f") {
+      event.preventDefault();
+      typed = "";
+      showHints();
+    } else if (event.key.toLowerCase() === "j" || event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      step(event.key.toLowerCase() === "j" ? 1 : -1);
+    } else if (event.key === "o") {
       event.preventDefault();
       scrollTo({ top: 0, behavior: smooth ? "smooth" : "auto" });
       input.focus({ preventScroll: true });
