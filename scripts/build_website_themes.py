@@ -122,14 +122,38 @@ THEMES = [
 # across a web search, the open tabs and the Space's history, rather than the
 # address it opens on.
 STATES = [
-    ("space", ["--tabs", "--spaces", "--browse"]),
-    ("collapsed", ["--tabs", "--browse", "--show", "collapsed"]),
+    # PROTOTYPE (#440): the Start page and the Omnibar are drawn with MultiEffect,
+    # which the software backend leaves out, so they run under a headless
+    # compositor (`COMPOSITED`). The Omnibar lists rows from this Space,
+    # another Space's tab, history and engine suggestions from a local stub.
+    ("start", ["--tabs", "--spaces", "--capture-delay", "5500"]),
     (
         "omnibar",
-        ["--tabs", "--spaces", "--browse", "--show", "omnibar-settled", "--omnibar-query", "ar"],
+        [
+            "--tabs",
+            "--spaces",
+            "--sample-suggestions",
+            "--show",
+            "omnibar-settled",
+            "--omnibar-query",
+            "qt",
+            "--capture-delay",
+            "7000",
+        ],
     ),
+    (
+        "agents",
+        ["--tabs", "--spaces", "--many-spaces", "--agents-away", "--browse", "--capture-delay", "4000"],
+    ),
+    ("space", ["--tabs", "--spaces", "--browse"]),
+    ("collapsed", ["--tabs", "--browse", "--show", "collapsed"]),
     ("blocking", ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]),
 ]
+COMPOSITED = {"start", "omnibar", "agents"}
+
+# The engine's answer the Omnibar shot lists, served on a local port for the
+# lab's `--sample-suggestions` to ask.
+SUGGESTIONS = b'["qt", ["qt quick shapes", "qt 6.11 release notes", "qtwebengine flags", "qt creator"]]'
 
 # Two states the lab can reach and this deliberately does not ship. Site
 # information is about the page on show and the lab has no page, so it draws
@@ -229,6 +253,60 @@ def resolved_palette(lab: pathlib.Path, theme_file: pathlib.Path) -> dict:
                 "install it, or name an installed family with OMAWEB_CAPTURE_FONT_FAMILY"
             )
         return palette
+
+
+def suggestion_server() -> str:
+    """Serve SUGGESTIONS on a free local port, for as long as the script runs."""
+    import http.server
+    import threading
+
+    class Answer(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-suggestions+json")
+            self.end_headers()
+            self.wfile.write(SUGGESTIONS)
+
+        def log_message(self, *arguments):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Answer)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{server.server_port}/suggest.json?q={{query}}"
+
+
+SUGGEST_URL = None
+
+
+def run_composited(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -> None:
+    """Run the lab under headless cage, on an output the capture's size."""
+    global SUGGEST_URL
+    if SUGGEST_URL is None:
+        SUGGEST_URL = suggestion_server()
+    environment = dict(os.environ)
+    environment.pop("OMAWEB_CAPTURE_FONT_FILE", None)
+    environment.update(
+        {
+            "OMAWEB_THEME_FILE": str(theme_file),
+            "OMAWEB_NO_OMARCHY_TEMPLATE": "1",
+            "OMAWEB_LAB_SUGGEST_URL": SUGGEST_URL,
+            "QT_QPA_PLATFORM": "wayland",
+            "QT_SCALE_FACTOR": str(SCALE),
+            "WLR_BACKENDS": "headless",
+            "WLR_RENDERER": "pixman",
+            "WLR_LIBINPUT_NO_DEVICES": "1",
+        }
+    )
+    inner = (
+        f"wlr-randr --output HEADLESS-1 --custom-mode {1360 * SCALE}x{860 * SCALE} >/dev/null 2>&1; "
+        + " ".join(f"'{part}'" for part in [str(lab), *arguments])
+    )
+    result = subprocess.run(
+        ["cage", "--", "sh", "-c", inner], env=environment, capture_output=True, text=True
+    )
+    capture = pathlib.Path(arguments[arguments.index("--capture") + 1])
+    if not capture.is_file():
+        sys.exit(f"cage {lab.name} {' '.join(arguments)} failed:\n{result.stderr[-2000:]}")
 
 
 def run_lab(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -> None:
@@ -365,7 +443,8 @@ def build(
 
     for state, arguments in STATES:
         capture = scratch / f"{theme}-{state}.png"
-        run_lab(lab, theme_file, [*arguments, "--capture", str(capture)])
+        run = run_composited if state in COMPOSITED else run_lab
+        run(lab, theme_file, [*arguments, "--capture", str(capture)])
         write_webp(out / theme / f"{state}.webp", encoder, capture.read_bytes())
         print(f"  {theme}/{state}.webp")
 
