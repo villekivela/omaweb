@@ -493,12 +493,12 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
-    // `--many-spaces` seeds three more of the reader's Spaces, each taking a
+    // `--many-spaces` seeds two more of the reader's Spaces, each taking a
     // colour of its own, and with `--agents` six more Agent Spaces, so the
     // footer runs out of room and counts the rest.
     const auto manySpaces = arguments.contains(QStringLiteral("--many-spaces"));
     if (manySpaces) {
-        for (const auto *name : {"Home", "Travel", "Research"}) {
+        for (const auto *name : {"Home", "Travel"}) {
             browser.createSpace(QString::fromUtf8(name));
         }
     }
@@ -517,8 +517,9 @@ int main(int argc, char *argv[])
     const auto agentsGrant = arguments.contains(QStringLiteral("--agents-grant"));
     const auto agentsAway = agentsGrant || arguments.contains(QStringLiteral("--agents-away"));
     const auto agentsWindow = arguments.contains(QStringLiteral("--agents-window"));
-    const auto agents
-        = agentsAway || agentsWindow || arguments.contains(QStringLiteral("--agents"));
+    const auto agentsTakenOver = arguments.contains(QStringLiteral("--agents-taken-over"));
+    const auto agents = agentsAway || agentsWindow || agentsTakenOver
+        || arguments.contains(QStringLiteral("--agents"));
     std::optional<omaweb::AgentControl> agentControl;
     const auto agentName = QStringLiteral("claude-code");
     QString agentTabId;
@@ -540,6 +541,21 @@ int main(int argc, char *argv[])
         });
         agentTabId
             = opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
+        // Once Review is the reader's, the Agent is still at work in a Space
+        // of its own, so both an attached Agent Space and a badged Space of
+        // the reader's are in the footer.
+        if (agentsTakenOver) {
+            agentControl->answer({
+                {QStringLiteral("verb"), QStringLiteral("space new")},
+                {QStringLiteral("name"), agentName},
+                {QStringLiteral("space"), QStringLiteral("Crawl")},
+            });
+            agentControl->answer({
+                {QStringLiteral("verb"), QStringLiteral("open")},
+                {QStringLiteral("name"), agentName},
+                {QStringLiteral("url"), QStringLiteral("https://docs.example/crawl")},
+            });
+        }
         browser.createAgentSpace(QStringLiteral("Scratch"), agentName);
         if (manySpaces) {
             for (const auto *name : {"Signup flow", "Pricing check", "Docs crawl", "Changelog",
@@ -552,8 +568,9 @@ int main(int argc, char *argv[])
     }
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
     // A click, once the page is up, so the frame's label has an act to name.
-    // The stand-in page reports the name a step carries as the element's.
-    if (agentControl && !agentTabId.isEmpty()) {
+    // The stand-in page reports the name a step carries as the element's. Not
+    // in a Space the reader has taken over, where it would ask for a grant.
+    if (agentControl && !agentTabId.isEmpty() && !agentsTakenOver) {
         QTimer::singleShot(200, &application, [&agentControl, agentName, agentTabId] {
             agentControl->handle(
                 {
@@ -649,7 +666,7 @@ int main(int argc, char *argv[])
     }
     // `--agents-taken-over` has the reader take the Agent's Space over while
     // the Agent is still attached, so a Space of the reader's wears the badge.
-    if (agents && arguments.contains(QStringLiteral("--agents-taken-over"))) {
+    if (agentsTakenOver) {
         browser.takeOverSpace(agentSpaceId);
     }
     // `--narrow` puts the sidebar at its minimum width.
