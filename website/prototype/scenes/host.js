@@ -1,0 +1,212 @@
+// PROTOTYPE (#440). The Scene host: owns the canvas, the clock and the rules
+// for when a Scene may draw. A Scene only draws; see ../README.md for the
+// contract. Classic script, so a Scene file is one more <script> tag.
+
+(function () {
+  "use strict";
+
+  var registry = [];
+  var hosts = [];
+  var reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
+
+  function register(scene) {
+    registry = registry.filter(function (s) {
+      return s.id !== scene.id;
+    });
+    registry.push(scene);
+    hosts.forEach(function (host) {
+      if (host.sceneId === scene.id) host.setScene(scene.id);
+    });
+  }
+
+  function find(id) {
+    for (var i = 0; i < registry.length; i++) if (registry[i].id === id) return registry[i];
+    return registry[0];
+  }
+
+  function rgb(value) {
+    var v = value.trim();
+    if (v[0] === "#") {
+      if (v.length === 4) v = "#" + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+      return [
+        parseInt(v.substr(1, 2), 16),
+        parseInt(v.substr(3, 2), 16),
+        parseInt(v.substr(5, 2), 16),
+      ];
+    }
+    var m = v.match(/[\d.]+/g);
+    return m ? [+m[0], +m[1], +m[2]] : [0, 0, 0];
+  }
+
+  function lightness(c) {
+    var max = Math.max(c[0], c[1], c[2]) / 255;
+    var min = Math.min(c[0], c[1], c[2]) / 255;
+    return (max + min) / 2;
+  }
+
+  // The palette a Scene receives: the theme's roles, read off the element the
+  // canvas sits in, so whatever carries data-theme decides it.
+  function readPalette(element) {
+    var style = getComputedStyle(element);
+    function role(name, fallback) {
+      var value = style.getPropertyValue(name);
+      return rgb(value && value.trim() ? value : fallback);
+    }
+    var palette = {
+      ground: role("--bg", "#141210"),
+      text: role("--fg", "#ece3cf"),
+      accent: role("--accent", "#ff5a2c"),
+      muted: role("--muted", "#a59c8a"),
+    };
+    return { palette: palette, dark: lightness(palette.ground) <= 0.6 };
+  }
+
+  // One canvas, one Scene. `options.clock` is "time" (the default) or
+  // "manual", where the page sets the time itself, as a scroll-driven page
+  // does; the Scene cannot tell the difference.
+  function Host(canvas, options) {
+    options = options || {};
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d", { willReadFrequently: true });
+    this.clock = options.clock || "time";
+    this.time = options.time || 0;
+    this.visible = false;
+    this.frame = 0;
+    this.last = 0;
+    this.sceneId = options.scene;
+    this.scene = find(options.scene);
+    this.state = {};
+    var self = this;
+    canvas.classList.add("scene-canvas");
+    this.observer = new IntersectionObserver(function (entries) {
+      self.visible = entries[entries.length - 1].isIntersecting;
+      self.update();
+    });
+    this.observer.observe(canvas);
+    this.resizer = new ResizeObserver(function () {
+      self.layout();
+    });
+    this.resizer.observe(canvas);
+    hosts.push(this);
+    this.layout();
+  }
+
+  Host.prototype.setScene = function (id) {
+    this.sceneId = id;
+    this.scene = find(id);
+    this.state = {};
+    this.layout();
+  };
+
+  Host.prototype.layout = function () {
+    if (!this.scene) return;
+    var pitch = this.scene.pitch || 1;
+    var rect = this.canvas.getBoundingClientRect();
+    var w = Math.max(1, Math.ceil(rect.width / pitch));
+    var h = Math.max(1, Math.ceil(rect.height / pitch));
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+      this.state = {};
+    }
+    this.canvas.style.setProperty("--pitch", pitch + "px");
+    this.canvas.parentElement.style.setProperty("--pitch", pitch + "px");
+    this.canvas.parentElement.classList.toggle("scene-seams", !!this.scene.seams);
+    this.themed = readPalette(this.canvas);
+    this.draw();
+    this.update();
+  };
+
+  // A new theme: the palette is read again and the Scene redraws, even when
+  // it is not moving.
+  Host.prototype.retheme = function () {
+    this.state = {};
+    this.layout();
+  };
+
+  Host.prototype.setTime = function (time) {
+    this.time = time;
+    if (this.visible) this.draw();
+  };
+
+  Host.prototype.draw = function () {
+    if (!this.scene || !this.themed) return;
+    this.scene.draw(this.ctx, {
+      width: this.canvas.width,
+      height: this.canvas.height,
+      pitch: this.scene.pitch || 1,
+      time: this.time,
+      palette: this.themed.palette,
+      dark: this.themed.dark,
+      reducedMotion: reduceQuery.matches,
+      state: this.state,
+    });
+  };
+
+  // Frames only while the canvas is on screen, the tab is shown, the window
+  // has focus and the reader has not asked for less motion: the Start page's
+  // own rule.
+  Host.prototype.running = function () {
+    return (
+      this.clock === "time" &&
+      this.visible &&
+      !document.hidden &&
+      document.hasFocus() &&
+      !reduceQuery.matches &&
+      this.scene &&
+      this.scene.animated !== false
+    );
+  };
+
+  Host.prototype.update = function () {
+    var self = this;
+    if (this.running()) {
+      if (this.frame) return;
+      this.last = performance.now();
+      var tick = function (now) {
+        self.time += Math.min(0.1, (now - self.last) / 1000);
+        self.last = now;
+        self.draw();
+        self.frame = self.running() ? requestAnimationFrame(tick) : 0;
+      };
+      this.frame = requestAnimationFrame(tick);
+    } else if (this.frame) {
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+    }
+  };
+
+  function updateAll() {
+    hosts.forEach(function (host) {
+      host.update();
+    });
+  }
+  document.addEventListener("visibilitychange", updateAll);
+  addEventListener("focus", updateAll);
+  addEventListener("blur", updateAll);
+  reduceQuery.addEventListener("change", function () {
+    hosts.forEach(function (host) {
+      host.draw();
+      host.update();
+    });
+  });
+
+  window.OmawebScenes = {
+    register: register,
+    list: function () {
+      return registry.slice();
+    },
+    Host: Host,
+    hosts: hosts,
+    retheme: function () {
+      hosts.forEach(function (host) {
+        host.retheme();
+      });
+    },
+    use: function (id) {
+      hosts.forEach(function (host) {
+        host.setScene(id);
+      });
+    },
+  };
+})();

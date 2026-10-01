@@ -1,0 +1,455 @@
+/* PROTOTYPE (#440). Variant B, "Display". */
+
+.pv-b {
+  --col: min(100% - 32px, 1240px);
+  --dot: 5px;
+}
+
+/* Lit type: the accent through a dot mask at the display's pitch, glowing
+   outside the mask so the glow reads as light rather than ink. */
+.pb-lit {
+  color: var(--accent);
+  font-family: var(--display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  -webkit-mask-image: radial-gradient(circle, #000 58%, transparent 66%);
+  mask-image: radial-gradient(circle, #000 58%, transparent 66%);
+  -webkit-mask-size: var(--dot) var(--dot);
+  mask-size: var(--dot) var(--dot);
+  margin: 0;
+}
+
+h1.pb-lit,
+h2.pb-lit,
+.pb-ticker,
+.pb-step__count {
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 45%, transparent));
+}
+
+.pb-lit--xl {
+  font-size: clamp(36px, 4.4vw, 72px);
+  line-height: 0.98;
+}
+
+.pb-lit--lg {
+  font-size: clamp(36px, 5vw, 72px);
+  line-height: 1;
+}
+
+.pb-lit span,
+.pb-lit--xl span {
+  display: block;
+}
+
+.pb-label {
+  margin: 0 0 14px;
+  color: var(--ink2);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pb-h2 {
+  margin: 0 0 16px;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(26px, 2.6vw, 34px);
+  text-transform: uppercase;
+  letter-spacing: var(--display-track);
+  line-height: 1.1;
+}
+
+/* ---- Header */
+
+.pb-top {
+  width: var(--col);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pb-brand .wordmark,
+.pb-foot .wordmark {
+  height: 18px;
+  width: auto;
+  fill: var(--fg);
+  display: block;
+}
+
+.pb-brand .wordmark__mark,
+.pb-foot .wordmark__mark {
+  fill: var(--accent);
+}
+
+.pb-top nav {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  flex: 1;
+}
+
+.pb-top nav a {
+  text-decoration: none;
+  color: var(--ink2);
+}
+
+.pb-theme {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+.pb-swatches .pv-swatch {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Hero */
+
+.pb-hero {
+  width: var(--col);
+  margin: 0 auto;
+  padding: 64px 0 72px;
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.pb-lede {
+  margin: 28px 0;
+  max-width: 40ch;
+  color: var(--ink2);
+}
+
+.pb-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.pb-btn {
+  padding: 11px 20px;
+  border: 1px solid var(--accent);
+  color: var(--accent) !important;
+  text-decoration: none;
+  font-weight: 700;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--accent) 25%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.pb-platform {
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+/* A bezel: the dark frame a display sits in. */
+.pb-bezel {
+  margin: 0;
+  padding: 10px;
+  background: color-mix(in srgb, var(--sidebar) 80%, #000);
+  border: 1px solid var(--rule);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 60%),
+    0 30px 60px -30px rgb(0 0 0 / 70%);
+}
+
+.pb-bezel > img {
+  outline: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.pb-bezel__label {
+  margin: 8px 2px 0;
+  font-size: 11px;
+  color: var(--ink2);
+}
+
+.pb-screen {
+  position: relative;
+  aspect-ratio: 16 / 10;
+}
+
+.pb-screen canvas,
+.pb-strip canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.pb-address {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  min-width: 52%;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border: 1px solid var(--accent);
+  font-size: 16px;
+  z-index: 1;
+}
+
+.pb-caret {
+  width: 9px;
+  height: 18px;
+  background: var(--accent);
+  animation: pb-blink 1s steps(1) infinite;
+}
+
+@keyframes pb-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---- Strips: the Scene as a seam between sections */
+
+.pb-strip {
+  position: relative;
+  height: 112px;
+  border-block: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.pb-strip--low {
+  height: 64px;
+}
+
+/* ---- Walk */
+
+.pb-walk {
+  width: var(--col);
+  margin: 0 auto;
+  padding: 40px 0;
+}
+
+.pb-step {
+  display: grid;
+  grid-template-columns: 4fr 8fr;
+  gap: 48px;
+  align-items: center;
+  padding: 56px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pb-step__count {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin: 0 0 14px;
+}
+
+.pb-step__count .pb-label {
+  margin: 0;
+}
+
+.pb-lit--num {
+  font-size: 64px;
+  line-height: 1;
+}
+
+.pb-step h2 {
+  margin: 0 0 12px;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: var(--display-track);
+}
+
+.pb-step p:last-child {
+  margin: 0;
+  color: var(--ink2);
+}
+
+/* ---- Ticker */
+
+.pb-ticker {
+  overflow: hidden;
+  padding: 18px 0;
+  background: color-mix(in srgb, var(--sidebar) 70%, #000);
+  border-block: 1px solid var(--rule);
+}
+
+.pb-ticker__run {
+  --dot: 4px;
+  white-space: nowrap;
+  font-size: 36px;
+  width: max-content;
+  animation: pb-run 40s linear infinite;
+}
+
+@keyframes pb-run {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ---- Keys */
+
+.pb-keys,
+.pb-install {
+  width: var(--col);
+  margin: 0 auto;
+  padding: 96px 0;
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: 48px;
+  align-items: start;
+}
+
+.pb-keys p,
+.pb-install p {
+  color: var(--ink2);
+  max-width: 50ch;
+}
+
+.pb-keypad {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.pb-keypad li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: color-mix(in srgb, var(--sidebar) 80%, #000);
+  border: 1px solid var(--rule);
+}
+
+.pb-lit--key {
+  --dot: 4px;
+  font-size: 44px;
+  line-height: 1;
+  text-transform: none;
+}
+
+/* ---- Install */
+
+.pb-screens {
+  display: grid;
+  gap: 16px;
+}
+
+.pb-term figcaption {
+  font-size: 12px;
+  color: var(--ink2);
+  padding: 2px 4px 10px;
+}
+
+.pb-term pre {
+  margin: 0;
+  padding: 14px;
+  overflow-x: auto;
+  background: #000;
+  color: var(--accent);
+  font: 13px/1.7 var(--mono);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.pb-foot {
+  width: var(--col);
+  margin: 0 auto;
+  padding: 28px 0 100px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-ticker__run,
+  .pb-caret {
+    animation: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .pb-top nav,
+  .pb-theme > span {
+    display: none;
+  }
+  .pb-top {
+    justify-content: space-between;
+  }
+  .pb-hero,
+  .pb-step,
+  .pb-keys,
+  .pb-install {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .pb-address {
+    font-size: 13px;
+  }
+}
+
+/* ---- The chrome mock in B's language: lit cells for what is selected */
+
+.cm--b .cm-row.is-selected,
+.cm--b .cm-space.is-active {
+  position: relative;
+  background: var(--accent);
+  color: var(--bg);
+  border-left-color: var(--accent);
+}
+
+.cm--b .cm-row.is-selected::after,
+.cm--b .cm-space.is-active::after,
+.cm--b .cm-tab.is-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgb(0 0 0 / 35%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(0 0 0 / 35%) 1px, transparent 1px);
+  background-size: 3px 3px;
+  pointer-events: none;
+}
+
+.cm--b .cm-row.is-selected .cm-glyph {
+  border-color: var(--bg);
+}
+
+.cm--b .cm-tab.is-active {
+  position: relative;
+  border: 0;
+  background: none;
+  padding-left: 10px;
+}
+
+.cm--b .cm-tab.is-active::before {
+  right: auto;
+  width: 4px;
+  background-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.cm--b .cm-space.is-active {
+  border: 0;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.pb-step > *,
+.pb-hero > * {
+  min-width: 0;
+}
