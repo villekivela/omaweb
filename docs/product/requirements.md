@@ -165,10 +165,25 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the floating controls appear. Hiding or showing the sidebar eases the seam and the page travels
   with it, keeping one width for the whole movement: the page lays out once rather than at every
   width the seam crosses, and the sidebar's rows keep their own width as it goes.
-- The floating controls and the eased seam are defaults rather than fixtures. Settings' interface
-  section turns each off: without the floating controls a hidden sidebar leaves the page the whole
-  window, and without the ease the seam and the page arrive at their settled widths in one step.
-  Both survive a restart, and the keys that hide and show the sidebar work the same either way.
+- The floating controls are a default rather than a fixture. Settings' interface section turns them
+  off, and without them a hidden sidebar leaves the page the whole window. The choice survives a
+  restart, and the keys that hide and show the sidebar work the same either way.
+- The chrome moves what the pointer did and settles what a key did. A click, a drag or a tap that
+  hides or shows the sidebar, switches Space or tab, or opens or closes the Omnibar eases there, so
+  the eye can follow where something went. The same action from a key binding, from the keymap or
+  from the Omnibar's command scope, a clicked command row included, arrives in its settled state in
+  the frame it was asked for. Every other eased transition of the chrome follows the same rule: the
+  sheets, the panels, the Glance and the page's nudge. Motion that tells the reader something moves
+  for both: the Space notice naming the Space they landed in, and an Agent mark's pulse while one of
+  its commands is in flight. Omaweb offers no setting of its own for any of this.
+- The desktop's reduced-motion preference stills the chrome whatever started it. Omaweb follows four
+  sources, and any one asking for reduced motion is enough: the desktop portal's
+  `org.freedesktop.appearance` `reduced-motion`, Hyprland's `animations:enabled` read when the
+  browser starts and again on each config reload, GNOME's `org.gnome.desktop.interface`
+  `enable-animations` through the same portal, and macOS's Reduce motion. Under it the sidebar, a
+  peek, a Space, a tab, the Omnibar, sheets and panels arrive settled, the Space notice appears and
+  goes where it stands, the page loading indicator holds still, and a busy Agent mark is held dim
+  instead of pulsing.
 - The size Omaweb's own type is drawn at is the theme's until the reader sets it. Settings'
   interface section steps it up and down a pixel at a time within a supported range and resets it,
   the change reaches every Omaweb surface at once, Private windows included, and it survives a

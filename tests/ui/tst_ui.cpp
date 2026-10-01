@@ -25,6 +25,7 @@
 #include "SoundingTabs.h"
 #include "SystemNotifier.h"
 #include "Quickshell.h"
+#include "InputOrigin.h"
 #include "PrimaryHold.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
@@ -113,6 +114,19 @@ public:
 
 signals:
     void changed();
+};
+
+// The desktop's reduced-motion preference, which a test sets for itself rather
+// than asking whatever desktop runs the suite.
+class SystemMotionProbe final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool reduced MEMBER m_reduced NOTIFY reducedChanged)
+
+signals:
+    void reducedChanged();
+
+private:
+    bool m_reduced = false;
 };
 
 // The engine's side of Secure DNS: whether it took the resolver it was given.
@@ -383,6 +397,7 @@ public slots:
         omaweb::registerEngineBuild();
         omaweb::registerPageImages();
         omaweb::registerSystemClipboard();
+        omaweb::registerInputOrigin();
         omaweb::registerPrimaryHold();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
@@ -391,6 +406,8 @@ public slots:
         omaweb::registerMediaAnnouncer();
         omaweb::registerProcessResources();
         omaweb::registerSavedDownload();
+        qmlRegisterSingletonType<SystemMotionProbe>("Omaweb", 1, 0, "SystemMotion",
+            [](QQmlEngine *, QJSEngine *) -> QObject * { return new SystemMotionProbe; });
         qmlRegisterSingletonType<DefaultBrowserProbe>("Omaweb", 1, 0, "DefaultBrowser",
             [](QQmlEngine *, QJSEngine *) -> QObject * { return new DefaultBrowserProbe; });
         m_runtimeSecurity = std::make_unique<omaweb::RuntimeSecurity>(

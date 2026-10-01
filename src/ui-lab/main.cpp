@@ -24,8 +24,10 @@
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
 #include "SoundingTabs.h"
+#include "InputOrigin.h"
 #include "PrimaryHold.h"
 #include "SystemClipboard.h"
+#include "SystemMotion.h"
 #include "SystemNotifier.h"
 #include "ThemeController.h"
 #include "WindowChrome.h"
@@ -404,9 +406,11 @@ int main(int argc, char *argv[])
     omaweb::registerPageImages();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
+    omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
+    omaweb::registerSystemMotion();
     omaweb::registerSystemNotifier();
     omaweb::registerSoundingTabs();
     omaweb::registerMediaAnnouncer();
@@ -711,7 +715,7 @@ int main(int argc, char *argv[])
                 {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", false}}},
             {QStringLiteral("peek"),
                 {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", true},
-                    {"", "floatingControls", false}, {"", "easeChrome", false}}},
+                    {"", "floatingControls", false}}},
             {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
             {QStringLiteral("settings:clear"),
                 {{"", "settingsOpen", true}, {"settingsSurface", "clearDataOpen", true}}},

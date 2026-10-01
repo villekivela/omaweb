@@ -1,4 +1,5 @@
 import QtQuick
+import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
 
@@ -53,6 +54,7 @@ Item {
 
     Omarchy.BorderSurface {
         id: fade
+        objectName: "pageNoticeSurface"
         anchors.fill: parent
         opacity: 0
         radius: Style.cornerRadius
@@ -74,8 +76,9 @@ Item {
         }
         // The notice comes down from the top edge as it fades in, and goes
         // back up as it fades out: it belongs to the edge, not to the page.
+        // Under reduced motion it fades where it stands.
         transform: Translate {
-            y: (fade.opacity - 1) * 8
+            y: SystemMotion.reduced ? 0 : (fade.opacity - 1) * 8
         }
 
         Row {

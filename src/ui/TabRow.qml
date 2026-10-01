@@ -1,4 +1,5 @@
 import QtQuick
+import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
 
@@ -138,9 +139,10 @@ Item {
     }
 
     // A row settles into an opened place rather than jumping into it. The one
-    // in the hand is not eased: it is already following the pointer.
+    // in the hand is not eased: it is already following the pointer. Under
+    // reduced motion every row steps into its place.
     Behavior on carry {
-        enabled: !root.lifted
+        enabled: !root.lifted && !SystemMotion.reduced
         PropertyAnimation {
             duration: 110
             easing.type: Easing.OutCubic

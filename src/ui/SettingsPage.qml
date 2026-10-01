@@ -146,7 +146,6 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool floatingControls: true
-    property bool easeChrome: true
     property bool glanceEnabled: true
     property bool startPageRoad: true
     property string lastReportedSyncError: ""
@@ -348,7 +347,6 @@ Rectangle {
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
-    signal easeChromeToggled(bool enabled)
     signal glanceToggled(bool enabled)
     signal startPageRoadToggled(bool enabled)
 
@@ -727,17 +725,6 @@ Rectangle {
                         accessibleName: "Floating controls"
                         checked: root.floatingControls
                         onClicked: root.floatingControlsToggled(!checked)
-                    }
-
-                    SettingToggle {
-                        objectName: "easeChrome"
-                        width: pane.width
-                        colors: root.colors
-                        title: "Ease the chrome"
-                        note: "Slide the sidebar, the outline, the page and every panel and sheet into place as they open, switch and close. When off, everything arrives at once."
-                        accessibleName: "Ease the chrome"
-                        checked: root.easeChrome
-                        onClicked: root.easeChromeToggled(!checked)
                     }
 
                     SettingToggle {

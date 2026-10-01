@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import QtQuick.Shapes
+import Omaweb
 import qs.Commons
 
 Item {
@@ -543,6 +544,10 @@ Item {
             }
             if (!row.enabled)
                 return;
+            // A command chosen here was asked for by name, so it is a key's
+            // decision even when its row was clicked: the Omnibar goes, and
+            // what the command does arrives, settled.
+            InputOrigin.pointer = false;
             root.dismissed();
             commands.invoke(row);
             return;

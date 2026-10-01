@@ -235,6 +235,10 @@ TestCase {
         window.shortcutsOpen = false;
         if (!window.startPageRoad)
             window.setStartPageRoad(true);
+        // Whatever the last test pressed, this one starts from the pointer and
+        // a desktop that has not asked for reduced motion.
+        InputOrigin.pointer = true;
+        SystemMotion.reduced = false;
     }
 
     // A Download record outlives the test that made it, and every test here
@@ -304,6 +308,28 @@ TestCase {
             return action.width > 0;
         });
         wait(50);
+    }
+
+    // Whether an item's x was seen strictly between two places on its way,
+    // sampled every few milliseconds until it has stood still for a while: a
+    // movement that eased passes through, one that settled at once does not.
+    function slidThrough(item, from, to, property) {
+        const name = property || "x";
+        const low = Math.min(from, to);
+        const high = Math.max(from, to);
+        const margin = Math.min(0.5, (high - low) / 20);
+        let between = false;
+        let last = item[name];
+        let still = 0;
+        for (let sample = 0; sample < 200 && still < 20; ++sample) {
+            const at = item[name];
+            if (at > low + margin && at < high - margin)
+                between = true;
+            still = at === last ? still + 1 : 0;
+            last = at;
+            wait(5);
+        }
+        return between;
     }
 
     // A row whose place in the list has stopped moving. The outline fills in
@@ -2719,7 +2745,7 @@ TestCase {
         const backdrop = findChild(window.contentItem, "sidebarBackdrop");
         const engineViewport = findChild(window.contentItem, "engineViewport");
         window.floatingControls = data.floating;
-        window.easeChrome = data.eased;
+        SystemMotion.reduced = !data.eased;
         mouseMove(window.contentItem, window.width / 2, window.height / 2);
         window.sidebarCollapsed = true;
         tryCompare(sidebar, "visible", false);
@@ -2760,7 +2786,7 @@ TestCase {
         compare(window.sidebarCollapsed, true);
         compare(backdrop.visible, false);
         window.floatingControls = true;
-        window.easeChrome = true;
+        SystemMotion.reduced = false;
     }
 
     function test_spaceActionsAreInSettings() {
@@ -3389,7 +3415,6 @@ TestCase {
         verify(notice !== null);
         window.settingsOpen = false;
         window.sidebarCollapsed = false;
-        window.easeChrome = true;
         openPage("https://notice.example/");
         settleMotion();
         const homeId = browser.activeSpaceId;
@@ -3454,8 +3479,9 @@ TestCase {
             return !dock.visible && !notice.visible;
         }, 4000);
 
-        // Without the ease the notice is shown and taken away where it stands.
-        window.easeChrome = false;
+        // Under reduced motion the notice is shown and taken away where it
+        // stands.
+        SystemMotion.reduced = true;
         verify(browser.switchSpace(homeId));
         tryVerify(function () {
             return notice.visible;
@@ -3464,7 +3490,7 @@ TestCase {
         tryVerify(function () {
             return !notice.visible;
         }, 4000);
-        window.easeChrome = true;
+        SystemMotion.reduced = false;
 
         verify(browser.deleteSpace(otherId, "Notice Space"));
     }
@@ -4498,7 +4524,6 @@ TestCase {
         const sidebar = findChild(window.contentItem, "sidebar");
         const rowMark = findChild(sidebar, "agentMark-" + drive.tabId);
         const spaceMark = findChild(sidebar, "spaceAgentMark-" + drive.spaceId);
-        wait(600);
         compare(rowMark.opacity, 1);
         compare(spaceMark.opacity, 1);
 
@@ -4509,7 +4534,6 @@ TestCase {
         drive.report(false, "looked at the page");
         compare(rowMark.opacity, 1);
         compare(spaceMark.opacity, 1);
-        wait(600);
         compare(rowMark.opacity, 1);
         compare(spaceMark.opacity, 1);
         endAgentDrive(drive);
@@ -4637,7 +4661,6 @@ TestCase {
         compare(button.label, "");
         verify(!findChild(sidebar, "spaceMark-" + idleSpaceId).visible);
         compare(String(mark.color), String(window.colors.mutedText));
-        wait(600);
         compare(mark.opacity, 1);
 
         const control = agentActivityComponent.createObject(testCase);
@@ -5499,7 +5522,6 @@ TestCase {
         const engineHost = findChild(window.contentItem, "engineLoader");
         const viewport = findChild(window.contentItem, "engineViewport");
         const outline = findChild(window.contentItem, "sidebar");
-        window.easeChrome = true;
         const work = openPage("https://split-work.example/");
         const workTabId = browser.activeTabId;
         browser.openInput("https://split-reference.example/", true);
@@ -5602,7 +5624,6 @@ TestCase {
 
         browser.closeTab(referenceTabId);
         browser.closeTab(workTabId);
-        window.easeChrome = true;
     }
 
     // Focus moves to the other pane by its key and by a press in the pane,
@@ -6591,8 +6612,7 @@ TestCase {
     // sheet's lift instead.
     function test_aGlanceGrowsOutOfTheLinkThatAskedForIt() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
-        const originalEase = window.easeChrome;
-        window.setEaseChrome(false);
+        SystemMotion.reduced = true;
         const opener = openPage("https://opener.example");
         opener.simulatePress(120, 300, 160, 20);
         const glance = openGlance("https://linked.example/page");
@@ -6632,7 +6652,7 @@ TestCase {
         compare(panel.opacity, 0);
         glance.arrival = 1;
         window.closeGlance();
-        window.setEaseChrome(originalEase);
+        SystemMotion.reduced = false;
     }
 
     // The Glance is the reader's to refuse, from Settings, and the refusal
@@ -9270,51 +9290,475 @@ TestCase {
         compare(browser.preference("floating-controls", "true"), "true");
     }
 
-    // The ease is a movement the reader can decline. Declined, the seam is
-    // where it settles in the frame the sidebar was hidden in rather than
-    // somewhere along the way, and the page is laid out once as it always is.
-    function test_theSidebarEaseCanBeRefused() {
+    // A key hides the sidebar in one step: the seam is where it settles in the
+    // frame the sidebar was hidden in rather than somewhere along the way, and
+    // the page is laid out once as it always is. The pointer's press eases it.
+    function test_theSidebarSettlesFromAKeyAndEasesFromThePointer() {
         window.settingsOpen = false;
         window.historyOpen = false;
         window.sidebarCollapsed = false;
         window.setSidebarWidth(window.sidebarDefaultWidth);
+        openPage("https://seam.example/");
+        settleMotion();
         const sidebar = findChild(window.contentItem, "sidebar");
         const viewport = findChild(window.contentItem, "engineViewport");
-        const easeChrome = findChild(window.contentItem, "easeChrome");
-        verify(sidebar !== null);
-        verify(viewport !== null);
-        verify(easeChrome !== null);
-        compare(window.easeChrome, true);
+        window.requestActivate();
         tryVerify(function () {
-            return Math.round(sidebar.x) === 0 && Math.round(viewport.x)
-                    === window.sidebarDefaultWidth;
+            return window.active && Math.round(sidebar.x) === 0;
         });
         const row = Math.round(sidebar.x + sidebar.width + viewport.width);
 
-        easeChrome.clicked();
-        compare(window.easeChrome, false);
-        compare(browser.preference("ease-sidebar", "true"), "false");
-
+        // The key the reader pressed is already a decision: no frame of the
+        // seam on its way, and the page laid out once.
         viewportWidthSpy.target = viewport;
         viewportWidthSpy.clear();
-        verify(window.commands.run("toggle-sidebar", -1));
-        // No sample to catch mid-slide: the seam is already at the end of one.
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        compare(window.sidebarCollapsed, true);
         verify(!sidebar.visible);
         compare(Math.round(viewport.x), 0);
         compare(Math.round(viewport.width), row);
         compare(viewportWidthSpy.count, 1);
-
-        viewportWidthSpy.clear();
-        verify(window.commands.run("toggle-sidebar", -1));
+        keyClick(Qt.Key_B, Qt.ControlModifier);
         verify(sidebar.visible);
         compare(Math.round(sidebar.x), 0);
         compare(Math.round(viewport.x), window.sidebarDefaultWidth);
-        compare(viewportWidthSpy.count, 1);
         viewportWidthSpy.target = null;
 
-        easeChrome.clicked();
-        compare(window.easeChrome, true);
-        compare(browser.preference("ease-sidebar", "true"), "true");
+        // The pointer's press slides it, so the eye can follow where it went.
+        const hide = findChild(sidebar, "collapseButton");
+        settleActions(hide);
+        mouseClick(hide);
+        compare(window.sidebarCollapsed, true);
+        verify(slidThrough(sidebar, -sidebar.width, 0));
+        verify(!sidebar.visible);
+        const show = findChild(findChild(window.contentItem, "navigationCluster"),
+                               "collapseButton");
+        tryVerify(function () {
+            return show.visible;
+        });
+        settleActions(show);
+        mouseClick(show);
+        compare(window.sidebarCollapsed, false);
+        verify(slidThrough(sidebar, -sidebar.width, 0));
+        compare(Math.round(sidebar.x), 0);
+    }
+
+    // A Space switched to by its key is there at once: the list, the page
+    // and the lit Space stand where they end. A click on its square moves
+    // them, so the eye can follow the Space it went to.
+    function test_aSpaceSettlesFromItsKeyAndSlidesFromThePointer() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        openPage("https://space-key.example/");
+        settleMotion();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const homeId = browser.activeSpaceId;
+        const otherId = browser.createSpace("Keyed Space");
+        const spaces = browser.spaces;
+        let position = -1;
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            if (spaces.data(spaces.index(row, 0), Qt.UserRole + 1) === otherId)
+                position = row;
+        }
+        verify(position >= 0 && position < 9);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        const otherMark = findChild(sidebar, "spaceMark-" + otherId);
+        const restingSide = otherMark.width;
+        keyClick(Qt.Key_1 + position, Qt.ControlModifier);
+        compare(browser.activeSpaceId, otherId);
+        verify(!sidebar.arriving);
+        compare(viewport.transform[0].x, 0);
+        verify(otherMark.width > restingSide);
+        const litSide = otherMark.width;
+
+        const homeButton = findChild(sidebar, "space-" + homeId);
+        settleActions(homeButton);
+        mouseClick(homeButton);
+        compare(browser.activeSpaceId, homeId);
+        verify(sidebar.arriving);
+        verify(slidThrough(otherMark, litSide, restingSide, "width"));
+        tryCompare(sidebar, "arriving", false);
+
+        verify(browser.deleteSpace(otherId, "Keyed Space"));
+        tryCompare(findChild(window.contentItem, "spaceNotice"), "visible", false, 5000);
+    }
+
+    // A tab chosen by its key is on show where it rests. A click on its row
+    // nudges the page in from the row's side.
+    function test_aTabSettlesFromItsKeyAndArrivesFromThePointer() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        openPage("https://tab-key-first.example/");
+        const firstId = browser.activeTabId;
+        openPageInNewTab("https://tab-key-second.example/");
+        const secondId = browser.activeTabId;
+        settleMotion();
+        const order = sidebarOrder();
+        verify(order.indexOf(firstId) < 9);
+        window.requestActivate();
+        window.commands.run("focus-page", -1);
+        tryVerify(function () {
+            return window.active && engineHost.item.activeFocus;
+        });
+
+        keyClick(Qt.Key_1 + order.indexOf(firstId));
+        compare(browser.activeTabId, firstId);
+        let nudged = false;
+        for (let sample = 0; sample < 40; ++sample) {
+            nudged = nudged || engineHost.tabNudgeX !== 0 || engineHost.tabNudgeY !== 0;
+            wait(5);
+        }
+        verify(!nudged);
+
+        const secondRow = findChild(window.contentItem, "tab-" + secondId);
+        settleActions(secondRow);
+        mouseClick(secondRow);
+        compare(browser.activeTabId, secondId);
+        tryVerify(function () {
+            return engineHost.tabNudgeY !== 0;
+        }, 500);
+        settleMotion();
+
+        browser.closeTab(secondId);
+    }
+
+    // The Omnibar a key opens is there at once, and Escape takes it away at
+    // once. A click on the address opens it with its drop, and a click past
+    // it sends it back with its rise. A command the command scope runs is the
+    // reader's typed decision even when its row is clicked: the Omnibar goes
+    // at once and what the command does arrives settled.
+    function test_theOmnibarSettlesFromAKeyAndMovesFromThePointer() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        openPage("https://omnibar-key.example/");
+        settleMotion();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.requestActivate();
+        window.commands.run("focus-page", -1);
+        tryVerify(function () {
+            return window.active;
+        });
+
+        keyClick(Qt.Key_L, Qt.ControlModifier);
+        verify(window.omnibarOpen);
+        compare(panel.arrival, 1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        keyClick(Qt.Key_Escape);
+        verify(!window.omnibarOpen);
+        verify(!panel.retreating);
+        verify(!panel.visible);
+
+        const address = findChild(sidebar, "addressButton");
+        settleActions(address);
+        mouseClick(address);
+        verify(window.omnibarOpen);
+        verify(panel.arrival < 1);
+        tryCompare(panel, "arrival", 1);
+        mouseClick(window.contentItem, window.width - 20, window.height - 20);
+        verify(!window.omnibarOpen);
+        verify(panel.retreating);
+        tryVerify(function () {
+            return !panel.visible;
+        });
+
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        verify(window.omnibarOpen && panel.commandScope);
+        input.text = "Hide or show the sidebar";
+        const commandRow = function () {
+            return panel.rows.findIndex(function (row) {
+                return row.command === "toggle-sidebar";
+            });
+        };
+        tryVerify(function () {
+            return commandRow() >= 0;
+        });
+        const row = omnibarRowItem(rows, commandRow());
+        settleActions(row);
+        mouseClick(row);
+        verify(!window.omnibarOpen);
+        verify(!panel.retreating);
+        compare(window.sidebarCollapsed, true);
+        verify(!sidebar.visible);
+        window.sidebarCollapsed = false;
+    }
+
+    // Motion that tells the reader something moves whatever started it: the
+    // notice naming the Space a key or a click arrived in comes down from
+    // above its place either way, and an Agent mark pulses while its command
+    // is in flight after a key as after a click.
+    function test_theSpaceNoticeAndTheAgentPulseMoveForAKeyAndThePointer() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        const drive = driveAnAgentSpace(false);
+        settleMotion();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const notice = findChild(window.contentItem, "spaceNotice");
+        tryCompare(notice, "visible", false, 5000);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const spaces = browser.spaces;
+        let readersPosition = -1;
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            if (spaces.data(spaces.index(row, 0), Qt.UserRole + 1) === drive.readersSpaceId)
+                readersPosition = row;
+        }
+        verify(readersPosition >= 0 && readersPosition < 9);
+
+        keyClick(Qt.Key_1 + readersPosition, Qt.ControlModifier);
+        compare(browser.activeSpaceId, drive.readersSpaceId);
+        verify(slidThrough(notice, -8, 0, "drop"));
+        tryCompare(notice, "visible", false, 5000);
+
+        const agentButton = findChild(sidebar, "space-" + drive.spaceId);
+        settleActions(agentButton);
+        mouseClick(agentButton);
+        compare(browser.activeSpaceId, drive.spaceId);
+        verify(slidThrough(notice, -8, 0, "drop"));
+        tryCompare(notice, "visible", false, 5000);
+        settleMotion();
+
+        // The switches built the Space's rows again.
+        const rowMark = findChild(sidebar, "agentMark-" + drive.tabId);
+        verify(rowMark.visible);
+        keyClick(Qt.Key_Shift);
+        drive.report(true, "clicked \"Files changed\"");
+        verify(slidThrough(rowMark, 0.3, 1, "opacity"));
+        drive.report(false, "looked at the page");
+        mouseClick(findChild(window.contentItem, "spaceHeading"));
+        drive.report(true, "clicked \"Files changed\"");
+        verify(slidThrough(rowMark, 0.3, 1, "opacity"));
+        drive.report(false, "looked at the page");
+        endAgentDrive(drive);
+    }
+
+    // A desktop that asks for reduced motion stills the chrome whatever
+    // started it: from a click, the sidebar, a Space, a tab and the Omnibar
+    // arrive settled, a peek is there at once, the Space notice appears where
+    // it stands, and the page loading indicator holds still.
+    function test_reducedMotionStillsThePointersMotionToo() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const firstEngine = openPage("https://reduced-first.example/");
+        const firstId = browser.activeTabId;
+        openPageInNewTab("https://reduced-second.example/");
+        const secondId = browser.activeTabId;
+        settleMotion();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const notice = findChild(window.contentItem, "spaceNotice");
+        const panel = findChild(window.contentItem, "omnibar");
+        const indicator = findChild(window.contentItem, "pageLoadingIndicator");
+        const homeId = browser.activeSpaceId;
+        const otherId = browser.createSpace("Still Space");
+        tryCompare(notice, "visible", false, 5000);
+        SystemMotion.reduced = true;
+        try {
+            compare(window.reducedMotion, true);
+
+            const firstRow = findChild(window.contentItem, "tab-" + firstId);
+            settleActions(firstRow);
+            mouseClick(firstRow);
+            compare(browser.activeTabId, firstId);
+            let nudged = false;
+            for (let sample = 0; sample < 40; ++sample) {
+                nudged = nudged || engineHost.tabNudgeX !== 0 || engineHost.tabNudgeY !== 0;
+                wait(5);
+            }
+            verify(!nudged);
+
+            firstEngine.loading = true;
+            tryVerify(function () {
+                return indicator.visible;
+            });
+            compare(indicator.motionEnabled, false);
+            firstEngine.stopLoading();
+            tryCompare(indicator, "visible", false);
+
+            const otherButton = findChild(sidebar, "space-" + otherId);
+            settleActions(otherButton);
+            mouseClick(otherButton);
+            compare(browser.activeSpaceId, otherId);
+            verify(!sidebar.arriving);
+            tryCompare(notice, "visible", true);
+            compare(notice.drop, 0);
+            tryCompare(notice, "visible", false, 5000);
+            const homeButton = findChild(sidebar, "space-" + homeId);
+            settleActions(homeButton);
+            mouseClick(homeButton);
+            compare(browser.activeSpaceId, homeId);
+            verify(!sidebar.arriving);
+            tryCompare(notice, "visible", false, 5000);
+
+            const address = findChild(sidebar, "addressButton");
+            settleActions(address);
+            mouseClick(address);
+            verify(window.omnibarOpen);
+            compare(panel.arrival, 1);
+            mouseClick(window.contentItem, window.width - 20, window.height - 20);
+            verify(!window.omnibarOpen);
+            verify(!panel.retreating);
+
+            const hide = findChild(sidebar, "collapseButton");
+            settleActions(hide);
+            mouseClick(hide);
+            compare(window.sidebarCollapsed, true);
+            verify(!sidebar.visible);
+
+            mouseMove(window.contentItem, 2, window.height / 2);
+            tryVerify(function () {
+                return sidebar.visible;
+            });
+            compare(Math.round(sidebar.x), 0);
+            mouseMove(window.contentItem, window.width / 2, window.height / 2);
+            tryVerify(function () {
+                return !sidebar.visible;
+            });
+            window.sidebarCollapsed = false;
+        } finally {
+            SystemMotion.reduced = false;
+        }
+        verify(browser.deleteSpace(otherId, "Still Space"));
+        tryCompare(notice, "visible", false, 5000);
+        browser.closeTab(secondId);
+    }
+
+    // Under reduced motion a page notice fades in where it stands rather than
+    // coming down from the edge, and the rows a dragged row passes step into
+    // their opened places rather than sliding.
+    function test_reducedMotionStillsANoticeAndTheRowsADragPasses() {
+        const notice = findChild(window.contentItem, "pageNotice");
+        const surface = findChild(notice, "pageNoticeSurface");
+        const surfaceY = {
+            get y() {
+                return surface.mapToItem(notice, 0, 0).y;
+            }
+        };
+        notice.show("info", "Moving notice");
+        verify(slidThrough(surfaceY, -8, 0, "y"));
+        notice.dismiss();
+        tryVerify(function () {
+            return !notice.visible;
+        });
+
+        openPage("https://still-drag.example/one");
+        browser.openInput("https://still-drag.example/two", true);
+        const secondTabId = browser.activeTabId;
+        browser.openInput("https://still-drag.example/three", true);
+        const thirdTabId = browser.activeTabId;
+        settleRow(findChild(window.contentItem, "tab-" + thirdTabId));
+        SystemMotion.reduced = true;
+        try {
+            notice.show("info", "Still notice");
+            verify(!slidThrough(surfaceY, -8, 0, "y"));
+            compare(surfaceY.y, 0);
+            notice.dismiss();
+
+            const lastRow = findChild(window.contentItem, "tab-" + thirdTabId);
+            const rowHeight = lastRow.height;
+            const grabbed = lastRow.mapToItem(window.contentItem, lastRow.width / 2, rowHeight / 2);
+            mousePress(lastRow, lastRow.width / 2, rowHeight / 2);
+            dragRowBy(grabbed, -rowHeight * 1.5);
+            verify(lastRow.lifted);
+            const passedRow = findChild(window.contentItem, "tab-" + secondTabId);
+            tryVerify(function () {
+                return passedRow.carry.y > 0;
+            }, 500);
+            // Already where it opens to, with no frames on the way.
+            const opened = passedRow.carry.y;
+            verify(opened >= rowHeight);
+            for (let sample = 0; sample < 30; ++sample) {
+                compare(passedRow.carry.y, opened);
+                wait(5);
+            }
+            mouseRelease(window.contentItem, grabbed.x, grabbed.y - rowHeight * 1.5);
+        } finally {
+            SystemMotion.reduced = false;
+        }
+        browser.closeTab(thirdTabId);
+        browser.closeTab(secondTabId);
+    }
+
+    // A busy Agent mark holds still under reduced motion, dimmed so it still
+    // says a command is in flight, and comes back to full strength when it
+    // ends.
+    function test_reducedMotionHoldsABusyAgentMarkStill() {
+        const drive = driveAnAgentSpace(false);
+        settleMotion();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const rowMark = findChild(sidebar, "agentMark-" + drive.tabId);
+        const spaceMark = findChild(sidebar, "spaceAgentMark-" + drive.spaceId);
+        // A pulse already under way when the desktop asks stops where it is
+        // asked to.
+        drive.report(true, "clicked \"Files changed\"");
+        tryVerify(function () {
+            return rowMark.opacity < 0.9;
+        });
+        SystemMotion.reduced = true;
+        try {
+            verify(rowMark.opacity < 1);
+            verify(spaceMark.opacity < 1);
+            const held = rowMark.opacity;
+            for (let sample = 0; sample < 40; ++sample) {
+                compare(rowMark.opacity, held);
+                wait(10);
+            }
+            drive.report(false, "looked at the page");
+            compare(rowMark.opacity, 1);
+            compare(spaceMark.opacity, 1);
+        } finally {
+            SystemMotion.reduced = false;
+        }
+        endAgentDrive(drive);
+    }
+
+    // The chrome's ease is no longer a setting: Settings offers no switch for
+    // it, and a value stored by an earlier version, or carried in by Sync,
+    // changes nothing. The pointer's press still eases the sidebar.
+    function test_aStoredChromeEaseIsIgnored() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        openPage("https://stored-ease.example/");
+        settleMotion();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        browser.setPreference("ease-sidebar", "false");
+        window.restoreChromeAppearance();
+        try {
+            window.requestSettings();
+            const settings = findChild(window.contentItem, "settingsSurface");
+            settings.section = settings.sections.indexOf("interface");
+            compare(findChild(settings, "easeChrome"), null);
+            window.settingsOpen = false;
+            tryVerify(function () {
+                return !settings.visible;
+            });
+
+            const hide = findChild(sidebar, "collapseButton");
+            settleActions(hide);
+            mouseClick(hide);
+            compare(window.sidebarCollapsed, true);
+            verify(slidThrough(sidebar, -sidebar.width, 0));
+        } finally {
+            window.sidebarCollapsed = false;
+        }
     }
 
     // Changing a default must not change an answer someone already gave. A
@@ -9731,11 +10175,12 @@ TestCase {
         });
     }
 
-    function test_pageLoadingIndicatorMovesWithSidebarEasingDisabled() {
+    // The indicator reports a load, not something the reader did, so it moves
+    // after a key as after a click.
+    function test_pageLoadingIndicatorMovesWhateverTheReaderPressed() {
         const indicator = findChild(window.contentItem, "pageLoadingIndicator");
         const engine = openPage("https://loading-steady.example/page");
-        const originalEaseChrome = window.easeChrome;
-        window.easeChrome = false;
+        InputOrigin.pointer = false;
         engine.loading = true;
         tryVerify(function () {
             return indicator.visible;
@@ -9749,7 +10194,6 @@ TestCase {
 
         engine.stopLoading();
         tryCompare(indicator, "visible", false);
-        window.easeChrome = originalEaseChrome;
     }
 
     function test_pageLoadingIndicatorFadesAndCanResumeDuringExit() {

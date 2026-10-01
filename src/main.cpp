@@ -43,8 +43,10 @@
 #include "SavedDownload.h"
 #include "SoundingTabs.h"
 #include "StoredFaviconProvider.h"
+#include "InputOrigin.h"
 #include "PrimaryHold.h"
 #include "SystemClipboard.h"
+#include "SystemMotion.h"
 #include "SystemNotifier.h"
 #include "SyncLauncher.h"
 #include "ThemeController.h"
@@ -399,9 +401,11 @@ int main(int argc, char *argv[])
     omaweb::registerPageImages();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
+    omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
+    omaweb::registerSystemMotion();
     omaweb::registerSystemNotifier();
     omaweb::registerSoundingTabs();
     omaweb::registerMediaAnnouncer();

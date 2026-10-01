@@ -170,8 +170,11 @@ Rectangle {
     // movement, in the direction the reader chose. The leaving list is a
     // picture taken while it was at rest, since the models have already
     // become the next Space's by the time the switch is heard. `easeSpaces`
-    // is the reader's chrome ease.
+    // is whether what the chrome does next moves, which a key's switch does
+    // not; `spacesMove` is whether a switch may move at all, which is when the
+    // picture is worth keeping ready for one.
     property bool easeSpaces: true
+    property bool spacesMove: true
     property int settledSpaceRow: activeSpaceRow()
     property bool arriving: false
     // Where the arriving list and the leaving picture stand, as a fraction
@@ -197,7 +200,7 @@ Rectangle {
     // The picture of the list at rest, retaken after the list settles from
     // any change, so it is the leaving Space's list when a switch comes.
     function retakeDeparture() {
-        if (!root.arriving && root.easeSpaces)
+        if (!root.arriving && root.spacesMove)
             departureRetake.restart();
     }
     Timer {

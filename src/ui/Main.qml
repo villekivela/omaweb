@@ -39,10 +39,13 @@ ApplicationWindow {
     // hand the page the whole window may mean the whole window, so the strip is
     // theirs to refuse; the keys that hide the sidebar bring it back either way.
     property bool floatingControls: true
-    // Whether hiding or showing the sidebar is a movement or a step. The ease
-    // is what most readers want and what the seam is written for, so refusing
-    // it is the reader's to ask for.
-    property bool easeChrome: true
+    // The desktop asking for no movement, which stills everything the chrome
+    // would move, whatever started it.
+    readonly property bool reducedMotion: SystemMotion.reduced
+    // Whether what the chrome does next moves or arrives settled. The pointer's
+    // actions move, so the eye can follow where something went; a key is a
+    // decision already made, and its result is there at once.
+    readonly property bool chromeEase: !window.reducedMotion && InputOrigin.pointer
     property bool useFavicons: true
     // A favicon is how a reader finds a tab without reading it, so it is shown
     // as the site drew it. Recolouring every mark to one hue takes away the one
@@ -953,7 +956,7 @@ ApplicationWindow {
         window.refuseRequestsFrom(engine);
         window.glanceEngine = null;
         window.glanceTabId = "";
-        engine.destroy(window.easeChrome ? 120 : 0);
+        engine.destroy(window.chromeEase ? 120 : 0);
         window.focusPage();
     }
 
@@ -1746,7 +1749,6 @@ ApplicationWindow {
     function restoreChromeAppearance() {
         window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
                 === "true";
-        window.easeChrome = window.windowBrowser.preference("ease-sidebar", "true") === "true";
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
         window.startPageRoad = window.windowBrowser.preference("start-page-road", "true")
                 === "true";
@@ -1755,15 +1757,6 @@ ApplicationWindow {
     function setFloatingControls(enabled) {
         window.floatingControls = enabled;
         window.windowBrowser.setPreference("floating-controls", enabled ? "true" : "false");
-    }
-
-    // The setting outgrew its name: it began as the sidebar's ease and now
-    // refuses every movement in the chrome. The stored key keeps the old name,
-    // since it is one of the four Sync carries (ADR 0039) and a renamed key
-    // would need a migration on every installation for a word.
-    function setEaseChrome(enabled) {
-        window.easeChrome = enabled;
-        window.windowBrowser.setPreference("ease-sidebar", enabled ? "true" : "false");
     }
 
     function setStartPageRoad(enabled) {
@@ -1807,8 +1800,7 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
-            if (name === "floating-controls" || name === "ease-sidebar" || name === "glance" || name
-                    === "start-page-road")
+            if (name === "floating-controls" || name === "glance" || name === "start-page-road")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
@@ -2650,7 +2642,7 @@ ApplicationWindow {
                 // makes on its own, so the seam settles in the frame the
                 // sidebar was hidden in and the page lays out once, as it does
                 // at the end of the movement.
-                enabled: window.easeChrome
+                enabled: window.chromeEase
 
                 NumberAnimation {
                     id: seamEase
@@ -2659,8 +2651,10 @@ ApplicationWindow {
                 }
             }
 
+            // A peek is the pointer's alone, so it moves unless the desktop
+            // asks for no movement.
             Behavior on peekRevealed {
-                enabled: window.easeChrome
+                enabled: !window.reducedMotion
 
                 NumberAnimation {
                     duration: 120
@@ -2700,7 +2694,8 @@ ApplicationWindow {
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
                 blocker: contentBlocker
-                easeSpaces: window.easeChrome
+                easeSpaces: window.chromeEase
+                spacesMove: !window.reducedMotion
                 connectionState: window.connectionState
                 lookupFailedBy: window.lookupFailedBy
                 upgradedByHttpsOnly: !!engineLoader.item
@@ -2813,7 +2808,9 @@ ApplicationWindow {
                 z: 40
                 colors: window.colors
                 spaceName: window.windowBrowser.activeSpaceName
-                ease: window.easeChrome
+                // It tells the reader where they landed, so it comes down
+                // after a key as after a click.
+                ease: !window.reducedMotion
 
                 // The controller also says the active Space changed when it
                 // is renamed or when Sync reloads it, which is not a switch.
@@ -2920,7 +2917,7 @@ ApplicationWindow {
                     pageBackgroundColor: window.colors.windowOpaque
                     pageControlAccent: window.colors.accent
                     colors: window.colors
-                    ease: window.easeChrome
+                    ease: window.chromeEase
                     spaceId: window.windowBrowser.activeSpaceId
 
                     onAuxiliaryWindowRequested: function (engine, request, requestedUrl) {
@@ -3047,6 +3044,7 @@ ApplicationWindow {
                     anchors.topMargin: 8
                     z: 3
                     colors: window.colors
+                    motionEnabled: !window.reducedMotion
                     active: engineLoader.item !== null && engineLoader.item.loading
                     allowed: !window.pagelessViewport && !window.settingsOpen &&
                              !window.historyOpen && !window.shortcutsOpen &&
@@ -3061,6 +3059,7 @@ ApplicationWindow {
                     anchors.topMargin: 8
                     z: 3
                     colors: window.colors
+                    motionEnabled: !window.reducedMotion
                     active: engineLoader.besideEngine !== null && engineLoader.besideEngine.loading
                     allowed: engineLoader.splitOnShow && !window.settingsOpen &&
                              !window.historyOpen && !window.shortcutsOpen &&
@@ -3155,7 +3154,7 @@ ApplicationWindow {
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     open: window.glanceOpen
-                    ease: window.easeChrome
+                    ease: window.chromeEase
                     openAsTabAllowed: !window.glanceIsExtension
                     pageSource: window.pagelessViewport ? null : engineLoader
                     engine: window.glanceEngine
@@ -3269,7 +3268,7 @@ ApplicationWindow {
                     colors: window.colors
                     privateWindow: window.privateWindow
                     open: window.startPageShown
-                    ease: window.easeChrome
+                    ease: window.chromeEase
                     roadWidth: window.width
                     roadEnabled: window.startPageRoad
                     windowActive: window.active && window.visible && window.visibility
@@ -3291,7 +3290,7 @@ ApplicationWindow {
                     SheetLift {
                         id: shortcutSheetLift
                         shown: shortcutSheet.open
-                        ease: window.easeChrome
+                        ease: window.chromeEase
                     }
                     lift: shortcutSheetLift.y
                     opacity: shortcutSheetLift.progress
@@ -3660,7 +3659,7 @@ ApplicationWindow {
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open
-                        ease: window.easeChrome
+                        ease: window.chromeEase
                     }
                     lift: settingsLift.y
                     opacity: settingsLift.progress
@@ -3680,7 +3679,6 @@ ApplicationWindow {
                     useFavicons: window.useFavicons
                     tintFavicons: window.tintFavicons
                     floatingControls: window.floatingControls
-                    easeChrome: window.easeChrome
                     glanceEnabled: window.glanceEnabled
                     startPageRoad: window.startPageRoad
                     retainedTabs: window.visibleRetainedTabs
@@ -3741,9 +3739,6 @@ ApplicationWindow {
                     onFloatingControlsToggled: function (enabled) {
                         window.setFloatingControls(enabled);
                     }
-                    onEaseChromeToggled: function (enabled) {
-                        window.setEaseChrome(enabled);
-                    }
                 }
 
                 HistoryPage {
@@ -3753,7 +3748,7 @@ ApplicationWindow {
                     SheetLift {
                         id: historyLift
                         shown: historySurface.open
-                        ease: window.easeChrome
+                        ease: window.chromeEase
                     }
                     lift: historyLift.y
                     opacity: historyLift.progress
@@ -4568,7 +4563,7 @@ ApplicationWindow {
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.
         backdropSource: shell
-        ease: window.easeChrome
+        ease: window.chromeEase
         open: window.omnibarShown
         // Under the Shortcut sheet the Omnibar at rest steps aside, so the
         // sheet owns the keyboard until it closes.

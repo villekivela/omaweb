@@ -3505,8 +3505,8 @@ void BrowserController::reloadSyncedState()
     emit spaceRestored(m_activeSpaceId);
     emit activeSpaceChanged();
     emit activeTabChanged();
-    for (const auto &name : {QStringLiteral("floating-controls"), QStringLiteral("ease-sidebar"),
-             QStringLiteral("use-favicons"), QStringLiteral("tint-favicons")}) {
+    for (const auto &name : {QStringLiteral("floating-controls"), QStringLiteral("use-favicons"),
+             QStringLiteral("tint-favicons")}) {
         emit preferenceChanged(name);
     }
 }
