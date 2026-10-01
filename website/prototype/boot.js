@@ -43,7 +43,7 @@
 
   PV.variant = params.get("variant") || "current";
   PV.theme = stored("theme", "omaweb");
-  PV.scene = stored("scene", "vector");
+  PV.scene = stored("scene", "crt-pixel");
 
   PV.el = function (tag, className, html) {
     var node = document.createElement(tag);

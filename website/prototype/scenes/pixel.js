@@ -19,30 +19,38 @@
     ];
   }
 
+  // Paints the refined road into a context `input.width` by `input.height`
+  // display pixels, one display pixel per `input.pitch` logical pixels. Shared
+  // with the CRT pixel road, which shows this picture through its glass.
+  function paint(ctx, input, m) {
+    var p = input.pitch;
+    var g = R.geometry(input.width * p, input.height * p);
+    var c = R.colours(input);
+    ctx.setTransform(1 / p, 0, 0, 1 / p, 0, 0);
+    R.fill(ctx, g, c, m, { soft: false });
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    var tones = ramp(c);
+    var image = ctx.getImageData(0, 0, input.width, input.height);
+    var data = image.data;
+    for (var i = 0; i < data.length; i += 4) {
+      var v = (R.grey(data, i) - 0.3) * 1.75 + 0.5;
+      var t = tones[v < 0.12 ? 0 : v < 0.3 ? 1 : v < 0.55 ? 2 : v < 0.82 ? 3 : 4];
+      data[i] = t[0];
+      data[i + 1] = t[1];
+      data[i + 2] = t[2];
+      data[i + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+
+  window.OmawebPixel = { paint: paint };
+
   window.OmawebScenes.register({
     id: "pixel",
     name: "Refined pixel",
     pitch: 6,
     draw: function (ctx, input) {
-      var p = input.pitch;
-      var g = R.geometry(input.width * p, input.height * p);
-      var c = R.colours(input);
-      var m = R.motion(input, 0.8);
-      ctx.setTransform(1 / p, 0, 0, 1 / p, 0, 0);
-      R.fill(ctx, g, c, m, { soft: false });
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      var tones = ramp(c);
-      var image = ctx.getImageData(0, 0, input.width, input.height);
-      var data = image.data;
-      for (var i = 0; i < data.length; i += 4) {
-        var v = (R.grey(data, i) - 0.3) * 1.75 + 0.5;
-        var t = tones[v < 0.12 ? 0 : v < 0.3 ? 1 : v < 0.55 ? 2 : v < 0.82 ? 3 : 4];
-        data[i] = t[0];
-        data[i + 1] = t[1];
-        data[i + 2] = t[2];
-        data[i + 3] = 255;
-      }
-      ctx.putImageData(image, 0, 0);
+      paint(ctx, input, R.motion(input, 0.8));
     },
   });
 })();

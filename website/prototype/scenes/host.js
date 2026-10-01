@@ -149,8 +149,23 @@
     if (this.visible) this.draw();
   };
 
+  // PROTOTYPE measurement: main-thread time spent in draw, and draws made.
+  Host.prototype.resetStats = function () {
+    this.stats = { draws: 0, drawMs: 0, maxMs: 0, since: performance.now() };
+  };
+
   Host.prototype.draw = function () {
     if (!this.scene || !this.themed) return;
+    if (!this.stats) this.resetStats();
+    var started = performance.now();
+    this.drawScene();
+    var spent = performance.now() - started;
+    this.stats.draws += 1;
+    this.stats.drawMs += spent;
+    this.stats.maxMs = Math.max(this.stats.maxMs, spent);
+  };
+
+  Host.prototype.drawScene = function () {
     this.scene.draw(this.ctx, {
       width: this.canvas.width,
       height: this.canvas.height,
@@ -184,10 +199,14 @@
     if (this.running()) {
       if (this.frame) return;
       this.last = performance.now();
+      // A Scene may cap its frame rate at what its motion needs.
+      var gap = self.scene.fps ? 1000 / self.scene.fps - 2 : 0;
       var tick = function (now) {
-        self.time += Math.min(0.1, (now - self.last) / 1000);
-        self.last = now;
-        self.draw();
+        if (now - self.last >= gap) {
+          self.time += Math.min(0.1, (now - self.last) / 1000);
+          self.last = now;
+          self.draw();
+        }
         self.frame = self.running() ? requestAnimationFrame(tick) : 0;
       };
       this.frame = requestAnimationFrame(tick);

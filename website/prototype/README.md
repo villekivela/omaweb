@@ -19,15 +19,17 @@ the rest of the page passes as signs set close together: the walk with one pinne
 of features, the keys and the install. On a phone or with reduced motion the road holds a still
 frame and the signs read as an ordinary list.
 
-The Scenes are five treatments of the night drive, for comparing live:
+The Scenes are treatments of the night drive, for comparing live. The user's pick is `crt-pixel`,
+the default:
 
-| `?scene=` | Name          | What it changes                                                          |
-| --------- | ------------- | ------------------------------------------------------------------------ |
-| `vector`  | Vector        | Thin crisp lines in the accent, a deep sky, sparse stars, fog; no pixels |
-| `led`     | LED matrix    | A coarse sign of round LEDs with soft bloom; the headline in the matrix  |
-| `dither`  | Dither        | One bit: the theme's ground or accent per pixel, by an 8 by 8 Bayer      |
-| `pixel`   | Refined pixel | Today's road with larger pixels, five theme tones, no seams or halo      |
-| `crt`     | CRT           | Scanlines, phosphor bloom, a rolling refresh band and a faint flicker    |
+| `?scene=`   | Name           | What it changes                                                          |
+| ----------- | -------------- | ------------------------------------------------------------------------ |
+| `vector`    | Vector         | Thin crisp lines in the accent, a deep sky, sparse stars, fog; no pixels |
+| `led`       | LED matrix     | A coarse sign of round LEDs with soft bloom; the headline in the matrix  |
+| `dither`    | Dither         | One bit: the theme's ground or accent per pixel, by an 8 by 8 Bayer      |
+| `pixel`     | Refined pixel  | Today's road with larger pixels, five theme tones, no seams or halo      |
+| `crt-pixel` | CRT pixel road | Refined pixel's road, nearest-neighbour, through the CRT's glass; 30 fps |
+| `crt`       | CRT            | Scanlines, phosphor bloom, a rolling refresh band and a faint flicker    |
 
 The CRT's flicker darkens the picture by 2 to 4.5 percent, never a flash, and like the band it stops
 for reduced motion.
@@ -73,7 +75,8 @@ road Scenes speed up toward it and light the sun with it. Under `reducedMotion` 
   for a Scene to map to a display of its own. `display.js` offers colour mixing.
 - Keep caches, and its own motion, in `state`.
 - Declare `pitch`: logical pixels per display pixel (default 1), or `"device"` for one display pixel
-  per device pixel. Declare `seams` to draw the dark grid between display pixels.
+  per device pixel. Declare `seams` to draw the dark grid between display pixels, and `fps` to cap
+  its frame rate at what its motion needs.
 
 ### What it may not do
 

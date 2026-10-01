@@ -1,4 +1,4 @@
-// PROTOTYPE (#440). Scene "CRT": the road on a cathode-ray tube. Drawn soft at
+// PROTOTYPE (#440). Scenes "CRT" and "CRT pixel road": the road on a cathode-ray tube. Drawn soft at
 // a low resolution and scaled up, with scanlines, a phosphor bloom, darker
 // corners, a refresh band rolling down the glass and a faint flicker. The
 // flicker moves the brightness by a few percent at most, never a flash, and
@@ -38,6 +38,59 @@
     return state.lines;
   }
 
+  // The glass over a picture: phosphor bloom, scanlines, the refresh band,
+  // the flicker and the darker corners. `pic` is drawn to fill the display,
+  // smoothed or, for a pixel picture, nearest-neighbour.
+  function glass(ctx, input, s, c, pic, smooth) {
+    var scale = 1 / input.pitch;
+    var glow = canvas(
+      s,
+      "glow",
+      Math.max(1, Math.ceil(input.width / scale / BLOOM)),
+      Math.max(1, Math.ceil(input.height / scale / BLOOM)),
+    );
+    var gctx = glow.getContext("2d");
+    gctx.imageSmoothingEnabled = true;
+    gctx.drawImage(pic, 0, 0, glow.width, glow.height);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = smooth;
+    ctx.drawImage(pic, 0, 0, input.width, input.height);
+    ctx.imageSmoothingEnabled = true;
+
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.35;
+    ctx.drawImage(glow, 0, 0, input.width, input.height);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+
+    ctx.fillStyle = scanlines(ctx, s, scale);
+    ctx.fillRect(0, 0, input.width, input.height);
+
+    if (!input.reducedMotion) {
+      var y = ((input.time / 7) % 1) * (input.height * 1.4) - input.height * 0.2;
+      var band = ctx.createLinearGradient(0, y - 60 * scale, 0, y + 60 * scale);
+      band.addColorStop(0, "rgba(255,255,255,0)");
+      band.addColorStop(0.5, D.css(c.light, 0.045));
+      band.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = band;
+      ctx.fillRect(0, y - 60 * scale, input.width, 120 * scale);
+      var f = 0.02 + 0.025 * Math.abs(Math.sin(input.time * 37.1) * Math.sin(input.time * 11.3));
+      ctx.fillStyle = "rgba(0,0,0," + f.toFixed(3) + ")";
+      ctx.fillRect(0, 0, input.width, input.height);
+    }
+
+    var cx = input.width / 2;
+    var cy = input.height / 2;
+    var v = ctx.createRadialGradient(cx, cy, Math.min(cx, cy) * 0.6, cx, cy, Math.hypot(cx, cy));
+    v.addColorStop(0, "rgba(0,0,0,0)");
+    v.addColorStop(1, "rgba(0,0,0,0.55)");
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, input.width, input.height);
+  }
+
   window.OmawebScenes.register({
     id: "crt",
     name: "CRT",
@@ -49,53 +102,49 @@
       var c = R.colours(input);
       var m = R.motion(input);
       var s = input.state;
-
       var pic = canvas(s, "pic", Math.ceil(w / DOWN), Math.ceil(h / DOWN));
       var p = pic.getContext("2d");
       p.setTransform(1 / DOWN, 0, 0, 1 / DOWN, 0, 0);
       R.fill(p, R.geometry(pic.width * DOWN, pic.height * DOWN), c, m, { weight: 1.4 });
-      var glow = canvas(s, "glow", Math.ceil(w / BLOOM), Math.ceil(h / BLOOM));
-      glow.getContext("2d").drawImage(pic, 0, 0, glow.width, glow.height);
+      glass(ctx, input, s, c, pic, true);
+    },
+  });
 
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.imageSmoothingEnabled = true;
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 1;
-      ctx.drawImage(pic, 0, 0, input.width, input.height);
+  // The pixel road through the glass: the Refined pixel picture, painted at
+  // its own six-pixel resolution and scaled up nearest-neighbour, so each
+  // road pixel is a crisp block the scanlines cross.
+  var PIXEL = 6;
 
-      // Phosphor: the picture again, much softer, added on top.
-      ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = 0.35;
-      ctx.drawImage(glow, 0, 0, input.width, input.height);
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "source-over";
-
-      ctx.fillStyle = scanlines(ctx, s, scale);
-      ctx.fillRect(0, 0, input.width, input.height);
-
-      if (!input.reducedMotion) {
-        // The refresh band: a soft lighter stripe rolling down every 7 s.
-        var y = ((input.time / 7) % 1) * (input.height * 1.4) - input.height * 0.2;
-        var band = ctx.createLinearGradient(0, y - 60 * scale, 0, y + 60 * scale);
-        band.addColorStop(0, "rgba(255,255,255,0)");
-        band.addColorStop(0.5, D.css(c.light, 0.045));
-        band.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = band;
-        ctx.fillRect(0, y - 60 * scale, input.width, 120 * scale);
-        // Flicker: a few percent darker, varying a little each frame.
-        var f = 0.02 + 0.025 * Math.abs(Math.sin(input.time * 37.1) * Math.sin(input.time * 11.3));
-        ctx.fillStyle = "rgba(0,0,0," + f.toFixed(3) + ")";
-        ctx.fillRect(0, 0, input.width, input.height);
-      }
-
-      // The glass: darker toward the corners.
-      var cx = input.width / 2;
-      var cy = input.height / 2;
-      var v = ctx.createRadialGradient(cx, cy, Math.min(cx, cy) * 0.6, cx, cy, Math.hypot(cx, cy));
-      v.addColorStop(0, "rgba(0,0,0,0)");
-      v.addColorStop(1, "rgba(0,0,0,0.55)");
-      ctx.fillStyle = v;
-      ctx.fillRect(0, 0, input.width, input.height);
+  window.OmawebScenes.register({
+    id: "crt-pixel",
+    name: "CRT pixel road",
+    pitch: "device",
+    // Six-pixel blocks move in whole steps; 30 frames a second is all the
+    // motion shows, at half the cost.
+    fps: 30,
+    draw: function (ctx, input) {
+      var scale = 1 / input.pitch;
+      var s = input.state;
+      var c = R.colours(input);
+      var pic = canvas(
+        s,
+        "pic",
+        Math.ceil(input.width / scale / PIXEL),
+        Math.ceil(input.height / scale / PIXEL),
+      );
+      var p = pic.getContext("2d", { willReadFrequently: true });
+      window.OmawebPixel.paint(
+        p,
+        {
+          width: pic.width,
+          height: pic.height,
+          pitch: PIXEL,
+          palette: input.palette,
+          dark: input.dark,
+        },
+        R.motion(input, 0.8),
+      );
+      glass(ctx, input, s, c, pic, false);
     },
   });
 })();
