@@ -314,7 +314,7 @@ returns. A command added to the registry is not public until it is added to the 
 fails until one or the other is decided.
 
 `:ask` goes the other way: the reader starts their own agent from the browser
-([ADR 0057](adr/0057-start-the-readers-agent-on-request.md)). `AgentControl.askAgent` splits the
+([ADR 0058](adr/0058-start-the-readers-agent-on-request.md)). `AgentControl.askAgent` splits the
 agent command kept in `privacy.json` with `QProcess::splitCommand` and starts `xdg-terminal-exec`
 detached with it, adding one argument that names the tab and carries the reader's words. Nothing
 passes through a shell. It refuses while Allow agents is off, and for a tab its window does not

@@ -1535,7 +1535,7 @@ ApplicationWindow {
     }
 
     // `:ask` hands the tab on show to the reader's own agent in their
-    // terminal (ADR 0057). The words wait here while the reader is asked to
+    // terminal (ADR 0058). The words wait here while the reader is asked to
     // turn Allow agents on, and go to the tab that was on show when they were
     // typed.
     property bool agentQuestionOpen: false
