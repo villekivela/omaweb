@@ -330,27 +330,6 @@ Rectangle {
         }
     }
 
-    // A subscription's update status. The core stores it in English, so it is translated
-    // where it is shown; a status this build does not name is shown as stored.
-    function updateStatusLabel(status) {
-        switch (status) {
-        case "current":
-            return qsTr("current");
-        case "not updated":
-            return qsTr("not updated");
-        case "updating":
-            return qsTr("updating");
-        case "validating":
-            return qsTr("validating");
-        case "compiling":
-            return qsTr("compiling");
-        case "failed: could not store list":
-            return qsTr("failed: could not store list");
-        default:
-            return status.startsWith("failed: ") ? qsTr("failed: %1").arg(status.slice(8)) : status;
-        }
-    }
-
     // What a Space's colour is called to a screen reader.
     function colourName(colour) {
         switch (colour) {
@@ -1150,9 +1129,8 @@ Rectangle {
                             colors: root.colors
                             title: modelData.title
                             note: qsTr("%1 · %2\nSource %3\nUpdates from %4").arg(
-                                      root.updateStatusLabel(modelData.updateStatus)).arg(
-                                      modelData.license).arg(modelData.source).arg(
-                                      modelData.updateAddress)
+                                      modelData.updateStatus).arg(modelData.license).arg(
+                                      modelData.source).arg(modelData.updateAddress)
                             accessibleName: qsTr("Enable %1").arg(modelData.title)
                             checked: modelData.enabled
                             onClicked: root.blocker.setSubscriptionEnabled(modelData.id, !checked)

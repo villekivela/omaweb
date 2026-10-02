@@ -156,7 +156,7 @@ QVariantMap Downloads::question() const
         {QStringLiteral("origin"), m_question.origin},
         {QStringLiteral("sourceUrl"), m_question.sourceUrl},
         {QStringLiteral("fileName"), m_question.fileName},
-        {QStringLiteral("risk"), m_question.risk}};
+        {QStringLiteral("risk"), DownloadPolicy::riskLabel(m_question.risk)}};
 }
 
 int Downloads::activeCount(const QUrl &origin) const

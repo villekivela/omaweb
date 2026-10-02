@@ -1,5 +1,6 @@
 #include "ReleaseCheck.h"
 
+#include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -206,15 +207,17 @@ QString upgradeInstruction(Origin origin, const QString &releaseTag)
 {
     switch (origin) {
     case Origin::Repository:
-        return QStringLiteral("Upgrade with the rest of the system: pacman -Syu");
+        return QCoreApplication::translate(
+            "ReleaseCheck", "Upgrade with the rest of the system: pacman -Syu");
     case Origin::DownloadedPackage:
-        return QStringLiteral(
+        return QCoreApplication::translate("ReleaseCheck",
             "Install %1 with pacman -U, or add the Omaweb repository to upgrade with the system.")
             .arg(releaseTag);
     case Origin::Checkout:
         break;
     }
-    return QStringLiteral("This build came from a checkout. Pull %1 and build it again.")
+    return QCoreApplication::translate(
+        "ReleaseCheck", "This build came from a checkout. Pull %1 and build it again.")
         .arg(releaseTag);
 }
 

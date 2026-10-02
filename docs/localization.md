@@ -43,6 +43,19 @@ to an English reader. Use `%n` where the English wording does not change with th
 more"). Where a noun does change, wrap the singular and the plural as two strings and pick between
 them, as `RefusalTally.qml` does.
 
+## What C++ translates
+
+`lupdate` reads `src/` and `modules/`. A message a reader reads is wrapped in the class that owns
+it, or in `QCoreApplication::translate("Context", ...)` where there is no `QObject`. Some text stays
+English on purpose:
+
+- Logs, including the startup line that repeats an input method diagnostic.
+- Agent verbs, refusals and tool descriptions. An Agent is a program, and its wire text must not
+  change with the reader's locale. Command names and descriptions belong to the commands' own batch.
+- Values written to disk or compared by value. The Content blocker keeps `updateStatus` as the
+  English code and translates it in the report it hands the UI, and a tab titled "New tab" is stored
+  as such and translated by the tab list when it is shown.
+
 ## Resolving a catalogue conflict
 
 Two branches that add strings both edit `translations/omaweb_fi.ts`. Contexts are separate, so a

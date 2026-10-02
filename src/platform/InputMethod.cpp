@@ -94,23 +94,30 @@ bool inputMethodAvailable(const InputMethodHost &host)
         [&host](const QString &module) { return names(host.installedModules, module); });
 }
 
-QString inputMethodDiagnostic(const InputMethodHost &host)
+QString inputMethodDiagnostic(const InputMethodHost &host, bool forReader)
 {
+    // The startup warning is a log line, so it stays English.
+    const auto say = [forReader](const char *text) {
+        return forReader ? QCoreApplication::translate("InputMethod", text)
+                         : QString::fromUtf8(text);
+    };
     if (host.requestedModules.isEmpty()) {
         return {};
     }
     const auto asked = host.requestedModules.join(QStringLiteral(", "));
     for (const auto &module : host.requestedModules) {
         if (names(host.installedModules, module)) {
-            return QStringLiteral("This desktop asks Qt applications for the %1 input method, and "
-                                  "the plugin that answers to that name is installed.")
+            return say(QT_TRANSLATE_NOOP("InputMethod",
+                           "This desktop asks Qt applications for the %1 input method, and "
+                           "the plugin that answers to that name is installed."))
                 .arg(module);
         }
     }
-    return QStringLiteral("This desktop asks Qt applications for the %1 input method and installs "
-                          "no plugin by that name. Qt loads no input context, Omaweb binds no "
-                          "text-input protocol, and composing does nothing. Every Qt application "
-                          "here is affected; installing the plugin package for %1 answers it.")
+    return say(QT_TRANSLATE_NOOP("InputMethod",
+                   "This desktop asks Qt applications for the %1 input method and installs "
+                   "no plugin by that name. Qt loads no input context, Omaweb binds no "
+                   "text-input protocol, and composing does nothing. Every Qt application "
+                   "here is affected; installing the plugin package for %1 answers it."))
         .arg(asked);
 }
 

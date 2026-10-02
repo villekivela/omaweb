@@ -93,7 +93,7 @@ private:
     std::unique_ptr<LocalSyncState> m_localState;
     QString m_dataRoot;
     QString m_configRoot;
-    QString m_status = QStringLiteral("Sync is off");
+    QString m_status;
     QString m_errorMessage;
     QDateTime m_lastSuccessfulSync;
     bool m_enabled = false;

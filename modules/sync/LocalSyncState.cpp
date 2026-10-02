@@ -3,6 +3,7 @@
 #include "SqliteSessionStore.h"
 #include "SyncModule.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QJsonArray>
@@ -84,12 +85,14 @@ LocalSyncApplyResult LocalSyncState::applyRemoteState(
     if (!eligible()) {
         return {.status = LocalSyncApplyStatus::Refused,
             .error = {.failure = SyncFailure::PrivateStateRefused,
-                .message = QStringLiteral("Sync is unavailable in a Private window")}};
+                .message = QCoreApplication::translate(
+                    "LocalSyncState", "Sync is unavailable in a Private window")}};
     }
     if (expectedGeneration != m_generation) {
         return {.status = LocalSyncApplyStatus::Stale,
             .error = {.failure = SyncFailure::LocalStateChanged,
-                .message = QStringLiteral("Local browser state changed during Sync")}};
+                .message = QCoreApplication::translate(
+                    "LocalSyncState", "Local browser state changed during Sync")}};
     }
 
     const auto before = fingerprints(m_exchange.capture(selection()));

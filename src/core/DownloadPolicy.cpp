@@ -1,5 +1,6 @@
 #include "DownloadPolicy.h"
 
+#include <QCoreApplication>
 #include <QHash>
 
 #include <algorithm>
@@ -178,6 +179,26 @@ QString riskKind(const QString &fileName, const QString &mimeType)
         return {};
     }
     return mimeKinds().value(declared);
+}
+
+QString riskLabel(const QString &kind)
+{
+    if (kind == QStringLiteral("executable")) {
+        return QCoreApplication::translate("DownloadPolicy", "executable");
+    }
+    if (kind == QStringLiteral("installer")) {
+        return QCoreApplication::translate("DownloadPolicy", "installer");
+    }
+    if (kind == QStringLiteral("script")) {
+        return QCoreApplication::translate("DownloadPolicy", "script");
+    }
+    if (kind == QStringLiteral("archive")) {
+        return QCoreApplication::translate("DownloadPolicy", "archive");
+    }
+    if (kind == QStringLiteral("disk image")) {
+        return QCoreApplication::translate("DownloadPolicy", "disk image");
+    }
+    return kind;
 }
 
 bool highRisk(const QString &fileName, const QString &mimeType)

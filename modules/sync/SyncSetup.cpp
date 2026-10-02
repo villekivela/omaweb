@@ -3,6 +3,7 @@
 #include "SecretStore.h"
 #include "SyncModule.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -121,8 +122,9 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
             sodium_memzero(m_authorization.refreshToken.data(),
                 static_cast<size_t>(m_authorization.refreshToken.size()));
             if (!errorMessage || errorMessage->isEmpty()) {
-                setError(
-                    errorMessage, QStringLiteral("The Sync repository was not created privately"));
+                setError(errorMessage,
+                    QCoreApplication::translate(
+                        "SyncSetup", "The Sync repository was not created privately"));
             }
             return {};
         }
@@ -152,7 +154,8 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
         sodium_memzero(m_authorization.refreshToken.data(),
             static_cast<size_t>(m_authorization.refreshToken.size()));
         setError(errorMessage,
-            QStringLiteral("Enter the recovery key for the existing Sync repository"));
+            QCoreApplication::translate(
+                "SyncSetup", "Enter the recovery key for the existing Sync repository"));
         return {};
     }
     const auto displayedKey
