@@ -211,6 +211,7 @@ private:
     void recompile();
     void replaceDisabledSites();
     Subscription *findSubscription(const QString &id);
+    QString updateStatusText(const QString &status) const;
 
     QString m_dataRoot;
     DefaultLists m_defaultLists;

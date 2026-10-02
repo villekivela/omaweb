@@ -1,5 +1,6 @@
 #include "ExtensionPackage.h"
 
+#include <QCoreApplication>
 #include <QBuffer>
 #include <QCryptographicHash>
 #include <QDir>
@@ -260,20 +261,24 @@ ExtensionPackage::Result ExtensionPackage::install(
 {
     const QByteArray pinned = QByteArray::fromBase64(extension.publisherKey.toLatin1());
     if (pinned.isEmpty()) {
-        return refuse(QStringLiteral("Omaweb has no signing key for this extension."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "Omaweb has no signing key for this extension."));
     }
     if (crx.size() > kLargestPackage) {
-        return refuse(QStringLiteral("The package is larger than an extension should be."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "The package is larger than an extension should be."));
     }
     if (crx.size() < 12 || !crx.startsWith(kMagic)) {
-        return refuse(QStringLiteral("The download is not an extension package."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "The download is not an extension package."));
     }
     if (readLittleEndian(crx, 4) != kVersion) {
-        return refuse(QStringLiteral("The package is not in the format Omaweb reads."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "The package is not in the format Omaweb reads."));
     }
     const quint32 headerLength = readLittleEndian(crx, 8);
     if (headerLength > static_cast<quint32>(crx.size() - 12)) {
-        return refuse(QStringLiteral("The package is truncated."));
+        return refuse(QCoreApplication::translate("ExtensionPackage", "The package is truncated."));
     }
     const QByteArray header = crx.mid(12, static_cast<qsizetype>(headerLength));
     const QByteArray archive = crx.mid(12 + static_cast<qsizetype>(headerLength));
@@ -316,10 +321,13 @@ ExtensionPackage::Result ExtensionPackage::install(
         }
     }
     if (reader.failed()) {
-        return refuse(QStringLiteral("The package's header could not be read."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "The package's header could not be read."));
     }
     if (!signedByPinnedKey) {
-        return refuse(QStringLiteral("The package is not signed by %1.").arg(extension.publisher));
+        return refuse(
+            QCoreApplication::translate("ExtensionPackage", "The package is not signed by %1.")
+                .arg(extension.publisher));
     }
 
     // The id the publisher signed into the header, which has to be the id
@@ -340,11 +348,13 @@ ExtensionPackage::Result ExtensionPackage::install(
     if (signedId.size() != kCrxIdLength
         || QCryptographicHash::hash(pinned, QCryptographicHash::Sha256).left(kCrxIdLength)
             != signedId) {
-        return refuse(QStringLiteral("The package names an extension it is not signed for."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "The package names an extension it is not signed for."));
     }
     if (identityFor(pinned) != extension.storeId) {
-        return refuse(QStringLiteral("Omaweb's own record of this extension disagrees with "
-                                     "itself and the package was not installed."));
+        return refuse(QCoreApplication::translate("ExtensionPackage",
+            "Omaweb's own record of this extension disagrees with "
+            "itself and the package was not installed."));
     }
 
     // What Chromium signs: the context string with its NUL, the length of the
@@ -353,7 +363,8 @@ ExtensionPackage::Result ExtensionPackage::install(
     const QByteArray context = QByteArray(kSignatureContext, sizeof(kSignatureContext))
         + littleEndian(static_cast<quint32>(signedHeaderData.size()));
     if (!signatureHolds(pinned, signature, context, signedHeaderData, archive)) {
-        return refuse(QStringLiteral("The package's signature does not hold."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "The package's signature does not hold."));
     }
 
     // Unpacked beside the destination and moved into place, so a failure
@@ -361,7 +372,8 @@ ExtensionPackage::Result ExtensionPackage::install(
     const QString staging = destination + QStringLiteral(".incoming");
     QDir(staging).removeRecursively();
     if (!QDir().mkpath(staging)) {
-        return refuse(QStringLiteral("Omaweb could not write where extensions are kept."));
+        return refuse(QCoreApplication::translate(
+            "ExtensionPackage", "Omaweb could not write where extensions are kept."));
     }
     const auto abandon = [&staging](const QString &error) {
         QDir(staging).removeRecursively();
@@ -371,11 +383,13 @@ ExtensionPackage::Result ExtensionPackage::install(
     QBuffer archiveBuffer;
     archiveBuffer.setData(archive);
     if (!archiveBuffer.open(QIODevice::ReadOnly)) {
-        return abandon(QStringLiteral("The package's archive could not be opened."));
+        return abandon(QCoreApplication::translate(
+            "ExtensionPackage", "The package's archive could not be opened."));
     }
     QZipReader zip(&archiveBuffer);
     if (!zip.isReadable()) {
-        return abandon(QStringLiteral("The package's archive could not be read."));
+        return abandon(QCoreApplication::translate(
+            "ExtensionPackage", "The package's archive could not be read."));
     }
     const QList<QZipReader::FileInfo> entries = zip.fileInfoList();
     // Which names are folders. A ZIP marks a folder with a trailing slash and
@@ -398,12 +412,14 @@ ExtensionPackage::Result ExtensionPackage::install(
 
     for (const QZipReader::FileInfo &entry : entries) {
         if (!pathIsContained(entry.filePath)) {
-            return abandon(QStringLiteral("The package tried to write outside its own folder."));
+            return abandon(QCoreApplication::translate(
+                "ExtensionPackage", "The package tried to write outside its own folder."));
         }
         const QString path = QDir(staging).filePath(entry.filePath);
         if (entry.isDir || folders.contains(entry.filePath)) {
             if (!QDir().mkpath(path)) {
-                return abandon(QStringLiteral("The package could not be unpacked."));
+                return abandon(QCoreApplication::translate(
+                    "ExtensionPackage", "The package could not be unpacked."));
             }
             continue;
         }
@@ -411,12 +427,14 @@ ExtensionPackage::Result ExtensionPackage::install(
             continue;
         }
         if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
-            return abandon(QStringLiteral("The package could not be unpacked."));
+            return abandon(QCoreApplication::translate(
+                "ExtensionPackage", "The package could not be unpacked."));
         }
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly) || file.write(zip.fileData(entry.filePath)) < 0
             || !file.commit()) {
-            return abandon(QStringLiteral("The package could not be unpacked."));
+            return abandon(QCoreApplication::translate(
+                "ExtensionPackage", "The package could not be unpacked."));
         }
     }
 
@@ -427,13 +445,15 @@ ExtensionPackage::Result ExtensionPackage::install(
     const QString manifestPath = QDir(staging).filePath(QStringLiteral("manifest.json"));
     QFile manifestFile(manifestPath);
     if (!manifestFile.open(QIODevice::ReadOnly)) {
-        return abandon(QStringLiteral("The package has no manifest."));
+        return abandon(
+            QCoreApplication::translate("ExtensionPackage", "The package has no manifest."));
     }
     QJsonParseError parse {};
     QJsonDocument manifest = QJsonDocument::fromJson(manifestFile.readAll(), &parse);
     manifestFile.close();
     if (parse.error != QJsonParseError::NoError || !manifest.isObject()) {
-        return abandon(QStringLiteral("The package's manifest could not be read."));
+        return abandon(QCoreApplication::translate(
+            "ExtensionPackage", "The package's manifest could not be read."));
     }
     QJsonObject root = manifest.object();
     root.insert(QStringLiteral("key"), QString::fromLatin1(pinned.toBase64()));
@@ -441,12 +461,14 @@ ExtensionPackage::Result ExtensionPackage::install(
     QSaveFile rewritten(manifestPath);
     if (!rewritten.open(QIODevice::WriteOnly) || rewritten.write(manifest.toJson()) < 0
         || !rewritten.commit()) {
-        return abandon(QStringLiteral("The package's manifest could not be written."));
+        return abandon(QCoreApplication::translate(
+            "ExtensionPackage", "The package's manifest could not be written."));
     }
 
     QDir(destination).removeRecursively();
     if (!QDir().rename(staging, destination)) {
-        return abandon(QStringLiteral("The package could not be put where it is kept."));
+        return abandon(QCoreApplication::translate(
+            "ExtensionPackage", "The package could not be put where it is kept."));
     }
     return {true, {}};
 }

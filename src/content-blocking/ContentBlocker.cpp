@@ -310,12 +310,43 @@ QVariantList ContentBlocker::subscriptions() const
             {QStringLiteral("source"), subscription.source},
             {QStringLiteral("license"), subscription.license},
             {QStringLiteral("updateAddress"), subscription.updateAddress},
-            {QStringLiteral("updateStatus"), subscription.updateStatus},
+            {QStringLiteral("updateStatus"), updateStatusText(subscription.updateStatus)},
             {QStringLiteral("lastUpdated"), subscription.lastUpdated},
             {QStringLiteral("enabled"), subscription.enabled},
         });
     }
     return result;
+}
+
+// The status is kept on disk as the English code below, so a reader who changes language does
+// not leave a stale translation behind. Only the report to the UI is translated.
+QString ContentBlocker::updateStatusText(const QString &status) const
+{
+    if (status == QStringLiteral("not updated")) {
+        return tr("not updated");
+    }
+    if (status == QStringLiteral("updating")) {
+        return tr("updating");
+    }
+    if (status == QStringLiteral("validating")) {
+        return tr("validating");
+    }
+    if (status == QStringLiteral("compiling")) {
+        return tr("compiling");
+    }
+    if (status == QStringLiteral("current")) {
+        return tr("current");
+    }
+    if (status == QStringLiteral("failed: list has no usable rules")) {
+        return tr("failed: list has no usable rules");
+    }
+    if (status == QStringLiteral("failed: could not store list")) {
+        return tr("failed: could not store list");
+    }
+    if (status.startsWith(QStringLiteral("failed: "))) {
+        return tr("failed: %1").arg(status.mid(QStringLiteral("failed: ").size()));
+    }
+    return status;
 }
 
 // The seeded lists are not here even when they are gone: an install with no

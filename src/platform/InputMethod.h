@@ -26,7 +26,8 @@ bool inputMethodAvailable(const InputMethodHost &host);
 
 // Empty when the desktop named no input method, because there is nothing to
 // report about a reader who is not using one.
-QString inputMethodDiagnostic(const InputMethodHost &host);
+// Pass false for the log, which is not translated.
+QString inputMethodDiagnostic(const InputMethodHost &host, bool forReader = true);
 
 // The reader-facing answer, read by Settings and warned about once at startup.
 class InputMethodReport final : public QObject {

@@ -4,6 +4,7 @@
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QDateTime>
 #include <QCryptographicHash>
@@ -104,7 +105,9 @@ namespace {
     bool writeJsonObject(const QString &path, const QJsonObject &object, QString *errorMessage)
     {
         if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
-            setError(errorMessage, QStringLiteral("Could not create a Sync record directory"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "Could not create a Sync record directory"));
             return false;
         }
         QSaveFile file(path);
@@ -221,12 +224,15 @@ QString SyncModule::createRecoveryKey()
 QByteArray SyncModule::decodeRecoveryKey(const QString &displayed, QString *errorMessage)
 {
     if (sodium_init() < 0) {
-        setError(errorMessage, QStringLiteral("Could not initialize recovery-key validation"));
+        setError(errorMessage,
+            QCoreApplication::translate(
+                "SyncModule", "Could not initialize recovery-key validation"));
         return {};
     }
     auto bytes = decodeRecoveryBytes(displayed);
     if (bytes.size() != recoveryKeyBytes + recoveryChecksumBytes) {
-        setError(errorMessage, QStringLiteral("The recovery key has a typing error"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "The recovery key has a typing error"));
         return {};
     }
     auto key = bytes.first(recoveryKeyBytes);
@@ -242,7 +248,8 @@ QByteArray SyncModule::decodeRecoveryKey(const QString &displayed, QString *erro
     sodium_memzero(expectedChecksum.data(), static_cast<size_t>(expectedChecksum.size()));
     if (!valid) {
         sodium_memzero(key.data(), static_cast<size_t>(key.size()));
-        setError(errorMessage, QStringLiteral("The recovery key has a typing error"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "The recovery key has a typing error"));
         return {};
     }
     if (errorMessage) {
@@ -283,7 +290,7 @@ bool SyncModule::runGit(const QStringList &arguments, QString *errorMessage) con
         || git.exitCode() != 0) {
         auto message = QString::fromUtf8(git.readAllStandardError()).trimmed();
         if (message.isEmpty()) {
-            message = QStringLiteral("git did not finish successfully");
+            message = QCoreApplication::translate("SyncModule", "git did not finish successfully");
         }
         setError(errorMessage, message);
         return false;
@@ -297,7 +304,7 @@ bool SyncModule::cancelled(QString *errorMessage) const
         return false;
     }
     m_failure = SyncFailure::Cancelled;
-    setError(errorMessage, QStringLiteral("Sync was cancelled"));
+    setError(errorMessage, QCoreApplication::translate("SyncModule", "Sync was cancelled"));
     return true;
 }
 
@@ -405,12 +412,15 @@ bool SyncModule::prepareGitCredential(
         helper = QStringLiteral(OMAWEB_SYNC_INSTALLED_ASKPASS_PATH);
     }
     if (!QFileInfo::exists(helper)) {
-        setError(errorMessage, QStringLiteral("The secure git credential helper is unavailable"));
+        setError(errorMessage,
+            QCoreApplication::translate(
+                "SyncModule", "The secure git credential helper is unavailable"));
         return false;
     }
     int descriptors[2];
     if (pipe2(descriptors, O_CLOEXEC) != 0) {
-        setError(errorMessage, QStringLiteral("Could not prepare git authentication"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not prepare git authentication"));
         return false;
     }
     const auto bytes = m_credentials.accessToken + '\n';
@@ -424,7 +434,8 @@ bool SyncModule::prepareGitCredential(
         if (count <= 0) {
             close(descriptors[0]);
             close(descriptors[1]);
-            setError(errorMessage, QStringLiteral("Could not prepare git authentication"));
+            setError(errorMessage,
+                QCoreApplication::translate("SyncModule", "Could not prepare git authentication"));
             return false;
         }
         written += count;
@@ -474,16 +485,19 @@ SyncError SyncModule::open(SyncCredentials credentials)
 bool SyncModule::openCheckout(QString *errorMessage)
 {
     if (sodium_init() < 0) {
-        setError(errorMessage, QStringLiteral("Could not initialize record encryption"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not initialize record encryption"));
         return false;
     }
     if (m_credentials.recoveryKey.size() != crypto_aead_xchacha20poly1305_ietf_KEYBYTES) {
         m_failure = SyncFailure::RecoveryKeyRejected;
-        setError(errorMessage, QStringLiteral("The recovery key is not valid"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "The recovery key is not valid"));
         return false;
     }
     if (!m_options.remoteUrl.isValid() || m_options.remoteUrl.isEmpty()) {
-        setError(errorMessage, QStringLiteral("The Sync repository address is not valid"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "The Sync repository address is not valid"));
         return false;
     }
 
@@ -492,7 +506,8 @@ bool SyncModule::openCheckout(QString *errorMessage)
         return true;
     }
     if (!QDir().mkpath(QFileInfo(checkout).absolutePath())) {
-        setError(errorMessage, QStringLiteral("Could not create the local Sync area"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not create the local Sync area"));
         return false;
     }
 
@@ -578,13 +593,15 @@ bool SyncModule::writeEncryptedRecord(
             reinterpret_cast<const unsigned char *>(nonce.constData()),
             reinterpret_cast<const unsigned char *>(m_credentials.recoveryKey.constData()))
         != 0) {
-        setError(errorMessage, QStringLiteral("Could not encrypt a Sync record"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not encrypt a Sync record"));
         return false;
     }
     cipherText.resize(static_cast<qsizetype>(cipherTextSize));
 
     if (!QDir().mkpath(directory)) {
-        setError(errorMessage, QStringLiteral("Could not create a Sync record directory"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not create a Sync record directory"));
         return false;
     }
     QSaveFile file(path);
@@ -674,15 +691,17 @@ QByteArray SyncModule::decryptEncryptedRecord(const QString &kind, const QString
         + crypto_aead_xchacha20poly1305_ietf_ABYTES;
     if (encrypted.size() < minimumSize
         || encrypted.first(headerSize) != QByteArray(encryptedRecordHeader, headerSize)) {
-        setError(errorMessage, QStringLiteral("A Sync record has an invalid format"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "A Sync record has an invalid format"));
         return {};
     }
     const auto version = encryptedVersion(encrypted);
     if (version != contractVersion) {
         setError(errorMessage,
-            version > contractVersion
-                ? QStringLiteral("A Sync record was written by a newer browser")
-                : QStringLiteral("A Sync record has an unsupported version"));
+            version > contractVersion ? QCoreApplication::translate("SyncModule",
+                                            "A Sync record was written by a newer browser")
+                                      : QCoreApplication::translate("SyncModule",
+                                            "A Sync record has an unsupported version"));
         return {};
     }
     const auto nonce
@@ -704,8 +723,9 @@ QByteArray SyncModule::decryptEncryptedRecord(const QString &kind, const QString
             reinterpret_cast<const unsigned char *>(m_credentials.recoveryKey.constData()))
         != 0) {
         m_failure = SyncFailure::RecoveryKeyRejected;
-        setError(
-            errorMessage, QStringLiteral("This recovery key cannot unlock the Sync repository"));
+        setError(errorMessage,
+            QCoreApplication::translate(
+                "SyncModule", "This recovery key cannot unlock the Sync repository"));
         return {};
     }
     plainText.resize(static_cast<qsizetype>(plainTextSize));
@@ -733,7 +753,8 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
         &listed);
     const auto paths = output.split('\0');
     if (!listed || paths.isEmpty()) {
-        setError(errorMessage, QStringLiteral("Could not list conflicting Sync records"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not list conflicting Sync records"));
         return false;
     }
     for (const auto &encodedPath : paths) {
@@ -750,7 +771,9 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
             const auto remote
                 = gitOutput({QStringLiteral("show"), QStringLiteral(":3:") + path}, &remoteRead);
             if (!localRead || !remoteRead) {
-                setError(errorMessage, QStringLiteral("Could not read conflicting Sync settings"));
+                setError(errorMessage,
+                    QCoreApplication::translate(
+                        "SyncModule", "Could not read conflicting Sync settings"));
                 return false;
             }
             const auto localHash = QCryptographicHash::hash(local, QCryptographicHash::Sha256);
@@ -760,8 +783,9 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
             if (!file.open(QIODevice::WriteOnly) || file.write(winner) != winner.size()
                 || !file.commit()
                 || !runGit({QStringLiteral("add"), QStringLiteral("--"), path}, errorMessage)) {
-                setError(
-                    errorMessage, QStringLiteral("Could not resolve conflicting Sync settings"));
+                setError(errorMessage,
+                    QCoreApplication::translate(
+                        "SyncModule", "Could not resolve conflicting Sync settings"));
                 return false;
             }
             continue;
@@ -775,7 +799,9 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
         const auto remoteEncrypted
             = gitOutput({QStringLiteral("show"), QStringLiteral(":3:") + path}, &remoteRead);
         if (!localRead || !remoteRead) {
-            setError(errorMessage, QStringLiteral("Could not read conflicting Sync records"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "Could not read conflicting Sync records"));
             return false;
         }
         const auto localVersion = encryptedVersion(localEncrypted);
@@ -791,7 +817,9 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
             if (!file.open(QIODevice::WriteOnly) || file.write(winner) != winner.size()
                 || !file.commit()
                 || !runGit({QStringLiteral("add"), QStringLiteral("--"), path}, errorMessage)) {
-                setError(errorMessage, QStringLiteral("Could not preserve a newer Sync record"));
+                setError(errorMessage,
+                    QCoreApplication::translate(
+                        "SyncModule", "Could not preserve a newer Sync record"));
                 return false;
             }
             continue;
@@ -814,7 +842,9 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
         if (!file.open(QIODevice::WriteOnly) || file.write(winner) != winner.size()
             || !file.commit()
             || !runGit({QStringLiteral("add"), QStringLiteral("--"), path}, errorMessage)) {
-            setError(errorMessage, QStringLiteral("Could not resolve a conflicting Sync record"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "Could not resolve a conflicting Sync record"));
             return false;
         }
     }
@@ -831,13 +861,15 @@ bool SyncModule::mergeRemote(QString *errorMessage)
         gitOutput({QStringLiteral("show"), QStringLiteral("refs/remotes/origin/main:meta.json")},
             errorMessage));
     if (!remoteMeta.isObject()) {
-        setError(errorMessage, QStringLiteral("The remote Sync metadata is not valid"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "The remote Sync metadata is not valid"));
         return false;
     }
     const auto remoteEpoch = remoteMeta.object().value(QStringLiteral("epoch")).toInt();
     if (remoteEpoch < localEpoch) {
         setError(errorMessage,
-            QStringLiteral("The Sync repository is older than this machine remembers"));
+            QCoreApplication::translate(
+                "SyncModule", "The Sync repository is older than this machine remembers"));
         return false;
     }
     if (remoteEpoch > localEpoch) {
@@ -852,7 +884,8 @@ bool SyncModule::mergeRemote(QString *errorMessage)
         {QStringLiteral("merge"), QStringLiteral("--no-edit"),
             QStringLiteral("refs/remotes/origin/main")});
     if (!git.waitForFinished(30'000) || git.exitStatus() != QProcess::NormalExit) {
-        setError(errorMessage, QStringLiteral("git did not finish reconciling the remote"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "git did not finish reconciling the remote"));
         return false;
     }
     if (git.exitCode() == 0) {
@@ -899,15 +932,18 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
                 QJsonParseError parseError;
                 const auto document = QJsonDocument::fromJson(plainText, &parseError);
                 if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-                    setError(errorMessage, QStringLiteral("A Sync record contains invalid data"));
+                    setError(errorMessage,
+                        QCoreApplication::translate(
+                            "SyncModule", "A Sync record contains invalid data"));
                     return false;
                 }
                 const auto object = document.object();
                 if (object.value(QStringLiteral("id")).toString() != id
                     || object.value(QStringLiteral("version")).toInt() != contractVersion
                     || !read(id, object)) {
-                    setError(
-                        errorMessage, QStringLiteral("A Sync record does not match its identity"));
+                    setError(errorMessage,
+                        QCoreApplication::translate(
+                            "SyncModule", "A Sync record does not match its identity"));
                     return false;
                 }
             }
@@ -970,7 +1006,9 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
         if ((deletedSpaceIds.contains(localSpace.id) || absentFromReplacement)
             && !store.deleteSpace(
                 localSpace.id, localSpace.active ? replacementSpaceId : QString {})) {
-            setError(errorMessage, QStringLiteral("Could not apply a deleted remote Space"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "Could not apply a deleted remote Space"));
             return false;
         }
     }
@@ -984,7 +1022,8 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
         space.active = space.id == localActiveSpaceId;
     }
     if (!spaces.isEmpty() && !store.saveSpaces(spaces)) {
-        setError(errorMessage, QStringLiteral("Could not apply remote Space order"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not apply remote Space order"));
         return false;
     }
     for (qsizetype index = 0; index < spaces.size(); ++index) {
@@ -1012,7 +1051,8 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
             activeTabId = states.isEmpty() ? QString {} : states.constFirst().id;
         }
         if (!store.saveTabs(spaces[index].id, states, activeTabId)) {
-            setError(errorMessage, QStringLiteral("Could not apply remote browser state"));
+            setError(errorMessage,
+                QCoreApplication::translate("SyncModule", "Could not apply remote browser state"));
             return false;
         }
     }
@@ -1154,13 +1194,16 @@ bool SyncModule::stageConfigurationFile(
         return true;
     }
     if (!QDir().mkpath(QFileInfo(destination).absolutePath())) {
-        setError(errorMessage, QStringLiteral("Could not create a Sync configuration directory"));
+        setError(errorMessage,
+            QCoreApplication::translate(
+                "SyncModule", "Could not create a Sync configuration directory"));
         return false;
     }
     QSaveFile file(destination);
     if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size()
         || !file.commit()) {
-        setError(errorMessage, QStringLiteral("Could not stage Sync configuration"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not stage Sync configuration"));
         return false;
     }
     return true;
@@ -1178,7 +1221,8 @@ bool SyncModule::restoreConfiguration(SessionStore &store, QString *errorMessage
             || record.value(QStringLiteral("key")).toString() != name
             || !record.value(QStringLiteral("value")).isString()
             || !store.savePreference(name, record.value(QStringLiteral("value")).toString())) {
-            setError(errorMessage, QStringLiteral("A synced Setting is not valid"));
+            setError(errorMessage,
+                QCoreApplication::translate("SyncModule", "A synced Setting is not valid"));
             return false;
         }
     }
@@ -1191,20 +1235,25 @@ bool SyncModule::restoreConfiguration(SessionStore &store, QString *errorMessage
             = QDir(m_options.configRoot).filePath(QStringLiteral("keybindings.json"));
         if (!source.open(QIODevice::ReadOnly)
             || !QDir().mkpath(QFileInfo(destination).absolutePath())) {
-            setError(errorMessage, QStringLiteral("Could not read the synced keybindings"));
+            setError(errorMessage,
+                QCoreApplication::translate("SyncModule", "Could not read the synced keybindings"));
             return false;
         }
         const auto contents = source.readAll();
         QJsonParseError parseError;
         if (QJsonDocument::fromJson(contents, &parseError).isNull()
             || parseError.error != QJsonParseError::NoError) {
-            setError(errorMessage, QStringLiteral("The synced keybindings are not valid JSON"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "The synced keybindings are not valid JSON"));
             return false;
         }
         QSaveFile file(destination);
         if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size()
             || !file.commit()) {
-            setError(errorMessage, QStringLiteral("Could not apply the synced keybindings"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "Could not apply the synced keybindings"));
             return false;
         }
     }
@@ -1215,7 +1264,9 @@ bool SyncModule::restoreConfiguration(SessionStore &store, QString *errorMessage
         const auto subscriptions = remoteBlocking.value(QStringLiteral("subscriptions"));
         if (remoteBlocking.value(QStringLiteral("version")).toInt() != contractVersion
             || !subscriptions.isArray()) {
-            setError(errorMessage, QStringLiteral("The synced filter subscriptions are not valid"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "The synced filter subscriptions are not valid"));
             return false;
         }
         const auto localPath
@@ -1236,7 +1287,9 @@ bool SyncModule::captureConfiguration(SessionStore &store, QString *errorMessage
         const auto retired
             = QDir(checkoutRoot()).filePath(QStringLiteral("settings/%1.json").arg(name));
         if (QFileInfo::exists(retired) && !QFile::remove(retired)) {
-            setError(errorMessage, QStringLiteral("Could not remove a retired Sync setting"));
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "Could not remove a retired Sync setting"));
             return false;
         }
     }
@@ -1262,7 +1315,8 @@ bool SyncModule::captureConfiguration(SessionStore &store, QString *errorMessage
     if (QFileInfo::exists(localKeybindings)) {
         QFile source(localKeybindings);
         if (!source.open(QIODevice::ReadOnly)) {
-            setError(errorMessage, QStringLiteral("Could not read the local keybindings"));
+            setError(errorMessage,
+                QCoreApplication::translate("SyncModule", "Could not read the local keybindings"));
             return false;
         }
         const auto contents = source.readAll();
@@ -1294,7 +1348,8 @@ SyncError SyncModule::reconcile(SessionStore &store)
     m_failure = SyncFailure::Failed;
     if (!store.recordsState()) {
         m_failure = SyncFailure::PrivateStateRefused;
-        return phaseError(QStringLiteral("Sync is unavailable in a Private window"));
+        return phaseError(
+            QCoreApplication::translate("SyncModule", "Sync is unavailable in a Private window"));
     }
     QString message;
     if (!reconcileRemote(store, &message)) {
@@ -1423,7 +1478,8 @@ bool SyncModule::reconcileRemote(SessionStore &store, QString *errorMessage)
     changed.start(QStringLiteral("git"),
         {QStringLiteral("diff"), QStringLiteral("--cached"), QStringLiteral("--quiet")});
     if (!changed.waitForFinished() || changed.exitStatus() != QProcess::NormalExit) {
-        setError(errorMessage, QStringLiteral("Could not inspect local Sync changes"));
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not inspect local Sync changes"));
         return false;
     }
     if (changed.exitCode() != 0
@@ -1463,13 +1519,15 @@ SyncError SyncModule::applyRemoteState(SessionStore &store)
     m_failure = SyncFailure::Failed;
     if (!store.recordsState()) {
         m_failure = SyncFailure::PrivateStateRefused;
-        return phaseError(QStringLiteral("Sync is unavailable in a Private window"));
+        return phaseError(
+            QCoreApplication::translate("SyncModule", "Sync is unavailable in a Private window"));
     }
     m_heldBackLocalRecord = false;
     if (m_options.intent == SyncIntent::AdoptRemote && m_options.localStateIsPristine) {
         for (const auto &space : store.loadSpaces()) {
             if (!store.deleteSpace(space.id)) {
-                return phaseError(QStringLiteral("Could not replace the initial local Space"));
+                return phaseError(QCoreApplication::translate(
+                    "SyncModule", "Could not replace the initial local Space"));
             }
         }
     }
