@@ -661,11 +661,11 @@
     <name>omaweb::BrowserController</name>
     <message>
         <source>New tab</source>
-        <translation type="unfinished">Uusi välilehti</translation>
+        <translation>Uusi välilehti</translation>
     </message>
     <message>
         <source>Agent activity</source>
-        <translation type="unfinished">Agentin toiminta</translation>
+        <translation>Agentin toiminta</translation>
     </message>
 </context>
 <context>
