@@ -1281,6 +1281,9 @@ if(BUILD_TESTING)
     add_dependencies(omaweb-translations-tests omaweb-translations)
     omaweb_strict_target(omaweb-translations-tests)
     add_test(NAME omaweb-translations COMMAND omaweb-translations-tests)
+    set_tests_properties(omaweb-translations PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME="
+    )
 
     qt_add_executable(omaweb-engine-paths-tests tests/core/tst_enginepaths.cpp)
     target_link_libraries(omaweb-engine-paths-tests PRIVATE omaweb-core Qt6::Test)
