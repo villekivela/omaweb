@@ -36,6 +36,7 @@
 #include "WindowManager.h"
 
 #include <algorithm>
+#include <QJSValue>
 #include <QAbstractItemModel>
 #include <QColor>
 #include <QCoreApplication>
@@ -665,6 +666,40 @@ int main(int argc, char *argv[])
         printf("start_page_hint=%s\n", qPrintable(word->property("text").toString()));
         fflush(stdout);
         return 0;
+    }
+
+    // The name the command panel lists for one command, which is the text the
+    // Omnibar's rows, the Start page and the shortcut sheet show for it. The
+    // identifier stays untranslated, so a test asks by identifier and reads the
+    // title back.
+    const auto commandIndex = arguments.indexOf(QStringLiteral("--report-command-title"));
+    if (commandIndex >= 0 && commandIndex + 1 < arguments.size()) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *commands = engine.rootObjects().constFirst()->findChild<QObject *>(
+            QStringLiteral("browserCommands"));
+        if (commands == nullptr) {
+            qCritical("The window has no command registry");
+            return 1;
+        }
+        QVariant listed;
+        QMetaObject::invokeMethod(commands, "actions", Q_RETURN_ARG(QVariant, listed));
+        const auto wanted = arguments.at(commandIndex + 1);
+        const auto entries = listed.canConvert<QJSValue>()
+            ? listed.value<QJSValue>().toVariant().toList()
+            : listed.toList();
+        for (const auto &entry : entries) {
+            const auto action = entry.toMap();
+            if (action.value(QStringLiteral("command")).toString() == wanted) {
+                printf("command_title=%s\n",
+                    qPrintable(action.value(QStringLiteral("title")).toString()));
+                fflush(stdout);
+                return 0;
+            }
+        }
+        qCritical("The command panel does not list %s", qPrintable(wanted));
+        return 1;
     }
 
     // The two startup numbers the tests keep, in milliseconds since `main`:
