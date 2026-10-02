@@ -372,7 +372,17 @@ int main(int argc, char *argv[])
     // under the lab's own data root. Turned on, the lab asks the real engines,
     // which is how the rows are reviewed against what an engine answers.
     omaweb::EngineSuggestions engineSuggestions(dataRootPath);
-    omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")));
+    // `--suggest-url <url>` answers Engine suggestions from that address
+    // instead, so a capture lists the same rows on every run and asks no real
+    // engine: scripts/build_website_themes.py serves a fixed answer there. An
+    // engine is saved under a configuration root, which the lab otherwise has
+    // none of, so the flag gives it the data root.
+    const auto suggestIndex = arguments.indexOf(QStringLiteral("--suggest-url"));
+    const auto suggestUrl = suggestIndex >= 0 && suggestIndex + 1 < arguments.size()
+        ? arguments.at(suggestIndex + 1)
+        : QString();
+    omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")),
+        suggestUrl.isEmpty() ? QString() : dataRootPath);
     browser.setEngineSuggestions(&engineSuggestions);
     omaweb::ContentBlocker contentBlocker(dataRootPath, omaweb::ContentBlocker::DefaultLists::None);
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
@@ -493,6 +503,17 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+    if (!suggestUrl.isEmpty()) {
+        // The default engine keeps DuckDuckGo's name and query address, so
+        // the rows read as a reader's would. The preset already holds the id
+        // `duckduckgo`, so the engine added under the same name is given
+        // `duckduckgo-2`, and the preset goes.
+        browser.addSearchEngine(QStringLiteral("DuckDuckGo"),
+            QStringLiteral("https://duckduckgo.com/?q={query}"), {}, suggestUrl);
+        browser.setDefaultSearchEngine(QStringLiteral("duckduckgo-2"));
+        browser.deleteSearchEngine(QStringLiteral("duckduckgo"));
+        engineSuggestions.setEnabled(true);
+    }
     // `--many-spaces` seeds two more of the reader's Spaces, each taking a
     // colour of its own, and with `--agents` six more Agent Spaces, so the
     // footer runs out of room and counts the rest.

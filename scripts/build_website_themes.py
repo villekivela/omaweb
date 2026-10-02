@@ -24,10 +24,17 @@ built here that no swatch names is never shown.
 
 ## Headless, and no pointer
 
-Nothing here needs a compositor, a pointer or a screen grab:
+Nothing here needs a screen, a pointer or a screen grab. Most states run on
+the offscreen platform with the software renderer:
 
     QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \\
       ./build/dev/omaweb-ui-lab --tabs --show settings:tabs --capture out.png
+
+The Start page's road and the Omnibar's blur are drawn with MultiEffect, which
+the software renderer leaves out, so the states that show them (`COMPOSITED`)
+run under cage, a Wayland compositor, on its headless backend, with
+`wlr-randr` sizing its output to the capture. Those need `cage`,
+`qt6-wayland`, `mesa` and `wlr-randr`, and cage will not run as root.
 
 `OMAWEB_THEME_FILE` points the lab at a rendered theme without installing it,
 and `OMAWEB_NO_OMARCHY_TEMPLATE` stops the run writing into the reader's own
@@ -55,8 +62,8 @@ downstream catches. Install the family, or name another installed one with
 `OMAWEB_CAPTURE_FONT_FAMILY`. `OMAWEB_CAPTURE_FONT_FILE` is ignored by this
 script.
 
-The one thing to install is a WebP encoder: `cwebp` from libwebp, or
-ImageMagick. Everything else is the standard library.
+The one thing to install besides those is a WebP encoder: `cwebp` from libwebp,
+or ImageMagick. Everything else is the standard library.
 
 Captures are taken at twice the size the page draws them, so the browser's own
 type is rendered at two device pixels per logical one rather than resampled.
@@ -77,14 +84,17 @@ and fonts, and a flaky gate on a picture is worse than a stale picture.
 from __future__ import annotations
 
 import argparse
+import http.server
 import json
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -114,22 +124,62 @@ THEMES = [
 # The interface states worth a picture, and the lab arguments that reach each.
 # `--tabs` seeds every one of them: a Space at rest draws neither the Pinned
 # section nor the tab list, and the vertical strip with Pinned tabs above it is
-# what distinguishes this browser at a glance. `--browse` ends on a page rather
-# than the blank tab, whose Start page is the shortcut sheet, so the browser is
-# shown in use; `--spaces` adds the Work Space beside Personal that the tour's
-# first step is about; `--sample-lists` shows the filter lists a first run has.
-# The Omnibar is shown with a query typed, so it lists what two letters find
-# across a web search, the open tabs and the Space's history, rather than the
-# address it opens on.
+# what distinguishes this browser at a glance. Without `--browse` the seeded
+# day ends on the blank tab, whose Start page is the Omnibar resting on the
+# night road; with it, on a page, so the browser is shown in use. `--spaces`
+# adds the Work Space beside Personal, `--many-spaces` two more, `--agents-away`
+# Agent Spaces marked in the footer, and `--sample-lists` the filter lists a
+# first run has. `shortcuts` is the shortcut sheet over a page, `privacy` the
+# Settings section that lists what the browser sends on its own, and `split`
+# two pages side by side.
+#
+# The Omnibar is shown over the Start page with "qt" typed, so it lists what two
+# letters find: open tabs in this Space and in Work, the Space's history, and
+# the engine's suggestions, from `SUGGESTIONS` below rather than a real engine.
+#
+# Every state waits longer than the lab's default 700 ms before its capture: the
+# Omnibar fades in over the Start page, the Start page fades out as a page
+# arrives, and Settings and the shortcut sheet open after the window does, so a
+# frame taken early is caught mid-fade or before the state has opened at all.
 STATES = [
-    ("space", ["--tabs", "--spaces", "--browse"]),
-    ("collapsed", ["--tabs", "--browse", "--show", "collapsed"]),
+    ("start", ["--tabs", "--spaces", "--capture-delay", "5500"]),
     (
         "omnibar",
-        ["--tabs", "--spaces", "--browse", "--show", "omnibar-settled", "--omnibar-query", "ar"],
+        [
+            "--tabs",
+            "--spaces",
+            "--show",
+            "omnibar-settled",
+            "--omnibar-query",
+            "qt",
+            "--capture-delay",
+            "7000",
+        ],
     ),
-    ("blocking", ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]),
+    ("space", ["--tabs", "--spaces", "--browse", "--capture-delay", "2500"]),
+    (
+        "agents",
+        ["--tabs", "--spaces", "--many-spaces", "--agents-away", "--browse"]
+        + ["--capture-delay", "7000"],
+    ),
+    ("shortcuts", ["--tabs", "--browse", "--show", "shortcuts", "--capture-delay", "2500"]),
+    ("privacy", ["--tabs", "--show", "settings:privacy", "--capture-delay", "2500"]),
+    ("split", ["--tabs", "--browse", "--show", "split", "--capture-delay", "2500"]),
+    (
+        "blocking",
+        ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]
+        + ["--capture-delay", "2500"],
+    ),
 ]
+
+# The states drawn with MultiEffect, captured under cage.
+COMPOSITED = {"start", "omnibar", "agents"}
+
+# The engine's answer to the Omnibar's query, as an OpenSearch suggestions
+# document, served on a local port for the lab's `--suggest-url`.
+SUGGESTIONS = (
+    b'["qt", ["qt quick shapes", "qt 6.11 release notes", "qtwebengine flags", "qt creator"]]'
+)
 
 # Two states the lab can reach and this deliberately does not ship. Site
 # information is about the page on show and the lab has no page, so it draws
@@ -167,6 +217,10 @@ NAMED_ROLES = {"--muted": "mutedText"}
 # made the shots read as soft. Qt scales the whole layout, so the shot is the
 # same window at the same proportions and only the pixel count changes.
 SCALE = 2
+
+# The lab's window in logical pixels, which the composited states size cage's
+# output to.
+WINDOW = (1360, 860)
 
 
 # ------------------------------------------------------------------ themes
@@ -229,6 +283,54 @@ def resolved_palette(lab: pathlib.Path, theme_file: pathlib.Path) -> dict:
                 "install it, or name an installed family with OMAWEB_CAPTURE_FONT_FAMILY"
             )
         return palette
+
+
+def suggestion_server() -> str:
+    """Serves `SUGGESTIONS` on a free local port for as long as the script runs,
+    and returns the suggest address the lab asks."""
+
+    class Answer(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802, the name http.server calls
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-suggestions+json")
+            self.end_headers()
+            self.wfile.write(SUGGESTIONS)
+
+        def log_message(self, *_: object) -> None:
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Answer)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{server.server_port}/suggest?q={{query}}"
+
+
+def run_composited(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -> None:
+    """Runs the lab under cage's headless backend, on an output the capture's size."""
+    environment = dict(os.environ)
+    environment.pop("OMAWEB_CAPTURE_FONT_FILE", None)
+    environment.update(
+        {
+            "OMAWEB_THEME_FILE": str(theme_file),
+            "OMAWEB_NO_OMARCHY_TEMPLATE": "1",
+            "QT_QPA_PLATFORM": "wayland",
+            "QT_SCALE_FACTOR": str(SCALE),
+            "WLR_BACKENDS": "headless",
+            "WLR_RENDERER": "pixman",
+            "WLR_LIBINPUT_NO_DEVICES": "1",
+        }
+    )
+    width, height = WINDOW
+    command = " ".join(shlex.quote(part) for part in [str(lab), *arguments])
+    inner = (
+        f"wlr-randr --output HEADLESS-1 --custom-mode {width * SCALE}x{height * SCALE}"
+        f" >/dev/null 2>&1; exec {command}"
+    )
+    result = subprocess.run(
+        ["cage", "--", "sh", "-c", inner], env=environment, capture_output=True, text=True
+    )
+    capture = pathlib.Path(arguments[arguments.index("--capture") + 1])
+    if not capture.is_file():
+        sys.exit(f"cage {lab.name} {' '.join(arguments)} failed:\n{result.stderr[-2000:]}")
 
 
 def run_lab(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -> None:
@@ -329,7 +431,9 @@ def stylesheet(palettes: dict[str, tuple[dict, dict]], borders: dict[str, str]) 
         "/* Generated by scripts/build_website_themes.py. Do not edit.",
         " *",
         " * Each theme's roles, as Omaweb resolved them, on whichever element carries",
-        " * data-theme, and --border, the theme's own active-window border colour.",
+        " * data-theme, and --border, the theme's own active-window border colour. Each",
+        " * role defers to --omaweb-*, the reader's own palette, which Omaweb hands only",
+        " * to a page that asks for it: a release page does, the landing page does not.",
         " */",
         "",
     ]
@@ -339,9 +443,9 @@ def stylesheet(palettes: dict[str, tuple[dict, dict]], borders: dict[str, str]) 
         palette, named = palettes[name]
         lines.append(f'[data-theme="{name}"] {{')
         for token, role in RESOLVED_ROLES.items():
-            lines.append(f"  {token}: {hex_color(palette[role])};")
+            lines.append(f"  {token}: var(--omaweb-{token[2:]}, {hex_color(palette[role])});")
         for token, role in NAMED_ROLES.items():
-            lines.append(f"  {token}: {hex_color(named[role])};")
+            lines.append(f"  {token}: var(--omaweb-{token[2:]}, {hex_color(named[role])});")
         lines.append(f"  --border: {borders[name]};")
         lines.append("}")
         lines.append("")
@@ -352,7 +456,13 @@ def stylesheet(palettes: dict[str, tuple[dict, dict]], borders: dict[str, str]) 
 
 
 def build(
-    theme: str, lab: pathlib.Path, scratch: pathlib.Path, encoder: str, out: pathlib.Path
+    theme: str,
+    lab: pathlib.Path,
+    scratch: pathlib.Path,
+    encoder: str,
+    out: pathlib.Path,
+    suggest: str,
+    wanted_states: list[str],
 ) -> tuple[dict, dict, str] | None:
     colors = theme_colors(theme)
     if colors is None:
@@ -364,8 +474,14 @@ def build(
     palette = resolved_palette(lab, theme_file)
 
     for state, arguments in STATES:
+        if wanted_states and state not in wanted_states:
+            continue
         capture = scratch / f"{theme}-{state}.png"
-        run_lab(lab, theme_file, [*arguments, "--capture", str(capture)])
+        if state == "omnibar":
+            arguments = [*arguments, "--suggest-url", suggest]
+        arguments = [*arguments, "--capture", str(capture)]
+        run = run_composited if state in COMPOSITED else run_lab
+        run(lab, theme_file, arguments)
         write_webp(out / theme / f"{state}.webp", encoder, capture.read_bytes())
         print(f"  {theme}/{state}.webp")
 
@@ -384,6 +500,12 @@ def main() -> int:
         help="the omaweb-ui-lab binary to capture with",
     )
     parser.add_argument("--theme", action="append", help="build only this theme; repeatable")
+    parser.add_argument(
+        "--state",
+        action="append",
+        choices=[name for name, _ in STATES],
+        help="capture only this state; repeatable",
+    )
     parser.add_argument(
         "--themes",
         action="append",
@@ -419,11 +541,14 @@ def main() -> int:
         return fail(f"no such theme: {', '.join(arguments.theme)}")
 
     built = {}
+    suggest = suggestion_server()
     with tempfile.TemporaryDirectory() as directory:
         scratch = pathlib.Path(directory)
         for theme, _ in wanted:
             print(f"{theme}:")
-            result = build(theme, arguments.lab, scratch, encoder, arguments.out)
+            result = build(
+                theme, arguments.lab, scratch, encoder, arguments.out, suggest, arguments.state or []
+            )
             if result is not None:
                 built[theme] = result
 

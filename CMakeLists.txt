@@ -1027,6 +1027,13 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_publish_website.py
         )
+        # The website's policy check, on a site it is pointed at: markup and
+        # loads the policy blocks, from the pages and from the scripts that
+        # build them.
+        add_test(NAME omaweb-check-website-csp
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_website_csp.py
+        )
         # Which pages the page-load budget loads, which hosts each reaches and
         # what the DNS server answers for them: the parts that could be wrong
         # and still produce a number.
