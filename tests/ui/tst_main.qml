@@ -266,6 +266,13 @@ TestCase {
         // a desktop that has not asked for reduced motion.
         InputOrigin.pointer = true;
         SystemMotion.reduced = false;
+        // A slide the last test started still runs: a test that ends by
+        // bringing the sidebar back leaves it on its way, and on a loaded
+        // machine the next test's first checks ran before it was drawn.
+        const sidebar = findChild(window.contentItem, "sidebar");
+        tryVerify(function () {
+            return sidebar.visible && Math.round(sidebar.x) === 0;
+        });
     }
 
     // A Download record outlives the test that made it, and every test here
@@ -662,7 +669,11 @@ TestCase {
         window.sidebarCollapsed = true;
         tryCompare(sidebar, "visible", false);
         compare(leftWatching.seen.length, heard);
+        // A sidebar left sliding back in has arrived when the next test starts.
         window.sidebarCollapsed = false;
+        init();
+        verify(sidebar.visible);
+        compare(Math.round(sidebar.x), 0);
 
         window.historyOpen = true;
         tryCompare(history, "visible", true);
