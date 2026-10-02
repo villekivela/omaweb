@@ -51,14 +51,18 @@ export function sceneInput(scene, environment) {
   };
 }
 
-// The light a Scene casts on the page, as CSS custom properties: each colour it names as rgb()
-// and each amount to two places, so a frame that changes nothing a reader could see writes
-// nothing. A Scene that casts no light has none.
+// The light a Scene casts on the page, as CSS custom properties: each colour it names as rgb(),
+// each amount to two places, so a frame that changes nothing a reader could see writes nothing,
+// and a CSS value as it is. A Scene that casts no light has none.
 export function lightProperties(scene, input) {
   return Object.fromEntries(
     Object.entries(scene.light?.(input) || {}).map(([name, value]) => [
       `--scene-${name}`,
-      Array.isArray(value) ? `rgb(${value.map(Math.round).join(" ")})` : value.toFixed(2),
+      typeof value === "string"
+        ? value
+        : Array.isArray(value)
+          ? `rgb(${value.map(Math.round).join(" ")})`
+          : value.toFixed(2),
     ]),
   );
 }

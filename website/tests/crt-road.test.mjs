@@ -54,19 +54,27 @@ const lit = (environment) =>
     }),
   );
 
-test("light: the Omnibar's rim takes the sun's colours in the theme", () => {
-  const properties = lit({});
-  assert.equal(properties["--scene-sun-top"], "rgb(250 234 205)");
-  assert.equal(properties["--scene-sun-low"], "rgb(249 182 121)");
+// The rim's light, worked out by hand from the shared file's `light.rim` in this theme: the sun's
+// top colour 45% of the way to white over the sun, falling to its low colour and fading out, on an
+// ellipse 78% of the Omnibar's width across and two sun radii, 30% of the window's height, down.
+const retro82Rim =
+  "radial-gradient(ellipse 78% 30svh at 50% var(--horizon), rgb(252 243 228) 6%, " +
+  "rgb(250 234 205) 18%, rgb(249 182 121) 46%, rgb(249 182 121 / 0.35) 78%, " +
+  "rgb(249 182 121 / 0.08) 100%)";
+
+test("light: the Omnibar's rim takes the sun's colours and falloff from the shared file", () => {
+  assert.equal(lit({})["--scene-rim"], retro82Rim);
 });
 
-test("light: the rim brightens with the beat that swells the sky's glow", () => {
-  assert.equal(lit({ beat: 0.4 })["--scene-glow"], "0.40");
-  assert.equal(lit({ beat: 0.01 })["--scene-glow"], "0.00");
-  assert.equal(lit({})["--scene-glow"], "0.00");
+test("light: the rim's bloom rests at the shared file's amount and lifts with the beat", () => {
+  assert.equal(lit({})["--scene-bloom"], "0.40");
+  assert.equal(lit({ beat: 0.01 })["--scene-bloom"], "0.40");
+  assert.equal(lit({ beat: 0.4 })["--scene-bloom"], "0.52");
+  assert.equal(lit({})["--scene-bloom-width"], "8.00");
+  assert.equal(lit({})["--scene-bloom-blur"], "4.00");
 });
 
 test("light: under reduced motion or on a phone the rim holds still", () => {
-  assert.equal(lit({ beat: 0.8, reducedMotion: true })["--scene-glow"], "0.00");
-  assert.equal(lit({ beat: 0.8, phone: true })["--scene-glow"], "0.00");
+  assert.equal(lit({ beat: 0.8, reducedMotion: true })["--scene-bloom"], "0.40");
+  assert.equal(lit({ beat: 0.8, phone: true })["--scene-bloom"], "0.40");
 });

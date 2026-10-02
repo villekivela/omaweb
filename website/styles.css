@@ -589,21 +589,11 @@ body:has(.drive) > .top {
 /* The Omnibar is glass over the road: the plate a little see-through, the road blurred behind. It
    stands in front of the sun, so its rim catches the sun's light: warmest and brightest on the top
    edge over the sun, falling off along it and down the sides, the bottom edge left a quiet rule.
-   The road's Scene sets the sun's colours and `--scene-glow`, the radio's beat as it swells the
-   sky, which brightens the rim's bloom; without the script the theme stands in. The
-   light is an ellipse centred on the sun, whose radius is 15% of the window's height. */
+   The road's Scene casts that light from share/scenes/crt-road.json, which the browser's Omnibar
+   reads too: `--scene-rim`, the gradient in the sun's colours on an ellipse centred on the sun,
+   and the bloom's opacity, width and blur, the opacity lifted by the radio's beat. Without the
+   script there is no sun, and the rim is the plain edge. */
 .omnibar {
-  --scene-sun-top: color-mix(in srgb, var(--fg) 60%, #fff);
-  --scene-sun-low: color-mix(in srgb, var(--accent) 75%, var(--fg));
-  --scene-glow: 0;
-  --sunlight: radial-gradient(
-    ellipse 78% 30svh at 50% var(--horizon),
-    color-mix(in srgb, var(--scene-sun-top) 55%, #fff) 6%,
-    var(--scene-sun-top) 18%,
-    var(--scene-sun-low) 46%,
-    color-mix(in srgb, var(--scene-sun-low) 35%, transparent) 78%,
-    color-mix(in srgb, var(--scene-sun-low) 8%, transparent)
-  );
   position: relative;
   width: min(100% - 32px, 720px);
   border: 1px solid var(--edge);
@@ -618,29 +608,29 @@ body:has(.drive) > .top {
   position: absolute;
   inset: -1px;
   padding: 1px;
-  background: var(--sunlight);
+  background: var(--scene-rim, none);
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
 
-/* The rim's bloom: a wider ring, blurred and added to what is behind it as light is, under the
-   Omnibar's text. The beat lifts only its opacity, which the browser composites without painting
-   it again. */
+/* The rim's bloom: a wider ring across the edge, blurred and added to what is behind it as light
+   is, under the Omnibar's text. The beat lifts only its opacity, which the browser composites
+   without painting it again. */
 .omnibar__glow {
   position: absolute;
   inset: 0;
   z-index: -1;
-  opacity: calc(0.4 + 0.3 * var(--scene-glow));
-  filter: blur(4px);
+  opacity: var(--scene-bloom, 0);
+  filter: blur(calc(var(--scene-bloom-blur, 0) * 1px));
   mix-blend-mode: plus-lighter;
   pointer-events: none;
 }
 
 .omnibar__glow::before {
-  inset: -4px;
-  padding: 8px;
+  inset: calc(var(--scene-bloom-width, 0) * -0.5px);
+  padding: calc(var(--scene-bloom-width, 0) * 1px);
 }
 
 .omnibar__field {

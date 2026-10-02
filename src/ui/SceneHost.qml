@@ -35,6 +35,12 @@ Item {
     property rect frame: Qt.rect(0, 0, width, height)
 
     readonly property Item sceneItem: sceneLoader.item
+    // The light the Scene casts on the page, which the page lays on the
+    // plates it names as lit, or null for a Scene that casts none. Its
+    // positions are in the host's own coordinates, which are the Scene's
+    // drawing ones.
+    readonly property var light: root.sceneItem && root.sceneItem.light ? root.sceneItem.light :
+                                                                          null
     // The Scene's frames, a tick of its clock each, for the tests that check a
     // hidden Scene draws none.
     property int frames: 0

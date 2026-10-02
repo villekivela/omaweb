@@ -15,6 +15,23 @@
       "desertNear": "#544d77",
       "centreLine": "#fafafd",
       "roadside": "#040305"
+    },
+    "rim": {
+      "across": 0.78,
+      "reach": 0.3,
+      "stops": [
+        [0.06, "#fbfafd", 1],
+        [0.18, "#f8f7fc", 1],
+        [0.46, "#b1a2fe", 1],
+        [0.78, "#b1a2fe", 0.35],
+        [1, "#b1a2fe", 0.08]
+      ],
+      "bloom": {
+        "rest": 0.4,
+        "lifted": 0.7,
+        "width": 8,
+        "blur": 4
+      }
     }
   },
   "light": {
@@ -33,6 +50,23 @@
       "desertNear": "#314061",
       "centreLine": "#fbfafc",
       "roadside": "#010102"
+    },
+    "rim": {
+      "across": 0.78,
+      "reach": 0.3,
+      "stops": [
+        [0.06, "#fbfbfd", 1],
+        [0.18, "#f8f8fb", 1],
+        [0.46, "#6389d7", 1],
+        [0.78, "#6389d7", 0.35],
+        [1, "#6389d7", 0.08]
+      ],
+      "bloom": {
+        "rest": 0.4,
+        "lifted": 0.7,
+        "width": 8,
+        "blur": 4
+      }
     }
   }
 }

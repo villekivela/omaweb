@@ -138,6 +138,115 @@ TestCase {
         }
     }
 
+    // The road lights the Omnibar's rim as the website's does, from the same
+    // file: the same stops on the same ellipse centred on the sun, and the
+    // same bloom, at rest and on a full beat.
+    function test_theRimLightIsTheWebsites_data() {
+        return test_theKeyColoursAreTheWebsites_data();
+    }
+
+    function test_theRimLightIsTheWebsites(data) {
+        const expected = crtRoadKeyColours[data.theme].rim;
+        const road = makeRoad({
+                                  colors: crtRoadKeyColours[data.theme].theme,
+                                  dark: data.dark
+                              });
+        const light = road.light;
+        compare(light.centre, Qt.point(road.drawWidth / 2, road.horizonY));
+        fuzzyCompare(light.across, expected.across, 0.001);
+        fuzzyCompare(light.reach / road.drawHeight, expected.reach, 0.001);
+        compare(light.stops.length, expected.stops.length);
+        for (let index = 0; index < expected.stops.length; ++index) {
+            const stop = light.stops[index];
+            fuzzyCompare(stop.position, expected.stops[index][0], 0.001);
+            compareColour(stop.colour, expected.stops[index][1], "stop " + index);
+            fuzzyCompare(stop.colour.a, expected.stops[index][2], 0.01);
+        }
+        fuzzyCompare(light.bloom.opacity, expected.bloom.rest, 0.001);
+        compare(light.bloom.width, expected.bloom.width);
+        compare(light.bloom.blur, expected.bloom.blur);
+        road.beat = 1;
+        fuzzyCompare(road.light.bloom.opacity, expected.bloom.lifted, 0.001);
+    }
+
+    Component {
+        id: litPlateComponent
+
+        Window {
+            property alias plate: plate
+            property alias rim: rim
+
+            width: 800
+            height: 500
+            visible: true
+
+            Rectangle {
+                id: plate
+                x: 200
+                y: 220
+                width: 400
+                height: 60
+            }
+
+            Omaweb.RimLight {
+                id: rim
+                plate: plate
+                plateRadius: 3
+                sun: Qt.point(400, 252)
+            }
+        }
+    }
+
+    // What is drawn is the road's light on the plate it falls on: the
+    // ellipse 78% of the plate's width across and two sun radii down,
+    // centred on the sun, and the website's first stop, premultiplied as the
+    // shader blends it.
+    function test_theRimIsDrawnOnTheWebsitesEllipse() {
+        const expected = crtRoadKeyColours.dark.rim;
+        const road = makeRoad({
+                                  height: 125
+                              });
+        const lit = createTemporaryObject(litPlateComponent, testCase);
+        const rim = lit.rim;
+        rim.light = road.light;
+        verify(rim.visible);
+        const reach = rim.reach;
+        compare(rim.x, 200 - reach);
+        compare(rim.y, 220 - reach);
+        compare(rim.plateArea, Qt.vector4d(reach, reach, 400, 60));
+        compare(rim.sunCentre, Qt.point(400 - rim.x, 252 - rim.y));
+        fuzzyCompare(rim.radii.width, expected.across * 400, 0.01);
+        fuzzyCompare(rim.radii.height, expected.reach * road.drawHeight, 0.01);
+        const first = Qt.color(expected.stops[0][1]);
+        fuzzyCompare(rim.stop0.x, first.r * expected.stops[0][2], 1.01 / 255);
+        fuzzyCompare(rim.stop0.w, expected.stops[0][2], 0.001);
+        const last = expected.stops[expected.stops.length - 1];
+        fuzzyCompare(rim.stop4.w, last[2], 0.01);
+        fuzzyCompare(rim.stop4.x, Qt.color(last[1]).r * last[2], 1.01 / 255);
+        compare(rim.stopCount, expected.stops.length);
+        compare(rim.bloomOpacity, expected.bloom.rest);
+
+        // The bloom's inner half is drawn from inside the plate.
+        rim.inner = true;
+        compare(rim.x, -reach);
+        compare(rim.innerHalf, 1);
+
+        rim.light = null;
+        verify(!rim.visible);
+    }
+
+    // The browser plays no music, but a beat handed to the road lifts the
+    // rim's bloom; reduced motion holds it at rest whatever the beat.
+    function test_reducedMotionHoldsTheRimStill() {
+        const road = makeRoad({
+                                  beat: 0.8
+                              });
+        const rest = road.parameters.light.bloom.rest;
+        verify(road.light.bloom.opacity > rest);
+        road.reducedMotion = true;
+        fuzzyCompare(road.light.bloom.opacity, rest, 0.001);
+    }
+
     // The road on screen, not only its recipes: the centre line's nearest
     // full mark and the top of the sun, drawn in the website's colours.
     Component {

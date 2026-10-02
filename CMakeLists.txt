@@ -413,7 +413,9 @@ qt_add_resources(omaweb-ui "omaweb_scenes"
 qt_add_shaders(omaweb-ui "omaweb_shaders"
     PREFIX "/omaweb/shaders"
     BASE "src/ui/shaders"
-    FILES "src/ui/shaders/crtglass.frag"
+    FILES
+        "src/ui/shaders/crtglass.frag"
+        "src/ui/shaders/rimlight.frag"
 )
 
 # The vendored Omarchy component kit imports Quickshell types. Omaweb supplies
@@ -678,6 +680,7 @@ set(omaweb_ui_files
     src/ui/SpaceProfiles.qml
     src/ui/HttpsOnlyPage.qml
     src/ui/NightRoad.qml
+    src/ui/RimLight.qml
     src/ui/SceneHost.qml
     src/ui/ShortcutSheet.qml
     src/ui/StartPage.qml

@@ -29,14 +29,23 @@ Item {
     // the terms, and that engine's proposals, four at most.
     property var engineSuggestions: ({})
 
-    // The item to sample for the blur. It must not be an ancestor of this
-    // panel, or the effect source would feed on its own output.
+    // The item to sample for the blur over a page. It must not be an
+    // ancestor of this panel, or the effect source would feed on its own
+    // output.
     property Item backdropSource: null
+    // The Start page's road while it stands behind the panel, null over a
+    // page: the Scene host, whose light falls on the panel's rim, and
+    // `roadOrigin`, where it stands in this item's coordinates.
+    property Item road: null
+    property point roadOrigin: Qt.point(0, 0)
+    // The Scene's light on the rim, where the road is behind the panel.
+    readonly property var sunlight: road !== null ? road.light : null
 
-    // Not at rest: under it is the Start page's road, which moves every frame,
-    // and a blur of it would render the window again for each one.
-    readonly property bool blurActive: backdropSource !== null && backdropSource.visible &&
-                                       !shownResting
+    // At rest the glass blurs the road alone rather than the window: the road
+    // moves every frame, and a blur of the window would render all of it
+    // again for each one.
+    readonly property Item glassSource: shownResting ? road : backdropSource
+    readonly property bool blurActive: glassSource !== null && glassSource.visible
 
     // At rest on the Start page rather than over a page: the field sits on the
     // page area's horizon, nothing is dimmed, and the rest of the window keeps
@@ -585,63 +594,47 @@ Item {
         height: root.restHeight
         opacity: root.arrival
         radius: 3
-        // With a backdrop the tint goes on top of the blur instead, so the
-        // panel itself stays clear.
-        color: root.blurActive ? "transparent" : root.colors.overlay
+        color: "transparent"
         border.width: 1
-        border.color: root.colors.accent
+        // The sun's rim light is laid over a quiet edge, as the website's is;
+        // with no sun behind it the edge is the accent.
+        border.color: root.sunlight !== null ? root.colors.border : root.colors.accent
         clip: true
 
-        ShaderEffectSource {
-            id: backdropTexture
-            visible: false
-            live: true
-            hideSource: false
-            recursive: false
-            sourceItem: root.blurActive ? root.backdropSource : null
-            // Only the slice of the window the panel covers, in the source's
-            // coordinates. The source fills the same area as this overlay, so
-            // the panel's own position is that mapping.
-            sourceRect: root.blurActive ? Qt.rect(panel.x, panel.y, panel.width, panel.height) :
-                                          Qt.rect(0, 0, 0, 0)
-            width: Math.max(1, panel.width)
-            height: Math.max(1, panel.height)
-            textureSize: Qt.size(Math.max(1, Math.round(panel.width / 2)), Math.max(1, Math.round(
-                                                                                        panel.height
-                                                                                        / 2)))
-        }
+        // Glass: what is behind blurred under the overlay. Over the road it
+        // lets a little more through, as the floating sidebar does over a
+        // page, and blurs as little as the website's: the road is the page.
+        PageBackdrop {
+            objectName: "omnibarGlass"
 
-        MultiEffect {
+            readonly property bool overRoad: root.glassSource !== null && root.glassSource
+                                             === root.road
+            readonly property point origin: overRoad ? root.roadOrigin : Qt.point(0, 0)
+            readonly property color overlay: root.colors.overlay
+
             anchors.fill: parent
             anchors.margins: panel.border.width
-            visible: root.blurActive
-            source: backdropTexture
-            blurEnabled: true
-            blur: 1
-            blurMax: 48
-            // The blur stops at this item's own edge. Left to itself MultiEffect
-            // enlarges what it draws to fit the blur, which reaches out over the
-            // border the margins above were set to keep clear and softens it.
-            autoPaddingEnabled: false
-            // Keeps the blur inside the panel's rounded corners rather than
-            // squaring them off under the border.
-            maskEnabled: true
-            maskSource: ShaderEffectSource {
-                sourceItem: Rectangle {
-                    width: Math.max(1, panel.width - 2 * panel.border.width)
-                    height: Math.max(1, panel.height - 2 * panel.border.width)
-                    radius: panel.radius
-                    color: "black"
-                }
-            }
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: panel.border.width
-            visible: root.blurActive
             radius: panel.radius
-            color: root.colors.overlay
+            source: root.blurActive ? root.glassSource : null
+            textureScale: 0.5
+            sourceRect: Qt.rect(panel.x + x - origin.x, panel.y + y - origin.y, width, height)
+            blur: overRoad ? 14 : 48
+            tint: overRoad ? Qt.rgba(overlay.r, overlay.g, overlay.b, Math.min(overlay.a, 0.8)) :
+                             overlay
+
+        }
+
+        // The bloom's half inside the edge, over the glass and under the text,
+        // as the website's is.
+        RimLight {
+            objectName: "omnibarInnerBloom"
+            inner: true
+            plate: panel
+            plateRadius: panel.radius
+            light: root.sunlight
+            sun: root.sunlight !== null ? Qt.point(root.roadOrigin.x + root.sunlight.centre.x - panel.x,
+                                                   root.roadOrigin.y + root.sunlight.centre.y
+                                                   - panel.y) : Qt.point(0, 0)
         }
 
         // Every band stops at the border: a rule that ran the full width would
@@ -1154,5 +1147,17 @@ Item {
                 }
             }
         }
+    }
+
+    // The sun's light on the panel's rim, from where the road's sun stands,
+    // and its bloom's half outside the edge.
+    RimLight {
+        objectName: "omnibarRim"
+        plate: panel
+        plateRadius: panel.radius
+        light: root.sunlight
+        sun: root.sunlight !== null ? Qt.point(root.roadOrigin.x + root.sunlight.centre.x,
+                                               root.roadOrigin.y + root.sunlight.centre.y) :
+                                      Qt.point(0, 0)
     }
 }

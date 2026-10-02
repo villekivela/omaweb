@@ -1,5 +1,5 @@
 {
-  "description": "The CRT road: the night drive behind the Start page, as the website draws it (website/crt-road.js) and the browser is to (#496). Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, sunTop, sunLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. `crt` is the CRT glass the road declares, which the host draws: scanlines and the vignette in CSS pixels and shares of the frame, the band in the Scene's pixels. website/README.md documents the contract.",
+  "description": "The CRT road: the night drive behind the Start page, as the website draws it (website/crt-road.js) and the browser is to (#496). Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, sunTop, sunLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. `crt` is the CRT glass the road declares, which the host draws: scanlines and the vignette in CSS pixels and shares of the frame, the band in the Scene's pixels. `light` is the light the road casts on the Start page's Omnibar: `rim` its falloff along the Omnibar's edge, on an ellipse centred on the sun, `across` of the Omnibar's width and `reach` sun radii down, and `bloom` the blurred ring over it, `width` and `blur` in CSS pixels, its opacity at rest and how much the beat adds. website/README.md documents the contract.",
   "id": "crt-road",
   "name": "CRT road",
   "pitch": 4,
@@ -220,6 +220,20 @@
     "width": 3,
     "fade": 0.6,
     "colour": { "mix": ["light", "white", 0.5] }
+  },
+  "light": {
+    "rim": {
+      "across": 0.78,
+      "reach": 2,
+      "stops": [
+        [0.06, { "mix": ["sunTop", "white", 0.45] }],
+        [0.18, "sunTop"],
+        [0.46, "sunLow"],
+        [0.78, "sunLow", 0.35],
+        [1, "sunLow", 0.08]
+      ]
+    },
+    "bloom": { "rest": 0.4, "beat": 0.3, "width": 8, "blur": 4 }
   },
   "scatter": [91.345, 7.13, 47453.5453]
 }
