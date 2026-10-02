@@ -31,6 +31,7 @@
 #include "SystemMotion.h"
 #include "SystemNotifier.h"
 #include "ThemeController.h"
+#include "Translations.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
 
@@ -343,6 +344,15 @@ int main(int argc, char *argv[])
         return 1;
     }
     omaweb::installWindowChrome(&application);
+    // `--locale fi` shows the chrome as that locale's reader sees it, so a
+    // mock can be checked in Finnish without changing the shell's environment.
+    const auto localeArguments = application.arguments();
+    const auto localeIndex = localeArguments.indexOf(QStringLiteral("--locale"));
+    const auto locale = localeIndex >= 0 && localeIndex + 1 < localeArguments.size()
+        ? QLocale(localeArguments.at(localeIndex + 1))
+        : omaweb::requestedLocale();
+    omaweb::installCatalogue(&application, locale,
+        omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY)));
     QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationName(QStringLiteral("Omaweb UI Lab"));
     // The settings page reads Qt.application.version for its about section, so
@@ -638,6 +648,23 @@ int main(int argc, char *argv[])
                 Q_ARG(QVariant, QStringLiteral("https://forge.example/login/oauth")),
                 Q_ARG(QVariant, true));
         });
+    }
+
+    // What the Start page says under the reader's locale, for a test to read
+    // the catalogue back from the screen's own text.
+    if (arguments.contains(QStringLiteral("--report-start-page"))) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *word = engine.rootObjects().constFirst()->findChild<QObject *>(
+            QStringLiteral("startPageHintWord"));
+        if (word == nullptr) {
+            qCritical("The Start page has no hint");
+            return 1;
+        }
+        printf("start_page_hint=%s\n", qPrintable(word->property("text").toString()));
+        fflush(stdout);
+        return 0;
     }
 
     // The two startup numbers the tests keep, in milliseconds since `main`:

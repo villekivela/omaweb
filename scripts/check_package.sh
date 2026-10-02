@@ -84,7 +84,8 @@ for required in \
     usr/share/icons/hicolor/scalable/apps/omaweb.svg \
     usr/share/licenses/omaweb/LICENSE \
     usr/share/licenses/omaweb/THIRD_PARTY_NOTICES.md \
-    usr/share/omaweb/sbom.json; do
+    usr/share/omaweb/sbom.json \
+    usr/share/omaweb/translations/omaweb_fi.qm; do
     if ! printf '%s\n' "$contents" | grep -qx "$required"; then
         echo "The package is missing $required" >&2
         exit 1
