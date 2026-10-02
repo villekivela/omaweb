@@ -136,7 +136,7 @@ Item {
                 visible: root.asksForText
                 width: Math.min(520, parent.width)
                 color: root.colors.text
-                placeholderText: "Response"
+                placeholderText: qsTr("Response")
             }
 
             Row {
@@ -148,7 +148,7 @@ Item {
                     objectName: "browserPromptUser"
                     width: 220
                     color: root.colors.text
-                    placeholderText: "Username"
+                    placeholderText: qsTr("Username")
                 }
 
                 TextField {
@@ -156,7 +156,7 @@ Item {
                     objectName: "browserPromptPassword"
                     width: 220
                     color: root.colors.text
-                    placeholderText: "Password"
+                    placeholderText: qsTr("Password")
                     echoMode: TextInput.Password
                 }
             }
@@ -167,14 +167,14 @@ Item {
                 CheckBox {
                     id: stopPrompts
                     visible: root.canStop
-                    text: "Stop prompts from this page"
+                    text: qsTr("Stop prompts from this page")
                     palette.windowText: root.colors.text
                 }
 
                 CheckBox {
                     id: remember
                     visible: root.canRemember
-                    text: "Remember for this origin and scheme"
+                    text: qsTr("Remember for this origin and scheme")
                     palette.windowText: root.colors.text
                 }
             }
@@ -185,10 +185,13 @@ Item {
                 ActionButton {
                     colors: root.colors
                     objectName: "browserPromptAccept"
-                    label: root.kind === "external-protocol" ? "Open" : root.kind
-                                                               === "http-authentication"
-                                                               ? "Sign in" : root.kind
-                                                                 === "agent-grant" ? "Allow" : "OK"
+                    label: root.kind === "external-protocol" ? qsTr("Open") : root.kind
+                                                               === "http-authentication" ? qsTr(
+                                                                                               "Sign in") :
+                                                                                           root.kind
+                                                                                           === "agent-grant"
+                                                                                           ? qsTr("Allow") :
+                                                                                             qsTr("OK")
                     primary: true
                     onClicked: root.submit(true)
                 }
@@ -197,7 +200,7 @@ Item {
                     visible: root.kind !== "javascript-alert"
                     colors: root.colors
                     objectName: "browserPromptRefuse"
-                    label: root.kind === "agent-grant" ? "Deny" : "Cancel"
+                    label: root.kind === "agent-grant" ? qsTr("Deny") : qsTr("Cancel")
                     onClicked: root.submit(false)
                 }
             }

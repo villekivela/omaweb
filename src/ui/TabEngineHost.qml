@@ -1565,7 +1565,7 @@ Item {
         x: root.leftPaneWidth + root.dividerWidth / 2 - width / 2
         z: 6
         colors: root.colors
-        panelName: "Left pane"
+        panelName: qsTr("Left pane")
         currentWidth: root.leftPaneWidth
         minimumWidth: root.paneMinimumWidth
         maximumWidth: Math.max(root.paneMinimumWidth, root.width - root.paneMinimumWidth)

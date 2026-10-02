@@ -43,7 +43,7 @@ FocusScope {
     readonly property bool fromOrigin: origin.width > 0
 
     readonly property string pageTitle: root.engine && root.engine.pageTitle.length > 0
-                                        ? root.engine.pageTitle : "Glance"
+                                        ? root.engine.pageTitle : qsTr("Glance")
     readonly property string pageAddress: root.engine ? String(root.engine.currentUrl) : ""
     // Where the engine goes, for the window to parent it into.
     readonly property alias pageHost: pageHost
@@ -249,7 +249,7 @@ FocusScope {
                 anchors.right: openAsTab.visible ? openAsTab.left : closeButton.left
                 anchors.rightMargin: Style.spacing.md
                 anchors.verticalCenter: parent.verticalCenter
-                text: "esc closes"
+                text: qsTr("esc closes")
                 color: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -264,7 +264,7 @@ FocusScope {
                 width: 30
                 height: 30
                 icon: "open_in_new"
-                accessibleName: "Open as tab"
+                accessibleName: qsTr("Open as tab")
                 fontFamily: root.iconFontFamily
                 foreground: root.colors.mutedText
                 accent: root.colors.accent
@@ -280,7 +280,7 @@ FocusScope {
                 width: 30
                 height: 30
                 icon: "close"
-                accessibleName: "Close Glance"
+                accessibleName: qsTr("Close Glance")
                 fontFamily: root.iconFontFamily
                 foreground: root.colors.mutedText
                 accent: root.colors.accent

@@ -82,6 +82,24 @@ Rectangle {
         return list;
     }
 
+    function groupLabel(name) {
+        switch (name) {
+        case "navigation":
+            return qsTr("navigation");
+        case "page":
+            return qsTr("page");
+        case "tabs":
+            return qsTr("tabs");
+        case "spaces":
+            return qsTr("spaces");
+        case "interface":
+            return qsTr("interface");
+        case "developer":
+            return qsTr("developer");
+        }
+        return name;
+    }
+
     // ------------------------------------------------------------- geometry
     //
     // The sheet knows every command and every binding it will draw before it
@@ -103,7 +121,7 @@ Rectangle {
         font.pixelSize: Style.font.body
     }
 
-    readonly property string headingText: "Keyboard commands"
+    readonly property string headingText: qsTr("Keyboard commands")
 
     TextMetrics {
         id: headingMetrics
@@ -319,7 +337,7 @@ Rectangle {
                     objectName: "shortcutsEyebrow"
                     anchors.left: parent.left
                     anchors.top: parent.top
-                    text: "shortcuts · esc closes"
+                    text: qsTr("shortcuts · esc closes")
                     color: root.colors.mutedText
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
@@ -339,7 +357,7 @@ Rectangle {
                     font.family: Style.font.family
                     font.pixelSize: Style.font.display
                     Accessible.role: Accessible.Heading
-                    Accessible.name: "Keyboard shortcuts"
+                    Accessible.name: qsTr("Keyboard shortcuts")
                 }
 
                 ChromeButton {
@@ -352,7 +370,7 @@ Rectangle {
                     // first for being disabled with it.
                     opacity: 1
                     icon: "close"
-                    accessibleName: "Close shortcuts"
+                    accessibleName: qsTr("Close shortcuts")
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
@@ -389,7 +407,7 @@ Rectangle {
                                 SectionLabel {
                                     width: parent.width
                                     colors: root.colors
-                                    text: groupBlock.modelData.group
+                                    text: root.groupLabel(groupBlock.modelData.group)
                                 }
 
                                 Repeater {

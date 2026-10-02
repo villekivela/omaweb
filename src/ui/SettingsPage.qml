@@ -924,7 +924,8 @@ Rectangle {
                             if (offerInterfaceFamily && installed.indexOf(Style.font.family) !== -1)
                                 options.push({
                                                  value: Style.font.family,
-                                                 label: "Interface's (" + Style.font.family + ")"
+                                                 label: qsTr("Interface's (%1)").arg(
+                                                            Style.font.family)
                                              });
                             for (const family of installed) {
                                 if (!(offerInterfaceFamily && family === Style.font.family))
