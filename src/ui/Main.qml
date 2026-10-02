@@ -4595,6 +4595,9 @@ ApplicationWindow {
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.
         backdropSource: shell
+        road: startPage.visible ? startPage.scene : null
+        roadOrigin: startPage.scene ? Qt.point(chromeRow.seam + startPage.x + startPage.scene.x,
+                                               startPage.y + startPage.scene.y) : Qt.point(0, 0)
         ease: window.chromeEase
         open: window.omnibarShown
         // Under the Shortcut sheet the Omnibar at rest steps aside, so the

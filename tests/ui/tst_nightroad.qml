@@ -138,6 +138,49 @@ TestCase {
         }
     }
 
+    // The road lights the Omnibar's rim as the website's does, from the same
+    // file: the same stops on the same ellipse centred on the sun, and the
+    // same bloom, at rest and on a full beat.
+    function test_theRimLightIsTheWebsites_data() {
+        return test_theKeyColoursAreTheWebsites_data();
+    }
+
+    function test_theRimLightIsTheWebsites(data) {
+        const expected = crtRoadKeyColours[data.theme].rim;
+        const road = makeRoad({
+                                  colors: crtRoadKeyColours[data.theme].theme,
+                                  dark: data.dark
+                              });
+        const light = road.light;
+        compare(light.centre, Qt.point(road.drawWidth / 2, road.horizonY));
+        fuzzyCompare(light.across, expected.across, 0.001);
+        fuzzyCompare(light.reach / road.drawHeight, expected.reach, 0.001);
+        compare(light.stops.length, expected.stops.length);
+        for (let index = 0; index < expected.stops.length; ++index) {
+            const stop = light.stops[index];
+            fuzzyCompare(stop.position, expected.stops[index][0], 0.001);
+            compareColour(stop.colour, expected.stops[index][1], "stop " + index);
+            fuzzyCompare(stop.colour.a, expected.stops[index][2], 0.01);
+        }
+        fuzzyCompare(light.bloom.opacity, expected.bloom.rest, 0.001);
+        compare(light.bloom.width, expected.bloom.width);
+        compare(light.bloom.blur, expected.bloom.blur);
+        road.beat = 1;
+        fuzzyCompare(road.light.bloom.opacity, expected.bloom.lifted, 0.001);
+    }
+
+    // The browser plays no music, but a beat handed to the road lifts the
+    // rim's bloom; reduced motion holds it at rest whatever the beat.
+    function test_reducedMotionHoldsTheRimStill() {
+        const road = makeRoad({
+                                  beat: 0.8
+                              });
+        const rest = road.parameters.light.bloom.rest;
+        verify(road.light.bloom.opacity > rest);
+        road.reducedMotion = true;
+        fuzzyCompare(road.light.bloom.opacity, rest, 0.001);
+    }
+
     // The road on screen, not only its recipes: the centre line's nearest
     // full mark and the top of the sun, drawn in the website's colours.
     Component {

@@ -62,6 +62,9 @@ Item {
     readonly property real horizonY: road.sceneItem ? road.sceneItem.horizonY : height / 2
     readonly property int roadFrames: road.frames
     readonly property bool roadRunning: road.drawing
+    // The road, while it is drawn: the Scene host whose picture the
+    // Omnibar's glass blurs at rest and whose light falls on its rim.
+    readonly property Item scene: root.roadEnabled ? road : null
 
     // It fades in under the Omnibar arriving, and out as the page it gave way
     // to takes over. While it fades out a click is that page's.

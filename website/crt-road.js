@@ -20,6 +20,11 @@ function css(colour, alpha = 1) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
+// A share as a CSS percentage, free of floating-point dust.
+function percent(share) {
+  return `${+(share * 100).toFixed(2)}%`;
+}
+
 function fraction(value) {
   return value - Math.floor(value);
 }
@@ -373,14 +378,23 @@ export function createCrtRoad(p) {
       context.setTransform(1, 0, 0, 1, 0, 0);
     },
 
-    // The sun's light on the page: its two colours, and the beat's glow as the sky draws it, none
-    // below the glow's threshold.
+    // The sun's light on the page: the rim's gradient in the sun's colours, centred on the sun,
+    // and its bloom, lifted by the beat's glow as the sky draws it, none below the glow's
+    // threshold.
     light(input) {
       const c = colours(input, p.night);
+      const { rim, bloom } = p.light;
+      const glow = input.beat > p.beatGlow.from ? input.beat : 0;
+      const stops = rim.stops.map(([position, colour, alpha = 1]) => {
+        const rgb = colourOf(colour, c).map(Math.round).join(" ");
+        return `rgb(${rgb}${alpha < 1 ? ` / ${alpha}` : ""}) ${percent(position)}`;
+      });
+      const ellipse = `${percent(rim.across)} ${parseFloat(percent(rim.reach * p.sun.radius))}svh`;
       return {
-        "sun-top": c.sunTop,
-        "sun-low": c.sunLow,
-        glow: input.beat > p.beatGlow.from ? input.beat : 0,
+        rim: `radial-gradient(ellipse ${ellipse} at 50% var(--horizon), ${stops.join(", ")})`,
+        bloom: bloom.rest + bloom.beat * glow,
+        "bloom-width": bloom.width,
+        "bloom-blur": bloom.blur,
       };
     },
   };

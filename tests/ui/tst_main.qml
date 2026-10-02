@@ -8703,6 +8703,128 @@ TestCase {
         }
     }
 
+    // WCAG's contrast between two opaque colours.
+    function contrastRatio(one, other) {
+        const luminance = function (colour) {
+            const c = Qt.color(colour);
+            const channel = function (value) {
+                return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+            };
+            return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+        };
+        const a = luminance(one);
+        const b = luminance(other);
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }
+
+    // A see-through colour laid over an opaque one.
+    function over(colour, ground) {
+        const c = Qt.color(colour);
+        const g = Qt.color(ground);
+        return Qt.rgba(c.r * c.a + g.r * (1 - c.a), c.g * c.a + g.g * (1 - c.a), c.b * c.a + g.b * (1 - c.a),
+                       1);
+
+    }
+
+    // Where the road's sun is, in an item's coordinates.
+    function sunIn(item) {
+        const scene = findChild(window.contentItem, "startPageScene");
+        return scene.mapToItem(item, scene.light.centre.x, scene.light.centre.y);
+    }
+
+    // At rest on the Start page the Omnibar is glass over the road, as the
+    // website's is: the road blurred behind a see-through plate, and its rim
+    // lit by the road's sun from where the sun stands. Over a page there is no
+    // sun: the glass stays, and the rim is the plain edge.
+    function test_theOmnibarIsGlassLitByTheSunOverTheRoad() {
+        const scene = findChild(window.contentItem, "startPageScene");
+        const panel = findChild(window.contentItem, "omnibar");
+        const rim = findChild(window.contentItem, "omnibarRim");
+        const glass = findChild(window.contentItem, "omnibarGlass");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Sunlit rim");
+        tryVerify(function () {
+            return panel.shownResting && scene.light !== null;
+        });
+        tryCompare(panel, "arrival", 1);
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+
+        verify(rim.visible);
+        compare(rim.light, scene.light);
+        const sun = sunIn(rim.parent);
+        fuzzyCompare(rim.sun.x, sun.x, 1);
+        fuzzyCompare(rim.sun.y, sun.y, 1);
+        compare(glass.sourceItem, scene);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Sunlit rim");
+        openPage("https://glass-over-a-page.example/");
+        settleMotion();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        verify(!rim.visible);
+        verify(glass.sourceItem !== null);
+        verify(glass.sourceItem !== scene);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+        browser.closeTab(browser.activeTabId);
+    }
+
+    // The Omnibar's text stays readable whatever the glass lets through: over
+    // the road and over a page, light or dark, its plate over black or white
+    // holds the text at the theme's contrast floor, in a dark theme and a
+    // light one.
+    function test_theOmnibarTextKeepsItsContrastOnTheGlass_data() {
+        return [
+                    {
+                        tag: "dark",
+                        text: "#f3f1fa",
+                        overlay: Qt.rgba(0.157, 0.149, 0.204, 0.96)
+                    },
+                    {
+                        tag: "light",
+                        text: "#1c1b22",
+                        overlay: Qt.rgba(0.957, 0.953, 0.973, 0.96)
+                    }
+                ];
+    }
+
+    function test_theOmnibarTextKeepsItsContrastOnTheGlass(data) {
+        const panel = findChild(window.contentItem, "omnibar");
+        const plate = findChild(window.contentItem, "omnibarGlass");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const changed = Object.assign({}, window.colors);
+        changed.text = data.text;
+        changed.overlay = data.overlay;
+        window.colors = changed;
+        const check = function (where) {
+            verify(plate.visible, where);
+            for (const ground of ["black", "white"]) {
+                const ratio = contrastRatio(input.color, over(plate.color, ground));
+                verify(ratio >= 4.5, where + " over " + ground + ": " + ratio.toFixed(2));
+            }
+        };
+
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Readable rim");
+        tryVerify(function () {
+            return panel.shownResting;
+        });
+        check("over the road");
+        leaveSpace(homeSpaceId, restingSpaceId, "Readable rim");
+
+        openPage("https://readable-glass.example/");
+        settleMotion();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        check("over a page");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+        browser.closeTab(browser.activeTabId);
+        window.colors = Qt.binding(function () {
+            return theme.palette;
+        });
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
     // to list. The Start page stands in: the Omnibar at rest over the road,
     // focused, and no renderer spent on the blank tab behind it.

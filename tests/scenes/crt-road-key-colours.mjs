@@ -1,10 +1,12 @@
-// The CRT road's key colours as the website draws them, for the browser's road to be held to.
+// The CRT road's key colours as the website draws them, and the light it casts on the Omnibar's
+// rim, for the browser's road and Omnibar to be held to.
 //
 // The website's Scene (website/crt-road.js) is run against a 2D context that draws nothing and
 // records what it was asked to fill with, and the colours that name the road are read off the
 // record: the sky, the stars, the sun, the ridges, the desert, the centre line and the roadside.
-// The browser's test (tests/ui/tst_nightroad.qml) reads the same colours from its own road and
-// compares them with crt-road-key-colours.json, which this writes:
+// The rim is read off the gradient the website's Scene casts for its stylesheet. The browser's test
+// (tests/ui/tst_nightroad.qml) reads the same colours and light from its own road and compares them
+// with crt-road-key-colours.json, which this writes:
 //
 //   node tests/scenes/crt-road-key-colours.mjs > tests/scenes/crt-road-key-colours.json
 //
@@ -82,24 +84,14 @@ export function parameters() {
   return JSON.parse(readFileSync(`${root}share/scenes/crt-road.json`, "utf8"));
 }
 
-// The road's key colours in one theme, drawn at time 0 with the reader still.
-export function keyColours(theme) {
-  const record = recorder();
-  const layer = recorder();
-  globalThis.document = { createElement: () => ({ getContext: () => layer.context }) };
-  const palette = {
-    ground: hex(theme.windowOpaque),
-    text: hex(theme.text),
-    accent: hex(theme.accent),
-  };
-  const scene = createCrtRoad(parameters());
-  scene.draw(record.context, {
+function sceneInput(scene, palette, beat) {
+  return {
     width: 360,
     height: 225,
     pitch: scene.pitch,
     time: 0,
     navigating: 0,
-    beat: 0,
+    beat,
     reducedMotion: false,
     palette,
     dark: lightness(palette.ground) <= 0.6,
@@ -107,7 +99,58 @@ export function keyColours(theme) {
       Object.entries(scene.options).map(([name, values]) => [name, values[0]]),
     ),
     state: {},
-  });
+  };
+}
+
+function paletteOf(theme) {
+  return {
+    ground: hex(theme.windowOpaque),
+    text: hex(theme.text),
+    accent: hex(theme.accent),
+  };
+}
+
+// The rim light in one theme, as the stylesheet receives it: the gradient's ellipse, `across` as a
+// share of the Omnibar's width and `reach` of the window's height, its stops as [position,
+// colour, alpha], and the bloom at rest and on a full beat.
+export function rimLight(theme) {
+  const scene = createCrtRoad(parameters());
+  const palette = paletteOf(theme);
+  const still = scene.light(sceneInput(scene, palette, 0));
+  const [, across, reach, stops] = still.rim.match(
+    /^radial-gradient\(ellipse ([\d.]+)% ([\d.]+)svh at 50% var\(--horizon\), (.*)\)$/,
+  );
+  return {
+    across: Number(across) / 100,
+    reach: Number(reach) / 100,
+    stops: stops.split(/,\s*(?=rgb)/).map((stop) => {
+      const [, rgb, alpha = "1", position] = stop.match(
+        /^rgb\(([\d ]+?)(?: \/ ([\d.]+))?\) ([\d.]+)%$/,
+      );
+      const colour =
+        "#" +
+        rgb
+          .split(" ")
+          .map((channel) => Number(channel).toString(16).padStart(2, "0"))
+          .join("");
+      return [Number(position) / 100, colour, Number(alpha)];
+    }),
+    bloom: {
+      rest: still.bloom,
+      lifted: scene.light(sceneInput(scene, palette, 1)).bloom,
+      width: still["bloom-width"],
+      blur: still["bloom-blur"],
+    },
+  };
+}
+
+// The road's key colours in one theme, drawn at time 0 with the reader still.
+export function keyColours(theme) {
+  const record = recorder();
+  const layer = recorder();
+  globalThis.document = { createElement: () => ({ getContext: () => layer.context }) };
+  const scene = createCrtRoad(parameters());
+  scene.draw(record.context, sceneInput(scene, paletteOf(theme), 0));
 
   const still = layer.fills;
   const moving = record.fills.filter((fill) => fill.phase === "moving");
@@ -132,7 +175,10 @@ export function keyColours(theme) {
 
 export function allKeyColours() {
   return Object.fromEntries(
-    Object.entries(THEMES).map(([name, theme]) => [name, { theme, colours: keyColours(theme) }]),
+    Object.entries(THEMES).map(([name, theme]) => [
+      name,
+      { theme, colours: keyColours(theme), rim: rimLight(theme) },
+    ]),
   );
 }
 
