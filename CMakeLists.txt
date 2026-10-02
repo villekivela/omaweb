@@ -1064,6 +1064,12 @@ if(BUILD_TESTING)
     # only exists where an interpreter is already present.
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
+        # Every reader-facing literal in the chrome's QML is inside a `qsTr`,
+        # bar the files another localization ticket still owns.
+        add_test(NAME omaweb-wrapped-strings
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_wrapped_strings.py
+        )
         add_test(NAME omaweb-omarchy-drift
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_omarchy_drift.py
