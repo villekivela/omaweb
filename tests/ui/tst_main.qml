@@ -547,11 +547,12 @@ TestCase {
     //
     // A machine starved of frames can advance a whole movement in one step,
     // and the property is then set only to its end. Such a movement is still
-    // told from one that settled at once by when it ended: an animation sets
-    // the end no sooner than its duration after the input, and every movement
-    // this is used on takes at least 120 ms, while a movement that settled at
-    // once ends while the input is delivered. The key-path checks beside each
-    // use of this are what catch a movement that settles at once.
+    // told from one that settled at once by when it ended. Qt credits an
+    // animation that starts with at most 50 ms from before it started, so a
+    // movement of 120 ms, the shortest this is used on, ends no sooner than
+    // 70 ms after the input, while one that settled at once ends while the
+    // input is delivered. The key-path checks beside each use of this are
+    // what catch a movement that settles at once.
     function passedBetween(watch, from, to) {
         const low = Math.min(from, to);
         const high = Math.max(from, to);
@@ -577,7 +578,7 @@ TestCase {
         const ended = watch.seen.findIndex(function (at) {
             return Math.abs(at - to) <= margin;
         });
-        return ended >= 0 && watch.seenAt[ended] - watch.since >= 100;
+        return ended >= 0 && watch.seenAt[ended] - watch.since >= 60;
     }
 
     // A row whose place in the list has stopped moving. The outline fills in
@@ -5972,14 +5973,28 @@ TestCase {
         // over the page that has already taken the whole width, and is hidden
         // once it has gone. The control: the same pixels with the split
         // separated are the one page's.
-        verify(browser.separateSplit());
-        tryVerify(function () {
-            return reference.transform[0].x > 0;
+        // Heard as it moves, since a starved machine can draw none of a 120 ms
+        // departure.
+        const departure = watchSignal(reference.transform[0].xChanged, function () {
+            return {
+                "x": reference.transform[0].x,
+                "visible": reference.visible,
+                "z": reference.z,
+                "narrow": reference.width < engineHost.width
+            };
         });
-        verify(reference.visible);
-        compare(reference.z, 2);
-        verify(reference.width < engineHost.width);
+        verify(browser.separateSplit());
         tryCompare(reference, "visible", false);
+        stopWatching(departure);
+        const leaving = departure.seen.filter(function (step) {
+            return step.x > 0;
+        });
+        verify(leaving.length > 0);
+        for (let at = 0; at < leaving.length; ++at) {
+            verify(leaving[at].visible);
+            compare(leaving[at].z, 2);
+            verify(leaving[at].narrow);
+        }
         compare(reference.transform[0].x, 0);
         compare(reference.z, 0);
         tryVerify(function () {
