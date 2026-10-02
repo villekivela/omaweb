@@ -50,8 +50,10 @@ if (drive) {
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   const typing = (event) => event.target.closest("input, textarea, select, [contenteditable]");
   const canvas = drive.querySelector(".drive__scene canvas");
+  const omnibar = drive.querySelector(".omnibar");
+  // The Omnibar stands in front of the sun and catches its light at its rim.
   const host = crtRoad
-    ? new SceneHost(canvas, crtRoad, { beat: listenToRadio() })
+    ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
     : { setNavigating() {} };
 
   // Past the Start page the road sinks under a scrim of the theme's ground so the cards read
@@ -105,7 +107,6 @@ if (drive) {
   }
 
   // The Omnibar: type to filter the features, arrows to choose a row, Return to go to its card.
-  const omnibar = drive.querySelector(".omnibar");
   const input = omnibar.querySelector(".omnibar__input");
   const rows = [...omnibar.querySelectorAll('[role="option"]')];
   let chosen = 0;

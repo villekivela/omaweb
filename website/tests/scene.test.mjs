@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   STILL_MEDIA,
+  SceneLight,
   drawsFrames,
   frameDue,
   glassLayers,
@@ -181,4 +182,28 @@ test("glass: the band and the flicker take theirs from the shared file", () => {
   assert.ok(Math.abs(slower.y - (100 * 1.4) / 6 + 20) < 1e-9);
   assert.equal(slower.strength, 0.1);
   assert.ok(slower.flicker >= 0.1);
+});
+
+// The Scene's light reaches one element on the page, the Start page's Omnibar, through its style:
+// thirty frames a second, so it writes only what changed, and nothing while the element is off
+// screen; back on screen, it catches up at once.
+test("light: the lit element gets what changed, and nothing while it is off screen", () => {
+  const written = [];
+  const light = new SceneLight({
+    style: { setProperty: (name, value) => written.push([name, value]) },
+  });
+  light.setOnScreen(true);
+  light.cast({ "--scene-sun-top": "rgb(250 234 205)", "--scene-glow": "0.00" });
+  light.cast({ "--scene-sun-top": "rgb(250 234 205)", "--scene-glow": "0.40" });
+  assert.deepEqual(written, [
+    ["--scene-sun-top", "rgb(250 234 205)"],
+    ["--scene-glow", "0.00"],
+    ["--scene-glow", "0.40"],
+  ]);
+  written.length = 0;
+  light.setOnScreen(false);
+  light.cast({ "--scene-sun-top": "rgb(250 234 205)", "--scene-glow": "0.80" });
+  assert.deepEqual(written, []);
+  light.setOnScreen(true);
+  assert.deepEqual(written, [["--scene-glow", "0.80"]]);
 });

@@ -42,9 +42,10 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 
 ## Scenes
 
-A Scene is the drawing behind the Start page, and nothing else. The host owns its canvas and its
-clock, decides when it may draw, and hands it everything it may know. The browser's Start page is to
-take the same contract (#496), so a reader's own Scene could stand behind both.
+A Scene is the drawing behind the Start page, and nothing else, though it may name the light it
+casts, which the host lays on the page. The host owns its canvas and its clock, decides when it may
+draw, and hands it everything it may know. The browser's Start page is to take the same contract
+(#496), so a reader's own Scene could stand behind both.
 
 ### What a Scene receives
 
@@ -78,8 +79,17 @@ export const myScene = {
   glass: "crt", // shown through the CRT glass; leave it out for none
   options: { bands: ["4", "3"] }, // the reader's choices, the first the default
   draw(context, input) {},
+  light(input) {}, // the light it casts on the page; leave it out for none
 };
 ```
+
+`light(input)` returns the colours and amounts the Scene lights the page with, by name: a colour as
+an RGB triple and an amount as a number. The host sets each on the one element the page names as
+lit, as `--scene-<name>`, an amount to two places, and writes only what changed and nothing while
+that element is off screen. The CRT road casts `sun-top` and `sun-low`, the sun's colours in the
+theme, and `glow`, the radio's beat as it swells the sky around the sun, 0 below the glow's
+threshold and under `reducedMotion`. The landing page lights the Omnibar with it: its rim catches
+the sun's light, brightest over the sun and brighter on the beat.
 
 `glass: "crt"` asks the host to show the canvas through a CRT: scaled up pixelated, with a bloom,
 scanlines and darker corners the browser composites, and a rolling band and a faint flicker drawn
