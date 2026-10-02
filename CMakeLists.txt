@@ -1059,6 +1059,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_website_csp.py
         )
+        # The introductory film's fixture sites, the server that answers them
+        # and the checks that stop a recording whose beat did not happen.
+        add_test(NAME omaweb-record-film
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_record_film.py
+        )
         # Which pages the page-load budget loads, which hosts each reaches and
         # what the DNS server answers for them: the parts that could be wrong
         # and still produce a number.

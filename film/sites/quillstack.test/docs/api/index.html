@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Jobs API reference · Quillstack Docs</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/film/report.js" defer></script>
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="/docs/tracing/"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="#6d4aff" />
+          <path d="M9 22 16 8l7 14-7-4z" fill="#fff" /></svg
+        >Quillstack <small>Docs</small></a
+      >
+      <div class="find">Search the docs <kbd>/</kbd></div>
+    </header>
+    <div class="layout">
+      <nav class="side">
+        <h4>Get started</h4>
+        <a href="/docs/tracing/">Quickstart</a>
+        <a href="/docs/tracing/">Queues and workers</a>
+        <h4>Observe</h4>
+        <a href="/docs/tracing/">Tracing requests</a>
+        <a href="/docs/tracing/">Metrics</a>
+        <h4>Reference</h4>
+        <a class="on" href="/docs/api/">Jobs API</a>
+        <a href="/docs/api/">Webhooks</a>
+      </nav>
+      <article>
+        <div class="eyebrow">Reference</div>
+        <h1>Jobs API</h1>
+        <p class="lede">Enqueue, inspect and cancel jobs. Every endpoint takes a bearer token.</p>
+        <table>
+          <tr>
+            <th>Endpoint</th>
+            <th>What it does</th>
+          </tr>
+          <tr>
+            <td><span class="verb verb--post">POST</span> <code>/v2/jobs</code></td>
+            <td>Enqueue a job</td>
+          </tr>
+          <tr>
+            <td><span class="verb">GET</span> <code>/v2/jobs/:id</code></td>
+            <td>Read a job's state</td>
+          </tr>
+          <tr>
+            <td><span class="verb">GET</span> <code>/v2/jobs/:id/trace</code></td>
+            <td>Read its trace</td>
+          </tr>
+          <tr>
+            <td><span class="verb verb--post">POST</span> <code>/v2/jobs/:id/cancel</code></td>
+            <td>Cancel a queued job</td>
+          </tr>
+        </table>
+        <h2>Enqueue a job</h2>
+        <pre>curl https://api.quillstack.test/v2/jobs \
+  -H <span class="s">"Authorization: Bearer $QUILL_TOKEN"</span> \
+  -d queue=render-invoice -d payload.id=1042</pre>
+        <h2>Response</h2>
+        <pre>{
+  <span class="s">"id"</span>: <span class="s">"job_8f2c1a"</span>,
+  <span class="s">"state"</span>: <span class="s">"queued"</span>,
+  <span class="s">"trace"</span>: <span class="s">"tr_51d0e9"</span>
+}</pre>
+      </article>
+    </div>
+  </body>
+</html>

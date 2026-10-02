@@ -14,14 +14,19 @@
 //   node build/site.mjs            # from website/
 //   node build/site.mjs --local    # the same, without asking GitHub
 //
-// The build never fails on the API. A rate limit or an outage, or `--local`, leaves a releases
-// page that says where the releases are, so the site deploys a page that is thin rather than not
-// deploying at all.
+// The film is the one thing the build does fail on: it is read from the `film` release's assets
+// (see `film.mjs`), and a landing page without it is broken. `--local` skips it and serves the
+// copy in `assets/film/`, if there is one.
+//
+// The build never fails on the releases API. A rate limit or an outage, or `--local`, leaves a
+// releases page that says where the releases are, so the site deploys a page that is thin rather
+// than not deploying at all.
 
 import { copyFile, cp, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { downloadFilm } from "./film.mjs";
 import { fallbackPage, fetchReleases, releasePages, writePages } from "./releases.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -79,10 +84,13 @@ async function main() {
 
   const landing = await readFile(join(WEBSITE, "index.html"), "utf8");
   if (LOCAL) {
+    console.log("website: the film is the local copy in assets/film/, if there is one");
     await writePages(RELEASES, [["", fallbackPage(landing)]]);
     console.log("website: wrote the site, with the releases page that points at GitHub");
     return;
   }
+
+  await downloadFilm(OUTPUT);
 
   // The fetch and the rendering are guarded together. A release the API answers with is data
   // from elsewhere, so rendering it can fail on something no fixed input would have shown, and

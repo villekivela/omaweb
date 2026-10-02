@@ -29,8 +29,9 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 - `assets/audio/nightroad.mp3` is the night radio: one song, Night road, which `script.js` plays on
   a loop from the Radio button, on the Omnibar or a release page's header, or the `M` key, and stops
   on the next press. Nothing loads before that.
-- `assets/film/` holds the introduction film and its poster. The files there now are placeholders
-  for #498.
+- `assets/film/` is where the introduction film and its poster are served from. The build copies
+  them there from the `film` release (`build/film.mjs`), and `film/README.md` at the repository root
+  has how the film is recorded and uploaded.
 - `assets/art/` holds the textures and `assets/fonts/` the self-hosted faces, each beside its SIL
   Open Font License: Tomorrow for headlines, Ioskeley Mono for text.
 - `assets/shots/` holds the captures of the real interface, one directory per Omarchy theme, and

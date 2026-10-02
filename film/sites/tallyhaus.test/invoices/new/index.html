@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>New invoice · Tallyhaus</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/film/report.js" defer></script>
+  </head>
+  <body>
+    <nav class="rail">
+      <a class="brand" href="/"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="9" fill="#2dd4bf" />
+          <path d="M9 11h14M16 11v13" stroke="#fff" stroke-width="4" stroke-linecap="round" /></svg
+        >Tallyhaus</a
+      >
+      <a href="/">Overview</a>
+      <a class="on" href="/invoices/new/">Invoices</a>
+      <a href="/">Customers</a>
+      <a href="/">Payouts</a>
+      <a href="/">Reports</a>
+      <a href="/">Settings</a>
+    </nav>
+    <main>
+      <div class="bar">
+        <div>
+          <h1>New invoice</h1>
+          <p>INV-1042 &middot; Draft</p>
+        </div>
+      </div>
+      <form class="card" method="post" action="/invoices">
+        <label
+          >Customer
+          <select name="customer">
+            <option value="">Choose a customer</option>
+            <option>Northbeam Studio</option>
+            <option>Orchard &amp; Vale</option>
+            <option>Kiln Coffee</option>
+            <option>Fieldnote Press</option>
+          </select>
+        </label>
+        <label>Amount (USD) <input name="amount" inputmode="decimal" placeholder="0.00" /></label>
+        <label>Due date <input name="due" placeholder="31 Oct 2026" /></label>
+        <label>Reference <input name="reference" placeholder="PO number" /></label>
+        <label class="full"
+          >Note to customer <textarea name="note" placeholder="Thanks for your business"></textarea>
+        </label>
+        <div class="actions">
+          <a class="button ghost" href="/">Save draft</a>
+          <button class="button" type="submit">Send invoice</button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>

@@ -30,6 +30,10 @@ https://github.com/omacom/omarchy) under `third_party/omarchy-shell`, copied ver
 `MANIFEST.json`. Omarchy is licensed under the MIT License, Copyright (c) David Heinemeier Hansson.
 The upstream license text ships with the pinned revision.
 
+`film/themes/` holds two theme palettes, `retro-82.toml` and `tokyo-night.toml`, copied from the
+`themes/` directory of the same repository at revision `afa2839a5ac7bf1c2da4f49649b8dbd0f83f7f12`
+for the website's introductory film, under the same MIT License. They are not part of a build.
+
 ## uBlock Origin resource library
 
 Omaweb vendors uBlock Origin's scriptlet library (`src/js/resources` and the three modules it

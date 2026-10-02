@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Overview · Tallyhaus</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/film/report.js" defer></script>
+  </head>
+  <body>
+    <nav class="rail">
+      <a class="brand" href="/"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="9" fill="#2dd4bf" />
+          <path d="M9 11h14M16 11v13" stroke="#fff" stroke-width="4" stroke-linecap="round" /></svg
+        >Tallyhaus</a
+      >
+      <a class="on" href="/">Overview</a>
+      <a href="/invoices/new/">Invoices</a>
+      <a href="/">Customers</a>
+      <a href="/">Payouts</a>
+      <a href="/">Reports</a>
+      <a href="/">Settings</a>
+    </nav>
+    <main>
+      <div class="bar">
+        <div>
+          <h1>Good morning, Juno</h1>
+          <p>Here is how October is going.</p>
+        </div>
+        <a class="button" href="/invoices/new/">New invoice</a>
+      </div>
+      <div class="kpis">
+        <div class="card kpi">
+          <span>Revenue</span><b>$48,290</b><span class="up">+12.4% on September</span>
+        </div>
+        <div class="card kpi">
+          <span>Outstanding</span><b>$9,870</b><span class="down">3 invoices late</span>
+        </div>
+        <div class="card kpi">
+          <span>Paid on time</span><b>94%</b><span class="up">+3 points</span>
+        </div>
+        <div class="card kpi">
+          <span>Customers</span><b>128</b><span class="up">+6 this month</span>
+        </div>
+      </div>
+      <div class="wide">
+        <div class="card">
+          <h2>Revenue, last 12 weeks</h2>
+          <svg viewBox="0 0 600 200" aria-hidden="true">
+            <defs>
+              <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#2dd4bf" stop-opacity=".35" />
+                <stop offset="1" stop-color="#2dd4bf" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M0 50h600M0 100h600M0 150h600" stroke="#1f2a3a" />
+            <path
+              d="M0 160 50 150 100 155 150 130 200 135 250 110 300 118 350 92 400 96 450 70 500 76 550 52 600 40V200H0z"
+              fill="url(#fill)"
+            />
+            <path
+              d="M0 160 50 150 100 155 150 130 200 135 250 110 300 118 350 92 400 96 450 70 500 76 550 52 600 40"
+              stroke="#2dd4bf"
+              stroke-width="3"
+              fill="none"
+            />
+          </svg>
+        </div>
+        <div class="card">
+          <h2>Recent invoices</h2>
+          <table>
+            <tr>
+              <th>Customer</th>
+              <th>Amount</th>
+              <th>Status</th>
+            </tr>
+            <tr>
+              <td>Northbeam Studio</td>
+              <td>$2,400</td>
+              <td><span class="pill paid">Paid</span></td>
+            </tr>
+            <tr>
+              <td>Orchard &amp; Vale</td>
+              <td>$1,180</td>
+              <td><span class="pill due">Due</span></td>
+            </tr>
+            <tr>
+              <td>Kiln Coffee</td>
+              <td>$640</td>
+              <td><span class="pill late">Late</span></td>
+            </tr>
+            <tr>
+              <td>Fieldnote Press</td>
+              <td>$3,050</td>
+              <td><span class="pill paid">Paid</span></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
