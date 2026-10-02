@@ -49,8 +49,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         first, last = asked.groups()
         if first:
             start, end = int(first), min(int(last or size - 1), size - 1)
+        elif last:
+            start, end = max(size - int(last), 0), size - 1
         else:
-            start, end = max(size - int(last or 0), 0), size - 1
+            return super().send_head()
+        # A range that ends before it starts is no range, and the whole file
+        # answers it; one that starts past the end cannot be met.
+        if last and first and int(last) < int(first):
+            return super().send_head()
         if start > end:
             self.send_response(416)
             self.send_header("Content-Range", f"bytes */{size}")

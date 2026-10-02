@@ -132,9 +132,14 @@ if (drive) {
     frame.addEventListener("pointermove", (event) => {
       if (event.pointerType === "mouse") wake();
     });
-    film.addEventListener("click", (event) => {
+    // Read from the press, since older WebKit's click carries no pointer type.
+    let pressedBy = "mouse";
+    film.addEventListener("pointerdown", (event) => {
+      pressedBy = event.pointerType;
+    });
+    film.addEventListener("click", () => {
       // A first tap on a touch screen only shows the controls; a click plays or pauses.
-      if (event.pointerType === "touch" && !frame.hasAttribute("data-awake")) wake();
+      if (pressedBy === "touch" && !frame.hasAttribute("data-awake")) wake();
       else {
         flip();
         wake();

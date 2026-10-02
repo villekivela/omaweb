@@ -9,9 +9,8 @@ const clock = (seconds) => {
 
 // The film loops, so a seek to its very end would start it again: a seek holds a tenth of a second
 // short of it, on the last frame.
-const held = (time, duration) => Math.min(Math.max(time, 0), Math.max(duration - 0.1, 0));
+const onFilm = (time, duration) => Math.min(Math.max(time, 0), Math.max(duration - 0.1, 0));
 
-// What the controls show for the video's state.
 export function filmState({ paused, currentTime, duration }) {
   const total = Number.isFinite(duration) ? duration : 0;
   const time = total ? Math.min(Math.max(currentTime, 0), total) : 0;
@@ -29,7 +28,7 @@ export function filmState({ paused, currentTime, duration }) {
 // The time a press at `x` on the scrubber seeks to: its share of the track, held to the film.
 export function seekAt(x, { left, width }, duration) {
   if (!Number.isFinite(duration) || !width) return 0;
-  return held(((x - left) / width) * duration, duration);
+  return onFilm(((x - left) / width) * duration, duration);
 }
 
 // What a key does while the controls have focus: Space and K play or pause, as in most players;
@@ -38,16 +37,16 @@ export function seekAt(x, { left, width }, duration) {
 export function filmKey(key, { currentTime, duration }) {
   if (key === " " || key.toLowerCase() === "k") return { toggle: true };
   if (!Number.isFinite(duration) || !duration) return null;
-  const steps = {
-    ArrowLeft: -5,
-    ArrowDown: -5,
-    ArrowRight: 5,
-    ArrowUp: 5,
-    PageDown: -duration / 10,
-    PageUp: duration / 10,
-    Home: -duration,
+  const targets = {
+    ArrowLeft: currentTime - 5,
+    ArrowDown: currentTime - 5,
+    ArrowRight: currentTime + 5,
+    ArrowUp: currentTime + 5,
+    PageDown: currentTime - duration / 10,
+    PageUp: currentTime + duration / 10,
+    Home: 0,
     End: duration,
   };
-  if (!(key in steps)) return null;
-  return { seek: held(currentTime + steps[key], duration) };
+  if (!(key in targets)) return null;
+  return { seek: onFilm(targets[key], duration) };
 }

@@ -854,6 +854,7 @@ body:has(.drive) > .top {
   backdrop-filter: blur(14px);
   opacity: 0;
   transform: translateY(4px);
+  pointer-events: none;
   transition:
     opacity 0.2s,
     transform 0.2s;
@@ -881,6 +882,7 @@ body:has(.drive) > .top {
 .film__controls:focus-within {
   opacity: 1;
   transform: none;
+  pointer-events: auto;
 }
 
 .film__toggle {
@@ -942,7 +944,6 @@ body:has(.drive) > .top {
 .film__track::after {
   content: "";
   position: absolute;
-  left: 0;
 }
 
 .film__track::before {
