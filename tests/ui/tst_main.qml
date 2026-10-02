@@ -1782,6 +1782,124 @@ TestCase {
         compare(browser.activeSpaceId, startSpaceId);
     }
 
+    // `:ask` is listed whether or not Agents are allowed, and the words after
+    // its name are its request. With Allow agents off the reader is asked
+    // first: Not now leaves everything as it was, and Turn on goes on with
+    // what was typed.
+    function test_askingAnAgentOffersToAllowAgentsFirst() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const bar = findChild(window.contentItem, "askAgentBar");
+        const notice = findChild(window.contentItem, "pageNotice");
+        openPage("https://ask-agent.example/");
+        activateWindow();
+        notice.dismiss();
+        compare(agentControl.allowAgents, false);
+        agentControl.agentCommand = "sh";
+
+        window.openCommandScope();
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "ask";
+        compare(panel.rows[0].command, "ask");
+        compare(panel.rows[0].title, "Ask your agent about this tab");
+        verify(panel.rows[0].enabled);
+        input.text = "ask summarize this";
+        compare(panel.rows.length, 1);
+        compare(panel.rows[0].command, "ask");
+        compare(panel.rows[0].argument, "summarize this");
+        keyClick(Qt.Key_Return);
+        tryCompare(bar, "visible", true);
+        compare(bar.message, "Asking an agent needs Allow agents. Turn it on?");
+        compare(bar.actions.map(function (action) {
+            return action.label;
+        }), ["Turn on", "Not now"]);
+
+        mouseClick(findChild(bar, "questionAction1"));
+        tryCompare(bar, "visible", false);
+        compare(agentControl.allowAgents, false);
+        // Nothing was asked of the agent, which would have said so, and
+        // nothing is asked of the reader again. A notice another test's late
+        // download raised may still stand, so only this command's are read.
+        wait(50);
+        verify(!bar.visible);
+        verify(!notice.showing || !notice.message.startsWith("Omaweb could"), notice.message);
+
+        window.openCommandScope();
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "ask summarize this";
+        keyClick(Qt.Key_Return);
+        tryCompare(bar, "visible", true);
+        mouseClick(findChild(bar, "questionAction0"));
+        tryCompare(bar, "visible", false);
+        compare(agentControl.allowAgents, true);
+        // It went on, as far as the terminal this machine does not have.
+        tryCompare(notice, "showing", true);
+        compare(notice.message, "Omaweb could not find omaweb-test-no-terminal");
+
+        agentControl.allowAgents = false;
+        agentControl.agentCommand = "";
+        notice.dismiss();
+    }
+
+    // An agent that cannot be started says which program it was, rather than
+    // leaving the reader to wonder whether anything happened.
+    function test_askingAnAgentThatIsNotThereSaysSo() {
+        const notice = findChild(window.contentItem, "pageNotice");
+        openPage("https://ask-agent.example/");
+        notice.dismiss();
+        agentControl.allowAgents = true;
+        agentControl.agentCommand = "omaweb-test-no-agent --model sonnet";
+
+        verify(window.commands.run("ask", "summarize this"));
+        tryCompare(notice, "showing", true);
+        compare(notice.message, "Omaweb could not find omaweb-test-no-agent");
+        compare(notice.detail, "Change the agent command in Settings, under agents.");
+        verify(!findChild(window.contentItem, "askAgentBar").visible);
+
+        agentControl.allowAgents = false;
+        agentControl.agentCommand = "";
+        notice.dismiss();
+    }
+
+    // A Private window is never an Agent's: `:ask` is not listed there, and
+    // run anyway it says so and starts nothing.
+    function test_aPrivateWindowAsksNoAgent() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        privateBrowser.windowBrowser.openInput("https://private-ask.example/", false);
+        const panel = findChild(privateBrowser.contentItem, "omnibar");
+        const input = findChild(privateBrowser.contentItem, "omnibarInput");
+        const notice = findChild(privateBrowser.contentItem, "pageNotice");
+        agentControl.allowAgents = true;
+
+        privateBrowser.openCommandScope();
+        input.text = "ask";
+        verify(!panel.rows.some(function (row) {
+            return row.command === "ask";
+        }));
+        input.text = "ask summarize this";
+        compare(panel.rows.length, 0);
+        privateBrowser.closeOmnibar();
+
+        verify(privateBrowser.commands.run("ask", "summarize this"));
+        tryCompare(notice, "showing", true);
+        compare(notice.message, "Asking an agent is not available here");
+        verify(!findChild(privateBrowser.contentItem, "askAgentBar").visible);
+
+        agentControl.allowAgents = false;
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     function test_sidebarHasNoNewTabButton() {
         const newTabButton = findChild(window.contentItem, "newTabButton");
         verify(newTabButton === null);

@@ -617,6 +617,7 @@ TestCase {
         id: agentControlStub
 
         property bool allowAgents: false
+        property string agentCommand: "claude"
         property var grantedSpaces: [
             {
                 "spaceId": "work",
@@ -662,6 +663,28 @@ TestCase {
         compare(agentControlStub.revoked, ["work"]);
         tryCompare(findChild(page, "noGrantedSpaces"), "visible", true);
         agentControlStub.allowAgents = false;
+    }
+
+    // The agent `:ask` starts is the reader's own command line, kept when they
+    // finish editing it.
+    function test_theAgentsSectionNamesTheAgentToAsk() {
+        const page = makePage();
+        agentControlStub.agentCommand = "claude";
+        page.agentControl = agentControlStub;
+        page.section = page.sections.indexOf("agents");
+
+        const row = findChild(page, "agentCommandRow");
+        const field = findChild(page, "agentCommand");
+        verify(row !== null && field !== null);
+        verify(field.visible);
+        compare(row.title, "Agent command");
+        verify(row.note.indexOf(":ask") >= 0);
+        compare(field.text, "claude");
+
+        field.text = "claude --model sonnet";
+        field.editingFinished();
+        compare(agentControlStub.agentCommand, "claude --model sonnet");
+        page.agentControl = null;
     }
 
     function test_aLetterSelectsAndFocusesItsSection() {

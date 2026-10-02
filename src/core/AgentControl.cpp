@@ -11,7 +11,9 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QMetaMethod>
+#include <QProcess>
 #include <QRegularExpression>
+#include <QStandardPaths>
 
 #include <algorithm>
 #include <memory>
@@ -33,6 +35,41 @@ namespace {
     constexpr auto privacyFileName = "privacy.json";
 
     const auto defaultAgentSpaceName = QStringLiteral("Agent");
+
+    constexpr QLatin1StringView agentCommandKey("agent-command");
+    const auto defaultAgentCommand = QStringLiteral("claude");
+
+    // What the reader's agent is first told: the tab is the reader's own, so
+    // it is used as it is rather than the Agent Space the skill would make,
+    // and then the reader's words exactly as they were typed.
+    QString agentPrompt(const QString &tabId, const QString &words)
+    {
+        auto prompt = QStringLiteral(
+            "Use the omaweb skill to work on the reader's Omaweb tab %1 with the omaweb CLI. "
+            "Pass --tab %1 to every page command, and make no Agent Space for it.")
+                          .arg(tabId);
+        if (!words.isEmpty()) {
+            prompt += QStringLiteral("\n\n") + words;
+        }
+        return prompt;
+    }
+
+    QString storedAgentCommand(const QString &configRoot)
+    {
+        const auto stored = PrivacyFile::read(configRoot, agentCommandKey).toString().trimmed();
+        return stored.isEmpty() ? defaultAgentCommand : stored;
+    }
+
+    // A program named by its path, if it can be run, or the first one of the
+    // name on the search path. Empty when there is none.
+    QString runnableProgram(const QString &program)
+    {
+        if (!program.contains(u'/')) {
+            return QStandardPaths::findExecutable(program);
+        }
+        const QFileInfo file(program);
+        return file.isFile() && file.isExecutable() ? file.absoluteFilePath() : QString();
+    }
 
     // A batch is what an Agent means to do before it looks again, which is a
     // form or a few clicks, not a script.
@@ -254,6 +291,7 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
     }
     // Only an explicit `true` lets Agents in.
     m_allowAgents = PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false);
+    m_agentCommand = storedAgentCommand(m_configRoot);
     if (m_configRoot.isEmpty()) {
         return;
     }
@@ -279,6 +317,57 @@ void AgentControl::setAllowAgents(bool allowed)
     apply(allowed);
 }
 
+QString AgentControl::agentCommand() const { return m_agentCommand; }
+
+void AgentControl::setAgentCommand(const QString &command)
+{
+    const auto trimmed = command.trimmed();
+    if (trimmed == m_agentCommand || (trimmed.isEmpty() && m_agentCommand == defaultAgentCommand)) {
+        return;
+    }
+    // Only a command of the reader's own is written down, so the default can
+    // change in a later release for a reader who never chose one.
+    PrivacyFile::write(
+        m_configRoot, agentCommandKey, trimmed.isEmpty() ? QJsonValue() : QJsonValue(trimmed));
+    m_agentCommand = trimmed.isEmpty() ? defaultAgentCommand : trimmed;
+    emit agentCommandChanged();
+}
+
+QVariantMap AgentControl::askAgent(const QString &tabId, const QString &words)
+{
+    const auto failed = [](const QString &code, const QString &program = {}) {
+        return QVariantMap {{QStringLiteral("ok"), false}, {QStringLiteral("code"), code},
+            {QStringLiteral("program"), program}};
+    };
+    if (!m_allowAgents) {
+        return failed(QStringLiteral("allow-agents"));
+    }
+    if (!m_browser || m_browser->privateBrowsing()) {
+        return failed(QStringLiteral("private"));
+    }
+    if (!m_browser->findTab(tabId)) {
+        return failed(QStringLiteral("no-tab"));
+    }
+    auto arguments = QProcess::splitCommand(m_agentCommand);
+    if (arguments.isEmpty() || runnableProgram(arguments.constFirst()).isEmpty()) {
+        return failed(QStringLiteral("no-agent"),
+            arguments.isEmpty() ? m_agentCommand : arguments.constFirst());
+    }
+    const auto terminal = runnableProgram(m_terminalProgram);
+    if (terminal.isEmpty()) {
+        return failed(QStringLiteral("no-terminal"), m_terminalProgram);
+    }
+    arguments.append(agentPrompt(tabId, words));
+    // The agent works for the reader, so it starts where their terminal
+    // would, not wherever the browser was started from.
+    if (!QProcess::startDetached(terminal, arguments, QDir::homePath())) {
+        return failed(QStringLiteral("not-started"), m_terminalProgram);
+    }
+    return {{QStringLiteral("ok"), true}};
+}
+
+void AgentControl::setTerminalProgram(const QString &program) { m_terminalProgram = program; }
+
 void AgentControl::reload()
 {
     const auto path = QDir(m_configRoot).filePath(QLatin1String(privacyFileName));
@@ -286,6 +375,11 @@ void AgentControl::reload()
         m_watcher.addPath(path);
     }
     apply(PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false));
+    const auto command = storedAgentCommand(m_configRoot);
+    if (command != m_agentCommand) {
+        m_agentCommand = command;
+        emit agentCommandChanged();
+    }
 }
 
 void AgentControl::apply(bool allowed)

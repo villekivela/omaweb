@@ -785,6 +785,9 @@ int main(int argc, char *argv[])
             // The same page asks a JavaScript question, so the prompt bar
             // stands over it.
             {QStringLiteral("prompt"), {}},
+            // `:ask` with Allow agents off: the question that offers to turn
+            // it on stands over the last seeded tab's page.
+            {QStringLiteral("ask"), {{"", "agentQuestionOpen", true}}},
             // The last two seeded tabs side by side, the last one active.
             {QStringLiteral("split"), {{"", "sidebarPeeked", false}}},
             // Steps to the next Space shortly before a capture, so the frame
@@ -803,7 +806,7 @@ int main(int argc, char *argv[])
 
         // A visible page gives the peek capture detail whose blur can be
         // reviewed. The other seeded captures keep the blank tab active.
-        if (requested == QLatin1String("peek")) {
+        if (requested == QLatin1String("peek") || requested == QLatin1String("ask")) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (!tabId.isEmpty()) {
                 browser.activateTab(tabId);
