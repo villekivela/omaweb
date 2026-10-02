@@ -52,41 +52,46 @@ SandboxHost SandboxHost::fromEnvironment()
     return host;
 }
 
-QString sandboxDiagnostic(const SandboxHost &host)
+QString sandboxDiagnostic(const SandboxHost &host, bool forReader)
 {
+    // The startup refusal is a log line, so it stays English.
+    const auto say = [forReader](const char *text) {
+        return forReader ? QCoreApplication::translate("RuntimeSecurity", text)
+                         : QString::fromUtf8(text);
+    };
     if (host.superuser) {
-        return QCoreApplication::translate("RuntimeSecurity",
+        return say(QT_TRANSLATE_NOOP("RuntimeSecurity",
             "Omaweb is running as the superuser. Chromium will not sandbox a renderer as "
             "root, and Omaweb does not run renderers without a sandbox. Start Omaweb as an "
-            "ordinary user.");
+            "ordinary user."));
     }
     if (host.procRoot.isEmpty()) {
         return {};
     }
     if (!QFileInfo(host.procRoot).isDir()) {
-        return QCoreApplication::translate("RuntimeSecurity",
-            "%1 is not readable, so Omaweb cannot check whether this host can isolate a "
-            "renderer. Mount proc, or run Omaweb outside a container that hides it.")
+        return say(QT_TRANSLATE_NOOP("RuntimeSecurity",
+                       "%1 is not readable, so Omaweb cannot check whether this host can isolate a "
+                       "renderer. Mount proc, or run Omaweb outside a container that hides it."))
             .arg(host.procRoot);
     }
     if (kernelSetting(host.procRoot, QStringLiteral("sys/kernel/unprivileged_userns_clone"))
         == QStringLiteral("0")) {
-        return QCoreApplication::translate("RuntimeSecurity",
+        return say(QT_TRANSLATE_NOOP("RuntimeSecurity",
             "Unprivileged user namespaces are turned off on this host "
             "(kernel.unprivileged_userns_clone=0). Chromium's renderer sandbox needs them. "
-            "Set kernel.unprivileged_userns_clone=1.");
+            "Set kernel.unprivileged_userns_clone=1."));
     }
     if (kernelSetting(host.procRoot, QStringLiteral("sys/user/max_user_namespaces"))
         == QStringLiteral("0")) {
-        return QCoreApplication::translate("RuntimeSecurity",
+        return say(QT_TRANSLATE_NOOP("RuntimeSecurity",
             "This host allows no user namespaces (user.max_user_namespaces=0). Chromium's "
-            "renderer sandbox needs them. Raise user.max_user_namespaces above zero.");
+            "renderer sandbox needs them. Raise user.max_user_namespaces above zero."));
     }
     if (!QFileInfo::exists(
             QDir(host.procRoot).filePath(QStringLiteral("sys/kernel/seccomp/actions_avail")))) {
-        return QCoreApplication::translate("RuntimeSecurity",
+        return say(QT_TRANSLATE_NOOP("RuntimeSecurity",
             "This kernel reports no seccomp-bpf filtering, which Chromium's renderer "
-            "sandbox needs. Use a kernel built with CONFIG_SECCOMP_FILTER.");
+            "sandbox needs. Use a kernel built with CONFIG_SECCOMP_FILTER."));
     }
     return {};
 }
@@ -114,14 +119,17 @@ bool meetsBaseline(const QString &running, const QString &approved)
 
 RuntimeSecurity::RuntimeSecurity(SandboxHost host, EngineBuild build, QObject *parent)
     : QObject(parent)
-    , m_diagnostic(omaweb::sandboxDiagnostic(host))
+    , m_host(std::move(host))
     , m_build(std::move(build))
 {
 }
 
-QString RuntimeSecurity::sandboxDiagnostic() const { return m_diagnostic; }
+QString RuntimeSecurity::sandboxDiagnostic() const { return omaweb::sandboxDiagnostic(m_host); }
 
-bool RuntimeSecurity::rendererIsolated() const { return m_diagnostic.isEmpty(); }
+bool RuntimeSecurity::rendererIsolated() const
+{
+    return omaweb::sandboxDiagnostic(m_host, false).isEmpty();
+}
 
 QString RuntimeSecurity::rendererIsolation() const
 {

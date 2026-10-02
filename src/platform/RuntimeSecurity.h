@@ -14,7 +14,8 @@ struct SandboxHost {
     static SandboxHost fromEnvironment();
 };
 
-QString sandboxDiagnostic(const SandboxHost &host);
+// Pass false for the log, which is not translated.
+QString sandboxDiagnostic(const SandboxHost &host, bool forReader = true);
 
 // Invalid versions fail the check. Missing components compare as zero.
 bool meetsBaseline(const QString &running, const QString &approved);
@@ -56,7 +57,7 @@ public:
     QString securityBaseline() const;
 
 private:
-    QString m_diagnostic;
+    SandboxHost m_host;
     EngineBuild m_build;
 };
 

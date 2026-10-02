@@ -122,6 +122,13 @@
     </message>
 </context>
 <context>
+    <name>ExternalProtocolHandler</name>
+    <message>
+        <source>the application registered for %1</source>
+        <translation>protokollalle %1 rekisteröity sovellus</translation>
+    </message>
+</context>
+<context>
     <name>GitHubForge</name>
     <message>
         <source>The response is larger than the safe limit</source>
@@ -321,6 +328,13 @@
     </message>
 </context>
 <context>
+    <name>PageImages</name>
+    <message>
+        <source>The page is %1 pixels tall, and a screenshot holds %2</source>
+        <translation>Sivu on %1 pikseliä korkea, ja kuvakaappaukseen mahtuu %2</translation>
+    </message>
+</context>
+<context>
     <name>ReleaseCheck</name>
     <message>
         <source>Upgrade with the rest of the system: pacman -Syu</source>
@@ -474,6 +488,10 @@
     <message>
         <source>The recovery key has a typing error</source>
         <translation>Palautusavaimessa on kirjoitusvirhe</translation>
+    </message>
+    <message>
+        <source>git did not finish successfully</source>
+        <translation>git ei päättynyt onnistuneesti</translation>
     </message>
     <message>
         <source>Sync was cancelled</source>

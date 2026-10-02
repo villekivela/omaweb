@@ -214,7 +214,8 @@ int main(int argc, char *argv[])
         {QString::fromLatin1(qWebEngineVersion()), QString::fromLatin1(qWebEngineChromiumVersion()),
             QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion())});
     if (!runtimeSecurity.rendererIsolated()) {
-        qCritical("Omaweb refuses to start: %s", qPrintable(runtimeSecurity.sandboxDiagnostic()));
+        qCritical("Omaweb refuses to start: %s",
+            qPrintable(omaweb::sandboxDiagnostic(omaweb::SandboxHost::fromEnvironment(), false)));
         return 2;
     }
     if (!runtimeSecurity.meetsSecurityBaseline()) {

@@ -1,5 +1,6 @@
 #include "PageImages.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QImage>
@@ -36,7 +37,8 @@ QString PageImages::heightRefusal(qreal pageHeight, qreal ratio) const
     if (tall <= kHeightLimit) {
         return {};
     }
-    return QStringLiteral("The page is %1 pixels tall, and a screenshot holds %2")
+    return QCoreApplication::translate(
+        "PageImages", "The page is %1 pixels tall, and a screenshot holds %2")
         .arg(tall)
         .arg(kHeightLimit);
 }

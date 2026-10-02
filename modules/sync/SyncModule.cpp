@@ -290,7 +290,7 @@ bool SyncModule::runGit(const QStringList &arguments, QString *errorMessage) con
         || git.exitCode() != 0) {
         auto message = QString::fromUtf8(git.readAllStandardError()).trimmed();
         if (message.isEmpty()) {
-            message = QStringLiteral("git did not finish successfully");
+            message = QCoreApplication::translate("SyncModule", "git did not finish successfully");
         }
         setError(errorMessage, message);
         return false;
