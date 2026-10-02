@@ -332,6 +332,147 @@ TestCase {
         wait(50);
     }
 
+    // Clicks the middle of an item, and when `landed` says the click did not
+    // do what it was for, returns what the window held at that moment: what a
+    // press there reaches, what the item's own MouseArea saw, the Space dialog,
+    // what was moving and where the keyboard was. Empty when it landed. A miss
+    // CI saw and this machine never did names its cause in the log (#507).
+    function clickReportingAMiss(item, landed) {
+        const at = item.mapToItem(window.contentItem, item.width / 2, item.height / 2);
+        const target = pressTargetIn(window.contentItem, at.x, at.y);
+        const area = mouseAreaIn(item);
+        const seen = [];
+        const watched = {};
+        for (const name of ["pressedChanged", "released", "canceled", "clicked"]) {
+            watched[name] = function () {
+                seen.push(name === "pressedChanged" ? "pressed=" + area.pressed : name);
+            };
+            if (area)
+                area[name].connect(watched[name]);
+        }
+        mouseClick(item, item.width / 2, item.height / 2);
+        if (area) {
+            for (const name in watched)
+                area[name].disconnect(watched[name]);
+        }
+        if (landed())
+            return "";
+
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        const panel = findChild(dialog, "commandDialogPanel");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const moving = [];
+        movingIn(window.contentItem, moving);
+        return ["The click on " + itemName(item) + " missed.", "click at (" + at.x + ", " + at.y + "): taken by " + (
+                    target === area ? "its own MouseArea" : itemName(target)), "button saw: " + (
+                    seen.length > 0 ? seen.join(", ") : "nothing"), "dialog: mode \""
+                + window.dialogMode + "\", visible " + dialog.visible + (panel ? ", panel at "
+                                                                                 + JSON.stringify(
+                                                                                     panel.mapToItem(
+                                                                                         window.contentItem,
+                                                                                         0, 0)) + " "
+                                                                                 + panel.width
+                                                                                 + "x" + panel.height :
+                                                                                 ""), "settings: visible "
+                + settings.visible + ", lift " + settings.lift + ", opacity " + settings.opacity
+                + ", section " + settings.section, "moving: " + (moving.length > 0 ? moving.join(", ") :
+                                                                                     "nothing"),
+                "focus: " + itemName(window.activeFocusItem) + ", pointer origin "
+                + InputOrigin.pointer + ", reduced motion " + SystemMotion.reduced].join("\n");
+    }
+
+    // The item a left press at a point in the window reaches, found as the
+    // window delivers it: the topmost child first, hidden and disabled
+    // subtrees and points outside a clip passed over. Only what takes a press
+    // stops it: a MouseArea, a Flickable, or an item with a tap or drag handler.
+    function pressTargetIn(item, x, y) {
+        if (!item.visible || !item.enabled)
+            return null;
+        const inside = item.contains(item.mapFromItem(window.contentItem, x, y));
+        if (item.clip && !inside)
+            return null;
+        const children = [];
+        for (let index = 0; index < item.children.length; ++index)
+            children.push({
+                              "child": item.children[index],
+                              "index": index
+                          });
+        children.sort(function (left, right) {
+            return right.child.z - left.child.z || right.index - left.index;
+        });
+        for (const entry of children) {
+            const found = pressTargetIn(entry.child, x, y);
+            if (found)
+                return found;
+        }
+        return inside && takesPress(item) ? item : null;
+    }
+
+    function takesPress(item) {
+        if (String(item).indexOf("QQuickMouseArea") === 0)
+            return Boolean(item.acceptedButtons & Qt.LeftButton);
+        if (item.flicking !== undefined)
+            return item.interactive;
+        for (let index = 0; index < item.data.length; ++index) {
+            const kind = String(item.data[index]);
+            if ((kind.indexOf("QQuickTapHandler") === 0 || kind.indexOf("QQuickDragHandler") === 0)
+                    && item.data[index].enabled)
+                return true;
+        }
+        return false;
+    }
+
+    function mouseAreaIn(item) {
+        for (let index = 0; index < item.children.length; ++index) {
+            const child = item.children[index];
+            if (String(child).indexOf("QQuickMouseArea") === 0)
+                return child;
+            const found = mouseAreaIn(child);
+            if (found)
+                return found;
+        }
+        return null;
+    }
+
+    // Every animation, transition, sheet lift and timer still running under an
+    // item, each named with the item that holds it.
+    function movingIn(item, moving) {
+        const holder = itemName(item);
+        const running = function (thing) {
+            return Boolean(thing) && thing.running === true;
+        };
+        for (let index = 0; index < item.data.length; ++index) {
+            const thing = item.data[index];
+            if (running(thing) || running(thing.animation) || running(thing.arrival) || running(
+                        thing.departure))
+
+                moving.push((thing.objectName || kindOf(thing)) + " in " + holder);
+        }
+        for (let index = 0; index < item.transitions.length; ++index) {
+            if (running(item.transitions[index]))
+                moving.push("Transition in " + holder);
+        }
+        for (let index = 0; index < item.children.length; ++index)
+            movingIn(item.children[index], moving);
+    }
+
+    function kindOf(thing) {
+        return String(thing).replace(/\(0x.*$/, "");
+    }
+
+    // An item by its objectName, or by its type in the nearest named item.
+    function itemName(item) {
+        if (!item)
+            return "nothing";
+        if (item.objectName.length > 0)
+            return item.objectName;
+        for (let at = item.parent; at; at = at.parent) {
+            if (at.objectName.length > 0)
+                return kindOf(item) + " in " + at.objectName;
+        }
+        return kindOf(item);
+    }
+
     // Whether an item's x was seen strictly between two places on its way,
     // sampled every few milliseconds until it has stood still for a while: a
     // movement that eased passes through, one that settled at once does not.
@@ -2861,6 +3002,35 @@ TestCase {
         SystemMotion.reduced = false;
     }
 
+    // A click CI saw miss, and 255 runs here never did (#507). One that misses
+    // fails naming what the window held under it, so the log of the next one
+    // carries its own evidence. Here something else takes the press.
+    function test_aMissedClickNamesWhatTookIt() {
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("spaces");
+        const create = findChild(settings, "newSpaceButton");
+        settleActions(create);
+        const thief = Qt.createQmlObject('import QtQuick\nMouseArea { objectName: "clickThief"; '
+                                         + 'anchors.fill: parent; z: 1000 }', window.contentItem);
+        const report = clickReportingAMiss(create, function () {
+            return window.dialogMode === "new";
+        });
+        // Gone from the window's delivery now, rather than when it is deleted.
+        thief.enabled = false;
+        thief.destroy();
+        verify(report.indexOf("taken by clickThief") >= 0, report);
+        verify(report.indexOf("button saw: nothing") >= 0, report);
+        verify(report.indexOf("dialog: mode \"\"") >= 0, report);
+        verify(report.indexOf("focus: ") >= 0, report);
+        verify(report.indexOf("moving: ") >= 0, report);
+
+        verify(clickReportingAMiss(create, function () {
+            return window.dialogMode === "new";
+        }) === "");
+        window.dialogMode = "";
+    }
+
     function test_spaceActionsAreInSettings() {
         const sidebar = findChild(window.contentItem, "sidebar");
         compare(findChild(sidebar, "manageSpacesButton"), null);
@@ -2877,8 +3047,10 @@ TestCase {
         const create = findChild(settings, "newSpaceButton");
         verify(create.visible);
         settleActions(create);
-        mouseClick(create, create.width / 2, create.height / 2);
-        compare(window.dialogMode, "new");
+        const missed = clickReportingAMiss(create, function () {
+            return window.dialogMode === "new";
+        });
+        verify(missed.length === 0, missed);
         window.dialogMode = "";
 
         const activeId = browser.activeSpaceId;
