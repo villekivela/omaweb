@@ -668,10 +668,9 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // The name the command panel lists for one command, which is the text the
-    // Omnibar's rows, the Start page and the shortcut sheet show for it. The
-    // identifier stays untranslated, so a test asks by identifier and reads the
-    // title back.
+    // The row the command panel lists for one command: the title the Omnibar,
+    // the Start page and the shortcut sheet show, and the identifier and keys
+    // Sync projects, which stay untranslated. A test asks by identifier.
     const auto commandIndex = arguments.indexOf(QStringLiteral("--report-command-title"));
     if (commandIndex >= 0 && commandIndex + 1 < arguments.size()) {
         if (engine.rootObjects().isEmpty()) {
@@ -692,8 +691,11 @@ int main(int argc, char *argv[])
         for (const auto &entry : entries) {
             const auto action = entry.toMap();
             if (action.value(QStringLiteral("command")).toString() == wanted) {
-                printf("command_title=%s\n",
-                    qPrintable(action.value(QStringLiteral("title")).toString()));
+                for (const auto &field :
+                    {QStringLiteral("title"), QStringLiteral("command"), QStringLiteral("keys")}) {
+                    printf("command_%s=%s\n", qPrintable(field),
+                        qPrintable(action.value(field).toString()));
+                }
                 fflush(stdout);
                 return 0;
             }

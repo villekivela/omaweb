@@ -46,11 +46,17 @@ QString startPageHint(const QString &locale, const QStringList &extraArguments =
         QStringLiteral("start_page_hint="), extraArguments);
 }
 
-// The name the command panel lists for a command, asked for by its identifier.
-QString commandTitle(const QString &locale, const QString &command)
+// One field of the row the command panel lists for a command, asked for by its
+// identifier: `title`, `command` or `keys`.
+QString commandField(const QString &locale, const QString &command, const QString &field)
 {
     return labReport(locale, {QStringLiteral("--report-command-title"), command},
-        QStringLiteral("command_title="));
+        QStringLiteral("command_%1=").arg(field));
+}
+
+QString commandTitle(const QString &locale, const QString &command)
+{
+    return commandField(locale, command, QStringLiteral("title"));
 }
 
 } // namespace
@@ -65,7 +71,7 @@ private slots:
     void theLabSwitchesLocaleOverTheEnvironment();
     void theCommandPanelNamesACommandInFinnish();
     void theCommandPanelNamesACommandInEnglish();
-    void aCommandKeepsItsIdentifierWhateverTheLocale();
+    void aCommandKeepsItsIdentifierAndKeysUnderFinnish();
 };
 
 void Localization::theStartPageSpeaksFinnishUnderAFinnishLocale()
@@ -102,12 +108,19 @@ void Localization::theCommandPanelNamesACommandInEnglish()
         QStringLiteral("New tab"));
 }
 
-// Sync projects keybindings by command identifier, so the panel is asked by it
-// in both locales and finds the same command.
-void Localization::aCommandKeepsItsIdentifierWhateverTheLocale()
+// Sync projects keybindings.json, which names a command by its identifier and a
+// key as the keyboard prints it. The panel's row for a command carries both, so
+// a Finnish reader's panel must still say `new-tab` and `Ctrl+T`, whatever the
+// title beside them says.
+void Localization::aCommandKeepsItsIdentifierAndKeysUnderFinnish()
 {
-    QVERIFY(!commandTitle(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("close-tab")).isEmpty());
-    QVERIFY(!commandTitle(QStringLiteral("en_US.UTF-8"), QStringLiteral("close-tab")).isEmpty());
+    const auto locale = QStringLiteral("fi_FI.UTF-8");
+    QCOMPARE(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("command")),
+        QStringLiteral("new-tab"));
+    QVERIFY(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("keys"))
+            .startsWith(QStringLiteral("Ctrl+T")));
+    QCOMPARE(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("title")),
+        QStringLiteral("Uusi välilehti"));
 }
 
 QTEST_GUILESS_MAIN(Localization)
