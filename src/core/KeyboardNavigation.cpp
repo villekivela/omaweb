@@ -1,6 +1,5 @@
 #include "KeyboardNavigation.h"
 
-#include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -205,29 +204,25 @@ bool KeyboardNavigation::load()
 {
     QFile file(m_configurationPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        m_errorMessage = QCoreApplication::translate(
-            "KeyboardNavigation", "Could not read Keyboard navigation configuration: %1")
+        m_errorMessage = QStringLiteral("Could not read Keyboard navigation configuration: %1")
                              .arg(file.errorString());
         return false;
     }
     QJsonParseError parseError;
     const auto document = QJsonDocument::fromJson(file.readAll(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        m_errorMessage = QCoreApplication::translate(
-            "KeyboardNavigation", "Invalid Keyboard navigation JSON: %1")
-                             .arg(parseError.errorString());
+        m_errorMessage
+            = QStringLiteral("Invalid Keyboard navigation JSON: %1").arg(parseError.errorString());
         return false;
     }
     const auto root = document.object();
     if (root.value(QStringLiteral("version")).toInt() != supportedVersion) {
-        m_errorMessage = QCoreApplication::translate(
-            "KeyboardNavigation", "Unsupported Keyboard navigation configuration version");
+        m_errorMessage = QStringLiteral("Unsupported Keyboard navigation configuration version");
         return false;
     }
     const auto bindings = root.value(QStringLiteral("bindings")).toObject();
     if (bindings.isEmpty()) {
-        m_errorMessage = QCoreApplication::translate(
-            "KeyboardNavigation", "Keyboard navigation requires at least one binding");
+        m_errorMessage = QStringLiteral("Keyboard navigation requires at least one binding");
         return false;
     }
     // A binding this build cannot honour is dropped, and every other binding in
@@ -255,9 +250,9 @@ bool KeyboardNavigation::load()
 
     const auto parsedBindings = parseSection(bindings, supportedCommands);
     if (parsedBindings.isEmpty()) {
-        m_errorMessage = QCoreApplication::translate(
-            "KeyboardNavigation", "Keyboard navigation recognised none of its page bindings: %1")
-                             .arg(ignored.join(QStringLiteral(", ")));
+        m_errorMessage
+            = QStringLiteral("Keyboard navigation recognised none of its page bindings: %1")
+                  .arg(ignored.join(QStringLiteral(", ")));
         return false;
     }
 
@@ -269,9 +264,7 @@ bool KeyboardNavigation::load()
     for (auto it = passthrough.begin(); it != passthrough.end(); ++it) {
         const auto host = it.key().trimmed().toLower();
         if (host.isEmpty() || host.contains(QLatin1Char('/'))) {
-            m_errorMessage
-                = QCoreApplication::translate("KeyboardNavigation", "Invalid passthrough host: %1")
-                      .arg(it.key());
+            m_errorMessage = QStringLiteral("Invalid passthrough host: %1").arg(it.key());
             return false;
         }
         const auto value = it.value().toObject();
@@ -280,9 +273,7 @@ bool KeyboardNavigation::load()
         const auto keys = value.value(QStringLiteral("keys")).toArray();
         for (const auto &key : keys) {
             if (!key.isString()) {
-                m_errorMessage = QCoreApplication::translate(
-                    "KeyboardNavigation", "Invalid passthrough key for %1")
-                                     .arg(host);
+                m_errorMessage = QStringLiteral("Invalid passthrough key for %1").arg(host);
                 return false;
             }
             rule.passthroughKeys.append(key.toString());
@@ -295,10 +286,10 @@ bool KeyboardNavigation::load()
     m_siteRules = std::move(parsedRules);
     m_enabled = root.value(QStringLiteral("enabled")).toBool(false);
     m_valid = true;
-    m_errorMessage = ignored.isEmpty() ? QString {}
-                                       : QCoreApplication::translate("KeyboardNavigation",
-                                             "Ignored bindings this build does not know: %1")
-                                             .arg(ignored.join(QStringLiteral(", ")));
+    m_errorMessage = ignored.isEmpty()
+        ? QString {}
+        : QStringLiteral("Ignored bindings this build does not know: %1")
+              .arg(ignored.join(QStringLiteral(", ")));
     return true;
 }
 

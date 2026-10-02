@@ -102,17 +102,15 @@ QString inputMethodDiagnostic(const InputMethodHost &host)
     const auto asked = host.requestedModules.join(QStringLiteral(", "));
     for (const auto &module : host.requestedModules) {
         if (names(host.installedModules, module)) {
-            return QCoreApplication::translate("InputMethod",
-                "This desktop asks Qt applications for the %1 input method, and "
-                "the plugin that answers to that name is installed.")
+            return QStringLiteral("This desktop asks Qt applications for the %1 input method, and "
+                                  "the plugin that answers to that name is installed.")
                 .arg(module);
         }
     }
-    return QCoreApplication::translate("InputMethod",
-        "This desktop asks Qt applications for the %1 input method and installs "
-        "no plugin by that name. Qt loads no input context, Omaweb binds no "
-        "text-input protocol, and composing does nothing. Every Qt application "
-        "here is affected; installing the plugin package for %1 answers it.")
+    return QStringLiteral("This desktop asks Qt applications for the %1 input method and installs "
+                          "no plugin by that name. Qt loads no input context, Omaweb binds no "
+                          "text-input protocol, and composing does nothing. Every Qt application "
+                          "here is affected; installing the plugin package for %1 answers it.")
         .arg(asked);
 }
 

@@ -64,6 +64,7 @@ private slots:
     void settingsSpeaksFinnishUnderAFinnishLocale();
     void siteInformationSpeaksFinnishUnderAFinnishLocale();
     void settingsAndSiteInformationStayEnglishUnderAnEnglishLocale();
+    void aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue();
 };
 
 void Localization::theStartPageSpeaksFinnishUnderAFinnishLocale()
@@ -108,6 +109,18 @@ void Localization::settingsAndSiteInformationStayEnglishUnderAnEnglishLocale()
     QCOMPARE(
         settingsReport(QStringLiteral("site_information_state"), QStringLiteral("en_US.UTF-8")),
         QStringLiteral("· no page is loaded"));
+}
+
+void Localization::aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue()
+{
+    const auto locale = QStringLiteral("fi_FI.UTF-8");
+    // The run is Finnish, or the stored value proves nothing.
+    QCOMPARE(labReport(QStringLiteral("--report-setting-change"),
+                 QStringLiteral("settings_heading"), locale),
+        QStringLiteral("Asetukset"));
+    QCOMPARE(labReport(QStringLiteral("--report-setting-change"),
+                 QStringLiteral("stored_floating_controls"), locale),
+        QStringLiteral("false"));
 }
 
 QTEST_GUILESS_MAIN(Localization)

@@ -687,6 +687,28 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // Flips the Floating controls toggle as a reader does and reports what
+    // the browser stored, so a test can check that a setting changed under a
+    // translated chrome is written under its English key and value.
+    if (arguments.contains(QStringLiteral("--report-setting-change"))) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *root = engine.rootObjects().constFirst();
+        auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
+        auto *toggle = root->findChild<QObject *>(QStringLiteral("floatingControls"));
+        if (heading == nullptr || toggle == nullptr) {
+            qCritical("Settings has no Floating controls toggle");
+            return 1;
+        }
+        QMetaObject::invokeMethod(toggle, "clicked");
+        printf("settings_heading=%s\n", qPrintable(heading->property("text").toString()));
+        printf("stored_floating_controls=%s\n",
+            qPrintable(browser.preference(QStringLiteral("floating-controls"))));
+        fflush(stdout);
+        return 0;
+    }
+
     // The two startup numbers the tests keep, in milliseconds since `main`:
     // the first frame the window drew, and the first frame with the visible
     // Space's page in it. A Space at rest has no page to draw, so the report

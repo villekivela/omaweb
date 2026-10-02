@@ -125,15 +125,18 @@ bool RuntimeSecurity::rendererIsolated() const { return m_diagnostic.isEmpty(); 
 QString RuntimeSecurity::rendererIsolation() const
 {
     if (!rendererIsolated()) {
-        return tr("Renderer isolation is unverified on this host, so Omaweb does not claim it.");
+        return QStringLiteral(
+            "Renderer isolation is unverified on this host, so Omaweb does not claim it.");
     }
-    return tr("Each page runs in its own renderer process, sandboxed by the operating system.");
+    return QStringLiteral(
+        "Each page runs in its own renderer process, sandboxed by the operating system.");
 }
 
 QString RuntimeSecurity::networkService() const
 {
-    return tr("QtWebEngine handles the network inside the browser process. That network service is "
-              "not a sandboxed process of its own, and Omaweb does not describe it as isolated.");
+    return QStringLiteral(
+        "QtWebEngine handles the network inside the browser process. That network service is "
+        "not a sandboxed process of its own, and Omaweb does not describe it as isolated.");
 }
 
 QString RuntimeSecurity::engineVersion() const { return m_build.engineVersion; }
@@ -165,18 +168,19 @@ bool RuntimeSecurity::meetsSecurityBaseline() const
 QString RuntimeSecurity::securityBaseline() const
 {
     if (m_build.engineVersion.isEmpty()) {
-        return tr(
+        return QStringLiteral(
             "This build links no web engine, so there is no engine security baseline to meet.");
     }
     if (!meetsSecurityBaseline()) {
-        return tr(
+        return QStringLiteral(
             "QtWebEngine %1, carrying Chromium security fixes up to %2, is below the approved "
             "baseline of QtWebEngine %3 and Chromium %4. This build is an unsupported preview.")
             .arg(m_build.engineVersion, m_build.chromiumSecurityPatchVersion,
                 approvedEngineVersion(), approvedChromiumSecurityPatchVersion());
     }
-    return tr("QtWebEngine %1 on Chromium %2, carrying security fixes up to %3, meets the approved "
-              "baseline of QtWebEngine %4 and Chromium %5.")
+    return QStringLiteral(
+        "QtWebEngine %1 on Chromium %2, carrying security fixes up to %3, meets the approved "
+        "baseline of QtWebEngine %4 and Chromium %5.")
         .arg(m_build.engineVersion, m_build.chromiumVersion, m_build.chromiumSecurityPatchVersion,
             approvedEngineVersion(), approvedChromiumSecurityPatchVersion());
 }
