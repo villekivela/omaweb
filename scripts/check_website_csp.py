@@ -151,6 +151,17 @@ def check_policy(policy: Path, problems: list[str]) -> None:
         problems.append(
             f"{policy}: no `default-src 'self'`, so this check no longer describes the site"
         )
+    # Every directive names this origin or nothing, so a source added beside `default-src`, a
+    # `media-src` for a film hosted elsewhere for example, is a change to the policy too.
+    for directive in sent.get("content-security-policy", "").split(";"):
+        if not directive.strip():
+            continue
+        name, *sources = directive.split()
+        if not name.endswith("-src") and name not in {"base-uri", "form-action", "frame-ancestors"}:
+            continue
+        for source in sources:
+            if source not in {"'self'", "'none'"}:
+                problems.append(f"{policy}: `{name}` lets in {source}, beyond this origin")
 
 
 def served(website: Path, pattern: str) -> list[Path]:

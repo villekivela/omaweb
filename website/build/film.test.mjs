@@ -2,10 +2,12 @@
 // deploy the page without its film fails here rather than on the deployed site.
 
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { downloadFilm } from "./film.mjs";
 
@@ -59,5 +61,23 @@ test("film: an empty answer fails the build rather than deploying an empty film"
   await inTemporaryDirectory(async (output) => {
     const fetch = async () => new Response("", { status: 200 });
     await assert.rejects(downloadFilm(output, { fetch }), /omaweb\.webm.*empty/);
+  });
+});
+
+test("film: the site's build stops when the film release does not hold the film", async () => {
+  await inTemporaryDirectory(async (directory) => {
+    // GitHub, as a build sees it before the first upload: every address answers 404.
+    const stub = join(directory, "github.mjs");
+    await writeFile(
+      stub,
+      'globalThis.fetch = async () => new Response("Not Found", { status: 404 });\n',
+    );
+    const website = fileURLToPath(new URL("..", import.meta.url));
+    const build = spawnSync(process.execPath, ["--import", stub, "build/site.mjs"], {
+      cwd: website,
+      encoding: "utf8",
+    });
+    assert.notEqual(build.status, 0);
+    assert.match(build.stderr, /the film release has no omaweb\.webm/);
   });
 });

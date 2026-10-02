@@ -11,8 +11,10 @@ engine and a compositor and runs through `scripts/record_film.sh`.
 from __future__ import annotations
 
 import http.client
+import io
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -312,6 +314,79 @@ class BeatChecks(unittest.TestCase):
             film.expect_within("Film", [small], 1000)
             message = self.assertMissed("Film", film.expect_within, [small, large], 1000)
             self.assertIn("1100", message)
+
+
+    def test_the_films_files_together_stay_under_five_megabytes(self):
+        self.assertEqual(set(film.BUDGET), {"omaweb.webm", "omaweb.mp4", "poster.webp"})
+        self.assertLess(sum(film.BUDGET.values()), 5_000_000)
+
+
+    def test_a_missed_beat_fails_the_command_and_says_which(self):
+        missed = film.BeatMissed("Sidebar", "/docs/api/ on quillstack.test did not widen")
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(film, "record", side_effect=missed), \
+                mock.patch.object(sys, "argv", ["record_film.py", "record", "--out", directory]), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as said:
+            self.assertEqual(film.main(), 1)
+        self.assertIn("the film was not made: Sidebar: /docs/api/", said.getvalue())
+
+
+def ffmpeg_can_cut_the_film() -> bool:
+    """Whether this machine's ffmpeg has every filter and encoder the film's edit asks for."""
+    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
+        return False
+    listed = "".join(subprocess.run(["ffmpeg", "-hide_banner", option],
+                                    capture_output=True, text=True).stdout
+                     for option in ("-filters", "-encoders"))
+    names = {line.split()[1] for line in listed.splitlines() if len(line.split()) > 1}
+    return {"drawtext", "zoompan", "xfade", "libx264", "libvpx-vp9", "libwebp"} <= names
+
+
+class FilmFiles(unittest.TestCase):
+    @unittest.skipUnless((ROOT / ".git").exists(), "not a Git checkout")
+    def test_the_film_is_not_kept_in_the_repository(self):
+        for name in ("omaweb.webm", "omaweb.mp4", "poster.webp"):
+            for place in ("build/film", "website/assets/film"):
+                path = f"{place}/{name}"
+                with self.subTest(path=path):
+                    ignored = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", path])
+                    self.assertEqual(ignored.returncode, 0, f"Git would keep {path}")
+                    tracked = subprocess.run(["git", "-C", str(ROOT), "ls-files", path],
+                                             capture_output=True, text=True, check=True)
+                    self.assertEqual(tracked.stdout, "")
+
+    @unittest.skipUnless(ffmpeg_can_cut_the_film(), "this ffmpeg cannot cut the film")
+    def test_a_recording_is_cut_into_the_film_its_poster_and_its_captions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            # A stand-in for the raw recording: a test pattern at the recording's size, cut into
+            # every beat, the Omnibar long enough to hold the poster's frame.
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                            "testsrc2=size={}x{}:rate={}:duration=12".format(
+                                *film.OUTPUT_MODE, film.FPS),
+                            "-c:v", "libx264", "-preset", "ultrafast", str(out / "raw.mkv")],
+                           check=True)
+            marks, start = [], 0.0
+            for beat in film.BEATS:
+                length = 4.2 if beat.name == film.POSTER[0] else 1.4
+                marks.append({"beat": beat.name, "start": start, "end": start + length})
+                start += length
+            (out / "marks.json").write_text(json.dumps(marks), encoding="utf-8")
+            film.compose(out)
+            for name, limit in film.BUDGET.items():
+                with self.subTest(file=name):
+                    self.assertGreater((out / name).stat().st_size, 0)
+                    self.assertLessEqual((out / name).stat().st_size, limit)
+            self.assertEqual((out / "poster.webp").read_bytes()[8:12], b"WEBP")
+            captions = (out / "captions.vtt").read_text(encoding="utf-8")
+            self.assertTrue(captions.startswith("WEBVTT"))
+            self.assertEqual([line for line in captions.splitlines()
+                              if line in {beat.caption for beat in film.BEATS}],
+                             [beat.caption for beat in film.BEATS])
+            duration = float(subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                 str(out / "omaweb.mp4")], capture_output=True, text=True, check=True).stdout)
+            self.assertAlmostEqual(duration, start - film.FADE * (len(marks) - 1), delta=0.2)
 
 
 if __name__ == "__main__":

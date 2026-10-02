@@ -71,5 +71,27 @@ class CheckWebsiteCspTest(unittest.TestCase):
         self.assertIn("page.js:2: script loads https://api.example.com/stars", result.stdout)
 
 
+    def test_a_film_from_another_origin_is_reported(self) -> None:
+        (self.site / "index.html").write_text(
+            '<!doctype html><video poster="assets/film/poster.webp">'
+            '<source src="https://store.example.com/film/omaweb.webm" type="video/webm" />'
+            "</video>\n",
+            encoding="utf-8",
+        )
+        result = self.check("")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("https://store.example.com/film/omaweb.webm", result.stdout)
+
+    def test_a_policy_that_lets_another_origin_in_is_reported(self) -> None:
+        widened = json.loads(json.dumps(POLICY))
+        widened["headers"][0]["headers"][0]["value"] = (
+            "default-src 'self'; media-src https://store.example.com"
+        )
+        (self.site / "vercel.json").write_text(json.dumps(widened), encoding="utf-8")
+        result = self.check("")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("media-src", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
