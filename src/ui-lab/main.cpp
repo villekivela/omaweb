@@ -36,6 +36,7 @@
 #include "WindowManager.h"
 
 #include <algorithm>
+#include <QJSValue>
 #include <QAbstractItemModel>
 #include <QColor>
 #include <QCoreApplication>
@@ -665,6 +666,42 @@ int main(int argc, char *argv[])
         printf("start_page_hint=%s\n", qPrintable(word->property("text").toString()));
         fflush(stdout);
         return 0;
+    }
+
+    // The row the command panel lists for one command: the title the Omnibar,
+    // the Start page and the shortcut sheet show, and the identifier and keys
+    // Sync projects, which stay untranslated. A test asks by identifier.
+    const auto commandIndex = arguments.indexOf(QStringLiteral("--report-command-title"));
+    if (commandIndex >= 0 && commandIndex + 1 < arguments.size()) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *commands = engine.rootObjects().constFirst()->findChild<QObject *>(
+            QStringLiteral("browserCommands"));
+        if (commands == nullptr) {
+            qCritical("The window has no command registry");
+            return 1;
+        }
+        QVariant listed;
+        QMetaObject::invokeMethod(commands, "actions", Q_RETURN_ARG(QVariant, listed));
+        const auto wanted = arguments.at(commandIndex + 1);
+        const auto entries = listed.canConvert<QJSValue>()
+            ? listed.value<QJSValue>().toVariant().toList()
+            : listed.toList();
+        for (const auto &entry : entries) {
+            const auto action = entry.toMap();
+            if (action.value(QStringLiteral("command")).toString() == wanted) {
+                for (const auto &field :
+                    {QStringLiteral("title"), QStringLiteral("command"), QStringLiteral("keys")}) {
+                    printf("command_%s=%s\n", qPrintable(field),
+                        qPrintable(action.value(field).toString()));
+                }
+                fflush(stdout);
+                return 0;
+            }
+        }
+        qCritical("The command panel does not list %s", qPrintable(wanted));
+        return 1;
     }
 
     // The two startup numbers the tests keep, in milliseconds since `main`:

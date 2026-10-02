@@ -32,6 +32,8 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | History        | Historia              |                                                                                                 |
 | Downloads      | Lataukset             |                                                                                                 |
 | Settings       | Asetukset             |                                                                                                 |
+| Engine         | Moottori              | The web engine that renders pages.                                                              |
+| Sync           | Synkronointi          |                                                                                                 |
 
 Add a row when a batch has to translate a new Omaweb term.
 
