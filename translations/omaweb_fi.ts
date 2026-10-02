@@ -53,6 +53,25 @@
     </message>
 </context>
 <context>
+    <name>AgentPageFrame</name>
+    <message>
+        <source>%1 is driving · %2</source>
+        <translation>%1 ohjaa · %2</translation>
+    </message>
+    <message>
+        <source>%1 is driving</source>
+        <translation>%1 ohjaa</translation>
+    </message>
+    <message>
+        <source>An Agent is driving · %1</source>
+        <translation>Agentti ohjaa · %1</translation>
+    </message>
+    <message>
+        <source>An Agent is driving</source>
+        <translation>Agentti ohjaa</translation>
+    </message>
+</context>
+<context>
     <name>CertificateDialog</name>
     <message>
         <source>Subject</source>
@@ -296,6 +315,10 @@
 <context>
     <name>EngineView</name>
     <message>
+        <source>Unknown embedded origin</source>
+        <translation>Tuntematon upotettu sivusto</translation>
+    </message>
+    <message>
         <source>Open %1?</source>
         <translation>Avataanko %1?</translation>
     </message>
@@ -306,6 +329,13 @@
     <message>
         <source>Sign in to %1</source>
         <translation>Kirjaudu sivustolle %1</translation>
+    </message>
+</context>
+<context>
+    <name>ExtensionMark</name>
+    <message>
+        <source>%1 extensions</source>
+        <translation>%1 laajennusta</translation>
     </message>
 </context>
 <context>
@@ -432,8 +462,8 @@
         <translation>Sivustoon %1 ei saatu yhteyttä HTTPS:llä</translation>
     </message>
     <message>
-        <source>%1. </source>
-        <translation>%1. </translation>
+        <source>%1. HTTPS-only mode is on. Over plain HTTP, anyone on the network between you and %2 can read the page and change it.</source>
+        <translation>%1. Vain HTTPS -tila on päällä. Tavallisella HTTP:llä kuka tahansa sinun ja sivuston %2 välillä verkossa voi lukea sivun ja muuttaa sitä.</translation>
     </message>
     <message>
         <source>HTTPS-only mode is on. Over plain HTTP, anyone on the network between you and %1 can read the page and change it.</source>
@@ -759,8 +789,12 @@
         <translation>lopeta sallimasta: %1</translation>
     </message>
     <message>
-        <source>allowed for %1</source>
-        <translation>sallittu: %1</translation>
+        <source>allowed for a payment</source>
+        <translation>sallittu maksamista varten</translation>
+    </message>
+    <message>
+        <source>allowed for a sign-in</source>
+        <translation>sallittu kirjautumista varten</translation>
     </message>
     <message>
         <source>allow %1 for a sign-in</source>
@@ -795,20 +829,24 @@
         <translation>kirjautumista varten · kunnes istunto päättyy · lataa sivu uudelleen käyttääksesi</translation>
     </message>
     <message>
+        <source>Cookies and site storage stayed: this engine has no way to remove them</source>
+        <translation>Evästeet ja sivustojen tallennustila säilyivät: tällä moottorilla niitä ei voi poistaa</translation>
+    </message>
+    <message>
+        <source>Cookies stayed: this engine has no way to remove them</source>
+        <translation>Evästeet säilyivät: tällä moottorilla niitä ei voi poistaa</translation>
+    </message>
+    <message>
+        <source>Site storage stayed: this engine has no way to remove them</source>
+        <translation>Sivustojen tallennustila säilyi: tällä moottorilla sitä ei voi poistaa</translation>
+    </message>
+    <message>
         <source>Cleared this Space&apos;s cookies and cache</source>
         <translation>Tämän tilan evästeet ja välimuisti tyhjennettiin</translation>
     </message>
     <message>
         <source>Could not clear this Space&apos;s site data</source>
         <translation>Tämän tilan sivustotietoja ei voitu tyhjentää</translation>
-    </message>
-    <message>
-        <source>%1 stayed: this engine has no way to remove them</source>
-        <translation>%1 säilyi: tällä moottorilla niitä ei voi poistaa</translation>
-    </message>
-    <message>
-        <source> and </source>
-        <translation> ja </translation>
     </message>
     <message>
         <source>Reset every decision for this site</source>
@@ -1140,6 +1178,14 @@
     <message>
         <source>Renderer exited unexpectedly</source>
         <translation>Hahmonnin sulkeutui odottamatta</translation>
+    </message>
+    <message>
+        <source>Omaweb UI lab</source>
+        <translation>Omawebin käyttöliittymälaboratorio</translation>
+    </message>
+    <message>
+        <source>No browser engine is running</source>
+        <translation>Selainmoottoria ei ole käynnissä</translation>
     </message>
 </context>
 <context>

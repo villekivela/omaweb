@@ -932,7 +932,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Omaweb UI lab"
+            text: qsTr("Omaweb UI lab")
             color: "#25232b"
             font.pixelSize: 28
             font.weight: Font.DemiBold
@@ -947,7 +947,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "No browser engine is running"
+            text: qsTr("No browser engine is running")
             color: "#918a9b"
             font.pixelSize: 12
         }

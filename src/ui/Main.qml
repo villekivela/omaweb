@@ -1994,7 +1994,9 @@ ApplicationWindow {
         for (let index = 0; index < allowances.length; ++index) {
             rows.push({
                           "label": qsTr("stop allowing %1").arg(allowances[index].origin),
-                          "note": qsTr("allowed for %1").arg(allowances[index].purpose),
+                          "note": allowances[index].purpose === "payment" ? qsTr(
+                                                                                "allowed for a payment") :
+                                                                            qsTr("allowed for a sign-in"),
                           "origin": allowances[index].origin,
                           "purpose": ""
                       });
@@ -2039,15 +2041,25 @@ ApplicationWindow {
         }
     }
 
+    // What the engine could not remove, said as one sentence per case so that
+    // no list is joined from translated pieces.
+    function stayedNotice(stayed) {
+        const cookies = stayed.indexOf("cookies") >= 0;
+        const storage = stayed.indexOf("storage") >= 0;
+        if (cookies && storage)
+            return qsTr("Cookies and site storage stayed: this engine has no way to remove them");
+        if (cookies)
+            return qsTr("Cookies stayed: this engine has no way to remove them");
+        return qsTr("Site storage stayed: this engine has no way to remove them");
+    }
+
     function clearSpaceSiteData() {
         const cleared = window.windowBrowser.clearBrowsingData(["cookies", "storage", "cache"], 0);
         const stayed = window.untouchedDataCategories;
         window.showNotice(cleared ? "delete_sweep" : "block", cleared ? qsTr(
                                                                             "Cleared this Space's cookies and cache") :
                                                                         qsTr("Could not clear this Space's site data"),
-                          cleared && stayed.length > 0 ? qsTr(
-                                                             "%1 stayed: this engine has no way to remove them").arg(
-                                                             stayed.join(qsTr(" and "))) : "");
+                          cleared && stayed.length > 0 ? window.stayedNotice(stayed) : "");
     }
 
     function resetSitePermissions() {

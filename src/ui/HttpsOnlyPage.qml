@@ -71,10 +71,11 @@ Rectangle {
         Text {
             objectName: "httpsOnlyDetail"
             width: parent.width
-            text: (String(root.failure.error || "").length > 0 && root.failure.reason === "unreachable"
-                   ? qsTr("%1. ").arg(String(root.failure.error)) : "") + qsTr(
-                      "HTTPS-only mode is on. Over plain HTTP, anyone on the network between you and %1 can read the page and change it.").arg(
-                      root.host)
+            text: String(root.failure.error || "").length > 0 && root.failure.reason === "unreachable"
+                  ? qsTr("%1. HTTPS-only mode is on. Over plain HTTP, anyone on the network between you and %2 can read the page and change it.").arg(
+                        String(root.failure.error)).arg(root.host) : qsTr(
+                        "HTTPS-only mode is on. Over plain HTTP, anyone on the network between you and %1 can read the page and change it.").arg(
+                        root.host)
             color: root.colors.mutedText
             wrapMode: Text.Wrap
             font.family: Style.font.family

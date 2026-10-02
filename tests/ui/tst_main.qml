@@ -2619,7 +2619,7 @@ TestCase {
             return notice.showing;
         });
         compare(notice.message, "Cleared this Space's cookies and cache");
-        compare(notice.detail, "storage stayed: this engine has no way to remove them");
+        compare(notice.detail, "Site storage stayed: this engine has no way to remove them");
 
         engine.persistentProfilesAvailable = false;
         sidebar.siteDataEntries = [];

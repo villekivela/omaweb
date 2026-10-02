@@ -457,7 +457,7 @@ Item {
         }
         const requestId = String(++root.nextBrowserPromptId);
         const application = ExternalProtocolHandler.applicationName(address);
-        const displayOrigin = origin.length > 0 ? origin : "Unknown embedded origin";
+        const displayOrigin = origin.length > 0 ? origin : qsTr("Unknown embedded origin");
         root.pendingBrowserPrompts[requestId] = {
             "kind": "external-protocol",
             "origin": origin,
