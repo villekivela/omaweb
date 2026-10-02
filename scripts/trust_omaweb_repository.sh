@@ -34,6 +34,13 @@ pacman-key --init
 pacman-key --add security/repo-signing-key.asc
 pacman-key --lsign-key "$fingerprint"
 
+# A second section of the same name stops pacman with "database already
+# registered", so a second run on a machine that is not thrown away, as when a
+# developer installs the engine, leaves the first one in place.
+if grep -qx '\[omaweb\]' /etc/pacman.conf; then
+    exit 0
+fi
+
 # `$arch` stays literal: pacman expands it to the architecture the client asks
 # for, which is how one Server line serves both.
 # shellcheck disable=SC2016
