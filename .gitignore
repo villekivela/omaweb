@@ -23,3 +23,9 @@ __pycache__/
 # The checkouts Claude Code makes for a background agent to work in. The rest
 # of `.claude/` is the project's shared settings and skills, and stays tracked.
 /.claude/worktrees/
+
+# The introductory film, which `scripts/record_film.sh` writes to `build/film/` and which is kept
+# as the `film` release's assets rather than here. A copy in `website/assets/film/` previews it.
+/website/assets/film/*.webm
+/website/assets/film/*.mp4
+/website/assets/film/*.webp

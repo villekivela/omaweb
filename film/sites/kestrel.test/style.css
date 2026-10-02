@@ -1,0 +1,113 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #111214;
+  color: #e8e8ec;
+  font:
+    15px/1.5 "Inter",
+    "Noto Sans",
+    sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 18px 32px;
+  border-bottom: 1px solid #26272c;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.brand svg {
+  width: 26px;
+  height: 26px;
+}
+
+.box {
+  flex: 1;
+  max-width: 620px;
+  padding: 10px 18px;
+  border: 1px solid #303238;
+  border-radius: 999px;
+  background: #1a1b1f;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 40%);
+}
+
+.tabs {
+  display: flex;
+  gap: 22px;
+  padding: 0 32px 0 80px;
+  border-bottom: 1px solid #26272c;
+  color: #9a9ea8;
+  font-size: 14px;
+}
+
+.tabs span {
+  padding: 10px 0;
+}
+
+.tabs .on {
+  border-bottom: 2px solid #ff7a45;
+  color: #f2f2f5;
+  font-weight: 600;
+}
+
+main {
+  max-width: 700px;
+  padding: 18px 32px 48px 80px;
+}
+
+.count {
+  color: #8d919b;
+  font-size: 13px;
+}
+
+.result {
+  margin: 22px 0;
+}
+
+.result cite {
+  color: #7fc49a;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.result h3 {
+  margin: 2px 0 4px;
+  color: #8fb4ff;
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.result p {
+  margin: 0;
+  color: #b7bbc4;
+}
+
+.home {
+  display: grid;
+  place-items: center;
+  min-height: 80vh;
+  text-align: center;
+}
+
+.home h1 {
+  font-size: 54px;
+  letter-spacing: -0.04em;
+}

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tracing requests · Quillstack Docs</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/film/report.js" defer></script>
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="/docs/tracing/"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="#6d4aff" />
+          <path d="M9 22 16 8l7 14-7-4z" fill="#fff" /></svg
+        >Quillstack <small>Docs</small></a
+      >
+      <div class="find">Search the docs <kbd>/</kbd></div>
+    </header>
+    <div class="layout">
+      <nav class="side">
+        <h4>Get started</h4>
+        <a href="/docs/tracing/">Quickstart</a>
+        <a href="/docs/tracing/">Queues and workers</a>
+        <h4>Observe</h4>
+        <a class="on" href="/docs/tracing/">Tracing requests</a>
+        <a href="/docs/tracing/">Metrics</a>
+        <h4>Reference</h4>
+        <a href="/docs/api/">Jobs API</a>
+        <a href="/docs/api/">Webhooks</a>
+      </nav>
+      <article>
+        <div class="eyebrow">Observe</div>
+        <h1>Tracing requests</h1>
+        <p class="lede">
+          Follow one job from the request that queued it to the worker that finished it, across
+          every service it touched.
+        </p>
+        <h2>Turn tracing on</h2>
+        <p>Pass a sampler when you create the client. Every job it enqueues carries a trace id.</p>
+        <pre><span class="k">import</span> { Quill } <span class="k">from</span> <span class="s">"@quillstack/sdk"</span>;
+
+<span class="k">const</span> quill = <span class="k">new</span> Quill({
+  token: process.env.QUILL_TOKEN,
+  tracing: { sampler: <span class="s">"ratio"</span>, ratio: 0.25 },
+});
+
+<span class="c">// The trace id travels with the job.</span>
+<span class="k">await</span> quill.jobs.enqueue(<span class="s">"render-invoice"</span>, { id: 1042 });</pre>
+        <div class="note">Traces are kept for 14 days on every plan, and 90 days on Scale.</div>
+        <h2>Read a trace</h2>
+        <p>
+          Open a job in the console, or fetch it with <code>GET /v2/jobs/:id/trace</code>. Spans are
+          listed in the order they started.
+        </p>
+      </article>
+    </div>
+  </body>
+</html>

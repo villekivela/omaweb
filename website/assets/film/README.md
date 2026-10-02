@@ -1,6 +1,7 @@
 # Film
 
 The landing page's introduction: `omaweb.webm` and `omaweb.mp4`, the same film in two codecs, and
-`poster.webp`, the frame shown before it plays and under reduced motion. The files here are
-placeholders, a slow push in on the Start page; the film itself is #498, which replaces them at
-these paths. It is silent and loops, so its captions are burned in.
+`poster.webp`, the frame shown before it plays and under reduced motion. The site's build copies
+them here from the `film` release's assets (`../../build/film.mjs`), so nothing is kept here.
+`scripts/record_film.sh` records them, and [`film/README.md`](../../../film/README.md) has how. A
+copy here previews the film locally, and Git ignores it.

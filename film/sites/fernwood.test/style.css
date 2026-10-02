@@ -1,0 +1,299 @@
+:root {
+  --ink: #eef2ea;
+  --soft: #9daa9f;
+  --paper: #0d1310;
+  --card: #151d18;
+  --moss: #1e3a2b;
+  --clay: #e57a3c;
+  --line: #26322b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    15px/1.5 "Inter",
+    "Noto Sans",
+    sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.promo {
+  padding: 8px;
+  background: var(--moss);
+  color: #eef3ea;
+  font-size: 13px;
+  text-align: center;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 18px 40px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.brand svg {
+  width: 28px;
+  height: 28px;
+}
+
+.top nav {
+  display: flex;
+  gap: 22px;
+  color: var(--soft);
+  font-weight: 500;
+}
+
+.search {
+  flex: 1;
+  max-width: 340px;
+  margin-left: auto;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--soft);
+  font-size: 14px;
+}
+
+.cart {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.cart b {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--clay);
+  color: #fff;
+  font-size: 12px;
+}
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 40px 64px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 32px;
+  align-items: center;
+  padding: 40px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #16241b, #22170f);
+}
+
+.hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+.hero h1 {
+  margin: 0 0 12px;
+  font-size: 46px;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.hero p {
+  margin: 0 0 22px;
+  color: var(--soft);
+  font-size: 17px;
+}
+
+.button {
+  display: inline-block;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.button--clay {
+  background: var(--clay);
+  color: #fff;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 28px;
+}
+
+.tile {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.tile svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tile div {
+  padding: 14px 16px 18px;
+}
+
+.tile h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.tile span {
+  color: var(--soft);
+}
+
+.section {
+  margin: 36px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.product {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 40px;
+}
+
+.product figure {
+  align-self: start;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--card);
+}
+
+.product figure img,
+.tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tile img {
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.product figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.crumbs {
+  margin-bottom: 18px;
+  color: var(--soft);
+  font-size: 13px;
+}
+
+.product h1 {
+  margin: 4px 0 6px;
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.rating {
+  color: var(--clay);
+  font-size: 14px;
+}
+
+.rating span {
+  color: var(--soft);
+}
+
+.price {
+  margin: 18px 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.swatches,
+.sizes {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0 20px;
+}
+
+.swatches i {
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--card);
+  border-radius: 50%;
+  outline: 1px solid var(--line);
+}
+
+.swatches i:first-child {
+  outline: 2px solid var(--ink);
+}
+
+.sizes span {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  font-weight: 500;
+}
+
+.sizes span.on {
+  border-color: var(--ink);
+}
+
+.perks {
+  margin: 24px 0 0;
+  padding: 0;
+  color: var(--soft);
+  list-style: none;
+}
+
+.perks li {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.swatches .s1 {
+  background: #2f5d46;
+}
+
+.swatches .s2 {
+  background: #c9693c;
+}
+
+.swatches .s3 {
+  background: #050706;
+}

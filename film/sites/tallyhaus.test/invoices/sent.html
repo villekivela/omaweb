@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Invoice sent · Tallyhaus</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/film/report.js" defer></script>
+  </head>
+  <body>
+    <nav class="rail">
+      <a class="brand" href="/"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="9" fill="#2dd4bf" />
+          <path d="M9 11h14M16 11v13" stroke="#fff" stroke-width="4" stroke-linecap="round" /></svg
+        >Tallyhaus</a
+      >
+      <a href="/">Overview</a>
+      <a class="on" href="/invoices/new/">Invoices</a>
+      <a href="/">Customers</a>
+      <a href="/">Payouts</a>
+      <a href="/">Reports</a>
+      <a href="/">Settings</a>
+    </nav>
+    <main>
+      <div class="card sent">
+        <div class="tick">&#10003;</div>
+        <h1>Invoice INV-1042 sent</h1>
+        <p>{{customer}} has it in their inbox, with a link to pay.</p>
+        <dl>
+          <dt>Amount</dt>
+          <dd>${{amount}}</dd>
+          <dt>Due</dt>
+          <dd>{{due}}</dd>
+          <dt>Note</dt>
+          <dd>{{note}}</dd>
+        </dl>
+      </div>
+    </main>
+  </body>
+</html>

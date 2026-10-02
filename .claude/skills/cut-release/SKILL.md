@@ -14,7 +14,8 @@ happens before the tag, because a tag is the one step that cannot be taken back 
 
 ## Before the tag
 
-Run all five. Each has produced a broken or unusable release at some point, or would have.
+Run all six. Each of the first five has produced a broken or unusable release at some point, or
+would have.
 
 1. **`main`, clean, and current.**
 
@@ -72,6 +73,11 @@ Run all five. Each has produced a broken or unusable release at some point, or w
    A `feat` in the range is a minor bump, `fix` and the rest are a patch bump, and a `!` or a
    `BREAKING CHANGE` in a body is a major one that Omaweb has not reached. Every `v0.*` tag
    publishes as a prerelease, which is deliberate and not something to work around.
+
+6. **The film is this release's browser.** The website publishes at the tag and plays the `film`
+   release's recording, so a release that changed what the film shows needs a new one. Record it
+   from the commit to be tagged with `scripts/record_film.sh`, give the user `build/film/` to watch,
+   and upload it once they have, as [`film/README.md`](../../../film/README.md) says.
 
 ## The tag
 

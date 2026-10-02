@@ -1006,6 +1006,13 @@ Regenerate the interface captures with `scripts/build_website_themes.py` after a
 upstream theme change. It writes `website/assets/shots/`: the window alone per theme and state, and
 `themes.css`, each theme's colours for the frame the captures stand in.
 
+The introductory film is recorded, not captured from the lab: `scripts/record_film.sh` builds the
+real browser in CI's Arch container, plays it through six beats under headless cage, and writes the
+film to `build/film/`. It fails rather than encodes when a beat did not happen. The files are kept
+as assets of the `film` release rather than in the repository, so it does not grow with each
+recording, and the website's build copies them into the site. [`film/README.md`](../film/README.md)
+has the beats and the upload command.
+
 ## Hardware video decode
 
 Omaweb asks Chromium for VA-API decoding by adding `--enable-features=VaapiVideoDecodeLinuxGL` to
