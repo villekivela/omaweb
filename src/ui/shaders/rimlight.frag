@@ -35,6 +35,9 @@ layout(std140, binding = 0) uniform buf {
     float bloomWidth;
     float bloomBlur;
     float bloomOpacity;
+    // 0 for the rim and the bloom outside the border's inner edge, 1 for the
+    // bloom inside it, which is drawn under the plate's text.
+    float innerHalf;
 };
 
 // Distance from a rounded rectangle's edge, negative inside.
@@ -97,6 +100,10 @@ void main()
     float bloom = bloomBlur > 0.0
         ? below((across + halfBand) / bloomBlur) - below((across - halfBand) / bloomBlur)
         : step(abs(across), halfBand);
+
+    float inside = 1.0 - step(0.0, across);
+    rim *= 1.0 - innerHalf;
+    bloom *= mix(1.0 - inside, inside, innerHalf);
 
     // The rim is laid over what is behind it; the bloom carries no alpha, so
     // it adds to it.

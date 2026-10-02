@@ -14,12 +14,12 @@ import Omaweb
 // browser `unlit`. It declares `pitch`, `fps`, `glass` with the glass's
 // amounts as `crt`, and its options, and the host shows it through the glass
 // it declares. It also casts `light`, the sun's light on the Omnibar's rim,
-// which the host lays on the page. What it draws by, every amount, colour recipe and timing, is
-// share/scenes/crt-road.json, the file the website's road
-// (website/crt-road.js) reads too; this is only how it draws. What does not
-// move is drawn once per size, theme and option into a canvas. What moves is
-// scene-graph items over it, placed from the clock rather than painted again
-// on every tick.
+// which the host lays on the page. What it draws by, every amount, colour
+// recipe and timing, is share/scenes/crt-road.json, the file the website's
+// road (website/crt-road.js) reads too; this is only how it draws. What does
+// not move is drawn once per size, theme and option into a canvas. What moves
+// is scene-graph items over it, placed from the clock rather than painted
+// again on every tick.
 Item {
     id: root
     objectName: "nightRoad"
@@ -165,8 +165,8 @@ Item {
     //
     // The sun's light on the Omnibar's rim, as the website's road casts it
     // from the same `light` block: the rim's gradient on an ellipse centred on
-    // the sun, `across` of the lit plate's width and `reach` logical pixels
-    // down, each stop a position and a colour with its alpha, and the bloom
+    // the sun, `across` of the lit plate's width and `reach` down, the file's
+    // sun radii turned into logical pixels, each stop a position and a colour with its alpha, and the bloom
     // over it, its opacity lifted by the beat's glow as the sky draws it.
     // Reduced motion holds the bloom at rest.
     readonly property var light: {

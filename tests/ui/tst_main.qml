@@ -8754,31 +8754,28 @@ TestCase {
         const sun = sunIn(rim.parent);
         fuzzyCompare(rim.sun.x, sun.x, 1);
         fuzzyCompare(rim.sun.y, sun.y, 1);
-        compare(glass.sourceItem, scene);
+        compare(glass.source, scene);
 
-        leaveSpace(homeSpaceId, restingSpaceId, "Sunlit rim");
         openPage("https://glass-over-a-page.example/");
         settleMotion();
         window.openOmnibar(false);
         tryCompare(panel, "arrival", 1);
         verify(!rim.visible);
-        verify(glass.sourceItem !== null);
-        verify(glass.sourceItem !== scene);
+        verify(glass.source !== null);
+        verify(glass.source !== scene);
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
-        browser.closeTab(browser.activeTabId);
+        leaveSpace(homeSpaceId, restingSpaceId, "Sunlit rim");
     }
 
     // The Omnibar's text stays readable whatever the glass lets through: over
     // the road and over a page, light or dark, its plate over black or white
-    // holds the text at the theme's contrast floor, in a dark theme and a
-    // light one.
+    // holds the text at the theme's contrast floor for text, 4.5, in the
+    // theme on show and in a light one.
     function test_theOmnibarTextKeepsItsContrastOnTheGlass_data() {
         return [
                     {
-                        tag: "dark",
-                        text: "#f3f1fa",
-                        overlay: Qt.rgba(0.157, 0.149, 0.204, 0.96)
+                        tag: "theme"
                     },
                     {
                         tag: "light",
@@ -8792,14 +8789,16 @@ TestCase {
         const panel = findChild(window.contentItem, "omnibar");
         const plate = findChild(window.contentItem, "omnibarGlass");
         const input = findChild(window.contentItem, "omnibarInput");
-        const changed = Object.assign({}, window.colors);
-        changed.text = data.text;
-        changed.overlay = data.overlay;
-        window.colors = changed;
+        if (data.text) {
+            const changed = Object.assign({}, window.colors);
+            changed.text = data.text;
+            changed.overlay = data.overlay;
+            window.colors = changed;
+        }
         const check = function (where) {
             verify(plate.visible, where);
             for (const ground of ["black", "white"]) {
-                const ratio = contrastRatio(input.color, over(plate.color, ground));
+                const ratio = contrastRatio(input.color, over(plate.tint, ground));
                 verify(ratio >= 4.5, where + " over " + ground + ": " + ratio.toFixed(2));
             }
         };
@@ -8810,7 +8809,6 @@ TestCase {
             return panel.shownResting;
         });
         check("over the road");
-        leaveSpace(homeSpaceId, restingSpaceId, "Readable rim");
 
         openPage("https://readable-glass.example/");
         settleMotion();
@@ -8819,7 +8817,7 @@ TestCase {
         check("over a page");
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
-        browser.closeTab(browser.activeTabId);
+        leaveSpace(homeSpaceId, restingSpaceId, "Readable rim");
         window.colors = Qt.binding(function () {
             return theme.palette;
         });

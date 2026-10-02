@@ -604,22 +604,37 @@ Item {
         // Glass: what is behind blurred under the overlay. Over the road it
         // lets a little more through, as the floating sidebar does over a
         // page, and blurs as little as the website's: the road is the page.
-        GlassPlate {
+        PageBackdrop {
             objectName: "omnibarGlass"
+
+            readonly property bool overRoad: root.glassSource !== null && root.glassSource
+                                             === root.road
+            readonly property point origin: overRoad ? root.roadOrigin : Qt.point(0, 0)
+            readonly property color overlay: root.colors.overlay
+
             anchors.fill: parent
             anchors.margins: panel.border.width
             radius: panel.radius
-            sourceItem: root.blurActive ? root.glassSource : null
-            sourceRect: root.glassSource === root.road ? Qt.rect(panel.x - root.roadOrigin.x + x,
-                                                                 panel.y - root.roadOrigin.y + y,
-                                                                 width, height) : Qt.rect(panel.x
-                                                                                          + x, panel.y
-                                                                                          + y, width,
-                                                                                          height)
-            blur: root.glassSource === root.road ? 14 : 48
-            readonly property color overlay: root.colors.overlay
-            color: root.glassSource === root.road ? Qt.rgba(overlay.r, overlay.g, overlay.b,
-                                                            Math.min(overlay.a, 0.8)) : overlay
+            source: root.blurActive ? root.glassSource : null
+            textureScale: 0.5
+            sourceRect: Qt.rect(panel.x + x - origin.x, panel.y + y - origin.y, width, height)
+            blur: overRoad ? 14 : 48
+            tint: overRoad ? Qt.rgba(overlay.r, overlay.g, overlay.b, Math.min(overlay.a, 0.8)) :
+                             overlay
+
+        }
+
+        // The bloom's half inside the edge, over the glass and under the text,
+        // as the website's is.
+        RimLight {
+            objectName: "omnibarInnerBloom"
+            inner: true
+            plate: panel
+            plateRadius: panel.radius
+            light: root.sunlight
+            sun: root.sunlight !== null ? Qt.point(root.roadOrigin.x + root.sunlight.centre.x - panel.x,
+                                                   root.roadOrigin.y + root.sunlight.centre.y
+                                                   - panel.y) : Qt.point(0, 0)
         }
 
         // Every band stops at the border: a rule that ran the full width would
@@ -1134,7 +1149,8 @@ Item {
         }
     }
 
-    // The sun's light on the panel's rim, from where the road's sun stands.
+    // The sun's light on the panel's rim, from where the road's sun stands,
+    // and its bloom's half outside the edge.
     RimLight {
         objectName: "omnibarRim"
         plate: panel

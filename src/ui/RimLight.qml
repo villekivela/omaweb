@@ -8,6 +8,10 @@ import QtQuick
 // lights, reaching past the plate's edge as far as the bloom does, and draws
 // nothing while no Scene's light falls on it.
 //
+// The website's bloom is under the Omnibar's text. Its half inside the plate
+// is drawn by a second RimLight that is `inner`: a child of the plate, under
+// its content, and clipped with it.
+//
 // Only the bloom's opacity follows the beat, so a moving beat changes one
 // uniform and paints nothing again.
 ShaderEffect {
@@ -18,8 +22,12 @@ ShaderEffect {
     // The plate lit, which this item is laid over, and its corner radius.
     property Item plate: null
     property real plateRadius: 0
-    // The sun's centre, in the coordinates of the item the plate stands in.
+    // The sun's centre, in the coordinates of the item the plate stands in,
+    // or of the plate itself for the inner half.
     property point sun: Qt.point(0, 0)
+    // Draws the bloom's half inside the plate, from inside it, rather than the
+    // rim and the bloom's half outside.
+    property bool inner: false
 
     // How far the bloom reaches past the plate's edge: half its band and
     // three sigmas of its blur.
@@ -27,25 +35,32 @@ ShaderEffect {
                                                          * root.light.bloom.blur) : 0
     readonly property var stops: root.light ? root.light.stops : []
 
+    // A stop past the last repeats it, so the shader's unused slots hold
+    // the gradient's end.
+    function nthStop(index) {
+        return root.stops[Math.min(index, root.stops.length - 1)];
+    }
+
     function stop(index) {
-        const stop = root.stops[Math.min(index, root.stops.length - 1)];
-        if (!stop)
+        const found = root.nthStop(index);
+        if (!found)
             return Qt.vector4d(0, 0, 0, 0);
-        const c = stop.colour;
+        const c = found.colour;
         return Qt.vector4d(c.r * c.a, c.g * c.a, c.b * c.a, c.a);
     }
 
     function at(index) {
-        const stop = root.stops[Math.min(index, root.stops.length - 1)];
-        return stop ? stop.position : 1;
+        const found = root.nthStop(index);
+        return found ? found.position : 1;
     }
 
     visible: root.light !== null && root.plate !== null
-    x: root.plate ? root.plate.x - root.reach : 0
-    y: root.plate ? root.plate.y - root.reach : 0
+    x: (root.plate && !root.inner ? root.plate.x : 0) - root.reach
+    y: (root.plate && !root.inner ? root.plate.y : 0) - root.reach
     width: root.plate ? root.plate.width + 2 * root.reach : 0
     height: root.plate ? root.plate.height + 2 * root.reach : 0
-    opacity: root.plate ? root.plate.opacity : 1
+    // Inside the plate it already fades with it.
+    opacity: root.plate && !root.inner ? root.plate.opacity : 1
 
     property size itemSize: Qt.size(root.width, root.height)
     property rect plateRect: Qt.rect(root.reach, root.reach, root.plate ? root.plate.width : 0,
@@ -69,6 +84,7 @@ ShaderEffect {
     property real bloomWidth: root.light ? root.light.bloom.width : 0
     property real bloomBlur: root.light ? root.light.bloom.blur : 0
     property real bloomOpacity: root.light ? root.light.bloom.opacity : 0
+    property real innerHalf: root.inner ? 1 : 0
 
     fragmentShader: "qrc:/omaweb/shaders/rimlight.frag.qsb"
 }

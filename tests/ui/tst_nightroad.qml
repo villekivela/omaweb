@@ -169,6 +169,72 @@ TestCase {
         fuzzyCompare(road.light.bloom.opacity, expected.bloom.lifted, 0.001);
     }
 
+    Component {
+        id: litPlateComponent
+
+        Window {
+            property alias plate: plate
+            property alias rim: rim
+
+            width: 800
+            height: 500
+            visible: true
+
+            Rectangle {
+                id: plate
+                x: 200
+                y: 220
+                width: 400
+                height: 60
+            }
+
+            Omaweb.RimLight {
+                id: rim
+                plate: plate
+                plateRadius: 3
+                sun: Qt.point(400, 252)
+            }
+        }
+    }
+
+    // What is drawn is the road's light on the plate it falls on: the
+    // ellipse 78% of the plate's width across and two sun radii down,
+    // centred on the sun, and the website's first stop, premultiplied as the
+    // shader blends it.
+    function test_theRimIsDrawnOnTheWebsitesEllipse() {
+        const expected = crtRoadKeyColours.dark.rim;
+        const road = makeRoad({
+                                  height: 125
+                              });
+        const lit = createTemporaryObject(litPlateComponent, testCase);
+        const rim = lit.rim;
+        rim.light = road.light;
+        verify(rim.visible);
+        const reach = rim.reach;
+        compare(rim.x, 200 - reach);
+        compare(rim.y, 220 - reach);
+        compare(rim.plateArea, Qt.vector4d(reach, reach, 400, 60));
+        compare(rim.sunCentre, Qt.point(400 - rim.x, 252 - rim.y));
+        fuzzyCompare(rim.radii.width, expected.across * 400, 0.01);
+        fuzzyCompare(rim.radii.height, expected.reach * road.drawHeight, 0.01);
+        const first = Qt.color(expected.stops[0][1]);
+        fuzzyCompare(rim.stop0.x, first.r * expected.stops[0][2], 1.01 / 255);
+        fuzzyCompare(rim.stop0.w, expected.stops[0][2], 0.001);
+        const last = expected.stops[expected.stops.length - 1];
+        fuzzyCompare(rim.stop4.w, last[2], 0.01);
+        fuzzyCompare(rim.stop4.x, Qt.color(last[1]).r * last[2], 1.01 / 255);
+        compare(rim.stopCount, expected.stops.length);
+        compare(rim.bloomOpacity, expected.bloom.rest);
+
+        // The bloom's inner half is drawn from inside the plate.
+        rim.inner = true;
+        compare(rim.x, -reach);
+        compare(rim.innerHalf, 1);
+
+        rim.light = null;
+        verify(!rim.visible);
+    }
+
     // The browser plays no music, but a beat handed to the road lifts the
     // rim's bloom; reduced motion holds it at rest whatever the beat.
     function test_reducedMotionHoldsTheRimStill() {
