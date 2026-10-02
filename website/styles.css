@@ -750,8 +750,8 @@ body:has(.drive) > .top {
   align-content: center;
   margin: 0;
   padding: 7px 12px;
-  text-wrap: balance;
-  background: var(--plate);
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
+  backdrop-filter: blur(14px);
   font-size: 13px;
 }
 
