@@ -226,21 +226,41 @@ TestCase {
         window.destroy();
     }
 
-    // Every test shares one window, and a test that fails part-way can leave
-    // a new tab's Start page summoned over the next test's page.
+    // Every test shares one window, and a test that fails part-way leaves it as
+    // it was when the failure stopped it: Settings, History, a menu or the
+    // Space dialog over the page, a Split, a hidden or resized sidebar. The
+    // next test would click on what was left and measure around it (#507), so
+    // each one starts from a settled window. It is put back as a key would put
+    // it, so nothing restored here is still moving when the test begins.
     function init() {
+        InputOrigin.pointer = false;
         themeAxis.useStatedTheme();
         window.endStartPageDrive();
         window.startPageSummoned = false;
         window.shortcutsOpen = false;
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.dialogMode = "";
+        window.tabMenuOpen = false;
+        window.pageMenuOpen = false;
+        window.extensionMenuOpen = false;
+        window.spaceOverflowMenuOpen = false;
+        if (browser.splitOnShow)
+            browser.separateSplit();
+        window.sidebarCollapsed = false;
+        window.sidebarPeeked = false;
+        if (window.sidebarWidth !== window.sidebarDefaultWidth)
+            window.setSidebarWidth(window.sidebarDefaultWidth);
+        if (!window.floatingControls)
+            window.setFloatingControls(true);
         if (!window.startPageRoad)
             window.setStartPageRoad(true);
+        if (!window.startPageGlass)
+            window.setStartPageGlass(true);
         // Whatever the last test pressed, this one starts from the pointer and
         // a desktop that has not asked for reduced motion.
         InputOrigin.pointer = true;
         SystemMotion.reduced = false;
-        if (!window.startPageGlass)
-            window.setStartPageGlass(true);
     }
 
     // A Download record outlives the test that made it, and every test here
@@ -378,6 +398,56 @@ TestCase {
         } else {
             verify(Boolean(applicationWindow.flags & Qt.FramelessWindowHint));
         }
+    }
+
+    // What a test that failed part-way would have left: whatever came before,
+    // the next test starts from a settled window.
+    function test_aTestThatStopsPartWayLeavesTheNextOneASettledWindow() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const history = findChild(window.contentItem, "historySurface");
+        openPage("https://left-open.example/");
+        const besideTabId = browser.activeTabId;
+        openPage("https://left-beside.example/");
+        const openTabId = browser.activeTabId;
+        verify(browser.addSplit(besideTabId));
+        tryVerify(function () {
+            return browser.splitOnShow && engineHost.besideEngine !== null;
+        });
+        window.sidebarCollapsed = true;
+        window.setFloatingControls(false);
+        window.setSidebarWidth(window.sidebarMinimumWidth);
+        window.openTabMenu(besideTabId, 0, 0);
+        window.requestSettings();
+        window.dialogMode = "new";
+        tryCompare(sidebar, "visible", false);
+        tryCompare(settings, "visible", true);
+        verify(dialog.visible);
+
+        init();
+
+        verify(!settings.visible);
+        verify(!dialog.visible);
+        verify(!window.tabMenuOpen);
+        verify(!browser.splitOnShow);
+        compare(engineHost.besideEngine, null);
+        verify(sidebar.visible);
+        compare(sidebar.x, 0);
+        compare(window.sidebarWidth, window.sidebarDefaultWidth);
+        verify(window.floatingControls);
+
+        window.historyOpen = true;
+        tryCompare(history, "visible", true);
+
+        init();
+
+        verify(!history.visible);
+        // Left open, a pair once split is still there when the Split tests run,
+        // and their Tab beside is not seen to slide in.
+        browser.closeTab(openTabId);
+        browser.closeTab(besideTabId);
     }
 
     // Omaweb draws the page's context menu, so it offers what Omaweb can do with
@@ -2794,6 +2864,13 @@ TestCase {
     function test_spaceActionsAreInSettings() {
         const sidebar = findChild(window.contentItem, "sidebar");
         compare(findChild(sidebar, "manageSpacesButton"), null);
+        // The moves below are read against the Space on show being listed
+        // first, and an earlier test may have left the window in another.
+        const firstId = browser.spaces.data(browser.spaces.index(0, 0), Qt.UserRole + 1);
+        if (browser.activeSpaceId !== firstId) {
+            verify(browser.switchSpace(firstId));
+            tryCompare(sidebar, "arriving", false);
+        }
         window.requestSettings();
         const settings = findChild(window.contentItem, "settingsSurface");
         settings.section = settings.sections.indexOf("spaces");
