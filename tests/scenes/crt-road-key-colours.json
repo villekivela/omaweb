@@ -1,0 +1,38 @@
+{
+  "dark": {
+    "theme": {
+      "windowOpaque": "#16151d",
+      "text": "#f3f1fa",
+      "accent": "#9b87ff"
+    },
+    "colours": {
+      "skyTop": "#0c0c10",
+      "skyLow": "#3b355c",
+      "light": "#f3f1fa",
+      "sunTop": "#f8f7fc",
+      "sunLow": "#b1a2fe",
+      "ridges": ["#322d4d", "#211e32", "#09090c"],
+      "desertNear": "#544d77",
+      "centreLine": "#fafafd",
+      "roadside": "#040305"
+    }
+  },
+  "light": {
+    "theme": {
+      "windowOpaque": "#f4f3f8",
+      "text": "#1c1b22",
+      "accent": "#3366cc"
+    },
+    "colours": {
+      "skyTop": "#040405",
+      "skyLow": "#192747",
+      "light": "#f4f3f8",
+      "sunTop": "#f8f8fb",
+      "sunLow": "#6389d7",
+      "ridges": ["#15203a", "#0e1423", "#030304"],
+      "desertNear": "#314061",
+      "centreLine": "#fbfafc",
+      "roadside": "#010102"
+    }
+  }
+}

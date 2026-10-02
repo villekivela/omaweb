@@ -5,7 +5,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { STILL_MEDIA, drawsFrames, frameDue, sceneInput } from "../scene.js";
+import {
+  STILL_MEDIA,
+  drawsFrames,
+  frameDue,
+  glassLayers,
+  glassRoll,
+  sceneInput,
+} from "../scene.js";
 
 const road = { id: "road", pitch: 4 };
 const retro82 = { ground: "#020c17", text: "#f6dcac", accent: "#faa968", muted: "#3f8f8a" };
@@ -127,4 +134,51 @@ test("input: a host held still tells the Scene to hold still and draws no frames
   const environment = { palette: retro82, width: 10, height: 10, navigating: 1, held: true };
   assert.equal(sceneInput(road, environment).reducedMotion, true);
   assert.equal(drawsFrames({ ...environment, onScreen: true, focused: true }), false);
+});
+
+// The CRT glass draws by the shared file's `crt` block, as the browser's glass does (#496): change
+// an amount there and the glass changes with it.
+test("glass: its layers take their amounts from the shared file", () => {
+  const crt = JSON.parse(
+    readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
+  ).crt;
+  assert.deepEqual(glassLayers(crt), {
+    bloom: "0.22",
+    scan: "repeating-linear-gradient(transparent 0 2px, rgb(0 0 0 / 38%) 2px 3px)",
+    vignette: "radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%) 100%)",
+  });
+  const changed = {
+    ...crt,
+    bloom: { scale: 3, opacity: 0.3 },
+    scanlines: { every: 4, shade: 0.5 },
+    vignette: { clear: 0.6, shade: 0.4 },
+  };
+  assert.deepEqual(glassLayers(changed), {
+    bloom: "0.3",
+    scan: "repeating-linear-gradient(transparent 0 3px, rgb(0 0 0 / 50%) 3px 4px)",
+    vignette: "radial-gradient(ellipse at center, transparent 60%, rgb(0 0 0 / 40%) 100%)",
+  });
+});
+
+test("glass: the band and the flicker take theirs from the shared file", () => {
+  const crt = JSON.parse(
+    readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
+  ).crt;
+  // A third of the way through the band's seven seconds, on a picture 100 pixels tall.
+  const roll = glassRoll(crt, { time: 7 / 3, height: 100 });
+  assert.ok(Math.abs(roll.y - (100 * 1.4) / 3 + 20) < 1e-9);
+  assert.ok(Math.abs(roll.reach - 7) < 1e-9);
+  assert.equal(roll.strength, 0.05);
+  assert.ok(roll.flicker >= 0.02 && roll.flicker <= 0.045);
+  const slower = glassRoll(
+    {
+      ...crt,
+      band: { ...crt.band, every: 14, strength: 0.1 },
+      flicker: { ...crt.flicker, least: 0.1 },
+    },
+    { time: 7 / 3, height: 100 },
+  );
+  assert.ok(Math.abs(slower.y - (100 * 1.4) / 6 + 20) < 1e-9);
+  assert.equal(slower.strength, 0.1);
+  assert.ok(slower.flicker >= 0.1);
 });

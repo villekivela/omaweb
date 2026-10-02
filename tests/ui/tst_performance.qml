@@ -196,4 +196,33 @@ TestCase {
         engine.motionReview = false;
         window.sidebarCollapsed = false;
     }
+
+    // What a frame of the Start page costs while its road drives: the Scene's
+    // moving layer redrawn at thirty frames a second, its small picture
+    // captured, and the CRT glass drawn over the window. Comparative under the
+    // software rasteriser, which leaves the glass out; under a GPU the line
+    // reports what the glass costs it too.
+    function test_theStartPageDrawsItsRoadInsideItsBudget() {
+        const spaceId = browser.createSpace("Road");
+        verify(browser.switchSpace(spaceId));
+        window.requestActivate();
+        const startPage = findChild(window.contentItem, "startPage");
+        tryVerify(function () {
+            return startPage.visible && startPage.roadRunning;
+        });
+        wait(300);
+
+        const report = watchASecond();
+        // The road draws at most thirty frames a second; fewer than twenty and
+        // it was not moving, so the mean would be the cost of nothing.
+        verify(report.frames >= 20, "the Start page drew only " + report.frames
+               + " frames in a second, so nothing was being timed");
+        const backend = GraphicsInfo.api === GraphicsInfo.Software ? "software rasteriser" : "GPU";
+        console.info("Start page frames with the road driving: " + describeFrames(report)
+                     + ", drawn by the " + backend
+                     + "; comparative only unless drawn by a GPU on real hardware");
+        probe("start-page-frame-time", report.meanFrameMilliseconds, "ms",
+              frameTimeThresholdMilliseconds);
+        verify(browser.deleteSpace(spaceId, "Road"));
+    }
 }

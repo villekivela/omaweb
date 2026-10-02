@@ -349,6 +349,7 @@ export function createCrtRoad(p) {
     name: p.name,
     pitch: p.pitch,
     glass: p.glass,
+    crt: p.crt,
     fps: p.fps,
     options: p.options,
 

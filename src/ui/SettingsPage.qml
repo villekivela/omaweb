@@ -148,6 +148,7 @@ Rectangle {
     property bool floatingControls: true
     property bool glanceEnabled: true
     property bool startPageRoad: true
+    property bool startPageGlass: true
     property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
@@ -349,6 +350,7 @@ Rectangle {
     signal floatingControlsToggled(bool enabled)
     signal glanceToggled(bool enabled)
     signal startPageRoadToggled(bool enabled)
+    signal startPageGlassToggled(bool enabled)
 
     Dialogs.FileDialog {
         id: recoveryKeySaveDialog
@@ -747,6 +749,18 @@ Rectangle {
                         accessibleName: "Night road on the Start page"
                         checked: root.startPageRoad
                         onClicked: root.startPageRoadToggled(!checked)
+                    }
+
+                    SettingToggle {
+                        objectName: "startPageGlass"
+                        width: pane.width
+                        visible: root.startPageRoad
+                        colors: root.colors
+                        title: "CRT glass over the road"
+                        note: "Show the night road through an old screen's glass: scanlines, a soft bloom and a faint flicker. When off, the road is its plain pixels."
+                        accessibleName: "CRT glass over the road"
+                        checked: root.startPageGlass
+                        onClicked: root.startPageGlassToggled(!checked)
                     }
 
                     SectionLabel {

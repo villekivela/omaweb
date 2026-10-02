@@ -15,8 +15,15 @@ const parameters = JSON.parse(
 test("road: its declarations are the shared file's", () => {
   const road = createCrtRoad(parameters);
   assert.deepEqual(
-    [road.id, road.pitch, road.fps, road.glass, road.options],
-    [parameters.id, parameters.pitch, parameters.fps, parameters.glass, parameters.options],
+    [road.id, road.pitch, road.fps, road.glass, road.crt, road.options],
+    [
+      parameters.id,
+      parameters.pitch,
+      parameters.fps,
+      parameters.glass,
+      parameters.crt,
+      parameters.options,
+    ],
   );
 });
 

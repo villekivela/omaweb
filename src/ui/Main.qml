@@ -201,6 +201,8 @@ ApplicationWindow {
     // Whether the Start page draws its road. Local to this installation, like
     // the Glance: Sync carries neither.
     property bool startPageRoad: true
+    // Whether the road is shown through its CRT glass. Local the same way.
+    property bool startPageGlass: true
     // What a bar over the page blurs under its ground: the Start page or the
     // page on show, and nothing over a blank viewport. In a split the Start
     // page fills one pane, and the page host holds both.
@@ -1752,6 +1754,8 @@ ApplicationWindow {
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
         window.startPageRoad = window.windowBrowser.preference("start-page-road", "true")
                 === "true";
+        window.startPageGlass = window.windowBrowser.preference("start-page-glass", "true")
+                === "true";
     }
 
     function setFloatingControls(enabled) {
@@ -1762,6 +1766,11 @@ ApplicationWindow {
     function setStartPageRoad(enabled) {
         window.startPageRoad = enabled;
         window.windowBrowser.setPreference("start-page-road", enabled ? "true" : "false");
+    }
+
+    function setStartPageGlass(enabled) {
+        window.startPageGlass = enabled;
+        window.windowBrowser.setPreference("start-page-glass", enabled ? "true" : "false");
     }
 
     function setGlanceEnabled(enabled) {
@@ -1800,7 +1809,8 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
-            if (name === "floating-controls" || name === "glance" || name === "start-page-road")
+            if (name === "floating-controls" || name === "glance" || name === "start-page-road" || name
+                    === "start-page-glass")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
@@ -2636,6 +2646,9 @@ ApplicationWindow {
             // the seam on its leading edge while the shell clips what runs past
             // the far one. One layout each way, not one a frame.
             readonly property real pageInset: seamEase.running ? 0 : chromeRow.settledSeam
+            // How far the page area is carried by a Space arriving: a fraction
+            // of the list's travel, from the side the list arrives from.
+            readonly property real pageArrival: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
 
             Behavior on revealed {
                 // A reader who has refused the ease gets the step the property
@@ -2682,7 +2695,10 @@ ApplicationWindow {
                 // Above the page while a Space arrives, so a page arriving
                 // from the left slides in from under the shelf rather than
                 // over it.
-                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : 0
+                // Over the page area while the Start page's road runs under
+                // both.
+                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : startPage.underSidebar ? 1 :
+                                                                                                  0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
@@ -2851,7 +2867,7 @@ ApplicationWindow {
                 // the direction. A slide and nothing else, so the viewport is
                 // never drawn through a layer.
                 transform: Translate {
-                    x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
+                    x: chromeRow.pageArrival
                 }
 
                 // The shell around it is translucent by theme; a webpage viewport
@@ -3269,8 +3285,20 @@ ApplicationWindow {
                     privateWindow: window.privateWindow
                     open: window.startPageShown
                     ease: window.chromeEase
-                    roadWidth: window.width
+                    // Visible and drawing its road, which then runs under the
+                    // sidebar to the window's edge.
+                    readonly property bool underSidebar: visible && roadEnabled && !inPane
+                    // Under the sidebar the road is as much wider as the
+                    // sidebar is, so its vanishing point stays under the
+                    // Omnibar in the middle of the page area. The settled
+                    // width, so a sliding seam does not redraw it.
+                    roadWidth: inPane ? window.width : window.width + chromeRow.settledSeam
+                    // The viewport is moved by a Space arriving, and the road
+                    // is not: it reaches back past the move to the window.
+                    roadReach: inPane ? 0 : chromeRow.seam + chromeRow.pageArrival
                     roadEnabled: window.startPageRoad
+                    glassEnabled: window.startPageGlass
+                    reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
                     driving: window.startPageDriving
@@ -3681,6 +3709,7 @@ ApplicationWindow {
                     floatingControls: window.floatingControls
                     glanceEnabled: window.glanceEnabled
                     startPageRoad: window.startPageRoad
+                    startPageGlass: window.startPageGlass
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -3732,6 +3761,9 @@ ApplicationWindow {
                     }
                     onStartPageRoadToggled: function (enabled) {
                         window.setStartPageRoad(enabled);
+                    }
+                    onStartPageGlassToggled: function (enabled) {
+                        window.setStartPageGlass(enabled);
                     }
                     onTintFaviconsToggled: function (enabled) {
                         window.setTintFavicons(enabled);

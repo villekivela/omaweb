@@ -546,17 +546,8 @@ body:has(.omnibar) .nav .radio-toggle {
   pointer-events: none;
 }
 
-.crt__bloom {
-  opacity: 0.22;
-}
-
-.crt__scan {
-  background: repeating-linear-gradient(transparent 0 2px, rgb(0 0 0 / 38%) 2px 3px);
-}
-
-.crt__vignette {
-  background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%) 100%);
-}
+/* The bloom's opacity, the scanlines and the vignette are the Scene's, from the `crt` block of
+   share/scenes/crt-road.json, which scene.js sets on these layers. */
 
 /* The Start page: the headline in the sky above the sun, whose radius is 15% of the road's
    height, the Omnibar resting on the horizon, and the way in below. The road fills the window, so

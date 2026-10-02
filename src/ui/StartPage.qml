@@ -9,9 +9,11 @@ import qs.Commons
 // is the road under it and the one line that names the Shortcut sheet.
 //
 // It costs no engine. The road moves only while the page is on show and the
-// window is the reader's. A reader who turns the road off gets the sidebar's
-// fill instead, or, over a page a new tab was asked from, that page blurred
-// under the sheet tint, as the Shortcut sheet shows it.
+// window is the reader's. It runs under the whole window, the sidebar standing
+// over it, unless the page stands in one pane of a split. A reader who turns
+// the road off gets the sidebar's fill instead, or, over a page a new tab was
+// asked from, that page blurred under the sheet tint, as the Shortcut sheet
+// shows it.
 Item {
     id: root
     objectName: "startPage"
@@ -22,6 +24,11 @@ Item {
     // The Settings interface section's road. Off, the backdrop below takes its
     // place.
     property bool roadEnabled: true
+    // The Settings interface section's CRT glass over the road.
+    property bool glassEnabled: true
+    // The reader asked for less motion: the road holds one still frame, with
+    // no clock, no drive and no band or flicker on its glass.
+    property bool reducedMotion: false
     // The window is on screen and holds the keyboard.
     property bool windowActive: false
     // A destination was committed from the Omnibar and its page has not
@@ -36,8 +43,8 @@ Item {
     // Whether the page fades as it gives way to a page.
     property bool ease: true
     // Set by a drive and kept while the Start page fades out after it, so the
-    // road goes on driving and glowing into the page rather than stopping
-    // where the page arrived.
+    // fade is the slower one and the road, easing out of its drive, is still
+    // moving and lit as the page takes over.
     property bool drove: false
     onDrivingChanged: if (driving)
                           drove = true
@@ -46,11 +53,15 @@ Item {
     // at the window's width only moves when it does, where one drawn at the
     // page area's would draw itself again for every width the seam passes.
     property real roadWidth: width
+    // How much of the window lies left of the page, which the road runs under
+    // to the window's edge. None in a pane of a split, where the road stays in
+    // the pane.
+    property real roadReach: 0
 
     // Where the Omnibar's field rests.
-    readonly property real horizonY: road.horizonY
+    readonly property real horizonY: road.sceneItem ? road.sceneItem.horizonY : height / 2
     readonly property int roadFrames: road.frames
-    readonly property bool roadRunning: road.running
+    readonly property bool roadRunning: road.drawing
 
     // It fades in under the Omnibar arriving, and out as the page it gave way
     // to takes over. While it fades out a click is that page's.
@@ -95,18 +106,32 @@ Item {
         tint: root.pageSource ? root.colors.sheet : root.colors.sidebar
     }
 
-    clip: true
+    // A road in a pane stays in it; one under the window runs past the page's
+    // left edge, under the sidebar.
+    clip: root.roadReach <= 0
 
-    NightRoad {
+    SceneHost {
         id: road
-        x: Math.round((root.width - width) / 2)
-        width: Math.max(root.width, root.roadWidth)
+        objectName: "startPageScene"
+        x: root.roadReach > 0 ? -root.roadReach : Math.round((root.width - width) / 2)
+        width: root.roadReach > 0 ? root.roadWidth : Math.max(root.width, root.roadWidth)
         height: root.height
         visible: root.roadEnabled
         colors: root.colors
-        privateWindow: root.privateWindow
+        unlit: root.privateWindow
+        glass: root.glassEnabled
+        reducedMotion: root.reducedMotion
+        // What the reader sees of it: under the window, from the window's left
+        // edge to the page's right one, and otherwise the page it is clipped
+        // to.
+        frame: root.roadReach > 0 ? Qt.rect(0, 0, root.roadReach + root.width, height) : Qt.rect(-x,
+                                                                                                 0, root.width,
+                                                                                                 height)
         running: root.visible && root.roadEnabled && root.windowActive
-        driving: root.driving || (root.drove && !root.open)
+        navigating: root.driving ? 1 : 0
+        scene: Component {
+            NightRoad {}
+        }
     }
 
     // The Shortcut sheet is summoned, not shown, so the page names the key:
@@ -116,8 +141,9 @@ Item {
         id: hint
         objectName: "startPageHint"
 
-        readonly property color keyColor: root.roadEnabled ? road.glow : root.colors.accent
-        readonly property color wordColor: root.roadEnabled ? road.light : root.colors.text
+        readonly property bool onRoad: root.roadEnabled && !!road.sceneItem
+        readonly property color keyColor: onRoad ? road.sceneItem.roles.glow : root.colors.accent
+        readonly property color wordColor: onRoad ? road.sceneItem.roles.light : root.colors.text
 
         anchors.horizontalCenter: parent.horizontalCenter
         y: root.horizonY + root.fieldBelowHorizon + Style.spacing.xl

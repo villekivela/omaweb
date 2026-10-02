@@ -1,10 +1,24 @@
 {
-  "description": "The CRT road: the night drive behind the Start page, as the website draws it (website/crt-road.js) and the browser is to (#496). Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, sunTop, sunLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. website/README.md documents the contract.",
+  "description": "The CRT road: the night drive behind the Start page, as the website draws it (website/crt-road.js) and the browser is to (#496). Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, sunTop, sunLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. `crt` is the CRT glass the road declares, which the host draws: scanlines and the vignette in CSS pixels and shares of the frame, the band in the Scene's pixels. website/README.md documents the contract.",
   "id": "crt-road",
   "name": "CRT road",
   "pitch": 4,
   "fps": 30,
   "glass": "crt",
+  "crt": {
+    "bloom": { "scale": 3, "opacity": 0.22 },
+    "scanlines": { "every": 3, "shade": 0.38 },
+    "vignette": { "clear": 0.55, "shade": 0.55 },
+    "band": {
+      "every": 7,
+      "from": -0.2,
+      "travel": 1.4,
+      "reach": 0.07,
+      "reachAtLeast": 4,
+      "strength": 0.05
+    },
+    "flicker": { "least": 0.02, "range": 0.025, "frequencies": [37.1, 11.3] }
+  },
   "options": {
     "bands": ["4", "3"],
     "road": ["widest", "wider", "wide"]
