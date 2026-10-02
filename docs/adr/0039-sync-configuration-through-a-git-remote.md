@@ -40,10 +40,12 @@ rotation needs a new repository and explicit migration; in-place rotation is not
 is tracked by [#206](https://github.com/villekivela/omaweb/issues/206).
 
 The readable records are the complete keybindings file, filter subscription addresses, and these
-Settings keys only: `floating-controls`, `ease-sidebar`, `use-favicons`, and `tint-favicons`. Each
-setting remains a separate record. Space names, colours, ordinary tabs, and Pinned tabs are
-encrypted. Active Space and active tab selection remain local transients. Theme selection is
-deferred because the operating system normally owns it.
+Settings keys only: `floating-controls`, `use-favicons`, and `tint-favicons`. Each setting remains a
+separate record. `ease-sidebar` was one of them until the chrome's ease stopped being a setting
+([#503](https://github.com/villekivela/omaweb/issues/503)); a repository still holding it has the
+record removed on the next sync. Space names, colours, ordinary tabs, and Pinned tabs are encrypted.
+Active Space and active tab selection remain local transients. Theme selection is deferred because
+the operating system normally owns it.
 
 Cookies, passwords, active logins, downloads, site permissions, browsing history, the per-site
 content-blocking disable list, user rules, and all Private-window information never enter Sync. The

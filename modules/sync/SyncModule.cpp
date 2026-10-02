@@ -31,8 +31,13 @@ namespace {
     constexpr auto recoveryKeyBytes = 32;
     constexpr auto recoveryChecksumBytes = 4;
     const QStringList syncedPreferences {QStringLiteral("floating-controls"),
-        QStringLiteral("ease-sidebar"), QStringLiteral("use-favicons"),
-        QStringLiteral("tint-favicons")};
+        QStringLiteral("use-favicons"), QStringLiteral("tint-favicons")};
+    // Settings an earlier version carried and this one no longer has. A
+    // repository still holding one has it taken away on the next capture, so
+    // no machine reads it back and nobody reads it in the repository.
+    // `ease-sidebar` went when the chrome stopped offering its ease as a
+    // setting (#503).
+    const QStringList retiredPreferences {QStringLiteral("ease-sidebar")};
 
     void setError(QString *destination, const QString &message)
     {
@@ -1047,7 +1052,6 @@ bool SyncModule::writeAppliedRecordInventory(QString *errorMessage) const
     for (const auto &relativePath : {QStringLiteral("config/keybindings.json"),
              QStringLiteral("settings/content-blocking.json"),
              QStringLiteral("settings/floating-controls.json"),
-             QStringLiteral("settings/ease-sidebar.json"),
              QStringLiteral("settings/use-favicons.json"),
              QStringLiteral("settings/tint-favicons.json")}) {
         QFile file(QDir(checkoutRoot()).filePath(relativePath));
@@ -1228,6 +1232,14 @@ bool SyncModule::restoreConfiguration(SessionStore &store, QString *errorMessage
 
 bool SyncModule::captureConfiguration(SessionStore &store, QString *errorMessage)
 {
+    for (const auto &name : retiredPreferences) {
+        const auto retired
+            = QDir(checkoutRoot()).filePath(QStringLiteral("settings/%1.json").arg(name));
+        if (QFileInfo::exists(retired) && !QFile::remove(retired)) {
+            setError(errorMessage, QStringLiteral("Could not remove a retired Sync setting"));
+            return false;
+        }
+    }
     const auto missing = QString(QChar(0));
     for (const auto &name : syncedPreferences) {
         const auto value = store.preference(name, missing);

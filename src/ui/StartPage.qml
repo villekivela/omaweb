@@ -1,4 +1,5 @@
 import QtQuick
+import Omaweb
 import qs.Commons
 
 // What Omaweb shows where a page would be when there is none to show: a Space
@@ -60,8 +61,11 @@ Item {
     onVisibleChanged: if (!visible)
                           drove = false
 
+    // The fade after a drive is the road reporting the page's arrival, as the
+    // loading indicator reports a load, so it plays after a key's Return as
+    // after a click, and only reduced motion stills it.
     Behavior on opacity {
-        enabled: root.ease
+        enabled: root.ease || root.drove && !SystemMotion.reduced
 
         // Leaving after a drive is slower: the page is already there under
         // it, so the longer fade costs no waiting.

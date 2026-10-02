@@ -283,6 +283,7 @@ private slots:
     void writesEncryptedBrowserStateToAGitRemote();
     void restoresBrowserStateOnASecondMachine();
     void syncsOnlyTheApprovedConfiguration();
+    void dropsTheRetiredChromeEaseSetting();
     void leavesTheRemoteUntouchedWhenNothingChanged();
     void authorizationPollBacksOffWithinItsCeiling();
     void localSyncStateRecognizesOnlyItsProjection();
@@ -501,6 +502,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
         qPrintable(error));
     const auto checkout = inspectionRoot.filePath(QStringLiteral("checkout"));
     QVERIFY(QFile::exists(checkout + QStringLiteral("/settings/floating-controls.json")));
+    QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/ease-sidebar.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/sidebar-width.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/start-page-road.json")));
     QVERIFY(!filesBelow(checkout).contains("visited.example"));
@@ -531,6 +533,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
 
     QCOMPARE(secondStore.preference(QStringLiteral("floating-controls")), QStringLiteral("false"));
     QCOMPARE(secondStore.preference(QStringLiteral("tint-favicons")), QStringLiteral("true"));
+    QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
     QCOMPARE(secondStore.preference(QStringLiteral("sidebar-width")), QStringLiteral("311"));
     QCOMPARE(secondStore.preference(QStringLiteral("clear-data-range")),
         QStringLiteral("machine-b-only"));
@@ -551,6 +554,77 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
                  .value(QStringLiteral("id"))
                  .toString(),
         QStringLiteral("reader-list"));
+}
+
+// The chrome's ease stopped being a setting, so a repository an earlier
+// version wrote it into is neither read for it nor left carrying it: the next
+// machine to sync keeps no value for it and takes the file away.
+void SyncModuleTest::dropsTheRetiredChromeEaseSetting()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QTemporaryDir olderRoot;
+    QTemporaryDir inspectionRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key
+        = QByteArray::fromHex("404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f");
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(
+        firstStore.savePreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    // What an earlier version left in the repository.
+    QVERIFY2(runGit(olderRoot.path(),
+                 {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
+        qPrintable(error));
+    const auto older = olderRoot.filePath(QStringLiteral("checkout"));
+    QVERIFY(writeFile(older + QStringLiteral("/settings/ease-sidebar.json"),
+        QJsonDocument(QJsonObject {{QStringLiteral("version"), SyncModule::contractVersion},
+                          {QStringLiteral("key"), QStringLiteral("ease-sidebar")},
+                          {QStringLiteral("value"), QStringLiteral("false")}})
+            .toJson(QJsonDocument::Indented)));
+    for (const auto &arguments :
+        QList<QStringList> {{QStringLiteral("add"), QStringLiteral("--all")},
+            {QStringLiteral("-c"), QStringLiteral("user.name=Older Omaweb"), QStringLiteral("-c"),
+                QStringLiteral("user.email=older@omaweb.local"), QStringLiteral("commit"),
+                QStringLiteral("-m"), QStringLiteral("sync: reconcile browser state")},
+            {QStringLiteral("push"), QStringLiteral("origin"), QStringLiteral("HEAD:main")}}) {
+        QVERIFY2(runGit(older, arguments, &error), qPrintable(error));
+    }
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    QCOMPARE(secondStore.preference(QStringLiteral("floating-controls")), QStringLiteral("false"));
+    QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
+
+    QVERIFY2(runGit(inspectionRoot.path(),
+                 {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
+        qPrintable(error));
+    const auto checkout = inspectionRoot.filePath(QStringLiteral("checkout"));
+    QVERIFY(QFile::exists(checkout + QStringLiteral("/settings/floating-controls.json")));
+    QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/ease-sidebar.json")));
 }
 
 void SyncModuleTest::leavesTheRemoteUntouchedWhenNothingChanged()

@@ -65,9 +65,11 @@ Motion is felt rather than watched: it says which way something went, and no mor
   move.
 - Idle chrome draws no frames. The one thing that animates unprompted is the page loading indicator,
   while a page loads.
-- One switch refuses all of it. "Ease the chrome" in Settings, which began as the sidebar's ease,
-  refuses every movement here, which is also the reduced-motion answer. Its stored key stays
-  `ease-sidebar`, since Sync carries it (ADR 0039).
+- The pointer moves things and a key settles them. Movement is for following where something went,
+  and a reader who pressed a key already knows. Only the Space notice and an Agent mark's pulse,
+  which tell the reader something, move for both.
+- The desktop's reduced-motion preference refuses all of it, and is the only switch. Omaweb has no
+  motion setting of its own.
 
 ## Cost
 

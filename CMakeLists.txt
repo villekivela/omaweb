@@ -383,6 +383,8 @@ add_library(omaweb-ui STATIC
     src/ui/FaviconTint.h
     src/ui/KitTheme.cpp
     src/ui/KitTheme.h
+    src/ui/InputOrigin.cpp
+    src/ui/InputOrigin.h
     src/ui/PrimaryHold.cpp
     src/ui/PrimaryHold.h
     src/ui/StoredFaviconProvider.cpp
@@ -540,6 +542,8 @@ add_library(omaweb-platform STATIC
     src/platform/RuntimeSecurity.h
     src/platform/SavedDownload.cpp
     src/platform/SavedDownload.h
+    src/platform/SystemMotion.cpp
+    src/platform/SystemMotion.h
     src/platform/SystemNotifier.cpp
     src/platform/SystemNotifier.h
     src/platform/WindowChrome.h
@@ -565,6 +569,7 @@ if(APPLE)
         src/platform/RunningBrowser.cpp
         src/platform/MacExternalProtocolHandler.mm
         src/platform/MacPagePrinter.mm
+        src/platform/MacSystemMotion.mm
         src/platform/MacSystemNotifier.mm
         src/platform/MacWindowChrome.mm
     )
@@ -581,6 +586,7 @@ else()
         src/platform/LinuxPortalWindow.cpp
         src/platform/LinuxMediaAnnouncer.cpp
         src/platform/LinuxRunningBrowser.cpp
+        src/platform/LinuxSystemMotion.cpp
         src/platform/LinuxSystemNotifier.cpp
         src/platform/WindowChrome.cpp
     )
@@ -593,7 +599,7 @@ else()
     # printing would then call whatever took its place. That is the real cost
     # of the private call, it is confined to printing, and the answer to it is
     # a rebuild against the Qt in front of it rather than anything in the code.
-    target_link_libraries(omaweb-platform PRIVATE Qt6::DBus Qt6::GuiPrivate)
+    target_link_libraries(omaweb-platform PRIVATE Qt6::DBus Qt6::GuiPrivate Qt6::Network)
 endif()
 omaweb_strict_target(omaweb-platform)
 
@@ -1386,6 +1392,16 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-platform-services-tests)
     add_test(NAME omaweb-platform-services COMMAND omaweb-platform-services-tests)
+
+    qt_add_executable(omaweb-system-motion-tests
+        tests/platform/tst_systemmotion.cpp
+    )
+    target_link_libraries(omaweb-system-motion-tests PRIVATE
+        omaweb-platform
+        Qt6::Test
+    )
+    omaweb_strict_target(omaweb-system-motion-tests)
+    add_test(NAME omaweb-system-motion COMMAND omaweb-system-motion-tests)
     # The seam's contract is what it does on a desktop that offers no
     # notification service, so the test is given one. Which service is missing
     # differs by platform: macOS asks a window server, Linux asks the session

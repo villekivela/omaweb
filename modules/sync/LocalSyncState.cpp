@@ -125,8 +125,8 @@ LocalSyncApplyResult LocalSyncState::applyRemoteState(
 
 BrowserStateSelection LocalSyncState::selection()
 {
-    return {.preferenceNames = {QStringLiteral("floating-controls"), QStringLiteral("ease-sidebar"),
-                QStringLiteral("use-favicons"), QStringLiteral("tint-favicons")},
+    return {.preferenceNames = {QStringLiteral("floating-controls"), QStringLiteral("use-favicons"),
+                QStringLiteral("tint-favicons")},
         .keybindings = true,
         .filterSubscriptions = true};
 }
