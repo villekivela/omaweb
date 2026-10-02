@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -308,6 +309,24 @@ def expect_invoice(beat: str, server: FixtureServer, wanted: dict[str, str]) -> 
                  if sent[-1].get(key) != value}
     if differing:
         raise BeatMissed(beat, f"the invoice sent had {differing}, not {wanted}")
+
+
+def expect_sites_on_loopback(beat: str, resolve=socket.gethostbyname) -> None:
+    """Every fixture site resolves to the server on loopback, before the browser is started.
+
+    `record_film.sh` names them in the hosts file, which Docker writes afresh when a container
+    starts, so a recording rerun in a restarted container would load every page as an error.
+    """
+    lost = []
+    for host in SITES:
+        try:
+            address = resolve(host)
+        except OSError:
+            address = None
+        if address != "127.0.0.1":
+            lost.append(f"{host} ({address or 'unresolved'})")
+    if lost:
+        raise BeatMissed(beat, f"/etc/hosts does not send {', '.join(lost)} to 127.0.0.1")
 
 
 def expect_within(beat: str, paths: list[Path], limit: int) -> None:
@@ -723,6 +742,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
 
 def record(browser: Path, out: Path) -> None:
     """Runs under the compositor: the browser, the beats and the raw recording, and the marks."""
+    expect_sites_on_loopback("Sites")
     root = Path(tempfile.mkdtemp(prefix="omaweb-film-"))
     server = FixtureServer(("127.0.0.1", 80))
     server.start()
