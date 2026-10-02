@@ -21,14 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCANNED = ("src/ui", "src/ui-lab", "src/engine/qt")
 
-# Files another ticket wraps. Each ticket removes its own entries when it
-# merges, so the list shrinks to nothing and the check then covers everything.
-OWNED_BY_OTHER_TICKETS = {
-    # #334: Settings and Site information.
-    "SettingsPage.qml",
-    "SiteInformationPanel.qml",
-    "SettingStepper.qml",
-}
+# Files a localization ticket has not wrapped yet. Empty now that every chrome file is.
+OWNED_BY_OTHER_TICKETS: set[str] = set()
 
 # Content the lab's stand-in engine draws as the web page, not as the chrome.
 NOT_CHROME = {"MockEngineView.qml": ("samplePage", "documentReview")}
@@ -40,7 +34,7 @@ PROPERTY = re.compile(
     r"\"detail\"|\"title\"):\s*(?P<rest>.*)$"
 )
 NEW_STATEMENT = re.compile(r"^\s*(?:[\w.]+|\"[\w ]+\"):|^\s*[{}\]]|^\s*(?:function|property|signal)\b")
-TRANSLATED = re.compile(r"qsTr(?:anslate)?\(\s*(?:\"(?:[^\"\\]|\\.)*\"\s*[,+]?\s*)+\)", re.S)
+TRANSLATED = re.compile(r"qsTr(?:anslate)?\(\s*(?:\"(?:[^\"\\]|\\.)*\"\s*[,+]?\s*)+", re.S)
 LITERAL = re.compile(r"\"((?:[^\"\\]|\\.)*)\"")
 DATE_FORMAT = re.compile(r"^[yMdhmsz\-: .]+$")
 PRODUCT_NAMES = {"Omaweb"}
@@ -62,7 +56,8 @@ def violations(path: Path, source: str) -> list[tuple[int, str]]:
         while index < len(lines) and not NEW_STATEMENT.match(lines[index]):
             statement += "\n" + lines[index]
             index += 1
-        statement = re.sub(r"//.*", "", statement)
+        statement = re.sub(r"(?<!:)//.*", "", statement)
+        statement = re.sub(r"'[^'\n]*'", "''", statement)
         statement = TRANSLATED.sub("", statement)
         statement = re.sub(r"\.arg\(\s*\"[^\"]*\"\s*\)", "", statement)
         for literal in LITERAL.findall(statement.split(":", 1)[1]):

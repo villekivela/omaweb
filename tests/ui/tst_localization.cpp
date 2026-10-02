@@ -67,6 +67,13 @@ QString commandTitle(const QString &locale, const QString &command)
     return commandField(locale, command, QStringLiteral("title"));
 }
 
+// One line a lab report prints under a locale, for the surfaces whose report is a flag
+// alone.
+QString reportLine(const QString &locale, const QString &report, const QString &key)
+{
+    return labReport(locale, {report}, key + QLatin1Char('='));
+}
+
 } // namespace
 
 class Localization final : public QObject {
@@ -83,6 +90,10 @@ private slots:
     void theCommandPanelNamesACommandInFinnish();
     void theCommandPanelNamesACommandInEnglish();
     void aCommandKeepsItsIdentifierAndKeysUnderFinnish();
+    void settingsSpeaksFinnishUnderAFinnishLocale();
+    void siteInformationSpeaksFinnishUnderAFinnishLocale();
+    void settingsAndSiteInformationStayEnglishUnderAnEnglishLocale();
+    void aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue();
 };
 
 void Localization::theStartPageSpeaksFinnishUnderAFinnishLocale()
@@ -152,6 +163,43 @@ void Localization::aCommandKeepsItsIdentifierAndKeysUnderFinnish()
             .startsWith(QStringLiteral("Ctrl+T")));
     QCOMPARE(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("title")),
         QStringLiteral("Uusi välilehti"));
+}
+
+void Localization::settingsSpeaksFinnishUnderAFinnishLocale()
+{
+    QCOMPARE(reportLine(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("--report-settings"),
+                 QStringLiteral("settings_heading")),
+        QStringLiteral("Asetukset"));
+}
+
+void Localization::siteInformationSpeaksFinnishUnderAFinnishLocale()
+{
+    QCOMPARE(reportLine(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("--report-settings"),
+                 QStringLiteral("site_information_state")),
+        QStringLiteral("· mitään sivua ei ole ladattu"));
+}
+
+void Localization::settingsAndSiteInformationStayEnglishUnderAnEnglishLocale()
+{
+    const auto locale = QStringLiteral("en_US.UTF-8");
+    QCOMPARE(
+        reportLine(locale, QStringLiteral("--report-settings"), QStringLiteral("settings_heading")),
+        QStringLiteral("Settings"));
+    QCOMPARE(reportLine(locale, QStringLiteral("--report-settings"),
+                 QStringLiteral("site_information_state")),
+        QStringLiteral("· no page is loaded"));
+}
+
+void Localization::aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue()
+{
+    const auto locale = QStringLiteral("fi_FI.UTF-8");
+    // The run is Finnish, or the stored value proves nothing.
+    QCOMPARE(reportLine(locale, QStringLiteral("--report-setting-change"),
+                 QStringLiteral("settings_heading")),
+        QStringLiteral("Asetukset"));
+    QCOMPARE(reportLine(locale, QStringLiteral("--report-setting-change"),
+                 QStringLiteral("stored_floating_controls")),
+        QStringLiteral("false"));
 }
 
 QTEST_GUILESS_MAIN(Localization)
