@@ -85,8 +85,8 @@ Item {
             anchors.rightMargin: Style.spacing.lg
             anchors.verticalCenter: parent.verticalCenter
             colors: root.colors
-            placeholder: "find in page"
-            accessibleName: "Find in page"
+            placeholder: qsTr("find in page")
+            accessibleName: qsTr("Find in page")
 
             onTextChanged: if (!root.adopting)
                                root.searchRequested(field.text, true)
@@ -113,7 +113,7 @@ Item {
                 if (!root.searching)
                     return "";
                 if (root.matchCount === 0)
-                    return "no matches";
+                    return qsTr("no matches");
                 return root.activeMatch + "/" + root.matchCount;
             }
             color: root.matchCount === 0 && root.searching ? root.colors.urgent :
@@ -130,7 +130,7 @@ Item {
             width: 28
             height: 26
             icon: "keyboard_arrow_up"
-            accessibleName: "Previous match"
+            accessibleName: qsTr("Previous match")
             fontFamily: root.iconFontFamily
             enabled: root.matchCount > 0
             foreground: root.colors.text
@@ -146,7 +146,7 @@ Item {
             width: 28
             height: 26
             icon: "keyboard_arrow_down"
-            accessibleName: "Next match"
+            accessibleName: qsTr("Next match")
             fontFamily: root.iconFontFamily
             enabled: root.matchCount > 0
             foreground: root.colors.text
@@ -163,7 +163,7 @@ Item {
             width: 28
             height: 26
             icon: "close"
-            accessibleName: "Hide find"
+            accessibleName: qsTr("Hide find")
             fontFamily: root.iconFontFamily
             foreground: root.colors.text
             accent: root.colors.accent

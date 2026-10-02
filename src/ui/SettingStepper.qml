@@ -65,7 +65,7 @@ Row {
         colors: root.colors
         label: "−"
         enabled: root.value > root.minimum
-        accessibleName: "Decrease " + root.accessibleName + ", now " + root.spokenValue
+        accessibleName: qsTr("Decrease %1, now %2").arg(root.accessibleName).arg(root.spokenValue)
         onClicked: root.decreased()
     }
 
@@ -94,7 +94,7 @@ Row {
         colors: root.colors
         label: "+"
         enabled: root.value < root.maximum
-        accessibleName: "Increase " + root.accessibleName + ", now " + root.spokenValue
+        accessibleName: qsTr("Increase %1, now %2").arg(root.accessibleName).arg(root.spokenValue)
         onClicked: root.increased()
     }
 
@@ -103,7 +103,7 @@ Row {
         colors: root.colors
         label: "reset"
         visible: root.overridden
-        accessibleName: "Reset " + root.accessibleName + " to " + root.defaultName
+        accessibleName: qsTr("Reset %1 to %2").arg(root.accessibleName).arg(root.defaultName)
         onClicked: root.reset()
     }
 }
