@@ -69,7 +69,8 @@ void Localization::aLocaleWithoutACatalogueFallsBackToEnglish()
 
 void Localization::theLabSwitchesLocaleOverTheEnvironment()
 {
-    QCOMPARE(startPageHint(QStringLiteral("en_US.UTF-8"), {QStringLiteral("--locale"), QStringLiteral("fi")}),
+    QCOMPARE(startPageHint(
+                 QStringLiteral("en_US.UTF-8"), {QStringLiteral("--locale"), QStringLiteral("fi")}),
         QStringLiteral("pikanäppäimet"));
 }
 

@@ -9,27 +9,27 @@ for the translator and for whoever resolves a catalogue conflict.
 
 Follow the terms the established Finnish desktop translations use: KDE, GNOME and Firefox's Finnish
 localization. When they disagree, GNOME and Firefox win over KDE, because Omaweb's readers come from
-a browser. Write the plain singular imperative for commands (Avaa, Tallenna, Sulje), the noun for labels, and
-sentence case. Keep a key name as the keyboard prints it.
+a browser. Write the plain singular imperative for commands (Avaa, Tallenna, Sulje), the noun for
+labels, and sentence case. Keep a key name as the keyboard prints it.
 
 Omaweb's own words are translated once, here, so every batch agrees:
 
-| English        | Finnish               | Note                                                                                  |
-| -------------- | --------------------- | ------------------------------------------------------------------------------------- |
+| English        | Finnish               | Note                                                                                            |
+| -------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
 | Space          | Tila                  | A browsing identity. Chosen over "työtila", which Omarchy readers know as Hyprland's workspace. |
-| Omnibar        | Omnibar               | Kept, it is a product term. Inflect it: "Omnibarissa".                                |
-| Glance         | Pikakatsaus           | The page shown over the tab it came from.                                             |
-| Agent          | Agentti               | A program that drives the browser.                                                    |
-| Agent tab      | Agentin välilehti     | The tab an Agent is attached to.                                                      |
-| Start page     | Aloitussivu           |                                                                                       |
-| Tab            | Välilehti             |                                                                                       |
-| Pinned tab     | Kiinnitetty välilehti |                                                                                       |
-| Sidebar        | Sivupalkki            |                                                                                       |
-| Private window | Yksityinen ikkuna     |                                                                                       |
-| Shortcuts      | Pikanäppäimet         |                                                                                       |
-| History        | Historia              |                                                                                       |
-| Downloads      | Lataukset             |                                                                                       |
-| Settings       | Asetukset             |                                                                                       |
+| Omnibar        | Omnibar               | Kept, it is a product term. Inflect it: "Omnibarissa".                                          |
+| Glance         | Pikakatsaus           | The page shown over the tab it came from.                                                       |
+| Agent          | Agentti               | A program that drives the browser.                                                              |
+| Agent tab      | Agentin välilehti     | The tab an Agent is attached to.                                                                |
+| Start page     | Aloitussivu           |                                                                                                 |
+| Tab            | Välilehti             |                                                                                                 |
+| Pinned tab     | Kiinnitetty välilehti |                                                                                                 |
+| Sidebar        | Sivupalkki            |                                                                                                 |
+| Private window | Yksityinen ikkuna     |                                                                                                 |
+| Shortcuts      | Pikanäppäimet         |                                                                                                 |
+| History        | Historia              |                                                                                                 |
+| Downloads      | Lataukset             |                                                                                                 |
+| Settings       | Asetukset             |                                                                                                 |
 
 Add a row when a batch has to translate a new Omaweb term.
 

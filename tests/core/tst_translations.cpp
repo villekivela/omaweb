@@ -86,7 +86,8 @@ void TranslationsTests::theRegionlessCatalogueAnswersARegionalLocale()
         QCoreApplication::instance(), QLocale(QStringLiteral("fi_FI")), {directory.path()});
     QVERIFY(translator != nullptr);
     QCOMPARE(QFileInfo(translator->filePath()).fileName(), QStringLiteral("omaweb_fi.qm"));
-    QCOMPARE(QCoreApplication::translate("StartPage", "shortcuts"), QStringLiteral("pikanäppäimet"));
+    QCOMPARE(
+        QCoreApplication::translate("StartPage", "shortcuts"), QStringLiteral("pikanäppäimet"));
     delete translator;
     QCOMPARE(QCoreApplication::translate("StartPage", "shortcuts"), QStringLiteral("shortcuts"));
 }
