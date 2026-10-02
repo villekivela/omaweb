@@ -26,6 +26,25 @@ cached, and archived files keep their upstream or historical formatting.
 - Shell scripts use POSIX shell unless the shebang names Bash. Quote expansions unless splitting is
   the intended behavior.
 
+## User-facing strings
+
+Every string a reader sees in the chrome is wrapped for translation, as
+[ADR 0056](../adr/0056-translate-the-chrome-with-qt-linguist.md) records.
+
+- QML: `qsTr("Text")`. C++: `tr("Text")` in a `QObject`, otherwise
+  `QCoreApplication::translate("Context", "Text")`. The context is the QML file's name or the C++
+  class's, so each surface has its own part of the catalogue.
+- A value goes in as `%1`, `.arg()` on the wrapped string: `qsTr("Closed %1").arg(title)`. Never
+  join translated pieces into a sentence, because word order differs between languages.
+- A count is a plural: `qsTr("%n tab(s)", "", count)`. Finnish gets the singular and the plural form
+  from the catalogue.
+- A short string that is ambiguous alone takes a disambiguation comment as the second argument:
+  `qsTr("Open", "verb: open a page")`.
+- Wrap a string only if a reader reads it. Object names, log messages, identifiers, file formats and
+  `objectName`s are not translated. An accessible name a screen reader speaks is.
+- A new string is added to `translations/omaweb_fi.ts` in the same change, translated, following
+  [the translation guide](../localization.md).
+
 ## Required gates
 
 Format or check the files changed from `origin/main` during normal development:

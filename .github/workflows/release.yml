@@ -98,8 +98,8 @@ jobs:
           PACMAN_FLAGS: ${{ matrix.pacman-flags }}
         run:
           pacman -Syu --noconfirm $PACMAN_FLAGS cmake ninja clang rust python qt6-base
-          qt6-declarative qt6-shadertools omaweb-qtwebengine qt6-wayland hicolor-icon-theme
-          xdg-utils libsecret libsodium
+          qt6-declarative qt6-shadertools qt6-tools omaweb-qtwebengine qt6-wayland
+          hicolor-icon-theme xdg-utils libsecret libsodium
 
       # Every job here asks the same script what is being built, so a dry run
       # and a release cannot end up naming one thing two ways.

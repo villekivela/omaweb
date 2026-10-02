@@ -36,8 +36,9 @@ depends=(
     'xdg-utils'
 )
 # `qt6-shadertools` compiles the Start page's CRT glass to the shader packs Qt
-# Quick loads; nothing of it runs with the browser.
-makedepends=('cmake' 'ninja' 'clang' 'rust' 'python' 'qt6-shadertools')
+# Quick loads; nothing of it runs with the browser. `qt6-tools` brings Qt
+# Linguist, which compiles the translation catalogues.
+makedepends=('cmake' 'ninja' 'clang' 'rust' 'python' 'qt6-shadertools' 'qt6-tools')
 optdepends=(
     # Qt is pointed at an input-method plugin by the desktop environment, and
     # Omarchy points it at fcitx. Without the plugin installed Qt loads no input
