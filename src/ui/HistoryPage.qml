@@ -236,6 +236,9 @@ Rectangle {
                 visible: root.putAwayRows.length > 0
                 height: visible ? implicitHeight + Style.space(18) : 0
                 spacing: 6
+                // A header that grows after the list has laid out its rows is
+                // left above the view, so the view goes back to its top.
+                onHeightChanged: historyList.positionViewAtBeginning()
 
                 SectionLabel {
                     objectName: "historyPutAwayHeading"

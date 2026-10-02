@@ -8236,6 +8236,9 @@ TestCase {
         const put = putAwayInASpaceOfItsOwn("Put away history",
                                             "https://put-away-history.example/page");
         browser.dismissPutAwayNotice();
+        // Visits under the group, as a Space in use has.
+        for (let visit = 0; visit < 12; ++visit)
+            browser.recordVisit("https://put-away-visit.example/" + visit, "Visit " + visit);
         window.requestHistory();
         const surface = findChild(window.contentItem, "historySurface");
         tryVerify(function () {
@@ -8244,6 +8247,13 @@ TestCase {
         const group = findChild(window.contentItem, "historyPutAwayGroup");
         verify(group !== null);
         tryCompare(group, "visible", true);
+        // At the top of the sheet where it can be seen, not scrolled out of
+        // the list above its first visit.
+        const historyList = findChild(window.contentItem, "historyList");
+        tryVerify(function () {
+            const top = group.mapToItem(historyList, 0, 0).y;
+            return top >= 0 && top < historyList.height;
+        });
         compare(findChild(group, "historyPutAwayHeading").text, "put away");
         const row = findChild(group, "historyPutAwayRow");
         verify(row !== null);
