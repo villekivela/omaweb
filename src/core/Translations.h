@@ -23,8 +23,8 @@ QTranslator *installCatalogue(
     QCoreApplication *application, const QLocale &locale, const QStringList &directories);
 
 // Where the build tree and an installed copy keep their compiled catalogues,
-// in the order to look: the installed one is found relative to the executable
-// so a package's prefix is not baked into the binary.
+// in the order to look. The installed one is found relative to the executable, so
+// a package's prefix is not baked into the binary, and comes first.
 QStringList catalogueDirectories(const QString &buildTreeDirectory);
 
 } // namespace omaweb

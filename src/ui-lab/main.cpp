@@ -346,9 +346,10 @@ int main(int argc, char *argv[])
     omaweb::installWindowChrome(&application);
     // `--locale fi` shows the chrome as that locale's reader sees it, so a
     // mock can be checked in Finnish without changing the shell's environment.
-    const auto localeIndex = application.arguments().indexOf(QStringLiteral("--locale"));
-    const auto locale = localeIndex >= 0 && localeIndex + 1 < application.arguments().size()
-        ? QLocale(application.arguments().at(localeIndex + 1))
+    const auto localeArguments = application.arguments();
+    const auto localeIndex = localeArguments.indexOf(QStringLiteral("--locale"));
+    const auto locale = localeIndex >= 0 && localeIndex + 1 < localeArguments.size()
+        ? QLocale(localeArguments.at(localeIndex + 1))
         : omaweb::requestedLocale();
     omaweb::installCatalogue(&application, locale,
         omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY)));

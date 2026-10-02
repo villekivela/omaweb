@@ -14,22 +14,22 @@ sentence case. Keep a key name as the keyboard prints it.
 
 Omaweb's own words are translated once, here, so every batch agrees:
 
-| English        | Finnish               | Note                                                           |
-| -------------- | --------------------- | -------------------------------------------------------------- |
-| Space          | Tila                  | A browsing identity. Not "avaruus", and not the Space bar key. |
-| Omnibar        | Omnibar               | Kept, it is a product term. Inflect it: "Omnibarissa".         |
-| Glance         | Pikakatsaus           | The page shown over the tab it came from.                      |
-| Agent          | Agentti               | A program that drives the browser.                             |
-| Agent tab      | Agentin välilehti     | The tab an Agent is attached to.                               |
-| Start page     | Aloitussivu           |                                                                |
-| Tab            | Välilehti             |                                                                |
-| Pinned tab     | Kiinnitetty välilehti |                                                                |
-| Sidebar        | Sivupalkki            |                                                                |
-| Private window | Yksityinen ikkuna     |                                                                |
-| Shortcuts      | Pikanäppäimet         |                                                                |
-| History        | Historia              |                                                                |
-| Downloads      | Lataukset             |                                                                |
-| Settings       | Asetukset             |                                                                |
+| English        | Finnish               | Note                                                                                  |
+| -------------- | --------------------- | ------------------------------------------------------------------------------------- |
+| Space          | Työtila               | A browsing identity, after GNOME's workspace. Not "tila", which means status or mode. |
+| Omnibar        | Omnibar               | Kept, it is a product term. Inflect it: "Omnibarissa".                                |
+| Glance         | Pikakatsaus           | The page shown over the tab it came from.                                             |
+| Agent          | Agentti               | A program that drives the browser.                                                    |
+| Agent tab      | Agentin välilehti     | The tab an Agent is attached to.                                                      |
+| Start page     | Aloitussivu           |                                                                                       |
+| Tab            | Välilehti             |                                                                                       |
+| Pinned tab     | Kiinnitetty välilehti |                                                                                       |
+| Sidebar        | Sivupalkki            |                                                                                       |
+| Private window | Yksityinen ikkuna     |                                                                                       |
+| Shortcuts      | Pikanäppäimet         |                                                                                       |
+| History        | Historia              |                                                                                       |
+| Downloads      | Lataukset             |                                                                                       |
+| Settings       | Asetukset             |                                                                                       |
 
 Add a row when a batch has to translate a new Omaweb term.
 

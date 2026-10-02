@@ -33,12 +33,13 @@ QTranslator *installCatalogue(
 
 QStringList catalogueDirectories(const QString &buildTreeDirectory)
 {
-    QStringList directories;
+    // An installed copy first, so a stale catalogue left in a build directory
+    // the package was made from never shadows the one it shipped.
+    QStringList directories {QDir(QCoreApplication::applicationDirPath())
+            .filePath(QStringLiteral("../share/omaweb/translations"))};
     if (!buildTreeDirectory.isEmpty()) {
         directories.append(buildTreeDirectory);
     }
-    directories.append(QDir(QCoreApplication::applicationDirPath())
-            .filePath(QStringLiteral("../share/omaweb/translations")));
     return directories;
 }
 

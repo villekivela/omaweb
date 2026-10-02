@@ -280,6 +280,8 @@ add_library(omaweb-core STATIC
     src/core/StoredFavicons.h
     src/core/ThreadedSessionStore.cpp
     src/core/ThreadedSessionStore.h
+    src/core/Translations.cpp
+    src/core/Translations.h
     src/core/SoundingTabs.cpp
     src/core/SoundingTabs.h
     src/core/SpaceListModel.cpp
@@ -295,8 +297,6 @@ add_library(omaweb-core STATIC
     src/core/WebRtcPolicy.cpp
     src/core/WebRtcPolicy.h
     src/core/WindowManager.cpp
-    src/core/Translations.cpp
-    src/core/Translations.h
     src/core/WindowManager.h
 )
 set_target_properties(omaweb-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
