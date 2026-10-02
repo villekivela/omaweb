@@ -217,290 +217,290 @@ QtObject {
     readonly property var descriptions: ({
                                              "back": {
                                                  group: "navigation",
-                                                 title: "Back"
+                                                 title: qsTr("Back")
                                              },
                                              "forward": {
                                                  group: "navigation",
-                                                 title: "Forward"
+                                                 title: qsTr("Forward")
                                              },
                                              "reload": {
                                                  group: "navigation",
-                                                 title: "Reload"
+                                                 title: qsTr("Reload")
                                              },
                                              "reload-bypassing-cache": {
                                                  group: "navigation",
-                                                 title: "Reload bypassing cache",
+                                                 title: qsTr("Reload bypassing cache"),
                                                  requires: "page"
                                              },
                                              "stop-loading": {
                                                  group: "navigation",
-                                                 title: "Stop loading",
+                                                 title: qsTr("Stop loading"),
                                                  requires: "page"
                                              },
                                              "open-address": {
                                                  group: "navigation",
-                                                 title: "Open address"
+                                                 title: qsTr("Open address")
                                              },
                                              "command-scope": {
                                                  group: "interface",
-                                                 title: "Search commands"
+                                                 title: qsTr("Search commands")
                                              },
                                              "new-tab": {
                                                  group: "tabs",
-                                                 title: "New tab"
+                                                 title: qsTr("New tab")
                                              },
                                              "close-tab": {
                                                  group: "tabs",
-                                                 title: "Close tab"
+                                                 title: qsTr("Close tab")
                                              },
                                              "reopen-tab": {
                                                  group: "tabs",
-                                                 title: "Reopen closed tab"
+                                                 title: qsTr("Reopen closed tab")
                                              },
                                              "next-tab": {
                                                  group: "tabs",
-                                                 title: "Next tab"
+                                                 title: qsTr("Next tab")
                                              },
                                              "previous-tab": {
                                                  group: "tabs",
-                                                 title: "Previous tab"
+                                                 title: qsTr("Previous tab")
                                              },
                                              "select-tab": {
                                                  group: "tabs",
-                                                 title: "Jump to tab by number"
+                                                 title: qsTr("Jump to tab by number")
                                              },
                                              "pin-tab": {
                                                  group: "tabs",
-                                                 title: "Pin or unpin this tab",
+                                                 title: qsTr("Pin or unpin this tab"),
                                                  requires: "unpaired-tab"
                                              },
                                              "keep-tab-active": {
                                                  group: "tabs",
-                                                 title: "Keep this Pinned tab active",
+                                                 title: qsTr("Keep this Pinned tab active"),
                                                  requires: "pinned-tab"
                                              },
                                              "extension-popup": {
                                                  group: "interface",
-                                                 title: "Show the extensions",
+                                                 title: qsTr("Show the extensions"),
                                                  requires: "extension"
                                              },
                                              "glance-to-tab": {
                                                  group: "tabs",
-                                                 title: "Open the Glance as a tab",
+                                                 title: qsTr("Open the Glance as a tab"),
                                                  requires: "glance"
                                              },
                                              "duplicate-tab": {
                                                  group: "tabs",
-                                                 title: "Duplicate tab",
+                                                 title: qsTr("Duplicate tab"),
                                                  requires: "page"
                                              },
                                              "move-tab-up": {
                                                  group: "tabs",
-                                                 title: "Move tab up"
+                                                 title: qsTr("Move tab up")
                                              },
                                              "move-tab-down": {
                                                  group: "tabs",
-                                                 title: "Move tab down"
+                                                 title: qsTr("Move tab down")
                                              },
                                              "close-other-tabs": {
                                                  group: "tabs",
-                                                 title: "Close other tabs",
+                                                 title: qsTr("Close other tabs"),
                                                  requires: "ordinary-tab"
                                              },
                                              "close-tabs-below": {
                                                  group: "tabs",
-                                                 title: "Close tabs below",
+                                                 title: qsTr("Close tabs below"),
                                                  requires: "ordinary-tab"
                                              },
                                              "tab-menu": {
                                                  group: "tabs",
-                                                 title: "Open tab menu"
+                                                 title: qsTr("Open tab menu")
                                              },
                                              "move-tab": {
                                                  group: "tabs",
-                                                 title: "Move tab to another Space"
+                                                 title: qsTr("Move tab to another Space")
                                              },
                                              "add-split": {
                                                  group: "tabs",
-                                                 title: "Add split view",
+                                                 title: qsTr("Add split view"),
                                                  requires: "unpaired-ordinary-tab"
                                              },
                                              "separate-split": {
                                                  group: "tabs",
-                                                 title: "Separate split view",
+                                                 title: qsTr("Separate split view"),
                                                  requires: "split"
                                              },
                                              "focus-split-partner": {
                                                  group: "tabs",
-                                                 title: "Focus the tab beside",
+                                                 title: qsTr("Focus the tab beside"),
                                                  requires: "split"
                                              },
                                              "next-space": {
                                                  group: "spaces",
-                                                 title: "Next Space"
+                                                 title: qsTr("Next Space")
                                              },
                                              "select-space": {
                                                  group: "spaces",
-                                                 title: "Switch Space by number"
+                                                 title: qsTr("Switch Space by number")
                                              },
                                              "new-space": {
                                                  group: "spaces",
-                                                 title: "New Space"
+                                                 title: qsTr("New Space")
                                              },
                                              "take-over-space": {
                                                  group: "spaces",
-                                                 title: "Take over Space",
+                                                 title: qsTr("Take over Space"),
                                                  requires: "agent-space"
                                              },
                                              "toggle-sidebar": {
                                                  group: "interface",
-                                                 title: "Hide or show the sidebar"
+                                                 title: qsTr("Hide or show the sidebar")
                                              },
                                              "widen-sidebar": {
                                                  group: "interface",
-                                                 title: "Widen the sidebar"
+                                                 title: qsTr("Widen the sidebar")
                                              },
                                              "narrow-sidebar": {
                                                  group: "interface",
-                                                 title: "Narrow the sidebar"
+                                                 title: qsTr("Narrow the sidebar")
                                              },
                                              "reset-sidebar": {
                                                  group: "interface",
-                                                 title: "Reset the sidebar width"
+                                                 title: qsTr("Reset the sidebar width")
                                              },
                                              "focus-sidebar": {
                                                  group: "interface",
-                                                 title: "Focus the sidebar"
+                                                 title: qsTr("Focus the sidebar")
                                              },
                                              "focus-page": {
                                                  group: "interface",
-                                                 title: "Focus the page"
+                                                 title: qsTr("Focus the page")
                                              },
                                              "move-focus-left": {
                                                  group: "interface",
-                                                 title: "Move focus left"
+                                                 title: qsTr("Move focus left")
                                              },
                                              "move-focus-down": {
                                                  group: "interface",
-                                                 title: "Move focus down"
+                                                 title: qsTr("Move focus down")
                                              },
                                              "move-focus-up": {
                                                  group: "interface",
-                                                 title: "Move focus up"
+                                                 title: qsTr("Move focus up")
                                              },
                                              "move-focus-right": {
                                                  group: "interface",
-                                                 title: "Move focus right"
+                                                 title: qsTr("Move focus right")
                                              },
                                              "copy-address": {
                                                  group: "navigation",
-                                                 title: "Copy address",
+                                                 title: qsTr("Copy address"),
                                                  requires: "page"
                                              },
                                              "find": {
                                                  group: "page",
-                                                 title: "Find in page",
+                                                 title: qsTr("Find in page"),
                                                  requires: "find"
                                              },
                                              "find-next": {
                                                  group: "page",
-                                                 title: "Next match",
+                                                 title: qsTr("Next match"),
                                                  requires: "find"
                                              },
                                              "find-previous": {
                                                  group: "page",
-                                                 title: "Previous match",
+                                                 title: qsTr("Previous match"),
                                                  requires: "find"
                                              },
                                              "zoom-in": {
                                                  group: "page",
-                                                 title: "Zoom in",
+                                                 title: qsTr("Zoom in"),
                                                  requires: "zoom"
                                              },
                                              "zoom-out": {
                                                  group: "page",
-                                                 title: "Zoom out",
+                                                 title: qsTr("Zoom out"),
                                                  requires: "zoom"
                                              },
                                              "zoom-reset": {
                                                  group: "page",
-                                                 title: "Reset zoom",
+                                                 title: qsTr("Reset zoom"),
                                                  requires: "zoom"
                                              },
                                              "print": {
                                                  group: "page",
-                                                 title: "Print",
+                                                 title: qsTr("Print"),
                                                  requires: "printing"
                                              },
                                              "screenshot-page": {
                                                  group: "page",
-                                                 title: "Screenshot page"
+                                                 title: qsTr("Screenshot page")
                                              },
                                              "copy-screenshot": {
                                                  group: "page",
-                                                 title: "Copy screenshot"
+                                                 title: qsTr("Copy screenshot")
                                              },
                                              "screenshot-full-page": {
                                                  group: "page",
-                                                 title: "Screenshot full page"
+                                                 title: qsTr("Screenshot full page")
                                              },
                                              "copy-full-page-screenshot": {
                                                  group: "page",
-                                                 title: "Copy full-page screenshot"
+                                                 title: qsTr("Copy full-page screenshot")
                                              },
                                              "fullscreen": {
                                                  group: "interface",
-                                                 title: "Fullscreen"
+                                                 title: qsTr("Fullscreen")
                                              },
                                              "developer-tools": {
                                                  group: "developer",
-                                                 title: "Developer tools",
+                                                 title: qsTr("Developer tools"),
                                                  requires: "inspector"
                                              },
                                              "inspect-element": {
                                                  group: "developer",
-                                                 title: "Inspect element",
+                                                 title: qsTr("Inspect element"),
                                                  requires: "inspector"
                                              },
                                              "open-page-context-menu": {
                                                  group: "page",
-                                                 title: "Open page context menu",
+                                                 title: qsTr("Open page context menu"),
                                                  requires: "page"
                                              },
                                              "open-file": {
                                                  group: "navigation",
-                                                 title: "Open file"
+                                                 title: qsTr("Open file")
                                              },
                                              "shortcuts": {
                                                  group: "interface",
-                                                 title: "Keyboard shortcuts"
+                                                 title: qsTr("Keyboard shortcuts")
                                              },
                                              "history": {
                                                  group: "interface",
-                                                 title: "History",
+                                                 title: qsTr("History"),
                                                  requires: "ordinary-window"
                                              },
                                              "agent-activity": {
                                                  group: "interface",
-                                                 title: "Show agent activity",
+                                                 title: qsTr("Show agent activity"),
                                                  requires: "ordinary-window"
                                              },
                                              "settings": {
                                                  group: "interface",
-                                                 title: "Settings and downloads"
+                                                 title: qsTr("Settings and downloads")
                                              },
                                              "downloads": {
                                                  group: "interface",
-                                                 title: "Downloads"
+                                                 title: qsTr("Downloads")
                                              },
                                              "private-window": {
                                                  group: "interface",
-                                                 title: "New Private window",
+                                                 title: qsTr("New Private window"),
                                                  requires: "private-windows"
                                              },
                                              "minimize-window": {
                                                  group: "interface",
-                                                 title: "Minimize window"
+                                                 title: qsTr("Minimize window")
                                              }
                                          })
 
@@ -517,15 +517,17 @@ QtObject {
                                          })
 
     readonly property var pageDescriptions: ({
-                                                 "scroll-down": "Scroll down",
-                                                 "scroll-up": "Scroll up",
-                                                 "scroll-half-page-down": "Scroll down half a page",
-                                                 "scroll-half-page-up": "Scroll up half a page",
-                                                 "scroll-top": "Top of page",
-                                                 "scroll-bottom": "Bottom of page",
-                                                 "open-link": "Follow link hint",
-                                                 "open-link-background":
-                                                 "Follow link hint in a background tab"
+                                                 "scroll-down": qsTr("Scroll down"),
+                                                 "scroll-up": qsTr("Scroll up"),
+                                                 "scroll-half-page-down": qsTr(
+                                                                              "Scroll down half a page"),
+                                                 "scroll-half-page-up": qsTr(
+                                                                            "Scroll up half a page"),
+                                                 "scroll-top": qsTr("Top of page"),
+                                                 "scroll-bottom": qsTr("Bottom of page"),
+                                                 "open-link": qsTr("Follow link hint"),
+                                                 "open-link-background": qsTr(
+                                                                             "Follow link hint in a background tab")
                                              })
 
     // A command the current engine or window cannot carry out is listed and

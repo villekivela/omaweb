@@ -30,6 +30,8 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | History        | Historia              |                                                                                                 |
 | Downloads      | Lataukset             |                                                                                                 |
 | Settings       | Asetukset             |                                                                                                 |
+| Engine         | Moottori              | The web engine that renders pages.                                                              |
+| Sync           | Synkronointi          |                                                                                                 |
 | Put away       | Panna syrjään         | What Omaweb does with an unused tab. The list is "syrjään pannut".                              |
 
 Add a row when a batch has to translate a new Omaweb term.

@@ -800,7 +800,7 @@ Rectangle {
                     width: 28
                     height: 26
                     icon: root.collapsed ? "left_panel_open" : "left_panel_close"
-                    accessibleName: root.collapsed ? "Show sidebar" : "Hide sidebar"
+                    accessibleName: root.collapsed ? qsTr("Show sidebar") : qsTr("Hide sidebar")
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
@@ -821,7 +821,7 @@ Rectangle {
                     width: 28
                     height: 26
                     icon: "search"
-                    accessibleName: "Search commands"
+                    accessibleName: qsTr("Search commands")
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
@@ -849,7 +849,7 @@ Rectangle {
                     width: 28
                     height: 26
                     icon: "arrow_back"
-                    accessibleName: "Back"
+                    accessibleName: qsTr("Back")
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
@@ -871,7 +871,7 @@ Rectangle {
                     width: 28
                     height: 26
                     icon: "arrow_forward"
-                    accessibleName: "Forward"
+                    accessibleName: qsTr("Forward")
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
@@ -893,7 +893,7 @@ Rectangle {
                     width: 28
                     height: 26
                     icon: "refresh"
-                    accessibleName: "Reload"
+                    accessibleName: qsTr("Reload")
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
@@ -909,7 +909,7 @@ Rectangle {
         Omarchy.BorderSurface {
             id: addressButton
             objectName: "addressButton"
-            property string accessibleName: "Search or enter address"
+            property string accessibleName: qsTr("Search or enter address")
             readonly property bool focused: root.statusOpen || addressButton.activeFocus
             width: parent.width
             height: 34
@@ -958,7 +958,7 @@ Rectangle {
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.StaticText
-                Accessible.name: "Site information: " + sitePanel.connectionSentence
+                Accessible.name: qsTr("Site information: %1").arg(sitePanel.connectionSentence)
 
                 MouseArea {
                     anchors.fill: parent
@@ -975,7 +975,7 @@ Rectangle {
                 anchors.right: blockedCount.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.blank ? "search or enter address" : String(root.activeUrl).replace(
+                text: root.blank ? qsTr("search or enter address") : String(root.activeUrl).replace(
                                        /^[a-z]+:\/\//, "")
                 color: root.blank ? root.colors.mutedText : root.colors.text
                 elide: Text.ElideMiddle
@@ -1228,7 +1228,7 @@ Rectangle {
         anchors.bottomMargin: 16
         height: 30
         Accessible.role: Accessible.Heading
-        Accessible.name: root.privateWindow || !root.browser ? "Private" :
+        Accessible.name: root.privateWindow || !root.browser ? qsTr("Private") :
                                                                root.browser.activeSpaceName
 
         // Every Space of the reader's is a small square in its colour, and
@@ -1286,11 +1286,13 @@ Rectangle {
                     visible: root.spaceInRow(index)
                     width: root.spaceSlot
                     height: 28
-                    accessibleName: (active ? "Current Space: " + spaceName : "Switch to "
-                                              + spaceName) + (agentWork.attached
-                                                              ? " (an Agent is working here)" : (
-                                                                    agentMade ? " (Agent Space)" :
-                                                                                ""))
+                    accessibleName: (active ? qsTr("Current Space: %1").arg(spaceName) : qsTr(
+                                                  "Switch to %1").arg(spaceName)) + (
+                                        agentWork.attached ? " " + qsTr(
+                                                                 "(an Agent is working here)") : (
+                                                                 agentMade ? " " + qsTr(
+                                                                                 "(Agent Space)") :
+                                                                             ""))
                     // The kit derives a control's fill and border from its
                     // foreground, which is why the Space's colour is the
                     // square's alone and never the button's: a coloured Space
@@ -1378,7 +1380,8 @@ Rectangle {
                 font.pixelSize: Style.font.body
                 activeFocusOnTab: visible
                 Accessible.role: Accessible.Button
-                Accessible.name: hidden === 1 ? "1 more Space" : hidden + " more Spaces"
+                Accessible.name: hidden === 1 ? qsTr("1 more Space") : qsTr("%1 more Spaces").arg(
+                                                    hidden)
                 Accessible.onPressAction: root.openHiddenSpaces()
                 Keys.onReturnPressed: root.openHiddenSpaces()
                 Keys.onEnterPressed: root.openHiddenSpaces()
@@ -1405,7 +1408,7 @@ Rectangle {
             font.family: root.iconFontFamily
             font.pixelSize: Style.font.iconLarge
             Accessible.role: Accessible.StaticText
-            Accessible.name: "Private window"
+            Accessible.name: qsTr("Private window")
         }
 
         ReleaseMark {
@@ -1466,12 +1469,13 @@ Rectangle {
             width: 28
             height: 26
             visible: root.authenticatedSync
-            accessibleName: !root.authenticatedSync ? "Settings" : root.settingsAttention
-                                                      ? "Settings for " + root.sync.login
-                                                        + " — needs attention" : !root.activeSync
-                                                        ? "Settings for " + root.sync.login
-                                                          + " — Sync paused" : "Settings for "
-                                                          + root.sync.login
+            accessibleName: !root.authenticatedSync ? qsTr("Settings") : root.settingsAttention
+                                                      ? qsTr("Settings for %1 — needs attention").arg(
+                                                            root.sync.login) : !root.activeSync
+                                                        ? qsTr("Settings for %1 — Sync paused").arg(
+                                                              root.sync.login) : qsTr(
+                                                              "Settings for %1").arg(
+                                                              root.sync.login)
             foreground: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent :
                                                                          root.colors.mutedText
 
@@ -1546,9 +1550,9 @@ Rectangle {
             height: 26
             visible: !root.authenticatedSync
             icon: "settings"
-            accessibleName: root.settingsAttention
-                            ? "Browsing settings and downloads — needs attention" :
-                              "Browsing settings and downloads"
+            accessibleName: root.settingsAttention ? qsTr(
+                                                         "Browsing settings and downloads — needs attention") :
+                                                     qsTr("Browsing settings and downloads")
             fontFamily: root.iconFontFamily
             foreground: root.settingsAttention ? root.colors.text : root.colors.mutedText
             accent: root.colors.accent
