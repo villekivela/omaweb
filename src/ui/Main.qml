@@ -774,6 +774,14 @@ ApplicationWindow {
         window.settingsOpen = true;
     }
 
+    function requestPutAwaySetting() {
+        window.historyOpen = false;
+        const interfaceSection = settingsSurface.sections.indexOf("interface");
+        if (interfaceSection >= 0)
+            settingsSurface.section = interfaceSection;
+        window.settingsOpen = true;
+    }
+
     function requestSync() {
         window.historyOpen = false;
         const syncSection = settingsSurface.sections.indexOf("sync");
@@ -3456,6 +3464,41 @@ ApplicationWindow {
                             if (window.dismissedAgentSpaceId !== window.windowBrowser.activeSpaceId)
                                 window.dismissedAgentSpaceId = "";
                         }
+                    }
+                }
+
+                // The first time Omaweb puts tabs away, once for the
+                // installation. Like the Agent Space bar it leaves the keyboard
+                // where it was, and either answer puts it away for good.
+                PageQuestionBar {
+                    id: putAwayNoticeBar
+                    objectName: "putAwayNoticeBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 38
+                    focus: false
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
+                    open: !window.privateWindow && window.windowBrowser.putAwayNotice
+                    glyph: "inventory_2"
+                    message: qsTr("Omaweb puts away tabs you have not shown for a while")
+                    detail: qsTr(
+                                "The ones it put away wait in History and the Omnibar for 30 days. Settings chooses how long a while is, or turns it off.")
+                    actions: [
+                        {
+                            "label": qsTr("Change in Settings")
+                        },
+                        {
+                            "label": qsTr("Dismiss", "verb: close the notice")
+                        }
+                    ]
+
+                    onActionTriggered: function (index) {
+                        window.windowBrowser.dismissPutAwayNotice();
+                        if (index === 0)
+                            window.requestPutAwaySetting();
                     }
                 }
 

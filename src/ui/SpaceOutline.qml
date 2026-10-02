@@ -532,6 +532,9 @@ Rectangle {
         root.draggedRow = row;
         root.dropDestination = row.placeInSection;
         row.lifted = true;
+        // A row in the hand is in use, so it is not put away under it.
+        if (root.browser)
+            root.browser.setDraggedTab(row.tabId);
     }
 
     // The hand's position decides two things: where the held row is drawn, and
@@ -615,6 +618,8 @@ Rectangle {
         root.draggedRow = null;
         root.dropDestination = -1;
         row.lifted = false;
+        if (root.browser)
+            root.browser.setDraggedTab("");
         // Every row goes back to the place the list gives it, and the list is
         // told the one thing the drag decided.
         for (let place = 0; place < rows.length; ++place) {

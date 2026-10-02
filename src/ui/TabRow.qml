@@ -353,6 +353,10 @@ Item {
         property point grabbedAt: Qt.point(0, 0)
         property point pressedAt: Qt.point(0, 0)
         readonly property real liftThreshold: 4
+        // Whether the press being released carried the row. A release ends
+        // the drag before the click arrives, so the click asks this rather
+        // than whether the row is still lifted.
+        property bool carried: false
 
         function report(mouse) {
             const scene = root.mapToItem(null, mouse.x, mouse.y);
@@ -360,6 +364,7 @@ Item {
         }
 
         onPressed: function (mouse) {
+            hoverArea.carried = false;
             hoverArea.grabbedAt = Qt.point(mouse.x, mouse.y);
             hoverArea.pressedAt = root.mapToItem(null, mouse.x, mouse.y);
         }
@@ -388,6 +393,7 @@ Item {
         onReleased: function (mouse) {
             if (!root.lifted)
                 return;
+            hoverArea.carried = true;
             root.dragEnded(root.tabId);
         }
 
@@ -405,7 +411,7 @@ Item {
                 return;
             }
             // A row that has just been carried into place was not clicked.
-            if (root.lifted)
+            if (root.lifted || hoverArea.carried)
                 return;
             root.reachedByPointer = true;
             root.forceActiveFocus();

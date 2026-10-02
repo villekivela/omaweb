@@ -121,8 +121,8 @@ Item {
     // reader who wants the whole list has the command scope.
     readonly property int commandsBesideTheRest: 5
     // Among rows that hold the text as strongly, the order the kinds are
-    // listed in.
-    readonly property var kindOrder: ["tab", "space", "history", "keyword", "command"]
+    // listed in. A tab Omaweb put away is ranked as History is.
+    readonly property var kindOrder: ["tab", "space", "history", "putaway", "keyword", "command"]
 
     signal dismissed
     signal committed(string text)
@@ -292,7 +292,9 @@ Item {
                 "title": suggestion.title,
                 "url": suggestion.url.toString()
             };
-        }).concat(keywordOffers.map(function (offer) {
+        }).concat(putAwayRows(engine === null ? query : "")).concat(keywordOffers.map(function (
+            offer) {
+
             return {
                 "kind": "keyword",
                 "engineId": offer.engineId,
@@ -342,6 +344,25 @@ Item {
         }
         rows = next.concat(proposedRows());
         selected = named === null ? -1 : next.indexOf(named);
+    }
+
+    // The Space's put-away tabs that hold the typed text in their title or
+    // address, as the store answers History, so they are listed beside it.
+    function putAwayRows(query) {
+        const needle = query.toLowerCase();
+        if (browser === null || needle.length === 0)
+            return [];
+        return browser.putAwayTabs.filter(function (tab) {
+            return tab.title.toLowerCase().indexOf(needle) >= 0 || tab.url.toString().toLowerCase().indexOf(
+                        needle) >= 0;
+        }).map(function (tab) {
+            return {
+                "kind": "putaway",
+                "id": tab.id,
+                "title": tab.title,
+                "url": tab.url.toString()
+            };
+        });
     }
 
     // The tabs of the Space on show come before any other Space's, however
@@ -407,6 +428,8 @@ Item {
     function spokenName(row, title) {
         if (row.kind === "suggestion")
             return "Search " + row.engineName + " for " + title;
+        if (row.kind === "putaway")
+            return qsTr("Reopen put-away tab %1").arg(title);
         const verbs = {
             "tab": "Switch to tab ",
             "space": "Switch to Space ",
@@ -437,15 +460,19 @@ Item {
                              }, action);
     }
 
-    // History and keywords were matched where they came from, so they stay
-    // listed however weakly the text reads in them here.
+    // A row for a page, which is read by its title and its site's host.
+    function namesAPage(kind) {
+        return kind === "tab" || kind === "history" || kind === "putaway";
+    }
+
+    // History, put-away tabs and keywords were matched where they came from,
+    // so they stay listed however weakly the text reads in them here.
     function strengthOf(row, query) {
         if (row.kind === "keyword")
             return 3;
-        const fields = row.kind === "tab" || row.kind === "history" ? [row.title, commands.host(row.url)] :
-                                                                      [row.title];
+        const fields = namesAPage(row.kind) ? [row.title, commands.host(row.url)] : [row.title];
         const found = query.length > 0 ? commands.tier(fields, query) : 0;
-        return row.kind === "history" ? Math.max(1, found) : found;
+        return row.kind === "history" || row.kind === "putaway" ? Math.max(1, found) : found;
     }
 
     // A leading `:` is the command scope, never text to search, and the
@@ -537,6 +564,11 @@ Item {
             const row = rows[selected];
             if (row.kind === "history") {
                 root.committed(row.url);
+                return;
+            }
+            if (row.kind === "putaway") {
+                root.dismissed();
+                browser.reopenPutAwayTab(row.id);
                 return;
             }
             if (row.kind === "suggestion") {
@@ -922,9 +954,8 @@ Item {
                     readonly property bool isSelected: index === root.selected
                     readonly property string title: modelData.kind === "keyword"
                                                     ? modelData.engineName : modelData.title
-                    readonly property string host: modelData.kind === "tab" || modelData.kind
-                                                   === "history" ? root.commands.host(
-                                                                       modelData.url) : ""
+                    readonly property string host: root.namesAPage(modelData.kind)
+                                                   ? root.commands.host(modelData.url) : ""
                     // The site a tile draws: the page for a tab or a history
                     // row, the engine's own site for a keyword or an Engine
                     // suggestion.
@@ -937,6 +968,7 @@ Item {
                                                           "tab": "switch tab →",
                                                           "space": "switch space →",
                                                           "history": "open →",
+                                                          "putaway": qsTr("reopen →"),
                                                           "keyword": "search →",
                                                           "suggestion": "search →",
                                                           "command": ""
@@ -965,7 +997,8 @@ Item {
                                                                                     "")
                     // The row shows a history result's host; the whole address
                     // is still there to be heard.
-                    Accessible.description: modelData.kind === "history" ? modelData.url : ""
+                    Accessible.description: modelData.kind === "history" || modelData.kind
+                                            === "putaway" ? modelData.url : ""
 
                     Rectangle {
                         anchors.fill: parent

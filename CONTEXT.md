@@ -45,6 +45,13 @@ selected, rather than loading again. A tab an inspector is attached to, a tab ma
 Agent tab are not frozen, and neither is a Pinned tab marked Keep active. _Avoid_: Suspended tab,
 sleeping tab, discarded tab
 
+**Put-away tab**: An ordinary tab Omaweb closed because the reader had not shown it for longer than
+the setting allows, kept in its Space's put-away list for 30 days and opened again from the History
+sheet or the Omnibar. A tab in use some other way is never put away: a Pinned tab, a tab making
+sound, an Agent tab, a split's tab, the tab Developer tools are attached to, a row being dragged,
+and each Space's active tab. The list is not the recently closed stack, which holds only the
+reader's own closes. _Avoid_: Discarded tab, archived tab, auto-closed tab
+
 **Sounding tab**: The tab that is making sound, and the one Omaweb announces to the desktop so the
 media keys, the bar's media widget, and anything else that asks reach it. There is one for the whole
 browser rather than one per tab: where two tabs are playing, the one that started last is the

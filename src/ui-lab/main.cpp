@@ -714,6 +714,29 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--tabs"))) {
         seedSampleTabs(browser, mockFavicons, browse ? QString::fromUtf8(browsedTab) : QString());
     }
+    // `--put-away` has the sample day's ordinary tabs last shown one by one
+    // over the past few days, then lets the check put away those past twelve
+    // hours, as a first start after a long weekend would. The History sheet
+    // lists them and the notice says so.
+    if (arguments.contains(QStringLiteral("--put-away"))) {
+        const auto shown = browser.activeTabId();
+        auto *unpinned = browser.unpinnedTabs();
+        const auto role = unpinned->roleNames().key(QByteArrayLiteral("tabId"), -1);
+        QStringList ordinary;
+        for (int row = 0; row < unpinned->rowCount(); ++row) {
+            ordinary.append(unpinned->data(unpinned->index(row, 0), role).toString());
+        }
+        constexpr qint64 hour = 60 * 60 * 1000;
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        for (qsizetype index = 0; index < ordinary.size(); ++index) {
+            browser.setNowForTests(now - (ordinary.size() - index) * 9 * hour);
+            browser.activateTab(ordinary.at(index));
+        }
+        browser.setNowForTests(now - hour);
+        browser.activateTab(shown);
+        browser.setNowForTests(0);
+        browser.putAwayUnusedTabs();
+    }
     // After the sample day, which is seeded into the Space on show.
     if (agents && !agentsAway && browser.switchSpace(agentSpaceId)) {
         browser.activateTab(agentTabId);

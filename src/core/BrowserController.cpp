@@ -13,6 +13,7 @@
 
 #include <QRegularExpression>
 #include <QDir>
+#include <QDateTime>
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QFile>
@@ -42,6 +43,18 @@ namespace {
     // of tabs can walk all of them back, bounded so the store does not grow into a
     // second history of everywhere they have been.
     constexpr qsizetype retainedClosedTabs = 25;
+    // How long a Space keeps a tab Omaweb put away: long enough to come back
+    // for after a holiday, bounded so the list is not a second history.
+    constexpr qint64 putAwayKeptMilliseconds = 30LL * 24 * 60 * 60 * 1000;
+    // How long a tab may go unshown before it is put away, in seconds, unless
+    // the reader chose otherwise.
+    constexpr int defaultPutAwayAfterSeconds = 12 * 60 * 60;
+    constexpr auto putAwayAfterKey = "put-away-unused-tabs-after";
+    // Whether this installation has told the reader it puts tabs away.
+    constexpr auto putAwayNoticeKey = "put-away-notice-given";
+    // How often a window that stays open checks again. The shortest limit is
+    // an hour, so a tab is put away at most this long after it qualifies.
+    constexpr int putAwayCheckMilliseconds = 5 * 60 * 1000;
     // Zoom factors arrive back from an engine as the doubles it rounded them to, so
     // a rung is recognised by nearness rather than by equality.
     constexpr double zoomTolerance = 0.001;
@@ -220,6 +233,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     m_engineSuggestionPause.setInterval(engineSuggestionPauseMilliseconds);
     connect(&m_engineSuggestionPause, &QTimer::timeout, this,
         &BrowserController::askEngineForSuggestions);
+    connect(&m_putAwayCheck, &QTimer::timeout, this, &BrowserController::putAwayUnusedTabs);
     // Every route to a blank tab changes the tab model: opening the first
     // address, closing the last page, switching Space, restoring a session.
     // Watching the model is what keeps the answer from depending on a caller
@@ -232,6 +246,8 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     // tab, a tab opened, reopened or duplicated as much as one selected, is a
     // route to a new answer.
     connect(this, &BrowserController::activeTabChanged, this, [this] { refreshSplit(); });
+    connect(this, &BrowserController::activeTabChanged, this, &BrowserController::noteTabsOnShow);
+    connect(this, &BrowserController::splitChanged, this, &BrowserController::noteTabsOnShow);
     connect(this, &BrowserController::activeSpaceChanged, this,
         &BrowserController::rememberReadersSpace);
     loadDownloadDirectory();
@@ -356,6 +372,243 @@ bool BrowserController::activeTabKeepActive() const
 }
 
 int BrowserController::closedTabCount() const { return static_cast<int>(m_closedTabs.size()); }
+
+QVariantList BrowserController::putAwayTabs() const
+{
+    QVariantList tabs;
+    tabs.reserve(m_putAwayTabs.size());
+    for (const auto &tab : m_putAwayTabs) {
+        tabs.append(tab.toVariantMap());
+    }
+    return tabs;
+}
+
+bool BrowserController::reopenPutAwayTab(const QString &id)
+{
+    const auto entry = std::ranges::find(m_putAwayTabs, id, &PutAwayTab::id);
+    if (id.isEmpty() || entry == m_putAwayTabs.end()) {
+        return false;
+    }
+    const auto tab = *entry;
+    m_putAwayTabs.erase(entry);
+    m_store->recordPutAwayTabs(m_activeSpaceId, m_putAwayTabs);
+    emit putAwayTabsChanged();
+    reopenTab(TabState {
+        .url = tab.url,
+        .title = tab.title,
+        .muted = tab.muted,
+        .zoom = tab.zoom,
+    });
+    return true;
+}
+
+bool BrowserController::forgetPutAwayTabsSince(const QString &spaceId, qint64 since)
+{
+    auto list = spaceId == m_activeSpaceId ? m_putAwayTabs : m_store->loadPutAwayTabs(spaceId);
+    if (list.removeIf([since](const PutAwayTab &tab) { return tab.putAwayAt >= since; }) == 0) {
+        return true;
+    }
+    if (spaceId == m_activeSpaceId) {
+        m_putAwayTabs = list;
+        emit putAwayTabsChanged();
+    }
+    return m_store->recordPutAwayTabs(spaceId, list);
+}
+
+void BrowserController::setNowForTests(qint64 milliseconds) { m_nowForTests = milliseconds; }
+
+qint64 BrowserController::putAwayLimit() const { return 1000LL * putAwayAfterSeconds(); }
+
+int BrowserController::putAwayAfterSeconds() const
+{
+    return preference(
+        QString::fromLatin1(putAwayAfterKey), QString::number(defaultPutAwayAfterSeconds))
+        .toInt();
+}
+
+bool BrowserController::setPutAwayAfterSeconds(int seconds)
+{
+    static constexpr int offered[] = {0, 60 * 60, 12 * 60 * 60, 24 * 60 * 60, 7 * 24 * 60 * 60};
+    if (std::ranges::find(offered, seconds) == std::end(offered)
+        || !setPreference(QString::fromLatin1(putAwayAfterKey), QString::number(seconds))) {
+        return false;
+    }
+    emit putAwayAfterChanged();
+    return true;
+}
+
+bool BrowserController::putAwayNotice() const { return m_putAwayNotice; }
+
+void BrowserController::dismissPutAwayNotice()
+{
+    if (!m_putAwayNotice) {
+        return;
+    }
+    m_putAwayNotice = false;
+    emit putAwayNoticeChanged();
+}
+
+// Written down as it is raised rather than when it is dismissed, so a window
+// closed with the notice up does not raise it again.
+void BrowserController::raisePutAwayNotice()
+{
+    const auto key = QString::fromLatin1(putAwayNoticeKey);
+    if (preference(key) == QStringLiteral("true") || !setPreference(key, QStringLiteral("true"))) {
+        return;
+    }
+    m_putAwayNotice = true;
+    emit putAwayNoticeChanged();
+}
+
+void BrowserController::setPutAwayCheckIntervalForTests(int milliseconds)
+{
+    m_putAwayCheck.start(milliseconds);
+}
+
+void BrowserController::setDraggedTab(const QString &tabId) { m_draggedTabId = tabId; }
+
+void BrowserController::setAgentTabIds(const QStringList &tabIds)
+{
+    m_agentTabIds = QSet<QString>(tabIds.cbegin(), tabIds.cend());
+}
+
+qint64 BrowserController::now() const
+{
+    return m_nowForTests > 0 ? m_nowForTests : QDateTime::currentMSecsSinceEpoch();
+}
+
+void BrowserController::noteTabsOnShow()
+{
+    QStringList shownNow {m_activeTabId};
+    if (const auto beside = tabBesideId(); !beside.isEmpty()) {
+        shownNow.append(beside);
+    }
+    const auto time = now();
+    for (const auto &id : m_tabsOnShow + shownNow) {
+        if (auto *tab = m_tabs.find(id)) {
+            tab->lastShownAt = time;
+        }
+    }
+    m_tabsOnShow = shownNow;
+    schedulePersistTabs();
+}
+
+void BrowserController::loadPutAwayTabs()
+{
+    m_putAwayTabs = m_store->loadPutAwayTabs(m_activeSpaceId);
+    emit putAwayTabsChanged();
+}
+
+// A tab the reader is using in some way other than looking at it, or one
+// there is nothing to put away of. Its age is not asked.
+bool BrowserController::tabInUse(
+    const TabState &tab, const QString &spaceActiveTabId, bool audible) const
+{
+    return isBlank(tab.url) || tab.pinned || tab.keepActive || !tab.splitPartnerId.isEmpty()
+        || tab.id == spaceActiveTabId || audible || m_agentTabIds.contains(tab.id)
+        || tab.id == m_draggedTabId || tab.id == m_developerToolsTabId;
+}
+
+void BrowserController::putAwayUnusedTabs()
+{
+    if (m_privateBrowsing) {
+        return;
+    }
+    const auto limit = putAwayLimit();
+    const auto time = now();
+    noteTabsOnShow();
+    // The Space on show first, from its live tabs, then every other Space
+    // from its store.
+    QStringList spaceIds {m_activeSpaceId};
+    for (const auto &space : m_spaces.items()) {
+        if (space.id != m_activeSpaceId) {
+            spaceIds.append(space.id);
+        }
+    }
+    auto putAwayAny = false;
+    for (const auto &spaceId : spaceIds) {
+        putAwayAny = putAwayUnusedTabsIn(spaceId, limit, time) || putAwayAny;
+    }
+    if (putAwayAny) {
+        raisePutAwayNotice();
+    }
+}
+
+bool BrowserController::putAwayUnusedTabsIn(const QString &spaceId, qint64 limit, qint64 time)
+{
+    const auto onShow = spaceId == m_activeSpaceId;
+    auto tabs = onShow ? m_tabs.items() : m_store->loadTabs(spaceId);
+    // An away Space's active tab is the page its switch will show, so it
+    // stays to be shown.
+    const auto active = onShow ? m_activeTabId : [&tabs] {
+        const auto found = std::ranges::find_if(tabs, &TabState::active);
+        return found == tabs.end() ? QString {} : found->id;
+    }();
+    auto stamped = false;
+    QVector<PutAwayTab> putAway;
+    QStringList putAwayIds;
+    for (auto &tab : tabs) {
+        if (tab.lastShownAt == 0) {
+            tab.lastShownAt = time;
+            stamped = true;
+            continue;
+        }
+        const auto audible = onShow ? tab.audible : m_livePageStates.value(tab.id).audible;
+        if (limit <= 0 || tabInUse(tab, active, audible) || time - tab.lastShownAt < limit) {
+            continue;
+        }
+        // An entry of its own rather than the tab's id: Sync may bring a tab
+        // with the same id back while its entry is still listed.
+        putAwayIds.append(tab.id);
+        putAway.append(PutAwayTab {
+            .id = QUuid::createUuid().toString(QUuid::WithoutBraces),
+            .url = tab.url,
+            .title = tab.title,
+            .zoom = tab.zoom,
+            .muted = tab.muted,
+            .putAwayAt = time,
+        });
+    }
+    auto list = onShow ? m_putAwayTabs : m_store->loadPutAwayTabs(spaceId);
+    const auto expired = list.removeIf(
+        [time](const PutAwayTab &tab) { return time - tab.putAwayAt >= putAwayKeptMilliseconds; });
+    // Newest first, and among the tabs of one check, in the Space's order.
+    for (auto tab = putAway.crbegin(); tab != putAway.crend(); ++tab) {
+        list.prepend(*tab);
+    }
+    const auto listChanged = !putAway.isEmpty() || expired > 0;
+    if (!listChanged && !stamped) {
+        return false;
+    }
+    // The list is written before the tabs leave, so a tab is in one or the
+    // other whatever a write refuses.
+    if (listChanged && !m_store->recordPutAwayTabs(spaceId, list)) {
+        return false;
+    }
+    tabs.removeIf([&putAwayIds](const TabState &tab) { return putAwayIds.contains(tab.id); });
+    if (onShow) {
+        for (const auto &tab : tabs) {
+            m_tabs.find(tab.id)->lastShownAt = tab.lastShownAt;
+        }
+        for (const auto &id : putAwayIds) {
+            m_tabs.remove(id);
+        }
+        schedulePersistTabs();
+        if (listChanged) {
+            m_putAwayTabs = list;
+            emit putAwayTabsChanged();
+        }
+    } else if (!saveAwayTabs(spaceId, std::move(tabs))) {
+        return false;
+    }
+    for (const auto &id : putAwayIds) {
+        m_livePageStates.remove(id);
+        if (!onShow) {
+            emit awayTabDiscarded(id);
+        }
+    }
+    return !putAwayIds.isEmpty();
+}
 
 // The one place the retained tabs are spoken of in strings: QML reads a list
 // of maps, and everything inside the core reads the type.
@@ -1184,6 +1437,8 @@ bool BrowserController::switchSpace(const QString &spaceId)
         return false;
     }
 
+    // The pages on show leave show now, which is when their count starts.
+    noteTabsOnShow();
     if (!persistTabs()) {
         return false;
     }
@@ -1209,6 +1464,10 @@ bool BrowserController::switchSpace(const QString &spaceId)
     // Each Space takes back its own closes, and what is being retained changes
     // the moment the Space on show does.
     loadClosedTabs();
+    loadPutAwayTabs();
+    // Before the Space is restored, so a tab that has gone unused while it
+    // was away is never shown on the way out.
+    putAwayUnusedTabs();
     refreshRetainedTabs();
     emit spaceRestored(m_activeSpaceId);
     emit activeSpaceChanged();
@@ -1432,6 +1691,7 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         m_activeSpaceName = replacementName;
         ensureActiveTab();
         loadClosedTabs();
+        loadPutAwayTabs();
         emit spaceRestored(m_activeSpaceId);
         emit activeSpaceChanged();
         emit activeTabChanged();
@@ -1817,7 +2077,11 @@ void BrowserController::reopenClosedTab()
     auto tab = m_closedTabs.takeFirst();
     persistClosedTabs();
     emit closedTabsChanged();
+    reopenTab(std::move(tab));
+}
 
+void BrowserController::reopenTab(TabState tab)
+{
     tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     tab.spaceId = m_activeSpaceId;
     tab.active = true;
@@ -2950,6 +3214,7 @@ bool BrowserController::clearBrowsingData(
     for (const auto &spaceId : spaceIds) {
         if (dataTypes.contains(QStringLiteral("history"))) {
             cleared = m_store->deleteHistorySince(spaceId, since) && cleared;
+            cleared = forgetPutAwayTabsSince(spaceId, since) && cleared;
         }
         if (dataTypes.contains(QStringLiteral("permissions"))) {
             cleared = m_store->clearPermissionsSince(spaceId, since) && cleared;
@@ -3499,6 +3764,7 @@ void BrowserController::reloadSyncedState()
     repairSplits(tabs, m_activeTabId);
     m_tabs.reset(std::move(tabs));
     loadClosedTabs();
+    loadPutAwayTabs();
     refreshRetainedTabs();
     refreshSplit();
     emit spaceSuspended(previousSpace, {});
@@ -3536,11 +3802,16 @@ void BrowserController::initialize()
     m_spaceGrants = m_store->spaceGrants();
     ensureActiveTab();
     loadClosedTabs();
+    loadPutAwayTabs();
     // A Pinned tab marked Keep active is running before its Space is ever
     // selected, so what the session restores is known from the first moment.
     refreshRetainedTabs();
     loadSearchEngines();
     m_ready = true;
+    // Once ready, because the check reads the reader's limit and writes down
+    // that the notice was given, and preferences answer only from then.
+    putAwayUnusedTabs();
+    m_putAwayCheck.start(putAwayCheckMilliseconds);
 }
 
 void BrowserController::ensureDefaultSpace()

@@ -251,6 +251,10 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
         }
         connect(spaces, &QAbstractItemModel::rowsRemoved, this, &AgentControl::dropGoneGrants);
         connect(spaces, &QAbstractItemModel::modelReset, this, &AgentControl::dropGoneGrants);
+        // An Agent tab is in use wherever its Space is, so the browser never
+        // puts one away as unused while an Agent is attached.
+        connect(this, &AgentControl::agentTabsChanged, m_browser,
+            [this] { m_browser->setAgentTabIds(agentTabIds()); });
     }
     // Only an explicit `true` lets Agents in.
     m_allowAgents = PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false);

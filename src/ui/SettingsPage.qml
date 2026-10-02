@@ -763,6 +763,51 @@ Rectangle {
                         onClicked: root.startPageGlassToggled(!checked)
                     }
 
+                    // An ordinary tab not on show for this long goes to its
+                    // Space's put-away list. A Private window puts nothing
+                    // away, so it has nothing to choose.
+                    SettingRow {
+                        objectName: "putAwayAfterRow"
+                        width: pane.width
+                        visible: !root.privateWindow && !!root.browser
+                        colors: root.colors
+                        title: qsTr("Put away unused tabs")
+                        note: qsTr(
+                                  "An ordinary tab you have not shown for this long closes into its Space's put-away list, in History and the Omnibar, for 30 days. Pinned tabs, a split, a tab making sound and an Agent tab stay.")
+
+                        SettingDropdown {
+                            objectName: "putAwayAfter"
+                            colors: root.colors
+                            options: [
+                                {
+                                    value: "0",
+                                    label: qsTr("Off", "put unused tabs away: never")
+                                },
+                                {
+                                    value: "3600",
+                                    label: qsTr("1 hour")
+                                },
+                                {
+                                    value: "43200",
+                                    label: qsTr("12 hours")
+                                },
+                                {
+                                    value: "86400",
+                                    label: qsTr("1 day")
+                                },
+                                {
+                                    value: "604800",
+                                    label: qsTr("1 week")
+                                }
+                            ]
+                            value: root.browser ? String(root.browser.putAwayAfterSeconds) : ""
+                            accessibleName: qsTr("Put away unused tabs")
+                            onChanged: function (seconds) {
+                                root.browser.setPutAwayAfterSeconds(parseInt(seconds));
+                            }
+                        }
+                    }
+
                     SectionLabel {
                         visible: !!root.fontSettings
                         colors: root.colors

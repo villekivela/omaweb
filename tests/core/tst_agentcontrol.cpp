@@ -168,6 +168,7 @@ private slots:
     void letsGoOfAScreenshotItDidNotTake();
     void refusesWhatIsUnderWayWhenAllowAgentsGoesOff();
     void keepsATabAnAgentTabOnlyWhileAnAgentUsesIt();
+    void keepsTheBrowserFromPuttingAwayAnAgentTab();
     void answersASocketsRequestsInTheOrderAsked();
     void switchesSpaceAndSelectsATabWithAllowAgentsOff();
     void runsOnlyThePublicCommandsInTheWindow();
@@ -1414,6 +1415,40 @@ void AgentControlTest::keepsATabAnAgentTabOnlyWhileAnAgentUsesIt()
     QTRY_VERIFY_WITH_TIMEOUT(control.agentTabIds().isEmpty(), 2000);
     QVERIFY(changed.count() >= 6);
     QVERIFY(control.agentTab(third).isEmpty());
+}
+
+// An Agent works in tabs the reader is not looking at, so the browser is told
+// which tabs they are and puts none of them away while one is attached.
+void AgentControlTest::keepsTheBrowserFromPuttingAwayAnAgentTab()
+{
+    constexpr qint64 start = 4'102'444'800'000;
+    constexpr qint64 day = 24 * 60 * 60 * 1000;
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    browser->setNowForTests(start);
+    const auto first = openAgentTab(control, QStringLiteral("agent"));
+    const auto space = browser->findTab(first)->spaceId;
+    const auto second = ask(control, QStringLiteral("agent"), QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://example.org/")},
+            {QStringLiteral("space"), space}})
+                            .value(QStringLiteral("tab"))
+                            .toObject()
+                            .value(QStringLiteral("id"))
+                            .toString();
+    QVERIFY(control.agentTabIds().contains(second));
+    browser->putAwayUnusedTabs();
+
+    browser->setNowForTests(start + day);
+    browser->putAwayUnusedTabs();
+    QVERIFY(browser->findTab(second));
+
+    control.setAllowAgents(false);
+    browser->putAwayUnusedTabs();
+    QVERIFY(!browser->findTab(second));
 }
 
 // A page verb is answered later than a browser command asked after it on the

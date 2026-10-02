@@ -50,6 +50,21 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Each Space retains its 25 most recently closed tabs across restart. Reopening restores address,
   title, pin state, zoom, and mute in reverse closing order. A Private session keeps the same stack
   only in memory.
+- An ordinary tab not on show for longer than the Settings row "Put away unused tabs" allows (Off, 1
+  hour, 12 hours, 1 day or 1 week, 12 hours by default) closes into its Space's put-away list. Its
+  age is the wall-clock time since it was last on show, counted across sleep, restarts and time in
+  other Spaces, and kept with the Space's tabs; a tab stored before the time was kept counts from
+  the first start that finds it. Pinned tabs, Keep active tabs, a tab making sound, an Agent tab
+  while an Agent is attached, both tabs of a split, a tab with Developer tools attached, a row the
+  reader is dragging and each Space's active tab are never put away. Omaweb checks at startup, on a
+  Space switch, before the Space arriving is shown, and every five minutes, across every Space. The
+  list keeps each tab's address, title, zoom and mute for 30 days, is listed newest first in the
+  History sheet's `put away` group, by title, host and age, and is ranked with History in the
+  Omnibar. Reopening one opens a new tab as reopening a closed tab does, and removes it from the
+  list; the recently closed stack holds only the reader's own closes. Clearing a Space's history
+  over a range clears what it put away in that range, and deleting the Space deletes the list. The
+  list and the setting are outside the Sync projection. The first put-away of an installation shows
+  a notice once, with a way to the setting. Private windows never put tabs away and have no list.
 - Startup restores the last active Space, tabs, Pinned tabs, retained-tab settings, sidebar state,
   zoom, and mute. A command returns the active Space to rest. Private windows never restore.
 
