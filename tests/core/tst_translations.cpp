@@ -1,8 +1,13 @@
+#include "ContentBlocker.h"
+#include "RuntimeSecurity.h"
 #include "SyncLauncher.h"
 #include "Translations.h"
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTranslator>
@@ -48,6 +53,8 @@ private slots:
     void aLocaleWithoutACatalogueInstallsNothing();
     void theInstalledDirectoryComesBeforeTheBuildTree();
     void aRefusalFromCppReachesTheUiInFinnish();
+    void aLogLineStaysEnglishUnderFinnish();
+    void theOnDiskFormatStaysEnglishUnderFinnish();
 };
 
 void TranslationsTests::lcAllOutranksLcMessagesAndLang()
@@ -147,6 +154,52 @@ void TranslationsTests::aRefusalFromCppReachesTheUiInFinnish()
         QCoreApplication::instance(), QLocale(QStringLiteral("fi_FI")), {directory.path()});
     QVERIFY(translator != nullptr);
     QCOMPARE(refusal(), QStringLiteral("Synkronointimoduulia ei ole asennettu"));
+    delete translator;
+}
+
+// The startup refusal is printed as a log line. It reads in the reader's language only where the
+// reader is meant to read it.
+void TranslationsTests::aLogLineStaysEnglishUnderFinnish()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QVERIFY(provide(directory));
+    const auto *translator = omaweb::installCatalogue(
+        QCoreApplication::instance(), QLocale(QStringLiteral("fi_FI")), {directory.path()});
+    QVERIFY(translator != nullptr);
+    const omaweb::SandboxHost superuser {QStringLiteral("/proc"), true};
+    const auto english = QStringLiteral(
+        "Omaweb is running as the superuser. Chromium will not sandbox a renderer as "
+        "root, and Omaweb does not run renderers without a sandbox. Start Omaweb as an "
+        "ordinary user.");
+    QCOMPARE(omaweb::sandboxDiagnostic(superuser, false), english);
+    QVERIFY(omaweb::sandboxDiagnostic(superuser) != english);
+    delete translator;
+}
+
+// The Content blocker keeps its update status as an English code in settings.json, and only the
+// report to the UI is translated.
+void TranslationsTests::theOnDiskFormatStaysEnglishUnderFinnish()
+{
+    QTemporaryDir directory;
+    QTemporaryDir data;
+    QVERIFY(directory.isValid() && data.isValid());
+    QVERIFY(provide(directory));
+    const auto *translator = omaweb::installCatalogue(
+        QCoreApplication::instance(), QLocale(QStringLiteral("fi_FI")), {directory.path()});
+    QVERIFY(translator != nullptr);
+    {
+        omaweb::ContentBlocker blocker(data.path(), omaweb::ContentBlocker::DefaultLists::Seed);
+        const auto shown = blocker.subscriptions().first().toMap();
+        QCOMPARE(shown.value(QStringLiteral("updateStatus")).toString(),
+            QStringLiteral("ei päivitetty"));
+    }
+    QFile file(QDir(data.path()).filePath(QStringLiteral("content-blocking/settings.json")));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const auto stored = file.readAll();
+    QVERIFY(stored.contains("\"updateStatus\": \"not updated\"")
+        || stored.contains("\"updateStatus\":\"not updated\""));
+    QVERIFY(!stored.contains("ei päivitetty"));
     delete translator;
 }
 

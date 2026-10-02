@@ -1274,7 +1274,7 @@ if(BUILD_TESTING)
     add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
 
     qt_add_executable(omaweb-translations-tests tests/core/tst_translations.cpp)
-    target_link_libraries(omaweb-translations-tests PRIVATE omaweb-core Qt6::Test)
+    target_link_libraries(omaweb-translations-tests PRIVATE omaweb-core omaweb-platform Qt6::Test)
     target_compile_definitions(omaweb-translations-tests PRIVATE
         OMAWEB_TRANSLATIONS_DIRECTORY="${omaweb_translations_directory}"
     )
