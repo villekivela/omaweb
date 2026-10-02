@@ -667,6 +667,26 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // What Settings and Site information say under the reader's locale: the
+    // Settings heading, and the line Site information gives for a window with
+    // no page loaded.
+    if (arguments.contains(QStringLiteral("--report-settings"))) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *root = engine.rootObjects().constFirst();
+        auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
+        auto *connection = root->findChild<QObject *>(QStringLiteral("siteInformationConnection"));
+        if (heading == nullptr || connection == nullptr) {
+            qCritical("Settings or Site information is missing");
+            return 1;
+        }
+        printf("settings_heading=%s\n", qPrintable(heading->property("text").toString()));
+        printf("site_information_state=%s\n", qPrintable(connection->property("text").toString()));
+        fflush(stdout);
+        return 0;
+    }
+
     // The two startup numbers the tests keep, in milliseconds since `main`:
     // the first frame the window drew, and the first frame with the visible
     // Space's page in it. A Space at rest has no page to draw, so the report

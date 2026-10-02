@@ -14,24 +14,33 @@ labels, and sentence case. Keep a key name as the keyboard prints it.
 
 Omaweb's own words are translated once, here, so every batch agrees:
 
-| English        | Finnish               | Note                                                                                            |
-| -------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
-| Space          | Tila                  | A browsing identity. Chosen over "työtila", which Omarchy readers know as Hyprland's workspace. |
-| Omnibar        | Omnibar               | Kept, it is a product term. Inflect it: "Omnibarissa".                                          |
-| Glance         | Pikakatsaus           | The page shown over the tab it came from.                                                       |
-| Agent          | Agentti               | A program that drives the browser.                                                              |
-| Agent tab      | Agentin välilehti     | The tab an Agent is attached to.                                                                |
-| Start page     | Aloitussivu           |                                                                                                 |
-| Tab            | Välilehti             |                                                                                                 |
-| Pinned tab     | Kiinnitetty välilehti |                                                                                                 |
-| Sidebar        | Sivupalkki            |                                                                                                 |
-| Private window | Yksityinen ikkuna     |                                                                                                 |
-| Shortcuts      | Pikanäppäimet         |                                                                                                 |
-| History        | Historia              |                                                                                                 |
-| Downloads      | Lataukset             |                                                                                                 |
-| Settings       | Asetukset             |                                                                                                 |
+| English          | Finnish               | Note                                                                                            |
+| ---------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
+| Space            | Tila                  | A browsing identity. Chosen over "työtila", which Omarchy readers know as Hyprland's workspace. |
+| Omnibar          | Omnibar               | Kept, it is a product term. Inflect it: "Omnibarissa".                                          |
+| Glance           | Pikakatsaus           | The page shown over the tab it came from.                                                       |
+| Agent            | Agentti               | A program that drives the browser.                                                              |
+| Agent tab        | Agentin välilehti     | The tab an Agent is attached to.                                                                |
+| Start page       | Aloitussivu           |                                                                                                 |
+| Tab              | Välilehti             |                                                                                                 |
+| Pinned tab       | Kiinnitetty välilehti |                                                                                                 |
+| Sidebar          | Sivupalkki            |                                                                                                 |
+| Private window   | Yksityinen ikkuna     |                                                                                                 |
+| Shortcuts        | Pikanäppäimet         |                                                                                                 |
+| History          | Historia              |                                                                                                 |
+| Downloads        | Lataukset             |                                                                                                 |
+| Settings         | Asetukset             |                                                                                                 |
+| Sync             | Synkronointi          | The feature and its settings section. Inflect it: "synkronoinnin".                              |
+| Site information | Sivuston tiedot       | The panel under the address. Its own labels are lowercase, as the English ones are.             |
 
 Add a row when a batch has to translate a new Omaweb term.
+
+## Plurals in English
+
+English has no catalogue, so `qsTr("%n request(s) blocked", "", count)` shows "1 request(s) blocked"
+to an English reader. Use `%n` where the English wording does not change with the count ("and %n
+more"). Where a noun does change, wrap the singular and the plural as two strings and pick between
+them, as `RefusalTally.qml` does.
 
 ## Resolving a catalogue conflict
 

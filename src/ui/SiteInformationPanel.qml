@@ -108,26 +108,72 @@ Rectangle {
     readonly property string connectionSentence: {
         switch (root.connectionState) {
         case "secure":
-            return "connection is encrypted";
+            return qsTr("connection is encrypted");
         case "certificate-error":
-            return "certificate could not be verified";
+            return qsTr("certificate could not be verified");
         case "insecure":
-            return "connection is not encrypted";
+            return qsTr("connection is not encrypted");
         default:
-            return "no page is loaded";
+            return qsTr("no page is loaded");
+        }
+    }
+
+    // The capabilities Site information lists, by name. One this build does not
+    // know is shown as the engine named it.
+    // The clauses are separate statements joined by a middle dot, so each is
+    // translated whole.
+    readonly property string connectionLine: {
+        if (root.lookupFailedBy.length > 0)
+            return "· " + qsTr("%1 could not find this site, over Secure DNS").arg(
+                        root.lookupFailedBy);
+        const clauses = [root.connectionSentence];
+        if (root.connectionState === "certificate-error")
+            clauses.push(qsTr("waived for this session"));
+        if (root.upgradedByHttpsOnly && root.connectionState === "secure")
+            clauses.push(qsTr("upgraded from HTTP by HTTPS-only mode"));
+        return "· " + clauses.join(" · ");
+    }
+
+    function permissionLabel(permission) {
+        switch (permission) {
+        case "camera":
+            return qsTr("camera");
+        case "microphone":
+            return qsTr("microphone");
+        case "camera-and-microphone":
+            return qsTr("camera and microphone");
+        case "geolocation":
+            return qsTr("location");
+        case "notifications":
+            return qsTr("notifications");
+        case "automatic-downloads":
+            return qsTr("automatic downloads");
+        default:
+            return permission;
+        }
+    }
+
+    function purposeLabel(purpose) {
+        switch (purpose) {
+        case "authentication":
+            return qsTr("authentication");
+        case "payment":
+            return qsTr("payment");
+        default:
+            return purpose;
         }
     }
 
     function permissionDecisionName(decision) {
         switch (Number(decision)) {
         case root.allowedOnce:
-            return "allowed once";
+            return qsTr("allowed once");
         case root.allowedPersistently:
-            return "always allowed";
+            return qsTr("always allowed");
         case root.blocked:
-            return "blocked";
+            return qsTr("blocked");
         default:
-            return "asked each time";
+            return qsTr("asked each time");
         }
     }
 
@@ -154,10 +200,11 @@ Rectangle {
 
     function siteDataSentence() {
         if (!root.siteDataOnDisk)
-            return "this engine keeps no site data on disk";
+            return qsTr("this engine keeps no site data on disk");
         if (root.siteDataBytes < 0)
-            return "the site data in this Space could not be measured";
-        return root.formatBytes(root.siteDataBytes) + " of cookies and cache in this Space";
+            return qsTr("the site data in this Space could not be measured");
+        return qsTr("%1 of cookies and cache in this Space").arg(root.formatBytes(
+                                                                     root.siteDataBytes));
     }
 
     function refreshSiteInformation() {
@@ -202,7 +249,7 @@ Rectangle {
         SectionLabel {
             objectName: "siteInformationName"
             colors: root.colors
-            text: "site information"
+            text: qsTr("site information")
             // The first thing in the panel, so there is nothing above it to
             // lean away from and the lean would read as dead space under the
             // border.
@@ -214,7 +261,7 @@ Rectangle {
         Text {
             objectName: "siteInformationOrigin"
             width: parent.width
-            text: root.blank ? "no site" : root.originLabel
+            text: root.blank ? qsTr("no site") : root.originLabel
             color: root.colors.text
             elide: Text.ElideMiddle
             font.family: Style.font.family
@@ -224,15 +271,7 @@ Rectangle {
         Text {
             objectName: "siteInformationConnection"
             width: parent.width
-            text: root.lookupFailedBy.length > 0 ? "· " + root.lookupFailedBy
-                                                   + " could not find this site, over Secure DNS" :
-                                                   "· " + root.connectionSentence + (
-                                                       root.connectionState === "certificate-error"
-                                                       ? " · waived for this session" : "") + (
-                                                       root.upgradedByHttpsOnly
-                                                       && root.connectionState === "secure"
-                                                       ? " · upgraded from HTTP by HTTPS-only mode" :
-                                                         "")
+            text: root.connectionLine
             color: root.connectionState === "certificate-error" ? root.colors.urgent :
                                                                   root.colors.mutedText
             wrapMode: Text.WordWrap
@@ -247,7 +286,7 @@ Rectangle {
             objectName: "siteInformationCertificates"
             width: parent.width
             visible: !root.certificateDecisionsAvailable
-            text: "· this engine cannot report a certificate failure"
+            text: "· " + qsTr("this engine cannot report a certificate failure")
             color: root.colors.urgent
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -260,9 +299,10 @@ Rectangle {
             objectName: "siteInformationNoCertificate"
             width: parent.width
             visible: root.overTls && root.certificateChain.length === 0
-            text: root.pageCertificatesAvailable
-                  ? "· the engine has not reported this page's certificate" :
-                    "· this engine cannot show the certificate a page arrived over"
+            text: root.pageCertificatesAvailable ? "· " + qsTr(
+                                                       "the engine has not reported this page's certificate") :
+                                                   "· " + qsTr(
+                                                       "this engine cannot show the certificate a page arrived over")
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -272,7 +312,7 @@ Rectangle {
         Text {
             width: parent.width
             visible: !root.insecureContentBlocked
-            text: "· this engine is not blocking insecure content"
+            text: "· " + qsTr("this engine is not blocking insecure content")
             color: root.colors.urgent
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -323,7 +363,7 @@ Rectangle {
                     objectName: "refusedRequestThrough" + refusal.index
                     width: parent.width
                     visible: !!refusal.modelData.canonicalName
-                    text: "  through " + (refusal.modelData.canonicalName || "")
+                    text: "  " + qsTr("through %1").arg(refusal.modelData.canonicalName || "")
                     color: root.colors.mutedText
                     elide: Text.ElideLeft
                     font.family: Style.font.family
@@ -336,7 +376,9 @@ Rectangle {
             objectName: "refusedRequestOverflow"
             width: parent.width
             visible: root.refusals.requests.length > root.listedRefusals
-            text: "· and " + (root.refusals.requests.length - root.listedRefusals) + " more"
+            text: "· " + qsTr("and %n more", "", root.refusals.requests.length
+                              - root.listedRefusals)
+
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -361,7 +403,8 @@ Rectangle {
             objectName: "siteInformationRetainedData"
             width: parent.width
             visible: root.siteDataOnDisk && root.retainedDataBytes > 0
-            text: "· " + root.formatBytes(root.retainedDataBytes) + " of storage and databases"
+            text: "· " + qsTr("%1 of storage and databases").arg(root.formatBytes(
+                                                                     root.retainedDataBytes))
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -371,9 +414,10 @@ Rectangle {
         Text {
             objectName: "siteInformationCookies"
             width: parent.width
-            text: root.thirdPartyCookieControlAvailable
-                  ? "· third-party cookies and storage are blocked" :
-                    "· this engine cannot refuse a third party"
+            text: root.thirdPartyCookieControlAvailable ? "· " + qsTr(
+                                                              "third-party cookies and storage are blocked") :
+                                                          "· " + qsTr(
+                                                              "this engine cannot refuse a third party")
             color: root.thirdPartyCookieControlAvailable ? root.colors.mutedText :
                                                            root.colors.urgent
             wrapMode: Text.WordWrap
@@ -396,7 +440,7 @@ Rectangle {
 
                 objectName: "refusedThirdParty" + index
                 width: statusColumn.width
-                text: "· " + modelData + " — refused"
+                text: "· " + qsTr("%1 — refused").arg(modelData)
                 color: root.colors.mutedText
                 elide: Text.ElideMiddle
                 font.family: Style.font.family
@@ -409,8 +453,8 @@ Rectangle {
             width: parent.width
             visible: root.thirdPartyCookieControlAvailable && root.refusedThirdParties.length
                      > root.listedThirdParties
-            text: "· and " + (root.refusedThirdParties.length - root.listedThirdParties)
-                  + " more, listed under third parties"
+            text: "· " + qsTr("and %n more, listed under third parties", "",
+                              root.refusedThirdParties.length - root.listedThirdParties)
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -426,7 +470,8 @@ Rectangle {
 
                 objectName: "cookieAllowance" + index
                 width: statusColumn.width
-                text: "· " + modelData.origin + " — allowed for " + modelData.purpose
+                text: "· " + qsTr("%1 — allowed for %2").arg(modelData.origin).arg(root.purposeLabel(
+                                                                                       modelData.purpose))
                 color: root.colors.text
                 elide: Text.ElideMiddle
                 font.family: Style.font.family
@@ -436,15 +481,15 @@ Rectangle {
 
         SectionLabel {
             colors: root.colors
-            text: "permissions in this space"
+            text: qsTr("permissions in this space")
         }
 
         Text {
             objectName: "siteInformationNoPermissions"
             width: parent.width
             visible: root.sitePermissionRows.length === 0
-            text: root.privateWindow ? "· nothing decided in this private session" :
-                                       "· nothing decided for this site"
+            text: root.privateWindow ? "· " + qsTr("nothing decided in this private session") :
+                                       "· " + qsTr("nothing decided for this site")
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -460,8 +505,8 @@ Rectangle {
 
                 objectName: "sitePermission" + index
                 width: statusColumn.width
-                text: "· " + modelData.permission + " — " + root.permissionDecisionName(
-                          modelData.decision)
+                text: "· " + qsTr("%1 — %2").arg(root.permissionLabel(modelData.permission)).arg(
+                          root.permissionDecisionName(modelData.decision))
                 color: root.colors.mutedText
                 wrapMode: Text.WordWrap
                 font.family: Style.font.family
@@ -479,7 +524,7 @@ Rectangle {
             ActionButton {
                 objectName: "viewCertificate"
                 colors: root.colors
-                label: "view certificate"
+                label: qsTr("view certificate")
                 visible: root.overTls && root.certificateChain.length > 0
                 onClicked: root.actionRequested("certificate")
             }
@@ -487,7 +532,7 @@ Rectangle {
             ActionButton {
                 objectName: "clearSiteStorage"
                 colors: root.colors
-                label: "clear this site"
+                label: qsTr("clear this site")
                 enabled: !root.blank
                 onClicked: root.actionRequested("site-storage")
             }
@@ -495,7 +540,7 @@ Rectangle {
             ActionButton {
                 objectName: "clearSiteData"
                 colors: root.colors
-                label: "clear Space data"
+                label: qsTr("clear Space data")
                 enabled: !root.privateWindow && root.siteDataOnDisk
                 onClicked: root.actionRequested("space-data")
             }
@@ -503,7 +548,7 @@ Rectangle {
             ActionButton {
                 objectName: "resetSitePermissions"
                 colors: root.colors
-                label: "reset permissions"
+                label: qsTr("reset permissions")
                 enabled: !root.blank
                 onClicked: root.actionRequested("reset-permissions")
             }
@@ -511,7 +556,7 @@ Rectangle {
             ActionButton {
                 objectName: "manageThirdParties"
                 colors: root.colors
-                label: "third parties"
+                label: qsTr("third parties")
                 enabled: root.thirdPartyCookieControlAvailable && (root.refusedThirdParties.length
                                                                    > 0 || root.cookieAllowanceRows.length
                                                                    > 0)

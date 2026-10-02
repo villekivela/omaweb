@@ -5,9 +5,10 @@
 
 namespace {
 
-// Launches the UI lab under a locale and reads the Start page's hint back,
-// which is the first surface wrapped for translation.
-QString startPageHint(const QString &locale, const QStringList &extraArguments = {})
+// Launches the UI lab under a locale and reads one reported line back, so a
+// test reads the catalogue from the screen's own text.
+QString labReport(const QString &report, const QString &key, const QString &locale,
+    const QStringList &extraArguments = {})
 {
     QTemporaryDir dataRoot;
     if (!dataRoot.isValid()) {
@@ -15,9 +16,8 @@ QString startPageHint(const QString &locale, const QStringList &extraArguments =
     }
     QProcess lab;
     lab.setProgram(QStringLiteral(OMAWEB_UI_LAB_EXECUTABLE));
-    lab.setArguments(QStringList {QStringLiteral("--report-start-page"),
-                         QStringLiteral("--data-root"), dataRoot.path()}
-        + extraArguments);
+    lab.setArguments(
+        QStringList {report, QStringLiteral("--data-root"), dataRoot.path()} + extraArguments);
     auto environment = QProcessEnvironment::systemEnvironment();
     for (const auto &name : {"LC_ALL", "LC_MESSAGES", "LANGUAGE"}) {
         environment.remove(QString::fromLatin1(name));
@@ -32,12 +32,23 @@ QString startPageHint(const QString &locale, const QStringList &extraArguments =
     }
     const auto output = QString::fromUtf8(lab.readAllStandardOutput());
     for (const auto &line : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
-        const auto prefix = QStringLiteral("start_page_hint=");
+        const auto prefix = key + QLatin1Char('=');
         if (line.startsWith(prefix)) {
             return line.mid(prefix.size());
         }
     }
     return {};
+}
+
+QString startPageHint(const QString &locale, const QStringList &extraArguments = {})
+{
+    return labReport(QStringLiteral("--report-start-page"), QStringLiteral("start_page_hint"),
+        locale, extraArguments);
+}
+
+QString settingsReport(const QString &key, const QString &locale)
+{
+    return labReport(QStringLiteral("--report-settings"), key, locale);
 }
 
 } // namespace
@@ -50,6 +61,9 @@ private slots:
     void theStartPageStaysEnglishUnderAnEnglishLocale();
     void aLocaleWithoutACatalogueFallsBackToEnglish();
     void theLabSwitchesLocaleOverTheEnvironment();
+    void settingsSpeaksFinnishUnderAFinnishLocale();
+    void siteInformationSpeaksFinnishUnderAFinnishLocale();
+    void settingsAndSiteInformationStayEnglishUnderAnEnglishLocale();
 };
 
 void Localization::theStartPageSpeaksFinnishUnderAFinnishLocale()
@@ -72,6 +86,28 @@ void Localization::theLabSwitchesLocaleOverTheEnvironment()
     QCOMPARE(startPageHint(
                  QStringLiteral("en_US.UTF-8"), {QStringLiteral("--locale"), QStringLiteral("fi")}),
         QStringLiteral("pikanäppäimet"));
+}
+
+void Localization::settingsSpeaksFinnishUnderAFinnishLocale()
+{
+    QCOMPARE(settingsReport(QStringLiteral("settings_heading"), QStringLiteral("fi_FI.UTF-8")),
+        QStringLiteral("Asetukset"));
+}
+
+void Localization::siteInformationSpeaksFinnishUnderAFinnishLocale()
+{
+    QCOMPARE(
+        settingsReport(QStringLiteral("site_information_state"), QStringLiteral("fi_FI.UTF-8")),
+        QStringLiteral("· mitään sivua ei ole ladattu"));
+}
+
+void Localization::settingsAndSiteInformationStayEnglishUnderAnEnglishLocale()
+{
+    QCOMPARE(settingsReport(QStringLiteral("settings_heading"), QStringLiteral("en_US.UTF-8")),
+        QStringLiteral("Settings"));
+    QCOMPARE(
+        settingsReport(QStringLiteral("site_information_state"), QStringLiteral("en_US.UTF-8")),
+        QStringLiteral("· no page is loaded"));
 }
 
 QTEST_GUILESS_MAIN(Localization)
