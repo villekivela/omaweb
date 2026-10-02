@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { SHARED } from "../build/site.mjs";
 import { createCrtRoad } from "../crt-road.js";
+import { lightProperties, sceneInput } from "../scene.js";
 
 const parameters = JSON.parse(
   readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
@@ -36,4 +37,35 @@ test("build: the site ships the shared file at the address the page fetches", ()
   const drive = readFileSync(new URL("../drive.js", import.meta.url), "utf8");
   const [address] = drive.match(/"([\w-]+\.json)"/).slice(1);
   assert.equal(new URL(SHARED[address]).pathname.endsWith("share/scenes/crt-road.json"), true);
+});
+
+// The road lights the page as well as its canvas: the Start page's Omnibar catches the sun at its
+// rim in the sun's colours, brightening with the same beat that swells the sky's glow.
+const retro82 = { ground: "#020c17", text: "#f6dcac", accent: "#faa968", muted: "#3f8f8a" };
+const lit = (environment) =>
+  lightProperties(
+    createCrtRoad(parameters),
+    sceneInput(createCrtRoad(parameters), {
+      palette: retro82,
+      width: 10,
+      height: 10,
+      ...environment,
+    }),
+  );
+
+test("light: the Omnibar's rim takes the sun's colours in the theme", () => {
+  const properties = lit({});
+  assert.equal(properties["--scene-sun-top"], "rgb(250 234 205)");
+  assert.equal(properties["--scene-sun-low"], "rgb(249 182 121)");
+});
+
+test("light: the rim brightens with the beat that swells the sky's glow", () => {
+  assert.equal(lit({ beat: 0.4 })["--scene-glow"], "0.40");
+  assert.equal(lit({ beat: 0.01 })["--scene-glow"], "0.00");
+  assert.equal(lit({})["--scene-glow"], "0.00");
+});
+
+test("light: under reduced motion or on a phone the rim holds still", () => {
+  assert.equal(lit({ beat: 0.8, reducedMotion: true })["--scene-glow"], "0.00");
+  assert.equal(lit({ beat: 0.8, phone: true })["--scene-glow"], "0.00");
 });

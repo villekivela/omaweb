@@ -51,6 +51,45 @@ export function sceneInput(scene, environment) {
   };
 }
 
+// The light a Scene casts on the page, as CSS custom properties: each colour it names as rgb()
+// and each amount to two places, so a frame that changes nothing a reader could see writes
+// nothing. A Scene that casts no light has none.
+export function lightProperties(scene, input) {
+  return Object.fromEntries(
+    Object.entries(scene.light?.(input) || {}).map(([name, value]) => [
+      `--scene-${name}`,
+      Array.isArray(value) ? `rgb(${value.map(Math.round).join(" ")})` : value.toFixed(2),
+    ]),
+  );
+}
+
+// The Scene's light on one element of the page, through its style. It writes only what changed,
+// and nothing while the element is off screen, so a frame costs the page no style work it cannot
+// show; back on screen, the element catches up on the latest light.
+export class SceneLight {
+  constructor(style) {
+    this.style = style;
+    this.onScreen = false;
+    this.latest = {};
+    this.written = {};
+  }
+
+  cast(properties) {
+    this.latest = properties;
+    if (!this.onScreen) return;
+    for (const [name, value] of Object.entries(properties)) {
+      if (this.written[name] === value) continue;
+      this.style.setProperty(name, value);
+      this.written[name] = value;
+    }
+  }
+
+  setOnScreen(onScreen) {
+    this.onScreen = onScreen;
+    this.cast(this.latest);
+  }
+}
+
 // Whether the host draws frames: only for a canvas on screen, in a shown tab, in the window the
 // reader is using, and not while the Scene holds still. A road nobody watches costs no frame.
 export function drawsFrames(environment) {
@@ -82,8 +121,9 @@ const ROLES = { ground: "--bg", text: "--fg", accent: "--accent", muted: "--mute
 // Scene's `fps`. A Scene that declares `glass: "crt"` is shown through the CRT glass below.
 export class SceneHost {
   // `held` holds the Scene still and leaves out its glass: one calm frame, as a release page's
-  // header shows it. `beat` reads the radio's beat, 0 to 1, for each frame.
-  constructor(canvas, scene, { chosen = {}, held = false, beat = () => 0 } = {}) {
+  // header shows it. `beat` reads the radio's beat, 0 to 1, for each frame. `lit` is the element
+  // the Scene's light falls on, as `lightProperties` gives it, while that element is on screen.
+  constructor(canvas, scene, { chosen = {}, held = false, beat = () => 0, lit = null } = {}) {
     this.canvas = canvas;
     // A Scene's canvas is small and redrawn every frame; kept in memory rather than on the GPU,
     // Firefox draws it several times faster.
@@ -101,6 +141,12 @@ export class SceneHost {
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)");
     this.phone = matchMedia(PHONE);
     this.glass = scene.glass === "crt" && !held ? new CrtGlass(canvas, scene.crt) : null;
+    this.light = lit ? new SceneLight(lit.style) : null;
+    if (lit) {
+      new IntersectionObserver((entries) => {
+        this.light.setOnScreen(entries[entries.length - 1].isIntersecting);
+      }).observe(lit);
+    }
 
     new IntersectionObserver((entries) => {
       this.onScreen = entries[entries.length - 1].isIntersecting;
@@ -178,6 +224,7 @@ export class SceneHost {
     const input = { ...sceneInput(this.scene, environment), state: this.state };
     this.scene.draw(this.context, input);
     this.glass?.draw(this.context, input);
+    this.light?.cast(lightProperties(this.scene, input));
   }
 
   update() {

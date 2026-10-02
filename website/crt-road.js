@@ -372,5 +372,16 @@ export function createCrtRoad(p) {
       moving(context, g, c, motion(input), input);
       context.setTransform(1, 0, 0, 1, 0, 0);
     },
+
+    // The sun's light on the page: its two colours, and the beat's glow as the sky draws it, none
+    // below the glow's threshold.
+    light(input) {
+      const c = colours(input, p.night);
+      return {
+        "sun-top": c.sunTop,
+        "sun-low": c.sunLow,
+        glow: input.beat > p.beatGlow.from ? input.beat : 0,
+      };
+    },
   };
 }
