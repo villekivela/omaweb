@@ -2408,7 +2408,7 @@ void AgentControlTest::handsATabAndTheReadersWordsToTheirAgent()
         = QStringLiteral("say \"hi\" & it's $(rm -rf ~) `uname` $HOME\nand a second line");
     const auto asked = control.askAgent(QStringLiteral("work-tab"), words);
     QVERIFY2(asked.value(QStringLiteral("ok")).toBool(),
-        qPrintable(asked.value(QStringLiteral("error")).toString()));
+        qPrintable(asked.value(QStringLiteral("code")).toString()));
     QTRY_VERIFY(!recordedArguments(terminal).isEmpty());
     QCOMPARE(recordedArguments(terminal),
         QStringList({agent, QStringLiteral("--model"), QStringLiteral("sonnet"),

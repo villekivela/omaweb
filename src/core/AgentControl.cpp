@@ -54,10 +54,16 @@ namespace {
         return prompt;
     }
 
+    // An agent command with nothing in it is the default.
+    QString agentCommandOrDefault(const QString &command)
+    {
+        const auto trimmed = command.trimmed();
+        return trimmed.isEmpty() ? defaultAgentCommand : trimmed;
+    }
+
     QString storedAgentCommand(const QString &configRoot)
     {
-        const auto stored = PrivacyFile::read(configRoot, agentCommandKey).toString().trimmed();
-        return stored.isEmpty() ? defaultAgentCommand : stored;
+        return agentCommandOrDefault(PrivacyFile::read(configRoot, agentCommandKey).toString());
     }
 
     // A program named by its path, if it can be run, or the first one of the
@@ -321,15 +327,15 @@ QString AgentControl::agentCommand() const { return m_agentCommand; }
 
 void AgentControl::setAgentCommand(const QString &command)
 {
-    const auto trimmed = command.trimmed();
-    if (trimmed == m_agentCommand || (trimmed.isEmpty() && m_agentCommand == defaultAgentCommand)) {
+    const auto chosen = agentCommandOrDefault(command);
+    if (chosen == m_agentCommand) {
         return;
     }
     // Only a command of the reader's own is written down, so the default can
     // change in a later release for a reader who never chose one.
-    PrivacyFile::write(
-        m_configRoot, agentCommandKey, trimmed.isEmpty() ? QJsonValue() : QJsonValue(trimmed));
-    m_agentCommand = trimmed.isEmpty() ? defaultAgentCommand : trimmed;
+    PrivacyFile::write(m_configRoot, agentCommandKey,
+        chosen == defaultAgentCommand ? QJsonValue() : QJsonValue(chosen));
+    m_agentCommand = chosen;
     emit agentCommandChanged();
 }
 

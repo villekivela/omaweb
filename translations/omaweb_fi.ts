@@ -48,10 +48,12 @@
     </message>
     <message>
         <source>Turn on</source>
+        <comment>button: turn Allow agents on</comment>
         <translation>Ota käyttöön</translation>
     </message>
     <message>
         <source>Not now</source>
+        <comment>button: leave Allow agents off</comment>
         <translation>Ei nyt</translation>
     </message>
 </context>

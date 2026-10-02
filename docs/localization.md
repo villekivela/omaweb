@@ -21,6 +21,8 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Glance         | Pikakatsaus           | The page shown over the tab it came from.                                                       |
 | Agent          | Agentti               | A program that drives the browser.                                                              |
 | Agent tab      | Agentin välilehti     | The tab an Agent is attached to.                                                                |
+| Allow agents   | Salli agentit         | The setting that lets Agents read and act in pages.                                             |
+| Agent command  | Agentin komento       | What `:ask` runs in the reader's terminal.                                                      |
 | Start page     | Aloitussivu           |                                                                                                 |
 | Tab            | Välilehti             |                                                                                                 |
 | Pinned tab     | Kiinnitetty välilehti |                                                                                                 |

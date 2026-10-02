@@ -1805,6 +1805,10 @@ TestCase {
         compare(panel.rows[0].command, "ask");
         compare(panel.rows[0].title, "Ask your agent about this tab");
         verify(panel.rows[0].enabled);
+        // However the name is typed, the request is what follows it.
+        input.text = " Ask  summarize this";
+        compare(panel.rows.length, 1);
+        compare(panel.rows[0].argument, "summarize this");
         input.text = "ask summarize this";
         compare(panel.rows.length, 1);
         compare(panel.rows[0].command, "ask");
@@ -1843,6 +1847,26 @@ TestCase {
         agentControl.allowAgents = false;
         agentControl.agentCommand = "";
         notice.dismiss();
+    }
+
+    // The question is about the tab that was on show. Once another tab is,
+    // it is put away, and nothing is asked of either tab.
+    function test_theAgentQuestionGoesWithTheTabItWasAbout() {
+        const bar = findChild(window.contentItem, "askAgentBar");
+        openPage("https://ask-agent.example/");
+        const askedTabId = browser.activeTabId;
+        openPageInNewTab("https://ask-agent-elsewhere.example/");
+        const otherTabId = browser.activeTabId;
+        browser.activateTab(askedTabId);
+        compare(agentControl.allowAgents, false);
+
+        verify(window.commands.run("ask", "summarize this"));
+        tryCompare(bar, "visible", true);
+        browser.activateTab(otherTabId);
+        tryCompare(bar, "visible", false);
+        compare(agentControl.allowAgents, false);
+
+        browser.closeTab(otherTabId);
     }
 
     // An agent that cannot be started says which program it was, rather than

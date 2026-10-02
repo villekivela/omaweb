@@ -851,13 +851,15 @@ QtObject {
 
     // A command that takes the rest of the line is named by its first word,
     // and what follows the name is its argument rather than letters to look
-    // for: `ask summarize this` is `ask` with `summarize this`.
+    // for: `ask summarize this` is `ask` with `summarize this`. The name is
+    // read as the other rows' letters are, whatever their case.
     function lineCommand(text) {
-        const found = /^([a-z-]+)(?:\s([\s\S]*))?$/.exec(text);
-        if (found === null || !descriptions[found[1]] || !descriptions[found[1]].line)
+        const found = /^\s*([A-Za-z-]+)(?:\s+([\s\S]*))?$/.exec(text);
+        const command = found === null ? "" : found[1].toLowerCase();
+        if (!descriptions[command] || !descriptions[command].line)
             return null;
         return {
-            command: found[1],
+            command: command,
             words: found[2] === undefined ? "" : found[2]
         };
     }

@@ -2146,9 +2146,6 @@ Rectangle {
                         }
                     }
 
-                    // What `:ask` runs in the reader's terminal. It is kept when
-                    // the reader finishes editing, and an empty one is the
-                    // default again.
                     SettingRow {
                         objectName: "agentCommandRow"
                         visible: !!root.agentControl

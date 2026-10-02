@@ -3533,15 +3533,26 @@ ApplicationWindow {
                                  + "your Spaces they use.")
                     actions: [
                         {
-                            "label": qsTr("Turn on")
+                            "label": qsTr("Turn on", "button: turn Allow agents on")
                         },
                         {
-                            "label": qsTr("Not now")
+                            "label": qsTr("Not now", "button: leave Allow agents off")
                         }
                     ]
 
                     onActionTriggered: function (index) {
                         window.answerAgentQuestion(index === 0);
+                    }
+
+                    // The question is about the tab that was on show, and is
+                    // put away unanswered once another one is.
+                    Connections {
+                        target: window.windowBrowser
+                        enabled: window.agentQuestionOpen
+                        function onActiveTabChanged() {
+                            if (window.windowBrowser.activeTabId !== window.agentQuestionTabId)
+                                window.answerAgentQuestion(false);
+                        }
                     }
                 }
 

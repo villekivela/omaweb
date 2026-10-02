@@ -27,10 +27,13 @@ describes, so the reader's words never enter the activity log.
 ## How it is started
 
 The agent command is split as a shell splits a line, so `claude --model sonnet` works, but no shell
-runs it. The tab id and the reader's words go to the terminal as separate arguments, so quotes,
-`$(...)`, backticks and newlines in them reach the agent as typed. A missing agent, a missing
-`xdg-terminal-exec`, or a terminal that will not start ends in a page notice naming the program that
-failed.
+runs it. The prompt, which holds the tab id and the reader's words, is one argument of its own after
+the command's, so quotes, `$(...)`, backticks and newlines in the words reach the agent as typed.
+Omaweb starts `xdg-terminal-exec` directly, which hands the arguments to the terminal's own execute
+option. That is where Omaweb's guarantee ends: a terminal that joined its command into a shell line
+would read the words there. Alacritty, Kitty and Ghostty, Omarchy's terminals, run the command
+directly. A missing agent, a missing `xdg-terminal-exec`, or a terminal that will not start ends in
+a page notice naming the program that failed.
 
 `:ask` is always listed in the command scope of an ordinary window. While Allow agents is off,
 running it asks over the page whether to turn the setting on. Turn on enables it and goes on with
