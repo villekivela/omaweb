@@ -566,6 +566,27 @@ A build that bundled its engine would need all of that, and `THIRD_PARTY_NOTICES
 [ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md) defers AppImage and Flatpak until
 Omaweb can maintain bundled engine security updates.
 
+## Translations
+
+User-facing strings are wrapped for translation (see
+[code style](agents/code-style.md#user-facing-strings)) and the catalogues live in `translations/`.
+After adding or changing a wrapped string, refresh the catalogue, translate the new entries, and
+build:
+
+```sh
+cmake --build --preset ui --target update_translations
+$EDITOR translations/omaweb_fi.ts
+cmake --build --preset ui
+```
+
+`update_translations` runs `lupdate -locations none -no-obsolete`, so the diff holds only the
+strings the change touched. The build compiles `translations/omaweb_<locale>.ts` to
+`omaweb_<locale>.qm` beside the binary, and the package installs them under
+`share/omaweb/translations`. Omaweb picks the catalogue from `LC_ALL`, `LC_MESSAGES` or `LANG`, and
+shows English when there is none. Launch with `LANG=fi_FI.UTF-8 ./build/dev/omaweb` to see it in
+Finnish, or pass `--locale fi` to the UI lab. Wording and the Omaweb glossary are in
+[the localization guide](localization.md), which also says how to resolve a conflict in a catalogue.
+
 ## Security rules
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or

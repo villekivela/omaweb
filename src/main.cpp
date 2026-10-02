@@ -51,6 +51,7 @@
 #include "SystemNotifier.h"
 #include "SyncLauncher.h"
 #include "ThemeController.h"
+#include "Translations.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
 
@@ -243,6 +244,8 @@ int main(int argc, char *argv[])
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
     omaweb::installWindowChrome(&application);
+    omaweb::installCatalogue(&application, omaweb::requestedLocale(),
+        omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY)));
     QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));

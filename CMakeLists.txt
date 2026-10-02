@@ -84,10 +84,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Qt ships privately and which is what reads a store package's archive. Writing
 # a ZIP reader by hand, or taking a dependency for one, would both be worse
 # than a header that has been in the same place since Qt 5.
+# `LinguistTools` is a build tool only: it refreshes and compiles the translation
+# catalogues under translations/.
 # `ShaderTools` is a build tool only: it compiles the Start page's CRT glass
 # (src/ui/shaders) to the shader packs Qt Quick loads at runtime.
 set(omaweb_qt_components
-    Concurrent Core CorePrivate Gui Network Qml Quick QuickControls2 ShaderTools Sql
+    Concurrent Core CorePrivate Gui LinguistTools Network Qml Quick QuickControls2 ShaderTools Sql
 )
 if(UNIX AND NOT APPLE)
     # The desktop's notification service is a session-bus service, so the Linux
@@ -293,6 +295,8 @@ add_library(omaweb-core STATIC
     src/core/WebRtcPolicy.cpp
     src/core/WebRtcPolicy.h
     src/core/WindowManager.cpp
+    src/core/Translations.cpp
+    src/core/Translations.h
     src/core/WindowManager.h
 )
 set_target_properties(omaweb-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -741,12 +745,38 @@ function(omaweb_compiled_qml_module out_target uri)
     set_target_properties("${target}" PROPERTIES OMAWEB_QML_FILES "${arg_QML_FILES}")
 endfunction()
 
+# The chrome's catalogues. translations/omaweb_<locale>.ts is what a translator
+# edits and what `update_translations` refreshes from the sources; the build
+# compiles each to a .qm beside the binary, and the package installs them under
+# share/omaweb/translations, where an installed Omaweb finds them relative to
+# itself. -locations none and -no-obsolete keep a refresh from rewriting lines
+# a change did not touch, so two branches adding strings merge cleanly.
+set(omaweb_translation_files translations/omaweb_fi.ts)
+file(GLOB_RECURSE omaweb_translatable_sources CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+qt_add_lupdate(
+    TS_FILES ${omaweb_translation_files}
+    SOURCES ${omaweb_translatable_sources}
+    OPTIONS -locations none -no-obsolete
+)
+set(omaweb_translations_directory "${CMAKE_CURRENT_BINARY_DIR}")
+qt_add_lrelease(
+    TS_FILES ${omaweb_translation_files}
+    QM_FILES_OUTPUT_VARIABLE omaweb_qm_files
+)
+add_custom_target(omaweb-translations ALL DEPENDS ${omaweb_qm_files})
+
 function(omaweb_configure_qml target engine_view engine_profile engine_module)
     target_compile_definitions(${target} PRIVATE
         OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
         OMAWEB_VERSION_DERIVED=$<BOOL:${OMAWEB_VERSION_DERIVED}>
         OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
+        OMAWEB_TRANSLATIONS_DIRECTORY="${omaweb_translations_directory}"
     )
+    add_dependencies(${target} omaweb-translations)
 
     if(OMAWEB_SOURCE_QML)
         target_compile_definitions(${target} PRIVATE
@@ -884,6 +914,8 @@ if(OMAWEB_BUILD_BROWSER)
         install(TARGETS omaweb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
         install(FILES "${omaweb_content_blocker_library}"
             DESTINATION "${CMAKE_INSTALL_LIBDIR}/omaweb")
+        install(FILES ${omaweb_qm_files}
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/translations")
         # The entry's own name is the Wayland app id and X11 window class, which
         # a desktop's window rules are written against, so it stays `omaweb`
         # rather than taking the bus name the way a `DBusActivatable` entry
@@ -1614,6 +1646,20 @@ if(BUILD_TESTING)
     add_test(NAME omaweb-qml-load-over-quickshell COMMAND omaweb-qml-smoke --validate-qml)
     set_tests_properties(omaweb-qml-load-over-quickshell PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QML_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy;QML2_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy"
+    )
+
+    # The chrome is launched under a locale and a surface's text read back, so
+    # the catalogue is shown to reach the screen and not only to compile.
+    qt_add_executable(omaweb-localization-tests "tests/ui/tst_localization.cpp")
+    target_link_libraries(omaweb-localization-tests PRIVATE Qt6::Test)
+    target_compile_definitions(omaweb-localization-tests PRIVATE
+        OMAWEB_UI_LAB_EXECUTABLE="$<TARGET_FILE:omaweb-qml-smoke>"
+    )
+    add_dependencies(omaweb-localization-tests omaweb-qml-smoke)
+    omaweb_strict_target(omaweb-localization-tests)
+    add_test(NAME omaweb-localization COMMAND omaweb-localization-tests)
+    set_tests_properties(omaweb-localization PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
     # Startup and session restore are measured on the lab as a process, from

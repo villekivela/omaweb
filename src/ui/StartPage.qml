@@ -156,7 +156,7 @@ Item {
         radius: 3
         color: Qt.rgba(0, 0, 0, root.roadEnabled ? 0.45 : 0)
         Accessible.role: Accessible.StaticText
-        Accessible.name: "Question mark shows the keyboard shortcuts"
+        Accessible.name: qsTr("Question mark shows the keyboard shortcuts")
 
         Row {
             id: hintRow
@@ -185,8 +185,9 @@ Item {
             }
 
             Text {
+                objectName: "startPageHintWord"
                 anchors.verticalCenter: parent.verticalCenter
-                text: "shortcuts"
+                text: qsTr("shortcuts")
                 color: hint.wordColor
                 opacity: 0.85
                 font.family: Style.font.family
