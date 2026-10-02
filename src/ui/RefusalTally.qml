@@ -31,6 +31,7 @@ QtObject {
                                                                    root.pageAddress) : []
     // The tally as the chrome says it, in one place so that every surface
     // counts one refusal in the singular.
-    readonly property string sentence: root.count + (root.count === 1 ? " request" : " requests")
-                                       + " blocked on this page"
+    readonly property string sentence: root.count === 1 ? qsTr("1 request blocked on this page") :
+                                                          qsTr("%1 requests blocked on this page").arg(
+                                                              root.count)
 }
