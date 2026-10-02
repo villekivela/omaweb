@@ -481,47 +481,51 @@
           <p>
             It shows the lines it adds to <code>/etc/pacman.conf</code>, the key and its
             fingerprint, and what it installs, then asks once before it uses <code>sudo</code>.
-            <code>sh -s -- --yes</code> skips the question. <a href="install">Read the script</a>
-            first, or make the same two steps by hand:
+            <code>sh -s -- --yes</code> skips the question.
+            <a href="install">Read the script</a> first if you like. From then on,
+            <code>sudo pacman -Syu</code> keeps it current.
           </p>
-          <figure class="hud">
-            <figcaption class="hud__bar">
-              <span>1 Add the repository</span>
-              <span class="hud__meta"
-                >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
-                  Copy
-                </button></span
-              >
-            </figcaption>
-            <div class="hud__screen">
-              <pre><code>[omaweb]
+          <!-- The same two steps by hand, closed until asked for. -->
+          <details class="install__manual">
+            <summary>Advanced: install by hand</summary>
+            <figure class="hud">
+              <figcaption class="hud__bar">
+                <span>1 Add the repository</span>
+                <span class="hud__meta"
+                  >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
+                    Copy
+                  </button></span
+                >
+              </figcaption>
+              <div class="hud__screen">
+                <pre><code>[omaweb]
 SigLevel = Required DatabaseRequired
 Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</code></pre>
-            </div>
-          </figure>
-          <figure class="hud">
-            <figcaption class="hud__bar">
-              <span>2 Trust the key, then install</span>
-              <span class="hud__meta"
-                >terminal<button class="hud__copy" type="button" data-copy hidden>
-                  Copy
-                </button></span
-              >
-            </figcaption>
-            <div class="hud__screen">
-              <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
+              </div>
+            </figure>
+            <figure class="hud">
+              <figcaption class="hud__bar">
+                <span>2 Trust the key, then install</span>
+                <span class="hud__meta"
+                  >terminal<button class="hud__copy" type="button" data-copy hidden>
+                    Copy
+                  </button></span
+                >
+              </figcaption>
+              <div class="hud__screen">
+                <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --add repo-signing-key.asc
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --lsign-key <mark>FDA535B2185755EA718BEA585DBF15FE484EFA64</mark>
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman -Syu omaweb</code></pre>
-            </div>
-          </figure>
-          <p>
-            The fingerprint is the one thing to check. It comes from here, not from a keyserver, and
-            pacman installs nothing that key did not sign. From then on,
-            <code>sudo pacman -Syu</code>
-            keeps it current. A single package or a build from source instead? The
-            <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
-          </p>
+              </div>
+            </figure>
+            <p>
+              The fingerprint is the one thing to check. It comes from here, not from a keyserver,
+              and pacman installs nothing that key did not sign. A single package or a build from
+              source instead? The
+              <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
+            </p>
+          </details>
           <p class="install__notes">
             <a class="more" href="releases/"
               >What changed in each release <span aria-hidden="true">&rarr;</span></a

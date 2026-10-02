@@ -935,6 +935,24 @@ body:has(.drive) > .top {
   margin-top: 12px;
 }
 
+/* The manual steps, behind a summary that reads as the section's other links. The marker is the
+   browser's own, so it turns with the open state without a script. */
+.install__manual {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+
+.install__manual summary {
+  width: fit-content;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.install__manual summary:hover {
+  color: var(--accent);
+}
+
 .install__notes {
   padding-top: 12px;
   border-top: 1px solid var(--rule);
