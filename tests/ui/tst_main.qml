@@ -11,6 +11,9 @@ TestCase {
     when: true
 
     property var window: null
+    // The frame watches still listening, so a test that fails before it stops
+    // its own does not leave it reading into the tests after it.
+    property var frameWatches: []
     // `browser` is a context property, and a component that declares one of its
     // own cannot name it: the declaration shadows the context.
     readonly property var browserController: browser
@@ -233,6 +236,8 @@ TestCase {
     // each one starts from a settled window. It is put back as a key would put
     // it, so nothing restored here is still moving when the test begins.
     function init() {
+        while (frameWatches.length > 0)
+            stopWatching(frameWatches[0]);
         InputOrigin.pointer = false;
         themeAxis.useStatedTheme();
         window.endStartPageDrive();
@@ -298,7 +303,11 @@ TestCase {
 
     // Whatever the chrome is still moving: a Space or a page arriving, or the
     // Start page dropping away from a page that replaced it. A test about a
-    // movement of its own starts from rest.
+    // movement of its own starts from rest, and in a turn of its own: the page
+    // area counts every page that came on screen in one turn as arriving
+    // together, and a test whose checks all pass at once never ends a turn. A
+    // pane paired after that would bring the page it was paired with along
+    // with it, which no reader's input can do (#507).
     function settleMotion() {
         const engineHost = findChild(window.contentItem, "engineLoader");
         const outline = findChild(window.contentItem, "sidebar");
@@ -306,6 +315,7 @@ TestCase {
         tryCompare(engineHost, "tabNudgeX", 0);
         tryCompare(engineHost, "tabNudgeY", 0);
         tryCompare(findChild(window.contentItem, "startPage"), "visible", false);
+        wait(0);
     }
 
     // Where the keyboard is, asked of the chrome rather than of the window's
@@ -473,26 +483,103 @@ TestCase {
         return kindOf(item);
     }
 
-    // Whether an item's x was seen strictly between two places on its way,
-    // sampled every few milliseconds until it has stood still for a while: a
-    // movement that eased passes through, one that settled at once does not.
-    function slidThrough(item, from, to, property) {
-        const name = property || "x";
+    // What `read` returns at every frame the window draws from here on, read
+    // once the frame's animations have advanced and its bindings settled. A
+    // movement eases by frames, and a test that polls for one sees only the
+    // frames it gets a turn between: on a loaded machine one turn can outlast
+    // a whole 120 ms slide, and the poll saw only its two ends (#507). Watch
+    // before the input that starts the movement, because its first frame can
+    // be drawn while that input is still being delivered. `drawnAt` keeps
+    // when each frame was drawn.
+    function watchFrames(read) {
+        return watchSignal(window.afterAnimating, read);
+    }
+
+    // What `read` returns each time `signal` is emitted from here on.
+    function watchSignal(signal, read) {
+        const watch = {
+            "signal": signal,
+            "read": read,
+            "frames": [],
+            "drawnAt": [],
+            "since": Date.now()
+        };
+        watch.heard = function () {
+            watch.frames.push(read());
+            watch.drawnAt.push(Date.now());
+        };
+        signal.connect(watch.heard);
+        frameWatches.push(watch);
+        return watch;
+    }
+
+    // Every value a property is set to from here on, frame or no frame.
+    function watchChanges(item, name) {
+        return watchSignal(item[name + "Changed"], function () {
+            return item[name];
+        });
+    }
+
+    // One property of an item, at every frame drawn from here on.
+    function watchProperty(item, name) {
+        return watchFrames(function () {
+            return item[name];
+        });
+    }
+
+    function stopWatching(watch) {
+        const at = frameWatches.indexOf(watch);
+        if (at < 0)
+            return;
+        frameWatches.splice(at, 1);
+        watch.signal.disconnect(watch.heard);
+    }
+
+    // Whether a watched movement from `from` to `to` eased, called as soon as
+    // the input that starts it returns: a movement that eased is drawn
+    // strictly between the two, one that settled at once is not. It waits for
+    // such a frame, or for the reading to have rested at `to` for longer than
+    // any of the chrome's movements takes, which is how long a movement that
+    // has not started is given. It returns at the first frame between, so a
+    // caller that reads where the movement ended waits for it.
+    //
+    // A machine starved of frames can draw none while a 120 ms movement runs,
+    // and its frames then show only the two ends (#507). Such a movement still
+    // shows it was left to an animation: the input left it where it started,
+    // and it reached its end no sooner than the shortest of the chrome's
+    // movements takes. A movement that settled at once is at its end when the
+    // input returns.
+    function passedBetween(watch, from, to) {
         const low = Math.min(from, to);
         const high = Math.max(from, to);
         const margin = Math.min(0.5, (high - low) / 20);
-        let between = false;
-        let last = item[name];
-        let still = 0;
-        for (let sample = 0; sample < 200 && still < 20; ++sample) {
-            const at = item[name];
-            if (at > low + margin && at < high - margin)
-                between = true;
-            still = at === last ? still + 1 : 0;
-            last = at;
-            wait(5);
-        }
-        return between;
+        const between = function (at) {
+            return at > low + margin && at < high - margin;
+        };
+        const near = function (at, place) {
+            return Math.abs(at - place) <= margin;
+        };
+        const leftByTheInput = watch.read();
+        let restingSince = -1;
+        tryVerify(function () {
+            if (watch.frames.some(between))
+                return true;
+            if (Math.abs(watch.read() - to) > margin) {
+                restingSince = -1;
+                return false;
+            }
+            if (restingSince < 0)
+                restingSince = Date.now();
+            return Date.now() - restingSince >= 250;
+        }, 5000);
+        stopWatching(watch);
+        if (between(leftByTheInput) || watch.frames.some(between))
+            return true;
+        const arrived = watch.frames.findIndex(function (at) {
+            return near(at, to);
+        });
+        return near(leftByTheInput, from) && arrived >= 0 && watch.drawnAt[arrived] - watch.since
+                >= 100;
     }
 
     // A row whose place in the list has stopped moving. The outline fills in
@@ -566,6 +653,7 @@ TestCase {
         tryCompare(sidebar, "visible", false);
         tryCompare(settings, "visible", true);
         verify(dialog.visible);
+        const leftWatching = watchProperty(sidebar, "x");
 
         init();
 
@@ -578,6 +666,12 @@ TestCase {
         compare(sidebar.x, 0);
         compare(window.sidebarWidth, window.sidebarDefaultWidth);
         verify(window.floatingControls);
+        // The watch a failed test did not stop hears none of the frames after.
+        const heard = leftWatching.frames.length;
+        window.sidebarCollapsed = true;
+        tryCompare(sidebar, "visible", false);
+        compare(leftWatching.frames.length, heard);
+        window.sidebarCollapsed = false;
 
         window.historyOpen = true;
         tryCompare(history, "visible", true);
@@ -585,8 +679,6 @@ TestCase {
         init();
 
         verify(!history.visible);
-        // Left open, a pair once split is still there when the Split tests run,
-        // and their Tab beside is not seen to slide in.
         browser.closeTab(openTabId);
         browser.closeTab(besideTabId);
     }
@@ -3152,22 +3244,32 @@ TestCase {
         });
     }
 
-    // The seam mid-slide: the page's leading edge stays on the sidebar's
-    // trailing one, and the pair still cover the row, so the movement leaves
-    // no gap between them and the page is not uncovered at the far edge.
-    // Returns how many samples caught the seam between its two ends, which is
-    // how the caller knows the movement was eased rather than jumped.
-    function watchTheSeam(sidebar, viewport, row) {
-        let moving = 0;
-        for (let sample = 0; sample < 8; ++sample) {
-            wait(10);
-            const seam = Math.round(viewport.x);
-            compare(Math.round(sidebar.x + sidebar.width), seam);
-            verify(Math.round(viewport.x + viewport.width) >= row);
-            if (seam > 0 && seam < window.sidebarWidth)
-                ++moving;
+    // The seam and the strip at every frame drawn from here on.
+    function watchTheSeam(sidebar, viewport, strip) {
+        return watchFrames(function () {
+            return {
+                "seam": Math.round(viewport.x),
+                "sidebarEnd": Math.round(sidebar.x + sidebar.width),
+                "pageEnd": Math.round(viewport.x + viewport.width),
+                "strip": strip.visible
+            };
+        });
+    }
+
+    // The seam in every frame drawn: the page's leading edge stays on the
+    // sidebar's trailing one, and the pair still cover the row, so the
+    // movement leaves no gap between them and the page is not uncovered at
+    // the far edge. The strip stands in for a sidebar that has gone, so no
+    // frame draws it beside a sidebar on its way.
+    function checkTheSeam(watch, row) {
+        stopWatching(watch);
+        for (let at = 0; at < watch.frames.length; ++at) {
+            const frame = watch.frames[at];
+            compare(frame.sidebarEnd, frame.seam);
+            verify(frame.pageEnd >= row);
+            if (frame.seam > 0 && frame.seam < window.sidebarWidth)
+                verify(!frame.strip);
         }
-        return moving;
     }
 
     // The seam eases and the page travels with it, but a width is a page
@@ -3200,29 +3302,28 @@ TestCase {
         viewportWidthSpy.clear();
         sidebarWidthSpy.clear();
 
+        let seam = watchTheSeam(sidebar, viewport, cluster);
+        let slide = watchProperty(viewport, "x");
         window.commands.run("toggle-sidebar", -1);
-        verify(watchTheSeam(sidebar, viewport, row) > 0);
+        verify(passedBetween(slide, window.sidebarDefaultWidth, 0));
         tryVerify(function () {
             return !sidebar.visible;
         });
+        checkTheSeam(seam, row);
         compare(Math.round(viewport.x), 0);
         compare(Math.round(viewport.width), row);
         compare(viewportWidthSpy.count, 1);
-        // The strip stands in for a sidebar that has gone, not for one still
-        // on its way out.
         verify(cluster.visible);
 
         viewportWidthSpy.clear();
+        seam = watchTheSeam(sidebar, viewport, cluster);
+        slide = watchProperty(viewport, "x");
         window.commands.run("toggle-sidebar", -1);
-        // The strip goes as the sidebar starts coming back, rather than
-        // waiting for it to arrive.
-        tryVerify(function () {
-            return !cluster.visible;
-        });
-        verify(watchTheSeam(sidebar, viewport, row) > 0);
+        verify(passedBetween(slide, 0, window.sidebarDefaultWidth));
         tryVerify(function () {
             return Math.round(viewport.width) === row - window.sidebarDefaultWidth;
         });
+        checkTheSeam(seam, row);
         verify(sidebar.visible);
         compare(Math.round(sidebar.x), 0);
         compare(Math.round(viewport.x), window.sidebarDefaultWidth);
@@ -5796,6 +5897,13 @@ TestCase {
             return action.label;
         });
         verify(labels.indexOf("Add split view") >= 0);
+        // The nudge is set a turn after the pairing and eases back from there,
+        // so a machine starved of frames can draw none of it: the arriving pane
+        // is heard as it is moved, and the page on show is read in every frame.
+        const arrival = watchChanges(reference.transform[0], "x");
+        const onShow = watchFrames(function () {
+            return work.transform[0].x;
+        });
         window.runTabMenu(labels.indexOf("Add split view"));
         tryVerify(function () {
             return browser.splitOnShow;
@@ -5808,10 +5916,11 @@ TestCase {
         // The arriving pane stands to the right of its place by the nudge and
         // the page already on show does not move.
         tryVerify(function () {
-            return reference.transform[0].x > 0 && reference.transform[0].x <= 10;
+            return arrival.frames.some(function (x) {
+                return x > 0;
+            });
         });
         compare(engineHost.tabNudgeX, reference.transform[0].x);
-        compare(work.transform[0].x, 0);
 
         // Both engines are drawn, one in each half of the page area, and
         // both run.
@@ -5824,6 +5933,12 @@ TestCase {
         compare(Math.round(reference.x), Math.round(engineHost.width / 2) + 1);
         compare(Math.round(reference.x + reference.width), Math.round(engineHost.width));
         tryCompare(engineHost, "tabNudgeX", 0);
+        stopWatching(arrival);
+        stopWatching(onShow);
+        for (let at = 0; at < arrival.frames.length; ++at)
+            verify(arrival.frames[at] >= 0 && arrival.frames[at] <= 10);
+        for (let at = 0; at < onShow.frames.length; ++at)
+            compare(onShow.frames[at], 0);
         const painted = grabImage(viewport);
         const middle = Math.round(viewport.height / 2);
         verify(Qt.colorEqual(painted.pixel(Math.round(engineHost.width / 4), middle), "#ff0000"));
@@ -5875,6 +5990,53 @@ TestCase {
 
         browser.closeTab(referenceTabId);
         browser.closeTab(workTabId);
+    }
+
+    // A Split separated earlier leaves both its tabs open, and pairing one of
+    // them again moves rows, so the list builds the row on show again and the
+    // new row says it is active before it has been placed. It is the same page
+    // and it stays where it is, and the pane arriving beside it still comes
+    // from its row by the nudge (#507).
+    function test_aPaneArrivesBesideARowTheListBuiltAgain() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        openPage("https://rebuilt-first.example/");
+        const firstTabId = browser.activeTabId;
+        const work = openPageInNewTab("https://rebuilt-work.example/");
+        const workTabId = browser.activeTabId;
+        verify(browser.addSplit(firstTabId));
+        tryVerify(function () {
+            return browser.splitOnShow;
+        });
+        verify(browser.separateSplit());
+        browser.openInput("https://rebuilt-beside.example/", true);
+        const besideTabId = browser.activeTabId;
+        tryVerify(function () {
+            return engineHost.engines[besideTabId] !== undefined;
+        });
+        const beside = engineHost.engines[besideTabId];
+        browser.activateTab(workTabId);
+        tryCompare(engineHost, "item", work);
+        settleMotion();
+
+        const arrival = watchChanges(beside.transform[0], "x");
+        const onShow = watchFrames(function () {
+            return Qt.point(work.transform[0].x, work.transform[0].y);
+        });
+        verify(browser.addSplit(besideTabId));
+        tryVerify(function () {
+            return arrival.frames.some(function (x) {
+                return x > 0;
+            });
+        });
+        settleMotion();
+        stopWatching(arrival);
+        stopWatching(onShow);
+        for (let at = 0; at < onShow.frames.length; ++at)
+            compare(onShow.frames[at], Qt.point(0, 0));
+
+        browser.closeTab(besideTabId);
+        browser.closeTab(workTabId);
+        browser.closeTab(firstTabId);
     }
 
     // Focus moves to the other pane by its key and by a press in the pane,
@@ -9822,29 +9984,36 @@ TestCase {
         // The pointer's press slides it, so the eye can follow where it went.
         const hide = findChild(sidebar, "collapseButton");
         settleActions(hide);
+        let slide = watchProperty(sidebar, "x");
         mouseClick(hide);
         compare(window.sidebarCollapsed, true);
-        verify(slidThrough(sidebar, -sidebar.width, 0));
-        verify(!sidebar.visible);
+        verify(passedBetween(slide, 0, -sidebar.width));
+        tryVerify(function () {
+            return !sidebar.visible;
+        });
         const show = findChild(findChild(window.contentItem, "navigationCluster"),
                                "collapseButton");
         tryVerify(function () {
             return show.visible;
         });
         settleActions(show);
+        slide = watchProperty(sidebar, "x");
         mouseClick(show);
         compare(window.sidebarCollapsed, false);
-        verify(slidThrough(sidebar, -sidebar.width, 0));
-        compare(Math.round(sidebar.x), 0);
+        verify(passedBetween(slide, -sidebar.width, 0));
+        tryVerify(function () {
+            return Math.round(sidebar.x) === 0;
+        });
 
         // A tap is the pointer too, whatever was pressed before it.
         keyClick(Qt.Key_Shift);
         settleActions(hide);
+        slide = watchProperty(sidebar, "x");
         const tap = touchEvent(hide);
         tap.press(0, hide, hide.width / 2, hide.height / 2).commit();
         tap.release(0, hide, hide.width / 2, hide.height / 2).commit();
         compare(window.sidebarCollapsed, true);
-        verify(slidThrough(sidebar, -sidebar.width, 0));
+        verify(passedBetween(slide, 0, -sidebar.width));
         window.sidebarCollapsed = false;
     }
 
@@ -9884,10 +10053,11 @@ TestCase {
 
         const homeButton = findChild(sidebar, "space-" + homeId);
         settleActions(homeButton);
+        const shrink = watchProperty(otherMark, "width");
         mouseClick(homeButton);
         compare(browser.activeSpaceId, homeId);
         verify(sidebar.arriving);
-        verify(slidThrough(otherMark, litSide, restingSide, "width"));
+        verify(passedBetween(shrink, litSide, restingSide));
         tryCompare(sidebar, "arriving", false);
 
         verify(browser.deleteSpace(otherId, "Keyed Space"));
@@ -10026,16 +10196,18 @@ TestCase {
         }
         verify(readersPosition >= 0 && readersPosition < 9);
 
+        let drop = watchProperty(notice, "drop");
         keyClick(Qt.Key_1 + readersPosition, Qt.ControlModifier);
         compare(browser.activeSpaceId, drive.readersSpaceId);
-        verify(slidThrough(notice, -8, 0, "drop"));
+        verify(passedBetween(drop, -8, 0));
         tryCompare(notice, "visible", false, 5000);
 
         const agentButton = findChild(sidebar, "space-" + drive.spaceId);
         settleActions(agentButton);
+        drop = watchProperty(notice, "drop");
         mouseClick(agentButton);
         compare(browser.activeSpaceId, drive.spaceId);
-        verify(slidThrough(notice, -8, 0, "drop"));
+        verify(passedBetween(drop, -8, 0));
         tryCompare(notice, "visible", false, 5000);
         settleMotion();
 
@@ -10043,12 +10215,14 @@ TestCase {
         const rowMark = findChild(sidebar, "agentMark-" + drive.tabId);
         verify(rowMark.visible);
         keyClick(Qt.Key_Shift);
+        let pulse = watchProperty(rowMark, "opacity");
         drive.report(true, "clicked \"Files changed\"");
-        verify(slidThrough(rowMark, 0.3, 1, "opacity"));
+        verify(passedBetween(pulse, 0.3, 1));
         drive.report(false, "looked at the page");
         mouseClick(findChild(window.contentItem, "spaceHeading"));
+        pulse = watchProperty(rowMark, "opacity");
         drive.report(true, "clicked \"Files changed\"");
-        verify(slidThrough(rowMark, 0.3, 1, "opacity"));
+        verify(passedBetween(pulse, 0.3, 1));
         drive.report(false, "looked at the page");
         endAgentDrive(drive);
     }
@@ -10151,13 +10325,12 @@ TestCase {
     function test_reducedMotionStillsANoticeAndTheRowsADragPasses() {
         const notice = findChild(window.contentItem, "pageNotice");
         const surface = findChild(notice, "pageNoticeSurface");
-        const surfaceY = {
-            get y() {
-                return surface.mapToItem(notice, 0, 0).y;
-            }
+        const surfaceY = function () {
+            return surface.mapToItem(notice, 0, 0).y;
         };
+        let drop = watchFrames(surfaceY);
         notice.show("info", "Moving notice");
-        verify(slidThrough(surfaceY, -8, 0, "y"));
+        verify(passedBetween(drop, -8, 0));
         notice.dismiss();
         tryVerify(function () {
             return !notice.visible;
@@ -10171,9 +10344,10 @@ TestCase {
         settleRow(findChild(window.contentItem, "tab-" + thirdTabId));
         SystemMotion.reduced = true;
         try {
+            drop = watchFrames(surfaceY);
             notice.show("info", "Still notice");
-            verify(!slidThrough(surfaceY, -8, 0, "y"));
-            compare(surfaceY.y, 0);
+            verify(!passedBetween(drop, -8, 0));
+            compare(surfaceY(), 0);
             notice.dismiss();
 
             const lastRow = findChild(window.contentItem, "tab-" + thirdTabId);
@@ -10258,9 +10432,10 @@ TestCase {
 
             const hide = findChild(sidebar, "collapseButton");
             settleActions(hide);
+            const slide = watchProperty(sidebar, "x");
             mouseClick(hide);
             compare(window.sidebarCollapsed, true);
-            verify(slidThrough(sidebar, -sidebar.width, 0));
+            verify(passedBetween(slide, 0, -sidebar.width));
         } finally {
             window.sidebarCollapsed = false;
         }

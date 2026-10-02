@@ -227,6 +227,7 @@ Rectangle {
             }
             spaceArrival.stop();
             root.settledTabItem = null;
+            root.settledTabId = "";
             root.settledTabX = -1;
             root.settledTabY = -1;
             root.switchDirection = to > from ? 1 : -1;
@@ -405,6 +406,7 @@ Rectangle {
     // The row the page on show was measured from, which is the row that was
     // active when the last arrival was settled.
     property var settledTabItem: null
+    property string settledTabId: ""
     // Set while focus is moving between the halves of a split, for the rest
     // of the turn: the half that was active is announced as beside after the
     // other half is announced as active, and neither arrival is one.
@@ -443,6 +445,18 @@ Rectangle {
     onActiveTabItemChanged: {
         if (activeTabItem === null)
             return;
+        // The list builds its rows again when it moves them, as pairing a tab
+        // that was in a split before does, and a new row can say it is active
+        // before the list has placed it, or before it has been told which tab
+        // it stands for. Only a different tab on show is an arrival: a row
+        // naming no tab yet, or the tab already settled on, shows nothing new,
+        // and a pane coming beside it still arrives (#507).
+        if (activeTabItem.tabId === "")
+            return;
+        if (activeTabItem.tabId === settledTabId) {
+            settledTabItem = activeTabItem;
+            return;
+        }
         const at = activeTabItem.mapToItem(root, 0, 0);
         const fromX = settledTabX;
         const fromY = settledTabY;
@@ -458,6 +472,7 @@ Rectangle {
             });
         }
         settledTabItem = activeTabItem;
+        settledTabId = activeTabItem.tabId;
         settledTabX = at.x;
         settledTabY = at.y;
         if (!easeSpaces || arriving || fromY < 0 || focusMoved)
