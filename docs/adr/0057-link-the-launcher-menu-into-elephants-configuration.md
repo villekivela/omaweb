@@ -22,9 +22,15 @@ The package installs a Lua menu under `/usr/share/omaweb/elephant/menus/omawebta
 so the tabs are asked for each time the menu opens, as a static menu would list the tabs of the day
 it was written. It runs `omaweb tabs --all --json`, which answers from the running browser and never
 starts one, and when nothing answers it lists one line saying Omaweb is not running. Choosing a tab
-runs `omaweb focus`, which switches to its Space and selects it, and asks the window to come
+runs `omaweb focus --raise`, which switches to its Space, selects it and asks the window to come
 forward. A Wayland client cannot take the keyboard from the launcher by asking, so under Hyprland
 the menu then asks the compositor to focus the window with `hyprctl dispatch focuswindow`.
+
+Raising is a flag rather than what `focus` does. 0051 says no verb takes the reader's focus, and the
+agent skill teaches `focus` to every Agent, so a plain `omaweb focus` selects the tab and leaves the
+window where it is. Only a caller that is the reader, as the menu is, passes `--raise`. The flag is
+not behind Allow agents, because it is a browser command as `focus` is, and it adds nothing a script
+running as the reader could not do with `hyprctl`.
 
 Each entry's text is the tab's title. Beneath it are the address's host, without any user name or
 password the address carries, and the Space's name. The whole address is a search keyword, so a part

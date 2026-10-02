@@ -24,7 +24,7 @@ MENU = ROOT / "integrations/elephant/menus/omawebtabs.lua"
 
 # Under Hyprland the compositor is asked to focus the window once Omaweb has selected the tab.
 FOCUS = (
-    'omaweb focus -- %s && { [ -z "$HYPRLAND_INSTANCE_SIGNATURE" ]'
+    'omaweb focus --raise -- %s && { [ -z "$HYPRLAND_INSTANCE_SIGNATURE" ]'
     " || hyprctl dispatch focuswindow 'class:^(omaweb)$' >/dev/null 2>&1; }"
 )
 

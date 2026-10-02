@@ -150,7 +150,7 @@ namespace {
         }
         if (verb == u"focus") {
             return {.valued = {},
-                .flags = {},
+                .flags = {QStringLiteral("raise")},
                 .minimumPositionals = 1,
                 .maximumPositionals = 1,
                 .positionalField = QStringLiteral("target")};

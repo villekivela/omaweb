@@ -143,7 +143,8 @@ private slots:
     void keepsACurrentTabForEachConnection();
     void refusesAddressesThatActInsideAPage();
     void listsEverySpacesTabsInOneCall();
-    void bringsTheWindowForwardWhenItFocusesATab();
+    void leavesTheWindowWhereItIsWhenItFocusesATab();
+    void bringsTheWindowForwardWhenItIsAskedTo();
     void leavesPinnedTabsAndTheReadersTabsAlone();
     void closesAndLoadsTabsOfASpaceNotOnShow();
     void closesAnAwayTabWhoseSplitPartnerIsGone();
@@ -368,8 +369,9 @@ void AgentControlTest::listsEverySpacesTabsInOneCall()
         QStringLiteral("bad-request"));
 }
 
-// A launcher runs it while another program has the keyboard, so selecting the tab is not enough.
-void AgentControlTest::bringsTheWindowForwardWhenItFocusesATab()
+// ADR 0051: no verb takes the reader's focus. A script or an Agent that selects a tab leaves the
+// window where it is.
+void AgentControlTest::leavesTheWindowWhereItIsWhenItFocusesATab()
 {
     QTemporaryDir config;
     SessionFixture fixture(readersSession());
@@ -381,10 +383,29 @@ void AgentControlTest::bringsTheWindowForwardWhenItFocusesATab()
     QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
         {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
     QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
+    QCOMPARE(forward.count(), 0);
+}
+
+// A launcher runs it while another program has the keyboard, so selecting the tab is not enough,
+// and it asks for the window by name.
+void AgentControlTest::bringsTheWindowForwardWhenItIsAskedTo()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QSignalSpy forward(&control, &AgentControl::windowRequested);
+
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-tab")},
+            {QStringLiteral("raise"), true}})));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
     QCOMPARE(forward.count(), 1);
 
     QCOMPARE(failure(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
-                 {{QStringLiteral("target"), QStringLiteral("nothing-like-it")}})),
+                 {{QStringLiteral("target"), QStringLiteral("nothing-like-it")},
+                     {QStringLiteral("raise"), true}})),
         QStringLiteral("not-found"));
     QCOMPARE(forward.count(), 1);
 }

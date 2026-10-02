@@ -154,6 +154,9 @@ To open the tabs directly, bind a key in `~/.config/hypr/bindings.conf`. Omaweb 
 bindd = SUPER ALT, T, Omaweb tabs, exec, walker -m menus:omawebtabs
 ```
 
+Choosing a tab selects it and brings Omaweb forward, through `omaweb focus --raise`. Plain
+`omaweb focus` only selects the tab.
+
 Settings > Tabs has the switch, Show tabs in the launcher. Turning it off removes Omaweb's own link
 and nothing else.
 

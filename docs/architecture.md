@@ -300,9 +300,10 @@ another name's. That guards against one Agent removing another's work by mistake
 because any process can give any name.
 
 Only `space` and `focus` put another Space or tab on show, and only when asked to by name, as a
-keybind does. `focus` also brings the window forward, so a launcher that runs it from another window
-lands the reader on the tab. `tabs --all` lists every Space's tabs in one answer, each with its
-Space's id and name, for the launcher's menu
+keybind does. `focus` leaves the window where it is, so an Agent that selects a tab does not pull
+Omaweb in front of the reader. `focus --raise` also brings the window forward, which is what a
+launcher that runs it from another window asks for. `tabs --all` lists every Space's tabs in one
+answer, each with its Space's id and name, for the launcher's menu
 ([0057](adr/0057-link-the-launcher-menu-into-elephants-configuration.md)). `open` and the page verbs
 never do. A tab opened or changed in a Space not on show is written to that Space's store, and the
 frozen page the window still holds for it is dropped, so the Space shows the new address when it

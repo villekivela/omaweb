@@ -1548,7 +1548,7 @@ ApplicationWindow {
                                                         request));
         }
 
-        // `omaweb focus` is how a launcher sends the reader here, from a window
+        // `omaweb focus --raise` is how a launcher sends the reader here, from a window
         // that has the keyboard.
         function onWindowRequested() {
             window.raise();

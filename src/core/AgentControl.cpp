@@ -1338,7 +1338,11 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
         return refusal(
             QStringLiteral("failed"), QStringLiteral("Omaweb could not select the tab."));
     }
-    emit windowRequested();
+    // Only when asked: no verb takes the reader's focus unprompted (ADR 0051), and an Agent that
+    // selects a tab is not the reader asking to see it.
+    if (request.value(QStringLiteral("raise")).toBool()) {
+        emit windowRequested();
+    }
     return success({{QStringLiteral("tab"), tab->id}, {QStringLiteral("space"), tab->spaceId}});
 }
 

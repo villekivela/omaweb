@@ -205,7 +205,7 @@ signals:
     void agentWindowsChanged();
     void grantRequestChanged();
     void grantedSpacesChanged();
-    // `focus` put a tab on show, and the window should come forward with it.
+    // `focus --raise` put a tab on show, and the window should come forward with it.
     void windowRequested();
     // An Agent closed the Auxiliary window of this id.
     void windowCloseRequested(const QString &windowId);

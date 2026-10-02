@@ -112,6 +112,12 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
         << QStringList {QStringLiteral("focus"), QStringLiteral("github.com")}
         << base(QStringLiteral("focus"), {{QStringLiteral("target"), QStringLiteral("github.com")}})
         << false;
+    QTest::newRow("focus a tab and raise the window")
+        << QStringList {QStringLiteral("focus"), QStringLiteral("--raise"), QStringLiteral("--"),
+               QStringLiteral("t1")}
+        << base(QStringLiteral("focus"),
+               {{QStringLiteral("target"), QStringLiteral("t1")}, {QStringLiteral("raise"), true}})
+        << false;
     QTest::newRow("commands") << QStringList {QStringLiteral("commands"), QStringLiteral("--json")}
                               << base(QStringLiteral("commands")) << true;
     QTest::newRow("run a command")

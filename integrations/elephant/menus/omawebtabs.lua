@@ -79,7 +79,7 @@ function Focus(value)
         return
     end
     local quoted = "'" .. (value:gsub("'", "'\\''")) .. "'"
-    os.execute("omaweb focus -- " .. quoted
+    os.execute("omaweb focus --raise -- " .. quoted
         .. " && { [ -z \"$HYPRLAND_INSTANCE_SIGNATURE\" ]"
         .. " || hyprctl dispatch focuswindow 'class:^(omaweb)$' >/dev/null 2>&1; }")
 end

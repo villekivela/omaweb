@@ -334,7 +334,7 @@ omaweb tabs [--space <id|name> | --all]
 omaweb open <address> [--space <id|name> | --tab <id>] [--new]
 omaweb close [--tab <id>]
 omaweb space <id|name>
-omaweb focus <tab id|part of an address>
+omaweb focus [--raise] <tab id|part of an address>
 omaweb commands
 omaweb run <command> [position]
 omaweb space new [name] [--temporary]
@@ -350,12 +350,14 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 `space` puts a Space on show. A Space named `new` or `delete` is switched to by its id, since those
 words start `space new` and `space delete`. `focus` selects a tab by its id or else the first tab
 whose address holds the text, looking in the Space on show before the others and switching to the
-tab's Space. `commands` lists the command scope's commands that can run now, one line each as id and
-title, and `run` runs one in the ordinary window as the command scope would, exiting 0 when it ran.
-`select-tab` and `select-space` take a position, 1 for the first. Every command of
-`src/ui/BrowserCommands.qml` is public except `private-window`, since a Private window is never an
-Agent's, and the four screenshot commands, which read the page and are `shot`'s. `run` refuses any
-other by name. These four need nothing turned on, so a keybind can use them:
+tab's Space, and leaves the window where it is unless `--raise` is given, which also brings the
+window forward and is what the launcher's menu passes. `commands` lists the command scope's commands
+that can run now, one line each as id and title, and `run` runs one in the ordinary window as the
+command scope would, exiting 0 when it ran. `select-tab` and `select-space` take a position, 1 for
+the first. Every command of `src/ui/BrowserCommands.qml` is public except `private-window`, since a
+Private window is never an Agent's, and the four screenshot commands, which read the page and are
+`shot`'s. `run` refuses any other by name. These four need nothing turned on, so a keybind can use
+them:
 
 ```sh
 omaweb space Work && omaweb run toggle-sidebar
