@@ -37,7 +37,8 @@ Every string a reader sees in the chrome is wrapped for translation, as
 - A value goes in as `%1`, `.arg()` on the wrapped string: `qsTr("Closed %1").arg(title)`. Never
   join translated pieces into a sentence, because word order differs between languages.
 - A count is a plural: `qsTr("%n tab(s)", "", count)`. Finnish gets the singular and the plural form
-  from the catalogue.
+  from the catalogue. English has no catalogue, so `%n tab(s)` would read "(s)" there: where English
+  must read as prose, write the singular and the plural as two strings.
 - A short string that is ambiguous alone takes a disambiguation comment as the second argument:
   `qsTr("Open", "verb: open a page")`.
 - Wrap a string only if a reader reads it. Object names, log messages, identifiers, file formats and

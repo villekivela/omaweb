@@ -45,10 +45,11 @@ Item {
     // Null for a tab no Agent drives. A Pinned tab is never an Agent's.
     property var agent: null
     readonly property bool showsAgent: agent !== null && !pinned
-    readonly property string agentNote: (agent && String(agent.name || "").length > 0 ? String(
-                                                                                            agent.name) :
-                                                                                        "An Agent")
-                                        + " is driving this tab. It stays rendered while attached."
+    readonly property string agentNote: qsTr(
+                                            "%1 is driving this tab. It stays rendered while attached.").arg(
+                                            agent && String(agent.name || "").length > 0 ? String(
+                                                                                               agent.name) :
+                                                                                           qsTr("An Agent"))
     // The key that selects this tab, as the keymap displays it, and whether
     // Primary is being held for the labels.
     property string keyLabel: ""
@@ -152,15 +153,25 @@ Item {
     height: pinned ? 44 : 36
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
-    Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle) + (tabBeside ? " (beside)" : "") + (
-                         tabMuted ? " (muted)" : (tabSoundSuppressed && tabAudible
-                                                  ? " (playing silently)" : (tabAudible
-                                                                             ? " (playing audio)" :
-                                                                               ""))) + (showsKeepActive
-                                                                                        ? " (kept active)" :
-                                                                                          "") + (showsAgent
-                                                                                                 ? " (Agent tab)" :
-                                                                                                   "")
+    Accessible.name: (pinned ? qsTr("Pinned: %1").arg(tabTitle) : tabTitle) + (tabBeside ? " "
+                                                                                           + qsTr("(beside)") :
+                                                                                           "") + (tabMuted
+                                                                                                  ? " " + qsTr(
+                                                                                                        "(muted)") :
+                                                                                                    (tabSoundSuppressed
+                                                                                                     && tabAudible
+                                                                                                     ? " " + qsTr(
+                                                                                                           "(playing silently)") :
+                                                                                                       (tabAudible
+                                                                                                        ? " " + qsTr(
+                                                                                                              "(playing audio)") :
+                                                                                                          ""))) + (showsKeepActive
+                                                                                                                   ? " " + qsTr(
+                                                                                                                         "(kept active)") :
+                                                                                                                     "") + (showsAgent
+                                                                                                                            ? " " + qsTr(
+                                                                                                                                  "(Agent tab)") :
+                                                                                                                              "")
     Accessible.description: showsAgent ? agentNote : ""
     Accessible.onPressAction: root.activated(root.tabId)
 
@@ -453,9 +464,10 @@ Item {
             borderSpec: hot ? Border.controlSpec("hover-cursor", audioButton.foreground,
                                                  root.colors.accent) : Border.none()
             Accessible.role: Accessible.Button
-            Accessible.name: (root.tabMuted ? "Unmute " : (root.tabSoundSuppressed
-                                                           ? "Allow sound from " : "Mute "))
-                             + root.tabTitle
+            Accessible.name: (root.tabMuted ? qsTr("Unmute %1") : (root.tabSoundSuppressed ? qsTr(
+                                                                                                 "Allow sound from %1") :
+                                                                                             qsTr("Mute %1"))).arg(
+                                 root.tabTitle)
             Accessible.onPressAction: root.muteToggled(root.tabId)
 
             Text {
@@ -470,7 +482,7 @@ Item {
         Omarchy.BorderSurface {
             id: closeButton
             objectName: "close-" + root.tabId
-            property string accessibleName: "Close " + root.tabTitle
+            property string accessibleName: qsTr("Close %1").arg(root.tabTitle)
             readonly property bool hot: hoverArea.containsMouse && hoverArea.mouseX >= root.width
                                         - width - anchors.rightMargin
             property color foreground: hoverArea.containsMouse ? root.colors.mutedText :
