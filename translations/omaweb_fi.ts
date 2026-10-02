@@ -521,6 +521,28 @@
     </message>
 </context>
 <context>
+    <name>PanelResizer</name>
+    <message>
+        <source>Sidebar</source>
+        <translation>Sivupalkki</translation>
+    </message>
+    <message>
+        <source>%1 width</source>
+        <translation>%1: leveys</translation>
+    </message>
+    <message>
+        <source>Arrow keys resize the %1</source>
+        <translation>Nuolinäppäimet muuttavat kohteen %1 kokoa</translation>
+    </message>
+</context>
+<context>
+    <name>ReleaseMark</name>
+    <message>
+        <source>Omaweb %1 is out</source>
+        <translation>Omaweb %1 on julkaistu</translation>
+    </message>
+</context>
+<context>
     <name>SpaceOutline</name>
     <message>
         <source>Show sidebar</source>
