@@ -455,14 +455,34 @@
           </ul>
         </section>
 
-        <!-- Installing. The commands are the README's and the fingerprint is the one the key in
+        <!-- Installing. The one line runs scripts/install.sh, which the build serves at /install.
+           The manual commands are the README's and the fingerprint is the one the key in
            security/ carries; change them there first, scripts/check_repository_instructions.py
-           holds the three to each other. A one-line install (#497) goes first, above the steps. -->
+           holds them, the script and the key to each other. -->
         <section class="plate install" id="install" aria-labelledby="install-title">
           <h2 id="install-title">Get on the road.</h2>
           <p>
             Omaweb ships from its own pacman repository, so it installs and upgrades with the rest
-            of your system. Two steps, once.
+            of your system. One line, once.
+          </p>
+          <figure class="hud">
+            <figcaption class="hud__bar">
+              <span>Install</span>
+              <span class="hud__meta"
+                >terminal<button class="hud__copy" type="button" data-copy hidden>
+                  Copy
+                </button></span
+              >
+            </figcaption>
+            <div class="hud__screen">
+              <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSL https://omaweb.app/install | sh</code></pre>
+            </div>
+          </figure>
+          <p>
+            It shows the lines it adds to <code>/etc/pacman.conf</code>, the key and its
+            fingerprint, and what it installs, then asks once before it uses <code>sudo</code>.
+            <code>sh -s -- --yes</code> skips the question. <a href="install">Read the script</a>
+            first, or make the same two steps by hand:
           </p>
           <figure class="hud">
             <figcaption class="hud__bar">

@@ -25,7 +25,8 @@ printf 'website  http://localhost:%s/\n' "$port"
 # install has no entry for WebP or WOFF2: the images and fonts then arrive as
 # application/octet-stream and the browser declines to draw them, which looks
 # exactly like a broken page. The types are named here so a local review shows
-# what hosting would.
+# what hosting would. The one extensionless file is /install, which vercel.json
+# types as text.
 exec python3 - "$port" "$root" <<'PYTHON'
 import functools
 import http.server
@@ -33,7 +34,8 @@ import sys
 
 handler = http.server.SimpleHTTPRequestHandler
 handler.extensions_map.update(
-    {".webp": "image/webp", ".svg": "image/svg+xml", ".woff2": "font/woff2"}
+    {".webp": "image/webp", ".svg": "image/svg+xml", ".woff2": "font/woff2",
+     "": "text/plain; charset=utf-8"}
 )
 # Threaded, because the one-request-at-a-time server stalls the whole site on
 # a connection a browser is holding open: the page stops loading half way

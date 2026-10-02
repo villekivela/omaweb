@@ -47,11 +47,13 @@ const NOT_DEPLOYED = new Set([
 
 const LOCAL = process.argv.includes("--local");
 
-// Files the site shares with the browser, kept outside website/ so both read one copy: the CRT
-// road's parameters, which the browser's own road reads too (#496). Each is served at the address
-// it is listed under.
+// Files kept outside website/ so one copy serves both the site and something else: the CRT road's
+// parameters, which the browser's own road reads too (#496), and the one-line install, which
+// tests/scripts/tst_install.py runs from where it sits. Each is served at the address it is listed
+// under; `vercel.json` types /install as text, which an extensionless file would not be.
 export const SHARED = {
   "crt-road.json": new URL("../../share/scenes/crt-road.json", import.meta.url).href,
+  install: new URL("../../scripts/install.sh", import.meta.url).href,
 };
 
 // Entry by entry rather than one `cp` of the whole directory: the output lives inside the input,
