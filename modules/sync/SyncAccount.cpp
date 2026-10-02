@@ -3,6 +3,7 @@
 #include "GitHubForge.h"
 #include "LinuxSecretStore.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -419,8 +420,8 @@ SyncAccount::Session SyncAccount::openSession(const QString &login, QByteArray a
         = {.recoveryKey = secrets.retrieve(QStringLiteral("sync-key/%1").arg(login), &error),
             .accessToken = std::move(accessToken)};
     if (session.credentials.recoveryKey.size() != 32) {
-        return failed(
-            SyncFailure::RecoveryKeyRejected, QStringLiteral("Enter the Sync recovery key"));
+        return failed(SyncFailure::RecoveryKeyRejected,
+            QCoreApplication::translate("SyncAccount", "Enter the Sync recovery key"));
     }
     if (!session.credentials.accessToken.isEmpty()) {
         return session;

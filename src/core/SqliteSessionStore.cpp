@@ -2,6 +2,7 @@
 
 #include "HistoryQuery.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
 #include <QDirIterator>
@@ -90,7 +91,9 @@ bool SqliteSessionStore::open(QString *errorMessage)
 {
     if (!QDir().mkpath(m_dataRoot)) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("Could not create data directory: %1").arg(m_dataRoot);
+            *errorMessage = QCoreApplication::translate(
+                "SqliteSessionStore", "Could not create data directory: %1")
+                                .arg(m_dataRoot);
         }
         return false;
     }
@@ -1073,7 +1076,9 @@ bool SqliteSessionStore::migrateLegacyTabs(QString *errorMessage)
     for (auto it = tabsBySpace.cbegin(); it != tabsBySpace.cend(); ++it) {
         if (!saveTabs(it.key(), it.value(), activeTabBySpace.value(it.key()))) {
             if (errorMessage) {
-                *errorMessage = QStringLiteral("Could not migrate tabs for Space %1").arg(it.key());
+                *errorMessage = QCoreApplication::translate(
+                    "SqliteSessionStore", "Could not migrate tabs for Space %1")
+                                    .arg(it.key());
             }
             return false;
         }

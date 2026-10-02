@@ -1,6 +1,8 @@
 #include "ExternalProtocolHandler.h"
 
 #include <AppKit/AppKit.h>
+#include <QCoreApplication>
+
 namespace omaweb {
 
 QString applicationNameForMac(const QUrl &destination)
@@ -18,7 +20,9 @@ QString applicationNameForMac(const QUrl &destination)
         if (name)
             return QString::fromNSString(name);
     }
-    return QStringLiteral("the application registered for %1").arg(destination.scheme());
+    return QCoreApplication::translate(
+        "ExternalProtocolHandler", "the application registered for %1")
+        .arg(destination.scheme());
 }
 
 } // namespace omaweb
