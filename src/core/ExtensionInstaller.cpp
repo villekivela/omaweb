@@ -2,6 +2,7 @@
 
 #include "ExtensionPackage.h"
 
+#include <QCoreApplication>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QtConcurrent/QtConcurrent>
@@ -52,7 +53,9 @@ void ExtensionInstaller::fetch(const KnownExtension &extension, const QString &d
         return;
     }
     if (m_ask == Ask::Never) {
-        emit failed(extension.key, QStringLiteral("This Omaweb does not download extensions."));
+        emit failed(extension.key,
+            QCoreApplication::translate(
+                "ExtensionInstaller", "This Omaweb does not download extensions."));
         return;
     }
     m_inFlight.insert(extension.key, true);
@@ -105,7 +108,8 @@ void ExtensionInstaller::download(const KnownExtension &extension, const QString
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             give(extension.key,
-                QStringLiteral("The download did not finish. Check the network and try again."));
+                QCoreApplication::translate("ExtensionInstaller",
+                    "The download did not finish. Check the network and try again."));
             return;
         }
         const QByteArray crx = reply->readAll();

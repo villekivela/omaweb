@@ -2,6 +2,142 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="fi">
 <context>
+    <name>ExtensionInstaller</name>
+    <message>
+        <source>This Omaweb does not download extensions.</source>
+        <translation>Tämä Omaweb ei lataa laajennuksia.</translation>
+    </message>
+    <message>
+        <source>The download did not finish. Check the network and try again.</source>
+        <translation>Lataus ei valmistunut. Tarkista verkko ja yritä uudelleen.</translation>
+    </message>
+</context>
+<context>
+    <name>ExtensionPackage</name>
+    <message>
+        <source>Omaweb has no signing key for this extension.</source>
+        <translation>Omawebillä ei ole allekirjoitusavainta tälle laajennukselle.</translation>
+    </message>
+    <message>
+        <source>The package is larger than an extension should be.</source>
+        <translation>Paketti on suurempi kuin laajennuksen kuuluisi olla.</translation>
+    </message>
+    <message>
+        <source>The download is not an extension package.</source>
+        <translation>Lataus ei ole laajennuspaketti.</translation>
+    </message>
+    <message>
+        <source>The package is not in the format Omaweb reads.</source>
+        <translation>Paketti ei ole muodossa, jota Omaweb lukee.</translation>
+    </message>
+    <message>
+        <source>The package is truncated.</source>
+        <translation>Paketti on katkennut.</translation>
+    </message>
+    <message>
+        <source>The package&apos;s header could not be read.</source>
+        <translation>Paketin otsaketta ei voitu lukea.</translation>
+    </message>
+    <message>
+        <source>The package is not signed by %1.</source>
+        <translation>Pakettia ei ole allekirjoittanut %1.</translation>
+    </message>
+    <message>
+        <source>The package names an extension it is not signed for.</source>
+        <translation>Paketti nimeää laajennuksen, jolle sitä ei ole allekirjoitettu.</translation>
+    </message>
+    <message>
+        <source>Omaweb&apos;s own record of this extension disagrees with itself and the package was not installed.</source>
+        <translation>Omawebin oma tieto tästä laajennuksesta on ristiriitainen, eikä pakettia asennettu.</translation>
+    </message>
+    <message>
+        <source>The package&apos;s signature does not hold.</source>
+        <translation>Paketin allekirjoitus ei kelpaa.</translation>
+    </message>
+    <message>
+        <source>Omaweb could not write where extensions are kept.</source>
+        <translation>Omaweb ei voinut kirjoittaa laajennusten säilytyspaikkaan.</translation>
+    </message>
+    <message>
+        <source>The package&apos;s archive could not be opened.</source>
+        <translation>Paketin arkistoa ei voitu avata.</translation>
+    </message>
+    <message>
+        <source>The package&apos;s archive could not be read.</source>
+        <translation>Paketin arkistoa ei voitu lukea.</translation>
+    </message>
+    <message>
+        <source>The package tried to write outside its own folder.</source>
+        <translation>Paketti yritti kirjoittaa oman kansionsa ulkopuolelle.</translation>
+    </message>
+    <message>
+        <source>The package could not be unpacked.</source>
+        <translation>Pakettia ei voitu purkaa.</translation>
+    </message>
+    <message>
+        <source>The package has no manifest.</source>
+        <translation>Paketissa ei ole manifestia.</translation>
+    </message>
+    <message>
+        <source>The package&apos;s manifest could not be read.</source>
+        <translation>Paketin manifestia ei voitu lukea.</translation>
+    </message>
+    <message>
+        <source>The package&apos;s manifest could not be written.</source>
+        <translation>Paketin manifestia ei voitu kirjoittaa.</translation>
+    </message>
+    <message>
+        <source>The package could not be put where it is kept.</source>
+        <translation>Pakettia ei voitu siirtää säilytyspaikkaansa.</translation>
+    </message>
+</context>
+<context>
+    <name>InputMethod</name>
+    <message>
+        <source>This desktop asks Qt applications for the %1 input method, and the plugin that answers to that name is installed.</source>
+        <translation>Tämä työpöytä pyytää Qt-sovelluksilta syöttötapaa %1, ja kyseisellä nimellä vastaava liitännäinen on asennettu.</translation>
+    </message>
+    <message>
+        <source>This desktop asks Qt applications for the %1 input method and installs no plugin by that name. Qt loads no input context, Omaweb binds no text-input protocol, and composing does nothing. Every Qt application here is affected; installing the plugin package for %1 answers it.</source>
+        <translation>Tämä työpöytä pyytää Qt-sovelluksilta syöttötapaa %1, mutta ei asenna sillä nimellä liitännäistä. Qt ei lataa syöttökontekstia, Omaweb ei sido tekstinsyöttöprotokollaa, eikä kirjoitusten muodostaminen toimi. Kaikki tämän koneen Qt-sovellukset kärsivät; liitännäispaketin %1 asentaminen korjaa asian.</translation>
+    </message>
+</context>
+<context>
+    <name>KeyboardNavigation</name>
+    <message>
+        <source>Could not read Keyboard navigation configuration: %1</source>
+        <translation>Näppäimistöllä liikkumisen asetuksia ei voitu lukea: %1</translation>
+    </message>
+    <message>
+        <source>Invalid Keyboard navigation JSON: %1</source>
+        <translation>Virheellinen näppäimistöllä liikkumisen JSON: %1</translation>
+    </message>
+    <message>
+        <source>Unsupported Keyboard navigation configuration version</source>
+        <translation>Näppäimistöllä liikkumisen asetusten versiota ei tueta</translation>
+    </message>
+    <message>
+        <source>Keyboard navigation requires at least one binding</source>
+        <translation>Näppäimistöllä liikkuminen vaatii vähintään yhden pikanäppäimen</translation>
+    </message>
+    <message>
+        <source>Keyboard navigation recognised none of its page bindings: %1</source>
+        <translation>Näppäimistöllä liikkuminen ei tunnistanut yhtään sivun pikanäppäintään: %1</translation>
+    </message>
+    <message>
+        <source>Invalid passthrough host: %1</source>
+        <translation>Virheellinen läpäisysivusto: %1</translation>
+    </message>
+    <message>
+        <source>Invalid passthrough key for %1</source>
+        <translation>Virheellinen läpäisynäppäin sivustolle %1</translation>
+    </message>
+    <message>
+        <source>Ignored bindings this build does not know: %1</source>
+        <translation>Pikanäppäimet, joita tämä versio ei tunne, ohitettiin: %1</translation>
+    </message>
+</context>
+<context>
     <name>RefusalTally</name>
     <message>
         <source>1 request blocked on this page</source>
@@ -258,10 +394,6 @@
         <translation>ei käynnissä</translation>
     </message>
     <message>
-        <source>stop</source>
-        <translation>lopeta</translation>
-    </message>
-    <message>
         <source>Stop keeping %1 active</source>
         <translation>Lopeta kohteen %1 pitäminen aktiivisena</translation>
     </message>
@@ -304,10 +436,6 @@
     <message>
         <source>Show the night road through an old screen&apos;s glass: scanlines, a soft bloom and a faint flicker. When off, the road is its plain pixels.</source>
         <translation>Näytä yötie vanhan kuvaruudun lasin läpi: viivoja, pehmeä hehku ja heikko välke. Kun pois päältä, tie on pelkkiä pikseleitä.</translation>
-    </message>
-    <message>
-        <source>type</source>
-        <translation>kirjasin</translation>
     </message>
     <message>
         <source>Interface font size</source>
@@ -388,10 +516,6 @@
     <message>
         <source>No text on a page is drawn smaller than this, whatever size the page asks for. A tab&apos;s zoom multiplies it. A page already open takes it when it next lays out; reload to see it now.</source>
         <translation>Mitään sivun tekstiä ei piirretä tätä pienemmäksi, vaikka sivu pyytäisi pienempää. Välilehden zoomaus kertoo sen. Jo avoin sivu ottaa sen käyttöön seuraavan asettelun yhteydessä; lataa uudelleen nähdäksesi sen heti.</translation>
-    </message>
-    <message>
-        <source>none</source>
-        <translation>ei mitään</translation>
     </message>
     <message>
         <source>Minimum page font size</source>
@@ -650,7 +774,23 @@ Päivitykset osoitteesta %3</translation>
         <translation>lisää oma hakukone</translation>
     </message>
     <message>
+        <source>stop</source>
+        <comment>verb: stop keeping a tab active</comment>
+        <translation>lopeta</translation>
+    </message>
+    <message>
+        <source>type</source>
+        <comment>section label: typography settings</comment>
+        <translation>kirjasin</translation>
+    </message>
+    <message>
+        <source>none</source>
+        <comment>no minimum font size</comment>
+        <translation>ei mitään</translation>
+    </message>
+    <message>
         <source>name</source>
+        <comment>placeholder: a search engine&apos;s name</comment>
         <translation>nimi</translation>
     </message>
     <message>
@@ -1035,14 +1175,17 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     </message>
     <message>
         <source>project</source>
+        <comment>section label: the Omaweb project</comment>
         <translation>projekti</translation>
     </message>
     <message>
         <source>source</source>
+        <comment>link to the source code</comment>
         <translation>lähdekoodi</translation>
     </message>
     <message>
         <source>issues</source>
+        <comment>link to the issue tracker</comment>
         <translation>ongelmat</translation>
     </message>
     <message>
@@ -1122,6 +1265,7 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     </message>
     <message>
         <source>blocked</source>
+        <comment>a permission decision</comment>
         <translation>estetty</translation>
     </message>
     <message>
@@ -1248,6 +1392,21 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>shortcuts</source>
         <translation>pikanäppäimet</translation>
+    </message>
+</context>
+<context>
+    <name>SyncLauncher</name>
+    <message>
+        <source>The Sync Feature module is not installed</source>
+        <translation>Synkronoinnin moduulia ei ole asennettu</translation>
+    </message>
+    <message>
+        <source>The installed Sync module is not compatible with this browser</source>
+        <translation>Asennettu synkronointimoduuli ei ole yhteensopiva tämän selaimen kanssa</translation>
+    </message>
+    <message>
+        <source>The Sync module could not start</source>
+        <translation>Synkronointimoduulia ei voitu käynnistää</translation>
     </message>
 </context>
 <context>

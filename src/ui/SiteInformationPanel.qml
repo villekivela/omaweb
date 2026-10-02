@@ -171,7 +171,7 @@ Rectangle {
         case root.allowedPersistently:
             return qsTr("always allowed");
         case root.blocked:
-            return qsTr("blocked");
+            return qsTr("blocked", "a permission decision");
         default:
             return qsTr("asked each time");
         }

@@ -762,7 +762,7 @@ Rectangle {
                                 ActionButton {
                                     visible: !modelData.inspected
                                     colors: root.colors
-                                    label: qsTr("stop")
+                                    label: qsTr("stop", "verb: stop keeping a tab active")
                                     accessibleName: qsTr("Stop keeping %1 active").arg(
                                                         modelData.title)
                                     onClicked: root.retainedTabReleased(modelData.tabId)
@@ -840,7 +840,7 @@ Rectangle {
                     SectionLabel {
                         visible: !!root.fontSettings
                         colors: root.colors
-                        text: qsTr("type")
+                        text: qsTr("type", "section label: typography settings")
                     }
 
                     // The theme sets the base size Omaweb's own type scale
@@ -1047,7 +1047,7 @@ Rectangle {
                                 minimum: 0
                                 maximum: root.fontSettings
                                          ? root.fontSettings.maximumPageMinimumFontSize : 0
-                                zeroLabel: qsTr("none")
+                                zeroLabel: qsTr("none", "no minimum font size")
                                 overridden: !!root.pageFontsMap.minimumFontSize
                                             && root.pageFontsMap.minimumFontSize.overridden
                                 accessibleName: qsTr("Minimum page font size")
@@ -1627,7 +1627,7 @@ Rectangle {
                         objectName: "engineName"
                         width: pane.width
                         colors: root.colors
-                        placeholder: qsTr("name")
+                        placeholder: qsTr("name", "placeholder: a search engine's name")
                         accessibleName: qsTr("Search engine name")
                     }
 
@@ -2793,7 +2793,7 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        text: qsTr("project")
+                        text: qsTr("project", "section label: the Omaweb project")
                     }
 
                     Text {
@@ -2801,9 +2801,10 @@ Rectangle {
                         width: pane.width
                         textFormat: Text.StyledText
                         text: '<a href="https://omaweb.app">omaweb.app</a> · '
-                              + '<a href="https://github.com/villekivela/omaweb">' + qsTr("source")
+                              + '<a href="https://github.com/villekivela/omaweb">' + qsTr("source",
+                                                                                          "link to the source code")
                               + '</a> · <a href="https://github.com/villekivela/omaweb/issues">'
-                              + qsTr("issues") + '</a>'
+                              + qsTr("issues", "link to the issue tracker") + '</a>'
                         linkColor: root.colors.accent
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
