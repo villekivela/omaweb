@@ -1,3 +1,4 @@
+#include "SyncLauncher.h"
 #include "Translations.h"
 
 #include <QDir>
@@ -46,6 +47,7 @@ private slots:
     void theFirstDirectoryWithACatalogueWins();
     void aLocaleWithoutACatalogueInstallsNothing();
     void theInstalledDirectoryComesBeforeTheBuildTree();
+    void aRefusalFromCppReachesTheUiInFinnish();
 };
 
 void TranslationsTests::lcAllOutranksLcMessagesAndLang()
@@ -125,6 +127,27 @@ void TranslationsTests::theInstalledDirectoryComesBeforeTheBuildTree()
     QVERIFY(directories.first().endsWith(QStringLiteral("../share/omaweb/translations")));
     QCOMPARE(directories.last(), QStringLiteral("/build/tree"));
     QCOMPARE(omaweb::catalogueDirectories({}).size(), 1);
+}
+
+// The UI reads errorMessage as a property, so what it shows is what C++ composed. The same
+// refusal under no catalogue is the English source, which the other tests rely on.
+void TranslationsTests::aRefusalFromCppReachesTheUiInFinnish()
+{
+    const auto refusal = [] {
+        omaweb::SyncLauncher launcher(nullptr, nullptr, nullptr, {}, {}, {});
+        [[maybe_unused]] const auto loaded = launcher.load();
+        return launcher.errorMessage();
+    };
+    QCOMPARE(refusal(), QStringLiteral("The Sync Feature module is not installed"));
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QVERIFY(provide(directory));
+    const auto *translator = omaweb::installCatalogue(
+        QCoreApplication::instance(), QLocale(QStringLiteral("fi_FI")), {directory.path()});
+    QVERIFY(translator != nullptr);
+    QCOMPARE(refusal(), QStringLiteral("Synkronointimoduulia ei ole asennettu"));
+    delete translator;
 }
 
 QTEST_MAIN(TranslationsTests)

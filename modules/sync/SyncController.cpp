@@ -6,6 +6,7 @@
 #include "SyncAccount.h"
 #include "SyncModule.h"
 
+#include <QCoreApplication>
 #include <QLoggingCategory>
 #include <QtConcurrentRun>
 
@@ -23,6 +24,7 @@ SyncController::SyncController(
     , m_dataRoot(std::move(dataRoot))
     , m_configRoot(std::move(configRoot))
 {
+    m_status = QCoreApplication::translate("SyncController", "Sync is off");
     connect(m_localState.get(), &LocalSyncState::meaningfulChange, this,
         [this](quint64) { markPending(); });
     connect(m_account.get(), &SyncAccount::changed, this, &SyncController::stateChanged);
@@ -87,7 +89,9 @@ SyncController::SyncController(
         }
         m_pending = deferred || m_localState->checkpoint().generation != result.localGeneration;
         m_lastSuccessfulSync = QDateTime::currentDateTimeUtc();
-        m_status = m_pending ? QStringLiteral("Changes waiting to sync") : QStringLiteral("Synced");
+        m_status = m_pending
+            ? QCoreApplication::translate("SyncController", "Changes waiting to sync")
+            : QCoreApplication::translate("SyncController", "Synced");
         remember();
         emit stateChanged();
         if (m_pending) {
@@ -99,7 +103,7 @@ SyncController::SyncController(
     if (m_enabled) {
         m_periodicReconcile.start();
         m_pending = true;
-        m_status = QStringLiteral("Sync starting");
+        m_status = QCoreApplication::translate("SyncController", "Sync starting");
         QTimer::singleShot(0, this, &SyncController::syncNow);
     }
 }
@@ -142,7 +146,7 @@ void SyncController::markPending()
     }
     m_pending = true;
     if (!m_syncing) {
-        m_status = QStringLiteral("Changes waiting to sync");
+        m_status = QCoreApplication::translate("SyncController", "Changes waiting to sync");
         m_quietReconcile.start();
     }
     emit stateChanged();
@@ -156,10 +160,10 @@ void SyncController::reportFailure(const SyncError &error)
         m_pending = false;
         m_quietReconcile.stop();
         m_periodicReconcile.stop();
-        m_status = QStringLiteral("Sync is paused");
+        m_status = QCoreApplication::translate("SyncController", "Sync is paused");
         remember();
     } else if (m_enabled) {
-        m_status = QStringLiteral("Sync failed");
+        m_status = QCoreApplication::translate("SyncController", "Sync failed");
         m_pending = true;
     }
     emit stateChanged();
@@ -170,7 +174,7 @@ void SyncController::syncNow()
     if (!m_enabled || m_syncing || !m_account->connected()) {
         return;
     }
-    m_status = QStringLiteral("Syncing");
+    m_status = QCoreApplication::translate("SyncController", "Syncing");
     m_errorMessage.clear();
     emit stateChanged();
     m_cancellationRequested = std::make_shared<std::atomic_bool>(false);
@@ -226,7 +230,7 @@ void SyncController::pause()
     m_pending = false;
     m_quietReconcile.stop();
     m_periodicReconcile.stop();
-    m_status = QStringLiteral("Sync is paused");
+    m_status = QCoreApplication::translate("SyncController", "Sync is paused");
     remember();
     emit stateChanged();
 }
@@ -239,7 +243,7 @@ void SyncController::resume()
     m_enabled = true;
     m_pending = true;
     m_periodicReconcile.start();
-    m_status = QStringLiteral("Sync starting");
+    m_status = QCoreApplication::translate("SyncController", "Sync starting");
     remember();
     emit stateChanged();
     syncNow();
@@ -256,7 +260,7 @@ void SyncController::disconnectProvider()
         if (m_cancellationRequested) {
             m_cancellationRequested->store(true);
         }
-        m_status = QStringLiteral("Disconnecting Sync");
+        m_status = QCoreApplication::translate("SyncController", "Disconnecting Sync");
         emit stateChanged();
         return;
     }
@@ -268,7 +272,7 @@ void SyncController::finishDisconnect()
     m_disconnectPending = false;
     m_lastSuccessfulSync = {};
     m_account->forget();
-    m_status = QStringLiteral("Sync is off");
+    m_status = QCoreApplication::translate("SyncController", "Sync is off");
     emit stateChanged();
 }
 

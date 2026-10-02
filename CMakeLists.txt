@@ -756,7 +756,9 @@ file(GLOB_RECURSE omaweb_translatable_sources CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.qml"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/modules/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/modules/*.h")
 qt_add_lupdate(
     TS_FILES ${omaweb_translation_files}
     SOURCES ${omaweb_translatable_sources}

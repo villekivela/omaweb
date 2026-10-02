@@ -11,6 +11,7 @@
 #include "StoredFavicons.h"
 #include "ThreadedSessionStore.h"
 
+#include <QCoreApplication>
 #include <QRegularExpression>
 #include <QDir>
 #include <QDirIterator>
@@ -2522,8 +2523,9 @@ void BrowserController::reportTabRendererFailure(const QString &tabId, const QSt
         return;
     }
     tab->loading = false;
-    tab->rendererFailureReason
-        = reason.isEmpty() ? QStringLiteral("The page renderer stopped unexpectedly.") : reason;
+    tab->rendererFailureReason = reason.isEmpty() ? QCoreApplication::translate("BrowserController",
+                                                        "The page renderer stopped unexpectedly.")
+                                                  : reason;
     m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
