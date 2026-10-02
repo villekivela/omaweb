@@ -469,6 +469,7 @@ ApplicationWindow {
 
     BrowserCommands {
         id: browserCommands
+        objectName: "browserCommands"
         window: window
         browser: window.windowBrowser
         engineHost: engineLoader
@@ -733,7 +734,7 @@ ApplicationWindow {
         const targets = [
                   {
                       "id": "",
-                      "label": "New blank tab"
+                      "label": qsTr("New blank tab")
                   }
               ];
         const wanted = window.windowBrowser.splittableTabIds();
@@ -1378,8 +1379,9 @@ ApplicationWindow {
     // the reader to guess whether the key reached the browser. A tab with no
     // page is not an engine that lacks something, and does not say it is.
     function reportUnavailable(what) {
-        window.showNotice("block", what + " is not available", engineLoader.item
-                          ? "This engine does not offer it" : "There is no page here");
+        window.showNotice("block", qsTr("%1 is not available").arg(what), engineLoader.item ? qsTr(
+                                                                                                  "This engine does not offer it") :
+                                                                                              qsTr("There is no page here"));
     }
 
     // Find belongs to one tab. The bar's openness is per tab, and the query and
@@ -1469,7 +1471,7 @@ ApplicationWindow {
 
     function reloadBypassingCache() {
         if (!engineLoader.item) {
-            window.reportUnavailable("Reload bypassing cache");
+            window.reportUnavailable(browserCommands.descriptions["reload-bypassing-cache"].title);
             return;
         }
         engineLoader.reloadPageBypassingCache();
@@ -1477,7 +1479,7 @@ ApplicationWindow {
 
     function stopLoading() {
         if (!engineLoader.item) {
-            window.reportUnavailable("Stop loading");
+            window.reportUnavailable(browserCommands.descriptions["stop-loading"].title);
             return;
         }
         engineLoader.stopLoading();
@@ -4408,17 +4410,17 @@ ApplicationWindow {
         label: {
             switch (window.dialogMode) {
             case "new":
-                return "new space";
+                return qsTr("new space");
             case "rename":
-                return "rename space";
+                return qsTr("rename space");
             case "delete":
-                return "delete space";
+                return qsTr("delete space");
             case "move":
-                return "move tab to a space";
+                return qsTr("move tab to a space");
             case "split":
-                return "add split view";
+                return qsTr("add split view");
             case "confirm-move":
-                return "discard edited form state";
+                return qsTr("discard edited form state");
             case "site-storage":
                 return "clear this site's storage";
             case "space-data":
@@ -4434,23 +4436,24 @@ ApplicationWindow {
         placeholder: {
             switch (window.dialogMode) {
             case "new":
-                return "name the Space";
+                return qsTr("name the Space");
             case "rename":
                 return window.dialogSpaceName;
             case "delete":
-                return "type " + window.dialogSpaceName + " to delete it";
+                return qsTr("type %1 to delete it").arg(window.dialogSpaceName);
             }
             return "";
         }
 
         message: {
             if (window.dialogMode === "delete") {
-                return window.dialogSpaceName + " keeps its tabs, its session, "
-                        + "its logins and its engine data. Deleting it cannot be undone.";
+                return qsTr("%1 keeps its tabs, its session, its logins and its engine data. "
+                            + "Deleting it cannot be undone.").arg(window.dialogSpaceName);
             }
             if (window.dialogMode === "confirm-move") {
-                return "This page has edited form state. Moving it reloads the page under the "
-                        + "destination identity and discards those edits.";
+                return qsTr(
+                            "This page has edited form state. Moving it reloads the page under the "
+                            + "destination identity and discards those edits.");
             }
             // Each of these names its own scope, because the three of them are
             // three different sizes and only the wording tells them apart.
@@ -4484,17 +4487,17 @@ ApplicationWindow {
         confirmHint: {
             switch (window.dialogMode) {
             case "new":
-                return "⏎ create the Space";
+                return qsTr("⏎ create the Space");
             case "rename":
-                return "⏎ rename the Space";
+                return qsTr("⏎ rename the Space");
             case "delete":
-                return "⏎ delete " + window.dialogSpaceName;
+                return qsTr("⏎ delete %1").arg(window.dialogSpaceName);
             case "move":
-                return "↑↓ choose      ⏎ move the tab";
+                return qsTr("↑↓ choose      ⏎ move the tab");
             case "split":
-                return "↑↓ choose      ⏎ show it beside this tab";
+                return qsTr("↑↓ choose      ⏎ show it beside this tab");
             case "confirm-move":
-                return "⏎ discard the edits and move";
+                return qsTr("⏎ discard the edits and move");
             case "site-storage":
                 return "⏎ clear " + sidebar.siteOrigin + "'s storage";
             case "space-data":

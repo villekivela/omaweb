@@ -109,7 +109,7 @@ Rectangle {
             width: 28
             height: 26
             icon: "arrow_back"
-            accessibleName: "Back"
+            accessibleName: qsTr("Back")
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent
@@ -122,7 +122,7 @@ Rectangle {
             width: 28
             height: 26
             icon: "arrow_forward"
-            accessibleName: "Forward"
+            accessibleName: qsTr("Forward")
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent
@@ -135,7 +135,7 @@ Rectangle {
             width: 28
             height: 26
             icon: "refresh"
-            accessibleName: "Reload"
+            accessibleName: qsTr("Reload")
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent
@@ -154,7 +154,7 @@ Rectangle {
             width: 28
             height: 26
             icon: root.sidebarCollapsed ? "left_panel_open" : "left_panel_close"
-            accessibleName: root.sidebarCollapsed ? "Show sidebar" : "Hide sidebar"
+            accessibleName: root.sidebarCollapsed ? qsTr("Show sidebar") : qsTr("Hide sidebar")
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent
@@ -166,7 +166,7 @@ Rectangle {
             width: 28
             height: 26
             icon: "search"
-            accessibleName: "Search commands"
+            accessibleName: qsTr("Search commands")
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent

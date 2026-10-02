@@ -406,15 +406,15 @@ Item {
     // what.
     function spokenName(row, title) {
         if (row.kind === "suggestion")
-            return "Search " + row.engineName + " for " + title;
+            return qsTr("Search %1 for %2").arg(row.engineName).arg(title);
         const verbs = {
-            "tab": "Switch to tab ",
-            "space": "Switch to Space ",
-            "history": "Open history result ",
-            "keyword": "Search ",
-            "command": "Run "
+            "tab": qsTr("Switch to tab %1"),
+            "space": qsTr("Switch to Space %1"),
+            "history": qsTr("Open history result %1"),
+            "keyword": qsTr("Search %1"),
+            "command": qsTr("Run %1")
         };
-        return verbs[row.kind] + title;
+        return verbs[row.kind].arg(title);
     }
 
     // A command shows where the typed letters fell and a proposal what it
@@ -480,11 +480,11 @@ Item {
     // rather than searches.
     function describe(search) {
         if (search.engineId === undefined)
-            return commandScope || input.text.trim().length === 0 ? "" : "Open " + input.text.trim(
-                                                                        );
+            return commandScope || input.text.trim().length === 0 ? "" : qsTr("Open %1").arg(
+                                                                        input.text.trim());
         if (search.terms.length === 0)
-            return "Open " + search.engineName;
-        return "Search " + search.engineName + " for " + search.terms;
+            return qsTr("Open %1").arg(search.engineName);
+        return qsTr("Search %1 for %2").arg(search.engineName).arg(search.terms);
     }
 
     // The space after a keyword is what enters the mode: the field gives the
@@ -754,12 +754,13 @@ Item {
                 padding: 0
                 verticalAlignment: TextInput.AlignVCenter
                 color: root.colors.text
-                placeholderText: root.commandScope ? "search every action" : (root.engine !== null
-                                                                              ? "search "
-                                                                                + root.engine.engineName :
-                                                                                (root.newTabIntent
-                                                                                 ? "address or search — opens in a new tab" :
-                                                                                   "address or search"))
+                placeholderText: root.commandScope ? qsTr("search every action") : (root.engine
+                                                                                    !== null ? qsTr(
+                                                                                                   "search %1").arg(
+                                                                                                   root.engine.engineName) :
+                                                                                               (root.newTabIntent
+                                                                                                ? qsTr("address or search — opens in a new tab") :
+                                                                                                  qsTr("address or search")))
                 placeholderTextColor: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: 17
@@ -790,8 +791,8 @@ Item {
                         }
                     }
                 }
-                Accessible.name: root.engine === null ? placeholderText : "Search "
-                                                        + root.engine.engineName
+                Accessible.name: root.engine === null ? placeholderText : qsTr("Search %1").arg(
+                                                            root.engine.engineName)
                 Accessible.description: root.destination
 
                 onTextChanged: {
@@ -848,7 +849,7 @@ Item {
                 font.family: Style.font.family
                 font.pixelSize: 20
                 Accessible.role: Accessible.Button
-                Accessible.name: root.commandScope ? "Run" : "Go"
+                Accessible.name: root.commandScope ? qsTr("Run") : qsTr("Go")
 
                 MouseArea {
                     id: goMouse
@@ -866,7 +867,8 @@ Item {
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
-                text: root.commandScope ? "command" : (root.newTabIntent ? "new tab" : "this tab")
+                text: root.commandScope ? qsTr("command") : (root.newTabIntent ? qsTr("new tab") :
+                                                                                 qsTr("this tab"))
                 // Centred in a bar of its own rather than stacked over rows, so
                 // it is centred on its glyphs: the lean a section label carries
                 // in a scrolling pane would drop it below the address beside it.
@@ -934,11 +936,11 @@ Item {
                     // What committing the row does, at its right edge. A
                     // command runs, which its keys already say.
                     readonly property string action: ({
-                                                          "tab": "switch tab →",
-                                                          "space": "switch space →",
-                                                          "history": "open →",
-                                                          "keyword": "search →",
-                                                          "suggestion": "search →",
+                                                          "tab": qsTr("switch tab →"),
+                                                          "space": qsTr("switch space →"),
+                                                          "history": qsTr("open →"),
+                                                          "keyword": qsTr("search →"),
+                                                          "suggestion": qsTr("search →"),
                                                           "command": ""
                                                       })[modelData.kind]
                     // The keys that reach a command without the Omnibar, and a
@@ -960,8 +962,9 @@ Item {
                     height: 28
                     Accessible.role: Accessible.Button
                     Accessible.name: root.spokenName(modelData, row.title) + (row.spaceName.length
-                                                                              > 0 ? " in "
-                                                                                    + row.spaceName :
+                                                                              > 0 ? " " + qsTr(
+                                                                                        "in %1").arg(
+                                                                                        row.spaceName) :
                                                                                     "")
                     // The row shows a history result's host; the whole address
                     // is still there to be heard.
