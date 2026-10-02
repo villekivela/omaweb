@@ -214,7 +214,8 @@ int main(int argc, char *argv[])
         {QString::fromLatin1(qWebEngineVersion()), QString::fromLatin1(qWebEngineChromiumVersion()),
             QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion())});
     if (!runtimeSecurity.rendererIsolated()) {
-        qCritical("Omaweb refuses to start: %s", qPrintable(runtimeSecurity.sandboxDiagnostic()));
+        qCritical("Omaweb refuses to start: %s",
+            qPrintable(omaweb::sandboxDiagnostic(omaweb::SandboxHost::fromEnvironment(), false)));
         return 2;
     }
     if (!runtimeSecurity.meetsSecurityBaseline()) {
@@ -371,9 +372,10 @@ int main(int argc, char *argv[])
     // is printed by Qt, so the browser says it once here and again in Settings,
     // because a browser that drops every composed character without a word is
     // worse than one that names what is missing.
-    omaweb::InputMethodReport inputMethod(omaweb::InputMethodHost::fromEnvironment());
+    const auto inputMethodHost = omaweb::InputMethodHost::fromEnvironment();
+    omaweb::InputMethodReport inputMethod(inputMethodHost);
     if (!inputMethod.available()) {
-        qWarning("%s", qPrintable(inputMethod.diagnostic()));
+        qWarning("%s", qPrintable(omaweb::inputMethodDiagnostic(inputMethodHost, false)));
     }
     omaweb::WindowManager windowManager(configRoot(), launch.privateWindowsAvailable);
     const auto developmentSyncModule = QStringLiteral(OMAWEB_SYNC_MODULE_PATH);

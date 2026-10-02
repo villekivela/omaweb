@@ -1,5 +1,6 @@
 #include "ExternalProtocolHandler.h"
 
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QQmlEngine>
 
@@ -15,7 +16,9 @@ QString ExternalProtocolHandler::applicationName(const QUrl &destination) const
 #if defined(Q_OS_MACOS)
     return applicationNameForMac(destination);
 #else
-    return QStringLiteral("the application registered for %1").arg(destination.scheme());
+    return QCoreApplication::translate(
+        "ExternalProtocolHandler", "the application registered for %1")
+        .arg(destination.scheme());
 #endif
 }
 

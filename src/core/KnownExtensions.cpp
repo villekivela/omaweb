@@ -1,5 +1,7 @@
 #include "KnownExtensions.h"
 
+#include <QCoreApplication>
+
 namespace omaweb {
 
 QList<KnownExtension> knownExtensions()
@@ -19,8 +21,9 @@ QList<KnownExtension> knownExtensions()
                 "nVNOMkf868scNTMliwitCqqjT5baTANsG0DkZWQExD4lSXzSZHH9MEO8q0iZ7RRlNuGRBAkZgNV8FwZRsP"
                 "Km/rwQ9dy3VpgLcmLp5GiMt+kAEncqKAkuRYnhVXXBsKqIyYTMjHSLkLnpfFySyOPLBdS617i/PGNiP/"
                 "MT6Xy6z//v5NozUgaAZ4gJQIDAQAB"),
-            QStringLiteral("Fills and saves passwords and passkeys from a Bitwarden vault. "
-                           "Reads and writes the pages you use it on."),
+            QCoreApplication::translate("KnownExtensions",
+                "Fills and saves passwords and passkeys from a Bitwarden vault. "
+                "Reads and writes the pages you use it on."),
         },
         KnownExtension {
             QStringLiteral("1password"),
@@ -29,7 +32,7 @@ QList<KnownExtension> knownExtensions()
             // Named rather than softened. Omaweb says where an extension came
             // from and under what terms, and for this one the terms are the
             // publisher's own and the source is not published.
-            QStringLiteral("Proprietary"),
+            QCoreApplication::translate("KnownExtensions", "Proprietary"),
             QStringLiteral("https://1password.com/downloads/browser-extension"),
             QStringLiteral("aeblfdkhhhdcdjpifhhbdiojplfjncoa"),
             QStringLiteral("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnHpaUll4uWujpAdbIXOQY2WE6hk"
@@ -38,9 +41,10 @@ QList<KnownExtension> knownExtensions()
                            "0qVXvNgAVVnSTULH254YqpeCcAhmsKiFZSL6OrOZmCp8kZ/"
                            "OeOUK9iYWYylL7VcOXVrZf10EPrlaCNXzVk7K35dPuQ7svhA0Pgju3kngB4RLa5Iojhw3IT"
                            "+B5+m8pisjOSd1oKMrRmhGs7rDhF5IEtAiVxqVp7uOOMPQj3vrbMDAzf7vqLtQIDAQAB"),
-            QStringLiteral("Fills and saves passwords and passkeys from a 1Password account. "
-                           "Reads and writes the pages you use it on, and talks to the "
-                           "1Password desktop application."),
+            QCoreApplication::translate("KnownExtensions",
+                "Fills and saves passwords and passkeys from a 1Password account. "
+                "Reads and writes the pages you use it on, and talks to the "
+                "1Password desktop application."),
         },
     };
 }

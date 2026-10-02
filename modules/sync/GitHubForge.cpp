@@ -1,5 +1,6 @@
 #include "GitHubForge.h"
 
+#include <QCoreApplication>
 #include <QEventLoop>
 #include <QHttpHeaders>
 #include <QJsonArray>
@@ -80,7 +81,8 @@ GitHubForge::Response GitHubForge::request(const QByteArray &method, const QUrl 
     consume();
     Response response {.status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(),
         .body = responseTooLarge ? QByteArray {} : std::move(responseBody),
-        .error = responseTooLarge ? QStringLiteral("The response is larger than the safe limit")
+        .error = responseTooLarge                      ? QCoreApplication::translate(
+                                                             "GitHubForge", "The response is larger than the safe limit")
             : reply->error() == QNetworkReply::NoError ? QString {}
                                                        : reply->errorString()};
     reply->deleteLater();
@@ -94,30 +96,40 @@ const ForgeVocabulary &GitHubForge::vocabulary() const
         .identifier = QStringLiteral("github"),
         .repositoryName = QStringLiteral("omaweb-sync"),
         .commitEmailDomain = QStringLiteral("users.noreply.github.com"),
-        .contactingStatus = QStringLiteral("Contacting GitHub"),
-        .authorizationStatus = QStringLiteral("Waiting for GitHub authorization"),
-        .repositoryStatus = QStringLiteral("Create the private Sync repository on GitHub"),
-        .installationStatus = QStringLiteral("Waiting for GitHub App installation"),
-        .failureStatus = QStringLiteral("GitHub connection failed"),
-        .connectionNotStarted = QStringLiteral("GitHub connection has not been started"),
-        .authorizationRefused = QStringLiteral("GitHub did not authorize Sync"),
-        .authorizationExpired = QStringLiteral("GitHub authorization expired; connect again"),
-        .connectAction = QStringLiteral("Connect GitHub"),
-        .authorizationAction = QStringLiteral("Open GitHub authorization"),
-        .failureTitle = QStringLiteral("GitHub Sync failed"),
-        .codeCopiedNotice = QStringLiteral("GitHub code copied"),
-        .codePrompt = QStringLiteral("Enter %1 on GitHub"),
-        .authorizationNote = QStringLiteral(
+        .contactingStatus = QCoreApplication::translate("GitHubForge", "Contacting GitHub"),
+        .authorizationStatus
+        = QCoreApplication::translate("GitHubForge", "Waiting for GitHub authorization"),
+        .repositoryStatus = QCoreApplication::translate(
+            "GitHubForge", "Create the private Sync repository on GitHub"),
+        .installationStatus
+        = QCoreApplication::translate("GitHubForge", "Waiting for GitHub App installation"),
+        .failureStatus = QCoreApplication::translate("GitHubForge", "GitHub connection failed"),
+        .connectionNotStarted
+        = QCoreApplication::translate("GitHubForge", "GitHub connection has not been started"),
+        .authorizationRefused
+        = QCoreApplication::translate("GitHubForge", "GitHub did not authorize Sync"),
+        .authorizationExpired
+        = QCoreApplication::translate("GitHubForge", "GitHub authorization expired; connect again"),
+        .connectAction = QCoreApplication::translate("GitHubForge", "Connect GitHub"),
+        .authorizationAction
+        = QCoreApplication::translate("GitHubForge", "Open GitHub authorization"),
+        .failureTitle = QCoreApplication::translate("GitHubForge", "GitHub Sync failed"),
+        .codeCopiedNotice = QCoreApplication::translate("GitHubForge", "GitHub code copied"),
+        .codePrompt = QCoreApplication::translate("GitHubForge", "Enter %1 on GitHub"),
+        .authorizationNote = QCoreApplication::translate("GitHubForge",
             "The GitHub login becomes your Sync identity; Omaweb does not create an account."),
-        .repositoryTitle = QStringLiteral("Create the private omaweb-sync repository on GitHub"),
-        .repositoryNote = QStringLiteral("Keep the prefilled name and Private visibility. After "
-                                         "GitHub creates it, return here to continue."),
-        .installationTitle = QStringLiteral("Install Omaweb Sync for your personal GitHub account"),
-        .installationNote
-        = QStringLiteral("Choose Only select repositories, select omaweb-sync, and install. Omaweb "
-                         "detects approval automatically."),
-        .observationNote
-        = QStringLiteral("GitHub can still observe repository size and update timing."),
+        .repositoryTitle = QCoreApplication::translate(
+            "GitHubForge", "Create the private omaweb-sync repository on GitHub"),
+        .repositoryNote = QCoreApplication::translate("GitHubForge",
+            "Keep the prefilled name and Private visibility. After "
+            "GitHub creates it, return here to continue."),
+        .installationTitle = QCoreApplication::translate(
+            "GitHubForge", "Install Omaweb Sync for your personal GitHub account"),
+        .installationNote = QCoreApplication::translate("GitHubForge",
+            "Choose Only select repositories, select omaweb-sync, and install. Omaweb "
+            "detects approval automatically."),
+        .observationNote = QCoreApplication::translate(
+            "GitHubForge", "GitHub can still observe repository size and update timing."),
     };
     return words;
 }
@@ -125,7 +137,8 @@ const ForgeVocabulary &GitHubForge::vocabulary() const
 DeviceAuthorization GitHubForge::beginAuthorization(QString *errorMessage)
 {
     if (m_clientId.isEmpty()) {
-        setError(errorMessage, QStringLiteral("This build has no GitHub App client ID"));
+        setError(errorMessage,
+            QCoreApplication::translate("GitHubForge", "This build has no GitHub App client ID"));
         return {};
     }
     QUrlQuery form;
@@ -171,8 +184,9 @@ ForgeAuthorization GitHubForge::pollAuthorization(const QString &deviceCode, QSt
     const auto user = objectFrom(profile.body);
     if (profile.status != 200 || user.value(QStringLiteral("login")).toString().isEmpty()) {
         setError(errorMessage,
-            profile.error.isEmpty() ? QStringLiteral("GitHub did not return an identity")
-                                    : profile.error);
+            profile.error.isEmpty()
+                ? QCoreApplication::translate("GitHubForge", "GitHub did not return an identity")
+                : profile.error);
         return {.state = AuthorizationState::Failed};
     }
     return {.state = AuthorizationState::Complete,
@@ -209,14 +223,16 @@ InstallationState GitHubForge::installationState(
     const QByteArray &accessToken, const QString &login, qint64 repositoryId, QString *errorMessage)
 {
     if (m_appSlug.isEmpty()) {
-        setError(errorMessage, QStringLiteral("This build has no GitHub App slug"));
+        setError(errorMessage,
+            QCoreApplication::translate("GitHubForge", "This build has no GitHub App slug"));
         return InstallationState::Failed;
     }
     const auto response = request(
         "GET", apiUrl(QStringLiteral("/user/installations?per_page=100")), {}, accessToken);
     if (response.status != 200) {
         setError(errorMessage,
-            response.error.isEmpty() ? QStringLiteral("GitHub could not check the App installation")
+            response.error.isEmpty() ? QCoreApplication::translate("GitHubForge",
+                                           "GitHub could not check the App installation")
                                      : response.error);
         return InstallationState::Failed;
     }
@@ -239,9 +255,9 @@ InstallationState GitHubForge::installationState(
                 {}, accessToken);
             if (repositories.status != 200) {
                 setError(errorMessage,
-                    repositories.error.isEmpty()
-                        ? QStringLiteral("GitHub could not check repository access")
-                        : repositories.error);
+                    repositories.error.isEmpty() ? QCoreApplication::translate("GitHubForge",
+                                                       "GitHub could not check repository access")
+                                                 : repositories.error);
                 return InstallationState::Failed;
             }
             for (const auto &repository :
@@ -286,7 +302,8 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
     const QString &owner, const QString &preferredName, QString *errorMessage)
 {
     if (owner.isEmpty()) {
-        setError(errorMessage, QStringLiteral("GitHub identity is not available"));
+        setError(errorMessage,
+            QCoreApplication::translate("GitHubForge", "GitHub identity is not available"));
         return {};
     }
     for (int suffix = 1; suffix <= 100; ++suffix) {
@@ -321,7 +338,8 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
         if (existing.status != 404) {
             setError(errorMessage,
                 responseFailure(existing.body, existing.error,
-                    QStringLiteral("GitHub could not check the repository")));
+                    QCoreApplication::translate(
+                        "GitHubForge", "GitHub could not check the repository")));
             return {};
         }
         const auto response = request("POST", apiUrl(QStringLiteral("/user/repos")),
@@ -342,26 +360,32 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
         if (response.status != 422) {
             setError(errorMessage,
                 responseFailure(response.body, response.error,
-                    QStringLiteral("GitHub could not create the repository")));
+                    QCoreApplication::translate(
+                        "GitHubForge", "GitHub could not create the repository")));
             return {};
         }
     }
-    setError(errorMessage, QStringLiteral("GitHub has no available Omaweb Sync repository name"));
+    setError(errorMessage,
+        QCoreApplication::translate(
+            "GitHubForge", "GitHub has no available Omaweb Sync repository name"));
     return {};
 }
 
 QByteArray GitHubForge::fetchAvatar(const QUrl &avatarUrl, QString *errorMessage)
 {
     if (!avatarUrl.isValid() || avatarUrl.scheme() != QLatin1String("https")) {
-        setError(errorMessage, QStringLiteral("GitHub returned an invalid avatar address"));
+        setError(errorMessage,
+            QCoreApplication::translate(
+                "GitHubForge", "GitHub returned an invalid avatar address"));
         return {};
     }
     constexpr qsizetype maximumAvatarBytes = 2 * 1024 * 1024;
     const auto response = request("GET", avatarUrl, {}, {}, {}, maximumAvatarBytes);
     if (response.status != 200) {
         setError(errorMessage,
-            response.error.isEmpty() ? QStringLiteral("GitHub avatar download failed")
-                                     : response.error);
+            response.error.isEmpty()
+                ? QCoreApplication::translate("GitHubForge", "GitHub avatar download failed")
+                : response.error);
         return {};
     }
     return response.body;
