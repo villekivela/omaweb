@@ -3,6 +3,7 @@
 #include "BrowserStateExchange.h"
 #include "SyncFeature.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -49,7 +50,8 @@ bool SyncLauncher::load()
         return true;
     }
     if (m_modulePath.isEmpty() || !QFileInfo::exists(m_modulePath)) {
-        m_errorMessage = QStringLiteral("The Sync Feature module is not installed");
+        m_errorMessage = QCoreApplication::translate(
+            "SyncLauncher", "The Sync Feature module is not installed");
         emit errorMessageChanged();
         return false;
     }
@@ -57,7 +59,8 @@ bool SyncLauncher::load()
     auto *plugin = qobject_cast<SyncFeature *>(m_loader->instance());
     if (!plugin || plugin->contractVersion() != 2) {
         m_errorMessage = m_loader->errorString().isEmpty()
-            ? QStringLiteral("The installed Sync module is not compatible with this browser")
+            ? QCoreApplication::translate(
+                  "SyncLauncher", "The installed Sync module is not compatible with this browser")
             : m_loader->errorString();
         m_loader.reset();
         emit errorMessageChanged();
@@ -67,7 +70,8 @@ bool SyncLauncher::load()
         m_browser, m_blocker, m_keyboardNavigation, m_dataRoot, m_configRoot);
     m_controller = plugin->createController(m_stateExchange.get(), m_dataRoot, m_configRoot, this);
     if (!m_controller) {
-        m_errorMessage = QStringLiteral("The Sync module could not start");
+        m_errorMessage
+            = QCoreApplication::translate("SyncLauncher", "The Sync module could not start");
         m_stateExchange.reset();
         m_loader.reset();
         emit errorMessageChanged();

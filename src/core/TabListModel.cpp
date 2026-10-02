@@ -27,6 +27,14 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
     case UrlRole:
         return tab.url;
     case TitleRole:
+        // These two titles are stored as English, which the session store compares by value, and
+        // translated only when shown.
+        if (tab.title == QStringLiteral("New tab")) {
+            return tr("New tab");
+        }
+        if (tab.title == QStringLiteral("Agent activity")) {
+            return tr("Agent activity");
+        }
         return tab.title;
     case IconUrlRole:
         return tab.iconUrl;
