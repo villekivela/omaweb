@@ -445,33 +445,34 @@ Rectangle {
             tabArrival.restart();
         });
     }
+    // The row on show, where the list has placed it, as the place the next
+    // arrival is measured from.
+    function settleOnPlacedRow(row) {
+        if (root.activeTabItem !== row || row.tabId === "" || row.parent === null)
+            return;
+        row.parent.forceLayout();
+        const placed = row.mapToItem(root, 0, 0);
+        root.settledTabItem = row;
+        root.settledTabId = row.tabId;
+        root.settledTabX = Math.round(placed.x);
+        root.settledTabY = Math.round(placed.y);
+    }
     onActiveTabItemChanged: noteActiveRow(activeTabItem)
     // The list builds its rows again when it moves them, as pairing a tab that
-    // was in a split before does, and a new row can say it is active before
-    // the list has placed it, or before it has been told which tab it stands
-    // for. Only a different tab on show is an arrival: the tab already
-    // settled on shows nothing new, and a pane coming beside it still arrives
-    // (#507). A row naming no tab yet is heard again once the turn has told
-    // it which.
+    // was in a split before does, and a row it is building can say it is
+    // active before the list has placed it, or before it has been told which
+    // tab it stands for. Only a different tab on a placed row is an arrival: a
+    // row not placed yet, one naming no tab yet, or one for the tab already
+    // settled on is measured once the list has placed it and nothing arrives,
+    // so a pane coming beside it still does (#507).
     function noteActiveRow(row) {
         if (row === null)
             return;
-        if (row.tabId === "") {
+        if (row.parent === null || row.tabId === "" || row.tabId === settledTabId) {
+            if (row.tabId !== "")
+                settledTabItem = row;
             Qt.callLater(function () {
-                if (root.activeTabItem === row && row.tabId !== "")
-                    root.noteActiveRow(row);
-            });
-            return;
-        }
-        if (row.tabId === settledTabId) {
-            settledTabItem = row;
-            Qt.callLater(function () {
-                if (root.settledTabItem !== row || row.parent === null)
-                    return;
-                row.parent.forceLayout();
-                const placed = row.mapToItem(root, 0, 0);
-                root.settledTabX = Math.round(placed.x);
-                root.settledTabY = Math.round(placed.y);
+                root.settleOnPlacedRow(row);
             });
             return;
         }
