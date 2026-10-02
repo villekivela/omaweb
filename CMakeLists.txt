@@ -1271,6 +1271,15 @@ if(BUILD_TESTING)
     omaweb_declarative_fixture_target(omaweb-session-fixture-tests)
     add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
 
+    qt_add_executable(omaweb-translations-tests tests/core/tst_translations.cpp)
+    target_link_libraries(omaweb-translations-tests PRIVATE omaweb-core Qt6::Test)
+    target_compile_definitions(omaweb-translations-tests PRIVATE
+        OMAWEB_TRANSLATIONS_DIRECTORY="${omaweb_translations_directory}"
+    )
+    add_dependencies(omaweb-translations-tests omaweb-translations)
+    omaweb_strict_target(omaweb-translations-tests)
+    add_test(NAME omaweb-translations COMMAND omaweb-translations-tests)
+
     qt_add_executable(omaweb-engine-paths-tests tests/core/tst_enginepaths.cpp)
     target_link_libraries(omaweb-engine-paths-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-engine-paths-tests)

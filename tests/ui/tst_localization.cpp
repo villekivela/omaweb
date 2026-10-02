@@ -7,7 +7,7 @@ namespace {
 
 // Launches the UI lab under a locale and reads the Start page's hint back,
 // which is the first surface wrapped for translation.
-QString startPageHint(const QString &locale)
+QString startPageHint(const QString &locale, const QStringList &extraArguments = {})
 {
     QTemporaryDir dataRoot;
     if (!dataRoot.isValid()) {
@@ -15,8 +15,9 @@ QString startPageHint(const QString &locale)
     }
     QProcess lab;
     lab.setProgram(QStringLiteral(OMAWEB_UI_LAB_EXECUTABLE));
-    lab.setArguments(
-        {QStringLiteral("--report-start-page"), QStringLiteral("--data-root"), dataRoot.path()});
+    lab.setArguments(QStringList {QStringLiteral("--report-start-page"),
+                         QStringLiteral("--data-root"), dataRoot.path()}
+        + extraArguments);
     auto environment = QProcessEnvironment::systemEnvironment();
     for (const auto &name : {"LC_ALL", "LC_MESSAGES", "LANGUAGE"}) {
         environment.remove(QString::fromLatin1(name));
@@ -48,6 +49,7 @@ private slots:
     void theStartPageSpeaksFinnishUnderAFinnishLocale();
     void theStartPageStaysEnglishUnderAnEnglishLocale();
     void aLocaleWithoutACatalogueFallsBackToEnglish();
+    void theLabSwitchesLocaleOverTheEnvironment();
 };
 
 void Localization::theStartPageSpeaksFinnishUnderAFinnishLocale()
@@ -63,6 +65,12 @@ void Localization::theStartPageStaysEnglishUnderAnEnglishLocale()
 void Localization::aLocaleWithoutACatalogueFallsBackToEnglish()
 {
     QCOMPARE(startPageHint(QStringLiteral("de_DE.UTF-8")), QStringLiteral("shortcuts"));
+}
+
+void Localization::theLabSwitchesLocaleOverTheEnvironment()
+{
+    QCOMPARE(startPageHint(QStringLiteral("en_US.UTF-8"), {QStringLiteral("--locale"), QStringLiteral("fi")}),
+        QStringLiteral("pikanäppäimet"));
 }
 
 QTEST_GUILESS_MAIN(Localization)
