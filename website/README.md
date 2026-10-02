@@ -24,6 +24,9 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
   landing page and the release pages share: the menu, the copy buttons and the release log. Both are
   optional: without them the road is a gradient, the Omnibar's rows are links to their cards, and
   the film is an ordinary video.
+- `film.js` is what the film's own controls decide: what they show for its time, where a press on
+  the scrubber seeks to and what a key does. `drive.js` wires them to the video, in place of the
+  browser's controls, which it removes.
 - `scene.js` is the Scene host and `crt-road.js` the one Scene the site ships. The contract between
   them is below.
 - `assets/audio/nightroad.mp3` is the night radio: one song, Night road, which `script.js` plays on

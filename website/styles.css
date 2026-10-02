@@ -800,7 +800,7 @@ body:has(.drive) > .top {
 
 .film__frame {
   position: relative;
-  padding: 8px;
+  overflow: hidden;
   border: 1px solid var(--edge);
   background: var(--plate);
 }
@@ -832,6 +832,142 @@ body:has(.drive) > .top {
   border: 1px solid var(--accent);
   background: var(--plate);
   fill: var(--accent);
+}
+
+/* The film's controls: a strip of the Omnibar's glass across the foot of the film, its top edge
+   catching the accent as the Omnibar's catches the sun. The scrubber is the road's centre line,
+   dashed ahead and lit behind, with a bar of light where the film is. Idle they get out of the
+   way; a pointer moving over the film, a tap, focus or a pause brings them back. */
+.film__controls:not([hidden]) {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding-right: 16px;
+  border-top: 1px solid var(--edge);
+  background: color-mix(in srgb, var(--plate) 72%, transparent);
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.film__controls::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 70%, transparent) 50%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.film__frame[data-awake] .film__controls,
+.film__frame[data-paused] .film__controls,
+.film__controls:hover,
+.film__controls:focus-within {
+  opacity: 1;
+  transform: none;
+}
+
+.film__toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--rule);
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.film__toggle:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.film__toggle:focus-visible,
+.film__scrubber:focus-visible {
+  outline-offset: -2px;
+}
+
+.film__toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.film__toggle[aria-pressed="true"] .film__glyph-play,
+.film__toggle[aria-pressed="false"] .film__glyph-pause {
+  display: none;
+}
+
+/* The whole height of the strip answers a press, so the thin line is easy to hit. */
+.film__scrubber {
+  --progress: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.film__track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--fg) 30%, transparent) 0 12px,
+    transparent 12px 20px
+  );
+}
+
+.film__track::before,
+.film__track::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+
+.film__track::before {
+  inset: 0 auto 0 0;
+  width: calc(var(--progress) * 100%);
+  background: var(--accent);
+}
+
+.film__track::after {
+  top: -6px;
+  left: calc(var(--progress) * 100%);
+  width: 4px;
+  height: 16px;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+  transform: translateX(-50%);
+}
+
+.film__time {
+  margin: 0;
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* The features: cards two abreast, each led by a large crop of a capture. */
@@ -1461,5 +1597,17 @@ kbd {
   .radio-toggle[aria-pressed="true"] .radio-toggle__bars i {
     height: 14px;
     animation: none;
+  }
+
+  .film__controls:not([hidden]) {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* A narrow film keeps the scrubber long and leaves the clock out. */
+@media (max-width: 480px) {
+  .film__time {
+    display: none;
   }
 }

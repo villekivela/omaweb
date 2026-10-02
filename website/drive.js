@@ -4,6 +4,7 @@
 // their cards, and the introduction is an ordinary video.
 
 import { createCrtRoad } from "./crt-road.js";
+import { filmKey, filmState, seekAt } from "./film.js";
 import { SceneHost } from "./scene.js";
 
 // The road's parameters, shared with the browser's own road and served beside this script. A
@@ -82,26 +83,112 @@ if (drive) {
   addEventListener("scroll", scrolled, { passive: true });
   scrolled();
 
-  // The introduction plays muted while it is on screen and stops when it leaves. Under reduced
-  // motion it waits on its poster for the reader to press play.
+  // The introduction plays muted while it is on screen and stops when it leaves, unless the reader
+  // paused it, which holds until they play it again. Under reduced motion it waits on its poster
+  // for the reader to press play. Its own controls stand in for the browser's.
   const film = drive.querySelector(".film__video");
   if (film) {
     film.removeAttribute("controls");
+    const frame = film.closest(".film__frame");
+    const controls = frame.querySelector(".film__controls");
+    const toggle = controls.querySelector(".film__toggle");
+    const scrubber = controls.querySelector(".film__scrubber");
+    const elapsed = controls.querySelector(".film__elapsed");
+    const total = controls.querySelector(".film__total");
+    let held = false;
+    const play = () => {
+      held = false;
+      film.play().catch(() => {});
+    };
+    const pause = () => {
+      held = true;
+      film.pause();
+    };
+    const flip = () => (film.paused ? play() : pause());
+    const show = () => {
+      const state = filmState(film);
+      toggle.setAttribute("aria-pressed", String(state.playing));
+      frame.toggleAttribute("data-paused", !state.playing);
+      scrubber.setAttribute("aria-valuemax", String(state.valueMax));
+      scrubber.setAttribute("aria-valuenow", String(state.valueNow));
+      scrubber.setAttribute("aria-valuetext", state.valueText);
+      scrubber.style.setProperty("--progress", String(state.progress));
+      elapsed.textContent = state.elapsed;
+      total.textContent = state.total;
+    };
+    for (const type of ["play", "pause", "timeupdate", "seeked", "durationchange"]) {
+      film.addEventListener(type, show);
+    }
+    show();
+
+    // Idle, the controls get out of the way; a pointer moving over the film, or a tap on a touch
+    // screen, brings them back for a while. Hovering or focusing them keeps them, as does a pause.
+    let resting = 0;
+    const wake = () => {
+      frame.setAttribute("data-awake", "");
+      clearTimeout(resting);
+      resting = setTimeout(() => frame.removeAttribute("data-awake"), 2500);
+    };
+    frame.addEventListener("pointermove", (event) => {
+      if (event.pointerType === "mouse") wake();
+    });
+    film.addEventListener("click", (event) => {
+      // A first tap on a touch screen only shows the controls; a click plays or pauses.
+      if (event.pointerType === "touch" && !frame.hasAttribute("data-awake")) wake();
+      else {
+        flip();
+        wake();
+      }
+    });
+    toggle.addEventListener("click", flip);
+
+    // A press on the scrubber seeks there, and a drag carries on while the pointer is held.
+    const seek = (event) => {
+      film.currentTime = seekAt(event.clientX, scrubber.getBoundingClientRect(), film.duration);
+    };
+    scrubber.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      scrubber.setPointerCapture(event.pointerId);
+      scrubber.focus({ preventScroll: true });
+      seek(event);
+    });
+    scrubber.addEventListener("pointermove", (event) => {
+      if (scrubber.hasPointerCapture(event.pointerId)) seek(event);
+    });
+
+    // The keys are the film's while its controls have focus, before the page's own J, K and f.
+    controls.addEventListener("keydown", (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const action = filmKey(event.key, film);
+      if (!action || (action.seek !== undefined && event.target !== scrubber)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      wake();
+      if (action.toggle) flip();
+      else film.currentTime = action.seek;
+    });
+    // Space would press the focused button once more as it rises.
+    controls.addEventListener("keyup", (event) => {
+      if (event.key === " ") event.preventDefault();
+    });
+
     if (smooth) {
+      controls.hidden = false;
       new IntersectionObserver(
         ([entry]) => {
-          if (entry.isIntersecting) film.play().catch(() => {});
-          else film.pause();
+          if (!entry.isIntersecting) film.pause();
+          else if (!held) film.play().catch(() => {});
         },
         { threshold: 0.5 },
       ).observe(film);
     } else {
-      const play = drive.querySelector(".film__play");
-      play.hidden = false;
-      play.addEventListener("click", () => {
-        play.hidden = true;
-        film.controls = true;
-        film.play().catch(() => {});
+      const start = drive.querySelector(".film__play");
+      start.hidden = false;
+      start.addEventListener("click", () => {
+        start.hidden = true;
+        controls.hidden = false;
+        play();
+        toggle.focus({ preventScroll: true });
       });
     }
   }
