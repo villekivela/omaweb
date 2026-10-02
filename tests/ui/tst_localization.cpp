@@ -5,20 +5,20 @@
 
 namespace {
 
-// Launches the UI lab under a locale with a report flag and reads back the
-// `name=value` lines it prints, the catalogue as the screen's own text.
-QMap<QString, QString> labReport(
-    const QString &flag, const QString &locale, const QStringList &extraArguments = {})
+// Launches the UI lab under a locale and reads one line it reports back, which
+// is how a test sees what a surface says on the screen rather than what the
+// catalogue holds.
+QString labReport(const QString &locale, const QStringList &reportArguments, const QString &prefix,
+    const QStringList &extraArguments = {})
 {
-    QMap<QString, QString> report;
     QTemporaryDir dataRoot;
     if (!dataRoot.isValid()) {
-        return report;
+        return {};
     }
     QProcess lab;
     lab.setProgram(QStringLiteral(OMAWEB_UI_LAB_EXECUTABLE));
-    lab.setArguments(
-        QStringList {flag, QStringLiteral("--data-root"), dataRoot.path()} + extraArguments);
+    lab.setArguments(reportArguments + QStringList {QStringLiteral("--data-root"), dataRoot.path()}
+        + extraArguments);
     auto environment = QProcessEnvironment::systemEnvironment();
     for (const auto &name : {"LC_ALL", "LC_MESSAGES", "LANGUAGE"}) {
         environment.remove(QString::fromLatin1(name));
@@ -29,27 +29,42 @@ QMap<QString, QString> labReport(
     lab.start();
     if (!lab.waitForFinished(60000)) {
         lab.kill();
-        return report;
+        return {};
     }
     const auto output = QString::fromUtf8(lab.readAllStandardOutput());
     for (const auto &line : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
-        const auto separator = line.indexOf(QLatin1Char('='));
-        if (separator > 0) {
-            report.insert(line.left(separator), line.mid(separator + 1));
+        if (line.startsWith(prefix)) {
+            return line.mid(prefix.size());
         }
     }
-    return report;
+    return {};
 }
 
 QString startPageHint(const QString &locale, const QStringList &extraArguments = {})
 {
-    return labReport(QStringLiteral("--report-start-page"), locale, extraArguments)
-        .value(QStringLiteral("start_page_hint"));
+    return labReport(locale, {QStringLiteral("--report-start-page")},
+        QStringLiteral("start_page_hint="), extraArguments);
 }
 
-QString chromeText(const QString &key, const QString &locale)
+// One field of the row the command panel lists for a command, asked for by its
+// identifier: `title`, `command` or `keys`.
+QString commandField(const QString &locale, const QString &command, const QString &field)
 {
-    return labReport(QStringLiteral("--report-chrome"), locale).value(key);
+    return labReport(locale, {QStringLiteral("--report-command-title"), command},
+        QStringLiteral("command_%1=").arg(field));
+}
+
+// One line of what the window says for a prompt and a context-menu entry: the
+// `prompt_message` of an Agent's request for a Space, or the `menu_entry` that
+// copies a link's address.
+QString chromeText(const QString &locale, const QString &key)
+{
+    return labReport(locale, {QStringLiteral("--report-chrome")}, QStringLiteral("%1=").arg(key));
+}
+
+QString commandTitle(const QString &locale, const QString &command)
+{
+    return commandField(locale, command, QStringLiteral("title"));
 }
 
 } // namespace
@@ -65,6 +80,9 @@ private slots:
     void aPromptSpeaksFinnishUnderAFinnishLocale();
     void aContextMenuEntrySpeaksFinnishUnderAFinnishLocale();
     void promptAndMenuStayEnglishUnderAnEnglishLocale();
+    void theCommandPanelNamesACommandInFinnish();
+    void theCommandPanelNamesACommandInEnglish();
+    void aCommandKeepsItsIdentifierAndKeysUnderFinnish();
 };
 
 void Localization::theStartPageSpeaksFinnishUnderAFinnishLocale()
@@ -91,22 +109,49 @@ void Localization::theLabSwitchesLocaleOverTheEnvironment()
 
 void Localization::aPromptSpeaksFinnishUnderAFinnishLocale()
 {
-    QCOMPARE(chromeText(QStringLiteral("prompt_message"), QStringLiteral("fi_FI.UTF-8")),
+    QCOMPARE(chromeText(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("prompt_message")),
         QStringLiteral("Agentti Forge haluaa käyttää tilaa Work"));
 }
 
 void Localization::aContextMenuEntrySpeaksFinnishUnderAFinnishLocale()
 {
-    QCOMPARE(chromeText(QStringLiteral("menu_entry"), QStringLiteral("fi_FI.UTF-8")),
+    QCOMPARE(chromeText(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("menu_entry")),
         QStringLiteral("Kopioi linkin osoite"));
 }
 
 void Localization::promptAndMenuStayEnglishUnderAnEnglishLocale()
 {
-    const auto report = labReport(QStringLiteral("--report-chrome"), QStringLiteral("en_US.UTF-8"));
-    QCOMPARE(report.value(QStringLiteral("prompt_message")),
+    const auto locale = QStringLiteral("en_US.UTF-8");
+    QCOMPARE(chromeText(locale, QStringLiteral("prompt_message")),
         QStringLiteral("An Agent named Forge wants to use Space Work"));
-    QCOMPARE(report.value(QStringLiteral("menu_entry")), QStringLiteral("Copy link address"));
+    QCOMPARE(chromeText(locale, QStringLiteral("menu_entry")), QStringLiteral("Copy link address"));
+}
+
+void Localization::theCommandPanelNamesACommandInFinnish()
+{
+    QCOMPARE(commandTitle(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("new-tab")),
+        QStringLiteral("Uusi välilehti"));
+}
+
+void Localization::theCommandPanelNamesACommandInEnglish()
+{
+    QCOMPARE(commandTitle(QStringLiteral("en_US.UTF-8"), QStringLiteral("new-tab")),
+        QStringLiteral("New tab"));
+}
+
+// Sync projects keybindings.json, which names a command by its identifier and a
+// key as the keyboard prints it. The panel's row for a command carries both, so
+// a Finnish reader's panel must still say `new-tab` and `Ctrl+T`, whatever the
+// title beside them says.
+void Localization::aCommandKeepsItsIdentifierAndKeysUnderFinnish()
+{
+    const auto locale = QStringLiteral("fi_FI.UTF-8");
+    QCOMPARE(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("command")),
+        QStringLiteral("new-tab"));
+    QVERIFY(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("keys"))
+            .startsWith(QStringLiteral("Ctrl+T")));
+    QCOMPARE(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("title")),
+        QStringLiteral("Uusi välilehti"));
 }
 
 QTEST_GUILESS_MAIN(Localization)

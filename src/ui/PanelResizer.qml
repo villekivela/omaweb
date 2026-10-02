@@ -21,7 +21,7 @@ Item {
     // round: the key that points away from the window's edge widens it.
     property bool measureFromRight: false
     // What the seam is the width of, for the reader who reaches it by keyboard.
-    property string panelName: "Sidebar"
+    property string panelName: qsTr("Sidebar")
 
     signal widthRequested(real width)
     // The handle reads as part of the panel, so it leaves like the rest of it:
@@ -32,7 +32,7 @@ Item {
     activeFocusOnTab: enabled
     Accessible.role: Accessible.Splitter
     Accessible.name: qsTr("%1 width").arg(root.panelName)
-    Accessible.description: qsTr("Arrow keys resize this panel")
+    Accessible.description: qsTr("Arrow keys resize the %1").arg(root.panelName.toLowerCase())
 
     function request(width) {
         root.widthRequested(Math.max(root.minimumWidth, Math.min(root.maximumWidth, width)));

@@ -24,13 +24,6 @@ SCANNED = ("src/ui", "src/ui-lab", "src/engine/qt")
 # Files another ticket wraps. Each ticket removes its own entries when it
 # merges, so the list shrinks to nothing and the check then covers everything.
 OWNED_BY_OTHER_TICKETS = {
-    # #333: the sidebar, the Omnibar, the command panel and the command registry.
-    "Omnibar.qml",
-    "SpaceOutline.qml",
-    "TabRow.qml",
-    "NavigationCluster.qml",
-    "CommandDialog.qml",
-    "BrowserCommands.qml",
     # #334: Settings and Site information.
     "SettingsPage.qml",
     "SiteInformationPanel.qml",
@@ -47,7 +40,7 @@ PROPERTY = re.compile(
     r"\"detail\"|\"title\"):\s*(?P<rest>.*)$"
 )
 NEW_STATEMENT = re.compile(r"^\s*(?:[\w.]+|\"[\w ]+\"):|^\s*[{}\]]|^\s*(?:function|property|signal)\b")
-TRANSLATED = re.compile(r"qsTr(?:anslate)?\(\s*(?:\"(?:[^\"\\]|\\.)*\"\s*,?\s*)+\)", re.S)
+TRANSLATED = re.compile(r"qsTr(?:anslate)?\(\s*(?:\"(?:[^\"\\]|\\.)*\"\s*[,+]?\s*)+\)", re.S)
 LITERAL = re.compile(r"\"((?:[^\"\\]|\\.)*)\"")
 DATE_FORMAT = re.compile(r"^[yMdhmsz\-: .]+$")
 PRODUCT_NAMES = {"Omaweb"}

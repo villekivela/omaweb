@@ -466,6 +466,7 @@ ApplicationWindow {
 
     BrowserCommands {
         id: browserCommands
+        objectName: "browserCommands"
         window: window
         browser: window.windowBrowser
         engineHost: engineLoader
@@ -1489,7 +1490,7 @@ ApplicationWindow {
 
     function reloadBypassingCache() {
         if (!engineLoader.item) {
-            window.reportUnavailable(qsTr("Reload bypassing cache"));
+            window.reportUnavailable(browserCommands.descriptions["reload-bypassing-cache"].title);
             return;
         }
         engineLoader.reloadPageBypassingCache();
@@ -1497,7 +1498,7 @@ ApplicationWindow {
 
     function stopLoading() {
         if (!engineLoader.item) {
-            window.reportUnavailable(qsTr("Stop loading"));
+            window.reportUnavailable(browserCommands.descriptions["stop-loading"].title);
             return;
         }
         engineLoader.stopLoading();
@@ -4494,13 +4495,13 @@ ApplicationWindow {
 
         message: {
             if (window.dialogMode === "delete") {
-                return qsTr(
-                            "%1 keeps its tabs, its session, its logins and its engine data. Deleting it cannot be undone.").arg(
-                            window.dialogSpaceName);
+                return qsTr("%1 keeps its tabs, its session, its logins and its engine data. "
+                            + "Deleting it cannot be undone.").arg(window.dialogSpaceName);
             }
             if (window.dialogMode === "confirm-move") {
                 return qsTr(
-                            "This page has edited form state. Moving it reloads the page under the destination identity and discards those edits.");
+                            "This page has edited form state. Moving it reloads the page under the "
+                            + "destination identity and discards those edits.");
             }
             // Each of these names its own scope, because the three of them are
             // three different sizes and only the wording tells them apart.

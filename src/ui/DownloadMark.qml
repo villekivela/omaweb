@@ -24,6 +24,8 @@ ChromeButton {
 
     readonly property bool detailRequested: root.visible && (root.hot || root.activeFocus)
 
+    // English has no catalogue to pick a plural form from, so the singular and
+    // the plural are two strings rather than a `%n` that would read "(s)".
     readonly property string summary: root.holding ? (root.finished === 1 ? qsTr(
                                                                                 "1 download finished") :
                                                                             qsTr("%1 downloads finished").arg(
@@ -43,8 +45,7 @@ ChromeButton {
     function fileSummary(rows) {
         const names = [];
         for (let index = 0; index < rows.length; ++index)
-            names.push(qsTr("%1 · %2").arg(rows[index].fileName).arg(root.progressLabelFor(
-                                                                         rows[index].fraction)));
+            names.push(rows[index].fileName + " · " + root.progressLabelFor(rows[index].fraction));
         return names.join(", ");
     }
 
