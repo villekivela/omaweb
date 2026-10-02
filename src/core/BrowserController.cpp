@@ -11,6 +11,7 @@
 #include "StoredFavicons.h"
 #include "ThreadedSessionStore.h"
 
+#include <QCoreApplication>
 #include <QRegularExpression>
 #include <QDir>
 #include <QDirIterator>
@@ -301,7 +302,15 @@ QUrl BrowserController::activeUrl() const
 QString BrowserController::activeTitle() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
-    return tab && !tab->title.isEmpty() ? tab->title : QStringLiteral("New tab");
+    // The stored default titles are English, which the session store compares by value, so they
+    // are translated here where the reader sees them.
+    if (!tab || tab->title.isEmpty() || tab->title == QStringLiteral("New tab")) {
+        return tr("New tab");
+    }
+    if (tab->title == QStringLiteral("Agent activity")) {
+        return tr("Agent activity");
+    }
+    return tab->title;
 }
 
 QString BrowserController::activeProfilePath() const
@@ -2522,8 +2531,9 @@ void BrowserController::reportTabRendererFailure(const QString &tabId, const QSt
         return;
     }
     tab->loading = false;
-    tab->rendererFailureReason
-        = reason.isEmpty() ? QStringLiteral("The page renderer stopped unexpectedly.") : reason;
+    tab->rendererFailureReason = reason.isEmpty() ? QCoreApplication::translate("BrowserController",
+                                                        "The page renderer stopped unexpectedly.")
+                                                  : reason;
     m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
