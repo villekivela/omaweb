@@ -30,6 +30,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | History          | Historia              |                                                                                                 |
 | Downloads        | Lataukset             |                                                                                                 |
 | Settings         | Asetukset             |                                                                                                 |
+| Engine           | Moottori              | The web engine that renders pages.                                                              |
 | Sync             | Synkronointi          | The feature and its settings section. Inflect it: "synkronoinnin".                              |
 | Site information | Sivuston tiedot       | The panel under the address. Its own labels are lowercase, as the English ones are.             |
 

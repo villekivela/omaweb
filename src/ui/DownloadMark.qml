@@ -24,18 +24,22 @@ ChromeButton {
 
     readonly property bool detailRequested: root.visible && (root.hot || root.activeFocus)
 
-    readonly property string summary: root.holding ? (root.finished === 1 ? "1 download finished" : String(
-                                                                                root.finished)
-                                                                            + " downloads finished") :
-                                                     (root.running === 1 ? "1 download · "
-                                                                           + root.progressLabel :
-                                                                           String(root.running)
-                                                                           + " downloads · "
-                                                                           + root.progressLabel)
+    // English has no catalogue to pick a plural form from, so the singular and
+    // the plural are two strings rather than a `%n` that would read "(s)".
+    readonly property string summary: root.holding ? (root.finished === 1 ? qsTr(
+                                                                                "1 download finished") :
+                                                                            qsTr("%1 downloads finished").arg(
+                                                                                root.finished)) : (
+                                                         root.running === 1 ? qsTr(
+                                                                                  "1 download · %1").arg(
+                                                                                  root.progressLabel) :
+                                                                              qsTr("%1 downloads · %2").arg(
+                                                                                  root.running).arg(
+                                                                                  root.progressLabel))
     readonly property string progressLabel: root.progressLabelFor(root.fraction)
 
     function progressLabelFor(fraction) {
-        return fraction >= 0 ? Math.round(fraction * 100) + "%" : "size unknown";
+        return fraction >= 0 ? qsTr("%1%").arg(Math.round(fraction * 100)) : qsTr("size unknown");
     }
 
     function fileSummary(rows) {

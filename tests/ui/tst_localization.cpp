@@ -5,9 +5,10 @@
 
 namespace {
 
-// Launches the UI lab under a locale and reads one reported line back, so a
-// test reads the catalogue from the screen's own text.
-QString labReport(const QString &report, const QString &key, const QString &locale,
+// Launches the UI lab under a locale and reads one line it reports back, which
+// is how a test sees what a surface says on the screen rather than what the
+// catalogue holds.
+QString labReport(const QString &locale, const QStringList &reportArguments, const QString &prefix,
     const QStringList &extraArguments = {})
 {
     QTemporaryDir dataRoot;
@@ -16,8 +17,8 @@ QString labReport(const QString &report, const QString &key, const QString &loca
     }
     QProcess lab;
     lab.setProgram(QStringLiteral(OMAWEB_UI_LAB_EXECUTABLE));
-    lab.setArguments(
-        QStringList {report, QStringLiteral("--data-root"), dataRoot.path()} + extraArguments);
+    lab.setArguments(reportArguments + QStringList {QStringLiteral("--data-root"), dataRoot.path()}
+        + extraArguments);
     auto environment = QProcessEnvironment::systemEnvironment();
     for (const auto &name : {"LC_ALL", "LC_MESSAGES", "LANGUAGE"}) {
         environment.remove(QString::fromLatin1(name));
@@ -32,7 +33,6 @@ QString labReport(const QString &report, const QString &key, const QString &loca
     }
     const auto output = QString::fromUtf8(lab.readAllStandardOutput());
     for (const auto &line : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
-        const auto prefix = key + QLatin1Char('=');
         if (line.startsWith(prefix)) {
             return line.mid(prefix.size());
         }
@@ -42,13 +42,28 @@ QString labReport(const QString &report, const QString &key, const QString &loca
 
 QString startPageHint(const QString &locale, const QStringList &extraArguments = {})
 {
-    return labReport(QStringLiteral("--report-start-page"), QStringLiteral("start_page_hint"),
-        locale, extraArguments);
+    return labReport(locale, {QStringLiteral("--report-start-page")},
+        QStringLiteral("start_page_hint="), extraArguments);
 }
 
-QString settingsReport(const QString &key, const QString &locale)
+// One field of the row the command panel lists for a command, asked for by its
+// identifier: `title`, `command` or `keys`.
+QString commandField(const QString &locale, const QString &command, const QString &field)
 {
-    return labReport(QStringLiteral("--report-settings"), key, locale);
+    return labReport(locale, {QStringLiteral("--report-command-title"), command},
+        QStringLiteral("command_%1=").arg(field));
+}
+
+QString commandTitle(const QString &locale, const QString &command)
+{
+    return commandField(locale, command, QStringLiteral("title"));
+}
+
+// One line a lab report prints under a locale, for the surfaces whose report is a flag
+// alone.
+QString reportLine(const QString &locale, const QString &report, const QString &key)
+{
+    return labReport(locale, {report}, key + QLatin1Char('='));
 }
 
 } // namespace
@@ -61,6 +76,9 @@ private slots:
     void theStartPageStaysEnglishUnderAnEnglishLocale();
     void aLocaleWithoutACatalogueFallsBackToEnglish();
     void theLabSwitchesLocaleOverTheEnvironment();
+    void theCommandPanelNamesACommandInFinnish();
+    void theCommandPanelNamesACommandInEnglish();
+    void aCommandKeepsItsIdentifierAndKeysUnderFinnish();
     void settingsSpeaksFinnishUnderAFinnishLocale();
     void siteInformationSpeaksFinnishUnderAFinnishLocale();
     void settingsAndSiteInformationStayEnglishUnderAnEnglishLocale();
@@ -89,25 +107,55 @@ void Localization::theLabSwitchesLocaleOverTheEnvironment()
         QStringLiteral("pikanäppäimet"));
 }
 
+void Localization::theCommandPanelNamesACommandInFinnish()
+{
+    QCOMPARE(commandTitle(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("new-tab")),
+        QStringLiteral("Uusi välilehti"));
+}
+
+void Localization::theCommandPanelNamesACommandInEnglish()
+{
+    QCOMPARE(commandTitle(QStringLiteral("en_US.UTF-8"), QStringLiteral("new-tab")),
+        QStringLiteral("New tab"));
+}
+
+// Sync projects keybindings.json, which names a command by its identifier and a
+// key as the keyboard prints it. The panel's row for a command carries both, so
+// a Finnish reader's panel must still say `new-tab` and `Ctrl+T`, whatever the
+// title beside them says.
+void Localization::aCommandKeepsItsIdentifierAndKeysUnderFinnish()
+{
+    const auto locale = QStringLiteral("fi_FI.UTF-8");
+    QCOMPARE(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("command")),
+        QStringLiteral("new-tab"));
+    QVERIFY(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("keys"))
+            .startsWith(QStringLiteral("Ctrl+T")));
+    QCOMPARE(commandField(locale, QStringLiteral("new-tab"), QStringLiteral("title")),
+        QStringLiteral("Uusi välilehti"));
+}
+
 void Localization::settingsSpeaksFinnishUnderAFinnishLocale()
 {
-    QCOMPARE(settingsReport(QStringLiteral("settings_heading"), QStringLiteral("fi_FI.UTF-8")),
+    QCOMPARE(reportLine(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("--report-settings"),
+                 QStringLiteral("settings_heading")),
         QStringLiteral("Asetukset"));
 }
 
 void Localization::siteInformationSpeaksFinnishUnderAFinnishLocale()
 {
-    QCOMPARE(
-        settingsReport(QStringLiteral("site_information_state"), QStringLiteral("fi_FI.UTF-8")),
+    QCOMPARE(reportLine(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("--report-settings"),
+                 QStringLiteral("site_information_state")),
         QStringLiteral("· mitään sivua ei ole ladattu"));
 }
 
 void Localization::settingsAndSiteInformationStayEnglishUnderAnEnglishLocale()
 {
-    QCOMPARE(settingsReport(QStringLiteral("settings_heading"), QStringLiteral("en_US.UTF-8")),
-        QStringLiteral("Settings"));
+    const auto locale = QStringLiteral("en_US.UTF-8");
     QCOMPARE(
-        settingsReport(QStringLiteral("site_information_state"), QStringLiteral("en_US.UTF-8")),
+        reportLine(locale, QStringLiteral("--report-settings"), QStringLiteral("settings_heading")),
+        QStringLiteral("Settings"));
+    QCOMPARE(reportLine(locale, QStringLiteral("--report-settings"),
+                 QStringLiteral("site_information_state")),
         QStringLiteral("· no page is loaded"));
 }
 
@@ -115,11 +163,11 @@ void Localization::aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue()
 {
     const auto locale = QStringLiteral("fi_FI.UTF-8");
     // The run is Finnish, or the stored value proves nothing.
-    QCOMPARE(labReport(QStringLiteral("--report-setting-change"),
-                 QStringLiteral("settings_heading"), locale),
+    QCOMPARE(reportLine(locale, QStringLiteral("--report-setting-change"),
+                 QStringLiteral("settings_heading")),
         QStringLiteral("Asetukset"));
-    QCOMPARE(labReport(QStringLiteral("--report-setting-change"),
-                 QStringLiteral("stored_floating_controls"), locale),
+    QCOMPARE(reportLine(locale, QStringLiteral("--report-setting-change"),
+                 QStringLiteral("stored_floating_controls")),
         QStringLiteral("false"));
 }
 
