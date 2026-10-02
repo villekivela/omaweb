@@ -302,7 +302,15 @@ QUrl BrowserController::activeUrl() const
 QString BrowserController::activeTitle() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
-    return tab && !tab->title.isEmpty() ? tab->title : QStringLiteral("New tab");
+    // The stored default titles are English, which the session store compares by value, so they
+    // are translated here where the reader sees them.
+    if (!tab || tab->title.isEmpty() || tab->title == QStringLiteral("New tab")) {
+        return tr("New tab");
+    }
+    if (tab->title == QStringLiteral("Agent activity")) {
+        return tr("Agent activity");
+    }
+    return tab->title;
 }
 
 QString BrowserController::activeProfilePath() const

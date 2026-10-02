@@ -658,6 +658,17 @@
     </message>
 </context>
 <context>
+    <name>omaweb::BrowserController</name>
+    <message>
+        <source>New tab</source>
+        <translation type="unfinished">Uusi välilehti</translation>
+    </message>
+    <message>
+        <source>Agent activity</source>
+        <translation type="unfinished">Agentin toiminta</translation>
+    </message>
+</context>
+<context>
     <name>omaweb::ContentBlocker</name>
     <message>
         <source>not updated</source>
