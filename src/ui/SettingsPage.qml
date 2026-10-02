@@ -49,15 +49,16 @@ Rectangle {
     // Every provider-worded string a person reads comes from the provider itself, with neutral
     // wording before a provider is loaded.
     readonly property var providerText: root.sync ? root.sync.providerText : ({
-                                                                                  "name": "Sync",
+                                                                                  "name": qsTr(
+                                                                                              "Sync"),
                                                                                   "connectAction":
-                                                                                  "Connect Sync",
+                                                                                  qsTr("Connect Sync"),
                                                                                   "authorizationAction":
-                                                                                  "Open the authorization page",
+                                                                                  qsTr("Open the authorization page"),
                                                                                   "failureTitle":
-                                                                                  "Sync failed",
+                                                                                  qsTr("Sync failed"),
                                                                                   "codeCopiedNotice":
-                                                                                  "Code copied",
+                                                                                  qsTr("Code copied"),
                                                                                   "codePrompt": "",
                                                                                   "authorizationNote":
                                                                                   "",
@@ -182,8 +183,13 @@ Rectangle {
     // findable from outside it.
     readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
+    // The keys the rest of the chrome finds a section by, and what the rail
+    // calls each one, in the same order.
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
         "downloads", "search", "privacy", "spaces", "agents", "extensions", "sync", "about"]
+    readonly property var sectionTitles: [qsTr("tabs"), qsTr("interface"), qsTr("keyboard"), qsTr("content blocking"),
+        qsTr("network"), qsTr("downloads"), qsTr("search"), qsTr("privacy"), qsTr("spaces"), qsTr(
+            "agents"), qsTr("extensions"), qsTr("sync"), qsTr("about")]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -208,7 +214,7 @@ Rectangle {
     function selectSectionByLetter(letter) {
         for (let offset = 1; offset <= root.sections.length; ++offset) {
             const index = (root.section + offset) % root.sections.length;
-            if (root.sections[index].charAt(0).toLowerCase() !== letter)
+            if (root.sectionTitles[index].charAt(0).toLowerCase() !== letter)
                 continue;
             root.section = index;
             sectionRepeater.itemAt(index).forceActiveFocus();
@@ -225,8 +231,7 @@ Rectangle {
         let widest = 0;
         for (let index = 0; index < root.sections.length; ++index)
             widest = Math.max(widest, railMetrics.advanceWidth(root.railLabel(
-                                                                   root.sections[index])));
-
+                                                                   root.sectionTitles[index])));
 
         return Math.ceil(widest);
     }
@@ -267,10 +272,10 @@ Rectangle {
     // place, because the room a pair of them needs is measured from the
     // longest of them.
     readonly property var subscriptionPlaceholders: ({
-                                                         title: "list name",
-                                                         license: "license",
-                                                         source: "source page",
-                                                         update: "update address"
+                                                         title: qsTr("list name"),
+                                                         license: qsTr("license"),
+                                                         source: qsTr("source page"),
+                                                         update: qsTr("update address")
                                                      })
 
     FontMetrics {
@@ -306,13 +311,53 @@ Rectangle {
         return value.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0];
     }
 
+    // A download's state as the reader reads it. A state this build does not name is shown as
+    // the core wrote it.
+    function downloadStateLabel(state) {
+        switch (state) {
+        case "requested":
+            return qsTr("requested");
+        case "in-progress":
+            return qsTr("in progress");
+        case "completed":
+            return qsTr("completed");
+        case "interrupted":
+            return qsTr("interrupted");
+        case "cancelled":
+            return qsTr("cancelled");
+        default:
+            return state;
+        }
+    }
+
+    // What a Space's colour is called to a screen reader.
+    function colourName(colour) {
+        switch (colour) {
+        case "green":
+            return qsTr("Green");
+        case "yellow":
+            return qsTr("Yellow");
+        case "blue":
+            return qsTr("Blue");
+        case "bright_green":
+            return qsTr("Bright green");
+        case "bright_yellow":
+            return qsTr("Bright yellow");
+        case "bright_blue":
+            return qsTr("Bright blue");
+        default:
+            return colour;
+        }
+    }
+
     // Bytes as the reader reads them. A retained tab whose renderer the
     // platform cannot account for says so rather than claiming nothing.
     function resourceLabel(bytes) {
         if (!(bytes > 0))
-            return "size unavailable";
+            return qsTr("size unavailable");
         const megabytes = bytes / (1024 * 1024);
-        return (megabytes >= 100 ? Math.round(megabytes) : Math.round(megabytes * 10) / 10) + " MB";
+        return qsTr("%1 MB").arg(megabytes >= 100 ? Math.round(megabytes) : Math.round(megabytes
+                                                                                       * 10) / 10);
     }
 
     signal closed
@@ -354,9 +399,9 @@ Rectangle {
 
     Dialogs.FileDialog {
         id: recoveryKeySaveDialog
-        title: "Save Sync recovery key"
+        title: qsTr("Save Sync recovery key")
         fileMode: Dialogs.FileDialog.SaveFile
-        nameFilters: ["Text files (*.txt)"]
+        nameFilters: [qsTr("Text files (*.txt)")]
         onAccepted: {
             if (root.sync)
                 root.sync.saveRecoveryKey(selectedFile);
@@ -433,9 +478,10 @@ Rectangle {
         if (engine === null)
             return "";
         if (!engine.suggestUrl)
-            return engine.name + " doesn't offer suggestions.";
-        return "Sends what you type in the Omnibar to " + engine.name
-                + " as you type, without your cookies. Never in a Private window.";
+            return qsTr("%1 doesn't offer suggestions.").arg(engine.name);
+        return qsTr(
+                    "Sends what you type in the Omnibar to %1 as you type, without your cookies. Never in a Private window.").arg(
+                    engine.name);
     }
 
     function makeDefaultSearchEngine(id) {
@@ -494,7 +540,7 @@ Rectangle {
             objectName: "settingsEyebrow"
             anchors.left: parent.left
             anchors.top: parent.top
-            text: "browsing · esc closes"
+            text: qsTr("browsing · esc closes")
             color: root.colors.mutedText
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
@@ -506,15 +552,16 @@ Rectangle {
 
         Text {
             id: settingsHeading
+            objectName: "settingsHeading"
             anchors.left: parent.left
             anchors.top: settingsEyebrow.bottom
             anchors.topMargin: Style.spacing.md
-            text: "Settings"
+            text: qsTr("Settings")
             color: root.colors.text
             font.family: Style.font.family
             font.pixelSize: Style.font.display
             Accessible.role: Accessible.Heading
-            Accessible.name: "Settings"
+            Accessible.name: qsTr("Settings")
         }
 
         ChromeButton {
@@ -524,7 +571,7 @@ Rectangle {
             width: root.closeSize
             height: root.closeSize
             icon: "close"
-            accessibleName: "Close settings"
+            accessibleName: qsTr("Close settings")
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent
@@ -567,7 +614,7 @@ Rectangle {
                     required property string modelData
 
                     objectName: "settingsSection" + index
-                    text: modelData
+                    text: root.sectionTitles[index]
                     color: index === root.section ? root.colors.accent : root.colors.mutedText
                     // A name in the rail leans on nothing: it belongs to the
                     // rail rather than to what follows it, so it takes the same
@@ -582,7 +629,7 @@ Rectangle {
                     font.capitalization: Font.Capitalize
                     activeFocusOnTab: true
                     Accessible.role: Accessible.PageTab
-                    Accessible.name: modelData
+                    Accessible.name: root.sectionTitles[index]
                     Accessible.onPressAction: root.section = index
 
                     Keys.onPressed: function (event) {
@@ -642,9 +689,9 @@ Rectangle {
                         objectName: "useFavicons"
                         width: pane.width
                         colors: root.colors
-                        title: "Use site favicons"
-                        note: "When off, tabs show a two-letter tile in the favicon's colour."
-                        accessibleName: "Use site favicons"
+                        title: qsTr("Use site favicons")
+                        note: qsTr("When off, tabs show a two-letter tile in the favicon's colour.")
+                        accessibleName: qsTr("Use site favicons")
                         checked: root.useFavicons
                         onClicked: root.useFaviconsToggled(!checked)
                     }
@@ -653,9 +700,9 @@ Rectangle {
                         objectName: "tintFavicons"
                         width: pane.width
                         colors: root.colors
-                        title: "Tint favicons"
-                        note: "Recolor site artwork to match the sidebar palette."
-                        accessibleName: "Tint favicons"
+                        title: qsTr("Tint favicons")
+                        note: qsTr("Recolor site artwork to match the sidebar palette.")
+                        accessibleName: qsTr("Tint favicons")
                         enabled: root.useFavicons
                         checked: root.tintFavicons
                         onClicked: root.tintFaviconsToggled(!checked)
@@ -670,7 +717,7 @@ Rectangle {
 
                         SectionLabel {
                             colors: root.colors
-                            text: "kept active"
+                            text: qsTr("kept active")
                         }
 
                         Repeater {
@@ -684,18 +731,19 @@ Rectangle {
                                 colors: root.colors
                                 title: modelData.title.length > 0 ? modelData.title : String(
                                                                         modelData.url)
-                                note: modelData.spaceName + " · " + (modelData.inspected
-                                                                     ? "Developer tools" :
-                                                                       "Keep active") + " · " + (
-                                          modelData.running ? root.resourceLabel(
-                                                                  modelData.residentBytes) :
-                                                              "not running")
+                                note: modelData.spaceName + " · " + (modelData.inspected ? qsTr(
+                                                                                               "Developer tools") :
+                                                                                           qsTr("Keep active"))
+                                      + " · " + (modelData.running ? root.resourceLabel(
+                                                                         modelData.residentBytes) :
+                                                                     qsTr("not running"))
 
                                 ActionButton {
                                     visible: !modelData.inspected
                                     colors: root.colors
-                                    label: "stop"
-                                    accessibleName: "Stop keeping " + modelData.title + " active"
+                                    label: qsTr("stop", "verb: stop keeping a tab active")
+                                    accessibleName: qsTr("Stop keeping %1 active").arg(
+                                                        modelData.title)
                                     onClicked: root.retainedTabReleased(modelData.tabId)
                                 }
                             }
@@ -705,8 +753,9 @@ Rectangle {
                             width: pane.width
                             visible: root.retainedTabs.length === 0
                             colors: root.colors
-                            title: "Nothing is kept active"
-                            note: "A Pinned tab set to Keep active, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs."
+                            title: qsTr("Nothing is kept active")
+                            note: qsTr(
+                                      "A Pinned tab set to Keep active, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs.")
                         }
                     }
                 }
@@ -722,9 +771,10 @@ Rectangle {
                         objectName: "floatingControls"
                         width: pane.width
                         colors: root.colors
-                        title: "Floating controls"
-                        note: "With the sidebar hidden, keep the navigation controls over the page. Pause at the left edge to peek at the sidebar; it hides when the pointer leaves."
-                        accessibleName: "Floating controls"
+                        title: qsTr("Floating controls")
+                        note: qsTr(
+                                  "With the sidebar hidden, keep the navigation controls over the page. Pause at the left edge to peek at the sidebar; it hides when the pointer leaves.")
+                        accessibleName: qsTr("Floating controls")
                         checked: root.floatingControls
                         onClicked: root.floatingControlsToggled(!checked)
                     }
@@ -733,9 +783,10 @@ Rectangle {
                         objectName: "glanceEnabled"
                         width: pane.width
                         colors: root.colors
-                        title: "Glance at a page's new tabs"
-                        note: "A link that asks for a new tab opens over the page instead, for a look. Escape closes it; one command keeps it as a tab. When off, the link opens a tab."
-                        accessibleName: "Glance at a page's new tabs"
+                        title: qsTr("Glance at a page's new tabs")
+                        note: qsTr(
+                                  "A link that asks for a new tab opens over the page instead, for a look. Escape closes it; one command keeps it as a tab. When off, the link opens a tab.")
+                        accessibleName: qsTr("Glance at a page's new tabs")
                         checked: root.glanceEnabled
                         onClicked: root.glanceToggled(!checked)
                     }
@@ -744,9 +795,10 @@ Rectangle {
                         objectName: "startPageRoad"
                         width: pane.width
                         colors: root.colors
-                        title: "Night road on the Start page"
-                        note: "Draw a road under the Start page's Omnibar, moving while the window is in use and speeding up until the page you asked for paints. When off, the Omnibar rests on the sidebar's colour."
-                        accessibleName: "Night road on the Start page"
+                        title: qsTr("Night road on the Start page")
+                        note: qsTr(
+                                  "Draw a road under the Start page's Omnibar, moving while the window is in use and speeding up until the page you asked for paints. When off, the Omnibar rests on the sidebar's colour.")
+                        accessibleName: qsTr("Night road on the Start page")
                         checked: root.startPageRoad
                         onClicked: root.startPageRoadToggled(!checked)
                     }
@@ -756,9 +808,10 @@ Rectangle {
                         width: pane.width
                         visible: root.startPageRoad
                         colors: root.colors
-                        title: "CRT glass over the road"
-                        note: "Show the night road through an old screen's glass: scanlines, a soft bloom and a faint flicker. When off, the road is its plain pixels."
-                        accessibleName: "CRT glass over the road"
+                        title: qsTr("CRT glass over the road")
+                        note: qsTr(
+                                  "Show the night road through an old screen's glass: scanlines, a soft bloom and a faint flicker. When off, the road is its plain pixels.")
+                        accessibleName: qsTr("CRT glass over the road")
                         checked: root.startPageGlass
                         onClicked: root.startPageGlassToggled(!checked)
                     }
@@ -766,7 +819,7 @@ Rectangle {
                     SectionLabel {
                         visible: !!root.fontSettings
                         colors: root.colors
-                        text: "type"
+                        text: qsTr("type", "section label: typography settings")
                     }
 
                     // The theme sets the base size Omaweb's own type scale
@@ -778,10 +831,10 @@ Rectangle {
                         visible: !!root.fontSettings
                         width: pane.width
                         colors: root.colors
-                        title: "Interface font size"
-                        note: "The size Omaweb's own type is drawn at; the theme's is " + (
+                        title: qsTr("Interface font size")
+                        note: qsTr(
+                                  "The size Omaweb's own type is drawn at; the theme's is %1px. Pages and their zoom are not changed by it.").arg(
                                   root.fontSettings ? root.fontSettings.themeFontSize : 0)
-                              + "px. Pages and their zoom are not changed by it."
 
                         SettingStepper {
                             objectName: "interfaceFontSize"
@@ -793,8 +846,8 @@ Rectangle {
                                                          0
                             overridden: !!root.fontSettings
                                         && root.fontSettings.interfaceFontSizeOverridden
-                            accessibleName: "Interface font size"
-                            defaultName: "the theme's"
+                            accessibleName: qsTr("Interface font size")
+                            defaultName: qsTr("the theme's")
                             onIncreased: root.fontSettings.increaseInterfaceFontSize()
                             onDecreased: root.fontSettings.decreaseInterfaceFontSize()
                             onReset: root.fontSettings.resetInterfaceFontSize()
@@ -804,7 +857,7 @@ Rectangle {
                     SectionLabel {
                         visible: !!root.fontSettings
                         colors: root.colors
-                        text: "page fonts"
+                        text: qsTr("page fonts")
                     }
 
                     // A build running on a Qt it was not compiled against
@@ -818,10 +871,9 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "text_fields"
-                        title: "This build cannot reach the engine's fonts"
-                        detail: "Omaweb was built against another Qt than the one it is running "
-                                + "on, so pages are drawn in the engine's own fonts. A rebuild "
-                                + "against this Qt brings the controls back."
+                        title: qsTr("This build cannot reach the engine's fonts")
+                        detail: qsTr(
+                                    "Omaweb was built against another Qt than the one it is running on, so pages are drawn in the engine's own fonts. A rebuild against this Qt brings the controls back.")
                     }
 
                     // A page that names no family gets these, and a page that
@@ -840,9 +892,10 @@ Rectangle {
                         // the fixed-width slot, since the terminal and the
                         // browser are often wanted to agree on code.
                         function familyOptions(engineFamily, offerInterfaceFamily) {
-                            const engineLabel = engineFamily.length > 0 ? "Engine default ("
-                                                                          + engineFamily + ")" :
-                                                                          "Engine default";
+                            const engineLabel = engineFamily.length > 0 ? qsTr(
+                                                                              "Engine default (%1)").arg(
+                                                                              engineFamily) : qsTr(
+                                                                              "Engine default");
                             const options = [
                                       {
                                           value: "",
@@ -890,8 +943,8 @@ Rectangle {
                         SettingRow {
                             width: pane.width
                             colors: root.colors
-                            title: "Standard font"
-                            note: "A page that names no font is drawn in this one."
+                            title: qsTr("Standard font")
+                            note: qsTr("A page that names no font is drawn in this one.")
 
                             SettingDropdown {
                                 objectName: "pageStandardFamily"
@@ -901,7 +954,7 @@ Rectangle {
                                              root.pageFontsMap.standardFamily
                                              ? root.pageFontsMap.standardFamily.engine : "", false)
                                 value: pageFontsGroup.chosenFamily(root.pageFontsMap.standardFamily)
-                                accessibleName: "Standard font for pages"
+                                accessibleName: qsTr("Standard font for pages")
                                 onChanged: function (family) {
                                     root.fontSettings.setPageFamily(FontSettings.Standard, family);
                                 }
@@ -911,9 +964,9 @@ Rectangle {
                         SettingRow {
                             width: pane.width
                             colors: root.colors
-                            title: "Fixed-width font"
-                            note: "Code on a page, and any text a page asks to have drawn "
-                                  + "monospaced."
+                            title: qsTr("Fixed-width font")
+                            note: qsTr(
+                                      "Code on a page, and any text a page asks to have drawn monospaced.")
 
                             SettingDropdown {
                                 objectName: "pageFixedFamily"
@@ -923,7 +976,7 @@ Rectangle {
                                                                       ? root.pageFontsMap.fixedFamily.engine :
                                                                         "", true)
                                 value: pageFontsGroup.chosenFamily(root.pageFontsMap.fixedFamily)
-                                accessibleName: "Fixed-width font for pages"
+                                accessibleName: qsTr("Fixed-width font for pages")
                                 onChanged: function (family) {
                                     root.fontSettings.setPageFamily(FontSettings.Fixed, family);
                                 }
@@ -933,9 +986,9 @@ Rectangle {
                         SettingRow {
                             width: pane.width
                             colors: root.colors
-                            title: "Font size"
-                            note: "The size a page that names none is read at. Code follows it "
-                                  + "a step smaller, as the engine keeps it."
+                            title: qsTr("Font size")
+                            note: qsTr(
+                                      "The size a page that names none is read at. Code follows it a step smaller, as the engine keeps it.")
 
                             SettingStepper {
                                 objectName: "pageFontSize"
@@ -948,8 +1001,8 @@ Rectangle {
                                                              0
                                 overridden: !!root.pageFontsMap.fontSize
                                             && root.pageFontsMap.fontSize.overridden
-                                accessibleName: "Page font size"
-                                defaultName: "the engine's"
+                                accessibleName: qsTr("Page font size")
+                                defaultName: qsTr("the engine's")
                                 onIncreased: root.fontSettings.setPageSize(FontSettings.Default,
                                                                            value + 1)
                                 onDecreased: root.fontSettings.setPageSize(FontSettings.Default,
@@ -961,11 +1014,9 @@ Rectangle {
                         SettingRow {
                             width: pane.width
                             colors: root.colors
-                            title: "Minimum font size"
-                            note: "No text on a page is drawn smaller than this, whatever size "
-                                  + "the page asks for. A tab's zoom multiplies it. A page "
-                                  + "already open takes it when it next lays out; reload to "
-                                  + "see it now."
+                            title: qsTr("Minimum font size")
+                            note: qsTr(
+                                      "No text on a page is drawn smaller than this, whatever size the page asks for. A tab's zoom multiplies it. A page already open takes it when it next lays out; reload to see it now.")
 
                             SettingStepper {
                                 objectName: "pageMinimumFontSize"
@@ -975,11 +1026,11 @@ Rectangle {
                                 minimum: 0
                                 maximum: root.fontSettings
                                          ? root.fontSettings.maximumPageMinimumFontSize : 0
-                                zeroLabel: "none"
+                                zeroLabel: qsTr("none", "no minimum font size")
                                 overridden: !!root.pageFontsMap.minimumFontSize
                                             && root.pageFontsMap.minimumFontSize.overridden
-                                accessibleName: "Minimum page font size"
-                                defaultName: "the engine's"
+                                accessibleName: qsTr("Minimum page font size")
+                                defaultName: qsTr("the engine's")
                                 onIncreased: root.fontSettings.setPageSize(FontSettings.Minimum,
                                                                            value + 1)
                                 onDecreased: root.fontSettings.setPageSize(FontSettings.Minimum,
@@ -1001,10 +1052,10 @@ Rectangle {
                         objectName: "keyboardNavigationEnabled"
                         width: pane.width
                         colors: root.colors
-                        title: "Keyboard navigation"
-                        note: "Omaweb's own command layer. It gives the same commands with every "
-                              + "engine, and lets sites receive the keys they need."
-                        accessibleName: "Enable Keyboard navigation"
+                        title: qsTr("Keyboard navigation")
+                        note: qsTr(
+                                  "Omaweb's own command layer. It gives the same commands with every engine, and lets sites receive the keys they need.")
+                        accessibleName: qsTr("Enable Keyboard navigation")
                         checked: root.keyboard ? root.keyboard.enabled === true : false
                         onClicked: if (root.keyboard)
                                        root.keyboard.setEnabled(!checked)
@@ -1023,7 +1074,7 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "keyboard_alt"
-                        title: "Some bindings were ignored"
+                        title: qsTr("Some bindings were ignored")
                         detail: root.keyboardReport
                     }
 
@@ -1039,7 +1090,7 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "keyboard_alt"
-                        title: "This desktop's input method is not installed"
+                        title: qsTr("This desktop's input method is not installed")
                         detail: InputMethodReport.diagnostic
                     }
                 }
@@ -1055,11 +1106,13 @@ Rectangle {
                         objectName: "siteBlockingEnabled"
                         width: pane.width
                         colors: root.colors
-                        title: "Block requests on this site"
-                        note: root.refusals.sentence + (root.activeHost.length > 0
-                                                        ? ", and the switch covers every page on "
-                                                          + root.activeHost : "") + "."
-                        accessibleName: "Enable content blocking for this site"
+                        title: qsTr("Block requests on this site")
+                        note: root.activeHost.length > 0 ? qsTr(
+                                                               "%1, and the switch covers every page on %2.").arg(
+                                                               root.refusals.sentence).arg(
+                                                               root.activeHost) : qsTr("%1.").arg(
+                                                               root.refusals.sentence)
+                        accessibleName: qsTr("Enable content blocking for this site")
                         checked: root.blocker && root.browser ? root.blocker.siteEnabled(
                                                                     root.browser.activeUrl) : false
                         onClicked: if (root.blocker)
@@ -1075,9 +1128,10 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             title: modelData.title
-                            note: modelData.updateStatus + " · " + modelData.license + "\nSource "
-                                  + modelData.source + "\nUpdates from " + modelData.updateAddress
-                            accessibleName: "Enable " + modelData.title
+                            note: qsTr("%1 · %2\nSource %3\nUpdates from %4").arg(
+                                      modelData.updateStatus).arg(modelData.license).arg(
+                                      modelData.source).arg(modelData.updateAddress)
+                            accessibleName: qsTr("Enable %1").arg(modelData.title)
                             checked: modelData.enabled
                             onClicked: root.blocker.setSubscriptionEnabled(modelData.id, !checked)
                         }
@@ -1101,8 +1155,8 @@ Rectangle {
                         Text {
                             objectName: "noSubscriptionsText"
                             width: pane.width
-                            text: "No filter lists. Network rules only block what the user rules "
-                                  + "below say to block."
+                            text: qsTr(
+                                      "No filter lists. Network rules only block what the user rules below say to block.")
                             color: root.colors.mutedText
                             wrapMode: Text.WordWrap
                             font.family: Style.font.family
@@ -1112,8 +1166,8 @@ Rectangle {
                         ActionButton {
                             objectName: "restoreDefaultListsButton"
                             colors: root.colors
-                            label: "Add EasyList and EasyPrivacy"
-                            accessibleName: "Add the default filter lists"
+                            label: qsTr("Add EasyList and EasyPrivacy")
+                            accessibleName: qsTr("Add the default filter lists")
                             onClicked: {
                                 root.blocker.restoreDefaultSubscriptions();
                                 root.refresh();
@@ -1143,15 +1197,15 @@ Rectangle {
                                 width: pane.width
                                 colors: root.colors
                                 title: modelData.title
-                                note: "Not subscribed · " + modelData.license + "\nSource "
-                                      + modelData.source + "\nUpdates from "
-                                      + modelData.updateAddress
+                                note: qsTr("Not subscribed · %1\nSource %2\nUpdates from %3").arg(
+                                          modelData.license).arg(modelData.source).arg(
+                                          modelData.updateAddress)
 
                                 ActionButton {
                                     objectName: "subscribeKnownListButton"
                                     colors: root.colors
-                                    label: "Subscribe"
-                                    accessibleName: "Subscribe to " + modelData.title
+                                    label: qsTr("Subscribe")
+                                    accessibleName: qsTr("Subscribe to %1").arg(modelData.title)
                                     onClicked: {
                                         root.blocker.subscribeKnownList(modelData.id);
                                         root.refresh();
@@ -1163,7 +1217,7 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        text: "add a list"
+                        text: qsTr("add a list")
                     }
 
                     // Two fields to a row while a pair still fits the words
@@ -1188,7 +1242,7 @@ Rectangle {
                             width: subscriptionFields.fieldWidth
                             colors: root.colors
                             placeholder: root.subscriptionPlaceholders.title
-                            accessibleName: "Subscription name"
+                            accessibleName: qsTr("Subscription name")
                         }
 
                         SettingField {
@@ -1196,7 +1250,7 @@ Rectangle {
                             width: subscriptionFields.fieldWidth
                             colors: root.colors
                             placeholder: root.subscriptionPlaceholders.license
-                            accessibleName: "Subscription license"
+                            accessibleName: qsTr("Subscription license")
                         }
 
                         SettingField {
@@ -1204,7 +1258,7 @@ Rectangle {
                             width: subscriptionFields.fieldWidth
                             colors: root.colors
                             placeholder: root.subscriptionPlaceholders.source
-                            accessibleName: "Subscription source page"
+                            accessibleName: qsTr("Subscription source page")
                         }
 
                         SettingField {
@@ -1212,14 +1266,14 @@ Rectangle {
                             width: subscriptionFields.fieldWidth
                             colors: root.colors
                             placeholder: root.subscriptionPlaceholders.update
-                            accessibleName: "Subscription update address"
+                            accessibleName: qsTr("Subscription update address")
                         }
                     }
 
                     ActionButton {
                         objectName: "addSubscriptionButton"
                         colors: root.colors
-                        label: "Add subscription"
+                        label: qsTr("Add subscription")
                         onClicked: {
                             root.blocker.addSubscription(subscriptionTitle.text,
                                                          subscriptionSource.text,
@@ -1231,7 +1285,7 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        text: "user rules"
+                        text: qsTr("user rules")
                     }
 
                     MultilineField {
@@ -1239,30 +1293,22 @@ Rectangle {
                         objectName: "userRulesInput"
                         width: pane.width
                         colors: root.colors
-                        placeholder: "one rule per line"
-                        accessibleName: "User rules"
+                        placeholder: qsTr("one rule per line")
+                        accessibleName: qsTr("User rules")
                     }
 
                     Text {
                         objectName: "contentBlockingSupport"
                         width: pane.width
-                        text: "Network rules, plain CSS cosmetic rules, parameter "
-                              + "stripping, and the scriptlets and substitute resources "
-                              + "in the bundled uBlock Origin library are supported; the "
-                              + "scriptlets uBlock Origin gates behind trust are refused. " + (
-                                  root.proceduralCosmeticFilteringAvailable
-                                  ? "Procedural cosmetic rules written for a site are "
-                                    + "applied, except on the Ladybird engine. " :
-                                    "Procedural cosmetic rules are not applied: the Ladybird "
-                                    + "engine lacks them. ") + (root.cnameUncloakingAvailable
-                                                                ? "Trackers behind a CNAME are refused, but a $cname rule "
-                                                                  + "that turns that off is not honoured. Response "
-                                                                  + "rewriting, content security policies, HTML filtering "
-                                                                  + "and dynamic rules are not supported." :
-                                                                  "Response rewriting, content security policies, HTML "
-                                                                  + "filtering, dynamic rules, $cname rules and CNAME "
-                                                                  + "uncloaking are not supported; CNAME uncloaking needs "
-                                                                  + "Omaweb's own build of the Qt engine.")
+                        text: [qsTr(
+                                "Network rules, plain CSS cosmetic rules, parameter stripping, and the scriptlets and substitute resources in the bundled uBlock Origin library are supported; the scriptlets uBlock Origin gates behind trust are refused."),
+                            root.proceduralCosmeticFilteringAvailable ? qsTr(
+                                                                            "Procedural cosmetic rules written for a site are applied, except on the Ladybird engine.") :
+                                                                        qsTr("Procedural cosmetic rules are not applied: the Ladybird engine lacks them."),
+                            root.cnameUncloakingAvailable ? qsTr(
+                                                                "Trackers behind a CNAME are refused, but a $cname rule that turns that off is not honoured. Response rewriting, content security policies, HTML filtering and dynamic rules are not supported.") :
+                                                            qsTr("Response rewriting, content security policies, HTML filtering, dynamic rules, $cname rules and CNAME uncloaking are not supported; CNAME uncloaking needs Omaweb's own build of the Qt engine.")].join(
+                            " ")
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
@@ -1276,8 +1322,10 @@ Rectangle {
                                  && root.blocker.compilationReport.unsupported !== undefined
                                  && Object.keys(root.blocker.compilationReport.unsupported).length
                                  > 0
-                        text: "Unsupported rules in the active lists: " + JSON.stringify(
-                                  root.blocker ? root.blocker.compilationReport.unsupported : {})
+                        text: qsTr("Unsupported rules in the active lists: %1").arg(JSON.stringify(
+                                                                                        root.blocker
+                                                                                        ? root.blocker.compilationReport.unsupported :
+                                                                                          {}))
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
@@ -1287,9 +1335,10 @@ Rectangle {
                     ActionButton {
                         objectName: "saveUserRulesButton"
                         colors: root.colors
-                        label: root.blocker && root.blocker.compiling ? "Compiling…" :
-                                                                        "Save user rules"
-                        accessibleName: "Save user rules"
+                        label: root.blocker && root.blocker.compiling ? qsTr("Compiling…") : qsTr(
+                                                                            "Save user rules")
+
+                        accessibleName: qsTr("Save user rules")
                         primary: true
                         enabled: root.blocker ? !root.blocker.compiling : false
                         onClicked: root.blocker.userRules = userRules.text
@@ -1313,9 +1362,9 @@ Rectangle {
                         visible: !!root.engineSuggestions
                         width: pane.width
                         colors: root.colors
-                        title: "Engine suggestions"
+                        title: qsTr("Engine suggestions")
                         note: root.engineSuggestionsNote(root.defaultEngine)
-                        accessibleName: "Engine suggestions"
+                        accessibleName: qsTr("Engine suggestions")
                         checked: !!root.engineSuggestions && root.engineSuggestions.enabled
                         onClicked: {
                             if (root.engineSuggestions)
@@ -1326,13 +1375,13 @@ Rectangle {
                     SettingRow {
                         width: pane.width
                         colors: root.colors
-                        title: "Filter-list updates"
+                        title: qsTr("Filter-list updates")
 
                         Text {
                             objectName: "automaticRequestsStatus"
                             width: Math.min(root.noteMeasure, pane.width / 2)
-                            text: "Enabled filter-list subscriptions make automatic network requests "
-                                  + "to their displayed update address when Omaweb starts."
+                            text: qsTr(
+                                      "Enabled filter-list subscriptions make automatic network requests to their displayed update address when Omaweb starts.")
                             color: root.colors.mutedText
                             wrapMode: Text.WordWrap
                             font.family: Style.font.family
@@ -1352,14 +1401,14 @@ Rectangle {
                         width: pane.width
                         colors: root.colors
                         separated: false
-                        title: "Download directory"
+                        title: qsTr("Download directory")
                         note: root.browser ? root.browser.downloadDirectory : ""
 
                         ActionButton {
                             objectName: "chooseDownloadDirectory"
                             colors: root.colors
-                            label: "Change"
-                            accessibleName: "Change the download directory"
+                            label: qsTr("Change")
+                            accessibleName: qsTr("Change the download directory")
                             enabled: root.browser ? !root.browser.privateBrowsing : false
                             onClicked: root.downloadDirectoryRequested()
                         }
@@ -1385,9 +1434,10 @@ Rectangle {
                                 const error = String(downloadRow.model.error || "");
                                 const received = Number(downloadRow.model.receivedBytes || 0);
                                 const total = Number(downloadRow.model.totalBytes || 0);
-                                let line = downloadState;
+                                let line = root.downloadStateLabel(downloadState);
                                 if (downloadState === "in-progress" && total > 0)
-                                    line += " · " + Math.floor(received * 100 / total) + "%";
+                                    line += " · " + qsTr("%1%").arg(Math.floor(received * 100
+                                                                               / total));
                                 else if (downloadState === "in-progress" && received > 0)
                                     line += " · " + root.resourceLabel(received);
                                 if (error.length > 0)
@@ -1401,8 +1451,8 @@ Rectangle {
                                 ActionButton {
                                     objectName: "cancelDownload-" + index
                                     colors: root.colors
-                                    label: "Cancel"
-                                    accessibleName: "Cancel this download"
+                                    label: qsTr("Cancel")
+                                    accessibleName: qsTr("Cancel this download")
                                     visible: String(downloadRow.model.state) === "in-progress"
                                              && String(downloadRow.model.runtimeId || "").length > 0
                                     onClicked: root.downloadCancelled(downloadRow.index)
@@ -1411,8 +1461,8 @@ Rectangle {
                                 ActionButton {
                                     objectName: "retryDownload-" + index
                                     colors: root.colors
-                                    label: "Retry"
-                                    accessibleName: "Retry this download"
+                                    label: qsTr("Retry")
+                                    accessibleName: qsTr("Retry this download")
                                     visible: String(downloadRow.model.state) === "interrupted"
                                     onClicked: root.downloadRetried(downloadRow.index)
                                 }
@@ -1420,8 +1470,8 @@ Rectangle {
                                 ActionButton {
                                     objectName: "revealDownload-" + index
                                     colors: root.colors
-                                    label: "Show"
-                                    accessibleName: "Show where this download landed"
+                                    label: qsTr("Show")
+                                    accessibleName: qsTr("Show where this download landed")
                                     visible: String(downloadRow.model.state) === "completed"
                                     onClicked: root.downloadRevealed(String(downloadRow.model.path))
                                 }
@@ -1429,8 +1479,8 @@ Rectangle {
                                 ActionButton {
                                     objectName: "forgetDownload-" + index
                                     colors: root.colors
-                                    label: "Remove"
-                                    accessibleName: "Remove this download from the history"
+                                    label: qsTr("Remove")
+                                    accessibleName: qsTr("Remove this download from the history")
                                     visible: String(downloadRow.model.recordId || "").length > 0
                                              && String(downloadRow.model.state) !== "in-progress"
                                     onClicked: root.downloadForgotten(downloadRow.index)
@@ -1443,8 +1493,8 @@ Rectangle {
                         width: pane.width
                         visible: root.downloads ? root.downloads.count === 0 : true
                         colors: root.colors
-                        title: "No recorded downloads"
-                        note: "Downloads Omaweb has recorded in this Space appear here."
+                        title: qsTr("No recorded downloads")
+                        note: qsTr("Downloads Omaweb has recorded in this Space appear here.")
                     }
                 }
 
@@ -1469,7 +1519,8 @@ Rectangle {
 
                                 width: pane.width
                                 colors: root.colors
-                                title: modelData.name + (modelData.default ? " · default" : "")
+                                title: modelData.default ? qsTr("%1 · default").arg(modelData.name) :
+                                                           modelData.name
                                 note: modelData.queryUrl
 
                                 Row {
@@ -1477,9 +1528,9 @@ Rectangle {
 
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData.keyword.length > 0 ? "keyword "
-                                                                             + modelData.keyword :
-                                                                             "no keyword"
+                                        text: modelData.keyword.length > 0 ? qsTr("keyword %1").arg(
+                                                                                 modelData.keyword) :
+                                                                             qsTr("no keyword")
                                         color: root.colors.mutedText
                                         font.family: Style.font.family
                                         font.pixelSize: Style.font.caption
@@ -1487,14 +1538,14 @@ Rectangle {
 
                                     ActionButton {
                                         colors: root.colors
-                                        label: "Default"
+                                        label: qsTr("Default")
                                         visible: !modelData.default
                                         onClicked: root.makeDefaultSearchEngine(modelData.id)
                                     }
 
                                     ActionButton {
                                         colors: root.colors
-                                        label: "Delete"
+                                        label: qsTr("Delete")
                                         destructive: true
                                         enabled: root.engines.length > 1
                                         onClicked: root.deleteSearchEngine(modelData.id)
@@ -1506,7 +1557,7 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        text: "add a provider"
+                        text: qsTr("add a provider")
                     }
 
                     Row {
@@ -1526,15 +1577,15 @@ Rectangle {
                                 };
                             })
                             value: options.length > 0 ? String(options[0].value) : ""
-                            accessibleName: "Predefined search provider"
+                            accessibleName: qsTr("Predefined search provider")
                         }
 
                         ActionButton {
                             id: addProvider
                             objectName: "addSearchProviderButton"
                             colors: root.colors
-                            label: root.searchEngineInstalled(providerPreset.value) ? "Added" :
-                                                                                      "Add"
+                            label: root.searchEngineInstalled(providerPreset.value) ? qsTr("Added") :
+                                                                                      qsTr("Add")
                             enabled: providerPreset.value !== "" && !root.searchEngineInstalled(
                                          providerPreset.value)
                             onClicked: {
@@ -1546,7 +1597,7 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        text: "add a custom engine"
+                        text: qsTr("add a custom engine")
                     }
 
                     SettingField {
@@ -1554,8 +1605,8 @@ Rectangle {
                         objectName: "engineName"
                         width: pane.width
                         colors: root.colors
-                        placeholder: "name"
-                        accessibleName: "Search engine name"
+                        placeholder: qsTr("name", "placeholder: a search engine's name")
+                        accessibleName: qsTr("Search engine name")
                     }
 
                     SettingField {
@@ -1563,8 +1614,8 @@ Rectangle {
                         objectName: "engineQueryUrl"
                         width: pane.width
                         colors: root.colors
-                        placeholder: "query URL with {query}"
-                        accessibleName: "Search engine query URL"
+                        placeholder: qsTr("query URL with {query}")
+                        accessibleName: qsTr("Search engine query URL")
                     }
 
                     // The field and the caption that says what it must answer
@@ -1579,15 +1630,15 @@ Rectangle {
                             objectName: "engineSuggestUrl"
                             width: parent.width
                             colors: root.colors
-                            placeholder: "optional suggest URL with {query}"
-                            accessibleName: "Search engine suggest URL"
+                            placeholder: qsTr("optional suggest URL with {query}")
+                            accessibleName: qsTr("Search engine suggest URL")
                         }
 
                         Text {
                             objectName: "engineSuggestUrlCaption"
                             width: parent.width
-                            text: "Answers in OpenSearch suggestions JSON. Leave empty if the engine "
-                                  + "offers none."
+                            text: qsTr(
+                                      "Answers in OpenSearch suggestions JSON. Leave empty if the engine offers none.")
                             color: root.colors.mutedText
                             wrapMode: Text.WordWrap
                             font.family: Style.font.family
@@ -1600,14 +1651,14 @@ Rectangle {
                         objectName: "engineKeyword"
                         width: pane.width
                         colors: root.colors
-                        placeholder: "optional keyword"
-                        accessibleName: "Search engine keyword"
+                        placeholder: qsTr("optional keyword")
+                        accessibleName: qsTr("Search engine keyword")
                     }
 
                     ActionButton {
                         objectName: "addSearchEngineButton"
                         colors: root.colors
-                        label: "Add and make default"
+                        label: qsTr("Add and make default")
                         enabled: engineName.text.trim().length > 0 && engineQueryUrl.text.indexOf(
                                      "{query}") >= 0 && (engineSuggestUrl.text.trim().length === 0
                                                          || engineSuggestUrl.text.indexOf(
@@ -1647,7 +1698,7 @@ Rectangle {
                         id: privacyLabel
                         colors: root.colors
                         topPadding: privacyLabel.overshoot
-                        text: "privacy"
+                        text: qsTr("privacy")
                     }
 
                     // One row and one button, which is the shape Chrome and
@@ -1661,15 +1712,15 @@ Rectangle {
                         objectName: "clearBrowsingDataRow"
                         width: pane.width
                         colors: root.colors
-                        title: "Browsing data"
-                        note: "Cookies, site storage, cache, site permissions and history — "
-                              + "for the Spaces and the time range chosen when clearing."
+                        title: qsTr("Browsing data")
+                        note: qsTr(
+                                  "Cookies, site storage, cache, site permissions and history — for the Spaces and the time range chosen when clearing.")
 
                         ActionButton {
                             objectName: "clearBrowsingDataButton"
                             colors: root.colors
                             destructive: true
-                            label: "Clear browsing data…"
+                            label: qsTr("Clear browsing data…")
                             onClicked: root.clearDataOpen = true
                         }
                     }
@@ -1683,11 +1734,10 @@ Rectangle {
                         visible: !!root.globalPrivacyControl
                         width: pane.width
                         colors: root.colors
-                        title: "Global Privacy Control"
-                        note: "Tells every site not to sell or share your data, with the Sec-GPC "
-                              + "header on every request and navigator.globalPrivacyControl on "
-                              + "every page. Sites bound by the CCPA and similar laws must honour it."
-                        accessibleName: "Global Privacy Control"
+                        title: qsTr("Global Privacy Control")
+                        note: qsTr(
+                                  "Tells every site not to sell or share your data, with the Sec-GPC header on every request and navigator.globalPrivacyControl on every page. Sites bound by the CCPA and similar laws must honour it.")
+                        accessibleName: qsTr("Global Privacy Control")
                         checked: !!root.globalPrivacyControl && root.globalPrivacyControl.enabled
                         onClicked: {
                             if (root.globalPrivacyControl)
@@ -1703,12 +1753,10 @@ Rectangle {
                         visible: !!root.httpsOnly
                         width: pane.width
                         colors: root.colors
-                        title: "HTTPS-only mode"
-                        note: "Sends every page's own address over HTTPS, whoever wrote the link. "
-                              + "Where a site cannot be reached that way, Omaweb asks before "
-                              + "loading it over plain HTTP. Local development addresses are left "
-                              + "alone."
-                        accessibleName: "HTTPS-only mode"
+                        title: qsTr("HTTPS-only mode")
+                        note: qsTr(
+                                  "Sends every page's own address over HTTPS, whoever wrote the link. Where a site cannot be reached that way, Omaweb asks before loading it over plain HTTP. Local development addresses are left alone.")
+                        accessibleName: qsTr("HTTPS-only mode")
                         checked: !!root.httpsOnly && root.httpsOnly.enabled
                         onClicked: {
                             if (root.httpsOnly)
@@ -1733,12 +1781,9 @@ Rectangle {
                         visible: !!root.secureDns
                         width: pane.width
                         colors: root.colors
-                        title: "Secure DNS"
-                        note: "Looks up the sites you visit over an encrypted connection to a "
-                              + "resolver you choose, instead of your system's. That resolver "
-                              + "learns every site you visit. A network that blocks it stops "
-                              + "pages loading, so turn it off to sign in to a hotel or airport "
-                              + "network."
+                        title: qsTr("Secure DNS")
+                        note: qsTr(
+                                  "Looks up the sites you visit over an encrypted connection to a resolver you choose, instead of your system's. That resolver learns every site you visit. A network that blocks it stops pages loading, so turn it off to sign in to a hotel or airport network.")
 
                         Column {
                             width: Style.spacing.dropdownWidth
@@ -1747,12 +1792,12 @@ Rectangle {
                             SettingDropdown {
                                 objectName: "secureDnsResolver"
                                 colors: root.colors
-                                accessibleName: "Secure DNS resolver"
+                                accessibleName: qsTr("Secure DNS resolver")
                                 options: {
                                     const options = [
                                               {
                                                   value: "",
-                                                  label: "Off"
+                                                  label: qsTr("Off")
                                               }
                                           ];
                                     const resolvers = root.secureDns ? root.secureDns.resolvers :
@@ -1764,7 +1809,7 @@ Rectangle {
                                                      });
                                     options.push({
                                                      value: "custom",
-                                                     label: "An address you type"
+                                                     label: qsTr("An address you type")
                                                  });
                                     return options;
                                 }
@@ -1786,8 +1831,8 @@ Rectangle {
                                 visible: secureDnsGroup.chosen === "custom"
                                 width: parent.width
                                 colors: root.colors
-                                placeholder: "https://dns.example/dns-query"
-                                accessibleName: "Secure DNS address"
+                                placeholder: qsTr("https://dns.example/dns-query")
+                                accessibleName: qsTr("Secure DNS address")
                                 text: root.secureDns ? root.secureDns.customTemplate : ""
                                 onAccepted: {
                                     secureDnsGroup.addressRefused = !!root.secureDns &&
@@ -1799,8 +1844,8 @@ Rectangle {
                                 objectName: "secureDnsAddressRefused"
                                 visible: secureDnsGroup.addressRefused
                                 width: parent.width
-                                text: "That is not an https: address, so names would not be "
-                                      + "encrypted. Nothing was changed."
+                                text: qsTr(
+                                          "That is not an https: address, so names would not be encrypted. Nothing was changed.")
                                 color: root.colors.urgent
                                 wrapMode: Text.WordWrap
                                 font.family: Style.font.family
@@ -1810,13 +1855,13 @@ Rectangle {
                             Text {
                                 objectName: "secureDnsInUse"
                                 width: parent.width
-                                text: !root.secureDns || root.secureDns.resolver === ""
-                                      ? "Names are looked up by your system's resolver." :
-                                        root.engineSecureDns && !root.engineSecureDns.applied
-                                        ? "The engine would not take this resolver, so names are "
-                                          + "looked up by your system's resolver." :
-                                          "Names are looked up by " + root.secureDns.resolverTitle
-                                          + ", over an encrypted connection."
+                                text: !root.secureDns || root.secureDns.resolver === "" ? qsTr(
+                                                                                              "Names are looked up by your system's resolver.") :
+                                                                                          root.engineSecureDns
+                                                                                          && !root.engineSecureDns.applied
+                                                                                          ? qsTr("The engine would not take this resolver, so names are looked up by your system's resolver.") :
+                                                                                            qsTr("Names are looked up by %1, over an encrypted connection.").arg(
+                                                                                                root.secureDns.resolverTitle)
                                 color: root.engineSecureDns && !root.engineSecureDns.applied
                                        ? root.colors.urgent : root.colors.mutedText
                                 wrapMode: Text.WordWrap
@@ -1835,12 +1880,10 @@ Rectangle {
                         visible: !!root.webRtcPolicy && !root.webRtcPolicyUnreachable
                         width: pane.width
                         colors: root.colors
-                        title: "Keep calls off your other addresses"
-                        note: "A page setting up a call learns only the address of the "
-                              + "connection it leaves on, not your local network's or the one a "
-                              + "VPN hides. Calls still connect. Turn off to reach a peer on your "
-                              + "own network directly."
-                        accessibleName: "Keep calls off your other addresses"
+                        title: qsTr("Keep calls off your other addresses")
+                        note: qsTr(
+                                  "A page setting up a call learns only the address of the connection it leaves on, not your local network's or the one a VPN hides. Calls still connect. Turn off to reach a peer on your own network directly.")
+                        accessibleName: qsTr("Keep calls off your other addresses")
                         checked: !!root.webRtcPolicy && root.webRtcPolicy.publicInterfacesOnly
                         onClicked: {
                             if (root.webRtcPolicy)
@@ -1859,24 +1902,23 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "call"
-                        title: "This build cannot keep calls off your other addresses"
-                        detail: "Omaweb was built against another Qt than the one it is running "
-                                + "on, so a page setting up a call is offered every address this "
-                                + "machine has, the engine's own default. A rebuild against this "
-                                + "Qt brings the setting back."
+                        title: qsTr("This build cannot keep calls off your other addresses")
+                        detail: qsTr(
+                                    "Omaweb was built against another Qt than the one it is running on, so a page setting up a call is offered every address this machine has, the engine's own default. A rebuild against this Qt brings the setting back.")
                     }
 
                     SectionLabel {
                         colors: root.colors
-                        text: "process isolation"
+                        text: qsTr("process isolation")
                     }
 
                     SettingRow {
                         objectName: "rendererIsolationRow"
                         width: pane.width
                         colors: root.colors
-                        title: RuntimeSecurity.rendererIsolated ? "Renderer isolation verified" :
-                                                                  "Renderer isolation unverified"
+                        title: RuntimeSecurity.rendererIsolated ? qsTr(
+                                                                      "Renderer isolation verified") :
+                                                                  qsTr("Renderer isolation unverified")
                         note: RuntimeSecurity.rendererIsolation
                     }
 
@@ -1884,7 +1926,7 @@ Rectangle {
                         objectName: "networkServiceRow"
                         width: pane.width
                         colors: root.colors
-                        title: "Network service in the browser process"
+                        title: qsTr("Network service in the browser process")
                         note: RuntimeSecurity.networkService
                     }
 
@@ -1892,9 +1934,9 @@ Rectangle {
                         objectName: "securityBaselineRow"
                         width: pane.width
                         colors: root.colors
-                        title: RuntimeSecurity.meetsSecurityBaseline
-                               ? "Engine at the approved security baseline" :
-                                 "Unsupported preview: engine below the approved baseline"
+                        title: RuntimeSecurity.meetsSecurityBaseline ? qsTr(
+                                                                           "Engine at the approved security baseline") :
+                                                                       qsTr("Unsupported preview: engine below the approved baseline")
                         note: RuntimeSecurity.securityBaseline
                     }
                 }
@@ -1909,7 +1951,7 @@ Rectangle {
                     ActionButton {
                         objectName: "newSpaceButton"
                         colors: root.colors
-                        label: "New Space"
+                        label: qsTr("New Space")
                         visible: root.browser ? !root.browser.privateBrowsing : false
                         onClicked: root.newSpaceRequested()
                     }
@@ -1947,7 +1989,7 @@ Rectangle {
                                 width: pane.width
                                 colors: root.colors
                                 title: spaceName
-                                note: active ? "Current Space" : ""
+                                note: active ? qsTr("Current Space") : ""
                                 height: Math.max(implicitHeight, spaceActions.implicitHeight
                                                  + verticalPadding * 2)
 
@@ -1978,11 +2020,8 @@ Rectangle {
                                             AbstractButton {
                                                 id: swatch
                                                 required property string modelData
-                                                readonly property string spoken: modelData.charAt(
-                                                                                     0).toUpperCase(
-                                                                                     ) + modelData.slice(
-                                                                                     1).replace("_",
-                                                                                                " ")
+                                                readonly property string spoken: root.colourName(
+                                                                                     modelData)
                                                 objectName: "spaceSwatch-" + spaceRow.spaceId + "-"
                                                             + modelData
                                                 width: 22
@@ -1997,8 +2036,9 @@ Rectangle {
                                                 activeFocusOnTab: true
                                                 focusPolicy: Qt.StrongFocus
                                                 Accessible.role: Accessible.RadioButton
-                                                Accessible.name: swatch.spoken + " for "
-                                                                 + spaceRow.spaceName
+                                                Accessible.name: qsTr("%1 for %2").arg(
+                                                                     swatch.spoken).arg(
+                                                                     spaceRow.spaceName)
                                                 Accessible.checked: checked
                                                 onClicked: root.browser.setSpaceColour(
                                                                spaceRow.spaceId, modelData)
@@ -2039,8 +2079,8 @@ Rectangle {
                                         id: renameSpace
                                         objectName: "renameSpace-" + spaceRow.spaceId
                                         colors: root.colors
-                                        label: "Rename"
-                                        accessibleName: "Rename " + spaceRow.spaceName
+                                        label: qsTr("Rename")
+                                        accessibleName: qsTr("Rename %1").arg(spaceRow.spaceName)
                                         onClicked: root.spaceActionRequested("rename",
                                                                              spaceRow.spaceId,
                                                                              spaceRow.spaceName)
@@ -2050,8 +2090,8 @@ Rectangle {
                                         id: deleteSpace
                                         objectName: "deleteSpace-" + spaceRow.spaceId
                                         colors: root.colors
-                                        label: "Delete"
-                                        accessibleName: "Delete " + spaceRow.spaceName
+                                        label: qsTr("Delete")
+                                        accessibleName: qsTr("Delete %1").arg(spaceRow.spaceName)
                                         destructive: true
                                         enabled: spaceList.count > 1
                                         onClicked: root.spaceActionRequested("delete",
@@ -2074,7 +2114,7 @@ Rectangle {
                                         fontFamily: root.iconFontFamily
                                         foreground: root.colors.mutedText
                                         accent: root.colors.accent
-                                        accessibleName: "Move " + spaceRow.spaceName + " up"
+                                        accessibleName: qsTr("Move %1 up").arg(spaceRow.spaceName)
                                         enabled: spaceRow.index > 0 && spaceRow.besideOwnKind(-1)
                                         onClicked: root.browser.moveSpaceBy(spaceRow.spaceId, -1)
                                     }
@@ -2088,7 +2128,7 @@ Rectangle {
                                         fontFamily: root.iconFontFamily
                                         foreground: root.colors.mutedText
                                         accent: root.colors.accent
-                                        accessibleName: "Move " + spaceRow.spaceName + " down"
+                                        accessibleName: qsTr("Move %1 down").arg(spaceRow.spaceName)
                                         enabled: spaceRow.index < spaceList.count - 1
                                                  && spaceRow.besideOwnKind(1)
                                         onClicked: root.browser.moveSpaceBy(spaceRow.spaceId, 1)
@@ -2101,7 +2141,7 @@ Rectangle {
                     Text {
                         width: pane.width
                         visible: root.browser ? root.browser.privateBrowsing : false
-                        text: "Space actions are available in a regular window."
+                        text: qsTr("Space actions are available in a regular window.")
                         color: root.colors.mutedText
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body
@@ -2122,7 +2162,7 @@ Rectangle {
                         id: agentsLabel
                         colors: root.colors
                         topPadding: agentsLabel.overshoot
-                        text: "agents"
+                        text: qsTr("agents")
                     }
 
                     // The cost of an Agent tab is said here once, beside the
@@ -2132,13 +2172,10 @@ Rectangle {
                         visible: !!root.agentControl
                         width: pane.width
                         colors: root.colors
-                        title: "Allow agents"
-                        note: "Lets a coding agent on this computer make Agent Spaces and read and "
-                              + "act in their pages, and ask once for each of your Spaces it "
-                              + "wants to use. An Agent tab stays rendered while an Agent is "
-                              + "attached to it, which costs memory and GPU. Turning this off "
-                              + "detaches every Agent."
-                        accessibleName: "Allow agents"
+                        title: qsTr("Allow agents")
+                        note: qsTr(
+                                  "Lets a coding agent on this computer make Agent Spaces and read and act in their pages, and ask once for each of your Spaces it wants to use. An Agent tab stays rendered while an Agent is attached to it, which costs memory and GPU. Turning this off detaches every Agent.")
+                        accessibleName: qsTr("Allow agents")
                         checked: !!root.agentControl && root.agentControl.allowAgents
                         onClicked: {
                             if (root.agentControl)
@@ -2149,7 +2186,7 @@ Rectangle {
                     SectionLabel {
                         visible: !!root.agentControl
                         colors: root.colors
-                        text: "granted spaces"
+                        text: qsTr("granted spaces")
                     }
 
                     Text {
@@ -2157,8 +2194,8 @@ Rectangle {
                         width: pane.width
                         visible: !!root.agentControl && grantedSpaceList.count === 0
                         topPadding: Style.spacing.md
-                        text: "No Space is granted. An Agent that wants one of yours asks first, "
-                              + "over the page."
+                        text: qsTr(
+                                  "No Space is granted. An Agent that wants one of yours asks first, over the page.")
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
@@ -2175,14 +2212,15 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             title: modelData.spaceName
-                            note: "Agents may read and act in every tab of this Space."
+                            note: qsTr("Agents may read and act in every tab of this Space.")
 
                             ActionButton {
                                 objectName: "revokeGrant-" + modelData.spaceId
                                 colors: root.colors
                                 destructive: true
-                                label: "Revoke"
-                                accessibleName: "Revoke the grant to " + modelData.spaceName
+                                label: qsTr("Revoke")
+                                accessibleName: qsTr("Revoke the grant to %1").arg(
+                                                    modelData.spaceName)
                                 onClicked: root.agentControl.revokeGrant(modelData.spaceId)
                             }
                         }
@@ -2191,8 +2229,9 @@ Rectangle {
                     Text {
                         width: pane.width
                         visible: !root.agentControl
-                        text: root.privateWindow ? "Agents are available in a regular window." :
-                                                   "This window has no Agent socket."
+                        text: root.privateWindow ? qsTr(
+                                                       "Agents are available in a regular window.") :
+                                                   qsTr("This window has no Agent socket.")
                         color: root.colors.mutedText
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body
@@ -2208,7 +2247,7 @@ Rectangle {
                     spacing: pane.spacing
 
                     Text {
-                        text: "Known extensions"
+                        text: qsTr("Known extensions")
                         color: root.colors.text
                         font.family: Style.font.family
                         font.pixelSize: Style.font.display
@@ -2221,7 +2260,7 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "extension_off"
-                        title: "The extension was not installed"
+                        title: qsTr("The extension was not installed")
                         detail: root.extensionFailure
                     }
 
@@ -2232,9 +2271,9 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "extension_off"
-                        title: "This build cannot host an extension"
-                        detail: "Known extensions need the engine Omaweb builds for itself. "
-                                + "This Omaweb runs the engine the system supplies."
+                        title: qsTr("This build cannot host an extension")
+                        detail: qsTr(
+                                    "Known extensions need the engine Omaweb builds for itself. This Omaweb runs the engine the system supplies.")
                     }
 
                     NoticeBox {
@@ -2244,10 +2283,9 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "extension_off"
-                        title: "This window loads no extension"
-                        detail: "A Private window keeps nothing after it closes, and an "
-                                + "extension's vault is something to keep. Turn one on from an "
-                                + "ordinary window and it is on in every Space there."
+                        title: qsTr("This window loads no extension")
+                        detail: qsTr(
+                                    "A Private window keeps nothing after it closes, and an extension's vault is something to keep. Turn one on from an ordinary window and it is on in every Space there.")
                     }
 
                     Text {
@@ -2260,14 +2298,8 @@ Rectangle {
                         // The reader is told about the download before they ask
                         // for it, because it is the one request Omaweb makes to
                         // Google and they should not find out afterwards.
-                        text: "Omaweb names the extensions it has tested and loads no others. "
-                              + "One that is on is on in every Space, and each Space keeps its "
-                              + "own logins for it, so it is unlocked where it is used. A "
-                              + "Private window loads none.\n\nTurning one on downloads it from "
-                              + "the Chrome Web Store, which tells Google which extension you "
-                              + "are installing. Omaweb accepts it only if the publisher signed "
-                              + "it with the key this build carries, and asks once a day whether "
-                              + "a newer one has been published."
+                        text: qsTr(
+                                  "Omaweb names the extensions it has tested and loads no others. One that is on is on in every Space, and each Space keeps its own logins for it, so it is unlocked where it is used. A Private window loads none.\n\nTurning one on downloads it from the Chrome Web Store, which tells Google which extension you are installing. Omaweb accepts it only if the publisher signed it with the key this build carries, and asks once a day whether a newer one has been published.")
                     }
 
                     Column {
@@ -2289,9 +2321,9 @@ Rectangle {
                                 // publishes it, under what terms, and whether
                                 // the package is here yet.
                                 note: modelData.publisher + " · " + modelData.licence + (
-                                          modelData.fetching ? " · downloading" : (
-                                                                   modelData.installed ? "" :
-                                                                                         " · not downloaded yet"))
+                                          modelData.fetching ? " · " + qsTr("downloading") : (
+                                                                   modelData.installed ? "" : " · "
+                                                                                         + qsTr("not downloaded yet")))
                                       + "\n" + modelData.summary
                                 accessibleName: modelData.name
                                 // Turning one on is what fetches it, so a
@@ -2316,7 +2348,7 @@ Rectangle {
                     spacing: pane.spacing
 
                     Text {
-                        text: "Sync"
+                        text: qsTr("Sync")
                         color: root.colors.text
                         font.family: Style.font.family
                         font.pixelSize: Style.font.display
@@ -2340,8 +2372,10 @@ Rectangle {
                         borderSpec: Border.controlSpec("normal", root.colors.text,
                                                        root.colors.accent)
                         Accessible.role: Accessible.StaticText
-                        Accessible.name: root.sync ? root.sync.login + ", " + root.sync.provider
-                                                     + " account. " + root.sync.status : ""
+                        Accessible.name: root.sync ? qsTr("%1, %2 account. %3").arg(
+                                                         root.sync.login).arg(
+                                                         root.sync.provider).arg(root.sync.status) :
+                                                     ""
 
                         Rectangle {
                             id: syncAccountAvatar
@@ -2417,8 +2451,10 @@ Rectangle {
                                 id: syncAccountProvider
                                 objectName: "syncAccountProvider"
                                 width: parent.width
-                                text: root.sync && root.sync.provider.length > 0
-                                      ? root.sync.provider + " account" : "Sync account"
+                                text: root.sync && root.sync.provider.length > 0 ? qsTr(
+                                                                                       "%1 account").arg(
+                                                                                       root.sync.provider) :
+                                                                                   qsTr("Sync account")
                                 color: root.colors.mutedText
                                 elide: Text.ElideRight
                                 font.family: Style.font.family
@@ -2444,11 +2480,13 @@ Rectangle {
                         width: pane.width
                         visible: !root.sync || root.sync.login.length === 0 || !root.syncAvailable
                         colors: root.colors
-                        title: !root.syncAvailable ? "Sync is unavailable in a Private window" :
-                                                     root.sync ? (root.sync.login.length > 0
-                                                                  ? root.sync.login + " on "
-                                                                    + root.sync.provider :
-                                                                    root.sync.status) :
+                        title: !root.syncAvailable ? qsTr(
+                                                         "Sync is unavailable in a Private window") :
+                                                     root.sync ? (root.sync.login.length > 0 ? qsTr(
+                                                                                                   "%1 on %2").arg(
+                                                                                                   root.sync.login).arg(
+                                                                                                   root.sync.provider) :
+                                                                                               root.sync.status) :
                                                                  root.providerText.connectAction
                         note: root.sync ? root.sync.status : (root.syncLauncher
                                                               ? root.syncLauncher.errorMessage : "")
@@ -2458,7 +2496,8 @@ Rectangle {
                         id: syncPrivacyBoundary
                         objectName: "syncPrivacyBoundary"
                         width: pane.width
-                        text: "Spaces and tabs are end-to-end encrypted. Approved settings, keybindings, and filter subscription addresses are readable in your private repository. Passwords, cookies, browsing history, downloads, site permissions, and every Private window are never synced. "
+                        text: qsTr(
+                                  "Spaces and tabs are end-to-end encrypted. Approved settings, keybindings, and filter subscription addresses are readable in your private repository. Passwords, cookies, browsing history, downloads, site permissions, and every Private window are never synced. ")
                               + root.providerText.observationNote
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
@@ -2483,8 +2522,8 @@ Rectangle {
                         width: pane.width
                         visible: root.syncAvailable && (!root.sync || root.sync.login.length === 0)
                         colors: root.colors
-                        placeholder: "recovery key (leave empty on the first device)"
-                        accessibleName: "Existing Sync recovery key"
+                        placeholder: qsTr("recovery key (leave empty on the first device)")
+                        accessibleName: qsTr("Existing Sync recovery key")
                     }
 
                     ActionButton {
@@ -2495,7 +2534,7 @@ Rectangle {
                                                                        === 0 &&
                                                                        !root.sync.connecting))
                         label: !root.sync && root.syncLauncher && root.syncLauncher.configured
-                               ? "Resume Sync" : root.providerText.connectAction
+                               ? qsTr("Resume Sync") : root.providerText.connectAction
                         onClicked: {
                             if (root.syncLauncher && root.syncLauncher.load()
                                     && root.syncLauncher.controller) {
@@ -2528,7 +2567,7 @@ Rectangle {
                         ActionButton {
                             objectName: "copySyncCodeButton"
                             colors: root.colors
-                            label: "Copy code"
+                            label: qsTr("Copy code")
                             onClicked: root.copySyncCode()
                         }
 
@@ -2552,7 +2591,7 @@ Rectangle {
                         objectName: "continueSyncSetupButton"
                         colors: root.colors
                         visible: root.sync && root.sync.awaitingRepositoryCreation
-                        label: "I created the repository"
+                        label: qsTr("I created the repository")
                         onClicked: root.sync.continueConnection()
                     }
 
@@ -2568,7 +2607,7 @@ Rectangle {
                         width: pane.width
                         visible: root.sync && root.sync.recoveryKey.length > 0
                         colors: root.colors
-                        title: "Save this recovery key now"
+                        title: qsTr("Save this recovery key now")
                         note: root.sync ? root.sync.recoveryKey : ""
                     }
 
@@ -2579,17 +2618,17 @@ Rectangle {
 
                         ActionButton {
                             colors: root.colors
-                            label: "Copy recovery key"
+                            label: qsTr("Copy recovery key")
                             onClicked: SystemClipboard.copyText(root.sync.recoveryKey)
                         }
                         ActionButton {
                             colors: root.colors
-                            label: "Save recovery key"
+                            label: qsTr("Save recovery key")
                             onClicked: recoveryKeySaveDialog.open()
                         }
                         ActionButton {
                             colors: root.colors
-                            label: "I saved it"
+                            label: qsTr("I saved it")
                             onClicked: root.sync.clearRecoveryKey()
                         }
                     }
@@ -2601,24 +2640,24 @@ Rectangle {
 
                         ActionButton {
                             colors: root.colors
-                            label: "Sync now"
+                            label: qsTr("Sync now")
                             onClicked: root.sync.syncNow()
                         }
                         ActionButton {
                             colors: root.colors
-                            label: "Pause"
+                            label: qsTr("Pause")
                             visible: root.sync && root.sync.enabled
                             onClicked: root.sync.pause()
                         }
                         ActionButton {
                             colors: root.colors
-                            label: "Resume"
+                            label: qsTr("Resume")
                             visible: root.sync && !root.sync.enabled
                             onClicked: root.sync.resume()
                         }
                         ActionButton {
                             colors: root.colors
-                            label: "Disconnect"
+                            label: qsTr("Disconnect")
                             destructive: true
                             onClicked: root.sync.disconnectProvider()
                         }
@@ -2634,7 +2673,7 @@ Rectangle {
 
                     Text {
                         objectName: "aboutName"
-                        text: "Omaweb"
+                        text: qsTr("Omaweb")
                         color: root.colors.text
                         font.family: Style.font.family
                         font.pixelSize: Style.font.display
@@ -2645,7 +2684,7 @@ Rectangle {
                     // the commit it came from.
                     Text {
                         objectName: "aboutVersion"
-                        text: "Version " + Qt.application.version
+                        text: qsTr("Version %1").arg(Qt.application.version)
                         color: root.colors.mutedText
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body
@@ -2657,8 +2696,8 @@ Rectangle {
                     // to summarise into advice about what to browse.
                     Text {
                         width: pane.width
-                        text: "Alpha. Expect bugs. The Security section states what this build "
-                              + "verifies and what it leaves to you."
+                        text: qsTr(
+                                  "Alpha. Expect bugs. The Security section states what this build verifies and what it leaves to you.")
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
@@ -2672,10 +2711,10 @@ Rectangle {
                         objectName: "aboutNewerRelease"
                         visible: !!root.releaseWatch && root.releaseWatch.announcing
                         width: pane.width
-                        text: root.releaseWatch && root.releaseWatch.announcing ? "Omaweb "
-                                                                                  + root.releaseWatch.release
-                                                                                  + " is out. "
-                                                                                  + root.releaseWatch.instruction :
+                        text: root.releaseWatch && root.releaseWatch.announcing ? qsTr(
+                                                                                      "Omaweb %1 is out. %2").arg(
+                                                                                      root.releaseWatch.release).arg(
+                                                                                      root.releaseWatch.instruction) :
                                                                                   ""
                         color: root.colors.text
                         wrapMode: Text.WordWrap
@@ -2688,9 +2727,10 @@ Rectangle {
                         visible: !!root.releaseWatch
                         width: pane.width
                         colors: root.colors
-                        title: "Check for new releases"
-                        note: "Asks GitHub once a day what the newest release is, and sends nothing about this machine."
-                        accessibleName: "Check for new releases"
+                        title: qsTr("Check for new releases")
+                        note: qsTr(
+                                  "Asks GitHub once a day what the newest release is, and sends nothing about this machine.")
+                        accessibleName: qsTr("Check for new releases")
                         checked: !!root.releaseWatch && root.releaseWatch.checkEnabled
                         onClicked: {
                             if (root.releaseWatch)
@@ -2704,16 +2744,16 @@ Rectangle {
                     SectionLabel {
                         visible: DefaultBrowser.available
                         colors: root.colors
-                        text: "default browser"
+                        text: qsTr("default browser")
                     }
 
                     Text {
                         objectName: "defaultBrowserState"
                         visible: DefaultBrowser.available
                         width: pane.width
-                        text: DefaultBrowser.isDefault
-                              ? "Omaweb opens links from other applications." :
-                                "Another browser opens links from other applications."
+                        text: DefaultBrowser.isDefault ? qsTr(
+                                                             "Omaweb opens links from other applications.") :
+                                                         qsTr("Another browser opens links from other applications.")
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
@@ -2724,14 +2764,14 @@ Rectangle {
                         objectName: "makeDefaultBrowserButton"
                         visible: DefaultBrowser.available && !DefaultBrowser.isDefault
                         colors: root.colors
-                        label: "Make Omaweb the default"
-                        accessibleName: "Make Omaweb the default browser"
+                        label: qsTr("Make Omaweb the default")
+                        accessibleName: qsTr("Make Omaweb the default browser")
                         onClicked: DefaultBrowser.makeDefault()
                     }
 
                     SectionLabel {
                         colors: root.colors
-                        text: "project"
+                        text: qsTr("project", "section label: the Omaweb project")
                     }
 
                     Text {
@@ -2739,8 +2779,10 @@ Rectangle {
                         width: pane.width
                         textFormat: Text.StyledText
                         text: '<a href="https://omaweb.app">omaweb.app</a> · '
-                              + '<a href="https://github.com/villekivela/omaweb">source</a> · '
-                              + '<a href="https://github.com/villekivela/omaweb/issues">issues</a>'
+                              + '<a href="https://github.com/villekivela/omaweb">' + qsTr("source",
+                                                                                          "link to the source code")
+                              + '</a> · <a href="https://github.com/villekivela/omaweb/issues">'
+                              + qsTr("issues", "link to the issue tracker") + '</a>'
                         linkColor: root.colors.accent
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
@@ -2758,14 +2800,13 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        text: "license"
+                        text: qsTr("license")
                     }
 
                     Text {
                         width: pane.width
-                        text: "Omaweb is under the Mozilla Public License 2.0. It bundles "
-                              + "third-party components under their own licenses, which "
-                              + "THIRD_PARTY_NOTICES.md in the source tree lists."
+                        text: qsTr(
+                                  "Omaweb is under the Mozilla Public License 2.0. It bundles third-party components under their own licenses, which THIRD_PARTY_NOTICES.md in the source tree lists.")
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
