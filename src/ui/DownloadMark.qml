@@ -24,24 +24,27 @@ ChromeButton {
 
     readonly property bool detailRequested: root.visible && (root.hot || root.activeFocus)
 
-    readonly property string summary: root.holding ? (root.finished === 1 ? "1 download finished" : String(
-                                                                                root.finished)
-                                                                            + " downloads finished") :
-                                                     (root.running === 1 ? "1 download · "
-                                                                           + root.progressLabel :
-                                                                           String(root.running)
-                                                                           + " downloads · "
-                                                                           + root.progressLabel)
+    readonly property string summary: root.holding ? (root.finished === 1 ? qsTr(
+                                                                                "1 download finished") :
+                                                                            qsTr("%1 downloads finished").arg(
+                                                                                root.finished)) : (
+                                                         root.running === 1 ? qsTr(
+                                                                                  "1 download · %1").arg(
+                                                                                  root.progressLabel) :
+                                                                              qsTr("%1 downloads · %2").arg(
+                                                                                  root.running).arg(
+                                                                                  root.progressLabel))
     readonly property string progressLabel: root.progressLabelFor(root.fraction)
 
     function progressLabelFor(fraction) {
-        return fraction >= 0 ? Math.round(fraction * 100) + "%" : "size unknown";
+        return fraction >= 0 ? qsTr("%1%").arg(Math.round(fraction * 100)) : qsTr("size unknown");
     }
 
     function fileSummary(rows) {
         const names = [];
         for (let index = 0; index < rows.length; ++index)
-            names.push(rows[index].fileName + " · " + root.progressLabelFor(rows[index].fraction));
+            names.push(qsTr("%1 · %2").arg(rows[index].fileName).arg(root.progressLabelFor(
+                                                                         rows[index].fraction)));
         return names.join(", ");
     }
 

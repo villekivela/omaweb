@@ -44,13 +44,13 @@ ChromeButton {
     // known and pacman saying who owns the binary, so the tooltip is the
     // version until it arrives rather than a version with a dangling separator.
     readonly property string summary: !root.announcing ? "" : (root.watch.instruction.length > 0
-                                                               ? "Omaweb " + root.watch.release
-                                                                 + " is out\n"
-                                                                 + root.watch.instruction :
-                                                                 "Omaweb " + root.watch.release
-                                                                 + " is out")
+                                                               ? qsTr("Omaweb %1 is out").arg(
+                                                                     root.watch.release) + "\n"
+                                                                 + root.watch.instruction : qsTr(
+                                                                     "Omaweb %1 is out").arg(
+                                                                     root.watch.release))
 
-    accessibleName: root.announcing ? "Omaweb " + root.watch.release + " is out" : ""
+    accessibleName: root.announcing ? qsTr("Omaweb %1 is out").arg(root.watch.release) : ""
     Accessible.description: root.announcing ? root.watch.instruction : ""
 
     onClicked: {

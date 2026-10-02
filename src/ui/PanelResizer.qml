@@ -31,8 +31,8 @@ Item {
     width: 10
     activeFocusOnTab: enabled
     Accessible.role: Accessible.Splitter
-    Accessible.name: root.panelName + " width"
-    Accessible.description: "Arrow keys resize the " + root.panelName.toLowerCase()
+    Accessible.name: qsTr("%1 width").arg(root.panelName)
+    Accessible.description: qsTr("Arrow keys resize this panel")
 
     function request(width) {
         root.widthRequested(Math.max(root.minimumWidth, Math.min(root.maximumWidth, width)));

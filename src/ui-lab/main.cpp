@@ -1,4 +1,5 @@
 #include "AgentActivityLog.h"
+#include <QJSValue>
 #include "AgentControl.h"
 #include "BrowserController.h"
 #include "StoredFaviconProvider.h"
@@ -663,6 +664,45 @@ int main(int argc, char *argv[])
             return 1;
         }
         printf("start_page_hint=%s\n", qPrintable(word->property("text").toString()));
+        fflush(stdout);
+        return 0;
+    }
+
+    // One prompt and one context-menu entry as the window words them under the
+    // reader's locale, for a test to read the catalogue back from the chrome's
+    // own functions rather than from a copy of its strings.
+    if (arguments.contains(QStringLiteral("--report-chrome"))) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *window = engine.rootObjects().constFirst();
+        QVariantMap request;
+        request.insert(QStringLiteral("name"), QStringLiteral("Forge"));
+        request.insert(QStringLiteral("spaceName"), QStringLiteral("Work"));
+        QVariant prompt;
+        QMetaObject::invokeMethod(
+            window, "grantPrompt", Q_RETURN_ARG(QVariant, prompt), Q_ARG(QVariant, request));
+        QVariantMap context;
+        context.insert(QStringLiteral("linkUrl"), QStringLiteral("https://example.test/"));
+        QVariant menu;
+        QMetaObject::invokeMethod(
+            window, "pageMenuFor", Q_RETURN_ARG(QVariant, menu), Q_ARG(QVariant, context));
+        // A JavaScript object or array comes back as a `QJSValue` or already plain.
+        const auto plain = [](const QVariant &value) {
+            return value.metaType() == QMetaType::fromType<QJSValue>()
+                ? value.value<QJSValue>().toVariant()
+                : value;
+        };
+        const auto rows = plain(menu).toList();
+        QString entry;
+        for (const auto &row : rows) {
+            if (row.toMap().value(QStringLiteral("run")) == QStringLiteral("copy-link")) {
+                entry = row.toMap().value(QStringLiteral("label")).toString();
+            }
+        }
+        printf("prompt_message=%s\n",
+            qPrintable(plain(prompt).toMap().value(QStringLiteral("message")).toString()));
+        printf("menu_entry=%s\n", qPrintable(entry));
         fflush(stdout);
         return 0;
     }

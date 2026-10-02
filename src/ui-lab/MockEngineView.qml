@@ -18,7 +18,7 @@ Rectangle {
     // asks for a frame every frame, the way one with a video or a spinner
     // does. Off unless a probe turns it on: a page at rest costs no frames.
     property bool motionReview: false
-    property string pageTitle: currentUrl.toString() === "about:blank" ? "New tab" :
+    property string pageTitle: currentUrl.toString() === "about:blank" ? qsTr("New tab") :
                                                                          currentUrl.toString()
     // The lab runs no engine and so has no icon store. Handing every host one
     // of the drawn stand-ins is what makes the sidebar's chips reviewable
@@ -275,7 +275,7 @@ Rectangle {
     function clearPageSiteData() {
         const address = String(root.currentUrl);
         if (address.length === 0 || address.startsWith("about:")) {
-            root.pageSiteDataCleared("", [], "there is no page to clear");
+            root.pageSiteDataCleared("", [], qsTr("there is no page to clear"));
             return;
         }
         root.pageSiteDataClearCount += 1;
@@ -310,8 +310,8 @@ Rectangle {
                                         "url": url,
                                         "origin": root.originLabel(url),
                                         "description": String(named.description !== undefined
-                                                              ? named.description :
-                                                                "The certificate could not be verified"),
+                                                              ? named.description : qsTr(
+                                                                    "The certificate could not be verified")),
                                         "overridable": named.overridable !== false,
                                         "mainFrame": mainFrame,
                                         "fatal": named.fatal === true,
@@ -494,7 +494,7 @@ Rectangle {
         root.browserPromptRequested(String(++root.nextBrowserPromptId), {
                                         "kind": "http-authentication",
                                         "origin": String(origin),
-                                        "message": "Sign in to " + String(origin),
+                                        "message": qsTr("Sign in to %1").arg(String(origin)),
                                         "detail": String(realm)
                                     });
     }
@@ -521,7 +521,7 @@ Rectangle {
                                         "scheme": scheme,
                                         "origin": origin,
                                         "destination": address,
-                                        "message": "Open " + String(application) + "?",
+                                        "message": qsTr("Open %1?").arg(String(application)),
                                         "detail": scheme + " · " + origin + " · " + address
                                     });
     }
@@ -813,7 +813,7 @@ Rectangle {
                 width: parent.width - 24
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: "No inspector: this engine is the UI lab's stand-in"
+                text: qsTr("No inspector: this engine is the UI lab's stand-in")
                 color: root.developerToolsColors.mutedText !== undefined
                        ? root.developerToolsColors.mutedText : "#aaa5b7"
                 font.pixelSize: 12
@@ -831,7 +831,7 @@ Rectangle {
         root.pageMediaSession = declaration ? declaration : {};
     }
     function simulateRendererFailure() {
-        rendererFailed("Renderer exited unexpectedly");
+        rendererFailed(qsTr("Renderer exited unexpectedly"));
     }
     function simulateNewWindowRequest(requestedUrl, auxiliary) {
         const request = {

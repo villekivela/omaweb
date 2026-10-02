@@ -23,11 +23,11 @@ Rectangle {
     readonly property string headline: {
         switch (root.failure.reason) {
         case "downgrade":
-            return root.host + " sent this page back to plain HTTP";
+            return qsTr("%1 sent this page back to plain HTTP").arg(root.host);
         case "form":
-            return root.host + " asked for a form to be sent over plain HTTP";
+            return qsTr("%1 asked for a form to be sent over plain HTTP").arg(root.host);
         default:
-            return root.host + " could not be reached over HTTPS";
+            return qsTr("%1 could not be reached over HTTPS").arg(root.host);
         }
     }
 
@@ -72,9 +72,9 @@ Rectangle {
             objectName: "httpsOnlyDetail"
             width: parent.width
             text: (String(root.failure.error || "").length > 0 && root.failure.reason === "unreachable"
-                   ? String(root.failure.error) + ". " : "")
-                  + "HTTPS-only mode is on. Over plain HTTP, anyone on the network between you "
-                  + "and " + root.host + " can read the page and change it."
+                   ? qsTr("%1. ").arg(String(root.failure.error)) : "") + qsTr(
+                      "HTTPS-only mode is on. Over plain HTTP, anyone on the network between you and %1 can read the page and change it.").arg(
+                      root.host)
             color: root.colors.mutedText
             wrapMode: Text.Wrap
             font.family: Style.font.family
@@ -89,14 +89,14 @@ Rectangle {
                 objectName: "httpsOnlyBack"
                 colors: root.colors
                 primary: true
-                label: "Go back"
+                label: qsTr("Go back")
                 onClicked: root.goBack()
             }
 
             ActionButton {
                 objectName: "httpsOnlyLoadOnce"
                 colors: root.colors
-                label: "Load over HTTP once"
+                label: qsTr("Load over HTTP once")
                 onClicked: root.loadOnce()
             }
 
@@ -104,7 +104,7 @@ Rectangle {
                 objectName: "httpsOnlyLoadAlways"
                 visible: !root.privateWindow
                 colors: root.colors
-                label: "Always use HTTP for " + root.host + " in this Space"
+                label: qsTr("Always use HTTP for %1 in this Space").arg(root.host)
                 onClicked: root.loadAlways()
             }
         }

@@ -22,8 +22,9 @@ ApplicationWindow {
     // The title names the Space as well as the page, so the bar and the
     // window switcher say which Space is on show without the sidebar giving
     // room to it. A Private window says only that it is one.
-    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle + " — "
-                                  + window.windowBrowser.activeSpaceName + " — Omaweb"
+    title: window.privateWindow ? qsTr("Private — Omaweb") : qsTr("%1 — %2 — Omaweb").arg(
+                                      window.windowBrowser.activeTitle).arg(
+                                      window.windowBrowser.activeSpaceName)
 
     property var windowBrowser: browser
     readonly property var syncLauncherService: syncLauncher
@@ -134,9 +135,9 @@ ApplicationWindow {
     // How long a remembered answer lasts, said where the reader gives one.
     // Private windows share their answers in memory and lose them when the
     // last of them closes, so they cannot promise what a Space does.
-    readonly property string permissionMemory: window.privateWindow
-                                               ? "kept until the last Private window closes" :
-                                                 "remembered for this Space only"
+    readonly property string permissionMemory: window.privateWindow ? qsTr(
+                                                                          "kept until the last Private window closes") :
+                                                                      qsTr("remembered for this Space only")
     // Bumped whenever the core's record of granted certificate exceptions
     // changes, and read by the state below so that the state follows it. A
     // binding cannot see into an invokable on its own.
@@ -474,17 +475,17 @@ ApplicationWindow {
     Dialogs.FileDialog {
         id: openFileDialog
         objectName: "openFileDialog"
-        title: "Open file"
+        title: qsTr("Open file")
         fileMode: Dialogs.FileDialog.OpenFile
-        nameFilters:
-            ["Web pages, text, images, and PDF (*.html *.htm *.txt *.png *.jpg *.jpeg *.gif *.webp *.svg *.pdf)"]
+        nameFilters: [qsTr(
+                "Web pages, text, images, and PDF (*.html *.htm *.txt *.png *.jpg *.jpeg *.gif *.webp *.svg *.pdf)")]
         onAccepted: window.openLocalFile(selectedFile)
     }
 
     Dialogs.FileDialog {
         id: pageFileDialog
         objectName: "pageFileDialog"
-        title: "Choose file"
+        title: qsTr("Choose file")
         fileMode: Dialogs.FileDialog.OpenFile
         onAccepted: {
             const files = [];
@@ -498,7 +499,7 @@ ApplicationWindow {
     Dialogs.FolderDialog {
         id: pageFolderDialog
         objectName: "pageFolderDialog"
-        title: "Choose folder"
+        title: qsTr("Choose folder")
         onAccepted: window.respondToFileSelection([String(selectedFolder)])
         onRejected: window.respondToFileSelection([])
     }
@@ -506,7 +507,7 @@ ApplicationWindow {
     Dialogs.FileDialog {
         id: downloadTargetDialog
         objectName: "downloadTargetDialog"
-        title: "Save download as"
+        title: qsTr("Save download as")
         fileMode: Dialogs.FileDialog.SaveFile
         onAccepted: window.downloads.answer(true, window.localPath(selectedFile), 0)
         onRejected: window.downloads.answer(false, "", 0)
@@ -515,14 +516,14 @@ ApplicationWindow {
     Dialogs.FolderDialog {
         id: downloadDirectoryDialog
         objectName: "downloadDirectoryDialog"
-        title: "Download directory"
+        title: qsTr("Download directory")
         onAccepted: window.chooseDownloadDirectory(selectedFolder)
     }
 
     Dialogs.FileDialog {
         id: saveTargetDialog
         objectName: "saveTargetDialog"
-        title: "Save as"
+        title: qsTr("Save as")
         fileMode: Dialogs.FileDialog.SaveFile
         onAccepted: window.completeTargetSave(selectedFile)
         onRejected: window.forgetPendingSave()
@@ -548,22 +549,22 @@ ApplicationWindow {
             const keptActive = window.windowBrowser.tabKeepActive(tabId);
             return [
                         {
-                            "label": "Duplicate tab",
+                            "label": qsTr("Duplicate tab"),
                             "command": "duplicate-tab"
                         },
                         {
-                            "label": keptActive ? "Stop keeping active" : "Keep active",
+                            "label": keptActive ? qsTr("Stop keeping active") : qsTr("Keep active"),
                             "command": "keep-tab-active"
                         },
                         {
-                            "label": "Unpin tab",
+                            "label": qsTr("Unpin tab"),
                             "command": "pin-tab"
                         },
                         {
                             "separator": true
                         },
                         {
-                            "label": "Move to another Space",
+                            "label": qsTr("Move to another Space"),
                             "command": "move-tab",
                             "enabled": !window.privateWindow
                         }
@@ -580,30 +581,30 @@ ApplicationWindow {
         const activeTabId = window.windowBrowser.activeTabId;
         const actions = [];
         actions.push({
-                         "label": "Duplicate tab",
+                         "label": qsTr("Duplicate tab"),
                          "command": "duplicate-tab"
                      });
         if (inSplit) {
             actions.push({
-                             "label": "Separate split view",
+                             "label": qsTr("Separate split view"),
                              "command": "separate-split"
                          });
         } else {
             actions.push({
-                             "label": "Add split view",
+                             "label": qsTr("Add split view"),
                              "command": "add-split",
                              "enabled": tabId === activeTabId || (
                                             !window.windowBrowser.activeTabPinned &&
                                             !window.windowBrowser.splitOnShow)
                          });
             actions.push({
-                             "label": "Pin tab",
+                             "label": qsTr("Pin tab"),
                              "command": "pin-tab",
                              "enabled": !window.privateWindow
                          });
         }
         actions.push({
-                         "label": "Move to another Space",
+                         "label": qsTr("Move to another Space"),
                          "command": "move-tab",
                          "enabled": !window.privateWindow
                      });
@@ -611,15 +612,15 @@ ApplicationWindow {
                          "separator": true
                      });
         actions.push({
-                         "label": "Close other tabs",
+                         "label": qsTr("Close other tabs"),
                          "command": "close-other-tabs"
                      });
         actions.push({
-                         "label": "Close tabs below",
+                         "label": qsTr("Close tabs below"),
                          "command": "close-tabs-below"
                      });
         actions.push({
-                         "label": "Close tab",
+                         "label": qsTr("Close tab"),
                          "command": "close-tab",
                          "destructive": true
                      });
@@ -729,7 +730,7 @@ ApplicationWindow {
         const targets = [
                   {
                       "id": "",
-                      "label": "New blank tab"
+                      "label": qsTr("New blank tab")
                   }
               ];
         const wanted = window.windowBrowser.splittableTabIds();
@@ -1172,6 +1173,27 @@ ApplicationWindow {
     // do with a link, a selection offers copying, and what the page can always
     // do comes last. Every row carries the command it runs, so the list and the
     // doing cannot drift apart.
+    function mediaLabel(action, type) {
+        // One string per kind and action, because Finnish inflects the noun.
+        switch (type) {
+        case "image":
+            return action === "open" ? qsTr("Open image in new tab") : action === "copy" ? qsTr(
+                                                                                               "Copy image address") :
+                                                                                           qsTr("Save image as");
+        case "video":
+            return action === "open" ? qsTr("Open video in new tab") : action === "copy" ? qsTr(
+                                                                                               "Copy video address") :
+                                                                                           qsTr("Save video as");
+        case "audio":
+            return action === "open" ? qsTr("Open audio in new tab") : action === "copy" ? qsTr(
+                                                                                               "Copy audio address") :
+                                                                                           qsTr("Save audio as");
+        }
+        return action === "open" ? qsTr("Open media in new tab") : action === "copy" ? qsTr(
+                                                                                           "Copy media address") :
+                                                                                       qsTr("Save media as");
+    }
+
     function pageMenuFor(context) {
         const rows = [];
         const link = context.linkUrl ? String(context.linkUrl) : "";
@@ -1179,19 +1201,19 @@ ApplicationWindow {
         const selection = String(context.selectedText || "");
         if (link.length > 0) {
             rows.push({
-                          "label": "Open link in new tab",
+                          "label": qsTr("Open link in new tab"),
                           "run": "open-link"
                       });
             rows.push({
-                          "label": "Open link in background",
+                          "label": qsTr("Open link in background"),
                           "run": "open-link-background"
                       });
             rows.push({
-                          "label": "Copy link address",
+                          "label": qsTr("Copy link address"),
                           "run": "copy-link"
                       });
             rows.push({
-                          "label": "Save link as",
+                          "label": qsTr("Save link as"),
                           "run": "save-link"
                       });
             rows.push({
@@ -1200,20 +1222,20 @@ ApplicationWindow {
         }
         if (media.length > 0) {
             rows.push({
-                          "label": "Open " + context.mediaType + " in new tab",
+                          "label": window.mediaLabel("open", context.mediaType),
                           "run": "open-media"
                       });
             rows.push({
-                          "label": "Copy " + context.mediaType + " address",
+                          "label": window.mediaLabel("copy", context.mediaType),
                           "run": "copy-media"
                       });
             if (context.mediaType === "image")
                 rows.push({
-                              "label": "Copy image",
+                              "label": qsTr("Copy image"),
                               "run": "copy-image"
                           });
             rows.push({
-                          "label": "Save " + context.mediaType + " as",
+                          "label": window.mediaLabel("save", context.mediaType),
                           "run": "save-media"
                       });
             rows.push({
@@ -1222,7 +1244,7 @@ ApplicationWindow {
         }
         if (selection.length > 0) {
             rows.push({
-                          "label": "Copy",
+                          "label": qsTr("Copy"),
                           "run": "copy-selection"
                       });
             rows.push({
@@ -1230,22 +1252,22 @@ ApplicationWindow {
                       });
         }
         rows.push({
-                      "label": "Back",
+                      "label": qsTr("Back"),
                       "command": "back",
                       "enabled": engineLoader.item ? engineLoader.item.canGoBack : false
                   });
         rows.push({
-                      "label": "Forward",
+                      "label": qsTr("Forward"),
                       "command": "forward",
                       "enabled": engineLoader.item ? engineLoader.item.canGoForward : false
                   });
         rows.push({
-                      "label": "Reload",
+                      "label": qsTr("Reload"),
                       "command": "reload"
                   });
         if (String(window.windowBrowser.activeUrl).startsWith("https://")) {
             rows.push({
-                          "label": "Retry over insecure HTTP",
+                          "label": qsTr("Retry over insecure HTTP"),
                           "run": "retry-insecure"
                       });
         }
@@ -1253,7 +1275,7 @@ ApplicationWindow {
                       "separator": true
                   });
         rows.push({
-                      "label": "Copy address",
+                      "label": qsTr("Copy address"),
                       "command": "copy-address",
                       "enabled": !window.windowBrowser.activeTabBlank
                   });
@@ -1261,7 +1283,7 @@ ApplicationWindow {
                       "separator": true
                   });
         rows.push({
-                      "label": "Inspect element",
+                      "label": qsTr("Inspect element"),
                       "command": "inspect-element",
                       "enabled": window.developerToolsAvailable
                   });
@@ -1374,8 +1396,9 @@ ApplicationWindow {
     // the reader to guess whether the key reached the browser. A tab with no
     // page is not an engine that lacks something, and does not say it is.
     function reportUnavailable(what) {
-        window.showNotice("block", what + " is not available", engineLoader.item
-                          ? "This engine does not offer it" : "There is no page here");
+        window.showNotice("block", qsTr("%1 is not available").arg(what), engineLoader.item ? qsTr(
+                                                                                                  "This engine does not offer it") :
+                                                                                              qsTr("There is no page here"));
     }
 
     // Find belongs to one tab. The bar's openness is per tab, and the query and
@@ -1395,7 +1418,7 @@ ApplicationWindow {
 
     function openFind() {
         if (!window.findAvailable) {
-            window.reportUnavailable("Find");
+            window.reportUnavailable(qsTr("Find"));
             return;
         }
         window.tabsShowingFind[window.windowBrowser.activeTabId] = true;
@@ -1411,7 +1434,7 @@ ApplicationWindow {
 
     function stepFind(forward) {
         if (!window.findAvailable) {
-            window.reportUnavailable("Find");
+            window.reportUnavailable(qsTr("Find"));
             return;
         }
         if (!window.findOpen || findBar.text.length === 0) {
@@ -1423,7 +1446,7 @@ ApplicationWindow {
 
     function stepZoom(direction) {
         if (!window.zoomAvailable) {
-            window.reportUnavailable("Zoom");
+            window.reportUnavailable(qsTr("Zoom"));
             return;
         }
         window.windowBrowser.stepActiveZoom(direction);
@@ -1432,7 +1455,7 @@ ApplicationWindow {
 
     function resetZoom() {
         if (!window.zoomAvailable) {
-            window.reportUnavailable("Zoom");
+            window.reportUnavailable(qsTr("Zoom"));
             return;
         }
         window.windowBrowser.resetActiveZoom();
@@ -1440,8 +1463,9 @@ ApplicationWindow {
     }
 
     function showZoomNotice() {
-        window.showNotice("zoom_in", "Page zoom " + Math.round(window.windowBrowser.activeTabZoom
-                                                               * 100) + "%", "this tab only");
+        window.showNotice("zoom_in", qsTr("Page zoom %1%").arg(Math.round(
+                                                                   window.windowBrowser.activeTabZoom
+                                                                   * 100)), qsTr("this tab only"));
     }
 
     // A PDF is drawn inside the engine's own sandbox where there is one, and
@@ -1459,13 +1483,13 @@ ApplicationWindow {
         window.reportedPdfAddress = address;
         if (window.inlinePdfViewingAvailable)
             return;
-        window.showNotice("download", "This engine cannot show PDFs",
-                          "The document was downloaded instead", 4200);
+        window.showNotice("download", qsTr("This engine cannot show PDFs"), qsTr(
+                              "The document was downloaded instead"), 4200);
     }
 
     function reloadBypassingCache() {
         if (!engineLoader.item) {
-            window.reportUnavailable("Reload bypassing cache");
+            window.reportUnavailable(qsTr("Reload bypassing cache"));
             return;
         }
         engineLoader.reloadPageBypassingCache();
@@ -1473,7 +1497,7 @@ ApplicationWindow {
 
     function stopLoading() {
         if (!engineLoader.item) {
-            window.reportUnavailable("Stop loading");
+            window.reportUnavailable(qsTr("Stop loading"));
             return;
         }
         engineLoader.stopLoading();
@@ -1484,15 +1508,15 @@ ApplicationWindow {
     function printPage() {
         if (!window.printingAvailable) {
             // Two halves, and the reader is told which one is missing.
-            window.showNotice("block", "Print is not available", PagePrinter.available
-                              ? "This engine cannot render a page for printing" :
-                                "This desktop has no print dialog to answer");
+            window.showNotice("block", qsTr("Print is not available"), PagePrinter.available ? qsTr(
+                                                                                                   "This engine cannot render a page for printing") :
+                                                                                               qsTr("This desktop has no print dialog to answer"));
             return;
         }
         const destination = PagePrinter.reserveDestination(window.windowBrowser.activeTitle);
         if (destination.length === 0) {
-            window.showNotice("print_disabled", "Printing failed",
-                              "Omaweb could not make a file to render the page into");
+            window.showNotice("print_disabled", qsTr("Printing failed"), qsTr(
+                                  "Omaweb could not make a file to render the page into"));
             return;
         }
         engineLoader.printPage(destination);
@@ -1559,9 +1583,10 @@ ApplicationWindow {
         const space = String(request.spaceName);
         return {
             "kind": "agent-grant",
-            "message": "An Agent named " + request.name + " wants to use Space " + space,
-            "detail": "It could read and act in every tab of " + space
-                      + ", Pinned tabs too, until you revoke it in Settings."
+            "message": qsTr("An Agent named %1 wants to use Space %2").arg(request.name).arg(space),
+            "detail": qsTr(
+                          "It could read and act in every tab of %1, Pinned tabs too, until you revoke it in Settings.").arg(
+                          space)
         };
     }
 
@@ -1598,9 +1623,10 @@ ApplicationWindow {
         // A Space at rest and a blank tab both show the Start page, and are
         // told so by name; Settings or History over them leaves no page at all.
         if (!engineLoader.item || window.windowBrowser.activeTabBlank) {
-            window.showNotice("block", command + " is not available", window.startPageShown
-                              ? "The Start page is not a page to capture" :
-                                "There is no page here");
+            window.showNotice("block", qsTr("%1 is not available").arg(command),
+                              window.startPageShown ? qsTr(
+                                                          "The Start page is not a page to capture") :
+                                                      qsTr("There is no page here"));
             return;
         }
         const destination = toClipboard ? SystemClipboard.reserveImage() :
@@ -1608,8 +1634,8 @@ ApplicationWindow {
                                               window.windowBrowser.downloadDirectory,
                                               window.windowBrowser.activeTitle);
         if (destination.length === 0) {
-            window.showNotice("error", command + " failed",
-                              "The downloads location cannot be written to");
+            window.showNotice("error", qsTr("%1 failed").arg(command), qsTr(
+                                  "The downloads location cannot be written to"));
             return;
         }
         const pending = window.pendingCaptures;
@@ -1629,29 +1655,30 @@ ApplicationWindow {
             return;
         delete window.pendingCaptures[destination];
         if (!succeeded) {
-            window.showNotice("error", "Screenshot failed", String(reason || "").length > 0
-                              ? reason : "The page could not be captured");
+            window.showNotice("error", qsTr("Screenshot failed"), String(reason || "").length > 0
+                              ? reason : qsTr("The page could not be captured"));
             return;
         }
         if (!capture.clipboard) {
             window.downloads.saved(destination, capture.page);
         } else if (SystemClipboard.copyImage(destination)) {
-            window.showNotice("content_copy", "Screenshot copied", "", 3000);
+            window.showNotice("content_copy", qsTr("Screenshot copied"), "", 3000);
         } else {
-            window.showNotice("error", "Screenshot failed", "The clipboard did not take the image");
+            window.showNotice("error", qsTr("Screenshot failed"), qsTr(
+                                  "The clipboard did not take the image"));
         }
     }
 
     function presentPrint(destination, succeeded) {
         if (!succeeded) {
             PagePrinter.discard(destination);
-            window.showNotice("print_disabled", "Printing failed",
-                              "The page could not be rendered for printing");
+            window.showNotice("print_disabled", qsTr("Printing failed"), qsTr(
+                                  "The page could not be rendered for printing"));
             return;
         }
         if (!PagePrinter.present(destination, window.windowBrowser.activeTitle, window)) {
-            window.showNotice("print_disabled", "Printing failed",
-                              "This desktop has no print dialog to present");
+            window.showNotice("print_disabled", qsTr("Printing failed"), qsTr(
+                                  "This desktop has no print dialog to present"));
         }
     }
 
@@ -1825,7 +1852,8 @@ ApplicationWindow {
         // time the reader has gone back to reading.
         function onKnownExtensionFailed(key, reason) {
             window.extensionFailure = reason;
-            window.showNotice("extension_off", "The extension was not installed", reason, 8000);
+            window.showNotice("extension_off", qsTr("The extension was not installed"), reason,
+                              8000);
         }
     }
 
@@ -1965,8 +1993,8 @@ ApplicationWindow {
         const allowances = window.windowBrowser.thirdPartyCookieAllowances();
         for (let index = 0; index < allowances.length; ++index) {
             rows.push({
-                          "label": "stop allowing " + allowances[index].origin,
-                          "note": "allowed for " + allowances[index].purpose,
+                          "label": qsTr("stop allowing %1").arg(allowances[index].origin),
+                          "note": qsTr("allowed for %1").arg(allowances[index].purpose),
                           "origin": allowances[index].origin,
                           "purpose": ""
                       });
@@ -1976,14 +2004,14 @@ ApplicationWindow {
         const refused = sidebar.refusedThirdParties;
         for (let index = 0; index < refused.length; ++index) {
             rows.push({
-                          "label": "allow " + refused[index] + " for a sign-in",
-                          "note": "until this session ends",
+                          "label": qsTr("allow %1 for a sign-in").arg(refused[index]),
+                          "note": qsTr("until this session ends"),
                           "origin": refused[index],
                           "purpose": "authentication"
                       });
             rows.push({
-                          "label": "allow " + refused[index] + " for a payment",
-                          "note": "until this session ends",
+                          "label": qsTr("allow %1 for a payment").arg(refused[index]),
+                          "note": qsTr("until this session ends"),
                           "origin": refused[index],
                           "purpose": "payment"
                       });
@@ -1997,28 +2025,29 @@ ApplicationWindow {
             return;
         if (row.purpose.length === 0) {
             if (window.windowBrowser.revokeThirdPartyCookieAllowance(row.origin)) {
-                window.showNotice("cookie", "Stopped allowing " + row.origin,
-                                  "it is refused again from the next request", 4200);
+                window.showNotice("cookie", qsTr("Stopped allowing %1").arg(row.origin), qsTr(
+                                      "it is refused again from the next request"), 4200);
             }
             return;
         }
         if (window.windowBrowser.allowThirdPartyCookies(row.origin, row.purpose)) {
-            window.showNotice("cookie", "Allowing " + row.origin, "for a " + (row.purpose
-                                                                              === "payment"
-                                                                              ? "payment" :
-                                                                                "sign-in")
-                              + " · until this session ends · reload the page to use it", 4200);
+            window.showNotice("cookie", qsTr("Allowing %1").arg(row.origin), row.purpose
+                              === "payment" ? qsTr(
+                                                  "for a payment · until this session ends · reload the page to use it") :
+                                              qsTr("for a sign-in · until this session ends · reload the page to use it"),
+                              4200);
         }
     }
 
     function clearSpaceSiteData() {
         const cleared = window.windowBrowser.clearBrowsingData(["cookies", "storage", "cache"], 0);
         const stayed = window.untouchedDataCategories;
-        window.showNotice(cleared ? "delete_sweep" : "block", cleared
-                          ? "Cleared this Space's cookies and cache" :
-                            "Could not clear this Space's site data", cleared && stayed.length > 0
-                          ? stayed.join(" and ") + " stayed: this engine has no way to remove them" :
-                            "");
+        window.showNotice(cleared ? "delete_sweep" : "block", cleared ? qsTr(
+                                                                            "Cleared this Space's cookies and cache") :
+                                                                        qsTr("Could not clear this Space's site data"),
+                          cleared && stayed.length > 0 ? qsTr(
+                                                             "%1 stayed: this engine has no way to remove them").arg(
+                                                             stayed.join(qsTr(" and "))) : "");
     }
 
     function resetSitePermissions() {
@@ -2027,11 +2056,12 @@ ApplicationWindow {
         // Reloading does not take a capability off a page: the engine answers a
         // granted one from a store keyed by the frame that asked, and a reload
         // reuses that frame. Opening the site again is a new frame, and asks.
-        window.showNotice(reset ? "shield_person" : "block", reset
-                          ? "Reset every decision for this site" :
-                            "Could not reset the decisions for this site", reset
-                          ? "a page already holding one keeps it until you open the site again" :
-                            "");
+        window.showNotice(reset ? "shield_person" : "block", reset ? qsTr(
+                                                                         "Reset every decision for this site") :
+                                                                     qsTr("Could not reset the decisions for this site"),
+                          reset ? qsTr(
+                                      "a page already holding one keeps it until you open the site again") :
+                                  "");
     }
 
     // The page the reader is looking at: the tab on show, or the Glance over
@@ -2313,8 +2343,9 @@ ApplicationWindow {
                                       fileName, risk);
             });
             host.downloadRefused.connect(function (sourceUrl, fileName, origin) {
-                window.showNotice("block", "Download refused", fileName + " · " + origin
-                                  + " may not download here", 4200);
+                window.showNotice("block", qsTr("Download refused"), qsTr(
+                                      "%1 · %2 may not download here").arg(fileName).arg(origin),
+                                  4200);
             });
             host.downloadObserversConnected = true;
         }
@@ -2333,8 +2364,8 @@ ApplicationWindow {
                                  totalBytes) {
         window.downloads.started(runtimeId, sourceUrl, pageUrl, path, state, receivedBytes,
                                  totalBytes);
-        window.showNotice("download", "Downloading " + window.downloadFileName(path), String(
-                              sourceUrl), 3000);
+        window.showNotice("download", qsTr("Downloading %1").arg(window.downloadFileName(path)),
+                          String(sourceUrl), 3000);
     }
 
     function localPath(fileUrl) {
@@ -2366,14 +2397,14 @@ ApplicationWindow {
 
     function revealDownload(path) {
         if (!SavedDownload.reveal(path))
-            window.showNotice("block", "Nothing to show",
-                              "The file is no longer where Omaweb put it", 4200);
+            window.showNotice("block", qsTr("Nothing to show"), qsTr(
+                                  "The file is no longer where Omaweb put it"), 4200);
     }
 
     function chooseDownloadDirectory(folderUrl) {
         const path = window.localPath(folderUrl);
         if (!window.windowBrowser.setDownloadDirectory(path))
-            window.showNotice("block", "That directory cannot take downloads", path, 4200);
+            window.showNotice("block", qsTr("That directory cannot take downloads"), path, 4200);
     }
 
     // What the list asks of an engine, and what the window says about what the
@@ -2395,8 +2426,8 @@ ApplicationWindow {
                 window.windowBrowser.openInput(String(sourceUrl), false);
                 return;
             }
-            window.showNotice("block", "This download cannot be retried",
-                              "Ask the page for it again", 4200);
+            window.showNotice("block", qsTr("This download cannot be retried"), qsTr(
+                                  "Ask the page for it again"), 4200);
         }
 
         function onReleaseRequested(downloadNamespace, token, path) {
@@ -2409,18 +2440,22 @@ ApplicationWindow {
             const host = window.downloadHost(downloadNamespace);
             if (host)
                 host.discardHeldDownload(token);
-            window.showNotice("block", "Download discarded", fileName, 3000);
+            window.showNotice("block", qsTr("Download discarded"), fileName, 3000);
         }
 
         function onDownloadCompleted(path, sourceUrl, pageUrl, fileName) {
             const marked = SavedDownload.quarantine(path, sourceUrl, pageUrl);
-            window.showNotice("download_done", "Saved " + fileName, marked ? path : path + " · this filesystem carries no origin metadata",
-                              4200);
+            window.showNotice("download_done", qsTr("Saved %1").arg(fileName), marked ? path : qsTr(
+                                                                                            "%1 · this filesystem carries no origin metadata").arg(
+                                                                                            path), 4200);
         }
 
         function onDownloadFailed(fileName, error) {
-            window.showNotice("error", "Download failed", fileName + (String(error).length > 0
-                                                                      ? " · " + error : ""), 4200);
+            window.showNotice("error", qsTr("Download failed"), String(error).length > 0 ? qsTr(
+                                                                                               "%1 · %2").arg(
+                                                                                               fileName).arg(
+                                                                                               error) : fileName,
+                              4200);
         }
 
         // A save-as question is answered with a path, so it opens the dialog
@@ -2986,9 +3021,10 @@ ApplicationWindow {
                             window.sidebarHiddenForFullscreen = !window.sidebarCollapsed;
                             window.sidebarCollapsed = true;
                             window.applyFullscreen();
-                            window.showNotice("fullscreen", engineLoader.siteFullscreenOrigin
-                                              + " is showing this page fullscreen",
-                                              "press esc to leave", 4200);
+                            window.showNotice("fullscreen", qsTr(
+                                                  "%1 is showing this page fullscreen").arg(
+                                                  engineLoader.siteFullscreenOrigin), qsTr(
+                                                  "press esc to leave"), 4200);
                             return;
                         }
                         window.applyFullscreen();
@@ -3028,18 +3064,18 @@ ApplicationWindow {
                     // the reader would read as having taken something.
                     onPageSiteDataCleared: function (origin, cleared, error) {
                         if (error.length > 0) {
-                            window.showNotice("block", "Could not empty " + origin + "'s storage",
-                                              error, 4200);
+                            window.showNotice("block", qsTr("Could not empty %1's storage").arg(
+                                                  origin), error, 4200);
                             return;
                         }
                         if (cleared.length === 0) {
-                            window.showNotice("delete_sweep", origin + " had nothing stored", "",
-                                              3000);
+                            window.showNotice("delete_sweep", qsTr("%1 had nothing stored").arg(
+                                                  origin), "", 3000);
                             return;
                         }
-                        window.showNotice("delete_sweep", "Emptied " + origin + "'s storage",
-                                          cleared.join(", ")
-                                          + " · cookies are cleared for the whole Space", 4200);
+                        window.showNotice("delete_sweep", qsTr("Emptied %1's storage").arg(origin),
+                                          qsTr("%1 · cookies are cleared for the whole Space").arg(
+                                              cleared.join(", ")), 4200);
                     }
 
                     onBrowserPromptRequested: function (engine, requestId, prompt) {
@@ -3143,7 +3179,7 @@ ApplicationWindow {
                     z: 6
                     colors: window.colors
                     measureFromRight: true
-                    panelName: "Developer tools"
+                    panelName: qsTr("Developer tools")
                     currentWidth: window.developerToolsWidth
                     minimumWidth: window.developerToolsMinimumWidth
                     maximumWidth: window.developerToolsMaximumWidth
@@ -3252,7 +3288,7 @@ ApplicationWindow {
 
                     function onRendererFailed(reason) {
                         window.closeGlance();
-                        window.showNotice("error", "The Glance's page stopped working", reason,
+                        window.showNotice("error", qsTr("The Glance's page stopped working"), reason,
                                           4200);
                     }
                 }
@@ -3429,17 +3465,18 @@ ApplicationWindow {
                     readonly property bool temporary: agentSpaceBar.open
                                                       && window.windowBrowser.temporarySpace(
                                                           window.windowBrowser.activeSpaceId)
-                    message: (agentSpaceBar.creator.length > 0 ? agentSpaceBar.creator :
-                                                                 "An Agent") + " made this Space"
-                    detail: agentSpaceBar.temporary
-                            ? "It goes when the Agent's connection closes. Take it over to keep it." :
-                              "Take it over to make it yours."
+                    message: agentSpaceBar.creator.length > 0 ? qsTr("%1 made this Space").arg(
+                                                                    agentSpaceBar.creator) : qsTr(
+                                                                    "An Agent made this Space")
+                    detail: agentSpaceBar.temporary ? qsTr(
+                                                          "It goes when the Agent's connection closes. Take it over to keep it.") :
+                                                      qsTr("Take it over to make it yours.")
                     actions: [
                         {
-                            "label": "Take over"
+                            "label": qsTr("Take over")
                         },
                         {
-                            "label": "Dismiss"
+                            "label": qsTr("Dismiss")
                         }
                     ]
 
@@ -3478,38 +3515,45 @@ ApplicationWindow {
                     readonly property int policy: window.pendingPermissionType.length > 0
                                                   ? window.windowBrowser.permissionPolicy(
                                                         window.pendingPermissionType) : 0
-                    message: window.pendingPermissionOrigin
-                             + " asked for a protected browser capability"
-                    detail: window.pendingPermissionType + (permissionBar.policy
-                                                            === window.permissionRememberable
-                                                            ? " · " + window.permissionMemory :
-                                                              " · asked every time, never remembered")
+                    message: qsTr("%1 asked for a protected browser capability").arg(
+                                 window.pendingPermissionOrigin)
+                    detail: permissionBar.policy === window.permissionRememberable ? qsTr(
+                                                                                         "%1 · %2").arg(
+                                                                                         window.pendingPermissionType).arg(
+                                                                                         window.permissionMemory) :
+                                                                                     qsTr("%1 · asked every time, never remembered").arg(
+                                                                                         window.pendingPermissionType)
                     actions: permissionBar.policy === window.permissionRememberable ? [
                                                                                           {
-                                                                                              "label": "Allow once",
+                                                                                              "label": qsTr(
+                                                                                                           "Allow once"),
                                                                                               "decision":
                                                                                               1
                                                                                           },
                                                                                           {
-                                                                                              "label": "Always allow",
+                                                                                              "label": qsTr(
+                                                                                                           "Always allow"),
                                                                                               "decision":
                                                                                               2,
                                                                                               "enabled":
                                                                                                   !window.privateWindow
                                                                                           },
                                                                                           {
-                                                                                              "label": "Block",
+                                                                                              "label": qsTr(
+                                                                                                           "Block"),
                                                                                               "decision":
                                                                                               3
                                                                                           }
                                                                                       ] : [
                                                                                           {
-                                                                                              "label": "Allow once",
+                                                                                              "label": qsTr(
+                                                                                                           "Allow once"),
                                                                                               "decision":
                                                                                               1
                                                                                           },
                                                                                           {
-                                                                                              "label": "Block",
+                                                                                              "label": qsTr(
+                                                                                                           "Block"),
                                                                                               "decision":
                                                                                               3
                                                                                           }
@@ -3536,23 +3580,25 @@ ApplicationWindow {
                     backdropSource: window.pageBarBackdropSource
                     open: window.certificateQuestionOpen
                     glyph: "warning"
-                    message: String(window.pendingCertificateFailure.origin || "")
-                             + " could not prove its certificate"
-                    detail: String(window.pendingCertificateFailure.description || "")
-                            + " · local development site · this load only, never remembered"
+                    message: qsTr("%1 could not prove its certificate").arg(String(
+                                                                                window.pendingCertificateFailure.origin
+                                                                                || ""))
+                    detail: qsTr(
+                                "%1 · local development site · this load only, never remembered").arg(
+                                String(window.pendingCertificateFailure.description || ""))
                     // Looking at the certificate answers nothing: the bar stays
                     // for the answer.
                     actions: [
                         {
-                            "label": "Continue once"
+                            "label": qsTr("Continue once")
                         },
                         {
-                            "label": "View certificate",
+                            "label": qsTr("View certificate"),
                             "enabled": (window.pendingCertificateFailure.certificateChain
                                         || []).length > 0
                         },
                         {
-                            "label": "Block"
+                            "label": qsTr("Block")
                         }
                     ]
 
@@ -3582,41 +3628,44 @@ ApplicationWindow {
                     readonly property var held: window.downloadQuestion || ({})
                     readonly property bool automatic: held.disposition
                                                       === BrowserController.AskDownloadPermission
-                    message: downloadQuestionBar.automatic ? String(held.origin || "")
-                                                             + " wants to download files by itself" :
-                                                             String(held.origin || "")
-                                                             + " wants to download " + String(
-                                                                 held.fileName || "")
-                    detail: downloadQuestionBar.automatic ? String(held.fileName || "") + " · "
-                                                            + window.permissionMemory : String(
-                                                                held.risk || "")
-                                                            + " · Omaweb never runs a download"
+                    message: downloadQuestionBar.automatic ? qsTr(
+                                                                 "%1 wants to download files by itself").arg(
+                                                                 String(held.origin || "")) : qsTr(
+                                                                 "%1 wants to download %2").arg(
+                                                                 String(held.origin || "")).arg(
+                                                                 String(held.fileName || ""))
+                    detail: downloadQuestionBar.automatic ? qsTr("%1 · %2").arg(String(
+                                                                                    held.fileName
+                                                                                    || "")).arg(
+                                                                window.permissionMemory) : qsTr(
+                                                                "%1 · Omaweb never runs a download").arg(
+                                                                String(held.risk || ""))
                     actions: downloadQuestionBar.automatic ? [
                                                                  {
-                                                                     "label": "Allow once",
+                                                                     "label": qsTr("Allow once"),
                                                                      "keep": true,
                                                                      "decision": 1
                                                                  },
                                                                  {
-                                                                     "label": "Always allow",
+                                                                     "label": qsTr("Always allow"),
                                                                      "keep": true,
                                                                      "decision": 2,
                                                                      "enabled":
                                                                          !window.privateWindow
                                                                  },
                                                                  {
-                                                                     "label": "Block",
+                                                                     "label": qsTr("Block"),
                                                                      "keep": false,
                                                                      "decision": 3
                                                                  }
                                                              ] : [
                                                                  {
-                                                                     "label": "Download",
+                                                                     "label": qsTr("Download"),
                                                                      "keep": true,
                                                                      "decision": 0
                                                                  },
                                                                  {
-                                                                     "label": "Discard",
+                                                                     "label": qsTr("Discard"),
                                                                      "keep": false,
                                                                      "decision": 0
                                                                  }
@@ -3728,8 +3777,8 @@ ApplicationWindow {
                             window.readKnownExtensions();
                     }
                     onSyncCodeCopied: function (notice) {
-                        window.showNotice("content_copy", notice,
-                                          "Paste it into the authorization page", 3000);
+                        window.showNotice("content_copy", notice, qsTr(
+                                              "Paste it into the authorization page"), 3000);
                     }
                     onSyncConsentRequested: function (url) {
                         window.windowBrowser.openInput(String(url), true);
@@ -3916,7 +3965,7 @@ ApplicationWindow {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: "This page stopped working"
+                            text: qsTr("This page stopped working")
                             color: window.colors.text
                             font.pixelSize: 20
                             font.weight: Font.DemiBold
@@ -3934,8 +3983,8 @@ ApplicationWindow {
                             objectName: "recoverButton"
                             Layout.alignment: Qt.AlignHCenter
                             implicitWidth: 96
-                            label: "Reload"
-                            accessibleName: "Reload crashed page"
+                            label: qsTr("Reload")
+                            accessibleName: qsTr("Reload crashed page")
                             foreground: window.colors.text
                             accent: window.colors.accent
                             background: window.colors.surface
@@ -4396,25 +4445,25 @@ ApplicationWindow {
         label: {
             switch (window.dialogMode) {
             case "new":
-                return "new space";
+                return qsTr("new space");
             case "rename":
-                return "rename space";
+                return qsTr("rename space");
             case "delete":
-                return "delete space";
+                return qsTr("delete space");
             case "move":
-                return "move tab to a space";
+                return qsTr("move tab to a space");
             case "split":
-                return "add split view";
+                return qsTr("add split view");
             case "confirm-move":
-                return "discard edited form state";
+                return qsTr("discard edited form state");
             case "site-storage":
-                return "clear this site's storage";
+                return qsTr("clear this site's storage");
             case "space-data":
-                return "clear this Space's site data";
+                return qsTr("clear this Space's site data");
             case "reset-permissions":
-                return "reset this site's permissions";
+                return qsTr("reset this site's permissions");
             case "third-party":
-                return "third parties on this page";
+                return qsTr("third parties on this page");
             }
             return "";
         }
@@ -4422,49 +4471,45 @@ ApplicationWindow {
         placeholder: {
             switch (window.dialogMode) {
             case "new":
-                return "name the Space";
+                return qsTr("name the Space");
             case "rename":
                 return window.dialogSpaceName;
             case "delete":
-                return "type " + window.dialogSpaceName + " to delete it";
+                return qsTr("type %1 to delete it").arg(window.dialogSpaceName);
             }
             return "";
         }
 
         message: {
             if (window.dialogMode === "delete") {
-                return window.dialogSpaceName + " keeps its tabs, its session, "
-                        + "its logins and its engine data. Deleting it cannot be undone.";
+                return qsTr(
+                            "%1 keeps its tabs, its session, its logins and its engine data. Deleting it cannot be undone.").arg(
+                            window.dialogSpaceName);
             }
             if (window.dialogMode === "confirm-move") {
-                return "This page has edited form state. Moving it reloads the page under the "
-                        + "destination identity and discards those edits.";
+                return qsTr(
+                            "This page has edited form state. Moving it reloads the page under the destination identity and discards those edits.");
             }
             // Each of these names its own scope, because the three of them are
             // three different sizes and only the wording tells them apart.
             if (window.dialogMode === "site-storage") {
-                return sidebar.siteOrigin + " loses the local storage, databases, caches and "
-                        + "service workers it kept in this Space. Its cookies are not included: "
-                        + "the engine can only take those for every site at once. The page may "
-                        + "misbehave until it is reloaded, and this cannot be undone.";
+                return qsTr(
+                            "%1 loses the local storage, databases, caches and service workers it kept in this Space. Its cookies are not included: the engine can only take those for every site at once. The page may misbehave until it is reloaded, and this cannot be undone.").arg(
+                            sidebar.siteOrigin);
             }
             if (window.dialogMode === "space-data") {
-                return "Every site in " + window.windowBrowser.activeSpaceName + " loses its "
-                        + "cookies and cached files, so open sessions there are signed out. "
-                        + "Storage and databases stay: this engine can only take those one site "
-                        + "at a time. This cannot be undone.";
+                return qsTr(
+                            "Every site in %1 loses its cookies and cached files, so open sessions there are signed out. Storage and databases stay: this engine can only take those one site at a time. This cannot be undone.").arg(
+                            window.windowBrowser.activeSpaceName);
             }
             if (window.dialogMode === "reset-permissions") {
-                return sidebar.siteOrigin + " loses every decision made for it in this Space, "
-                        + "and is asked again the next time it wants one. A page already holding "
-                        + "a capability keeps it until the site is opened again — reloading is "
-                        + "not enough.";
+                return qsTr(
+                            "%1 loses every decision made for it in this Space, and is asked again the next time it wants one. A page already holding a capability keeps it until the site is opened again — reloading is not enough.").arg(
+                            sidebar.siteOrigin);
             }
             if (window.dialogMode === "third-party") {
-                return "Sites embedded in this page are refused cookies and storage. Allow "
-                        + "one only when a sign-in or a payment on this page is not working; an "
-                        + "embedded image or script host does not need it. Nothing allowed here "
-                        + "outlives this session.";
+                return qsTr(
+                            "Sites embedded in this page are refused cookies and storage. Allow one only when a sign-in or a payment on this page is not working; an embedded image or script host does not need it. Nothing allowed here outlives this session.");
             }
             return "";
         }
@@ -4472,25 +4517,25 @@ ApplicationWindow {
         confirmHint: {
             switch (window.dialogMode) {
             case "new":
-                return "⏎ create the Space";
+                return qsTr("⏎ create the Space");
             case "rename":
-                return "⏎ rename the Space";
+                return qsTr("⏎ rename the Space");
             case "delete":
-                return "⏎ delete " + window.dialogSpaceName;
+                return qsTr("⏎ delete %1").arg(window.dialogSpaceName);
             case "move":
-                return "↑↓ choose      ⏎ move the tab";
+                return qsTr("↑↓ choose      ⏎ move the tab");
             case "split":
-                return "↑↓ choose      ⏎ show it beside this tab";
+                return qsTr("↑↓ choose      ⏎ show it beside this tab");
             case "confirm-move":
-                return "⏎ discard the edits and move";
+                return qsTr("⏎ discard the edits and move");
             case "site-storage":
-                return "⏎ clear " + sidebar.siteOrigin + "'s storage";
+                return qsTr("⏎ clear %1's storage").arg(sidebar.siteOrigin);
             case "space-data":
-                return "⏎ clear every site's cookies and cache";
+                return qsTr("⏎ clear every site's cookies and cache");
             case "reset-permissions":
-                return "⏎ reset " + sidebar.siteOrigin + "'s permissions";
+                return qsTr("⏎ reset %1's permissions").arg(sidebar.siteOrigin);
             case "third-party":
-                return "↑↓ choose      ⏎ answer for that site";
+                return qsTr("↑↓ choose      ⏎ answer for that site");
             }
             return "";
         }
