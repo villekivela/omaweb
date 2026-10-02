@@ -27,9 +27,7 @@ Item {
     // The Settings interface section's CRT glass over the road.
     property bool glassEnabled: true
     // The reader asked for less motion: the road holds one still frame, with
-    // no clock, no drive and no band or flicker on its glass. The window has
-    // no system setting to read it from yet, so it stays off until one is
-    // bound here.
+    // no clock, no drive and no band or flicker on its glass.
     property bool reducedMotion: false
     // The window is on screen and holds the keyboard.
     property bool windowActive: false

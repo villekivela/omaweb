@@ -1809,8 +1809,8 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
-            if (name === "floating-controls" || name === "glance" || name === "start-page-road"
-                    || name === "start-page-glass")
+            if (name === "floating-controls" || name === "glance" || name === "start-page-road" || name
+                    === "start-page-glass")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
@@ -3298,6 +3298,7 @@ ApplicationWindow {
                     roadReach: inPane ? 0 : chromeRow.seam + chromeRow.pageArrival
                     roadEnabled: window.startPageRoad
                     glassEnabled: window.startPageGlass
+                    reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
                     driving: window.startPageDriving

@@ -8805,7 +8805,7 @@ TestCase {
 
     // A reader who asked for less motion gets a road that holds still: no
     // clock, so no frame is drawn for it, and the glass without its band or
-    // flicker. The window sets it from the system once it can read it.
+    // flicker. The desktop's setting reaches the road through the window.
     function test_reducedMotionHoldsTheRoadStill() {
         const startPage = findChild(window.contentItem, "startPage");
         const glass = findChild(window.contentItem, "crtGlass");
@@ -8815,7 +8815,8 @@ TestCase {
             return startPage.roadRunning;
         });
 
-        startPage.reducedMotion = true;
+        SystemMotion.reduced = true;
+        verify(window.reducedMotion);
         verify(!startPage.roadRunning);
         const frames = startPage.roadFrames;
         wait(250);
@@ -8823,7 +8824,7 @@ TestCase {
         compare(glass.flicker, 0);
         compare(glass.bandStrength, 0);
 
-        startPage.reducedMotion = false;
+        SystemMotion.reduced = false;
         tryVerify(function () {
             return startPage.roadRunning;
         });
