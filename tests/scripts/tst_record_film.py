@@ -321,6 +321,25 @@ class BeatChecks(unittest.TestCase):
         self.assertLess(sum(film.BUDGET.values()), 5_000_000)
 
 
+    def test_every_site_resolving_to_loopback_sets_the_stage(self):
+        film.expect_sites_on_loopback("Sites", lambda host: "127.0.0.1")
+
+    def test_a_site_the_hosts_file_lost_stops_the_film_before_it_starts(self):
+        # A restarted container has a fresh hosts file, and every page would load as an error.
+        def resolve(host):
+            if host == "quillstack.test":
+                raise OSError("Name or service not known")
+            return "127.0.0.1"
+
+        why = self.assertMissed("Sites", film.expect_sites_on_loopback, resolve)
+        self.assertIn("quillstack.test", why)
+        self.assertIn("/etc/hosts", why)
+
+    def test_a_site_resolving_elsewhere_stops_the_film_before_it_starts(self):
+        why = self.assertMissed("Sites", film.expect_sites_on_loopback,
+                                lambda host: "192.0.2.7" if host == "kestrel.test" else "127.0.0.1")
+        self.assertIn("kestrel.test", why)
+
     def test_a_missed_beat_fails_the_command_and_says_which(self):
         missed = film.BeatMissed("Sidebar", "/docs/api/ on quillstack.test did not widen")
         with tempfile.TemporaryDirectory() as directory, \

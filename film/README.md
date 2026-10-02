@@ -50,7 +50,9 @@ Browsers that play AV1 in WebM play VP9 too.
 developer docs site; The Halyard, a magazine with ads; Tallyhaus, an invoicing dashboard; Kestrel,
 the search engine; and AdSprout and PixelMint, the magazine's ad network and tracker. Every name is
 under `.test`, which no real site can hold. The container's hosts file points them at loopback, and
-the script serves them itself. A request for any other name fails the run.
+the script serves them itself. A request for any other name fails the run. Docker writes the hosts
+file afresh when a container starts, so a recording rerun in a restarted container stops before the
+browser starts and names the sites it lost.
 
 The sites are dark, as the website is, so the film reads as one piece with the page around it. The
 trail shoe and the lighthouse are photographs supplied for the film by the project's owner, kept as
