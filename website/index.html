@@ -280,6 +280,31 @@
             <button class="film__play" type="button" aria-label="Play the introduction" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
             </button>
+            <!-- The film's own controls, in place of the browser's, which drive.js removes: play
+               and pause, and a scrubber to seek with. The film is silent, so there is no volume. -->
+            <div class="film__controls" hidden>
+              <button class="film__toggle" type="button" aria-label="Play" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path class="film__glyph-play" d="M8 5v14l11-7z" />
+                  <path class="film__glyph-pause" d="M6 5h4v14H6zM14 5h4v14h-4z" />
+                </svg>
+              </button>
+              <div
+                class="film__scrubber"
+                role="slider"
+                tabindex="0"
+                aria-label="Position in the film"
+                aria-valuemin="0"
+                aria-valuemax="0"
+                aria-valuenow="0"
+                aria-valuetext="0:00 of 0:00"
+              >
+                <div class="film__track"></div>
+              </div>
+              <p class="film__time" aria-hidden="true">
+                <span class="film__elapsed">0:00</span> / <span class="film__total">0:00</span>
+              </p>
+            </div>
           </div>
         </section>
 
