@@ -22,6 +22,13 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 MENU = ROOT / "integrations/elephant/menus/omawebtabs.lua"
 
 
+# Under Hyprland the compositor is asked to focus the window once Omaweb has selected the tab.
+FOCUS = (
+    'omaweb focus -- %s && { [ -z "$HYPRLAND_INSTANCE_SIGNATURE" ]'
+    " || hyprctl dispatch focuswindow 'class:^(omaweb)$' >/dev/null 2>&1; }"
+)
+
+
 def lua_interpreter() -> str:
     named = os.environ.get("OMAWEB_LUA")
     if named:
@@ -217,11 +224,11 @@ class ElephantMenuTest(unittest.TestCase):
 
     def test_focuses_the_chosen_tab_by_its_id(self):
         result = run_menu(answer=answer_of(), act="t1")
-        self.assertEqual(result["execute"], ["omaweb focus -- 't1'"])
+        self.assertEqual(result["execute"], [FOCUS % ("'t1'")])
 
     def test_quotes_an_id_for_the_shell(self):
         result = run_menu(answer=answer_of(), act="a'; touch x; '")
-        self.assertEqual(result["execute"], ["omaweb focus -- 'a'\\''; touch x; '\\'''"])
+        self.assertEqual(result["execute"], [FOCUS % ("'a'\\''; touch x; '\\'''")])
 
     def test_does_nothing_for_the_line_that_says_omaweb_is_not_running(self):
         self.assertEqual(run_menu(answer=answer_of(), act="")["execute"], [])

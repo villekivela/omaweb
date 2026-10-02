@@ -1089,7 +1089,9 @@ AgentControl::ActivityScope AgentControl::activityScope(
             tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
     }
     const auto named = request.value(QStringLiteral("space")).toString();
-    scope.spaceId = named.isEmpty() ? (verb == u"tabs" ? defaultSpace(connection) : QString {})
+    // `tabs --all` is about no one Space.
+    const auto listsOneSpace = verb == u"tabs" && !request.value(QStringLiteral("all")).toBool();
+    scope.spaceId = named.isEmpty() ? (listsOneSpace ? defaultSpace(connection) : QString {})
                                     : findSpace(named);
     scope.spaceName = spaceName(scope.spaceId);
     return scope;
@@ -1876,7 +1878,11 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
 {
     const auto named = request.value(QStringLiteral("space")).toString();
     if (request.value(QStringLiteral("all")).toBool()) {
-        return listAllTabs(connection, !named.isEmpty());
+        if (!named.isEmpty()) {
+            return refusal(QStringLiteral("bad-request"),
+                QStringLiteral("`tabs --all` lists every Space, so it takes no --space."));
+        }
+        return listAllTabs(connection);
     }
     const auto spaceId = named.isEmpty() ? defaultSpace(connection) : findSpace(named);
     if (spaceId.isEmpty()) {
@@ -1905,12 +1911,8 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
 // Every Space's tabs in the order the reader sees them, for a launcher that
 // searches them all. An Auxiliary window has no title to search by, so only
 // tabs are listed.
-QJsonObject AgentControl::listAllTabs(const Connection &connection, bool spaceNamed) const
+QJsonObject AgentControl::listAllTabs(const Connection &connection) const
 {
-    if (spaceNamed) {
-        return refusal(QStringLiteral("bad-request"),
-            QStringLiteral("`tabs --all` lists every Space, so it takes no --space."));
-    }
     QJsonArray tabs;
     const auto *model = m_browser->spaces();
     for (int row = 0; row < model->rowCount(); ++row) {

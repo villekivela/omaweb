@@ -336,8 +336,6 @@ void AgentControlTest::refusesAddressesThatActInsideAPage()
     QCOMPARE(browser->tabs()->rowCount(), 2);
 }
 
-// Browser commands reach every Space, but a pin is the reader's address and a
-// tab no Agent opened is the reader's to close.
 // What the launcher's menu reads: one call, every Space, each tab with the Space it is in.
 void AgentControlTest::listsEverySpacesTabsInOneCall()
 {
@@ -391,6 +389,8 @@ void AgentControlTest::bringsTheWindowForwardWhenItFocusesATab()
     QCOMPARE(forward.count(), 1);
 }
 
+// Browser commands reach every Space, but a pin is the reader's address and a
+// tab no Agent opened is the reader's to close.
 void AgentControlTest::leavesPinnedTabsAndTheReadersTabsAlone()
 {
     QTemporaryDir config;

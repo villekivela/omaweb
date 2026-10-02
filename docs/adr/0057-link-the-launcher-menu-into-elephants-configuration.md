@@ -22,7 +22,9 @@ The package installs a Lua menu under `/usr/share/omaweb/elephant/menus/omawebta
 so the tabs are asked for each time the menu opens, as a static menu would list the tabs of the day
 it was written. It runs `omaweb tabs --all --json`, which answers from the running browser and never
 starts one, and when nothing answers it lists one line saying Omaweb is not running. Choosing a tab
-runs `omaweb focus`, which switches to its Space, selects it and brings the window forward.
+runs `omaweb focus`, which switches to its Space and selects it, and asks the window to come
+forward. A Wayland client cannot take the keyboard from the launcher by asking, so under Hyprland
+the menu then asks the compositor to focus the window with `hyprctl dispatch focuswindow`.
 
 Each entry's text is the tab's title. Beneath it are the address's host, without any user name or
 password the address carries, and the Space's name. The whole address is a search keyword, so a part
@@ -45,6 +47,9 @@ rules, each held by a test:
 - A file the reader put at that path is never replaced, and neither is a link of theirs, dangling or
   not. Omaweb's own link is a symbolic link to a file named `omaweb/elephant/menus/omawebtabs.lua`,
   whichever prefix it names. Nothing else is Omaweb's.
+- A link is Omaweb's by its target's name alone, so a reader's own link to another copy of a file
+  with that path is taken for Omaweb's, and is repointed or removed with it. A reader who wants
+  their own menu there puts it as a file.
 - Its own link is kept as it is when it points at the installed menu, and pointed there when it
   names another or a menu that is gone, as after an upgrade to another prefix.
 - Nothing is linked when the package shipped no menu, as in a build tree.

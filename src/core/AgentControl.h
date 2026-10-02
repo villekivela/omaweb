@@ -339,7 +339,7 @@ private:
 
     QJsonObject listSpaces() const;
     QJsonObject listTabs(Connection &connection, const QJsonObject &request) const;
-    QJsonObject listAllTabs(const Connection &connection, bool spaceNamed) const;
+    QJsonObject listAllTabs(const Connection &connection) const;
     QJsonObject open(const QString &name, Connection &connection, const QJsonObject &request);
     QJsonObject close(Connection &connection, const QJsonObject &request);
     QJsonObject createSpace(const QString &creator, Connection &connection,

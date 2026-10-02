@@ -31,16 +31,20 @@ local function say(text, detail)
     return { { Text = text, Subtext = detail, Value = "" } }
 end
 
+local function notRunning()
+    return say("Omaweb is not running", "Start Omaweb to list its tabs here")
+end
+
 function GetEntries()
     local handle = io.popen("omaweb tabs --all --json 2>/dev/null")
     if not handle then
-        return say("Omaweb is not running", "Start Omaweb to list its tabs here")
+        return notRunning()
     end
     local output = handle:read("*a")
     handle:close()
     local answer = output and output ~= "" and jsonDecode(output) or nil
     if type(answer) ~= "table" then
-        return say("Omaweb is not running", "Start Omaweb to list its tabs here")
+        return notRunning()
     end
     if not answer.ok then
         return say("Omaweb could not list its tabs", oneLine(tostring(answer.error or "")))
@@ -67,11 +71,15 @@ function GetEntries()
     return entries
 end
 
--- Elephant passes the entry's Value. Omaweb selects the tab, switching Space if need be, and
--- brings its window forward.
+-- Elephant passes the entry's Value. Omaweb selects the tab, switching Space if need be. A
+-- Wayland client cannot take the keyboard from the launcher by asking, so under Hyprland the
+-- compositor is asked to focus the window, which also brings its workspace forward.
 function Focus(value)
     if value == nil or value == "" then
         return
     end
-    os.execute("omaweb focus -- '" .. (value:gsub("'", "'\\''")) .. "'")
+    local quoted = "'" .. (value:gsub("'", "'\\''")) .. "'"
+    os.execute("omaweb focus -- " .. quoted
+        .. " && { [ -z \"$HYPRLAND_INSTANCE_SIGNATURE\" ]"
+        .. " || hyprctl dispatch focuswindow 'class:^(omaweb)$' >/dev/null 2>&1; }")
 end
