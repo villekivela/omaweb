@@ -118,6 +118,8 @@ Rectangle {
     property var globalPrivacyControl: null
     // HTTPS-only mode's switch, browser-wide like the one above.
     property var httpsOnly: null
+    // Whether Walker lists Omaweb's tabs, which only a machine with Elephant can do.
+    property var launcherMenu: null
     // Whether the Omnibar asks a search engine for Engine suggestions,
     // browser-wide like the switches above.
     property var engineSuggestions: null
@@ -659,6 +661,21 @@ Rectangle {
                         enabled: root.useFavicons
                         checked: root.tintFavicons
                         onClicked: root.tintFaviconsToggled(!checked)
+                    }
+
+                    SettingToggle {
+                        objectName: "launcherTabs"
+                        visible: !!root.launcherMenu && root.launcherMenu.available
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Show tabs in the launcher")
+                        note: qsTr(
+                                  "Lets Walker list your tabs behind the @ prefix, by linking a menu into Elephant's configuration. Turning this off removes only that link.")
+                        checked: !!root.launcherMenu && root.launcherMenu.enabled
+                        onClicked: {
+                            if (root.launcherMenu)
+                                root.launcherMenu.enabled = !checked;
+                        }
                     }
 
                     // The label and the list it heads are one block: the label

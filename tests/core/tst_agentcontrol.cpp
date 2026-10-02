@@ -142,6 +142,8 @@ private slots:
     void opensATabInTheSpaceOnShowWithoutSelectingIt();
     void keepsACurrentTabForEachConnection();
     void refusesAddressesThatActInsideAPage();
+    void listsEverySpacesTabsInOneCall();
+    void bringsTheWindowForwardWhenItFocusesATab();
     void leavesPinnedTabsAndTheReadersTabsAlone();
     void closesAndLoadsTabsOfASpaceNotOnShow();
     void closesAnAwayTabWhoseSplitPartnerIsGone();
@@ -336,6 +338,59 @@ void AgentControlTest::refusesAddressesThatActInsideAPage()
 
 // Browser commands reach every Space, but a pin is the reader's address and a
 // tab no Agent opened is the reader's to close.
+// What the launcher's menu reads: one call, every Space, each tab with the Space it is in.
+void AgentControlTest::listsEverySpacesTabsInOneCall()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    PrivateSessionFixture privateSession;
+    const auto privateWindow = privateSession.createController();
+    privateWindow->openInput(QStringLiteral("https://private.example/"), false);
+    AgentControl control(browser.get(), config.path());
+
+    const auto answer = ask(
+        control, QStringLiteral("script"), QStringLiteral("tabs"), {{QStringLiteral("all"), true}});
+    QVERIFY(succeeded(answer));
+    const auto tabs = answer.value(QStringLiteral("tabs")).toArray();
+    QCOMPARE(ids(tabs),
+        QStringList({QStringLiteral("personal-pin"), QStringLiteral("personal-tab"),
+            QStringLiteral("work-tab")}));
+    const auto work = tabs.at(2).toObject();
+    QCOMPARE(work.value(QStringLiteral("space")).toString(), QStringLiteral("work"));
+    QCOMPARE(work.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Work"));
+    QCOMPARE(work.value(QStringLiteral("url")).toString(), QStringLiteral("https://work.example/"));
+    QVERIFY(tabs.at(0).toObject().value(QStringLiteral("pinned")).toBool());
+    QVERIFY(!ids(tabs).contains(privateWindow->activeTabId()));
+    // A Space named beside it is a contradiction, not a filter.
+    QCOMPARE(
+        failure(ask(control, QStringLiteral("script"), QStringLiteral("tabs"),
+            {{QStringLiteral("all"), true}, {QStringLiteral("space"), QStringLiteral("Work")}})),
+        QStringLiteral("bad-request"));
+}
+
+// A launcher runs it while another program has the keyboard, so selecting the tab is not enough.
+void AgentControlTest::bringsTheWindowForwardWhenItFocusesATab()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QSignalSpy forward(&control, &AgentControl::windowRequested);
+
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
+    QCOMPARE(forward.count(), 1);
+
+    QCOMPARE(failure(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+                 {{QStringLiteral("target"), QStringLiteral("nothing-like-it")}})),
+        QStringLiteral("not-found"));
+    QCOMPARE(forward.count(), 1);
+}
+
 void AgentControlTest::leavesPinnedTabsAndTheReadersTabsAlone()
 {
     QTemporaryDir config;

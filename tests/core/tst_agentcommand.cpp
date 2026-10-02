@@ -62,6 +62,9 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
                QStringLiteral("--json")}
         << base(QStringLiteral("tabs"), {{QStringLiteral("space"), QStringLiteral("Work")}})
         << true;
+    QTest::newRow("every space's tabs")
+        << QStringList {QStringLiteral("tabs"), QStringLiteral("--all"), QStringLiteral("--json")}
+        << base(QStringLiteral("tabs"), {{QStringLiteral("all"), true}}) << true;
     QTest::newRow("open in a tab") << QStringList {QStringLiteral("open"),
         QStringLiteral("example.com"), QStringLiteral("--tab=t1")}
                                    << base(QStringLiteral("open"),

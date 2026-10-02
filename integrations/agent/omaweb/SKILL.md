@@ -44,7 +44,7 @@ asked again for that Space, so work in an Agent Space instead.
 
 ```sh
 omaweb spaces
-omaweb tabs [--space <id|name>]
+omaweb tabs [--space <id|name> | --all]
 omaweb open <address> [--space <id|name> | --tab <id>] [--new]
 omaweb close [--tab <id>]
 omaweb space <id|name>

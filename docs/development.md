@@ -330,7 +330,7 @@ and 3 when no browser is running:
 
 ```sh
 omaweb spaces
-omaweb tabs [--space <id|name>]
+omaweb tabs [--space <id|name> | --all]
 omaweb open <address> [--space <id|name> | --tab <id>] [--new]
 omaweb close [--tab <id>]
 omaweb space <id|name>

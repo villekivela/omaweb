@@ -73,7 +73,7 @@ namespace {
         }
         if (verb == u"tabs") {
             return {.valued = {space},
-                .flags = {},
+                .flags = {QStringLiteral("all")},
                 .minimumPositionals = 0,
                 .maximumPositionals = 0,
                 .positionalField = {}};

@@ -25,6 +25,7 @@
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "LaunchRequest.h"
+#include "LauncherMenu.h"
 #include "MediaAnnouncer.h"
 #include "OmarchyTheme.h"
 #include "PagePrinter.h"
@@ -395,6 +396,12 @@ int main(int argc, char *argv[])
                                : omaweb::ReleaseWatch::Ask::Never);
     releaseWatch.follow(&browser);
 
+    // Walker's tab menu is linked into Elephant's directory now, and kept so for as long as the
+    // reader leaves it on. A check of the QML is not a browser, so it touches nothing there.
+    auto launcherPaths = omaweb::LauncherMenuPaths::forThisMachine();
+    launcherPaths.elephantInstalled = launcherPaths.elephantInstalled && !validatingQml;
+    omaweb::LauncherMenu launcherMenu(&browser, launcherPaths);
+
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
     omaweb::registerFaviconTint();
@@ -440,6 +447,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
+    engine.rootContext()->setContextProperty(QStringLiteral("launcherMenu"), &launcherMenu);
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(QStringLiteral("httpsOnly"), &httpsOnly);

@@ -155,7 +155,7 @@ jobs:
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
           qt6-shadertools qt6-tools qt6-wayland libsecret libsodium cage wtype dnsmasq
-          gnu-free-fonts
+          gnu-free-fonts lua
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The engine Omaweb ships (ADR 0049) rather than the distribution's, so
       # that what the patch series adds is built and tested here: CNAME
@@ -319,7 +319,7 @@ jobs:
       - name: Install toolchain
         run:
           pacman -Syu --noconfirm git cmake ninja gcc ccache rust qt6-base qt6-declarative
-          qt6-shadertools qt6-tools qt6-webengine libsecret libsodium
+          qt6-shadertools qt6-tools qt6-webengine libsecret libsodium lua
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # Same reason as `arch-linux`: Chromium refuses to start as root with

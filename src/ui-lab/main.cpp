@@ -5,6 +5,7 @@
 #include "ContentBlocker.h"
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
+#include "LauncherMenu.h"
 #include "SecureDns.h"
 #include "WebRtcPolicy.h"
 #include "ReleaseWatch.h"
@@ -479,6 +480,13 @@ int main(int argc, char *argv[])
         QStringLiteral("0.0.1"), omaweb::ReleaseWatch::Ask::Never);
     releaseWatch.showRelease(QStringLiteral("v9.9.9"));
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
+    // The lab pretends Elephant is installed, so the row is there to be reviewed. There is no
+    // packaged menu beside it, so nothing is linked anywhere.
+    static omaweb::LauncherMenu launcherMenu(&browser,
+        {.source = QDir(dataRootPath).filePath(QStringLiteral("no-menu.lua")),
+            .directory = QDir(dataRootPath).filePath(QStringLiteral("elephant/menus")),
+            .elephantInstalled = true});
+    engine.rootContext()->setContextProperty(QStringLiteral("launcherMenu"), &launcherMenu);
     // The switch is reviewed here; what it flips is written under the lab's
     // own data root rather than the reader's configuration.
     static omaweb::GlobalPrivacyControl globalPrivacyControl(dataRootPath);

@@ -129,6 +129,34 @@ Desktop theme following needs no setup. On Omarchy, Omaweb installs its theme te
 start so `omarchy theme set` can update the browser without a restart. See the
 [Omarchy integration guide](integrations/omarchy/README.md) for compositor blur and opacity rules.
 
+## Find tabs from Omarchy's launcher
+
+On Omarchy, Walker can list the tabs of every Space and take you to the one you pick, in whatever
+Space it lives. Omaweb links a menu into `~/.config/elephant/menus/` at startup when Elephant is
+installed, and never replaces a file you put there. Private windows are never listed, and nothing is
+listed while Omaweb is not running.
+
+Reach the menu with a prefix. Add this to `~/.config/walker/config.toml`, then restart Walker:
+
+```toml
+[[providers.prefixes]]
+prefix = "@"
+provider = "menus:omawebtabs"
+```
+
+Omarchy's default configuration gives `@` to web search, and Walker reads one list of prefixes, so
+copy the other prefixes from Omarchy's `config.toml` into yours or pick another character. Then
+press `Super+Space`, type `@` and part of a tab's title or address, and choose the tab.
+
+To open the tabs directly, bind a key in `~/.config/hypr/bindings.conf`. Omaweb ships no binding:
+
+```conf
+bindd = SUPER ALT, T, Omaweb tabs, exec, walker -m menus:omawebtabs
+```
+
+Settings > Tabs has the switch, Show tabs in the launcher. Turning it off removes Omaweb's own link
+and nothing else.
+
 ## Build
 
 Omaweb requires Qt, CMake, Ninja, Clang with C++ support, and ccache. The build configuration

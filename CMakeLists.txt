@@ -262,6 +262,8 @@ add_library(omaweb-core STATIC
     src/core/KeyboardNavigation.h
     src/core/LaunchRequest.cpp
     src/core/LaunchRequest.h
+    src/core/LauncherMenu.cpp
+    src/core/LauncherMenu.h
     src/core/RetainedTab.h
     src/core/SessionSiteState.cpp
     src/core/SessionSiteState.h
@@ -926,6 +928,10 @@ if(OMAWEB_BUILD_BROWSER)
             DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
         install(FILES LICENSE THIRD_PARTY_NOTICES.md
             DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb")
+        # Elephant reads menus only from the reader's own configuration
+        # directory, so Omaweb links this one there when it starts (ADR 0057).
+        install(FILES integrations/elephant/menus/omawebtabs.lua
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/elephant/menus")
         # An Agent skill is a directory named for the skill, which the reader
         # links into their agent's skills directory.
         install(DIRECTORY integrations/agent/omaweb
@@ -1068,6 +1074,17 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_omarchy_drift.py
         )
+        # Elephant's menu that lists Omaweb's tabs is Lua, run here by whatever
+        # interpreter the machine has, so it only exists where one is present.
+        find_program(omaweb_lua NAMES lua lua5.4 lua5.1 luajit)
+        if(omaweb_lua)
+            add_test(NAME omaweb-elephant-menu
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_elephant_menu.py
+            )
+            set_tests_properties(omaweb-elephant-menu PROPERTIES
+                ENVIRONMENT "OMAWEB_LUA=${omaweb_lua}")
+        endif()
         # The release notes group Conventional Commit subjects, and a grouping
         # that drops the scoped half still produces notes that read as whole.
         add_test(NAME omaweb-release-notes
@@ -1383,6 +1400,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-https-only-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-https-only-tests)
     add_test(NAME omaweb-https-only COMMAND omaweb-https-only-tests)
+
+    qt_add_executable(omaweb-launcher-menu-tests tests/core/tst_launchermenu.cpp)
+    target_link_libraries(omaweb-launcher-menu-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-launcher-menu-tests)
+    add_test(NAME omaweb-launcher-menu COMMAND omaweb-launcher-menu-tests)
 
     qt_add_executable(omaweb-secure-dns-tests tests/core/tst_securedns.cpp)
     target_link_libraries(omaweb-secure-dns-tests PRIVATE omaweb-core Qt6::Test)

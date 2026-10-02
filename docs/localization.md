@@ -30,6 +30,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | History        | Historia              |                                                                                                 |
 | Downloads      | Lataukset             |                                                                                                 |
 | Settings       | Asetukset             |                                                                                                 |
+| Launcher       | Käynnistin            | Walker, the Omarchy launcher. GNOME and KDE both use it.                                        |
 
 Add a row when a batch has to translate a new Omaweb term.
 

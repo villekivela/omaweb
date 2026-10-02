@@ -300,10 +300,14 @@ another name's. That guards against one Agent removing another's work by mistake
 because any process can give any name.
 
 Only `space` and `focus` put another Space or tab on show, and only when asked to by name, as a
-keybind does. `open` and the page verbs never do. A tab opened or changed in a Space not on show is
-written to that Space's store, and the frozen page the window still holds for it is dropped, so the
-Space shows the new address when it comes back. A tab is looked for in the Space where the
-connection last saw it before any other Space's store is read.
+keybind does. `focus` also brings the window forward, so a launcher that runs it from another window
+lands the reader on the tab. `tabs --all` lists every Space's tabs in one answer, each with its
+Space's id and name, for the launcher's menu
+([0057](adr/0057-link-the-launcher-menu-into-elephants-configuration.md)). `open` and the page verbs
+never do. A tab opened or changed in a Space not on show is written to that Space's store, and the
+frozen page the window still holds for it is dropped, so the Space shows the new address when it
+comes back. A tab is looked for in the Space where the connection last saw it before any other
+Space's store is read.
 
 `commands` and `run` reach the command registry, which lives in `BrowserCommands.qml`.
 `AgentControl.publicCommands` is the list a script may run: every command but `private-window` and

@@ -837,6 +837,37 @@ TestCase {
     }
 
     QtObject {
+        id: launcherMenuStub
+
+        property bool available: true
+        property bool enabled: true
+    }
+
+    // Walker lists the tabs through Elephant, so the switch is for a machine that has it.
+    function test_theLauncherSwitchIsUnderTabsAndOnlyWhereElephantIsInstalled() {
+        const page = makePage();
+        page.section = page.sections.indexOf("tabs");
+        const toggle = findChild(page, "launcherTabs");
+        verify(toggle !== null);
+        verify(!toggle.visible);
+
+        launcherMenuStub.available = false;
+        page.launcherMenu = launcherMenuStub;
+        verify(!toggle.visible);
+
+        launcherMenuStub.available = true;
+        verify(toggle.visible);
+        verify(toggle.checked);
+        compare(toggle.title, "Show tabs in the launcher");
+        settleAction(toggle);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return !launcherMenuStub.enabled;
+        });
+        verify(!toggle.checked);
+    }
+
+    QtObject {
         id: secureDnsStub
 
         property string resolver: ""
