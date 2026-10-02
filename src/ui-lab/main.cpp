@@ -668,6 +668,48 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // What Settings and Site information say under the reader's locale: the
+    // Settings heading, and the line Site information gives for a window with
+    // no page loaded.
+    if (arguments.contains(QStringLiteral("--report-settings"))) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *root = engine.rootObjects().constFirst();
+        auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
+        auto *connection = root->findChild<QObject *>(QStringLiteral("siteInformationConnection"));
+        if (heading == nullptr || connection == nullptr) {
+            qCritical("Settings or Site information is missing");
+            return 1;
+        }
+        printf("settings_heading=%s\n", qPrintable(heading->property("text").toString()));
+        printf("site_information_state=%s\n", qPrintable(connection->property("text").toString()));
+        fflush(stdout);
+        return 0;
+    }
+
+    // Flips the Floating controls toggle as a reader does and reports what
+    // the browser stored, so a test can check that a setting changed under a
+    // translated chrome is written under its English key and value.
+    if (arguments.contains(QStringLiteral("--report-setting-change"))) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *root = engine.rootObjects().constFirst();
+        auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
+        auto *toggle = root->findChild<QObject *>(QStringLiteral("floatingControls"));
+        if (heading == nullptr || toggle == nullptr) {
+            qCritical("Settings has no Floating controls toggle");
+            return 1;
+        }
+        QMetaObject::invokeMethod(toggle, "clicked");
+        printf("settings_heading=%s\n", qPrintable(heading->property("text").toString()));
+        printf("stored_floating_controls=%s\n",
+            qPrintable(browser.preference(QStringLiteral("floating-controls"))));
+        fflush(stdout);
+        return 0;
+    }
+
     // The row the command panel lists for one command: the title the Omnibar,
     // the Start page and the shortcut sheet show, and the identifier and keys
     // Sync projects, which stay untranslated. A test asks by identifier.
