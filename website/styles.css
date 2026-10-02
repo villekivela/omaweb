@@ -590,15 +590,14 @@ body:has(.drive) > .top {
    stands in front of the sun, so its rim catches the sun's light: warmest and brightest on the top
    edge over the sun, falling off along it and down the sides, the bottom edge left a quiet rule.
    The road's Scene sets the sun's colours and `--scene-glow`, the radio's beat as it swells the
-   sky, which brightens the rim and widens the light; without the script the theme stands in. The
+   sky, which brightens the rim's bloom; without the script the theme stands in. The
    light is an ellipse centred on the sun, whose radius is 15% of the window's height. */
 .omnibar {
   --scene-sun-top: color-mix(in srgb, var(--fg) 60%, #fff);
   --scene-sun-low: color-mix(in srgb, var(--accent) 75%, var(--fg));
   --scene-glow: 0;
   --sunlight: radial-gradient(
-    ellipse calc(78% * (1 + 0.15 * var(--scene-glow))) calc(30svh * (1 + 0.15 * var(--scene-glow)))
-      at 50% var(--horizon, 0px),
+    ellipse 78% 30svh at 50% var(--horizon),
     color-mix(in srgb, var(--scene-sun-top) 55%, #fff) 6%,
     var(--scene-sun-top) 18%,
     var(--scene-sun-low) 46%,
@@ -626,13 +625,15 @@ body:has(.drive) > .top {
   pointer-events: none;
 }
 
-/* The rim's bloom: a wider ring, blurred and added to what is behind it as light is, that the beat
-   lifts. */
+/* The rim's bloom: a wider ring, blurred and added to what is behind it as light is, under the
+   Omnibar's text. The beat lifts only its opacity, which the browser composites without painting
+   it again. */
 .omnibar__glow {
   position: absolute;
   inset: 0;
-  opacity: calc(0.4 + 0.6 * var(--scene-glow));
-  filter: blur(calc(4px + 4px * var(--scene-glow)));
+  z-index: -1;
+  opacity: calc(0.4 + 0.3 * var(--scene-glow));
+  filter: blur(4px);
   mix-blend-mode: plus-lighter;
   pointer-events: none;
 }
@@ -723,16 +724,18 @@ body:has(.drive) > .top {
   font-size: 11px;
 }
 
+/* The way in spans the Omnibar's width: the install on its left edge and the lede filling the rest
+   to its right edge, the two one bar's height. */
 .start__below {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  padding: 0 16px;
+  align-items: stretch;
+  gap: 12px;
+  width: min(100% - 32px, 720px);
 }
 
 .start__install {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 10px;
   padding: 10px 18px;
@@ -743,8 +746,11 @@ body:has(.drive) > .top {
 }
 
 .start__lede {
+  flex: 1;
+  align-content: center;
   margin: 0;
   padding: 7px 12px;
+  text-wrap: balance;
   background: var(--plate);
   font-size: 13px;
 }
@@ -1104,7 +1110,10 @@ kbd {
 
   .start__below {
     flex-direction: column;
+    align-items: center;
     gap: 10px;
+    width: auto;
+    padding: 0 16px;
   }
 }
 

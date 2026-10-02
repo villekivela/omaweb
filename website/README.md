@@ -42,9 +42,10 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 
 ## Scenes
 
-A Scene is the drawing behind the Start page, and nothing else. The host owns its canvas and its
-clock, decides when it may draw, and hands it everything it may know. The browser's Start page is to
-take the same contract (#496), so a reader's own Scene could stand behind both.
+A Scene is the drawing behind the Start page, and nothing else, though it may name the light it
+casts, which the host lays on the page. The host owns its canvas and its clock, decides when it may
+draw, and hands it everything it may know. The browser's Start page is to take the same contract
+(#496), so a reader's own Scene could stand behind both.
 
 ### What a Scene receives
 

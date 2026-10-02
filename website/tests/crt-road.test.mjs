@@ -42,10 +42,11 @@ test("build: the site ships the shared file at the address the page fetches", ()
 // The road lights the page as well as its canvas: the Start page's Omnibar catches the sun at its
 // rim in the sun's colours, brightening with the same beat that swells the sky's glow.
 const retro82 = { ground: "#020c17", text: "#f6dcac", accent: "#faa968", muted: "#3f8f8a" };
+const road = createCrtRoad(parameters);
 const lit = (environment) =>
   lightProperties(
-    createCrtRoad(parameters),
-    sceneInput(createCrtRoad(parameters), {
+    road,
+    sceneInput(road, {
       palette: retro82,
       width: 10,
       height: 10,

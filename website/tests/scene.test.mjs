@@ -189,7 +189,9 @@ test("glass: the band and the flicker take theirs from the shared file", () => {
 // screen; back on screen, it catches up at once.
 test("light: the lit element gets what changed, and nothing while it is off screen", () => {
   const written = [];
-  const light = new SceneLight({ setProperty: (name, value) => written.push([name, value]) });
+  const light = new SceneLight({
+    style: { setProperty: (name, value) => written.push([name, value]) },
+  });
   light.setOnScreen(true);
   light.cast({ "--scene-sun-top": "rgb(250 234 205)", "--scene-glow": "0.00" });
   light.cast({ "--scene-sun-top": "rgb(250 234 205)", "--scene-glow": "0.40" });

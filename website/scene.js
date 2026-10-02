@@ -65,13 +65,19 @@ export function lightProperties(scene, input) {
 
 // The Scene's light on one element of the page, through its style. It writes only what changed,
 // and nothing while the element is off screen, so a frame costs the page no style work it cannot
-// show; back on screen, the element catches up on the latest light.
+// show; back on screen, the element catches up on the latest light. Given an element, it watches
+// whether it is on screen; given only a style, as the tests give it, `setOnScreen` says.
 export class SceneLight {
-  constructor(style) {
-    this.style = style;
+  constructor(element) {
+    this.style = element.style;
     this.onScreen = false;
     this.latest = {};
     this.written = {};
+    if (element.nodeType) {
+      new IntersectionObserver((entries) => {
+        this.setOnScreen(entries[entries.length - 1].isIntersecting);
+      }).observe(element);
+    }
   }
 
   cast(properties) {
@@ -141,12 +147,7 @@ export class SceneHost {
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)");
     this.phone = matchMedia(PHONE);
     this.glass = scene.glass === "crt" && !held ? new CrtGlass(canvas, scene.crt) : null;
-    this.light = lit ? new SceneLight(lit.style) : null;
-    if (lit) {
-      new IntersectionObserver((entries) => {
-        this.light.setOnScreen(entries[entries.length - 1].isIntersecting);
-      }).observe(lit);
-    }
+    this.light = lit && new SceneLight(lit);
 
     new IntersectionObserver((entries) => {
       this.onScreen = entries[entries.length - 1].isIntersecting;
