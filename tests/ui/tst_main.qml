@@ -8486,6 +8486,223 @@ TestCase {
         });
     }
 
+    // Puts one tab away, in a Space of its own. The tab's clock is moved back
+    // a week so that no tab another test left behind is old enough to go with
+    // it, and everything unstamped is stamped first at the real time. Answers
+    // the Space it made and the one it came from, which `endPutAway` returns
+    // to.
+    function putAwayInASpaceOfItsOwn(name, address) {
+        browser.putAwayUnusedTabs();
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace(name);
+        verify(browser.switchSpace(spaceId));
+        browser.openInput(address, false);
+        const lastWeek = Date.now() - 7 * 24 * 3600 * 1000;
+        browser.setNowForTests(lastWeek);
+        browser.openInput("https://put-away-reading.example/", true);
+        // Its page was on show a moment ago and focuses on the next turn; a
+        // reader's tab is never put away that soon after.
+        wait(0);
+        browser.setNowForTests(lastWeek + 24 * 3600 * 1000);
+        browser.putAwayUnusedTabs();
+        browser.setNowForTests(0);
+        compare(browser.putAwayTabs.length, 1);
+        return {
+            "home": home,
+            "spaceId": spaceId,
+            "name": name
+        };
+    }
+
+    function endPutAway(put) {
+        // A tab just reopened focuses its page on the next turn, which has to
+        // find the page still there.
+        wait(0);
+        browser.dismissPutAwayNotice();
+        verify(browser.switchSpace(put.home));
+        wait(0);
+        verify(browser.deleteSpace(put.spaceId, put.name));
+    }
+
+    // The first time Omaweb puts tabs away it says so, once, and the notice is
+    // the way to the setting that chose when.
+    function test_putAwayNoticeSaysSoOnceAndLeadsToTheSetting() {
+        // As an installation that has never put a tab away.
+        verify(browser.setPreference("put-away-notice-given", ""));
+        const put = putAwayInASpaceOfItsOwn("Put away notice", "https://put-away-notice.example/");
+        const bar = findChild(window.contentItem, "putAwayNoticeBar");
+        verify(bar !== null);
+        tryCompare(bar, "open", true);
+        compare(bar.message, "Omaweb puts away tabs you have not shown for a while");
+        // It never takes the keyboard from the page.
+        verify(!bar.activeFocus);
+
+        bar.actionTriggered(0);
+        tryCompare(window, "settingsOpen", true);
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare(settings.sections[settings.section], "interface");
+        tryCompare(findChild(window.contentItem, "putAwayAfter"), "visible", true);
+        tryCompare(bar, "open", false);
+        verify(!browser.putAwayNotice);
+        findChild(window.contentItem, "settingsSection0").Accessible.pressAction();
+        findChild(window.contentItem, "closeSettingsButton").clicked();
+
+        // Once for the installation: the next tab put away says nothing.
+        browser.openInput("https://put-away-notice-again.example/", true);
+        const lastWeek = Date.now() - 7 * 24 * 3600 * 1000;
+        browser.setNowForTests(lastWeek);
+        browser.openInput("https://put-away-reading-again.example/", true);
+        wait(0);
+        browser.setNowForTests(lastWeek + 24 * 3600 * 1000);
+        browser.putAwayUnusedTabs();
+        browser.setNowForTests(0);
+        compare(browser.putAwayTabs.length, 2);
+        verify(!browser.putAwayNotice);
+        verify(!bar.open);
+        endPutAway(put);
+    }
+
+    // The History sheet lists the Space's put-away tabs at the top, newest
+    // first, by title, host and age, and a row opens its tab again.
+    function test_historySheetReopensAPutAwayTab() {
+        const put = putAwayInASpaceOfItsOwn("Put away history",
+                                            "https://put-away-history.example/page");
+        browser.dismissPutAwayNotice();
+        // Visits under the group, as a Space in use has.
+        for (let visit = 0; visit < 12; ++visit)
+            browser.recordVisit("https://put-away-visit.example/" + visit, "Visit " + visit);
+        window.requestHistory();
+        const surface = findChild(window.contentItem, "historySurface");
+        tryVerify(function () {
+            return surface.visible;
+        });
+        const group = findChild(window.contentItem, "historyPutAwayGroup");
+        verify(group !== null);
+        tryCompare(group, "visible", true);
+        // At the top of the sheet where it can be seen, not scrolled out of
+        // the list above its first visit.
+        const historyList = findChild(window.contentItem, "historyList");
+        tryVerify(function () {
+            const top = group.mapToItem(historyList, 0, 0).y;
+            return top >= 0 && top < historyList.height;
+        });
+        compare(findChild(group, "historyPutAwayHeading").text, "put away");
+        const row = findChild(group, "historyPutAwayRow");
+        verify(row !== null);
+        compare(findChild(row, "putAwayHost").text, "put-away-history.example");
+        compare(findChild(row, "putAwayAge").text, "6 days ago");
+
+        // The search narrows them as it narrows the visits.
+        const search = findChild(window.contentItem, "historySearch");
+        search.text = "nothing-put-away-matches";
+        tryCompare(group, "visible", false);
+        search.text = "put-away-history";
+        tryCompare(group, "visible", true);
+
+        // The search built the rows again.
+        const reopen = findChild(findChild(group, "historyPutAwayRow"), "reopenPutAwayButton");
+        settleActions(reopen);
+        const miss = clickReportingAMiss(reopen, function () {
+            return !window.historyOpen;
+        });
+        compare(miss, "");
+        tryCompare(window, "historyOpen", false);
+        compare(String(browser.activeUrl), "https://put-away-history.example/page");
+        compare(browser.putAwayTabs.length, 0);
+        endPutAway(put);
+    }
+
+    // The Omnibar finds a put-away tab as it finds History, and choosing it
+    // opens the tab again.
+    function test_omnibarReopensAPutAwayTab() {
+        const put = putAwayInASpaceOfItsOwn("Put away omnibar",
+                                            "https://put-away-omnibar.example/");
+        browser.dismissPutAwayNotice();
+        window.openOmnibar(true);
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        input.text = "put-away-omni";
+        function putAwayRow() {
+            for (let index = 0; index < panel.rows.length; ++index) {
+                if (panel.rows[index].kind === "putaway")
+                    return index;
+            }
+            return -1;
+        }
+        tryVerify(function () {
+            return putAwayRow() >= 0;
+        });
+        compare(panel.rows[putAwayRow()].url, "https://put-away-omnibar.example/");
+        panel.selected = putAwayRow();
+        panel.accept();
+        tryCompare(panel, "open", false);
+        compare(String(browser.activeUrl), "https://put-away-omnibar.example/");
+        compare(browser.putAwayTabs.length, 0);
+        endPutAway(put);
+    }
+
+    // A row in the hand is in use, however long its tab has gone unshown, and
+    // it goes once the hand lets it go.
+    function test_draggedRowIsNotPutAway() {
+        browser.putAwayUnusedTabs();
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Put away drag");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://put-away-dragged.example/", false);
+        const draggedId = browser.activeTabId;
+        const lastWeek = Date.now() - 7 * 24 * 3600 * 1000;
+        browser.setNowForTests(lastWeek);
+        browser.openInput("https://put-away-held-reading.example/", true);
+        wait(0);
+        browser.setNowForTests(0);
+
+        settleRow(findChild(window.contentItem, "tab-" + draggedId));
+        const row = findChild(window.contentItem, "tab-" + draggedId);
+        verify(row !== null);
+        const grabbed = row.mapToItem(window.contentItem, row.width / 2, row.height / 2);
+        mousePress(row, row.width / 2, row.height / 2);
+        dragRowBy(grabbed, row.height / 2);
+        verify(row.lifted);
+
+        browser.setNowForTests(lastWeek + 24 * 3600 * 1000);
+        browser.putAwayUnusedTabs();
+        compare(browser.putAwayTabs.length, 0);
+
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y + row.height / 2);
+        // Carrying a row is not choosing it.
+        verify(browser.activeTabId !== draggedId);
+        browser.putAwayUnusedTabs();
+        browser.setNowForTests(0);
+        compare(browser.putAwayTabs.length, 1);
+        compare(String(browser.putAwayTabs[0].url), "https://put-away-dragged.example/");
+
+        browser.dismissPutAwayNotice();
+        verify(browser.switchSpace(home));
+        wait(0);
+        verify(browser.deleteSpace(spaceId, "Put away drag"));
+    }
+
+    // Settings offers when unused tabs go, from never to a week, and twelve
+    // hours until the reader chooses.
+    function test_settingsChoosesWhenUnusedTabsArePutAway() {
+        window.requestSettings();
+        railSection("interface").Accessible.pressAction();
+        const choice = findChild(window.contentItem, "putAwayAfter");
+        verify(choice !== null);
+        tryCompare(choice, "visible", true);
+        compare(choice.value, "43200");
+        compare(choice.options.map(function (option) {
+            return option.label;
+        }), ["Off", "1 hour", "12 hours", "1 day", "1 week"]);
+        choice.changed("3600");
+        compare(browser.putAwayAfterSeconds, 3600);
+        tryCompare(choice, "value", "3600");
+        choice.changed("43200");
+        compare(browser.putAwayAfterSeconds, 43200);
+        findChild(window.contentItem, "settingsSection0").Accessible.pressAction();
+        findChild(window.contentItem, "closeSettingsButton").clicked();
+    }
+
     // Show agent activity opens the log as a page of its own, in a new tab,
     // newest first and filtered by Agent and by Space.
     function test_showAgentActivityOpensTheLogInANewTab() {

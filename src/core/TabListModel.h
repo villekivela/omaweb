@@ -53,6 +53,12 @@ struct TabState {
     // this is what a split comes back with when the reader returns to its row
     // from another tab.
     bool splitFocused = false;
+    // When the tab was last on show, in milliseconds since the epoch, by the
+    // wall clock, so the count runs on across sleep, a restart and time spent
+    // in another Space. 0 is a tab that has no record yet, as one stored
+    // before the record existed, and it counts from the first check that
+    // finds it. What puts an unused tab away; Sync never reads it.
+    qint64 lastShownAt = 0;
     QString rendererFailureReason {};
 };
 

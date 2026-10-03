@@ -35,6 +35,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Engine           | Moottori              | The web engine that renders pages.                                                              |
 | Sync             | Synkronointi          | The feature and its settings section. Inflect it: "synkronoinnin".                              |
 | Site information | Sivuston tiedot       | The panel under the address. Its own labels are lowercase, as the English ones are.             |
+| Put away         | Siirtää sivuun        | What Omaweb does with an unused tab. The list is "sivuun siirretyt".                            |
 
 Add a row when a batch has to translate a new Omaweb term.
 

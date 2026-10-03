@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PutAwayTab.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 
@@ -85,6 +86,11 @@ public:
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
     virtual QVector<TabState> loadClosedTabs(const QString &spaceId) const = 0;
     virtual bool recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) = 0;
+    // The tabs Omaweb put away in a Space, newest first. Kept beside the
+    // closed-tab stack and like it outside the Sync projection; the whole
+    // list is written at once.
+    virtual QVector<PutAwayTab> loadPutAwayTabs(const QString &spaceId) const = 0;
+    virtual bool recordPutAwayTabs(const QString &spaceId, const QVector<PutAwayTab> &tabs) = 0;
     virtual bool saveTab(const TabState &tab, int position) = 0;
     virtual bool saveTabs(
         const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) = 0;
