@@ -3775,6 +3775,48 @@ TestCase {
         return single;
     }
 
+    // A key cap is the website's `kbd`, whichever surface draws it: 22 px
+    // tall and no narrower, with a 4 px radius, the key in the accent in the
+    // mono face at weight 500 and 12 px, all scaled with the interface font.
+    function checkKeycap(cap, name) {
+        const unit = Style.font.body / 12;
+        verify(cap !== null, name);
+        compare(cap.height, 22 * unit, name);
+        verify(cap.width >= 22 * unit, name);
+        compare(cap.radius, 4 * unit, name);
+        const label = findChild(cap, "keycapLabel");
+        compare(label.font.pixelSize, 12 * unit, name);
+        compare(label.font.weight, Font.Medium, name);
+        compare(String(label.color), String(window.colors.accent), name);
+        compare(label.font.family, Style.font.family, name);
+    }
+
+    // The keys the chrome shows, on the Start page's hint and over the
+    // controls while Primary is held, are drawn as that key cap.
+    function test_everyKeyLabelInTheChromeIsTheWebsitesKeycap() {
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting caps");
+        tryVerify(function () {
+            return findChild(window.contentItem, "startPageHint").visible;
+        });
+        checkKeycap(findChild(findChild(window.contentItem, "startPageHint"), "keycap"), "hint");
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
+
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        openPage("https://caps.example/");
+        window.commands.run("focus-page", -1);
+        keyPress(Qt.Key_Control);
+        const label = findChild(window.contentItem, "keyLabel-backButton");
+        tryVerify(function () {
+            return label.visible;
+        });
+        checkKeycap(findChild(label, "keycap"), "Primary held");
+        keyRelease(Qt.Key_Control);
+    }
+
     // Holding Primary on its own labels the chrome with the keys that run it.
     // A chord on Primary is labelled by the key that finishes it, and a key
     // pressed without Primary is labelled as itself. The labels go the moment
@@ -9341,6 +9383,8 @@ TestCase {
         if (data.text) {
             const changed = Object.assign({}, window.colors);
             changed.text = data.text;
+            // What ThemeController derives from the text for the field.
+            changed.fieldText = data.text;
             changed.overlay = data.overlay;
             window.colors = changed;
         }

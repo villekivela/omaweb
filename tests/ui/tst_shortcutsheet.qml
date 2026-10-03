@@ -126,24 +126,15 @@ TestCase {
         }
     }
 
-    FontMetrics {
-        id: keyMetrics
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body
-        font.bold: true
-    }
-
-    // What the longest binding actually paints, rather than what it advances
-    // by. A column reserved from the advance alone can still elide the one
-    // chord it was measured from, and eliding the longest key is the failure
-    // the measurement exists to prevent.
-    Text {
+    // What the longest binding actually paints: its keys as a row of caps, as
+    // the sheet draws them. A column reserved from the advance alone can still
+    // cut off the one chord it was measured from, and that is the failure the
+    // column exists to avoid.
+    Omaweb.KeyCaps {
         id: keyProbe
         visible: false
-        text: testCase.longestKeys
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body
-        font.bold: true
+        keys: testCase.longestKeys
+        colors: testCase.colorsFixture
     }
 
     // Both axes the theme can move the sheet along, shared with the other
@@ -180,6 +171,45 @@ TestCase {
         return liveSheet;
     }
 
+    // Every item under `item` named `name`.
+    function descendants(item, name) {
+        let found = [];
+        const below = item.contentItem ? [item.contentItem].concat(Array.from(item.children)) :
+                                         Array.from(item.children);
+        for (const child of below) {
+            if (child.objectName === name)
+                found.push(child);
+            found = found.concat(descendants(child, name));
+        }
+        return found;
+    }
+
+    // Each binding is a row of the website's key caps, one cap to a key, so a
+    // chord of four keys is four caps and the column holds the widest row.
+    function test_everyBindingIsARowOfKeyCaps() {
+        const sheet = makeSheet();
+        const rows = descendants(sheet, "keycaps");
+        verify(rows.length > 0);
+        let longest = 0;
+        for (const row of rows) {
+            // The rulers that measure the rows hold no key.
+            if (row.keys.length === 0)
+                continue;
+            const caps = descendants(row, "keycap").filter(function (cap) {
+                return cap.text.length > 0;
+            });
+            compare(caps.length, row.parts.length);
+            for (const cap of caps) {
+                compare(cap.height, 22 * Style.font.body / 12);
+                verify(cap.width >= 22 * Style.font.body / 12);
+                compare(String(findChild(cap, "keycapLabel").color), String(
+                            testCase.colorsFixture.accent));
+            }
+            longest = Math.max(longest, row.parts.length);
+        }
+        compare(longest, testCase.longestKeys.split("+").length);
+    }
+
     // The key column is the widest binding the keymap actually sets, measured
     // in the face it is drawn in — and wide enough for what that binding
     // paints, not merely for what it advances by.
@@ -188,8 +218,7 @@ TestCase {
         verify(sheet.keyColumnWidth >= Math.ceil(keyProbe.implicitWidth));
         // And no wider than that binding needs: the rest of the row is title.
         // One body glyph of slack is the most a rounded measurement can add.
-        verify(sheet.keyColumnWidth <= Math.ceil(keyMetrics.advanceWidth(testCase.longestKeys))
-               + Style.font.body);
+        verify(sheet.keyColumnWidth <= Math.ceil(keyProbe.implicitWidth) + Style.font.body);
     }
 
     // Everything on the row grows with the type, so the column that holds it

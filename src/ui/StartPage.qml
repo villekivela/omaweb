@@ -120,14 +120,14 @@ Item {
     }
 
     // The Shortcut sheet is summoned, not shown, so the page names the key:
-    // a keycap in the accent and the word beside it, on a plate of the road's
-    // dark so it reads over the lit horizon as well as the ground.
+    // a key cap, as the website draws its `kbd`, and the word beside it, on a
+    // plate of the road's dark so it reads over the lit horizon as well as the
+    // ground.
     Rectangle {
         id: hint
         objectName: "startPageHint"
 
         readonly property bool onRoad: root.roadEnabled && !!road.sceneItem
-        readonly property color keyColor: onRoad ? road.sceneItem.roles.glow : root.colors.accent
         readonly property color wordColor: onRoad ? road.sceneItem.roles.light : root.colors.text
 
         anchors.horizontalCenter: parent.horizontalCenter
@@ -145,25 +145,11 @@ Item {
             anchors.centerIn: parent
             spacing: Style.spacing.md
 
-            Rectangle {
-                width: Math.max(height, keyText.implicitWidth + Style.spacing.md)
-                height: keyText.implicitHeight + Style.spacing.xs * 2
+            KeyCap {
                 anchors.verticalCenter: parent.verticalCenter
-                radius: 3
-                color: "transparent"
-                border.width: 1
-                border.color: hint.keyColor
-
-                Text {
-                    id: keyText
-                    anchors.centerIn: parent
-                    text: "?"
-                    color: hint.keyColor
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.body
-                    font.bold: true
-                    Accessible.ignored: true
-                }
+                colors: root.colors
+                text: "?"
+                plate: hint.onRoad ? "black" : root.colors.windowOpaque
             }
 
             Text {
