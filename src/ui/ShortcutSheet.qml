@@ -446,6 +446,7 @@ Rectangle {
                                             anchors.verticalCenter: parent.verticalCenter
                                             colors: root.colors
                                             plate: root.colors.windowOpaque
+                                            drawn: root.open
                                             keys: entryRow.modelData.keys
                                         }
 
