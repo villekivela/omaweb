@@ -19,6 +19,7 @@ or SQL, not the chrome's, are named in `CPP_NOT_CHROME`.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -29,9 +30,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNED = ("src/ui", "src/ui-lab", "src/engine/qt")
-
-# Files a localization ticket has not wrapped yet. Empty now that every chrome file is.
-OWNED_BY_OTHER_TICKETS: set[str] = set()
 
 # Content the lab's stand-in engine draws as the web page, not as the chrome.
 NOT_CHROME = {"MockEngineView.qml": ("samplePage", "documentReview")}
@@ -185,7 +183,7 @@ def scan(root: Path) -> list[str]:
     report = []
     for directory in SCANNED:
         for path in sorted((root / directory).rglob("*.qml")):
-            if path.name in OWNED_BY_OTHER_TICKETS or path.name in NOT_CHROME:
+            if path.name in NOT_CHROME:
                 continue
             for line, literal in violations(path, path.read_text(encoding="utf-8")):
                 report.append(f"{path.relative_to(root)}:{line}: {literal!r}")
@@ -247,7 +245,7 @@ def out_of_date(lupdate: Path, root: Path, catalogue: Path) -> list[str]:
         shutil.copy(catalogue, refreshed)
         subprocess.run(
             [str(lupdate), "-locations", "none", "-no-obsolete", "-silent"]
-            + [name for name in SCANNED_CPP]
+            + list(SCANNED_CPP)
             + ["-ts", str(refreshed)],
             cwd=root,
             check=True,
@@ -258,7 +256,20 @@ def out_of_date(lupdate: Path, root: Path, catalogue: Path) -> list[str]:
     ]
 
 
+def report_all(root: Path) -> list[str]:
+    """Every problem the gate reports, which is what the test asserts piece by piece."""
+    catalogue = root / "translations" / "omaweb_fi.ts"
+    problems = scan(root)
+    problems += [f"untranslated: {entry}" for entry in untranslated(catalogue)]
+    lupdate = os.environ.get("OMAWEB_LUPDATE") or shutil.which("lupdate")
+    if lupdate:
+        problems += out_of_date(Path(lupdate), root, catalogue)
+    else:
+        print("no lupdate found: the catalogue was not compared with the sources", file=sys.stderr)
+    return problems
+
+
 if __name__ == "__main__":
-    problems = scan(ROOT)
+    problems = report_all(ROOT)
     print("\n".join(problems))
     sys.exit(1 if problems else 0)

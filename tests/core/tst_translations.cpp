@@ -140,8 +140,6 @@ void TranslationsTests::theInstalledDirectoryComesBeforeTheBuildTree()
     QCOMPARE(omaweb::catalogueDirectories({}).size(), 1);
 }
 
-// The UI reads errorMessage as a property, so what it shows is what C++ composed. The same
-// refusal under no catalogue is the English source, which the other tests rely on.
 void TranslationsTests::theVariableThatChoseTheLocaleIsNamed()
 {
     qputenv("LANG", "sv_SE.UTF-8");
@@ -182,6 +180,8 @@ void TranslationsTests::theShippedLanguagesAreNamedInTheirOwnLanguage()
         (QStringList {QStringLiteral("English"), QStringLiteral("Suomi")}));
 }
 
+// The UI reads errorMessage as a property, so what it shows is what C++ composed. The same
+// refusal under no catalogue is the English source, which the other tests rely on.
 void TranslationsTests::aRefusalFromCppReachesTheUiInFinnish()
 {
     const auto refusal = [] {

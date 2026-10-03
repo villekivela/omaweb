@@ -63,9 +63,10 @@ The `omaweb-wrapped-strings` test, part of `ctest --preset ci`, fails the build 
   keeps one they no longer do. Refresh it with
   `cmake --build --preset ui --target update_translations`, then translate the new entries.
 
-`scripts/check_wrapped_strings.py` prints the same report without a build. The scan is a heuristic
-over source text and reads one-word C++ strings and a QML property it does not know as English, so
-review remains responsible for those.
+`scripts/check_wrapped_strings.py` prints the same report without a build. The comparison with the
+sources needs `lupdate`, which the test takes from the build and the script from `PATH`. The scan is
+a heuristic over source text and reads one-word C++ strings and a QML property it does not know as
+English, so review remains responsible for those.
 
 ## Required gates
 
