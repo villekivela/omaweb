@@ -313,6 +313,35 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(crossed, 0)
 
 
+class RecordTest(unittest.TestCase):
+    """`--record` writes the budget back as one machine's measurements, not another's."""
+
+    def test_the_budget_names_the_machine_that_recorded_it(self):
+        budget = {
+            "machine": "a runner",
+            "recorded_on": "2026-09-28",
+            "measurements": {"startup_seconds": {"ceiling": 3.0, "recorded": 0.69}},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "budget.json"
+            # `append` binds the history's path when it is defined, so it is replaced rather than
+            # pointed elsewhere, or the test writes into the repository's history. `HISTORY` and
+            # `ROOT` are still moved, because the closing log line names both paths.
+            with mock.patch.object(runtime, "BUDGET", path), \
+                    mock.patch.object(runtime, "ROOT", Path(directory)), \
+                    mock.patch.object(runtime.history, "HISTORY", Path(directory) / "h.jsonl"), \
+                    mock.patch.object(runtime.history, "append") as append, \
+                    mock.patch.object(runtime.history, "read_version", return_value={}), \
+                    mock.patch.object(runtime.history, "describe_engine", return_value={}), \
+                    mock.patch.object(runtime.history, "omaweb_commit", return_value=""), \
+                    mock.patch.object(runtime, "log"):
+                runtime.record({"startup_seconds": 0.55}, budget, "omaweb", "a laptop")
+            written = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(append.call_args.args[0]["machine"], "a laptop")
+        self.assertEqual(written["machine"], "a laptop")
+        self.assertEqual(written["measurements"]["startup_seconds"]["recorded"], 0.55)
+
+
 class RequireDnsTest(unittest.TestCase):
     """Where no DNS server can run, pageload skips, unless CI said it may not."""
 

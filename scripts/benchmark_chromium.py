@@ -622,7 +622,10 @@ def command_line(spec: BrowserSpec, root: str, port: int, url: str) -> tuple[lis
 
     Omaweb's GL flags are the engine's, which it reads from `QTWEBENGINE_CHROMIUM_FLAGS` and not
     from its own arguments. Chromium's configuration home is a scratch one, because Arch's launcher
-    reads `chromium-flags.conf` from it, and a reader's flags file can load extensions.
+    reads `chromium-flags.conf` from it, and a reader's flags file can load extensions. Chromium is
+    told to draw on Wayland rather than left to choose, because its choice follows
+    `XDG_SESSION_TYPE`, which a terminal or container session does not set, and it then exits
+    looking for an X server while Omaweb draws on the Wayland display beside it.
     """
     environment = dict(os.environ)
     if spec.is_omaweb:
@@ -639,7 +642,7 @@ def command_line(spec: BrowserSpec, root: str, port: int, url: str) -> tuple[lis
     environment["XDG_CONFIG_HOME"] = os.path.join(root, "config")
     return ([spec.executable, f"--user-data-dir={os.path.join(root, 'profile')}",
              f"--remote-debugging-port={port}", "--no-first-run", "--no-default-browser-check",
-             "--password-store=basic", "--ozone-platform-hint=auto", *spec.flags.split(), url],
+             "--password-store=basic", "--ozone-platform=wayland", *spec.flags.split(), url],
             environment)
 
 

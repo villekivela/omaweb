@@ -1405,8 +1405,11 @@ Each launch gets a fresh profile. Omaweb runs on scratch data and configuration 
 no `sync.json` and none of the reader's settings, and its content-blocking lists are seeded from
 `third_party/filter-lists` so a first run does not fetch and compile them during a suite. Chromium
 gets a scratch `--user-data-dir`, and a scratch `XDG_CONFIG_HOME` so that Arch's launcher reads no
-`chromium-flags.conf`, where a reader may have added extensions. The harness drives Omaweb over
-`--remote-debugging=<port>` and Chromium over `--remote-debugging-port`.
+`chromium-flags.conf`, where a reader may have added extensions. Chromium is told to draw on Wayland
+with `--ozone-platform=wayland`, as Omaweb does: its own choice follows `XDG_SESSION_TYPE`, which a
+session started from a terminal or a container does not set, and it would then exit looking for an X
+server. The harness drives Omaweb over `--remote-debugging=<port>` and Chromium over
+`--remote-debugging-port`.
 
 Omaweb's GL flags come from `QTWEBENGINE_CHROMIUM_FLAGS`, as they do at every launch, and by default
 the harness passes the same GL flags to both Chromiums, so all three browsers composite the same

@@ -1522,7 +1522,9 @@ def record(results: dict, budget: dict, executable: str, machine: str) -> None:
     ratchets itself out of existence.
 
     The budget keeps only this recording, so the history is where a number drifting towards its
-    ceiling shows. The line is written first, from the ceilings the run was held to.
+    ceiling shows. The line is written first, from the ceilings the run was held to. The machine
+    is written with the measurements, because a number recorded on one machine under the name of
+    another says that machine was faster or slower than it was.
     """
     version = history.read_version(executable).get("omaweb", "")
     history.append(history.budget_record(
@@ -1530,6 +1532,7 @@ def record(results: dict, budget: dict, executable: str, machine: str) -> None:
         machine=machine, engine=history.describe_engine(executable), omaweb=version))
     for name, value in results.items():
         budget["measurements"][name]["recorded"] = round(value, 2)
+    budget["machine"] = machine
     budget["recorded_on"] = datetime.date.today().isoformat()
     with open(BUDGET, "w", encoding="utf-8") as handle:
         json.dump(budget, handle, indent=2)

@@ -212,6 +212,13 @@ class LaunchTest(unittest.TestCase):
         self.assertIn("--use-gl=egl", command)
         self.assertEqual(command[-1], "http://x/")
 
+    # Left to choose, Chromium follows XDG_SESSION_TYPE; see command_line.
+    def test_chromium_draws_on_the_wayland_display_omaweb_does(self):
+        spec = compare.BrowserSpec(history.MATCHED, "/opt/chrome", "")
+        command, _ = compare.command_line(spec, "/tmp/run", 9302, "http://x/")
+        self.assertIn("--ozone-platform=wayland", command)
+        self.assertFalse(any(flag.startswith("--ozone-platform-hint") for flag in command))
+
 
 class FlagsTest(unittest.TestCase):
     """All three browsers draw the same way unless the reader says otherwise."""
