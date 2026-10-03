@@ -1355,7 +1355,7 @@
     </message>
     <message>
         <source>A Private window is never an Agent&apos;s</source>
-        <translation>Yksityinen ikkuna ei ole koskaan agentin</translation>
+        <translation>Yksityinen ikkuna ei ole koskaan Agentin</translation>
     </message>
     <message>
         <source>Omaweb could not find %1</source>
@@ -1615,7 +1615,7 @@
     </message>
     <message>
         <source>Agents can then read and act in pages, and ask once for each of your Spaces they use.</source>
-        <translation>Agentit voivat silloin lukea sivuja ja toimia niissä, ja ne kysyvät kerran jokaisesta tilastasi, jota käyttävät.</translation>
+        <translation>Agentit voivat silloin lukea sivuja ja toimia niissä, ja ne kysyvät kerran jokaisesta Tilastasi, jota käyttävät.</translation>
     </message>
     <message>
         <source>Turn on</source>
