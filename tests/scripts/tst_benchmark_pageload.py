@@ -325,7 +325,8 @@ class RecordTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "budget.json"
             # `append` binds the history's path when it is defined, so it is replaced rather than
-            # pointed elsewhere, or the test writes into the repository's history.
+            # pointed elsewhere, or the test writes into the repository's history. `HISTORY` and
+            # `ROOT` are still moved, because the closing log line names both paths.
             with mock.patch.object(runtime, "BUDGET", path), \
                     mock.patch.object(runtime, "ROOT", Path(directory)), \
                     mock.patch.object(runtime.history, "HISTORY", Path(directory) / "h.jsonl"), \
