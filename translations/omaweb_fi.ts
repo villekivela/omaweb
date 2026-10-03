@@ -1007,7 +1007,7 @@
     <message>
         <source>put away</source>
         <comment>History sheet group: tabs Omaweb put away</comment>
-        <translation>syrjään pannut</translation>
+        <translation>sivuun siirretyt</translation>
     </message>
     <message>
         <source>Reopen</source>
@@ -1635,11 +1635,11 @@
     </message>
     <message>
         <source>Omaweb puts away tabs you have not shown for a while</source>
-        <translation>Omaweb panee syrjään välilehdet, joita et ole näyttänyt vähään aikaan</translation>
+        <translation>Omaweb siirtää sivuun välilehdet, joita et ole näyttänyt vähään aikaan</translation>
     </message>
     <message>
         <source>The ones it put away wait in History and the Omnibar for 30 days. Settings chooses how long a while is, or turns it off.</source>
-        <translation>Syrjään pannut odottavat Historiassa ja Omnibarissa 30 päivää. Asetuksissa valitset, kuinka pitkä aika se on, tai otat toiminnon pois käytöstä.</translation>
+        <translation>Sivuun siirretyt odottavat Historiassa ja Omnibarissa 30 päivää. Asetuksissa valitset, kuinka pitkä aika se on, tai otat toiminnon pois käytöstä.</translation>
     </message>
     <message>
         <source>Change in Settings</source>
@@ -1917,7 +1917,7 @@
     </message>
     <message>
         <source>Reopen put-away tab %1</source>
-        <translation>Avaa syrjään pantu välilehti %1 uudelleen</translation>
+        <translation>Avaa sivuun siirretty välilehti %1 uudelleen</translation>
     </message>
     <message>
         <source>Search %1</source>
@@ -2416,11 +2416,11 @@
     </message>
     <message>
         <source>Put away unused tabs</source>
-        <translation>Pane käyttämättömät välilehdet syrjään</translation>
+        <translation>Siirrä käyttämättömät välilehdet sivuun</translation>
     </message>
     <message>
         <source>An ordinary tab you have not shown for this long closes into its Space&apos;s put-away list, in History and the Omnibar, for 30 days. Pinned tabs, a split, a tab making sound and an Agent tab stay.</source>
-        <translation>Tavallinen välilehti, jota et ole näyttänyt näin pitkään aikaan, sulkeutuu Tilansa syrjään pannuihin, jotka löytyvät Historiasta ja Omnibarista 30 päivän ajan. Kiinnitetyt välilehdet, jaettu näkymä, ääntä toistava välilehti ja Agentin välilehti jäävät.</translation>
+        <translation>Tavallinen välilehti, jota et ole näyttänyt näin pitkään aikaan, sulkeutuu Tilansa sivuun siirrettyihin, jotka löytyvät Historiasta ja Omnibarista 30 päivän ajan. Kiinnitetyt välilehdet, jaettu näkymä, ääntä toistava välilehti ja Agentin välilehti jäävät.</translation>
     </message>
     <message>
         <source>Off</source>
