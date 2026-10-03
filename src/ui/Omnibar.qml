@@ -780,14 +780,16 @@ Item {
                                                                                                (root.newTabIntent
                                                                                                 ? qsTr("Where to? \u00b7 opens in a new tab") :
                                                                                                   qsTr("Where to?")))
-                placeholderTextColor: root.colors.mutedText
+                // Drawn by the item beside it, which stands clear of the caret.
+                placeholderTextColor: "transparent"
+                readonly property real caretWidth: Math.round(input.font.pixelSize * 0.55)
                 font.family: Style.font.family
                 font.pixelSize: 17
                 selectByMouse: true
                 // The dash's block caret, blinking while the field has focus.
                 cursorDelegate: Rectangle {
                     objectName: "omnibarCaret"
-                    width: Math.round(input.font.pixelSize * 0.55)
+                    width: input.caretWidth
                     height: Math.round(input.font.pixelSize * 1.1)
                     color: root.colors.accent
                     visible: input.cursorVisible
@@ -855,6 +857,23 @@ Item {
                     root.step(-1);
                     event.accepted = true;
                 }
+            }
+
+            // The placeholder, after the block caret rather than under it, as
+            // the website's stands after its caret.
+            Text {
+                objectName: "omnibarPlaceholder"
+                anchors.left: input.left
+                anchors.leftMargin: input.caretWidth + 4
+                anchors.right: input.right
+                anchors.verticalCenter: input.verticalCenter
+                visible: input.text.length === 0
+                text: input.placeholderText
+                color: root.colors.mutedText
+                elide: Text.ElideRight
+                font.family: input.font.family
+                font.pixelSize: input.font.pixelSize
+                Accessible.ignored: true
             }
 
             // Commits as Return does, for the pointer. In command scope it
