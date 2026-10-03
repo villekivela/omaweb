@@ -4778,6 +4778,7 @@ ApplicationWindow {
         z: 50
         colors: window.colors
         commands: browserCommands
+        keymap: keymap
         browser: window.windowBrowser
         agentSpaceIds: window.agentSpaceIds
         agentActivity: window.agentTabActivity

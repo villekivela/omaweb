@@ -2047,6 +2047,21 @@
     </message>
 </context>
 <context>
+    <name>OmnibarHints</name>
+    <message>
+        <source>select</source>
+        <translation>valitse</translation>
+    </message>
+    <message>
+        <source>run</source>
+        <translation>suorita</translation>
+    </message>
+    <message>
+        <source>go</source>
+        <translation>siirry</translation>
+    </message>
+</context>
+<context>
     <name>PageImages</name>
     <message>
         <source>The page is %1 pixels tall, and a screenshot holds %2</source>
