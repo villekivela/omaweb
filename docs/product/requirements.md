@@ -262,9 +262,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   In a split the Start page covers both panes, where the committed tab lands, and `Escape` brings
   the split back. While the Start page is on show, `Primary+L` and `o` focus its Omnibar.
 - Under the Omnibar's results a hint row names the keys that work the list, as the website's dash
-  does: `↑↓` as key caps and "select", `↵` and "go", in 11 px dim text over a rule, with "run" in
-  place of "go" in command scope. The keys are read from the key map, and the words are translated.
-  It is not shown while there are no results. An item can join the row's right end.
+  does: `↑↓` as key caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope
+  says "run" for `↵` and adds `⌫` and "back", which leaves the scope. The field answers the keys the
+  key map names for the Omnibar, and the row names the same keys, so a key the row shows is a key
+  the field answers. The words are translated. The row is not shown while there are no results, and
+  an item can join its right end.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
   search keywords, and browser commands in one list. The tab on show is never a row, and a Private
   window lists no Spaces and no history.
