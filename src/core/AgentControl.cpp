@@ -1433,14 +1433,11 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
         return refusal(QStringLiteral("not-found"),
             QStringLiteral("No tab is \"%1\" or has it in its address.").arg(target));
     }
-    if (tab->spaceId != m_browser->activeSpaceId() && !m_browser->switchSpace(tab->spaceId)) {
-        return refusal(QStringLiteral("failed"),
-            QStringLiteral("Omaweb could not switch to the tab's Space."));
-    }
-    m_browser->activateTab(tab->id);
-    if (m_browser->activeTabId() != tab->id) {
+    // Through the Space's store, as the Omnibar does: the tab is recorded as the one the Space is
+    // left on before it comes on show, so a tab unused for long is not put away on the way in.
+    if (!m_browser->activateTabInSpace(tab->spaceId, tab->id)) {
         return refusal(
-            QStringLiteral("failed"), QStringLiteral("Omaweb could not select the tab."));
+            QStringLiteral("failed"), QStringLiteral("Omaweb could not switch to the tab."));
     }
     // Only when asked: no verb takes the reader's focus unprompted (ADR 0051), and an Agent that
     // selects a tab is not the reader asking to see it.
