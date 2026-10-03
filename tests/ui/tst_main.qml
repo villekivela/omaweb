@@ -3791,9 +3791,9 @@ TestCase {
         compare(label.font.family, Style.font.family, name);
     }
 
-    // The keys the chrome shows, on the Start page's hint and over the
-    // controls while Primary is held, are drawn as that key cap.
-    function test_everyKeyLabelInTheChromeIsTheWebsitesKeycap() {
+    // The Start page's hint is drawn as that key cap, and so are the Key
+    // labels while Primary is held, which test_holdingPrimary... checks.
+    function test_theStartPageHintIsTheWebsitesKeycap() {
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting caps");
         tryVerify(function () {
@@ -3801,20 +3801,6 @@ TestCase {
         });
         checkKeycap(findChild(findChild(window.contentItem, "startPageHint"), "keycap"), "hint");
         leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
-
-        window.requestActivate();
-        tryVerify(function () {
-            return window.active;
-        });
-        openPage("https://caps.example/");
-        window.commands.run("focus-page", -1);
-        keyPress(Qt.Key_Control);
-        const label = findChild(window.contentItem, "keyLabel-backButton");
-        tryVerify(function () {
-            return label.visible;
-        });
-        checkKeycap(findChild(label, "keycap"), "Primary held");
-        keyRelease(Qt.Key_Control);
     }
 
     // Holding Primary on its own labels the chrome with the keys that run it.
@@ -3852,6 +3838,7 @@ TestCase {
         tryVerify(function () {
             return label.visible;
         });
+        checkKeycap(findChild(label, "keycap"), "Primary held");
         for (let index = 0; index < controls.length; ++index) {
             const control = findChild(window.contentItem, "keyLabel-" + controls[index][0]);
             const binding = bindingFor(controls[index][1]);
