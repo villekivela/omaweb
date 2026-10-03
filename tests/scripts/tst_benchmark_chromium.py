@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -211,6 +212,15 @@ class LaunchTest(unittest.TestCase):
         self.assertIn("--remote-debugging-port=9301", command)
         self.assertIn("--use-gl=egl", command)
         self.assertEqual(command[-1], "http://x/")
+
+    # Chromium's automatic choice reads XDG_SESSION_TYPE, which a session started from a terminal
+    # or a container does not set to wayland, and it then looks for an X server instead.
+    def test_chromium_draws_on_the_wayland_display_omaweb_does(self):
+        spec = compare.BrowserSpec(history.MATCHED, "/opt/chrome", "")
+        with mock.patch.dict(os.environ, {"XDG_SESSION_TYPE": "tty"}):
+            command, _ = compare.command_line(spec, "/tmp/run", 9302, "http://x/")
+        self.assertIn("--ozone-platform=wayland", command)
+        self.assertFalse(any(flag.startswith("--ozone-platform-hint") for flag in command))
 
 
 class FlagsTest(unittest.TestCase):
