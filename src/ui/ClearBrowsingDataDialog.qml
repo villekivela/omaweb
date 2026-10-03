@@ -33,47 +33,47 @@ DialogPanel {
     readonly property var categoryOptions: [
         {
             value: "cookies",
-            label: "Cookies",
-            note: "Signs out of sites that kept you signed in."
+            label: qsTr("Cookies"),
+            note: qsTr("Signs out of sites that kept you signed in.")
         },
         {
             value: "storage",
-            label: "Site storage",
-            note: "Local storage, databases and service workers."
+            label: qsTr("Site storage"),
+            note: qsTr("Local storage, databases and service workers.")
         },
         {
             value: "cache",
-            label: "Cache",
-            note: "Files kept to load pages faster."
+            label: qsTr("Cache"),
+            note: qsTr("Files kept to load pages faster.")
         },
         {
             value: "permissions",
-            label: "Site permissions",
-            note: "Decisions sites are asked for again."
+            label: qsTr("Site permissions"),
+            note: qsTr("Decisions sites are asked for again.")
         },
         {
             value: "history",
-            label: "History",
-            note: "Pages visited, and what the address bar suggests."
+            label: qsTr("History"),
+            note: qsTr("Pages visited, and what the address bar suggests.")
         }
     ]
 
     readonly property var rangeOptions: [
         {
             value: "3600000",
-            label: "the last hour"
+            label: qsTr("the last hour")
         },
         {
             value: "86400000",
-            label: "the last day"
+            label: qsTr("the last day")
         },
         {
             value: "604800000",
-            label: "the last week"
+            label: qsTr("the last week")
         },
         {
             value: "0",
-            label: "all time"
+            label: qsTr("all time")
         }
     ]
 
@@ -98,9 +98,9 @@ DialogPanel {
     signal confirmed(var categories, real since, bool everySpace, string confirmation)
 
     panelObjectName: "clearBrowsingDataPanel"
-    label: "clear browsing data"
+    label: qsTr("clear browsing data")
     destructive: true
-    confirmHint: "⏎ clear · tab moves · space ticks"
+    confirmHint: qsTr("⏎ clear · tab moves · space ticks")
 
     onOpenChanged: {
         if (!open)
@@ -156,11 +156,12 @@ DialogPanel {
 
             Text {
                 width: parent.width
-                text: root.everySpace
-                      ? "Every Space loses what is ticked below. This cannot be undone." :
-                        "Clears the ticked data from " + (root.spaceName.length > 0
-                                                          ? root.spaceName : "this Space")
-                        + ". This cannot be undone."
+                text: root.everySpace ? qsTr(
+                                            "Every Space loses what is ticked below. This cannot be undone.") :
+                                        root.spaceName.length > 0 ? qsTr(
+                                                                        "Clears the ticked data from %1. This cannot be undone.").arg(
+                                                                        root.spaceName) : qsTr(
+                                                                        "Clears the ticked data from this Space. This cannot be undone.")
                 color: root.colors.text
                 wrapMode: Text.WordWrap
                 font.family: Style.font.family
@@ -195,19 +196,19 @@ DialogPanel {
                     width: (parent.width - parent.spacing) / 2
                     colors: root.colors
                     showLabel: true
-                    label: "Clear from"
+                    label: qsTr("Clear from")
                     options: [
                         {
                             value: "space",
-                            label: root.spaceName.length > 0 ? root.spaceName : "this Space"
+                            label: root.spaceName.length > 0 ? root.spaceName : qsTr("this Space")
                         },
                         {
                             value: "every",
-                            label: "every Space"
+                            label: qsTr("every Space")
                         }
                     ]
                     value: root.everySpace ? "every" : "space"
-                    accessibleName: "Which Spaces to clear"
+                    accessibleName: qsTr("Which Spaces to clear")
                     onPopupOpenChanged: root.trackOpenLists()
                     onChanged: function (value) {
                         root.everySpace = value === "every";
@@ -220,10 +221,10 @@ DialogPanel {
                     width: (parent.width - parent.spacing) / 2
                     colors: root.colors
                     showLabel: true
-                    label: "Over"
+                    label: qsTr("Over")
                     options: root.rangeOptions
                     value: root.range
-                    accessibleName: "Browsing data time range"
+                    accessibleName: qsTr("Browsing data time range")
                     onPopupOpenChanged: root.trackOpenLists()
                     onChanged: function (value) {
                         root.rangeChosen(value);
@@ -241,8 +242,8 @@ DialogPanel {
                 visible: root.everySpace
                 colors: root.colors
                 destructive: true
-                placeholder: "type CLEAR ALL"
-                accessibleName: "Confirm clearing every Space"
+                placeholder: qsTr("type %1").arg("CLEAR ALL")
+                accessibleName: qsTr("Confirm clearing every Space")
                 // The kit's field does not take Tab by itself, and a field the
                 // confirm button depends on that Tab walks past is worse than
                 // no field at all.
@@ -259,7 +260,7 @@ DialogPanel {
                     anchors.right: parent.right
                     colors: root.colors
                     destructive: true
-                    label: root.everySpace ? "Clear every Space" : "Clear browsing data"
+                    label: root.everySpace ? qsTr("Clear every Space") : qsTr("Clear browsing data")
                     enabled: root.confirmable
                     onClicked: root.confirm()
                 }

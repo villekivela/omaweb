@@ -21,8 +21,11 @@ Item {
             return "";
         const act = String(agent.act || "");
         const name = String(agent.name || "");
-        const driving = (name.length > 0 ? name : "An Agent") + " is driving";
-        return act.length > 0 ? driving + " · " + act : driving;
+        if (name.length > 0)
+            return act.length > 0 ? qsTr("%1 is driving · %2").arg(name).arg(act) : qsTr(
+                                        "%1 is driving").arg(name);
+        return act.length > 0 ? qsTr("An Agent is driving · %1").arg(act) : qsTr(
+                                    "An Agent is driving");
     }
 
     Rectangle {

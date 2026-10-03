@@ -32,34 +32,34 @@ DialogPanel {
     readonly property var fields: [
         {
             "key": "subject",
-            "label": "Subject"
+            "label": qsTr("Subject")
         },
         {
             "key": "issuer",
-            "label": "Issuer"
+            "label": qsTr("Issuer")
         },
         {
             "key": "notBefore",
-            "label": "Valid from"
+            "label": qsTr("Valid from")
         },
         {
             "key": "notAfter",
-            "label": "Valid until"
+            "label": qsTr("Valid until")
         },
         {
             "key": "sha256",
-            "label": "SHA-256"
+            "label": qsTr("SHA-256")
         },
         {
             "key": "subjectAlternativeNames",
-            "label": "Names"
+            "label": qsTr("Names")
         }
     ]
 
     panelObjectName: "certificatePanel"
-    label: "certificate"
-    cancelHint: "esc close"
-    confirmHint: "←→ chain · ↑↓ field · ⏎ copy"
+    label: qsTr("certificate")
+    cancelHint: qsTr("esc close")
+    confirmHint: qsTr("←→ chain · ↑↓ field · ⏎ copy")
 
     onOpenChanged: {
         if (!open)
@@ -84,7 +84,7 @@ DialogPanel {
         if (value === undefined || value === null)
             return "";
         if (key === "subjectAlternativeNames")
-            return value.length > 0 ? value.join(", ") : "none";
+            return value.length > 0 ? value.join(", ") : qsTr("none");
         return String(value);
     }
 
@@ -102,12 +102,12 @@ DialogPanel {
     function roleOf(index) {
         const entry = root.chain[index];
         if (root.chain.length === 1)
-            return entry.selfSigned ? "self-signed" : "the only certificate sent";
+            return entry.selfSigned ? qsTr("self-signed") : qsTr("the only certificate sent");
         if (index === 0)
-            return "the site's own";
+            return qsTr("the site's own");
         if (index === root.chain.length - 1)
-            return entry.selfSigned ? "trust anchor" : "last sent";
-        return "intermediate";
+            return entry.selfSigned ? qsTr("trust anchor") : qsTr("last sent");
+        return qsTr("intermediate");
     }
 
     Keys.onPressed: function (event) {
@@ -141,9 +141,12 @@ DialogPanel {
             objectName: "certificateOrigin"
             x: 16
             width: parent.width - 32
-            text: (root.origin.length > 0 ? root.origin : "this site") + (root.verified
-                                                                          ? " · verified by the engine" :
-                                                                            " · could not be verified")
+            text: root.verified ? qsTr("%1 · verified by the engine").arg(root.origin.length > 0
+                                                                          ? root.origin : qsTr(
+                                                                                "this site")) : qsTr(
+                                      "%1 · could not be verified").arg(root.origin.length > 0
+                                                                        ? root.origin : qsTr(
+                                                                              "this site"))
             color: root.verified ? root.colors.text : root.colors.urgent
             elide: Text.ElideMiddle
             font.family: Style.font.family
@@ -259,8 +262,10 @@ DialogPanel {
                         anchors.top: parent.top
                         anchors.topMargin: 4
                         colors: root.colors
-                        label: root.copiedField === row.modelData.key ? "copied" : "copy"
-                        accessibleName: "Copy " + row.modelData.label
+                        label: root.copiedField === row.modelData.key ? qsTr("copied") : qsTr(
+                                                                            "copy")
+
+                        accessibleName: qsTr("Copy %1").arg(row.modelData.label)
                         focusable: false
                         onClicked: root.copyField(row.index)
                     }

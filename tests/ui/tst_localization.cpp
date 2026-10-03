@@ -54,6 +54,14 @@ QString commandField(const QString &locale, const QString &command, const QStrin
         QStringLiteral("command_%1=").arg(field));
 }
 
+// One line of what the window says for a prompt and a context-menu entry: the
+// `prompt_message` of an Agent's request for a Space, or the `menu_entry` that
+// copies a link's address.
+QString chromeText(const QString &locale, const QString &key)
+{
+    return labReport(locale, {QStringLiteral("--report-chrome")}, QStringLiteral("%1=").arg(key));
+}
+
 QString commandTitle(const QString &locale, const QString &command)
 {
     return commandField(locale, command, QStringLiteral("title"));
@@ -76,6 +84,9 @@ private slots:
     void theStartPageStaysEnglishUnderAnEnglishLocale();
     void aLocaleWithoutACatalogueFallsBackToEnglish();
     void theLabSwitchesLocaleOverTheEnvironment();
+    void aPromptSpeaksFinnishUnderAFinnishLocale();
+    void aContextMenuEntrySpeaksFinnishUnderAFinnishLocale();
+    void promptAndMenuStayEnglishUnderAnEnglishLocale();
     void theCommandPanelNamesACommandInFinnish();
     void theCommandPanelNamesACommandInEnglish();
     void aCommandKeepsItsIdentifierAndKeysUnderFinnish();
@@ -105,6 +116,26 @@ void Localization::theLabSwitchesLocaleOverTheEnvironment()
     QCOMPARE(startPageHint(
                  QStringLiteral("en_US.UTF-8"), {QStringLiteral("--locale"), QStringLiteral("fi")}),
         QStringLiteral("pikanäppäimet"));
+}
+
+void Localization::aPromptSpeaksFinnishUnderAFinnishLocale()
+{
+    QCOMPARE(chromeText(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("prompt_message")),
+        QStringLiteral("Agentti Forge haluaa käyttää tilaa Work"));
+}
+
+void Localization::aContextMenuEntrySpeaksFinnishUnderAFinnishLocale()
+{
+    QCOMPARE(chromeText(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("menu_entry")),
+        QStringLiteral("Kopioi linkin osoite"));
+}
+
+void Localization::promptAndMenuStayEnglishUnderAnEnglishLocale()
+{
+    const auto locale = QStringLiteral("en_US.UTF-8");
+    QCOMPARE(chromeText(locale, QStringLiteral("prompt_message")),
+        QStringLiteral("An Agent named Forge wants to use Space Work"));
+    QCOMPARE(chromeText(locale, QStringLiteral("menu_entry")), QStringLiteral("Copy link address"));
 }
 
 void Localization::theCommandPanelNamesACommandInFinnish()
