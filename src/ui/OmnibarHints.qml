@@ -11,7 +11,6 @@ Item {
     objectName: "omnibarHints"
 
     property var colors
-    // The key map the keys are read from.
     property var keymap
     property bool commandScope: false
     property color plate: root.colors ? root.colors.overlayOpaque : "black"
@@ -48,7 +47,6 @@ Item {
         color: root.colors.separator
     }
 
-    // The key cap the row's height is measured from.
     KeyCap {
         id: cap
         visible: false

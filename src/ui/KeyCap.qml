@@ -19,10 +19,11 @@ Rectangle {
 
     readonly property real unit: Style.font.body / 12
     readonly property color accent: root.colors ? root.colors.accent : "white"
-    readonly property color ground: root.filled ? Qt.tint(root.plate, Qt.rgba(root.accent.r,
-                                                                              root.accent.g,
-                                                                              root.accent.b, 0.1)) :
-                                                  root.plate
+    readonly property color ground: root.filled ? root.accentOver(root.plate, 0.1) : root.plate
+
+    function accentOver(base, alpha) {
+        return Qt.tint(base, Qt.rgba(root.accent.r, root.accent.g, root.accent.b, alpha));
+    }
 
     // The cap's width for a key the face advances by `advance`, which is what
     // a row of caps is measured with before any is drawn.
@@ -33,7 +34,7 @@ Rectangle {
     width: root.widthFor(label.implicitWidth)
     height: 22 * root.unit
     radius: 4 * root.unit
-    color: Qt.tint(root.ground, Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.55))
+    color: root.accentOver(root.ground, 0.55)
     Accessible.ignored: true
 
     Rectangle {
