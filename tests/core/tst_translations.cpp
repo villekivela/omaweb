@@ -52,6 +52,10 @@ private slots:
     void theFirstDirectoryWithACatalogueWins();
     void aLocaleWithoutACatalogueInstallsNothing();
     void theInstalledDirectoryComesBeforeTheBuildTree();
+    void theVariableThatChoseTheLocaleIsNamed();
+    void aLocaleFromNoVariableNamesNone();
+    void aLocaleIsTitledInItsOwnLanguageWithItsCode();
+    void theShippedLanguagesAreNamedInTheirOwnLanguage();
     void aRefusalFromCppReachesTheUiInFinnish();
     void aLogLineStaysEnglishUnderFinnish();
     void theOnDiskFormatStaysEnglishUnderFinnish();
@@ -134,6 +138,46 @@ void TranslationsTests::theInstalledDirectoryComesBeforeTheBuildTree()
     QVERIFY(directories.first().endsWith(QStringLiteral("../share/omaweb/translations")));
     QCOMPARE(directories.last(), QStringLiteral("/build/tree"));
     QCOMPARE(omaweb::catalogueDirectories({}).size(), 1);
+}
+
+void TranslationsTests::theVariableThatChoseTheLocaleIsNamed()
+{
+    qputenv("LANG", "sv_SE.UTF-8");
+    QCOMPARE(omaweb::localeChoice().variable, QStringLiteral("LANG"));
+    qputenv("LC_MESSAGES", "de_DE.UTF-8");
+    QCOMPARE(omaweb::localeChoice().variable, QStringLiteral("LC_MESSAGES"));
+    qputenv("LC_ALL", "fi_FI.UTF-8");
+    const auto choice = omaweb::localeChoice();
+    QCOMPARE(choice.variable, QStringLiteral("LC_ALL"));
+    QCOMPARE(choice.locale.name(), QStringLiteral("fi_FI"));
+}
+
+void TranslationsTests::aLocaleFromNoVariableNamesNone()
+{
+    QCOMPARE(omaweb::localeChoice().variable, QString());
+    QCOMPARE(omaweb::localeChoice().locale, QLocale::system());
+}
+
+void TranslationsTests::aLocaleIsTitledInItsOwnLanguageWithItsCode()
+{
+    QCOMPARE(
+        omaweb::localeTitle(QLocale(QStringLiteral("fi_FI"))), QStringLiteral("Suomi (fi_FI)"));
+    QCOMPARE(
+        omaweb::localeTitle(QLocale(QStringLiteral("en_US"))), QStringLiteral("English (en_US)"));
+    QCOMPARE(omaweb::localeTitle(QLocale(QStringLiteral("C"))), QStringLiteral("English (C)"));
+}
+
+void TranslationsTests::theShippedLanguagesAreNamedInTheirOwnLanguage()
+{
+    QTemporaryDir empty;
+    QTemporaryDir first;
+    QTemporaryDir second;
+    QVERIFY(empty.isValid() && first.isValid() && second.isValid());
+    QVERIFY(provide(first));
+    QVERIFY(provide(second));
+    QCOMPARE(omaweb::shippedLanguages({empty.path()}), QStringList {QStringLiteral("English")});
+    QCOMPARE(omaweb::shippedLanguages({empty.path(), first.path(), second.path()}),
+        (QStringList {QStringLiteral("English"), QStringLiteral("Suomi")}));
 }
 
 // The UI reads errorMessage as a property, so what it shows is what C++ composed. The same

@@ -617,6 +617,7 @@ TestCase {
         id: agentControlStub
 
         property bool allowAgents: false
+        property string agentCommand: "claude"
         property var grantedSpaces: [
             {
                 "spaceId": "work",
@@ -632,6 +633,21 @@ TestCase {
             });
             return true;
         }
+    }
+
+    // The chrome speaks the language the locale asks for, and a reader whose
+    // browser is in Finnish unexpectedly has no way to learn why. The interface
+    // section says which locale is in use and how it was chosen, in the locale's
+    // own language and code, and which languages exist to choose from.
+    function test_theInterfaceSectionNamesTheLocaleInUseAndHowItWasChosen() {
+        const page = makePage();
+        page.section = page.sections.indexOf("interface");
+
+        const row = findChild(page, "languageRow");
+        verify(row !== null);
+        verify(row.visible);
+        compare(row.title, "Suomi (fi_FI)");
+        compare(row.note, "Follows the system locale (LANG). Shipped: English, Suomi.");
     }
 
     function test_theAgentsSectionListsGrantsToRevoke() {
@@ -662,6 +678,28 @@ TestCase {
         compare(agentControlStub.revoked, ["work"]);
         tryCompare(findChild(page, "noGrantedSpaces"), "visible", true);
         agentControlStub.allowAgents = false;
+    }
+
+    // The agent `:ask` starts is the reader's own command line, kept when they
+    // finish editing it.
+    function test_theAgentsSectionNamesTheAgentToAsk() {
+        const page = makePage();
+        agentControlStub.agentCommand = "claude";
+        page.agentControl = agentControlStub;
+        page.section = page.sections.indexOf("agents");
+
+        const row = findChild(page, "agentCommandRow");
+        const field = findChild(page, "agentCommand");
+        verify(row !== null && field !== null);
+        verify(field.visible);
+        compare(row.title, "Agent command");
+        verify(row.note.indexOf(":ask") >= 0);
+        compare(field.text, "claude");
+
+        field.text = "claude --model sonnet";
+        field.editingFinished();
+        compare(agentControlStub.agentCommand, "claude --model sonnet");
+        page.agentControl = null;
     }
 
     function test_aLetterSelectsAndFocusesItsSection() {

@@ -82,20 +82,21 @@ is how a layout change is reviewed at a font size the page was not written at: p
 `--show site` opens Site information, which is a click on the address trigger.
 `--tabs --show permission` has the last seeded tab's page ask for notifications, so the question bar
 stands over it; add `--private` to read the Private window's wording. `--show prompt` has the same
-page ask a JavaScript confirm, so the prompt bar stands over it. `--agent-activity` seeds the
-activity log with two Agents' last hour in two Spaces, and `--show agent-activity` opens the Agent
-activity page on it, as its command does; `--agent-filter <name>` shows one Agent's lines. Pass
-`--tabs` to seed the Space with a day's worth of tabs, some of them pinned: the lab otherwise comes
-up on a Space at rest, which draws neither the Pinned section nor the tab list, so the sidebar is
-the one part of the chrome a capture cannot reach. The blank tab stays the one on show, so the
-viewport still draws the Start page, unless `--browse` is passed too: then a documentation tab is on
-show and the lab's stand-in view draws a sample page in the page palette where it would otherwise
-say no engine is running. `--spaces` seeds a Work Space with pages of its own beside Personal,
-before the interface loads, so a Space switch has somewhere to go. `--sample-lists` writes EasyList
-and EasyPrivacy into the lab's content-blocking settings as current, so Content Blocking shows the
-lists a first run has without fetching them. `--agents` has an Agent at work under the real Agent
-rules: an Agent Space it made is on show with the tab it is driving, which it has just clicked in,
-and a second Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
+page ask a JavaScript confirm, so the prompt bar stands over it. `--tabs --show ask` stands the
+question `:ask` asks while Allow agents is off over that page. `--agent-activity` seeds the activity
+log with two Agents' last hour in two Spaces, and `--show agent-activity` opens the Agent activity
+page on it, as its command does; `--agent-filter <name>` shows one Agent's lines. Pass `--tabs` to
+seed the Space with a day's worth of tabs, some of them pinned: the lab otherwise comes up on a
+Space at rest, which draws neither the Pinned section nor the tab list, so the sidebar is the one
+part of the chrome a capture cannot reach. The blank tab stays the one on show, so the viewport
+still draws the Start page, unless `--browse` is passed too: then a documentation tab is on show and
+the lab's stand-in view draws a sample page in the page palette where it would otherwise say no
+engine is running. `--spaces` seeds a Work Space with pages of its own beside Personal, before the
+interface loads, so a Space switch has somewhere to go. `--sample-lists` writes EasyList and
+EasyPrivacy into the lab's content-blocking settings as current, so Content Blocking shows the lists
+a first run has without fetching them. `--agents` has an Agent at work under the real Agent rules:
+an Agent Space it made is on show with the tab it is driving, which it has just clicked in, and a
+second Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
 `--agents-window` has the Agent's page open an Auxiliary window and captures that window.
 `--agents-grant` has the Agent ask for the reader's page on show, so the grant prompt stands over
 it. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` six more Agent

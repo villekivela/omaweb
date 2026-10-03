@@ -262,6 +262,8 @@ add_library(omaweb-core STATIC
     src/core/KeyboardNavigation.h
     src/core/LaunchRequest.cpp
     src/core/LaunchRequest.h
+    src/core/LocaleReport.cpp
+    src/core/LocaleReport.h
     src/core/RetainedTab.h
     src/core/SessionSiteState.cpp
     src/core/SessionSiteState.h
@@ -1066,12 +1068,16 @@ if(BUILD_TESTING)
     # only exists where an interpreter is already present.
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
-        # Every reader-facing literal in the chrome's QML is inside a `qsTr`,
-        # bar the files another localization ticket still owns.
+        # The translation gate: every reader-facing literal in the chrome's QML
+        # and C++ is wrapped, and the Finnish catalogue holds every wrapped
+        # string, translated. The refresh it compares against is the build's own
+        # `lupdate`, so the check does not depend on one being on the PATH.
         add_test(NAME omaweb-wrapped-strings
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_wrapped_strings.py
         )
+        set_tests_properties(omaweb-wrapped-strings PROPERTIES
+            ENVIRONMENT "OMAWEB_LUPDATE=$<TARGET_FILE:Qt6::lupdate>")
         add_test(NAME omaweb-omarchy-drift
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_omarchy_drift.py

@@ -318,6 +318,10 @@
         <translation>Näytä Agentin toiminta</translation>
     </message>
     <message>
+        <source>Ask your agent about this tab</source>
+        <translation>Kysy agentiltasi tästä välilehdestä</translation>
+    </message>
+    <message>
         <source>Settings and downloads</source>
         <translation>Asetukset ja lataukset</translation>
     </message>
@@ -1402,6 +1406,34 @@
         <translation>Omaweb ei voinut luoda tiedostoa, johon sivu hahmonnetaan</translation>
     </message>
     <message>
+        <source>Asking an agent is not available here</source>
+        <translation>Agentilta kysyminen ei ole käytettävissä täällä</translation>
+    </message>
+    <message>
+        <source>A Private window is never an Agent&apos;s</source>
+        <translation>Yksityinen ikkuna ei ole koskaan Agentin</translation>
+    </message>
+    <message>
+        <source>Omaweb could not find %1</source>
+        <translation>Omaweb ei löytänyt ohjelmaa %1</translation>
+    </message>
+    <message>
+        <source>It opens your terminal. Install it to ask an agent.</source>
+        <translation>Se avaa päätteesi. Asenna se, niin voit kysyä agentilta.</translation>
+    </message>
+    <message>
+        <source>Change the agent command in Settings, under agents.</source>
+        <translation>Vaihda agentin komento Asetuksissa, kohdassa agentit.</translation>
+    </message>
+    <message>
+        <source>Omaweb could not start %1</source>
+        <translation>Omaweb ei voinut käynnistää ohjelmaa %1</translation>
+    </message>
+    <message>
+        <source>There is no tab to ask about</source>
+        <translation>Ei välilehteä, josta kysyä</translation>
+    </message>
+    <message>
         <source>An Agent named %1 wants to use Space %2</source>
         <translation>Agentti %1 haluaa käyttää tilaa %2</translation>
     </message>
@@ -1649,6 +1681,24 @@
         <source>Dismiss</source>
         <comment>verb: close the notice</comment>
         <translation>Ohita</translation>
+    </message>
+    <message>
+        <source>Asking an agent needs Allow agents. Turn it on?</source>
+        <translation>Agentilta kysyminen vaatii asetuksen Salli agentit. Otetaanko se käyttöön?</translation>
+    </message>
+    <message>
+        <source>Agents can then read and act in pages, and ask once for each of your Spaces they use.</source>
+        <translation>Agentit voivat silloin lukea sivuja ja toimia niissä, ja ne kysyvät kerran jokaisesta Tilastasi, jota käyttävät.</translation>
+    </message>
+    <message>
+        <source>Turn on</source>
+        <comment>button: turn Allow agents on</comment>
+        <translation>Ota käyttöön</translation>
+    </message>
+    <message>
+        <source>Not now</source>
+        <comment>button: leave Allow agents off</comment>
+        <translation>Ei nyt</translation>
     </message>
     <message>
         <source>%1 asked for a protected browser capability</source>
@@ -2159,6 +2209,10 @@
         <translation>Suurenna: %1, nyt %2</translation>
     </message>
     <message>
+        <source>reset</source>
+        <translation>palauta</translation>
+    </message>
+    <message>
         <source>Reset %1 to %2</source>
         <translation>Palauta %1 arvoon %2</translation>
     </message>
@@ -2540,6 +2594,18 @@
     <message>
         <source>Minimum page font size</source>
         <translation>Sivun pienin fonttikoko</translation>
+    </message>
+    <message>
+        <source>language</source>
+        <translation>kieli</translation>
+    </message>
+    <message>
+        <source>Follows the system locale (%1). Shipped: %2.</source>
+        <translation>Seuraa järjestelmän kieliasetusta (%1). Saatavilla: %2.</translation>
+    </message>
+    <message>
+        <source>Follows the system locale. Shipped: %1.</source>
+        <translation>Seuraa järjestelmän kieliasetusta. Saatavilla: %1.</translation>
     </message>
     <message>
         <source>Keyboard navigation</source>
@@ -2989,6 +3055,14 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Lets a coding agent on this computer make Agent Spaces and read and act in their pages, and ask once for each of your Spaces it wants to use. An Agent tab stays rendered while an Agent is attached to it, which costs memory and GPU. Turning this off detaches every Agent.</source>
         <translation>Antaa tämän tietokoneen koodausagentin luoda Agenttitiloja sekä lukea ja toimia niiden sivuilla, ja kysyä kerran jokaisesta Tilastasi, jota se haluaa käyttää. Agentin välilehti pysyy piirrettynä, kun Agentti on liitetty siihen, mikä kuluttaa muistia ja GPU:ta. Kytkeminen pois irrottaa jokaisen Agentin.</translation>
+    </message>
+    <message>
+        <source>Agent command</source>
+        <translation>Agentin komento</translation>
+    </message>
+    <message>
+        <source>What :ask runs in your terminal, with the tab on show and your words added at the end. Write it as you would in a shell.</source>
+        <translation>Mitä :ask suorittaa päätteessäsi. Näkyvissä oleva välilehti ja sanasi lisätään loppuun. Kirjoita se kuten komentotulkkiin.</translation>
     </message>
     <message>
         <source>granted spaces</source>

@@ -1085,6 +1085,25 @@ Rectangle {
                             }
                         }
                     }
+
+                    SectionLabel {
+                        colors: root.colors
+                        text: qsTr("language")
+                    }
+
+                    // Read-only: the locale is the desktop's to set, so the row says which one
+                    // Omaweb found and what chose it, which is why the chrome speaks as it does.
+                    SettingRow {
+                        objectName: "languageRow"
+                        width: pane.width
+                        colors: root.colors
+                        title: LocaleReport.title
+                        note: (LocaleReport.variable.length > 0 ? qsTr(
+                                                                      "Follows the system locale (%1). Shipped: %2.").arg(
+                                                                      LocaleReport.variable) : qsTr(
+                                                                      "Follows the system locale. Shipped: %1.")).arg(
+                                  LocaleReport.shipped.join(", "))
+                    }
                 }
 
                 // ---- keyboard ----------------------------------------------
@@ -2226,6 +2245,30 @@ Rectangle {
                         onClicked: {
                             if (root.agentControl)
                                 root.agentControl.allowAgents = !checked;
+                        }
+                    }
+
+                    SettingRow {
+                        objectName: "agentCommandRow"
+                        visible: !!root.agentControl
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Agent command")
+                        note: qsTr(
+                                  "What :ask runs in your terminal, with the tab on show and your "
+                                  + "words added at the end. Write it as you would in a shell.")
+
+                        SettingField {
+                            objectName: "agentCommand"
+                            width: Style.spacing.dropdownWidth
+                            colors: root.colors
+                            placeholder: "claude"
+                            accessibleName: qsTr("Agent command")
+                            text: root.agentControl ? root.agentControl.agentCommand : ""
+                            onEditingFinished: {
+                                if (root.agentControl)
+                                    root.agentControl.agentCommand = text;
+                            }
                         }
                     }
 

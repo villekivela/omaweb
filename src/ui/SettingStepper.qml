@@ -101,7 +101,7 @@ Row {
     ActionButton {
         objectName: "reset"
         colors: root.colors
-        label: "reset"
+        label: qsTr("reset")
         visible: root.overridden
         accessibleName: qsTr("Reset %1 to %2").arg(root.accessibleName).arg(root.defaultName)
         onClicked: root.reset()

@@ -115,6 +115,28 @@ Single-key commands follow the Keyboard navigation setting. Editable controls st
 and sites can keep selected conflicting keys. See the
 [default keymap](assets/keybindings/default.json) for every binding.
 
+## Agents
+
+A coding agent on the same computer can use Omaweb through the `omaweb` CLI. Link the skill the
+package installs into your agent's skills directory, then turn on Allow agents in Settings, under
+agents:
+
+```sh
+ln -s /usr/share/omaweb/skills/omaweb ~/.claude/skills/omaweb
+```
+
+To hand the page you are reading to your agent, type `:ask` and your request in the Omnibar:
+
+```text
+:ask summarize this
+:ask fill this in from ~/notes/address.md
+```
+
+Omaweb opens your terminal through `xdg-terminal-exec`, running the agent command from Settings
+(`claude` by default) with the tab and your words, and you watch the agent work in the tab. The
+first time it reaches one of your Spaces, Omaweb asks you once whether it may. Omaweb holds no model
+and sends nothing to an AI service: the agent is your own program.
+
 ## Configuration
 
 User configuration lives in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that variable is
@@ -128,6 +150,13 @@ unset:
 Desktop theme following needs no setup. On Omarchy, Omaweb installs its theme template on first
 start so `omarchy theme set` can update the browser without a restart. See the
 [Omarchy integration guide](integrations/omarchy/README.md) for compositor blur and opacity rules.
+
+## Languages
+
+Omaweb follows the system locale, read from `LC_ALL`, `LC_MESSAGES` or `LANG`, in that order. The
+chrome is available in English and Finnish (Suomi), and a locale without a translation shows
+English. Settings names the locale in use and what chose it. See the
+[translation guide](docs/localization.md) to add a language.
 
 ## Build
 
