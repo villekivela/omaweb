@@ -25,6 +25,11 @@ Workspace, container, profile (a Space is a browsing identity, not an Engine pro
 bright green, bright yellow or bright blue. The theme resolves it, so the Space follows a theme
 change. _Avoid_: Space hex, accent
 
+**Project directory**: The folder on this machine a Space is for, with the address its app is served
+at. `omaweb dev` sets it from the folder it runs in, and finds the Space again from that folder or
+any folder below it. It stays on this machine and outside the Sync projection. _Avoid_: workspace
+(Hyprland's), repo, Project Space
+
 **Engine profile**: The directory where one web engine keeps its own state for one Space: cookies,
 site storage, cache, and whatever else that engine writes for itself. A Space has one per engine
 that has run in it, and a Private window's engine profile is temporary and shared. _Avoid_: Profile
