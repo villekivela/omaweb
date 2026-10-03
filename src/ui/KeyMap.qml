@@ -81,13 +81,70 @@ QtObject {
         return single;
     }
 
-    // The keys that work the Omnibar's list, which the field answers itself
-    // rather than the window's bindings: the Omnibar's hint row names them
-    // from here, so what it says is held in one place beside the others.
+    // The keys the Omnibar's field answers, by the name of the key and what it
+    // does there. The field takes its keys from here and its hint row names
+    // them from here, so a key the row shows is a key the field answers.
+    property var omnibarBindings: ({
+                                       "Up": "previous",
+                                       "Down": "next",
+                                       "Return": "go",
+                                       "Enter": "go",
+                                       "Backspace": "leave"
+                                   })
+
+    // How a key is written on a key cap.
+    readonly property var keyGlyphs: ({
+                                          "Up": "\u2191",
+                                          "Down": "\u2193",
+                                          "Left": "\u2190",
+                                          "Right": "\u2192",
+                                          "Return": "\u21b5",
+                                          "Enter": "\u21b5",
+                                          "Backspace": "\u232b"
+                                      })
+
+    function keyName(key) {
+        switch (key) {
+        case Qt.Key_Up:
+            return "Up";
+        case Qt.Key_Down:
+            return "Down";
+        case Qt.Key_Left:
+            return "Left";
+        case Qt.Key_Right:
+            return "Right";
+        case Qt.Key_Return:
+            return "Return";
+        case Qt.Key_Enter:
+            return "Enter";
+        case Qt.Key_Backspace:
+            return "Backspace";
+        }
+        return "";
+    }
+
+    // What the field does on a key, or an empty string for a key it leaves
+    // to typing.
+    function omnibarActionFor(key) {
+        return omnibarBindings[keyName(key)] || "";
+    }
+
+    // The caps for the keys that do any of `actions`, each glyph once.
+    function omnibarKeysFor(actions) {
+        const glyphs = [];
+        for (const name in omnibarBindings) {
+            const glyph = keyGlyphs[name] || name;
+            if (actions.indexOf(omnibarBindings[name]) >= 0 && glyphs.indexOf(glyph) < 0)
+                glyphs.push(glyph);
+        }
+        return glyphs;
+    }
+
     readonly property var omnibarKeys: ({
-                                            "select": ["\u2191", "\u2193"],
-                                            "go": ["\u21b5"],
-                                            "run": ["\u21b5"]
+                                            "select": omnibarKeysFor(["previous", "next"]),
+                                            "go": omnibarKeysFor(["go"]),
+                                            "run": omnibarKeysFor(["go"]),
+                                            "leave": omnibarKeysFor(["leave"])
                                         })
 
     // Every binding that invokes a command, formatted for the Omnibar.
