@@ -444,6 +444,7 @@ ApplicationWindow {
         palette.surface = source.privateSurface;
         palette.surfaceHover = source.privateSurfaceHover;
         palette.mutedText = source.privateMutedText;
+        palette.fieldText = source.privateFieldText;
         palette.border = source.privateBorder;
         palette.accent = source.privateAccent;
         return palette;
