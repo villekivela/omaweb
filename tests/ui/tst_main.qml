@@ -9673,6 +9673,37 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting in the page area");
     }
 
+    // Dragging the sidebar's seam changes the page area at every frame, and
+    // the road is drawn again for a size, not for a frame: it stays at the
+    // size it was drawn at, stretched to the page area, with its sun on the
+    // page area's middle, and is drawn again once the seam has settled.
+    function test_theRoadIsDrawnAgainOnlyOnceTheSeamHasSettled() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting while dragged");
+        tryVerify(function () {
+            return startPage.visible && scene.light !== null;
+        });
+        window.sidebarWidth = window.sidebarMinimumWidth + 40;
+        tryCompare(scene, "drawnWidth", scene.width);
+        const drawn = scene.drawnWidth;
+
+        for (let step = 1; step <= 6; ++step) {
+            window.sidebarWidth = window.sidebarMinimumWidth + 40 + step * 12;
+            tryCompare(startPage, "width", window.width - window.sidebarWidth);
+            compare(scene.drawnWidth, drawn);
+            compare(scene.width, startPage.width);
+            verify(Math.abs(scene.light.centre.x - scene.width / 2) <= 2,
+                   "the sun left the middle");
+
+        }
+        tryCompare(scene, "drawnWidth", scene.width);
+
+        window.sidebarWidth = window.sidebarMinimumWidth + 40;
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting while dragged");
+    }
+
     // The road is as wide as the page area, centred on it, and the glass is
     // framed by the road itself.
     function checkRoadFillsPageArea(startPage, scene) {
