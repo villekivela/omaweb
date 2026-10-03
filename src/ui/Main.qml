@@ -220,10 +220,6 @@ ApplicationWindow {
     // holds: a binding written `releaseWatch: releaseWatch` inside a component
     // that has a property of that name binds the property to itself.
     readonly property var releases: releaseWatch
-    // Whether Walker lists this browser's tabs, for the same reason. Absent from a
-    // Private window's shell, which has no tabs of its own to offer.
-    readonly property var launcherTabs: !window.privateWindow && typeof launcherMenu
-                                        !== "undefined" ? launcherMenu : null
     // The browser's Global Privacy Control, named apart from its context
     // property for the same reason.
     readonly property var privacyControl: globalPrivacyControl
@@ -1573,7 +1569,7 @@ ApplicationWindow {
                                                         request));
         }
 
-        // `omaweb focus --raise` is how a launcher sends the reader here, from a window
+        // `omaweb focus --raise` is how Omarchy's menu sends the reader here, from a window
         // that has the keyboard.
         function onWindowRequested() {
             window.raise();
@@ -3741,7 +3737,6 @@ ApplicationWindow {
                     anchors.fill: parent
                     z: 45
                     releaseWatch: window.releases
-                    launcherMenu: window.launcherTabs
                     globalPrivacyControl: window.privacyControl
                     httpsOnly: window.httpsOnlyPolicy
                     engineSuggestions: window.engineSuggestionSetting

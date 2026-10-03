@@ -23,6 +23,9 @@ struct AgentCommand {
     QJsonObject request;
     // Print the answer as it came, for a program to read.
     bool json = false;
+    // `tabs --pick`: the request lists every Space's tabs, and the CLI offers
+    // them to Omarchy's menu and focuses the one chosen.
+    bool pick = false;
     QString error;
 };
 
@@ -59,6 +62,10 @@ QString parentProcessName();
 // Sends the command to the browser on `socketPath`, prints its answer and
 // answers the exit status: 0 done, 1 refused, 2 a malformed command, 3 no
 // browser answering.
+//
+// `tabs --pick` offers every Space's tabs to Omarchy's `omarchy-menu-select`
+// and then runs `focus --raise` on the one chosen. Dismissing the menu is
+// done, 0. Without `omarchy-menu-select` on the PATH it says so and answers 1.
 //
 // `space new --temporary` prints the Space and then keeps open the connection
 // the Space lives on, until the process is interrupted, terminated or hung up

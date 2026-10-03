@@ -2269,14 +2269,6 @@
         <translation>Värjää sivustojen kuvat sopimaan sivupalkin väripalettiin.</translation>
     </message>
     <message>
-        <source>Show tabs in the launcher</source>
-        <translation>Näytä välilehdet käynnistimessä</translation>
-    </message>
-    <message>
-        <source>Lets Walker list your tabs behind the @ prefix, by linking a menu into Elephant&apos;s configuration. Turning this off removes only that link.</source>
-        <translation>Antaa Walkerin luetella välilehdet @-etuliitteen takana linkittämällä valikon Elephantin asetuksiin. Kytkeminen pois poistaa vain tämän linkin.</translation>
-    </message>
-    <message>
         <source>kept active</source>
         <translation>pidetään aktiivisena</translation>
     </message>

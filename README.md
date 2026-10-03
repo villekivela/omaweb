@@ -129,36 +129,30 @@ Desktop theme following needs no setup. On Omarchy, Omaweb installs its theme te
 start so `omarchy theme set` can update the browser without a restart. See the
 [Omarchy integration guide](integrations/omarchy/README.md) for compositor blur and opacity rules.
 
-## Find tabs from Omarchy's launcher
+## Find tabs from Omarchy's menu
 
-On Omarchy, Walker can list the tabs of every Space and take you to the one you pick, in whatever
-Space it lives. Omaweb links a menu into `~/.config/elephant/menus/` at startup when Elephant is
-installed, and never replaces a file you put there. Private windows are never listed, and nothing is
-listed while Omaweb is not running.
+On Omarchy 4, `omaweb tabs --pick` opens Omarchy's own menu with the tabs of every Space. Each row
+is a tab's title, with its site and Space under it. Choosing one selects the tab and brings Omaweb
+forward, in whatever Space the tab lives. Private windows are never listed. It needs
+`omarchy-menu-select`, which comes with Omarchy 4, and says so and exits 1 where that is missing.
+Closing the menu does nothing.
 
-Reach the menu with a prefix. Add this to `~/.config/walker/config.toml`, then restart Walker:
+Omaweb writes none of Omarchy's configuration, so the keybinding and the menu row are yours to add.
+For a key, put this in `~/.config/hypr/bindings.lua`:
 
-```toml
-[[providers.prefixes]]
-prefix = "@"
-provider = "menus:omawebtabs"
+```lua
+o.bind("SUPER + ALT + T", "Omaweb tabs", "omaweb tabs --pick")
 ```
 
-Omarchy's default configuration gives `@` to web search, and Walker reads one list of prefixes, so
-copy the other prefixes from Omarchy's `config.toml` into yours or pick another character. Then
-press `Super+Space`, type `@` and part of a tab's title or address, and choose the tab.
+For a row on Omarchy's root menu, add this to `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
 
-To open the tabs directly, bind a key in `~/.config/hypr/bindings.conf`. Omaweb ships no binding:
-
-```conf
-bindd = SUPER ALT, T, Omaweb tabs, exec, walker -m menus:omawebtabs
+```jsonc
+"omaweb-tabs": {"icon": "󰖟", "label": "Omaweb tabs", "action": "omaweb tabs --pick"}
 ```
 
-Choosing a tab selects it and brings Omaweb forward, through `omaweb focus --raise`. Plain
-`omaweb focus` only selects the tab.
-
-Settings > Tabs has the switch, Show tabs in the launcher. Turning it off removes Omaweb's own link
-and nothing else.
+Selecting the tab is `omaweb focus --raise`. Plain `omaweb focus` only selects the tab and leaves
+the window where it is. `omaweb tabs --all --json` lists every Space's tabs, each with its id,
+title, address, and its Space's id and name, for a script of your own.
 
 ## Build
 

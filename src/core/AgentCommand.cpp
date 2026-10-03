@@ -1,18 +1,22 @@
 #include "AgentCommand.h"
 
 #include "AgentConsole.h"
+#include "AgentPick.h"
 
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocalSocket>
+#include <QProcess>
 #include <QSet>
+#include <QStandardPaths>
 
 #include <algorithm>
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
+#include <optional>
 
 #include <poll.h>
 #include <unistd.h>
@@ -73,7 +77,7 @@ namespace {
         }
         if (verb == u"tabs") {
             return {.valued = {space},
-                .flags = {QStringLiteral("all")},
+                .flags = {QStringLiteral("all"), QStringLiteral("pick")},
                 .minimumPositionals = 0,
                 .maximumPositionals = 0,
                 .positionalField = {}};
@@ -618,6 +622,16 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         }
     }
 
+    if (request.take(QStringLiteral("pick")).toBool()) {
+        if (request.contains(QStringLiteral("space")) || command.json) {
+            command.error = QStringLiteral("`tabs --pick` lists every Space, and its answer is "
+                                           "the menu's, so it takes neither --space nor --json.");
+            return command;
+        }
+        command.pick = true;
+        request.insert(QStringLiteral("all"), true);
+    }
+
     if (verb == u"do") {
         QString error;
         const auto steps = readSteps(positionals, error);
@@ -829,6 +843,91 @@ QString parentProcessName()
 #endif
 }
 
+namespace {
+
+    // The browser's answer to one request, or nothing when it never came.
+    std::optional<QJsonObject> exchange(QLocalSocket &socket, const QJsonObject &request)
+    {
+        socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
+        socket.flush();
+        const auto timeout = answerTimeoutFor(request);
+        while (!socket.canReadLine()) {
+            if (!socket.waitForReadyRead(timeout)) {
+                print(stderr, QStringLiteral("omaweb: the browser did not answer.\n"));
+                return std::nullopt;
+            }
+        }
+        return QJsonDocument::fromJson(socket.readLine()).object();
+    }
+
+    void printRefusal(const QJsonObject &answer)
+    {
+        print(stderr,
+            QStringLiteral("omaweb: %1\n").arg(answer.value(QStringLiteral("error")).toString()));
+    }
+
+    // Offers every Space's tabs to Omarchy's menu and focuses the one it
+    // answers with. The menu answers with the row's title and subtext, which
+    // `tabPicks` made one tab's alone. Closing the menu is not a failure.
+    int pickTab(QLocalSocket &socket, const AgentCommand &command, const QString &picker)
+    {
+        const auto listed = exchange(socket, command.request);
+        if (!listed) {
+            return 3;
+        }
+        if (!listed->value(QStringLiteral("ok")).toBool()) {
+            printRefusal(*listed);
+            return 1;
+        }
+        const auto picks = tabPicks(listed->value(QStringLiteral("tabs")).toArray());
+        if (picks.rows.isEmpty()) {
+            print(stderr, QStringLiteral("omaweb: there are no tabs to pick from.\n"));
+            return 1;
+        }
+
+        QProcess menu;
+        menu.setProgram(picker);
+        menu.setArguments({QStringLiteral("Tabs")});
+        menu.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+        menu.start();
+        if (!menu.waitForStarted()) {
+            print(stderr, QStringLiteral("omaweb: could not run omarchy-menu-select.\n"));
+            return 1;
+        }
+        menu.write(picks.rows.join(u'\n').toUtf8() + '\n');
+        menu.closeWriteChannel();
+        menu.waitForFinished(-1);
+        auto chosen = QString::fromUtf8(menu.readAllStandardOutput());
+        while (chosen.endsWith(u'\n') || chosen.endsWith(u'\r')) {
+            chosen.chop(1);
+        }
+        if (menu.exitStatus() == QProcess::NormalExit && menu.exitCode() != 0 && chosen.isEmpty()) {
+            // omarchy-menu-select exits 1 when the reader closes the menu.
+            return menu.exitCode() == 1 ? 0 : 1;
+        }
+        const auto tabId = picks.idFor(chosen);
+        if (tabId.isEmpty()) {
+            print(stderr,
+                QStringLiteral("omaweb: omarchy-menu-select answered with no tab of ours.\n"));
+            return 1;
+        }
+
+        const auto focused = exchange(socket,
+            {{QStringLiteral("verb"), QStringLiteral("focus")}, {QStringLiteral("target"), tabId},
+                {QStringLiteral("raise"), true},
+                {QStringLiteral("name"), command.request.value(QStringLiteral("name"))}});
+        if (!focused) {
+            return 3;
+        }
+        if (!focused->value(QStringLiteral("ok")).toBool()) {
+            printRefusal(*focused);
+            return 1;
+        }
+        return 0;
+    }
+
+} // namespace
+
 int runAgentCommand(const QStringList &arguments, const QString &socketPath)
 {
     const auto command = readAgentCommand(arguments, parentProcessName());
@@ -837,22 +936,31 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
         return 2;
     }
 
+    QString picker;
+    if (command.pick) {
+        picker = QStandardPaths::findExecutable(QStringLiteral("omarchy-menu-select"));
+        if (picker.isEmpty()) {
+            print(stderr,
+                QStringLiteral("omaweb: tabs --pick needs omarchy-menu-select, which is not on "
+                               "the PATH. It comes with Omarchy 4.\n"));
+            return 1;
+        }
+    }
+
     QLocalSocket socket;
     socket.connectToServer(socketPath);
     if (!socket.waitForConnected(answerTimeoutMs)) {
         print(stderr, QStringLiteral("omaweb: no Omaweb is running for this user.\n"));
         return 3;
     }
-    socket.write(QJsonDocument(command.request).toJson(QJsonDocument::Compact) + '\n');
-    socket.flush();
-    const auto timeout = answerTimeoutFor(command.request);
-    while (!socket.canReadLine()) {
-        if (!socket.waitForReadyRead(timeout)) {
-            print(stderr, QStringLiteral("omaweb: the browser did not answer.\n"));
-            return 3;
-        }
+    if (command.pick) {
+        return pickTab(socket, command, picker);
     }
-    const auto answer = QJsonDocument::fromJson(socket.readLine()).object();
+    const auto reply = exchange(socket, command.request);
+    if (!reply) {
+        return 3;
+    }
+    const auto answer = *reply;
     const auto verb = command.request.value(QStringLiteral("verb")).toString();
     const auto ok = answer.value(QStringLiteral("ok")).toBool();
     if (command.json) {
