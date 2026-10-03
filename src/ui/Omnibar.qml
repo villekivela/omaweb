@@ -10,6 +10,8 @@ Item {
 
     property var colors
     property var commands
+    // The key map the hint row names its keys from.
+    property var keymap
     // The sidebar's own favicon settings and icon font, so a site and a
     // command look the same here as where the reader first met them.
     property string iconFontFamily
@@ -153,11 +155,12 @@ Item {
     // What the page area leaves under the field for the rows, keeping a
     // margin off its bottom edge.
     readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height - 2
-                                           * panel.border.width - 8 - 24
+                                           * panel.border.width - 8 - 24 - hints.implicitHeight
     // How far below the horizon the field ends, which is where the Start page
     // can draw beneath it.
     readonly property real fieldBelowHorizon: header.height + panel.border.width - horizonBelowTop
-    readonly property real restHeight: header.height + body.height + 2 * panel.border.width
+    readonly property real restHeight: header.height + body.height + hints.height + 2
+                                       * panel.border.width
     NumberAnimation {
         id: arrivalEase
         target: root
@@ -1170,6 +1173,21 @@ Item {
                     }
                 }
             }
+        }
+
+        // The keys that work the list, under the results as the website's dash
+        // has them; with no results there is no list to work.
+        OmnibarHints {
+            id: hints
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: body.bottom
+            anchors.leftMargin: panel.border.width
+            anchors.rightMargin: panel.border.width
+            visible: root.rows.length > 0
+            colors: root.colors
+            keymap: root.keymap
+            commandScope: root.commandScope
         }
     }
 

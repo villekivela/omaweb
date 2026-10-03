@@ -81,6 +81,15 @@ QtObject {
         return single;
     }
 
+    // The keys that work the Omnibar's list, which the field answers itself
+    // rather than the window's bindings: the Omnibar's hint row names them
+    // from here, so what it says is held in one place beside the others.
+    readonly property var omnibarKeys: ({
+                                            "select": ["\u2191", "\u2193"],
+                                            "go": ["\u21b5"],
+                                            "run": ["\u21b5"]
+                                        })
+
     // Every binding that invokes a command, formatted for the Omnibar.
     function keysFor(command) {
         const chords = [];

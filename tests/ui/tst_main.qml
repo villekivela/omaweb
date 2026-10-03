@@ -9504,6 +9504,77 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // Every item under `item` named `name`, delegates and content items
+    // included.
+    function childrenNamed(item, name) {
+        let found = [];
+        const below = item.contentItem ? [item.contentItem].concat(Array.from(item.children)) :
+                                         Array.from(item.children);
+        for (const child of below) {
+            if (child.objectName === name)
+                found.push(child);
+            found = found.concat(childrenNamed(child, name));
+        }
+        return found;
+    }
+
+    // Under the results the Omnibar names the keys that work its list, as the
+    // website's dash does: `select` for the arrows and `go` for Return as key
+    // caps in 11 px dim text over a rule, the keys read from the key map, and
+    // `run` in place of `go` in command scope. Nothing is shown with no
+    // results.
+    function test_theOmnibarNamesItsKeysUnderTheResults() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        const hints = findChild(window.contentItem, "omnibarHints");
+        browser.recordVisit("https://hint-row.example/", "Hint row");
+        openPage("https://hint-row-page.example/");
+        activateWindow();
+
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        verify(!hints.visible);
+        input.text = "hint row";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        verify(hints.visible);
+        compare(hints.keys.select.join(), panel.keymap.omnibarKeys.select.join());
+        compare(hints.keys.go.join(), panel.keymap.omnibarKeys.go.join());
+        const words = childrenNamed(hints, "omnibarHintWord").map(function (word) {
+            return word.text;
+        });
+        compare(words.join(), "select,go");
+        const capsOf = function (group) {
+            return childrenNamed(group, "keycap").filter(function (cap) {
+                return cap.text.length > 0;
+            }).map(function (cap) {
+                return cap.text;
+            });
+        };
+        compare(capsOf(hints).join(), "\u2191,\u2193,\u21b5");
+        const word = childrenNamed(hints, "omnibarHintWord")[0];
+        compare(word.font.pixelSize, Style.font.bodySmall);
+        compare(String(word.color), String(window.colors.mutedText));
+        compare(findChild(hints, "omnibarHintRule").height, 1);
+        compare(frame.height, panel.restHeight);
+        verify(hints.y >= findChild(window.contentItem, "omnibarRowList").y);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openCommandScope();
+        input.text = "reopen";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
+            return word.text;
+        }).join(), "select,run");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
     // to list. The Start page stands in: the Omnibar at rest over the road,
     // focused, and no renderer spent on the blank tab behind it.
