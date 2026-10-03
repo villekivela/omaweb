@@ -83,6 +83,23 @@ because running in the main world is the privilege [0025](0025-run-only-vendored
 keeps from Web extensions. Tools a site registers through WebMCP can be passed through later, once
 sites register them.
 
+## What the network verbs may reach
+
+Version two's `network` and `request` work in any Agent tab, in a granted Space as in an Agent
+Space, because a granted Space already lets an Agent read and drive the page, and a page's requests
+add little to that. What they add is the reader's credentials, so those are where the rules differ.
+In a granted Space the values of `Cookie`, `Set-Cookie`, `Authorization` and `Proxy-Authorization`
+are redacted and only their count is shown, and a request's body, what the page sent, is refused, as
+a file upload is. In an Agent Space the identity is the Agent's own, so both are shown. A response
+body is available in either.
+
+A tab's requests are captured from the moment a connection attaches, in memory only, and start again
+with each new document, as the console does. They and the debugging session are dropped when the
+Agent detaches, when Allow agents is turned off and when the tab closes. The log names a request by
+its id and never records an address, a header or a body, because an address can carry a token. The
+session reaches the page and its frames. A service worker is a target of its own, which an untrusted
+session cannot attach to, so its requests are not seen.
+
 ## Agent tabs keep running
 
 An Agent works in Spaces the reader is not looking at, and 0033 freezes those pages. An Agent tab is
