@@ -244,9 +244,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the field and never move it; a short page area lists fewer rows at a time instead.
 - The Omnibar field is drawn as the website's dash: the Omaweb mark as its prompt in the palette's
   accent, drawn 32 px across as the website draws it, the typed text and a blinking block caret, and
-  a `→` go mark that commits as `Return` does. In command scope the mark gives way to `:`. The typed
-  text and the caret carry no glow, rim light, blur or shadow, and the text clears 4.5:1 against the
-  field's glass in every theme, over the darkest and the lightest the road can put behind it.
+  a `→` go mark that commits as `Return` does. In command scope the mark gives way to `:`. The field
+  asks "Where to?", as the website's does, and "Where to? · opens in a new tab" for a new tab;
+  command scope and an engine keyword keep their own prompts. A screen reader hears what the field
+  takes, "Address, search, tabs and Spaces", rather than the prompt. The typed text and the caret
+  carry no glow, rim light, blur or shadow, and the text clears 4.5:1 against the field's glass in
+  every theme, over the darkest and the lightest the road can put behind it.
 - `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
   after the user commits a destination. Choosing an open tab from it switches to that tab and
   creates none. `Escape` brings back the page that was on show; in a Space at rest it does nothing.

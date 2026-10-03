@@ -9433,6 +9433,33 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting plain");
     }
 
+    // The field asks as the website's dash does, "Where to?", wherever the
+    // Omnibar opens, while a mode keeps its own prompt. What a screen reader
+    // speaks names what the field takes, never only the prompt.
+    function test_theFieldAsksWhereTo() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://where-to.example/");
+        activateWindow();
+
+        window.openOmnibar(false);
+        compare(input.placeholderText, "Where to?");
+        compare(input.Accessible.name, "Address, search, tabs and Spaces");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openOmnibar(true);
+        compare(input.placeholderText, "Where to? \u00b7 opens in a new tab");
+        compare(input.Accessible.name, "Address, search, tabs and Spaces");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openCommandScope();
+        compare(input.placeholderText, "search every action");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
     // to list. The Start page stands in: the Omnibar at rest over the road,
     // focused, and no renderer spent on the blank tab behind it.
