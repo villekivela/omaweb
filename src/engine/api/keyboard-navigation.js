@@ -154,22 +154,18 @@
             "target"
           ).trim(),
       );
-      // The chip is the sidebar's two-letter site chip, moved onto the
-      // page: radius 2, the code in the accent on a plain surface plate,
-      // and no drop shadow. The border is what the sidebar can do
-      // without, since a page may put anything behind the plate.
+      // The website's `.hint`: an accent plate with the code in the window's
+      // ground on it, square, in uppercase, with no border and no shadow.
       hint.style.cssText =
         "position:absolute;left:" +
         Math.max(0, rect.left) +
         "px;top:" +
         Math.max(0, rect.top) +
-        "px;padding:1px 4px;border:1px solid " +
+        "px;padding:2px 4px;border:0;border-radius:0;background:" +
         (theme.accent || "Highlight") +
-        ";border-radius:2px;background:" +
-        (theme.surface || "Canvas") +
         ";color:" +
-        (theme.accent || "CanvasText") +
-        ";line-height:1.2;forced-color-adjust:auto;";
+        (theme.windowOpaque || theme.surface || "Canvas") +
+        ";text-transform:uppercase;line-height:1;forced-color-adjust:auto;";
       for (const character of label.toUpperCase()) {
         const part = document.createElement("span");
         part.textContent = character;
