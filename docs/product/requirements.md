@@ -120,8 +120,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   and shows none of these marks.
 - A tab with no address to load shows the Start page in place of a webpage, never an empty viewport.
   That covers a Space at rest and an `about:blank` the reader navigated to, and no engine is spent
-  behind it. The Start page is the Omnibar at rest in the middle of the page area, focused, over a
-  night road. Under the field one line names `?`, the way to the Shortcut sheet.
+  behind it. The Start page is the Omnibar at rest above the road's horizon, centred in the page
+  area, focused, over a night road. The field is the website's dash:
+  `min(page area width - 32 px, 720 px)` wide, its top edge 50 px above the horizon, which lies at
+  half the page area's height, with a 50 px field and 16 px of padding. Under the field one line
+  names `?`, the way to the Shortcut sheet.
 - The road fills the page area, or the one pane of a split it stands in, and is never drawn under
   the sidebar, which stands on its own fill as it does with the road off. It is drawn at the page
   area's size, centred on it, with the composition the website draws in a viewport of that size.
@@ -237,8 +240,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   site-information panel.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens the Omnibar for the
   current tab. The Omnibar has one place whatever it opens over: centred in the page area with its
-  field on the Start page's horizon, where a new tab shows it. Its rows grow down from the field and
-  never move it; a short page area lists fewer rows at a time instead.
+  top edge 50 px above the Start page's horizon, where a new tab shows it. Its rows grow down from
+  the field and never move it; a short page area lists fewer rows at a time instead.
 - The Omnibar field is drawn as the website's dash: the Omaweb mark as its prompt in the palette's
   accent, the typed text and a blinking block caret with a faint accent glow, and a `→` go mark that
   commits as `Return` does. In command scope the mark gives way to `:`.

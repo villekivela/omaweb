@@ -8354,11 +8354,11 @@ TestCase {
         verify(frame.y <= panel.restY);
         tryCompare(frame, "y", panel.restY);
         // Over a page it stands where the Start page rests it: centred in the
-        // page area, the field on the horizon.
+        // page area, the horizon 50 px below its top as on the website.
         const startPage = findChild(window.contentItem, "startPage");
         const top = frame.mapToItem(startPage, frame.width / 2, 0);
         fuzzyCompare(top.x, startPage.width / 2, 1);
-        fuzzyCompare(top.y + panel.fieldBelowHorizon, startPage.horizonY, 1);
+        fuzzyCompare(top.y + panel.horizonBelowTop, startPage.horizonY, 1);
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
 
@@ -9372,6 +9372,38 @@ TestCase {
         });
     }
 
+    // The Start page's field is the website's dash, measured from
+    // website/styles.css: a panel `min(viewport - 32px, 720px)` wide with its
+    // top 50 px above the horizon, a 50 px field with 16 px of padding, the
+    // mark drawn 32 px wide in the viewBox's 38.2 by 18.8, 12 px before the
+    // 17 px text.
+    function test_theFieldIsTheWebsitesDash() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        const field = findChild(window.contentItem, "omnibarField");
+        const prompt = findChild(window.contentItem, "omnibarPrompt");
+        const mark = findChild(window.contentItem, "omnibarMark");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting dash");
+        tryCompare(findChild(window.contentItem, "omnibar"), "arrival", 1);
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+
+        compare(frame.width, Math.min(startPage.width - 32, 720));
+        const top = frame.mapToItem(startPage, frame.width / 2, 0);
+        fuzzyCompare(top.x, startPage.width / 2, 1);
+        fuzzyCompare(startPage.horizonY - top.y, 50, 0.5);
+        compare(field.height, 50);
+        compare(prompt.x, 16);
+        compare(prompt.width, 32);
+        fuzzyCompare(mark.width * mark.scale, 31.7, 0.1);
+        fuzzyCompare(mark.height * mark.scale, 15.4, 0.1);
+        compare(input.x, prompt.x + prompt.width + 12);
+        compare(input.font.pixelSize, 17);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting dash");
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
     // to list. The Start page stands in: the Omnibar at rest over the road,
     // focused, and no renderer spent on the blank tab behind it.
@@ -9407,14 +9439,14 @@ TestCase {
         compare(engineLoader.engines[restingTabId], undefined);
         compare(engineLoader.item, null);
 
-        // The field rests on the horizon, in the middle of the page area, once
-        // the Space has arrived.
+        // The field rests above the horizon, in the middle of the page area,
+        // once the Space has arrived.
         tryCompare(panel, "arrival", 1);
         tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
         const top = frame.mapToItem(startPage, frame.width / 2, 0);
         fuzzyCompare(top.x, startPage.width / 2, 1);
         verify(top.y < startPage.horizonY);
-        verify(top.y + panel.fieldBelowHorizon * 2 > startPage.horizonY);
+        fuzzyCompare(top.y + panel.horizonBelowTop, startPage.horizonY, 1);
 
         // Escape has no page to give back, and leaves what is typed alone.
         input.text = "half typed";
