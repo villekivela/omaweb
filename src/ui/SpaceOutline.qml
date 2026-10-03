@@ -227,6 +227,7 @@ Rectangle {
             }
             spaceArrival.stop();
             root.settledTabItem = null;
+            root.settledTabId = "";
             root.settledTabX = -1;
             root.settledTabY = -1;
             root.switchDirection = to > from ? 1 : -1;
@@ -403,8 +404,12 @@ Rectangle {
     // from its own.
     property var besideTabItem: null
     // The row the page on show was measured from, which is the row that was
-    // active when the last arrival was settled.
+    // active when the last arrival was settled, or the row the list built
+    // again for the same tab, measured once the list has placed it.
     property var settledTabItem: null
+    // The tab that row stands for, which outlives the row when the list
+    // builds it again.
+    property string settledTabId: ""
     // Set while focus is moving between the halves of a split, for the rest
     // of the turn: the half that was active is announced as beside after the
     // other half is announced as active, and neither arrival is one.
@@ -440,24 +445,54 @@ Rectangle {
             tabArrival.restart();
         });
     }
-    onActiveTabItemChanged: {
-        if (activeTabItem === null)
+    // The row on show, where the list has placed it, as the place the next
+    // arrival is measured from.
+    function settleOnPlacedRow(row) {
+        if (root.activeTabItem !== row || row.tabId === "" || row.parent === null)
             return;
-        const at = activeTabItem.mapToItem(root, 0, 0);
+        row.parent.forceLayout();
+        const placed = row.mapToItem(root, 0, 0);
+        root.settledTabItem = row;
+        root.settledTabId = row.tabId;
+        root.settledTabX = Math.round(placed.x);
+        root.settledTabY = Math.round(placed.y);
+    }
+    onActiveTabItemChanged: noteActiveRow(activeTabItem)
+    // The list builds its rows again when it moves them, as pairing a tab that
+    // was in a split before does, and a row it is building can say it is
+    // active before the list has placed it, or before it has been told which
+    // tab it stands for. Only a different tab on a placed row is an arrival: a
+    // row not placed yet, one naming no tab yet, or one for the tab already
+    // settled on is measured once the list has placed it and nothing arrives,
+    // so a pane coming beside it still does (#507).
+    function noteActiveRow(row) {
+        if (row === null)
+            return;
+        if (row.parent === null || row.tabId === "" || row.tabId === settledTabId) {
+            if (row.tabId !== "")
+                settledTabItem = row;
+            Qt.callLater(function () {
+                root.settleOnPlacedRow(row);
+            });
+            return;
+        }
+        // Whole pixels: a place a layout reached by arithmetic is not a move.
+        const placed = row.mapToItem(root, 0, 0);
+        const at = Qt.point(Math.round(placed.x), Math.round(placed.y));
         const fromX = settledTabX;
         const fromY = settledTabY;
         // Focus moving to the other half of a split shows nothing new, so
         // nothing arrives: the row now active is the partner of the row the
         // page on show was measured from.
-        const focusMoved = settledTabItem !== null && activeTabItem.splitPartnerId
-              === settledTabItem.tabId;
+        const focusMoved = settledTabId !== "" && row.splitPartnerId === settledTabId;
         if (focusMoved) {
             focusMoving = true;
             Qt.callLater(function () {
                 root.focusMoving = false;
             });
         }
-        settledTabItem = activeTabItem;
+        settledTabItem = row;
+        settledTabId = row.tabId;
         settledTabX = at.x;
         settledTabY = at.y;
         if (!easeSpaces || arriving || fromY < 0 || focusMoved)
