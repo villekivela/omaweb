@@ -227,6 +227,8 @@ signals:
     void agentWindowsChanged();
     void grantRequestChanged();
     void grantedSpacesChanged();
+    // `focus --raise` put a tab on show, and the window should come forward with it.
+    void windowRequested();
     void agentCommandChanged();
     // An Agent closed the Auxiliary window of this id.
     void windowCloseRequested(const QString &windowId);
@@ -360,6 +362,7 @@ private:
 
     QJsonObject listSpaces() const;
     QJsonObject listTabs(Connection &connection, const QJsonObject &request) const;
+    QJsonObject listAllTabs(const Connection &connection) const;
     QJsonObject open(const QString &name, Connection &connection, const QJsonObject &request);
     QJsonObject close(Connection &connection, const QJsonObject &request);
     QJsonObject createSpace(const QString &creator, Connection &connection,

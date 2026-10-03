@@ -48,11 +48,11 @@ watching it.
 
 ```sh
 omaweb spaces
-omaweb tabs [--space <id|name>]
+omaweb tabs [--space <id|name> | --all]
 omaweb open <address> [--space <id|name> | --tab <id>] [--new]
 omaweb close [--tab <id>]
 omaweb space <id|name>
-omaweb focus <tab id|part of an address>
+omaweb focus [--raise] <tab id|part of an address>
 omaweb commands
 omaweb run <command> [position]
 omaweb space new [name] [--temporary]
@@ -85,7 +85,8 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 - `eval` runs JavaScript in an isolated world: it sees the DOM, not the page's own variables.
 - `space`, `focus` and `run` change what the reader sees: another Space, another tab, or a browser
   command such as `toggle-sidebar`. Use them only when the reader asks for that. `commands` lists
-  what `run` can run now.
+  what `run` can run now. `focus --raise` also pulls the window in front of whatever the reader is
+  doing, so leave `--raise` to the reader.
 - `space new --temporary` keeps running after it prints the Space's id, and the Space is deleted
   when the process stops. Start it in the background and stop it when the task is done.
 - Commands with the same `--name` share the current tab. The name defaults to that of the process

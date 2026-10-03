@@ -18,6 +18,7 @@ private slots:
     void tellsAVerbFromAnAddressToOpen();
     void readsEachVerbIntoARequest_data();
     void readsEachVerbIntoARequest();
+    void readsThePickerAsATabsRequestForEverySpace();
     void refusesAMalformedCommand_data();
     void refusesAMalformedCommand();
     void namesTheConnectionAfterItsParentUnlessTold();
@@ -62,6 +63,9 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
                QStringLiteral("--json")}
         << base(QStringLiteral("tabs"), {{QStringLiteral("space"), QStringLiteral("Work")}})
         << true;
+    QTest::newRow("every space's tabs")
+        << QStringList {QStringLiteral("tabs"), QStringLiteral("--all"), QStringLiteral("--json")}
+        << base(QStringLiteral("tabs"), {{QStringLiteral("all"), true}}) << true;
     QTest::newRow("open in a tab") << QStringList {QStringLiteral("open"),
         QStringLiteral("example.com"), QStringLiteral("--tab=t1")}
                                    << base(QStringLiteral("open"),
@@ -108,6 +112,12 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
     QTest::newRow("focus a tab by its address")
         << QStringList {QStringLiteral("focus"), QStringLiteral("github.com")}
         << base(QStringLiteral("focus"), {{QStringLiteral("target"), QStringLiteral("github.com")}})
+        << false;
+    QTest::newRow("focus a tab and raise the window")
+        << QStringList {QStringLiteral("focus"), QStringLiteral("--raise"), QStringLiteral("--"),
+               QStringLiteral("t1")}
+        << base(QStringLiteral("focus"),
+               {{QStringLiteral("target"), QStringLiteral("t1")}, {QStringLiteral("raise"), true}})
         << false;
     QTest::newRow("commands") << QStringList {QStringLiteral("commands"), QStringLiteral("--json")}
                               << base(QStringLiteral("commands")) << true;
@@ -161,6 +171,25 @@ void AgentCommandTest::readsEachVerbIntoARequest()
     QCOMPARE(command.json, json);
 }
 
+// The picker is the CLI's own: what goes over the socket is the list of every Space's tabs, and
+// the choice is made here.
+void AgentCommandTest::readsThePickerAsATabsRequestForEverySpace()
+{
+    const auto command = readAgentCommand(
+        {QStringLiteral("omaweb"), QStringLiteral("tabs"), QStringLiteral("--pick"),
+            QStringLiteral("--name"), QStringLiteral("hypr")},
+        QStringLiteral("fish"));
+
+    QCOMPARE(command.error, QString());
+    QVERIFY(command.pick);
+    QCOMPARE(command.request,
+        (QJsonObject {{QStringLiteral("verb"), QStringLiteral("tabs")},
+            {QStringLiteral("all"), true}, {QStringLiteral("name"), QStringLiteral("hypr")}}));
+    QVERIFY(
+        !readAgentCommand({QStringLiteral("omaweb"), QStringLiteral("tabs")}, QStringLiteral("x"))
+            .pick);
+}
+
 void AgentCommandTest::refusesAMalformedCommand_data()
 {
     QTest::addColumn<QStringList>("arguments");
@@ -173,6 +202,12 @@ void AgentCommandTest::refusesAMalformedCommand_data()
     QTest::newRow("space with two")
         << QStringList {QStringLiteral("space"), QStringLiteral("Work"), QStringLiteral("Home")};
     QTest::newRow("focus without a tab") << QStringList {QStringLiteral("focus")};
+    QTest::newRow("the picker beside a space") << QStringList {QStringLiteral("tabs"),
+        QStringLiteral("--pick"), QStringLiteral("--space"), QStringLiteral("work")};
+    QTest::newRow("the picker beside json")
+        << QStringList {QStringLiteral("tabs"), QStringLiteral("--pick"), QStringLiteral("--json")};
+    QTest::newRow("the picker on another verb")
+        << QStringList {QStringLiteral("spaces"), QStringLiteral("--pick")};
     QTest::newRow("commands takes no argument")
         << QStringList {QStringLiteral("commands"), QStringLiteral("tabs")};
     QTest::newRow("run without a command") << QStringList {QStringLiteral("run")};

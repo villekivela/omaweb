@@ -19,13 +19,16 @@
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QTest>
 #include <QThread>
 
+#include <cstdio>
 #include <memory>
 #include <sstream>
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 using omaweb::AgentActivityLog;
 using omaweb::AgentControl;
@@ -94,6 +97,130 @@ SessionSpec readersSession()
         },
         .activeSpaceId = QStringLiteral("personal"),
     };
+}
+
+// The `omaweb` command a shell runs, against a browser answering on a real socket. The command
+// blocks on its answer, so it runs beside the loop the browser answers on.
+int runCommandLine(const QStringList &arguments, const QString &path)
+{
+    auto status = -1;
+    const std::unique_ptr<QThread> shell(QThread::create(
+        [&status, &path, &arguments] { status = omaweb::runAgentCommand(arguments, path); }));
+    shell->start();
+    QDeadlineTimer deadline(10000);
+    while (!shell->isFinished() && !deadline.hasExpired()) {
+        QTest::qWait(5);
+    }
+    shell->wait();
+    return status;
+}
+
+// An `omarchy-menu-select` that records the prompt and the rows it is given and answers as the
+// real one does: the label and the subtext of the row on line $FAKE_PICK, or nothing and a failure
+// when the reader dismisses the menu.
+class FakeOmarchyMenu {
+public:
+    FakeOmarchyMenu()
+    {
+        const auto script = m_directory.filePath(QStringLiteral("omarchy-menu-select"));
+        QFile file(script);
+        if (!file.open(QIODevice::WriteOnly)) {
+            return;
+        }
+        file.write("#!/bin/sh\n"
+                   "printf '%s\\n' \"$1\" > \"$FAKE_PROMPT\"\n"
+                   "cat > \"$FAKE_ROWS\"\n"
+                   "[ -n \"$FAKE_PICK\" ] || exit 1\n"
+                   "sed -n \"${FAKE_PICK}p\" \"$FAKE_ROWS\" | cut -f2-\n");
+        file.close();
+        file.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+        m_path = qgetenv("PATH");
+        qputenv("PATH", (m_directory.path() + u':' + QString::fromLocal8Bit(m_path)).toLocal8Bit());
+        qputenv("FAKE_ROWS", m_directory.filePath(QStringLiteral("rows")).toLocal8Bit());
+        qputenv("FAKE_PROMPT", m_directory.filePath(QStringLiteral("prompt")).toLocal8Bit());
+    }
+
+    ~FakeOmarchyMenu()
+    {
+        qputenv("PATH", m_path);
+        qunsetenv("FAKE_PICK");
+    }
+
+    FakeOmarchyMenu(const FakeOmarchyMenu &) = delete;
+    FakeOmarchyMenu &operator=(const FakeOmarchyMenu &) = delete;
+
+    // The rows the menu was given, one a line.
+    QStringList rows() const
+    {
+        return text(QStringLiteral("rows")).split(u'\n', Qt::SkipEmptyParts);
+    }
+    QString prompt() const { return text(QStringLiteral("prompt")).trimmed(); }
+
+private:
+    QString text(const QString &name) const
+    {
+        QFile file(m_directory.filePath(name));
+        return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+    }
+
+    QTemporaryDir m_directory;
+    QByteArray m_path;
+};
+
+// What a command writes to the standard error stream, caught for as long as this lives.
+class StderrCapture {
+public:
+    StderrCapture()
+        : m_saved(::dup(STDERR_FILENO))
+    {
+        std::fflush(stderr);
+        if (m_file.open()) {
+            ::dup2(m_file.handle(), STDERR_FILENO);
+        }
+    }
+
+    ~StderrCapture() { restore(); }
+
+    StderrCapture(const StderrCapture &) = delete;
+    StderrCapture &operator=(const StderrCapture &) = delete;
+
+    QString text()
+    {
+        restore();
+        QFile file(m_file.fileName());
+        return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+    }
+
+private:
+    void restore()
+    {
+        if (m_saved >= 0) {
+            std::fflush(stderr);
+            ::dup2(m_saved, STDERR_FILENO);
+            ::close(m_saved);
+            m_saved = -1;
+        }
+    }
+
+    QTemporaryFile m_file;
+    int m_saved;
+};
+
+// Two Work tabs the reader has open at the same page, which only their ids tell apart.
+SessionSpec twoTabsOfOneTitle()
+{
+    auto session = readersSession();
+    auto &work = session.spaces[1];
+    work.tabs = {
+        TabSpec {.id = QStringLiteral("docs-first"),
+            .url = QUrl(QStringLiteral("https://docs.example/")),
+            .title = QStringLiteral("Docs")},
+        TabSpec {.id = QStringLiteral("docs-second"),
+            .url = QUrl(QStringLiteral("https://docs.example/")),
+            .title = QStringLiteral("Docs")},
+    };
+    work.activeTabId = QStringLiteral("docs-first");
+    return session;
 }
 
 // A page verb through the path the socket takes, with its answer caught.
@@ -177,6 +304,12 @@ private slots:
     void opensATabInTheSpaceOnShowWithoutSelectingIt();
     void keepsACurrentTabForEachConnection();
     void refusesAddressesThatActInsideAPage();
+    void listsEverySpacesTabsInOneCall();
+    void leavesTheWindowWhereItIsWhenItFocusesATab();
+    void bringsTheWindowForwardWhenItIsAskedTo();
+    void picksATabThroughOmarchysMenuAndBringsItForward();
+    void leavesTheWindowAloneWhenThePickIsCancelled();
+    void saysOmarchysMenuIsMissingAndExitsNonZero();
     void leavesPinnedTabsAndTheReadersTabsAlone();
     void closesAndLoadsTabsOfASpaceNotOnShow();
     void closesAnAwayTabWhoseSplitPartnerIsGone();
@@ -370,6 +503,160 @@ void AgentControlTest::refusesAddressesThatActInsideAPage()
         QCOMPARE(failure(answer), QStringLiteral("refused"));
     }
     QCOMPARE(browser->tabs()->rowCount(), 2);
+}
+
+// What the launcher's menu reads: one call, every Space, each tab with the Space it is in.
+void AgentControlTest::listsEverySpacesTabsInOneCall()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    PrivateSessionFixture privateSession;
+    const auto privateWindow = privateSession.createController();
+    privateWindow->openInput(QStringLiteral("https://private.example/"), false);
+    AgentControl control(browser.get(), config.path());
+
+    const auto answer = ask(
+        control, QStringLiteral("script"), QStringLiteral("tabs"), {{QStringLiteral("all"), true}});
+    QVERIFY(succeeded(answer));
+    const auto tabs = answer.value(QStringLiteral("tabs")).toArray();
+    QCOMPARE(ids(tabs),
+        QStringList({QStringLiteral("personal-pin"), QStringLiteral("personal-tab"),
+            QStringLiteral("work-tab")}));
+    const auto work = tabs.at(2).toObject();
+    QCOMPARE(work.value(QStringLiteral("space")).toString(), QStringLiteral("work"));
+    QCOMPARE(work.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Work"));
+    QCOMPARE(work.value(QStringLiteral("url")).toString(), QStringLiteral("https://work.example/"));
+    QVERIFY(tabs.at(0).toObject().value(QStringLiteral("pinned")).toBool());
+    QVERIFY(!ids(tabs).contains(privateWindow->activeTabId()));
+    // A Space named beside it is a contradiction, not a filter.
+    QCOMPARE(
+        failure(ask(control, QStringLiteral("script"), QStringLiteral("tabs"),
+            {{QStringLiteral("all"), true}, {QStringLiteral("space"), QStringLiteral("Work")}})),
+        QStringLiteral("bad-request"));
+}
+
+// ADR 0051: no verb takes the reader's focus. A script or an Agent that selects a tab leaves the
+// window where it is.
+void AgentControlTest::leavesTheWindowWhereItIsWhenItFocusesATab()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QSignalSpy forward(&control, &AgentControl::windowRequested);
+
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
+    QCOMPARE(forward.count(), 0);
+}
+
+// A launcher runs it while another program has the keyboard, so selecting the tab is not enough,
+// and it asks for the window by name.
+void AgentControlTest::bringsTheWindowForwardWhenItIsAskedTo()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QSignalSpy forward(&control, &AgentControl::windowRequested);
+
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-tab")},
+            {QStringLiteral("raise"), true}})));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
+    QCOMPARE(forward.count(), 1);
+
+    QCOMPARE(failure(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+                 {{QStringLiteral("target"), QStringLiteral("nothing-like-it")},
+                     {QStringLiteral("raise"), true}})),
+        QStringLiteral("not-found"));
+    QCOMPARE(forward.count(), 1);
+}
+
+// The reader's Omarchy 4 menu is where tabs are found: every Space's tabs go to its picker, and
+// what is chosen is focused and brought forward. The picker answers with the title and the subtext
+// only, so two tabs of one title have to come back as the one that was chosen.
+void AgentControlTest::picksATabThroughOmarchysMenuAndBringsItForward()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(twoTabsOfOneTitle());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    ControlSocket socket(&control);
+    const auto path = runtime.filePath(QStringLiteral("omaweb/control.sock"));
+    QVERIFY(socket.listen(path));
+    QSignalSpy forward(&control, &AgentControl::windowRequested);
+    FakeOmarchyMenu menu;
+    qputenv("FAKE_PICK", "4");
+
+    QCOMPARE(
+        runCommandLine(
+            {QStringLiteral("omaweb"), QStringLiteral("tabs"), QStringLiteral("--pick")}, path),
+        0);
+
+    QCOMPARE(menu.rows().size(), 4);
+    QVERIFY(menu.rows().at(3).contains(QStringLiteral("Docs")));
+    QVERIFY(!menu.prompt().isEmpty());
+    QCOMPARE(browser->activeTabId(), QStringLiteral("docs-second"));
+    QCOMPARE(forward.count(), 1);
+
+    qputenv("FAKE_PICK", "3");
+    QCOMPARE(
+        runCommandLine(
+            {QStringLiteral("omaweb"), QStringLiteral("tabs"), QStringLiteral("--pick")}, path),
+        0);
+    QCOMPARE(browser->activeTabId(), QStringLiteral("docs-first"));
+    QCOMPARE(forward.count(), 2);
+}
+
+void AgentControlTest::leavesTheWindowAloneWhenThePickIsCancelled()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(twoTabsOfOneTitle());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    ControlSocket socket(&control);
+    const auto path = runtime.filePath(QStringLiteral("omaweb/control.sock"));
+    QVERIFY(socket.listen(path));
+    QSignalSpy forward(&control, &AgentControl::windowRequested);
+    FakeOmarchyMenu menu;
+    qunsetenv("FAKE_PICK");
+    const auto before = browser->activeTabId();
+
+    QCOMPARE(
+        runCommandLine(
+            {QStringLiteral("omaweb"), QStringLiteral("tabs"), QStringLiteral("--pick")}, path),
+        0);
+
+    QCOMPARE(menu.rows().size(), 4);
+    QCOMPARE(browser->activeTabId(), before);
+    QCOMPARE(forward.count(), 0);
+}
+
+void AgentControlTest::saysOmarchysMenuIsMissingAndExitsNonZero()
+{
+    QTemporaryDir empty;
+    const auto path = qgetenv("PATH");
+    qputenv("PATH", empty.path().toLocal8Bit());
+    StderrCapture caught;
+
+    const auto status = runCommandLine(
+        {QStringLiteral("omaweb"), QStringLiteral("tabs"), QStringLiteral("--pick")},
+        QStringLiteral("/nowhere/control.sock"));
+    const auto said = caught.text();
+    qputenv("PATH", path);
+
+    QCOMPARE(status, 1);
+    QVERIFY2(said.contains(QStringLiteral("omarchy-menu-select")), qPrintable(said));
 }
 
 // Browser commands reach every Space, but a pin is the reader's address and a

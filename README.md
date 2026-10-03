@@ -151,6 +151,31 @@ Desktop theme following needs no setup. On Omarchy, Omaweb installs its theme te
 start so `omarchy theme set` can update the browser without a restart. See the
 [Omarchy integration guide](integrations/omarchy/README.md) for compositor blur and opacity rules.
 
+## Find tabs from Omarchy's menu
+
+On Omarchy 4, `omaweb tabs --pick` opens Omarchy's own menu with the tabs of every Space. Each row
+is a tab's title, with its site and Space under it. Choosing one selects the tab and brings Omaweb
+forward, in whatever Space the tab lives. Private windows are never listed. It needs
+`omarchy-menu-select`, which comes with Omarchy 4, and says so and exits 1 where that is missing.
+Closing the menu does nothing.
+
+Omaweb writes none of Omarchy's configuration, so the keybinding and the menu row are yours to add.
+For a key, put this in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + ALT + T", "Omaweb tabs", "omaweb tabs --pick")
+```
+
+For a row on Omarchy's root menu, add this to `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
+
+```jsonc
+"omaweb-tabs": {"icon": "󰖟", "label": "Omaweb tabs", "action": "omaweb tabs --pick"}
+```
+
+Selecting the tab is `omaweb focus --raise`. Plain `omaweb focus` only selects the tab and leaves
+the window where it is. `omaweb tabs --all --json` lists every Space's tabs, each with its id,
+title, address, and its Space's id and name, for a script of your own.
+
 ## Languages
 
 Omaweb follows the system locale, read from `LC_ALL`, `LC_MESSAGES` or `LANG`, in that order. The

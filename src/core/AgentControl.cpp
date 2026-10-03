@@ -1193,7 +1193,9 @@ AgentControl::ActivityScope AgentControl::activityScope(
             tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
     }
     const auto named = request.value(QStringLiteral("space")).toString();
-    scope.spaceId = named.isEmpty() ? (verb == u"tabs" ? defaultSpace(connection) : QString {})
+    // `tabs --all` is about no one Space.
+    const auto listsOneSpace = verb == u"tabs" && !request.value(QStringLiteral("all")).toBool();
+    scope.spaceId = named.isEmpty() ? (listsOneSpace ? defaultSpace(connection) : QString {})
                                     : findSpace(named);
     scope.spaceName = spaceName(scope.spaceId);
     return scope;
@@ -1439,6 +1441,11 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
     if (m_browser->activeTabId() != tab->id) {
         return refusal(
             QStringLiteral("failed"), QStringLiteral("Omaweb could not select the tab."));
+    }
+    // Only when asked: no verb takes the reader's focus unprompted (ADR 0051), and an Agent that
+    // selects a tab is not the reader asking to see it.
+    if (request.value(QStringLiteral("raise")).toBool()) {
+        emit windowRequested();
     }
     return success({{QStringLiteral("tab"), tab->id}, {QStringLiteral("space"), tab->spaceId}});
 }
@@ -1978,6 +1985,13 @@ QJsonObject AgentControl::listSpaces() const
 QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &request) const
 {
     const auto named = request.value(QStringLiteral("space")).toString();
+    if (request.value(QStringLiteral("all")).toBool()) {
+        if (!named.isEmpty()) {
+            return refusal(QStringLiteral("bad-request"),
+                QStringLiteral("`tabs --all` lists every Space, so it takes no --space."));
+        }
+        return listAllTabs(connection);
+    }
     const auto spaceId = named.isEmpty() ? defaultSpace(connection) : findSpace(named);
     if (spaceId.isEmpty()) {
         return noSpace(named);
@@ -2000,6 +2014,25 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
         });
     }
     return success({{QStringLiteral("space"), spaceId}, {QStringLiteral("tabs"), tabs}});
+}
+
+// Every Space's tabs in the order the reader sees them, for a launcher that
+// searches them all. An Auxiliary window has no title to search by, so only
+// tabs are listed.
+QJsonObject AgentControl::listAllTabs(const Connection &connection) const
+{
+    QJsonArray tabs;
+    const auto *model = m_browser->spaces();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const auto spaceId = model->index(row, 0).data(SpaceListModel::IdRole).toString();
+        const auto name = spaceName(spaceId);
+        for (const auto &tab : m_browser->spaceTabs(spaceId)) {
+            auto described = describeTab(tab, connection);
+            described.insert(QStringLiteral("spaceName"), name);
+            tabs.append(described);
+        }
+    }
+    return success({{QStringLiteral("tabs"), tabs}});
 }
 
 // Opening an address is a browser command, as the desktop's own handover is.

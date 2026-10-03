@@ -1632,6 +1632,13 @@ ApplicationWindow {
             window.agentControlSource.answerCommand(requestId, browserCommands.answerAgent(
                                                         request));
         }
+
+        // `omaweb focus --raise` is how Omarchy's menu sends the reader here, from a window
+        // that has the keyboard.
+        function onWindowRequested() {
+            window.raise();
+            window.requestActivate();
+        }
     }
 
     // The Space grant the reader is being asked for, as the prompt bar reads a
