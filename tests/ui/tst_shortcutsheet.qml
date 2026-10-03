@@ -195,6 +195,21 @@ TestCase {
         return found;
     }
 
+    // A command with two bindings, which the key map joins with a dot, is
+    // two runs of caps with the dot between, not one cap holding both.
+    function test_alternativeBindingsAreSeparateRunsOfCaps() {
+        const probe = keyProbeComponent.createObject(testCase, {
+                                                         "keys": "Ctrl+[  \u00b7  H"
+                                                     });
+        compare(probe.parts.join(), "Ctrl,[,H");
+        compare(probe.entries.filter(function (entry) {
+            return entry.separator;
+        }).length, 1);
+        compare(probe.entries[2].key, "\u00b7");
+        compare(Math.ceil(probe.implicitWidth), Math.ceil(probe.widthOf("Ctrl+[  \u00b7  H")));
+        probe.destroy();
+    }
+
     // Each binding is a row of the website's key caps, one cap to a key, so a
     // chord of four keys is four caps and the column holds the widest row.
     function test_everyBindingIsARowOfKeyCaps() {
