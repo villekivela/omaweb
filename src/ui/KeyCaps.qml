@@ -14,9 +14,7 @@ Row {
     property color plate: root.colors ? root.colors.windowOpaque : "black"
     property bool filled: true
 
-    // The row as caps and the dots between alternatives.
     readonly property var entries: root.entriesFor(root.keys)
-    // The keys alone, one to a cap.
     readonly property var parts: root.entries.filter(function (entry) {
         return !entry.separator;
     }).map(function (entry) {

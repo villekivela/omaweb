@@ -10,7 +10,6 @@ Item {
 
     property var colors
     property var commands
-    // The key map the hint row names its keys from.
     property var keymap
     // The sidebar's own favicon settings and icon font, so a site and a
     // command look the same here as where the reader first met them.
