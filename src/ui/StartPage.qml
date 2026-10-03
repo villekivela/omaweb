@@ -9,11 +9,12 @@ import qs.Commons
 // is the road under it and the one line that names the Shortcut sheet.
 //
 // It costs no engine. The road moves only while the page is on show and the
-// window is the reader's. It runs under the whole window, the sidebar standing
-// over it, unless the page stands in one pane of a split. A reader who turns
-// the road off gets the sidebar's fill instead, or, over a page a new tab was
-// asked from, that page blurred under the sheet tint, as the Shortcut sheet
-// shows it.
+// window is the reader's. The road fills the page area, or the one pane of a
+// split it stands in, and never runs under the sidebar: it is drawn at that
+// size, as the website draws it in a viewport, so its horizon, sun and road
+// are where the website's are. A reader who turns the road off gets the
+// sidebar's fill instead, or, over a page a new tab was asked from, that page
+// blurred under the sheet tint, as the Shortcut sheet shows it.
 Item {
     id: root
     objectName: "startPage"
@@ -48,16 +49,6 @@ Item {
     property bool drove: false
     onDrivingChanged: if (driving)
                           drove = true
-    // The widest the page area can be, which is the width the road is drawn
-    // at. The page area narrows and widens with the sidebar, and a road drawn
-    // at the window's width only moves when it does, where one drawn at the
-    // page area's would draw itself again for every width the seam passes.
-    property real roadWidth: width
-    // How much of the window lies left of the page, which the road runs under
-    // to the window's edge. None in a pane of a split, where the road stays in
-    // the pane.
-    property real roadReach: 0
-
     // Where the Omnibar's field rests.
     readonly property real horizonY: road.sceneItem ? road.sceneItem.horizonY : height / 2
     readonly property int roadFrames: road.frames
@@ -109,27 +100,18 @@ Item {
         tint: root.pageSource ? root.colors.sheet : root.colors.sidebar
     }
 
-    // A road in a pane stays in it; one under the window runs past the page's
-    // left edge, under the sidebar.
-    clip: root.roadReach <= 0
+    clip: true
 
     SceneHost {
         id: road
         objectName: "startPageScene"
-        x: root.roadReach > 0 ? -root.roadReach : Math.round((root.width - width) / 2)
-        width: root.roadReach > 0 ? root.roadWidth : Math.max(root.width, root.roadWidth)
+        width: root.width
         height: root.height
         visible: root.roadEnabled
         colors: root.colors
         unlit: root.privateWindow
         glass: root.glassEnabled
         reducedMotion: root.reducedMotion
-        // What the reader sees of it: under the window, from the window's left
-        // edge to the page's right one, and otherwise the page it is clipped
-        // to.
-        frame: root.roadReach > 0 ? Qt.rect(0, 0, root.roadReach + root.width, height) : Qt.rect(-x,
-                                                                                                 0, root.width,
-                                                                                                 height)
         running: root.visible && root.roadEnabled && root.windowActive
         navigating: root.driving ? 1 : 0
         scene: Component {
