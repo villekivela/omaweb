@@ -9,6 +9,7 @@
 #include "StoredFaviconProvider.h"
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
+#include "LocaleReport.h"
 #include "KeyboardNavigation.h"
 #include "HttpsOnly.h"
 #include "EngineSuggestions.h"
@@ -419,6 +420,12 @@ public slots:
         // the ordinary one rather than one carrying a notice about this host.
         m_inputMethod = std::make_unique<omaweb::InputMethodReport>(omaweb::InputMethodHost {});
         omaweb::registerInputMethodReport(m_inputMethod.get());
+        // A Finnish desktop that chose it with LANG, so the page's wording is read against a
+        // locale it names rather than the machine the tests run on.
+        m_localeReport = std::make_unique<omaweb::LocaleReport>(
+            omaweb::LocaleChoice {QLocale(QStringLiteral("fi_FI")), QStringLiteral("LANG")},
+            QStringList {QStringLiteral("English"), QStringLiteral("Suomi")});
+        omaweb::registerLocaleReport(m_localeReport.get());
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_engineSuggestions = std::make_unique<omaweb::EngineSuggestions>(
             m_dataRoot->filePath(QStringLiteral("config")));
@@ -615,6 +622,7 @@ private:
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;
     std::unique_ptr<omaweb::InputMethodReport> m_inputMethod;
+    std::unique_ptr<omaweb::LocaleReport> m_localeReport;
     std::unique_ptr<omaweb::test::ProbeClock> m_probeClock;
     std::unique_ptr<omaweb::AgentControl> m_agentControl;
     std::unique_ptr<AgentSocketProbe> m_agentSocket;

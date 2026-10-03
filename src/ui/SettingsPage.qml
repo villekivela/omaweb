@@ -1040,6 +1040,25 @@ Rectangle {
                             }
                         }
                     }
+
+                    SectionLabel {
+                        colors: root.colors
+                        text: qsTr("language")
+                    }
+
+                    // Read-only: the locale is the desktop's to set, so the row says which one
+                    // Omaweb found and what chose it, which is why the chrome speaks as it does.
+                    SettingRow {
+                        objectName: "languageRow"
+                        width: pane.width
+                        colors: root.colors
+                        title: LocaleReport.title
+                        note: (LocaleReport.variable.length > 0 ? qsTr(
+                                                                      "Follows the system locale (%1). Shipped: %2.").arg(
+                                                                      LocaleReport.variable) : qsTr(
+                                                                      "Follows the system locale. Shipped: %1.")).arg(
+                                  LocaleReport.shipped.join(", "))
+                    }
                 }
 
                 // ---- keyboard ----------------------------------------------

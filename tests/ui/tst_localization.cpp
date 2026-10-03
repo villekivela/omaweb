@@ -94,6 +94,8 @@ private slots:
     void siteInformationSpeaksFinnishUnderAFinnishLocale();
     void settingsAndSiteInformationStayEnglishUnderAnEnglishLocale();
     void aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue();
+    void settingsNamesTheFinnishLocaleAndHowItWasChosenInFinnish();
+    void settingsNamesTheEnglishLocaleAndHowItWasChosenInEnglish();
 };
 
 void Localization::theStartPageSpeaksFinnishUnderAFinnishLocale()
@@ -200,6 +202,31 @@ void Localization::aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue()
     QCOMPARE(reportLine(locale, QStringLiteral("--report-setting-change"),
                  QStringLiteral("stored_floating_controls")),
         QStringLiteral("false"));
+}
+
+// The Language row is where a reader finds out why the chrome speaks as it does: the locale in
+// its own language and code, the variable that chose it, and what else is shipped. The title is
+// not translated, the note is.
+void Localization::settingsNamesTheFinnishLocaleAndHowItWasChosenInFinnish()
+{
+    const auto locale = QStringLiteral("fi_FI.UTF-8");
+    QCOMPARE(
+        reportLine(locale, QStringLiteral("--report-settings"), QStringLiteral("language_title")),
+        QStringLiteral("Suomi (fi_FI)"));
+    QCOMPARE(
+        reportLine(locale, QStringLiteral("--report-settings"), QStringLiteral("language_note")),
+        QStringLiteral("Seuraa järjestelmän kieliasetusta (LANG). Saatavilla: English, Suomi."));
+}
+
+void Localization::settingsNamesTheEnglishLocaleAndHowItWasChosenInEnglish()
+{
+    const auto locale = QStringLiteral("en_US.UTF-8");
+    QCOMPARE(
+        reportLine(locale, QStringLiteral("--report-settings"), QStringLiteral("language_title")),
+        QStringLiteral("English (en_US)"));
+    QCOMPARE(
+        reportLine(locale, QStringLiteral("--report-settings"), QStringLiteral("language_note")),
+        QStringLiteral("Follows the system locale (LANG). Shipped: English, Suomi."));
 }
 
 QTEST_GUILESS_MAIN(Localization)
