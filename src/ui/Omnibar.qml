@@ -780,35 +780,44 @@ Item {
                                                                                                (root.newTabIntent
                                                                                                 ? qsTr("Where to? \u00b7 opens in a new tab") :
                                                                                                   qsTr("Where to?")))
-                // Drawn by the item beside it, which stands clear of the caret.
-                placeholderTextColor: "transparent"
+                placeholderTextColor: root.colors.mutedText
                 readonly property real caretWidth: Math.round(input.font.pixelSize * 0.55)
                 font.family: Style.font.family
                 font.pixelSize: 17
                 selectByMouse: true
-                // The dash's block caret, blinking while the field has focus.
-                cursorDelegate: Rectangle {
-                    objectName: "omnibarCaret"
-                    width: input.caretWidth
-                    height: Math.round(input.font.pixelSize * 1.1)
-                    color: root.colors.accent
-                    visible: input.cursorVisible
+                // The dash's block caret, blinking while the field has focus. In
+                // an empty field it stands before the placeholder, in the gap
+                // after the mark, as the website's does, and not over its first
+                // letter.
+                cursorDelegate: Item {
+                    width: 0
+                    height: caret.height
 
-                    SequentialAnimation on opacity {
-                        running: root.open && input.activeFocus
-                        loops: Animation.Infinite
-                        alwaysRunToEnd: false
-                        PropertyAction {
-                            value: 0.9
-                        }
-                        PauseAnimation {
-                            duration: 550
-                        }
-                        PropertyAction {
-                            value: 0
-                        }
-                        PauseAnimation {
-                            duration: 550
+                    Rectangle {
+                        id: caret
+                        objectName: "omnibarCaret"
+                        x: input.text.length === 0 ? -(width + 3) : 0
+                        width: input.caretWidth
+                        height: Math.round(input.font.pixelSize * 1.1)
+                        color: root.colors.accent
+                        visible: input.cursorVisible
+
+                        SequentialAnimation on opacity {
+                            running: root.open && input.activeFocus
+                            loops: Animation.Infinite
+                            alwaysRunToEnd: false
+                            PropertyAction {
+                                value: 0.9
+                            }
+                            PauseAnimation {
+                                duration: 550
+                            }
+                            PropertyAction {
+                                value: 0
+                            }
+                            PauseAnimation {
+                                duration: 550
+                            }
                         }
                     }
                 }
@@ -835,45 +844,26 @@ Item {
                     root.queryChanged(text);
                 }
 
-                onAccepted: root.accept()
-
+                // The keys the field answers are the key map's, which the hint
+                // row under the results names.
                 Keys.onPressed: function (event) {
-                    if (event.key === Qt.Key_Backspace && (root.releaseKeyword() || root.releaseScope(
-                                                               )))
+                    const action = root.keymap ? root.keymap.omnibarActionFor(event.key) : "";
+                    if (action === "next" || action === "previous") {
+                        root.step(action === "next" ? 1 : -1);
                         event.accepted = true;
+                    } else if (action === "go") {
+                        root.accept();
+                        event.accepted = true;
+                    } else if (action === "leave" && (root.releaseKeyword() || root.releaseScope(
+                                                          ))) {
+                        event.accepted = true;
+                    }
                 }
 
                 Keys.onEscapePressed: function (event) {
                     root.dismissed();
                     event.accepted = true;
                 }
-
-                Keys.onDownPressed: function (event) {
-                    root.step(1);
-                    event.accepted = true;
-                }
-
-                Keys.onUpPressed: function (event) {
-                    root.step(-1);
-                    event.accepted = true;
-                }
-            }
-
-            // The placeholder, after the block caret rather than under it, as
-            // the website's stands after its caret.
-            Text {
-                objectName: "omnibarPlaceholder"
-                anchors.left: input.left
-                anchors.leftMargin: input.caretWidth + 4
-                anchors.right: input.right
-                anchors.verticalCenter: input.verticalCenter
-                visible: input.text.length === 0
-                text: input.placeholderText
-                color: root.colors.mutedText
-                elide: Text.ElideRight
-                font.family: input.font.family
-                font.pixelSize: input.font.pixelSize
-                Accessible.ignored: true
             }
 
             // Commits as Return does, for the pointer. In command scope it

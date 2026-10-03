@@ -2060,6 +2060,10 @@
         <source>go</source>
         <translation>siirry</translation>
     </message>
+    <message>
+        <source>back</source>
+        <translation>takaisin</translation>
+    </message>
 </context>
 <context>
     <name>PageImages</name>

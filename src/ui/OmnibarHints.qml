@@ -17,22 +17,34 @@ Item {
     // Items for the row's right end.
     default property alias trailing: trailingSlot.data
 
-    // The keys for each thing the list does, in the scope the field is in.
+    // The keys for each thing the field does in the scope it is in. Command
+    // scope also has a key that leaves it.
     readonly property var keys: ({
                                      "select": root.keymap.omnibarKeys.select,
                                      "go": root.commandScope ? root.keymap.omnibarKeys.run :
-                                                               root.keymap.omnibarKeys.go
+                                                               root.keymap.omnibarKeys.go,
+                                     "leave": root.keymap.omnibarKeys.leave
                                  })
-    readonly property var groups: [
-        {
-            "keys": root.keys.select,
-            "word": qsTr("select")
-        },
-        {
-            "keys": root.keys.go,
-            "word": root.commandScope ? qsTr("run") : qsTr("go")
-        }
-    ]
+    readonly property var groups: root.groupsFor(root.commandScope)
+
+    function groupsFor(commandScope) {
+        const groups = [
+                  {
+                      "keys": root.keys.select,
+                      "word": qsTr("select")
+                  },
+                  {
+                      "keys": root.keys.go,
+                      "word": commandScope ? qsTr("run") : qsTr("go")
+                  }
+              ];
+        if (commandScope)
+            groups.push({
+                            "keys": root.keys.leave,
+                            "word": qsTr("back")
+                        });
+        return groups;
+    }
 
     implicitHeight: Math.max(cap.height, line.implicitHeight) + 16
     height: visible ? implicitHeight : 0

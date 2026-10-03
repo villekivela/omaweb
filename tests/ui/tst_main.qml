@@ -9570,31 +9570,86 @@ TestCase {
         });
         compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
             return word.text;
-        }).join(), "select,run");
+        }).join(), "select,run,back");
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
     }
 
     // The block caret stands before the placeholder in an empty field, as the
-    // website's does, and never over its first letter.
+    // website's does, and never over its first letter. Typing puts it after
+    // the text.
     function test_theCaretStandsBeforeThePlaceholder() {
         const input = findChild(window.contentItem, "omnibarInput");
-        const placeholder = findChild(window.contentItem, "omnibarPlaceholder");
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting caret");
         tryCompare(findChild(window.contentItem, "omnibar"), "arrival", 1);
         compare(input.text, "");
-        verify(placeholder.visible);
-        compare(placeholder.text, input.placeholderText);
         const caret = findChild(input, "omnibarCaret");
         verify(caret !== null);
+        const textLeft = input.mapToItem(window.contentItem, input.leftPadding, 0).x;
         const caretRight = caret.mapToItem(window.contentItem, caret.width, 0).x;
-        const textLeft = placeholder.mapToItem(window.contentItem, 0, 0).x;
-        verify(textLeft >= caretRight, "the placeholder starts under the caret");
+        verify(caretRight <= textLeft, "the caret stands over the placeholder");
+        const prompt = findChild(window.contentItem, "omnibarPrompt");
+        verify(caret.mapToItem(window.contentItem, 0, 0).x >= prompt.mapToItem(window.contentItem,
+                                                                               prompt.width, 0).x,
+               "the caret stands over the mark");
         input.text = "x";
-        verify(!placeholder.visible);
+        verify(caret.mapToItem(window.contentItem, 0, 0).x >= textLeft);
         input.text = "";
         leaveSpace(homeSpaceId, restingSpaceId, "Resting caret");
+    }
+
+    // The Omnibar's field answers the keys its key map names, and the hint row
+    // names the same keys: rebinding the arrows turns the selection the other
+    // way and the row follows.
+    function test_theFieldAnswersTheKeysTheHintRowNames() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const hints = findChild(window.contentItem, "omnibarHints");
+        const keymap = panel.keymap;
+        const original = keymap.omnibarBindings;
+        browser.recordVisit("https://rebind-one.example/", "Rebind one");
+        browser.recordVisit("https://rebind-two.example/", "Rebind two");
+        openPage("https://rebind-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        input.text = "rebind";
+        tryVerify(function () {
+            return panel.rows.length > 1;
+        });
+        panel.selected = 0;
+        keyClick(Qt.Key_Down);
+        compare(panel.selected, 1);
+        keyClick(Qt.Key_Up);
+        compare(panel.selected, 0);
+
+        keymap.omnibarBindings = {
+            "Up": "next",
+            "Down": "previous",
+            "Return": "go",
+            "Backspace": "leave"
+        };
+        keyClick(Qt.Key_Up);
+        compare(panel.selected, 1);
+        keyClick(Qt.Key_Down);
+        compare(panel.selected, 0);
+        compare(hints.keys.select.join(), keymap.omnibarKeys.select.join());
+
+        keymap.omnibarBindings = {
+            "Left": "next",
+            "Return": "go",
+            "Backspace": "leave"
+        };
+        compare(hints.keys.select.join(), "\u2190");
+        keyClick(Qt.Key_Down);
+        compare(panel.selected, 0);
+        keyClick(Qt.Key_Left);
+        compare(panel.selected, 1);
+
+        keymap.omnibarBindings = original;
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
     }
 
     // A Space with nothing open in it has no page to show and no ordinary tab
