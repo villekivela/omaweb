@@ -122,6 +122,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   That covers a Space at rest and an `about:blank` the reader navigated to, and no engine is spent
   behind it. The Start page is the Omnibar at rest in the middle of the page area, focused, over a
   night road. Under the field one line names `?`, the way to the Shortcut sheet.
+- The road fills the page area, or the one pane of a split it stands in, and is never drawn under
+  the sidebar, which stands on its own fill as it does with the road off. It is drawn at the page
+  area's size, centred on it, with the composition the website draws in a viewport of that size.
+  With the sidebar hidden the page area is the whole window.
 - The road is drawn from the palette and follows a live theme change: a horizon and a banded sun,
   mountains falling to where the road runs out, a star field, the road from the bottom edge toward
   the horizon and lane marks drifting toward the reader. It is shown as a monochrome pixel display

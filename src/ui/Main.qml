@@ -2814,10 +2814,7 @@ ApplicationWindow {
                 // Above the page while a Space arrives, so a page arriving
                 // from the left slides in from under the shelf rather than
                 // over it.
-                // Over the page area while the Start page's road runs under
-                // both.
-                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : startPage.underSidebar ? 1 :
-                                                                                                  0
+                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
@@ -3405,17 +3402,6 @@ ApplicationWindow {
                     privateWindow: window.privateWindow
                     open: window.startPageShown
                     ease: window.chromeEase
-                    // Visible and drawing its road, which then runs under the
-                    // sidebar to the window's edge.
-                    readonly property bool underSidebar: visible && roadEnabled && !inPane
-                    // Under the sidebar the road is as much wider as the
-                    // sidebar is, so its vanishing point stays under the
-                    // Omnibar in the middle of the page area. The settled
-                    // width, so a sliding seam does not redraw it.
-                    roadWidth: inPane ? window.width : window.width + chromeRow.settledSeam
-                    // The viewport is moved by a Space arriving, and the road
-                    // is not: it reaches back past the move to the window.
-                    roadReach: inPane ? 0 : chromeRow.seam + chromeRow.pageArrival
                     roadEnabled: window.startPageRoad
                     glassEnabled: window.startPageGlass
                     reducedMotion: window.reducedMotion

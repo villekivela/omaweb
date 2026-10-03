@@ -9622,39 +9622,40 @@ TestCase {
         browser.activateTab(firstTabId);
     }
 
-    // On the Start page the road runs under the whole window and the sidebar
-    // stands over it in its own colour, translucent as the theme has it. Once
-    // a page has loaded the Start page and its road are gone and the sidebar
-    // stands on the window again.
-    function test_theRoadRunsUnderTheSidebarOnTheStartPage() {
+    // The Start page's road fills the page area and nothing else: it is
+    // drawn at the page area's own size, as the website draws it in a
+    // viewport, centred on it, and never runs under the sidebar. Over a Start
+    // page the sidebar stands on its own fill, as with the road off.
+    function test_theRoadFillsThePageAreaAndNotTheSidebar() {
         const sidebar = findChild(window.contentItem, "sidebar");
-        const viewport = findChild(window.contentItem, "engineViewport");
         const startPage = findChild(window.contentItem, "startPage");
         const scene = findChild(window.contentItem, "startPageScene");
         const homeSpaceId = browser.activeSpaceId;
-        const restingSpaceId = enterRestingSpace("Resting under");
+        const restingSpaceId = enterRestingSpace("Resting in the page area");
         tryCompare(sidebar, "arriving", false);
         tryVerify(function () {
             return startPage.visible && sidebar.visible && sidebar.width > 0;
         });
 
-        const origin = scene.mapToItem(window.contentItem, 0, 0);
-        compare(origin.x, 0);
-        // Its vanishing point stays in the middle of the page area, under the
-        // Omnibar.
-        const middle = startPage.mapToItem(window.contentItem, startPage.width / 2, 0);
-        compare(origin.x + scene.width / 2, middle.x);
-        // The glass is framed by the window, not by the wider road.
-        compare(scene.frame.x, 0);
-        compare(scene.frame.width, window.width);
-        // Nothing between it and the window cuts it short of the window's
-        // left edge.
-        for (let item = scene.parent; item !== window.contentItem; item = item.parent) {
-            if (item.clip)
-                verify(item.mapToItem(window.contentItem, 0, 0).x <= 0, item + " clips the road");
+        const widths = [window.sidebarMinimumWidth + 40, window.sidebarMinimumWidth + 120];
+        for (const width of widths) {
+            window.sidebarWidth = width;
+            tryCompare(startPage, "width", window.width - width);
+            checkRoadFillsPageArea(startPage, scene);
+            // Nothing between the road and the window cuts it short of the
+            // page area's own edges, and the page area starts at the seam.
+            verify(startPage.clip);
+            compare(startPage.mapToItem(window.contentItem, 0, 0).x, width);
         }
-        // Drawn over the road, not under it.
-        verify(sidebar.z > viewport.z);
+
+        window.sidebarCollapsed = true;
+        tryCompare(startPage, "width", window.width);
+        checkRoadFillsPageArea(startPage, scene);
+        window.sidebarCollapsed = false;
+        tryCompare(startPage, "width", window.width - window.sidebarWidth);
+
+        // Drawn over the road's side of the window, not under it.
+        verify(sidebar.z <= findChild(window.contentItem, "engineViewport").z);
         compare(String(sidebar.color), String(window.colors.sidebar));
 
         const input = findChild(window.contentItem, "omnibarInput");
@@ -9668,10 +9669,20 @@ TestCase {
             return !startPage.visible;
         });
         verify(!scene.visible);
-        verify(sidebar.z <= viewport.z);
-        compare(String(sidebar.color), String(window.colors.sidebar));
 
-        leaveSpace(homeSpaceId, restingSpaceId, "Resting under");
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting in the page area");
+    }
+
+    // The road is as wide as the page area, centred on it, and the glass is
+    // framed by the road itself.
+    function checkRoadFillsPageArea(startPage, scene) {
+        compare(scene.width, startPage.width);
+        compare(scene.x, 0);
+        compare(scene.frame.x, 0);
+        compare(scene.frame.width, startPage.width);
+        const origin = scene.mapToItem(window.contentItem, 0, 0);
+        const page = startPage.mapToItem(window.contentItem, 0, 0);
+        compare(origin.x, page.x);
     }
 
     // The road moves only while the reader could see it: a window that has
