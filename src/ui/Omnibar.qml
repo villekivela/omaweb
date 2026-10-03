@@ -142,20 +142,22 @@ Item {
     property bool ease: true
     // 0 on its way in, 1 at rest.
     property real arrival: 1
-    // One place whatever it was opened over: the field on the Start page's
-    // horizon in the middle of the page area, so opening it over a page puts
-    // it where a new tab shows it. The rows grow down from the field and never
-    // move it.
-    readonly property real restWidth: Math.min(660, restArea.width - 96)
+    // One place whatever it was opened over: the website's dash, centred in
+    // the page area and `min(page area - 32px, 720px)` wide, with the road's
+    // horizon 50 px below its top edge as there, so opening it over a page
+    // puts it where a new tab shows it. The rows grow down from the field and
+    // never move it.
+    readonly property real horizonBelowTop: 50
+    readonly property real restWidth: Math.min(720, restArea.width - 32)
     readonly property real restX: restArea.x + (restArea.width - restWidth) / 2
-    readonly property real restY: restArea.y + horizonY - header.height / 2 - panel.border.width
+    readonly property real restY: restArea.y + horizonY - horizonBelowTop
     // What the page area leaves under the field for the rows, keeping a
     // margin off its bottom edge.
     readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height - 2
                                            * panel.border.width - 8 - 24
     // How far below the horizon the field ends, which is where the Start page
     // can draw beneath it.
-    readonly property real fieldBelowHorizon: header.height / 2 + panel.border.width
+    readonly property real fieldBelowHorizon: header.height + panel.border.width - horizonBelowTop
     readonly property real restHeight: header.height + body.height + 2 * panel.border.width
     NumberAnimation {
         id: arrivalEase
@@ -672,11 +674,12 @@ Item {
         // cut across the panel's own edge and square off its corners.
         Item {
             id: header
+            objectName: "omnibarField"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: panel.border.width
-            height: 62
+            height: 50
 
             // The field is drawn as the website's dash: the Omaweb mark as its
             // prompt, the typed text and a block caret glowing in the accent,
@@ -689,18 +692,20 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
-                width: 22
-                height: 22
+                width: 32
+                height: 16
 
                 Shape {
                     id: mark
                     objectName: "omnibarMark"
                     // The mark from assets/icons/omaweb.svg, moved to the
-                    // origin: 40.4 by 18.4 in its own units.
+                    // origin: 37.83 by 18.37 in its own units. It is drawn
+                    // as the website's dash draws it, 32 px across its
+                    // 38.2 unit view box.
                     anchors.centerIn: parent
-                    width: 40.4
-                    height: 18.4
-                    scale: parent.width / width
+                    width: 37.83
+                    height: 18.37
+                    scale: parent.width / 38.2
                     visible: !root.commandScope
                     preferredRendererType: Shape.CurveRenderer
                     layer.enabled: true

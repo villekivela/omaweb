@@ -37,7 +37,7 @@ Item {
     property bool driving: false
     // How far below the horizon the Omnibar's field ends, so the hint sits
     // under it rather than behind it.
-    property real fieldBelowHorizon: 32
+    property real fieldBelowHorizon: 1
     // The page the Start page was summoned over, blurred under the sheet tint
     // when the road is off. Must not be an ancestor of this item.
     property Item pageSource: null
