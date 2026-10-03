@@ -637,6 +637,7 @@ void AgentControlTest::focusesATabThatSwitchingToItsSpaceWouldPutAway()
     QVERIFY_SESSION_READY(fixture);
     const auto browser = fixture.createController();
     AgentControl control(browser.get(), config.path());
+    QVERIFY(browser->setPutAwayAfterSeconds(12 * 60 * 60));
     browser->setNowForTests(now + 24 * 60 * 60 * 1000);
 
     const auto focused = ask(control, QStringLiteral("script"), QStringLiteral("focus"),
