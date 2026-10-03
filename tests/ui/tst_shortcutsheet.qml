@@ -130,11 +130,22 @@ TestCase {
     // the sheet draws them. A column reserved from the advance alone can still
     // cut off the one chord it was measured from, and that is the failure the
     // column exists to avoid.
-    Omaweb.KeyCaps {
-        id: keyProbe
-        visible: false
-        keys: testCase.longestKeys
-        colors: testCase.colorsFixture
+    Component {
+        id: keyProbeComponent
+
+        Omaweb.KeyCaps {
+            keys: testCase.longestKeys
+            colors: testCase.colorsFixture
+        }
+    }
+
+    // The width the longest binding paints, drawn fresh: a probe kept from
+    // before a change of type keeps the size it was laid out at.
+    function longestKeysWidth() {
+        const probe = keyProbeComponent.createObject(testCase);
+        const width = Math.ceil(probe.implicitWidth);
+        probe.destroy();
+        return width;
     }
 
     // Both axes the theme can move the sheet along, shared with the other
@@ -215,10 +226,10 @@ TestCase {
     // paints, not merely for what it advances by.
     function test_keyColumnIsMeasuredFromTheWidestBinding() {
         const sheet = makeSheet();
-        verify(sheet.keyColumnWidth >= Math.ceil(keyProbe.implicitWidth));
+        verify(sheet.keyColumnWidth >= testCase.longestKeysWidth());
         // And no wider than that binding needs: the rest of the row is title.
         // One body glyph of slack is the most a rounded measurement can add.
-        verify(sheet.keyColumnWidth <= Math.ceil(keyProbe.implicitWidth) + Style.font.body);
+        verify(sheet.keyColumnWidth <= testCase.longestKeysWidth() + Style.font.body);
     }
 
     // Everything on the row grows with the type, so the column that holds it
@@ -236,7 +247,7 @@ TestCase {
         verify(sheet.rowHeight > smallRow);
         // The row still has room for the line it draws and the rule under it.
         verify(sheet.rowHeight > Style.font.body);
-        verify(sheet.keyColumnWidth >= Math.ceil(keyProbe.implicitWidth));
+        verify(sheet.keyColumnWidth >= testCase.longestKeysWidth());
     }
 
     // A column count is a question about the type, not about pixels: the same
