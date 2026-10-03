@@ -9639,6 +9639,28 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // The Shortcut sheet holds a row for every command whether it is open or
+    // not. A closed sheet draws none of their key caps, which kept the rest of
+    // the window slow enough to miss clicks, and an open one draws them.
+    function test_aClosedShortcutSheetDrawsNoKeyCaps() {
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const capsIn = function () {
+            return childrenNamed(sheet, "keycap").filter(function (cap) {
+                return cap.text.length > 0;
+            }).length;
+        };
+        verify(!window.shortcutsOpen);
+        compare(capsIn(), 0);
+        window.requestShortcuts();
+        tryVerify(function () {
+            return window.shortcutsOpen && capsIn() > 0;
+        });
+        window.shortcutsOpen = false;
+        tryVerify(function () {
+            return capsIn() === 0;
+        });
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
     // to list. The Start page stands in: the Omnibar at rest over the road,
     // focused, and no renderer spent on the blank tab behind it.

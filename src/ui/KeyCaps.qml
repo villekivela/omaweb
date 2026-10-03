@@ -13,6 +13,10 @@ Row {
     property string keys: ""
     property color plate: root.colors ? root.colors.windowOpaque : "black"
     property bool filled: true
+    // Whether the caps are made. The Shortcut sheet holds a row for every
+    // command whether it is open or not, and a closed sheet that drew them all
+    // slowed the rest of the window down.
+    property bool drawn: true
 
     readonly property var entries: root.entriesFor(root.keys)
     readonly property var parts: root.entries.filter(function (entry) {
@@ -71,7 +75,7 @@ Row {
     }
 
     Repeater {
-        model: root.entries
+        model: root.drawn ? root.entries : []
 
         Item {
             id: entry
