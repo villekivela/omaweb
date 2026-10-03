@@ -53,8 +53,8 @@ The `omaweb-wrapped-strings` test, part of `ctest --preset ci`, fails the build 
 - A QML property that carries reader text (`text`, `label`, `title`, `note`, `accessibleName` and
   the like) holds a literal outside `qsTr`. A plain lowercase word counts: `text: "privacy"` fails.
   A name with an underscore or a hyphen is a token. A literal compared with `===`, a `case` label
-  and the kind passed to `mediaLabel` are values. An icon's glyph name or a colour that is one plain
-  word goes in `TOKENS` in `scripts/check_wrapped_strings.py`, under its file.
+  and the kind passed to `mediaLabel` are values. An icon's glyph name, a colour or a program's name
+  that is one plain word goes in `TOKENS` in `scripts/check_wrapped_strings.py`, under its file.
 - A C++ literal that starts with a capital and has two words sits outside `tr(`,
   `QCoreApplication::translate(` and a log statement. Text that stays English on purpose, such as a
   stored title or a product name, goes in `CPP_ENGLISH` with its reason. An Agent's wire text and

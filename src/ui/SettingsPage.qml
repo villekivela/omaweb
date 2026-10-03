@@ -2203,6 +2203,30 @@ Rectangle {
                         }
                     }
 
+                    SettingRow {
+                        objectName: "agentCommandRow"
+                        visible: !!root.agentControl
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Agent command")
+                        note: qsTr(
+                                  "What :ask runs in your terminal, with the tab on show and your "
+                                  + "words added at the end. Write it as you would in a shell.")
+
+                        SettingField {
+                            objectName: "agentCommand"
+                            width: Style.spacing.dropdownWidth
+                            colors: root.colors
+                            placeholder: "claude"
+                            accessibleName: qsTr("Agent command")
+                            text: root.agentControl ? root.agentControl.agentCommand : ""
+                            onEditingFinished: {
+                                if (root.agentControl)
+                                    root.agentControl.agentCommand = text;
+                            }
+                        }
+                    }
+
                     SectionLabel {
                         visible: !!root.agentControl
                         colors: root.colors

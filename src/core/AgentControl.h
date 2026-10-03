@@ -78,6 +78,11 @@ class AgentControl final : public QObject {
     // The Spaces the reader has granted, as `spaceId` and `spaceName`, in the
     // order they were granted.
     Q_PROPERTY(QVariantList grantedSpaces READ grantedSpaces NOTIFY grantedSpacesChanged)
+    // The command line `askAgent` starts in the reader's terminal, kept in
+    // `privacy.json` beside Allow agents. Setting it empty gives back the
+    // default.
+    Q_PROPERTY(
+        QString agentCommand READ agentCommand WRITE setAgentCommand NOTIFY agentCommandChanged)
 
 public:
     // The most connection states kept at once. A name costs nothing to invent,
@@ -190,9 +195,26 @@ public:
     // grant was revoked.
     Q_INVOKABLE bool revokeGrant(const QString &spaceId);
 
+    QString agentCommand() const;
+    void setAgentCommand(const QString &command);
+    // Hands the tab to the reader's own agent: their terminal, through
+    // `xdg-terminal-exec`, runs the agent command, split as a shell would
+    // split it, with one more argument that names the tab and carries the
+    // reader's words unchanged. No shell reads the tab or the words.
+    //
+    // Answers `{"ok": true}`, or `{"ok": false, "code": ..., "program": ...}`
+    // where the code is `allow-agents` while Allow agents is off, `private`
+    // when handed a Private window, `no-tab` for a tab it does not hold,
+    // `no-agent` or `no-terminal` for a program not found, and `not-started`
+    // for a terminal that would not start. `program` names the program that
+    // failed. Starting an agent is not logged: the agent is, when it connects.
+    Q_INVOKABLE QVariantMap askAgent(const QString &tabId, const QString &words);
+
     // Where `shot` writes every screenshot: a directory only this user can
     // enter, beside the socket.
     void setShotDirectory(const QString &directory);
+    // Tests start a program of their own in place of the terminal.
+    void setTerminalProgram(const QString &program);
     // Tests shorten how long a tab stays an Agent tab unused.
     void setAttachmentIdleMs(int milliseconds);
     // Tests shorten how long a verb waits for the reader.
@@ -205,6 +227,7 @@ signals:
     void agentWindowsChanged();
     void grantRequestChanged();
     void grantedSpacesChanged();
+    void agentCommandChanged();
     // An Agent closed the Auxiliary window of this id.
     void windowCloseRequested(const QString &windowId);
     // A page verb for the page of `request.tabId`, with `verb`, `spaceId`, the
@@ -407,6 +430,11 @@ private:
     // The Space grants asked for, the one on show first.
     QList<PendingGrant> m_pendingGrants;
     int m_grantAnswerMs = defaultGrantAnswerMs;
+    QString m_agentCommand;
+    // The desktop's way to open the reader's own terminal running a command,
+    // which Omarchy configures. Its arguments are the command's own, and no
+    // shell reads them.
+    QString m_terminalProgram = QStringLiteral("xdg-terminal-exec");
 };
 
 } // namespace omaweb

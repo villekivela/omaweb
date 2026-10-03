@@ -53,7 +53,8 @@ COMPARED = re.compile(
 )
 
 # Single lowercase words that are not prose, by the file that carries them: an
-# icon's glyph name, and a colour. A word that is read goes through `qsTr`.
+# icon's glyph name, a colour, and a program's name. A word that is read goes
+# through `qsTr`.
 TOKENS = {
     ("FindBar.qml", "search"),
     ("TabRow.qml", "close"),
@@ -61,6 +62,7 @@ TOKENS = {
     ("SpaceOutline.qml", "lock"),
     ("SpaceOutline.qml", "shield"),
     ("NightRoad.qml", "white"),
+    ("SettingsPage.qml", "claude"),
 }
 
 

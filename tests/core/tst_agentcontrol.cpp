@@ -1,3 +1,4 @@
+#include "AgentActivityLog.h"
 #include "AgentCommand.h"
 #include "AgentControl.h"
 #include "AgentMcp.h"
@@ -26,6 +27,7 @@
 
 #include <sys/stat.h>
 
+using omaweb::AgentActivityLog;
 using omaweb::AgentControl;
 using omaweb::BrowserController;
 using omaweb::ControlSocket;
@@ -130,6 +132,39 @@ QString openAgentTab(AgentControl &control, const QString &name)
     return opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
 }
 
+// A program that writes down the arguments it was started with, each ended by
+// a NUL so one holding a newline is still one, to `<path>.args`. It stands in
+// for the terminal, and for the agent the terminal would run.
+QString recordingProgram(const QString &path)
+{
+    QFile script(path);
+    if (!script.open(QIODevice::WriteOnly)) {
+        return {};
+    }
+    const auto record = path + QStringLiteral(".args");
+    script.write(QStringLiteral("#!/bin/sh\n"
+                                "for argument in \"$@\"; do printf '%s\\0' \"$argument\"; done "
+                                "> '%1.part'\n"
+                                "mv '%1.part' '%1'\n")
+            .arg(record)
+            .toUtf8());
+    script.close();
+    script.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    return path;
+}
+
+// What a recording program was started with, once it has written it down.
+QStringList recordedArguments(const QString &program)
+{
+    QFile record(program + QStringLiteral(".args"));
+    if (!record.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    auto arguments = QString::fromUtf8(record.readAll()).split(QChar(u'\0'));
+    arguments.removeLast();
+    return arguments;
+}
+
 } // namespace
 
 class AgentControlTest final : public QObject {
@@ -184,6 +219,8 @@ private slots:
     void leavesPinsAndTheReadersTabsAloneInAGrantedSpace();
     void withdrawsThePromptWhenAllowAgentsGoesOff();
     void asksBeforeLoadingAReadersTab();
+    void handsATabAndTheReadersWordsToTheirAgent();
+    void saysWhyTheReadersAgentDidNotStart();
 };
 
 void AgentControlTest::gatesOnlyAgentSpacesBehindAllowAgents()
@@ -640,6 +677,20 @@ void AgentControlTest::neverListsOrReachesAPrivateWindow()
         QCOMPARE(failure(answer), QStringLiteral("private"));
     }
     QCOMPARE(privateWindow->tabs()->rowCount(), 1);
+
+    // Nor is a Private tab ever handed to the reader's agent, from either.
+    QTemporaryDir programs;
+    const auto terminal = recordingProgram(programs.filePath(QStringLiteral("terminal")));
+    control.setTerminalProgram(terminal);
+    privateControl.setTerminalProgram(terminal);
+    control.setAgentCommand(terminal);
+    privateControl.setAgentCommand(terminal);
+    QCOMPARE(control.askAgent(privateTabId, {}).value(QStringLiteral("code")).toString(),
+        QStringLiteral("no-tab"));
+    QCOMPARE(privateControl.askAgent(privateTabId, {}).value(QStringLiteral("code")).toString(),
+        QStringLiteral("private"));
+    QTest::qWait(200);
+    QVERIFY(!QFileInfo::exists(terminal + QStringLiteral(".args")));
 }
 
 void AgentControlTest::answersOverASocketOnlyItsUserCanOpen()
@@ -1613,11 +1664,12 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     QVERIFY(registry.size() > 50);
 
     // Taking an Agent Space over is the reader's answer to an Agent, and an
-    // Agent that could give it would take its own mark off.
+    // Agent that could give it would take its own mark off. Asking an agent
+    // starts a program on the reader's word, which no Agent may do for itself.
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
         QStringLiteral("private-window"), QStringLiteral("take-over-space"),
-        QStringLiteral("agent-activity")};
+        QStringLiteral("agent-activity"), QStringLiteral("ask")};
     QStringList decided = AgentControl::publicCommands() + keptIn;
     decided.sort();
     registry.sort();
@@ -2328,6 +2380,109 @@ void AgentControlTest::withdrawsThePromptWhenAllowAgentsGoesOff()
     QCOMPARE(failure(replies.constFirst()), QStringLiteral("allow-agents"));
     control.answerGrant(QStringLiteral("work"), true);
     QVERIFY(!browser->spaceGranted(QStringLiteral("work")));
+}
+
+// `:ask` starts the reader's own agent in their terminal, on the tab on show.
+// The tab and the words go to it as arguments of their own, so nothing in
+// them is read by a shell on the way.
+void AgentControlTest::handsATabAndTheReadersWordsToTheirAgent()
+{
+    QTemporaryDir config;
+    QTemporaryDir programs;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    AgentActivityLog activity(programs.filePath(QStringLiteral("activity")));
+    control.setActivityLog(&activity);
+    control.setAllowAgents(true);
+    const auto terminal = recordingProgram(programs.filePath(QStringLiteral("terminal")));
+    control.setTerminalProgram(terminal);
+    QVERIFY(QDir(programs.path()).mkdir(QStringLiteral("my agent")));
+    const auto agent = recordingProgram(programs.filePath(QStringLiteral("my agent/agent")));
+
+    QCOMPARE(control.agentCommand(), QStringLiteral("claude"));
+    control.setAgentCommand(QStringLiteral("\"%1\" --model sonnet").arg(agent));
+
+    const auto words
+        = QStringLiteral("say \"hi\" & it's $(rm -rf ~) `uname` $HOME\nand a second line");
+    const auto asked = control.askAgent(QStringLiteral("work-tab"), words);
+    QVERIFY2(asked.value(QStringLiteral("ok")).toBool(),
+        qPrintable(asked.value(QStringLiteral("code")).toString()));
+    QTRY_VERIFY(!recordedArguments(terminal).isEmpty());
+    QCOMPARE(recordedArguments(terminal),
+        QStringList({agent, QStringLiteral("--model"), QStringLiteral("sonnet"),
+            QStringLiteral(
+                "Use the omaweb skill to work on the reader's Omaweb tab work-tab with the omaweb "
+                "CLI. Pass --tab work-tab to every page command, and make no Agent Space for "
+                "it.\n\n"
+                "say \"hi\" & it's $(rm -rf ~) `uname` $HOME\nand a second line")}));
+
+    // A bare `:ask` names the tab and nothing else.
+    QVERIFY(QFile::remove(terminal + QStringLiteral(".args")));
+    QVERIFY(control.askAgent(QStringLiteral("work-tab"), QString())
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QTRY_VERIFY(!recordedArguments(terminal).isEmpty());
+    QCOMPARE(recordedArguments(terminal).constLast(),
+        QStringLiteral("Use the omaweb skill to work on the reader's Omaweb tab work-tab with the "
+                       "omaweb CLI. Pass --tab work-tab to every page command, and make no Agent "
+                       "Space for it."));
+
+    // The agent connects and is logged as any Agent is; starting it is not.
+    QVERIFY(activity.entries().isEmpty());
+
+    // The command is the reader's, kept on this machine.
+    AgentControl restarted(browser.get(), config.path());
+    QCOMPARE(restarted.agentCommand(), QStringLiteral("\"%1\" --model sonnet").arg(agent));
+    restarted.setAgentCommand(QStringLiteral("  "));
+    QCOMPARE(restarted.agentCommand(), QStringLiteral("claude"));
+}
+
+// Nothing starts while Allow agents is off, and a program that cannot be run
+// is named, so the interface can say which one failed rather than nothing.
+void AgentControlTest::saysWhyTheReadersAgentDidNotStart()
+{
+    QTemporaryDir config;
+    QTemporaryDir programs;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    const auto terminal = recordingProgram(programs.filePath(QStringLiteral("terminal")));
+    control.setTerminalProgram(terminal);
+    const auto agent = recordingProgram(programs.filePath(QStringLiteral("agent")));
+    control.setAgentCommand(agent);
+    const auto refusal = [&control](const QString &tabId) {
+        const auto answer = control.askAgent(tabId, QStringLiteral("summarize this"));
+        return answer.value(QStringLiteral("ok")).toBool()
+            ? QStringLiteral("started")
+            : answer.value(QStringLiteral("code")).toString() + u' '
+                + answer.value(QStringLiteral("program")).toString();
+    };
+
+    QCOMPARE(refusal(QStringLiteral("personal-tab")), QStringLiteral("allow-agents "));
+    control.setAllowAgents(true);
+    QCOMPARE(refusal(QStringLiteral("no-such-tab")), QStringLiteral("no-tab "));
+
+    control.setAgentCommand(QStringLiteral("omaweb-test-no-such-agent --model sonnet"));
+    QCOMPARE(refusal(QStringLiteral("personal-tab")),
+        QStringLiteral("no-agent omaweb-test-no-such-agent"));
+    // A file that is there but cannot be run is no agent either.
+    QFile::setPermissions(agent, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    control.setAgentCommand(agent);
+    QCOMPARE(refusal(QStringLiteral("personal-tab")), QStringLiteral("no-agent ") + agent);
+    QFile::setPermissions(
+        agent, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+
+    control.setTerminalProgram(QStringLiteral("omaweb-test-no-such-terminal"));
+    QCOMPARE(refusal(QStringLiteral("personal-tab")),
+        QStringLiteral("no-terminal omaweb-test-no-such-terminal"));
+
+    control.setTerminalProgram(terminal);
+    QCOMPARE(refusal(QStringLiteral("personal-tab")), QStringLiteral("started"));
+    QTRY_VERIFY(!recordedArguments(terminal).isEmpty());
+    QCOMPARE(recordedArguments(terminal).constFirst(), agent);
 }
 
 QTEST_GUILESS_MAIN(AgentControlTest)

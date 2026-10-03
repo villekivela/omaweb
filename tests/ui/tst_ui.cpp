@@ -553,6 +553,9 @@ public slots:
         // The core the browser answers the Agent socket with, with no config
         // root, so Allow agents is off as it is until the reader turns it on.
         m_agentControl = std::make_unique<omaweb::AgentControl>(m_browser.get(), QString());
+        // `:ask` never opens a terminal on the machine running the tests: the
+        // one it looks for is not there, which the chrome then reports.
+        m_agentControl->setTerminalProgram(QStringLiteral("omaweb-test-no-terminal"));
         m_agentSocket = std::make_unique<AgentSocketProbe>(*m_agentControl);
         engine->rootContext()->setContextProperty(
             QStringLiteral("agentControl"), m_agentControl.get());
