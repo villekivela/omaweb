@@ -9575,6 +9575,28 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // The block caret stands before the placeholder in an empty field, as the
+    // website's does, and never over its first letter.
+    function test_theCaretStandsBeforeThePlaceholder() {
+        const input = findChild(window.contentItem, "omnibarInput");
+        const placeholder = findChild(window.contentItem, "omnibarPlaceholder");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting caret");
+        tryCompare(findChild(window.contentItem, "omnibar"), "arrival", 1);
+        compare(input.text, "");
+        verify(placeholder.visible);
+        compare(placeholder.text, input.placeholderText);
+        const caret = findChild(input, "omnibarCaret");
+        verify(caret !== null);
+        const caretRight = caret.mapToItem(window.contentItem, caret.width, 0).x;
+        const textLeft = placeholder.mapToItem(window.contentItem, 0, 0).x;
+        verify(textLeft >= caretRight, "the placeholder starts under the caret");
+        input.text = "x";
+        verify(!placeholder.visible);
+        input.text = "";
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting caret");
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
     // to list. The Start page stands in: the Omnibar at rest over the road,
     // focused, and no renderer spent on the blank tab behind it.
