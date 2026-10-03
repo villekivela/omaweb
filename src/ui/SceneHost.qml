@@ -34,13 +34,44 @@ Item {
     // itself.
     property rect frame: Qt.rect(0, 0, width, height)
 
+    // The width the Scene is drawn at. It follows the host's width once that
+    // has stood still for a moment, and at once when nothing is drawn yet or
+    // the host is hidden: a Scene is drawn again for a size, and a page area
+    // that a dragged seam changes at every frame would draw it again at every
+    // frame. Meanwhile the picture is stretched to the host.
+    property real drawnWidth: width
+
+    onWidthChanged: {
+        if (!root.visible || !root.sceneItem)
+            root.drawnWidth = root.width;
+        else
+            settle.restart();
+    }
+    onVisibleChanged: if (!visible)
+                          root.drawnWidth = root.width
+
+    Timer {
+        id: settle
+        interval: 120
+        onTriggered: root.drawnWidth = root.width
+    }
+
     readonly property Item sceneItem: sceneLoader.item
     // The light the Scene casts on the page, which the page lays on the
     // plates it names as lit, or null for a Scene that casts none. Its
-    // positions are in the host's own coordinates, which are the Scene's
-    // drawing ones.
-    readonly property var light: root.sceneItem && root.sceneItem.light ? root.sceneItem.light :
+    // positions are in the host's own coordinates: the Scene's drawing ones,
+    // stretched with its picture while the host is wider or narrower than the
+    // width it was drawn at.
+    readonly property var light: root.sceneItem && root.sceneItem.light ? root.stretched(
+                                                                              root.sceneItem.light) :
                                                                           null
+
+    function stretched(light) {
+        const k = root.width / (root.sceneWidth * root.pitch);
+        return Object.assign({}, light, {
+                                 "centre": Qt.point(light.centre.x * k, light.centre.y)
+                             });
+    }
     // The Scene's frames, a tick of its clock each, for the tests that check a
     // hidden Scene draws none.
     property int frames: 0
@@ -49,7 +80,7 @@ Item {
     property real time: 0
 
     readonly property int pitch: root.sceneItem ? root.sceneItem.pitch : 1
-    readonly property int sceneWidth: Math.max(1, Math.ceil(root.width / root.pitch))
+    readonly property int sceneWidth: Math.max(1, Math.ceil(root.drawnWidth / root.pitch))
     readonly property int sceneHeight: Math.max(1, Math.ceil(root.height / root.pitch))
     readonly property bool glassShown: root.glass && !!root.sceneItem && root.sceneItem.glass
                                        === "crt" && !!root.sceneItem.crt
