@@ -151,6 +151,13 @@ Desktop theme following needs no setup. On Omarchy, Omaweb installs its theme te
 start so `omarchy theme set` can update the browser without a restart. See the
 [Omarchy integration guide](integrations/omarchy/README.md) for compositor blur and opacity rules.
 
+## Languages
+
+Omaweb follows the system locale, read from `LC_ALL`, `LC_MESSAGES` or `LANG`, in that order. The
+chrome is available in English and Finnish (Suomi), and a locale without a translation shows
+English. Settings names the locale in use and what chose it. See the
+[translation guide](docs/localization.md) to add a language.
+
 ## Build
 
 Omaweb requires Qt, CMake, Ninja, Clang with C++ support, and ccache. The build configuration
