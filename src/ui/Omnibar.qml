@@ -776,8 +776,8 @@ Item {
                                                                                                    "search %1").arg(
                                                                                                    root.engine.engineName) :
                                                                                                (root.newTabIntent
-                                                                                                ? qsTr("address or search — opens in a new tab") :
-                                                                                                  qsTr("address or search")))
+                                                                                                ? qsTr("Where to? \u00b7 opens in a new tab") :
+                                                                                                  qsTr("Where to?")))
                 placeholderTextColor: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: 17
@@ -808,8 +808,11 @@ Item {
                         }
                     }
                 }
-                Accessible.name: root.engine === null ? placeholderText : qsTr("Search %1").arg(
-                                                            root.engine.engineName)
+                // The prompt alone says nothing of what the field takes.
+                Accessible.name: root.commandScope ? placeholderText : (root.engine === null ? qsTr(
+                                                                                                   "Address, search, tabs and Spaces") :
+                                                                                               qsTr("Search %1").arg(
+                                                                                                   root.engine.engineName))
                 Accessible.description: root.destination
 
                 onTextChanged: {

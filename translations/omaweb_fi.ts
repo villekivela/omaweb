@@ -1990,12 +1990,16 @@
         <translation>hae: %1</translation>
     </message>
     <message>
-        <source>address or search — opens in a new tab</source>
-        <translation>osoite tai haku — avautuu uudessa välilehdessä</translation>
+        <source>Where to? · opens in a new tab</source>
+        <translation>Minne haluaisit? · avautuu uuteen välilehteen</translation>
     </message>
     <message>
-        <source>address or search</source>
-        <translation>osoite tai haku</translation>
+        <source>Where to?</source>
+        <translation>Minne haluaisit?</translation>
+    </message>
+    <message>
+        <source>Address, search, tabs and Spaces</source>
+        <translation>Osoite, haku, välilehdet ja tilat</translation>
     </message>
     <message>
         <source>Run</source>
