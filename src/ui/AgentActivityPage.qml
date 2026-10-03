@@ -28,18 +28,18 @@ Rectangle {
         agentOptions = [
                     {
                         value: "",
-                        label: "Every Agent"
+                        label: qsTr("Every Agent")
                     }
                 ].concat(agents.map(function (name) {
                     return {
                         value: name,
-                        label: name.length > 0 ? name : "unnamed"
+                        label: name.length > 0 ? name : qsTr("unnamed")
                     };
                 }));
         spaceOptions = [
                     {
                         value: "",
-                        label: "Every Space"
+                        label: qsTr("Every Space")
                     }
                 ].concat(activity.spaces().map(function (space) {
                     return {
@@ -64,9 +64,9 @@ Rectangle {
         if (row.address.length > 0 && row.address !== row.target)
             text += "  ·  " + row.address;
         if (row.outcome === "refused")
-            text += "  ·  refused";
+            text += qsTr("  ·  refused");
         else if (row.outcome !== "ok")
-            text += "  ·  refused (" + row.outcome + ")";
+            text += qsTr("  ·  refused (%1)").arg(row.outcome);
         return text;
     }
 
@@ -97,7 +97,7 @@ Rectangle {
                 id: activityEyebrow
                 anchors.left: parent.left
                 anchors.top: parent.top
-                text: "Kept for 7 days · no page content"
+                text: qsTr("Kept for 7 days · no page content")
                 color: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -112,12 +112,12 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.top: activityEyebrow.bottom
                 anchors.topMargin: Style.spacing.md
-                text: "Agent activity"
+                text: qsTr("Agent activity")
                 color: root.colors.text
                 font.family: Style.font.family
                 font.pixelSize: Style.font.display
                 Accessible.role: Accessible.Heading
-                Accessible.name: "Agent activity"
+                Accessible.name: qsTr("Agent activity")
             }
         }
 
@@ -131,7 +131,7 @@ Rectangle {
                 colors: root.colors
                 options: root.agentOptions
                 value: ""
-                accessibleName: "Filter by Agent"
+                accessibleName: qsTr("Filter by Agent")
                 onChanged: function (chosen) {
                     agentFilter.value = chosen;
                 }
@@ -145,7 +145,7 @@ Rectangle {
                 colors: root.colors
                 options: root.spaceOptions
                 value: ""
-                accessibleName: "Filter by Space"
+                accessibleName: qsTr("Filter by Space")
                 onChanged: function (chosen) {
                     spaceFilter.value = chosen;
                 }
@@ -172,7 +172,7 @@ Rectangle {
                 color: root.colors.surface
                 Accessible.role: Accessible.StaticText
                 Accessible.name: when.text + ", " + modelData.agent + ", " + modelData.space + ", "
-                                 + root.describe(modelData) + (refused ? ", refused" : "")
+                                 + root.describe(modelData) + (refused ? qsTr(", refused") : "")
 
                 Row {
                     anchors.left: parent.left
@@ -226,8 +226,9 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 visible: activityList.count === 0
-                text: agentFilter.value.length > 0 || spaceFilter.value.length > 0
-                      ? "No matching activity" : "No Agent has done anything in the last 7 days"
+                text: agentFilter.value.length > 0 || spaceFilter.value.length > 0 ? qsTr(
+                                                                                         "No matching activity") :
+                                                                                     qsTr("No Agent has done anything in the last 7 days")
                 color: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body

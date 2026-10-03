@@ -66,7 +66,8 @@ Item {
         implicitHeight: contentTopInset + body.implicitHeight + contentBottomInset
 
         Accessible.role: Accessible.AlertMessage
-        Accessible.name: root.message + (root.detail.length > 0 ? ". " + root.detail : "")
+        Accessible.name: root.detail.length > 0 ? qsTr("%1. %2").arg(root.message).arg(root.detail) :
+                                                  root.message
 
         Behavior on opacity {
             NumberAnimation {

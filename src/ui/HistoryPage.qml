@@ -121,7 +121,7 @@ Rectangle {
                 objectName: "historyEyebrow"
                 anchors.left: parent.left
                 anchors.top: parent.top
-                text: (root.browser ? root.browser.activeSpaceName : "") + " · esc closes"
+                text: qsTr("%1 · esc closes").arg(root.browser ? root.browser.activeSpaceName : "")
                 color: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -136,12 +136,12 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.top: historyEyebrow.bottom
                 anchors.topMargin: Style.spacing.md
-                text: "History"
+                text: qsTr("History")
                 color: root.colors.text
                 font.family: Style.font.family
                 font.pixelSize: Style.font.display
                 Accessible.role: Accessible.Heading
-                Accessible.name: "History"
+                Accessible.name: qsTr("History")
             }
 
             ChromeButton {
@@ -152,7 +152,7 @@ Rectangle {
                 width: 30
                 height: 30
                 icon: "close"
-                accessibleName: "Close History"
+                accessibleName: qsTr("Close History")
                 fontFamily: root.iconFontFamily
                 foreground: root.colors.mutedText
                 accent: root.colors.accent
@@ -169,8 +169,8 @@ Rectangle {
                 objectName: "historySearch"
                 width: parent.width - clearAll.width - 10
                 colors: root.colors
-                placeholder: "search this Space"
-                accessibleName: "Search History"
+                placeholder: qsTr("search this Space")
+                accessibleName: qsTr("Search History")
                 onTextChanged: root.refresh()
             }
 
@@ -178,7 +178,7 @@ Rectangle {
                 id: clearAll
                 objectName: "clearHistoryAllButton"
                 colors: root.colors
-                label: "Clear this Space"
+                label: qsTr("Clear this Space")
                 destructive: true
                 onClicked: {
                     root.browser.deleteHistorySince(0);
@@ -191,7 +191,7 @@ Rectangle {
             spacing: 8
             ActionButton {
                 colors: root.colors
-                label: "Delete last hour"
+                label: qsTr("Delete last hour")
                 destructive: true
                 onClicked: {
                     root.browser.deleteHistorySince(Date.now() - 3600000);
@@ -200,7 +200,7 @@ Rectangle {
             }
             ActionButton {
                 colors: root.colors
-                label: "Delete last day"
+                label: qsTr("Delete last day")
                 destructive: true
                 onClicked: {
                     root.browser.deleteHistorySince(Date.now() - 86400000);
@@ -209,7 +209,7 @@ Rectangle {
             }
             ActionButton {
                 colors: root.colors
-                label: "Delete last week"
+                label: qsTr("Delete last week")
                 destructive: true
                 onClicked: {
                     root.browser.deleteHistorySince(Date.now() - 604800000);
@@ -374,8 +374,8 @@ Rectangle {
 
                     ActionButton {
                         colors: root.colors
-                        label: "Origin"
-                        accessibleName: "Delete visits to " + root.origin(modelData.url)
+                        label: qsTr("Origin")
+                        accessibleName: qsTr("Delete visits to %1").arg(root.origin(modelData.url))
                         onClicked: {
                             root.browser.deleteHistoryOrigin(modelData.url);
                             root.refresh();
@@ -383,9 +383,9 @@ Rectangle {
                     }
                     ActionButton {
                         colors: root.colors
-                        label: "Delete"
+                        label: qsTr("Delete")
                         destructive: true
-                        accessibleName: "Delete this visit"
+                        accessibleName: qsTr("Delete this visit")
                         onClicked: {
                             root.browser.deleteHistoryVisit(modelData.id);
                             root.refresh();
@@ -397,7 +397,8 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 visible: historyList.count === 0 && root.putAwayRows.length === 0
-                text: search.text.length > 0 ? "No matching visits" : "No History in this Space"
+                text: search.text.length > 0 ? qsTr("No matching visits") : qsTr(
+                                                   "No History in this Space")
                 color: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body

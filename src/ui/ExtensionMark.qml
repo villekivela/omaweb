@@ -23,9 +23,9 @@ ChromeButton {
 
     readonly property bool single: root.hosted.length === 1
     readonly property string summary: root.hosted.length === 0 ? "" : (root.single
-                                                                       ? root.hosted[0].name :
-                                                                         root.hosted.length
-                                                                         + " extensions")
+                                                                       ? root.hosted[0].name : qsTr(
+                                                                             "%1 extensions").arg(
+                                                                             root.hosted.length))
 
     visible: root.hosted.length > 0
     icon: "extension"

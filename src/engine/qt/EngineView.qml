@@ -457,7 +457,7 @@ Item {
         }
         const requestId = String(++root.nextBrowserPromptId);
         const application = ExternalProtocolHandler.applicationName(address);
-        const displayOrigin = origin.length > 0 ? origin : "Unknown embedded origin";
+        const displayOrigin = origin.length > 0 ? origin : qsTr("Unknown embedded origin");
         root.pendingBrowserPrompts[requestId] = {
             "kind": "external-protocol",
             "origin": origin,
@@ -471,7 +471,7 @@ Item {
                                         "origin": displayOrigin,
                                         "destination": address,
                                         "rememberable": origin.length > 0,
-                                        "message": "Open " + application + "?",
+                                        "message": qsTr("Open %1?").arg(application),
                                         "detail": scheme + " · " + displayOrigin + " · " + address
                                     });
     }
@@ -3329,7 +3329,7 @@ Item {
         onRenderProcessTerminated: function (terminationStatus, exitCode) {
             // The dialog went with the page that showed it.
             root.forgetAgentDialog();
-            root.rendererFailed("Renderer stopped with exit code " + exitCode);
+            root.rendererFailed(qsTr("Renderer stopped with exit code %1").arg(exitCode));
         }
 
         // Deferred rather than answered: Chromium blocks the load while the
@@ -3714,7 +3714,8 @@ Item {
             root.browserPromptRequested(requestId, {
                                             "kind": "http-authentication",
                                             "origin": request.url.toString(),
-                                            "message": "Sign in to " + root.originLabel(request.url),
+                                            "message": qsTr("Sign in to %1").arg(root.originLabel(
+                                                                                     request.url)),
                                             "detail": request.realm
                                         });
         }
