@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Downloads.h"
+#include "PutAwayTab.h"
 #include "RetainedTab.h"
 #include "SessionSiteState.h"
 #include "SessionStore.h"
@@ -94,6 +95,19 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // own, holds its most recent closes, and survives a restart; a Private
     // session keeps the same depth in memory and writes none of it down.
     Q_PROPERTY(int closedTabCount READ closedTabCount NOTIFY closedTabsChanged)
+    // The tabs Omaweb put away in the Space on show because the reader had not
+    // shown them for longer than the setting allows, newest first, each as
+    // its `id`, `url`, `host`, `title` and `putAwayAt` in milliseconds since
+    // the epoch. Kept for 30 days, and never in a Private window.
+    Q_PROPERTY(QVariantList putAwayTabs READ putAwayTabs NOTIFY putAwayTabsChanged)
+    // How long an ordinary tab may go unshown before it is put away, in
+    // seconds: 0 for never, or an hour, 12 hours, a day or a week. Kept with
+    // this installation, outside the Sync projection. 12 hours by default.
+    Q_PROPERTY(int putAwayAfterSeconds READ putAwayAfterSeconds NOTIFY putAwayAfterChanged)
+    // Whether the notice that Omaweb puts unused tabs away waits for the
+    // reader. It is raised by the first put-away of the installation, once,
+    // and never again once dismissed.
+    Q_PROPERTY(bool putAwayNotice READ putAwayNotice NOTIFY putAwayNoticeChanged)
     // Every tab still running in a Space that is not the one on show: a Pinned
     // tab the reader marked Keep active, or the tab an inspector is attached
     // to. Nothing else outlives its Space's suspension, and what does is named
@@ -184,6 +198,9 @@ public:
     bool activeTabPinned() const;
     bool activeTabKeepActive() const;
     int closedTabCount() const;
+    QVariantList putAwayTabs() const;
+    int putAwayAfterSeconds() const;
+    bool putAwayNotice() const;
     QVariantList retainedTabs() const;
     double activeTabZoom() const;
     bool activeTabBlank() const;
@@ -267,6 +284,28 @@ public:
     Q_INVOKABLE void closeOtherTabs(const QString &tabId);
     Q_INVOKABLE void closeTabsBelow(const QString &tabId);
     Q_INVOKABLE void reopenClosedTab();
+    // Puts away every ordinary tab of every Space that has not been on show
+    // for longer than the setting allows. Runs at startup, on a Space switch
+    // and on a periodic check; asking for it is the same check.
+    Q_INVOKABLE void putAwayUnusedTabs();
+    // Opens one entry of the put-away list again, as reopening a closed tab
+    // does: a new tab, selected, at its address, zoom and muting. The entry
+    // leaves the list. Refuses an id the list does not hold.
+    Q_INVOKABLE bool reopenPutAwayTab(const QString &id);
+    // Refuses any value but the ones putAwayAfterSeconds names.
+    Q_INVOKABLE bool setPutAwayAfterSeconds(int seconds);
+    Q_INVOKABLE void dismissPutAwayNotice();
+    // The time the put-away rule reads, in milliseconds since the epoch, or
+    // 0 for the wall clock. Only a test sets it.
+    Q_INVOKABLE void setNowForTests(qint64 milliseconds);
+    // The row the reader is dragging in the sidebar, or nothing. A tab being
+    // dragged is in use and is not put away.
+    Q_INVOKABLE void setDraggedTab(const QString &tabId);
+    // The tabs an Agent is attached to, which AgentControl keeps current. An
+    // Agent works where the reader is not looking, so its tabs are not unused.
+    void setAgentTabIds(const QStringList &tabIds);
+    // How often a window checks for unused tabs. Only a test shortens it.
+    void setPutAwayCheckIntervalForTests(int milliseconds);
     // A new ordinary tab at the same address. Duplicate copies the
     // destination and nothing else: no history to step back through, no form
     // state, and no share of the page the original is running.
@@ -544,6 +583,9 @@ signals:
     void splitChanged();
     void developerToolsChanged();
     void closedTabsChanged();
+    void putAwayTabsChanged();
+    void putAwayAfterChanged();
+    void putAwayNoticeChanged();
     void knownExtensionsChanged();
     // A download ended with nothing written, with a sentence saying why. The
     // switch stays on: the reader asked for the extension, and what failed is
@@ -639,6 +681,24 @@ private:
     void loadClosedTabs();
     void persistClosedTabs();
     void refreshRetainedTabs();
+    qint64 now() const;
+    // Stamps the tabs on show, and the ones that were until this moment, with
+    // the time: a tab is counted as unused from when it left show.
+    void noteTabsOnShow();
+    void loadPutAwayTabs();
+    // Clearing a Space's History takes what it put away over the same range.
+    bool forgetPutAwayTabsSince(const QString &spaceId, qint64 since);
+    void raisePutAwayNotice();
+    // A tab coming back from the closed-tab stack or the put-away list: a new
+    // tab of the Space on show, selected.
+    void reopenTab(TabState tab);
+    // How long a tab may go unshown before it is put away, in milliseconds,
+    // or 0 when the reader turned it off.
+    qint64 putAwayLimit() const;
+    bool tabInUse(const TabState &tab, const QString &spaceActiveTabId, bool audible) const;
+    // One Space's part of putAwayUnusedTabs. Answers whether it put any tab
+    // away.
+    bool putAwayUnusedTabsIn(const QString &spaceId, qint64 limit, qint64 time);
     const RetainedTab *findRetainedTab(const QString &tabId) const;
     QString originInteractionKey(const QUrl &url) const;
     static TabState makeBlankTab(const QString &spaceId);
@@ -740,6 +800,15 @@ private:
     QString m_defaultSearchEngineId;
     QString m_errorMessage;
     QVector<TabState> m_closedTabs;
+    QVector<PutAwayTab> m_putAwayTabs;
+    // The tabs on show when noteTabsOnShow last looked: the active tab and
+    // the tab beside it.
+    QStringList m_tabsOnShow;
+    qint64 m_nowForTests = 0;
+    QTimer m_putAwayCheck;
+    bool m_putAwayNotice = false;
+    QString m_draggedTabId;
+    QSet<QString> m_agentTabIds;
     QVector<RetainedTab> m_retainedTabs;
     QHash<QString, LivePageState> m_livePageStates;
     // The name this window's store answers stored favicons under.

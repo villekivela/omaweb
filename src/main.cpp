@@ -22,6 +22,7 @@
 #include "WebRtcPolicy.h"
 #include "HardwareVideoDecode.h"
 #include "InputMethod.h"
+#include "LocaleReport.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "LaunchRequest.h"
@@ -245,8 +246,11 @@ int main(int argc, char *argv[])
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
     omaweb::installWindowChrome(&application);
-    omaweb::installCatalogue(&application, omaweb::requestedLocale(),
-        omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY)));
+    const auto catalogueDirectories
+        = omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY));
+    const auto localeChoice = omaweb::localeChoice();
+    omaweb::installCatalogue(&application, localeChoice.locale, catalogueDirectories);
+    omaweb::LocaleReport localeReport(localeChoice, omaweb::shippedLanguages(catalogueDirectories));
     QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
@@ -420,6 +424,7 @@ int main(int argc, char *argv[])
     omaweb::registerSavedDownload();
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
     omaweb::registerInputMethodReport(&inputMethod);
+    omaweb::registerLocaleReport(&localeReport);
     omaweb::registerQtAgentInput();
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);

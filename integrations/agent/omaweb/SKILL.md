@@ -40,6 +40,10 @@ A page command in one of the reader's own Spaces asks the reader to grant that S
 a minute. Use one only when the task needs the reader's logins. After `denied` the reader is not
 asked again for that Space, so work in an Agent Space instead.
 
+When the reader hands you a tab from the browser with `:ask`, your prompt names its id. Work in that
+tab with `--tab <id>` on every page command and make no Agent Space: the reader chose the tab and is
+watching it.
+
 ## Commands
 
 ```sh

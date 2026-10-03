@@ -25,6 +25,9 @@ struct TabSpec {
     bool keepActive = false;
     double zoom = 1.0;
     bool muted = false;
+    // When the tab was last on show, in milliseconds since the epoch, or 0
+    // for a tab stored before Omaweb kept the time.
+    qint64 lastShownAt = 0;
 };
 
 struct SpaceSpec {

@@ -16,6 +16,7 @@
 #include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
+#include "LocaleReport.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
@@ -350,11 +351,14 @@ int main(int argc, char *argv[])
     // mock can be checked in Finnish without changing the shell's environment.
     const auto localeArguments = application.arguments();
     const auto localeIndex = localeArguments.indexOf(QStringLiteral("--locale"));
-    const auto locale = localeIndex >= 0 && localeIndex + 1 < localeArguments.size()
-        ? QLocale(localeArguments.at(localeIndex + 1))
-        : omaweb::requestedLocale();
-    omaweb::installCatalogue(&application, locale,
-        omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY)));
+    const auto localeChoice = localeIndex >= 0 && localeIndex + 1 < localeArguments.size()
+        ? omaweb::LocaleChoice {QLocale(localeArguments.at(localeIndex + 1)), {}}
+        : omaweb::localeChoice();
+    const auto catalogueDirectories
+        = omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY));
+    omaweb::installCatalogue(&application, localeChoice.locale, catalogueDirectories);
+    static omaweb::LocaleReport localeReport {
+        localeChoice, omaweb::shippedLanguages(catalogueDirectories)};
     QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationName(QStringLiteral("Omaweb UI Lab"));
     // The settings page reads Qt.application.version for its about section, so
@@ -446,6 +450,7 @@ int main(int argc, char *argv[])
     // it draws is of a desktop that asked for no input method.
     static omaweb::InputMethodReport inputMethod {omaweb::InputMethodHost {}};
     omaweb::registerInputMethodReport(&inputMethod);
+    omaweb::registerLocaleReport(&localeReport);
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     omaweb::installStoredFavicons(engine);
@@ -708,7 +713,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // What Settings and Site information say under the reader's locale: the
+    // What Settings and Site information say under the reader's locale: the Language row, the
     // Settings heading, and the line Site information gives for a window with
     // no page loaded.
     if (arguments.contains(QStringLiteral("--report-settings"))) {
@@ -718,10 +723,13 @@ int main(int argc, char *argv[])
         auto *root = engine.rootObjects().constFirst();
         auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
         auto *connection = root->findChild<QObject *>(QStringLiteral("siteInformationConnection"));
-        if (heading == nullptr || connection == nullptr) {
+        auto *language = root->findChild<QObject *>(QStringLiteral("languageRow"));
+        if (heading == nullptr || connection == nullptr || language == nullptr) {
             qCritical("Settings or Site information is missing");
             return 1;
         }
+        printf("language_title=%s\n", qPrintable(language->property("title").toString()));
+        printf("language_note=%s\n", qPrintable(language->property("note").toString()));
         printf("settings_heading=%s\n", qPrintable(heading->property("text").toString()));
         printf("site_information_state=%s\n", qPrintable(connection->property("text").toString()));
         fflush(stdout);
@@ -833,6 +841,29 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--tabs"))) {
         seedSampleTabs(browser, mockFavicons, browse ? QString::fromUtf8(browsedTab) : QString());
     }
+    // `--put-away` has the sample day's ordinary tabs last shown one by one
+    // over the past few days, then lets the check put away those past twelve
+    // hours, as a first start after a long weekend would. The History sheet
+    // lists them and the notice says so.
+    if (arguments.contains(QStringLiteral("--put-away"))) {
+        const auto shown = browser.activeTabId();
+        auto *unpinned = browser.unpinnedTabs();
+        const auto role = unpinned->roleNames().key(QByteArrayLiteral("tabId"), -1);
+        QStringList ordinary;
+        for (int row = 0; row < unpinned->rowCount(); ++row) {
+            ordinary.append(unpinned->data(unpinned->index(row, 0), role).toString());
+        }
+        constexpr qint64 hour = 60 * 60 * 1000;
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        for (qsizetype index = 0; index < ordinary.size(); ++index) {
+            browser.setNowForTests(now - (ordinary.size() - index) * 9 * hour);
+            browser.activateTab(ordinary.at(index));
+        }
+        browser.setNowForTests(now - hour);
+        browser.activateTab(shown);
+        browser.setNowForTests(0);
+        browser.putAwayUnusedTabs();
+    }
     // After the sample day, which is seeded into the Space on show.
     if (agents && !agentsAway && browser.switchSpace(agentSpaceId)) {
         browser.activateTab(agentTabId);
@@ -904,6 +935,9 @@ int main(int argc, char *argv[])
             // The same page asks a JavaScript question, so the prompt bar
             // stands over it.
             {QStringLiteral("prompt"), {}},
+            // `:ask` with Allow agents off: the question that offers to turn
+            // it on stands over the last seeded tab's page.
+            {QStringLiteral("ask"), {{"", "agentQuestionOpen", true}}},
             // The last two seeded tabs side by side, the last one active.
             {QStringLiteral("split"), {{"", "sidebarPeeked", false}}},
             // Steps to the next Space shortly before a capture, so the frame
@@ -922,7 +956,7 @@ int main(int argc, char *argv[])
 
         // A visible page gives the peek capture detail whose blur can be
         // reviewed. The other seeded captures keep the blank tab active.
-        if (requested == QLatin1String("peek")) {
+        if (requested == QLatin1String("peek") || requested == QLatin1String("ask")) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (!tabId.isEmpty()) {
                 browser.activateTab(tabId);

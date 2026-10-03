@@ -17,6 +17,9 @@ Rectangle {
     property real lift: 0
     property Item pageSource: null
     property var rows: []
+    // The tabs Omaweb put away in this Space that the search holds, newest
+    // first. They lead the sheet, above the visits.
+    property var putAwayRows: []
 
     signal closed
 
@@ -26,6 +29,32 @@ Rectangle {
 
     function refresh() {
         rows = browser ? browser.history(search.text) : [];
+        putAwayRows = browser ? matchingPutAway(search.text) : [];
+    }
+
+    // The search reads a put-away tab where it reads a visit: its title and
+    // its address.
+    function matchingPutAway(text) {
+        const needle = text.trim().toLowerCase();
+        return browser.putAwayTabs.filter(function (tab) {
+            return needle.length === 0 || tab.title.toLowerCase().indexOf(needle) >= 0 || String(
+                        tab.url).toLowerCase().indexOf(needle) >= 0;
+        });
+    }
+
+    // How long ago a tab was put away, in the largest whole unit. One of a
+    // unit has a source of its own, so English never reads "1 days".
+    function ago(time) {
+        const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        if (days > 0)
+            return days === 1 ? qsTr("a day ago") : qsTr("%n days ago", "", days);
+        if (hours > 0)
+            return hours === 1 ? qsTr("an hour ago") : qsTr("%n hours ago", "", hours);
+        if (minutes > 0)
+            return minutes === 1 ? qsTr("a minute ago") : qsTr("%n minutes ago", "", minutes);
+        return qsTr("just now");
     }
 
     function origin(address) {
@@ -41,6 +70,10 @@ Rectangle {
     Connections {
         target: root.browser
         function onActiveSpaceChanged() {
+            if (root.open)
+                root.refresh();
+        }
+        function onPutAwayTabsChanged() {
             if (root.open)
                 root.refresh();
         }
@@ -194,6 +227,109 @@ Rectangle {
             spacing: 6
             model: root.rows
 
+            // Above the visits, so the tabs Omaweb closed for the reader are
+            // the first thing the sheet offers back.
+            header: Column {
+                id: putAwayGroup
+                objectName: "historyPutAwayGroup"
+                width: historyList.width
+                visible: root.putAwayRows.length > 0
+                height: visible ? implicitHeight + Style.space(18) : 0
+                spacing: 6
+                // A header that grows after the list has laid out its rows is
+                // left above the view, so the view goes back to its top.
+                onHeightChanged: historyList.positionViewAtBeginning()
+
+                SectionLabel {
+                    objectName: "historyPutAwayHeading"
+                    colors: root.colors
+                    text: qsTr("put away", "History sheet group: tabs Omaweb put away")
+                }
+
+                Repeater {
+                    model: root.putAwayRows
+
+                    Rectangle {
+                        required property var modelData
+                        objectName: "historyPutAwayRow"
+                        width: putAwayGroup.width
+                        height: 68
+                        radius: 8
+                        color: root.colors.surface
+                        border.width: 1
+                        border.color: root.colors.border
+
+                        Column {
+                            anchors.left: parent.left
+                            anchors.right: reopen.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 12
+                            spacing: 3
+
+                            Text {
+                                objectName: "putAwayTitle"
+                                width: parent.width
+                                text: modelData.title
+                                color: root.colors.text
+                                elide: Text.ElideRight
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.body
+                            }
+                            Row {
+                                width: parent.width
+                                spacing: 10
+
+                                Text {
+                                    objectName: "putAwayHost"
+                                    width: Math.min(implicitWidth, parent.width - age.width
+                                                    - parent.spacing)
+                                    text: modelData.host
+                                    color: root.colors.mutedText
+                                    elide: Text.ElideRight
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                }
+                                Text {
+                                    id: age
+                                    objectName: "putAwayAge"
+                                    text: root.ago(modelData.putAwayAt)
+                                    color: root.colors.mutedText
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                }
+                            }
+                        }
+
+                        ActionButton {
+                            id: reopen
+                            objectName: "reopenPutAwayButton"
+                            anchors.right: parent.right
+                            anchors.rightMargin: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            colors: root.colors
+                            label: qsTr("Reopen", "verb: open a put-away tab again")
+                            primary: true
+                            accessibleName: qsTr("Reopen %1").arg(modelData.title)
+                            // Reopening takes the row out of the list, and this
+                            // button with it, so the sheet is closed first.
+                            onClicked: {
+                                const sheet = root;
+                                const id = modelData.id;
+                                sheet.closed();
+                                sheet.browser.reopenPutAwayTab(id);
+                            }
+                        }
+                    }
+                }
+
+                SectionLabel {
+                    visible: historyList.count > 0
+                    colors: root.colors
+                    text: qsTr("visits", "History sheet group: pages visited")
+                }
+            }
+
             delegate: Rectangle {
                 required property var modelData
                 width: historyList.width
@@ -260,7 +396,7 @@ Rectangle {
 
             Text {
                 anchors.centerIn: parent
-                visible: historyList.count === 0
+                visible: historyList.count === 0 && root.putAwayRows.length === 0
                 text: search.text.length > 0 ? qsTr("No matching visits") : qsTr(
                                                    "No History in this Space")
                 color: root.colors.mutedText

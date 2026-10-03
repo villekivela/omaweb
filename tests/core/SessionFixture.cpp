@@ -207,6 +207,7 @@ namespace {
                 .muted = spec.muted,
                 .zoom = spec.zoom,
                 .keepActive = spec.keepActive,
+                .lastShownAt = spec.lastShownAt,
             });
         }
         return tabs;

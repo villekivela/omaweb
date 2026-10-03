@@ -21,6 +21,8 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Glance           | Pikakatsaus           | The page shown over the tab it came from.                                                       |
 | Agent            | Agentti               | A program that drives the browser.                                                              |
 | Agent tab        | Agentin välilehti     | The tab an Agent is attached to.                                                                |
+| Allow agents     | Salli agentit         | The setting that lets Agents read and act in pages.                                             |
+| Agent command    | Agentin komento       | What `:ask` runs in the reader's terminal.                                                      |
 | Start page       | Aloitussivu           |                                                                                                 |
 | Tab              | Välilehti             |                                                                                                 |
 | Pinned tab       | Kiinnitetty välilehti |                                                                                                 |
@@ -33,6 +35,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Engine           | Moottori              | The web engine that renders pages.                                                              |
 | Sync             | Synkronointi          | The feature and its settings section. Inflect it: "synkronoinnin".                              |
 | Site information | Sivuston tiedot       | The panel under the address. Its own labels are lowercase, as the English ones are.             |
+| Put away         | Siirtää sivuun        | What Omaweb does with an unused tab. The list is "sivuun siirretyt".                            |
 
 Add a row when a batch has to translate a new Omaweb term.
 

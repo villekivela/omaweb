@@ -24,6 +24,8 @@ public:
     QVector<TabState> loadTabs(const QString &spaceId) const override;
     QVector<TabState> loadClosedTabs(const QString &spaceId) const override;
     bool recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) override;
+    QVector<PutAwayTab> loadPutAwayTabs(const QString &spaceId) const override;
+    bool recordPutAwayTabs(const QString &spaceId, const QVector<PutAwayTab> &tabs) override;
     bool saveSpace(const SpaceState &space) override;
     bool saveSpaces(const QVector<SpaceState> &spaces) override;
     bool setActiveSpace(const QString &spaceId) override;

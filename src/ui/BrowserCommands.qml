@@ -194,6 +194,8 @@ QtObject {
             return true;
         case "agent-activity":
             return browser.openAgentActivity();
+        case "ask":
+            return window.askAgent(typeof argument === "string" ? argument : "");
         case "settings":
             window.requestSettings();
             return true;
@@ -485,6 +487,14 @@ QtObject {
                                                  title: qsTr("Show agent activity"),
                                                  requires: "ordinary-window"
                                              },
+                                             // `line` takes the rest of what was typed after
+                                             // the command's name as its argument.
+                                             "ask": {
+                                                 group: "page",
+                                                 title: qsTr("Ask your agent about this tab"),
+                                                 requires: "ordinary-window",
+                                                 line: true
+                                             },
                                              "settings": {
                                                  group: "interface",
                                                  title: qsTr("Settings and downloads")
@@ -643,7 +653,7 @@ QtObject {
             if (window.privateWindow && (command === "pin-tab" || command === "move-tab" || command
                                          === "keep-tab-active" || command === "select-space"
                                          || command === "next-space" || command === "new-space"
-                                         || command === "take-over-space")) {
+                                         || command === "take-over-space" || command === "ask")) {
                 continue;
             }
             list.push({
@@ -841,8 +851,30 @@ QtObject {
         return out + text.substring(cursor);
     }
 
+    // A command that takes the rest of the line is named by its first word,
+    // and what follows the name is its argument rather than letters to look
+    // for: `ask summarize this` is `ask` with `summarize this`. The name is
+    // read as the other rows' letters are, whatever their case.
+    function lineCommand(text) {
+        const found = /^\s*([A-Za-z-]+)(?:\s+([\s\S]*))?$/.exec(text);
+        const command = found === null ? "" : found[1].toLowerCase();
+        if (!descriptions[command] || !descriptions[command].line)
+            return null;
+        return {
+            command: command,
+            words: found[2] === undefined ? "" : found[2]
+        };
+    }
+
     function search(query) {
         const all = actions();
+        const line = lineCommand(query);
+        for (let index = 0; line !== null && index < all.length; ++index) {
+            if (all[index].command === line.command)
+                return [Object.assign({}, all[index], {
+                                          argument: line.words
+                                      })];
+        }
         const matched = [];
         for (let index = 0; index < all.length; ++index) {
             const points = score(all[index].title, query);

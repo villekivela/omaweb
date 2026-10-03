@@ -173,6 +173,18 @@ bool ThreadedSessionStore::recordClosedTabs(const QString &spaceId, const QVecto
         [this, spaceId, tabs] { return m_store->recordClosedTabs(spaceId, tabs); });
 }
 
+QVector<PutAwayTab> ThreadedSessionStore::loadPutAwayTabs(const QString &spaceId) const
+{
+    return ask([this, &spaceId] { return m_store->loadPutAwayTabs(spaceId); });
+}
+
+bool ThreadedSessionStore::recordPutAwayTabs(
+    const QString &spaceId, const QVector<PutAwayTab> &tabs)
+{
+    return queue("put-away write",
+        [this, spaceId, tabs] { return m_store->recordPutAwayTabs(spaceId, tabs); });
+}
+
 bool ThreadedSessionStore::saveTab(const TabState &tab, int position)
 {
     return ask([this, &tab, position] { return m_store->saveTab(tab, position); });

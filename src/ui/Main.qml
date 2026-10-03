@@ -776,6 +776,14 @@ ApplicationWindow {
         window.settingsOpen = true;
     }
 
+    function requestPutAwaySetting() {
+        window.historyOpen = false;
+        const interfaceSection = settingsSurface.sections.indexOf("interface");
+        if (interfaceSection >= 0)
+            settingsSurface.section = interfaceSection;
+        window.settingsOpen = true;
+    }
+
     function requestSync() {
         window.historyOpen = false;
         const syncSection = settingsSurface.sections.indexOf("sync");
@@ -1557,6 +1565,62 @@ ApplicationWindow {
         if (!window.agentSpaceOnShow)
             return false;
         return window.windowBrowser.takeOverSpace(window.windowBrowser.activeSpaceId);
+    }
+
+    // `:ask` hands the tab on show to the reader's own agent in their
+    // terminal (ADR 0058). The words wait here while the reader is asked to
+    // turn Allow agents on, and go to the tab that was on show when they were
+    // typed.
+    property bool agentQuestionOpen: false
+    property string agentQuestionTabId: ""
+    property string agentQuestionWords: ""
+
+    function askAgent(words) {
+        // A Private window is never an Agent's, so it has no agent to ask.
+        if (!window.agentControlSource) {
+            window.showNotice("block", qsTr("Asking an agent is not available here"), qsTr(
+                                  "A Private window is never an Agent's"));
+            return true;
+        }
+        window.handAgent(window.windowBrowser.activeTabId, words);
+        return true;
+    }
+
+    function handAgent(tabId, words) {
+        const answer = window.agentControlSource.askAgent(tabId, words);
+        if (answer.ok)
+            return;
+        if (answer.code === "allow-agents") {
+            window.agentQuestionTabId = tabId;
+            window.agentQuestionWords = words;
+            window.agentQuestionOpen = true;
+            return;
+        }
+        const program = String(answer.program || "");
+        if (answer.code === "no-terminal")
+            window.showNotice("terminal", qsTr("Omaweb could not find %1").arg(program), qsTr(
+                                  "It opens your terminal. Install it to ask an agent."), 8000);
+        else if (answer.code === "no-agent")
+            window.showNotice("smart_toy", qsTr("Omaweb could not find %1").arg(program), qsTr(
+                                  "Change the agent command in Settings, under agents."), 8000);
+        else if (answer.code === "not-started")
+            window.showNotice("error", qsTr("Omaweb could not start %1").arg(program), "", 8000);
+        else
+            window.showNotice("block", qsTr("There is no tab to ask about"));
+    }
+
+    // The reader's answer to the question: turning Allow agents on goes on
+    // with what they typed, and Not now drops it.
+    function answerAgentQuestion(turnOn) {
+        const tabId = window.agentQuestionTabId;
+        const words = window.agentQuestionWords;
+        window.agentQuestionOpen = false;
+        window.agentQuestionTabId = "";
+        window.agentQuestionWords = "";
+        if (!turnOn || !window.agentControlSource)
+            return;
+        window.agentControlSource.allowAgents = true;
+        window.handAgent(tabId, words);
     }
 
     // `omaweb commands` and `omaweb run` reach this window's command registry,
@@ -3512,6 +3576,82 @@ ApplicationWindow {
                         function onActiveSpaceChanged() {
                             if (window.dismissedAgentSpaceId !== window.windowBrowser.activeSpaceId)
                                 window.dismissedAgentSpaceId = "";
+                        }
+                    }
+                }
+
+                // The first time Omaweb puts tabs away, once for the
+                // installation. Like the Agent Space bar it leaves the keyboard
+                // where it was, and either answer puts it away for good.
+                PageQuestionBar {
+                    id: putAwayNoticeBar
+                    objectName: "putAwayNoticeBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 38
+                    focus: false
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
+                    open: !window.privateWindow && window.windowBrowser.putAwayNotice
+                    glyph: "inventory_2"
+                    message: qsTr("Omaweb puts away tabs you have not shown for a while")
+                    detail: qsTr(
+                                "The ones it put away wait in History and the Omnibar for 30 days. Settings chooses how long a while is, or turns it off.")
+                    actions: [
+                        {
+                            "label": qsTr("Change in Settings")
+                        },
+                        {
+                            "label": qsTr("Dismiss", "verb: close the notice")
+                        }
+                    ]
+
+                    onActionTriggered: function (index) {
+                        window.windowBrowser.dismissPutAwayNotice();
+                        if (index === 0)
+                            window.requestPutAwaySetting();
+                    }
+                }
+
+                // `:ask` while Allow agents is off. The bar takes the keyboard,
+                // since the reader has just asked for this and answers it next.
+                PageQuestionBar {
+                    objectName: "askAgentBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 39
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
+                    open: window.agentQuestionOpen
+                    glyph: "smart_toy"
+                    message: qsTr("Asking an agent needs Allow agents. Turn it on?")
+                    detail: qsTr("Agents can then read and act in pages, and ask once for each of "
+                                 + "your Spaces they use.")
+                    actions: [
+                        {
+                            "label": qsTr("Turn on", "button: turn Allow agents on")
+                        },
+                        {
+                            "label": qsTr("Not now", "button: leave Allow agents off")
+                        }
+                    ]
+
+                    onActionTriggered: function (index) {
+                        window.answerAgentQuestion(index === 0);
+                    }
+
+                    // The question is about the tab that was on show, and is
+                    // put away unanswered once another one is.
+                    Connections {
+                        target: window.windowBrowser
+                        enabled: window.agentQuestionOpen
+                        function onActiveTabChanged() {
+                            if (window.windowBrowser.activeTabId !== window.agentQuestionTabId)
+                                window.answerAgentQuestion(false);
                         }
                     }
                 }

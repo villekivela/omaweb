@@ -318,6 +318,10 @@
         <translation>Näytä Agentin toiminta</translation>
     </message>
     <message>
+        <source>Ask your agent about this tab</source>
+        <translation>Kysy agentiltasi tästä välilehdestä</translation>
+    </message>
+    <message>
         <source>Settings and downloads</source>
         <translation>Asetukset ja lataukset</translation>
     </message>
@@ -932,6 +936,43 @@
 <context>
     <name>HistoryPage</name>
     <message>
+        <source>a day ago</source>
+        <translation>päivä sitten</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n days ago</source>
+        <translation>
+            <numerusform>%n päivä sitten</numerusform>
+            <numerusform>%n päivää sitten</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>an hour ago</source>
+        <translation>tunti sitten</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hours ago</source>
+        <translation>
+            <numerusform>%n tunti sitten</numerusform>
+            <numerusform>%n tuntia sitten</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>a minute ago</source>
+        <translation>minuutti sitten</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minutes ago</source>
+        <translation>
+            <numerusform>%n minuutti sitten</numerusform>
+            <numerusform>%n minuuttia sitten</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>just now</source>
+        <translation>juuri nyt</translation>
+    </message>
+    <message>
         <source>%1 · esc closes</source>
         <translation>%1 · esc sulkee</translation>
     </message>
@@ -966,6 +1007,25 @@
     <message>
         <source>Delete last week</source>
         <translation>Poista viimeinen viikko</translation>
+    </message>
+    <message>
+        <source>put away</source>
+        <comment>History sheet group: tabs Omaweb put away</comment>
+        <translation>sivuun siirretyt</translation>
+    </message>
+    <message>
+        <source>Reopen</source>
+        <comment>verb: open a put-away tab again</comment>
+        <translation>Avaa uudelleen</translation>
+    </message>
+    <message>
+        <source>Reopen %1</source>
+        <translation>Avaa %1 uudelleen</translation>
+    </message>
+    <message>
+        <source>visits</source>
+        <comment>History sheet group: pages visited</comment>
+        <translation>käynnit</translation>
     </message>
     <message>
         <source>Origin</source>
@@ -1346,6 +1406,34 @@
         <translation>Omaweb ei voinut luoda tiedostoa, johon sivu hahmonnetaan</translation>
     </message>
     <message>
+        <source>Asking an agent is not available here</source>
+        <translation>Agentilta kysyminen ei ole käytettävissä täällä</translation>
+    </message>
+    <message>
+        <source>A Private window is never an Agent&apos;s</source>
+        <translation>Yksityinen ikkuna ei ole koskaan Agentin</translation>
+    </message>
+    <message>
+        <source>Omaweb could not find %1</source>
+        <translation>Omaweb ei löytänyt ohjelmaa %1</translation>
+    </message>
+    <message>
+        <source>It opens your terminal. Install it to ask an agent.</source>
+        <translation>Se avaa päätteesi. Asenna se, niin voit kysyä agentilta.</translation>
+    </message>
+    <message>
+        <source>Change the agent command in Settings, under agents.</source>
+        <translation>Vaihda agentin komento Asetuksissa, kohdassa agentit.</translation>
+    </message>
+    <message>
+        <source>Omaweb could not start %1</source>
+        <translation>Omaweb ei voinut käynnistää ohjelmaa %1</translation>
+    </message>
+    <message>
+        <source>There is no tab to ask about</source>
+        <translation>Ei välilehteä, josta kysyä</translation>
+    </message>
+    <message>
         <source>An Agent named %1 wants to use Space %2</source>
         <translation>Agentti %1 haluaa käyttää tilaa %2</translation>
     </message>
@@ -1576,6 +1664,41 @@
     <message>
         <source>Dismiss</source>
         <translation>Hylkää</translation>
+    </message>
+    <message>
+        <source>Omaweb puts away tabs you have not shown for a while</source>
+        <translation>Omaweb siirtää sivuun välilehdet, joita et ole näyttänyt vähään aikaan</translation>
+    </message>
+    <message>
+        <source>The ones it put away wait in History and the Omnibar for 30 days. Settings chooses how long a while is, or turns it off.</source>
+        <translation>Sivuun siirretyt odottavat Historiassa ja Omnibarissa 30 päivää. Asetuksissa valitset, kuinka pitkä aika se on, tai otat toiminnon pois käytöstä.</translation>
+    </message>
+    <message>
+        <source>Change in Settings</source>
+        <translation>Muuta Asetuksissa</translation>
+    </message>
+    <message>
+        <source>Dismiss</source>
+        <comment>verb: close the notice</comment>
+        <translation>Ohita</translation>
+    </message>
+    <message>
+        <source>Asking an agent needs Allow agents. Turn it on?</source>
+        <translation>Agentilta kysyminen vaatii asetuksen Salli agentit. Otetaanko se käyttöön?</translation>
+    </message>
+    <message>
+        <source>Agents can then read and act in pages, and ask once for each of your Spaces they use.</source>
+        <translation>Agentit voivat silloin lukea sivuja ja toimia niissä, ja ne kysyvät kerran jokaisesta Tilastasi, jota käyttävät.</translation>
+    </message>
+    <message>
+        <source>Turn on</source>
+        <comment>button: turn Allow agents on</comment>
+        <translation>Ota käyttöön</translation>
+    </message>
+    <message>
+        <source>Not now</source>
+        <comment>button: leave Allow agents off</comment>
+        <translation>Ei nyt</translation>
     </message>
     <message>
         <source>%1 asked for a protected browser capability</source>
@@ -1843,6 +1966,10 @@
         <translation>Avaa historiatulos %1</translation>
     </message>
     <message>
+        <source>Reopen put-away tab %1</source>
+        <translation>Avaa sivuun siirretty välilehti %1 uudelleen</translation>
+    </message>
+    <message>
         <source>Search %1</source>
         <translation>Hae: %1</translation>
     </message>
@@ -1901,6 +2028,10 @@
     <message>
         <source>open →</source>
         <translation>avaa →</translation>
+    </message>
+    <message>
+        <source>reopen →</source>
+        <translation>avaa uudelleen →</translation>
     </message>
     <message>
         <source>search →</source>
@@ -2076,6 +2207,10 @@
     <message>
         <source>Increase %1, now %2</source>
         <translation>Suurenna: %1, nyt %2</translation>
+    </message>
+    <message>
+        <source>reset</source>
+        <translation>palauta</translation>
     </message>
     <message>
         <source>Reset %1 to %2</source>
@@ -2334,6 +2469,35 @@
         <translation>Näytä yötie vanhan kuvaruudun lasin läpi: viivoja, pehmeä hehku ja heikko välke. Kun pois päältä, tie on pelkkiä pikseleitä.</translation>
     </message>
     <message>
+        <source>Put away unused tabs</source>
+        <translation>Siirrä käyttämättömät välilehdet sivuun</translation>
+    </message>
+    <message>
+        <source>An ordinary tab you have not shown for this long closes into its Space&apos;s put-away list, in History and the Omnibar, for 30 days. Pinned tabs, a split, a tab making sound and an Agent tab stay.</source>
+        <translation>Tavallinen välilehti, jota et ole näyttänyt näin pitkään aikaan, sulkeutuu Tilansa sivuun siirrettyihin, jotka löytyvät Historiasta ja Omnibarista 30 päivän ajan. Kiinnitetyt välilehdet, jaettu näkymä, ääntä toistava välilehti ja Agentin välilehti jäävät.</translation>
+    </message>
+    <message>
+        <source>Off</source>
+        <comment>put unused tabs away: never</comment>
+        <translation>Ei koskaan</translation>
+    </message>
+    <message>
+        <source>1 hour</source>
+        <translation>1 tunti</translation>
+    </message>
+    <message>
+        <source>12 hours</source>
+        <translation>12 tuntia</translation>
+    </message>
+    <message>
+        <source>1 day</source>
+        <translation>1 päivä</translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation>1 viikko</translation>
+    </message>
+    <message>
         <source>type</source>
         <comment>section label: typography settings</comment>
         <translation>kirjasin</translation>
@@ -2430,6 +2594,18 @@
     <message>
         <source>Minimum page font size</source>
         <translation>Sivun pienin fonttikoko</translation>
+    </message>
+    <message>
+        <source>language</source>
+        <translation>kieli</translation>
+    </message>
+    <message>
+        <source>Follows the system locale (%1). Shipped: %2.</source>
+        <translation>Seuraa järjestelmän kieliasetusta (%1). Saatavilla: %2.</translation>
+    </message>
+    <message>
+        <source>Follows the system locale. Shipped: %1.</source>
+        <translation>Seuraa järjestelmän kieliasetusta. Saatavilla: %1.</translation>
     </message>
     <message>
         <source>Keyboard navigation</source>
@@ -2879,6 +3055,14 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Lets a coding agent on this computer make Agent Spaces and read and act in their pages, and ask once for each of your Spaces it wants to use. An Agent tab stays rendered while an Agent is attached to it, which costs memory and GPU. Turning this off detaches every Agent.</source>
         <translation>Antaa tämän tietokoneen koodausagentin luoda Agenttitiloja sekä lukea ja toimia niiden sivuilla, ja kysyä kerran jokaisesta Tilastasi, jota se haluaa käyttää. Agentin välilehti pysyy piirrettynä, kun Agentti on liitetty siihen, mikä kuluttaa muistia ja GPU:ta. Kytkeminen pois irrottaa jokaisen Agentin.</translation>
+    </message>
+    <message>
+        <source>Agent command</source>
+        <translation>Agentin komento</translation>
+    </message>
+    <message>
+        <source>What :ask runs in your terminal, with the tab on show and your words added at the end. Write it as you would in a shell.</source>
+        <translation>Mitä :ask suorittaa päätteessäsi. Näkyvissä oleva välilehti ja sanasi lisätään loppuun. Kirjoita se kuten komentotulkkiin.</translation>
     </message>
     <message>
         <source>granted spaces</source>

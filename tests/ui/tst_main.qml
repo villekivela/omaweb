@@ -1879,6 +1879,148 @@ TestCase {
         compare(browser.activeSpaceId, startSpaceId);
     }
 
+    // `:ask` is listed whether or not Agents are allowed, and the words after
+    // its name are its request. With Allow agents off the reader is asked
+    // first: Not now leaves everything as it was, and Turn on goes on with
+    // what was typed.
+    function test_askingAnAgentOffersToAllowAgentsFirst() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const bar = findChild(window.contentItem, "askAgentBar");
+        const notice = findChild(window.contentItem, "pageNotice");
+        openPage("https://ask-agent.example/");
+        activateWindow();
+        notice.dismiss();
+        compare(agentControl.allowAgents, false);
+        agentControl.agentCommand = "sh";
+
+        window.openCommandScope();
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "ask";
+        compare(panel.rows[0].command, "ask");
+        compare(panel.rows[0].title, "Ask your agent about this tab");
+        verify(panel.rows[0].enabled);
+        // However the name is typed, the request is what follows it.
+        input.text = " Ask  summarize this";
+        compare(panel.rows.length, 1);
+        compare(panel.rows[0].argument, "summarize this");
+        input.text = "ask summarize this";
+        compare(panel.rows.length, 1);
+        compare(panel.rows[0].command, "ask");
+        compare(panel.rows[0].argument, "summarize this");
+        keyClick(Qt.Key_Return);
+        tryCompare(bar, "visible", true);
+        compare(bar.message, "Asking an agent needs Allow agents. Turn it on?");
+        compare(bar.actions.map(function (action) {
+            return action.label;
+        }), ["Turn on", "Not now"]);
+
+        mouseClick(findChild(bar, "questionAction1"));
+        tryCompare(bar, "visible", false);
+        compare(agentControl.allowAgents, false);
+        // Nothing was asked of the agent, which would have said so, and
+        // nothing is asked of the reader again. A notice another test's late
+        // download raised may still stand, so only this command's are read.
+        wait(50);
+        verify(!bar.visible);
+        verify(!notice.showing || !notice.message.startsWith("Omaweb could"), notice.message);
+
+        window.openCommandScope();
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "ask summarize this";
+        keyClick(Qt.Key_Return);
+        tryCompare(bar, "visible", true);
+        mouseClick(findChild(bar, "questionAction0"));
+        tryCompare(bar, "visible", false);
+        compare(agentControl.allowAgents, true);
+        // It went on, as far as the terminal this machine does not have.
+        tryCompare(notice, "showing", true);
+        compare(notice.message, "Omaweb could not find omaweb-test-no-terminal");
+
+        agentControl.allowAgents = false;
+        agentControl.agentCommand = "";
+        notice.dismiss();
+    }
+
+    // The question is about the tab that was on show. Once another tab is,
+    // it is put away, and nothing is asked of either tab.
+    function test_theAgentQuestionGoesWithTheTabItWasAbout() {
+        const bar = findChild(window.contentItem, "askAgentBar");
+        openPage("https://ask-agent.example/");
+        const askedTabId = browser.activeTabId;
+        openPageInNewTab("https://ask-agent-elsewhere.example/");
+        const otherTabId = browser.activeTabId;
+        browser.activateTab(askedTabId);
+        compare(agentControl.allowAgents, false);
+
+        verify(window.commands.run("ask", "summarize this"));
+        tryCompare(bar, "visible", true);
+        browser.activateTab(otherTabId);
+        tryCompare(bar, "visible", false);
+        compare(agentControl.allowAgents, false);
+
+        browser.closeTab(otherTabId);
+    }
+
+    // An agent that cannot be started says which program it was, rather than
+    // leaving the reader to wonder whether anything happened.
+    function test_askingAnAgentThatIsNotThereSaysSo() {
+        const notice = findChild(window.contentItem, "pageNotice");
+        openPage("https://ask-agent.example/");
+        notice.dismiss();
+        agentControl.allowAgents = true;
+        agentControl.agentCommand = "omaweb-test-no-agent --model sonnet";
+
+        verify(window.commands.run("ask", "summarize this"));
+        tryCompare(notice, "showing", true);
+        compare(notice.message, "Omaweb could not find omaweb-test-no-agent");
+        compare(notice.detail, "Change the agent command in Settings, under agents.");
+        verify(!findChild(window.contentItem, "askAgentBar").visible);
+
+        agentControl.allowAgents = false;
+        agentControl.agentCommand = "";
+        notice.dismiss();
+    }
+
+    // A Private window is never an Agent's: `:ask` is not listed there, and
+    // run anyway it says so and starts nothing.
+    function test_aPrivateWindowAsksNoAgent() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        privateBrowser.windowBrowser.openInput("https://private-ask.example/", false);
+        const panel = findChild(privateBrowser.contentItem, "omnibar");
+        const input = findChild(privateBrowser.contentItem, "omnibarInput");
+        const notice = findChild(privateBrowser.contentItem, "pageNotice");
+        agentControl.allowAgents = true;
+
+        privateBrowser.openCommandScope();
+        input.text = "ask";
+        verify(!panel.rows.some(function (row) {
+            return row.command === "ask";
+        }));
+        input.text = "ask summarize this";
+        compare(panel.rows.length, 0);
+        privateBrowser.closeOmnibar();
+
+        verify(privateBrowser.commands.run("ask", "summarize this"));
+        tryCompare(notice, "showing", true);
+        compare(notice.message, "Asking an agent is not available here");
+        verify(!findChild(privateBrowser.contentItem, "askAgentBar").visible);
+
+        agentControl.allowAgents = false;
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     function test_sidebarHasNoNewTabButton() {
         const newTabButton = findChild(window.contentItem, "newTabButton");
         verify(newTabButton === null);
@@ -8342,6 +8484,223 @@ TestCase {
         tryVerify(function () {
             return !surface.visible;
         });
+    }
+
+    // Puts one tab away, in a Space of its own. The tab's clock is moved back
+    // a week so that no tab another test left behind is old enough to go with
+    // it, and everything unstamped is stamped first at the real time. Answers
+    // the Space it made and the one it came from, which `endPutAway` returns
+    // to.
+    function putAwayInASpaceOfItsOwn(name, address) {
+        browser.putAwayUnusedTabs();
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace(name);
+        verify(browser.switchSpace(spaceId));
+        browser.openInput(address, false);
+        const lastWeek = Date.now() - 7 * 24 * 3600 * 1000;
+        browser.setNowForTests(lastWeek);
+        browser.openInput("https://put-away-reading.example/", true);
+        // Its page was on show a moment ago and focuses on the next turn; a
+        // reader's tab is never put away that soon after.
+        wait(0);
+        browser.setNowForTests(lastWeek + 24 * 3600 * 1000);
+        browser.putAwayUnusedTabs();
+        browser.setNowForTests(0);
+        compare(browser.putAwayTabs.length, 1);
+        return {
+            "home": home,
+            "spaceId": spaceId,
+            "name": name
+        };
+    }
+
+    function endPutAway(put) {
+        // A tab just reopened focuses its page on the next turn, which has to
+        // find the page still there.
+        wait(0);
+        browser.dismissPutAwayNotice();
+        verify(browser.switchSpace(put.home));
+        wait(0);
+        verify(browser.deleteSpace(put.spaceId, put.name));
+    }
+
+    // The first time Omaweb puts tabs away it says so, once, and the notice is
+    // the way to the setting that chose when.
+    function test_putAwayNoticeSaysSoOnceAndLeadsToTheSetting() {
+        // As an installation that has never put a tab away.
+        verify(browser.setPreference("put-away-notice-given", ""));
+        const put = putAwayInASpaceOfItsOwn("Put away notice", "https://put-away-notice.example/");
+        const bar = findChild(window.contentItem, "putAwayNoticeBar");
+        verify(bar !== null);
+        tryCompare(bar, "open", true);
+        compare(bar.message, "Omaweb puts away tabs you have not shown for a while");
+        // It never takes the keyboard from the page.
+        verify(!bar.activeFocus);
+
+        bar.actionTriggered(0);
+        tryCompare(window, "settingsOpen", true);
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare(settings.sections[settings.section], "interface");
+        tryCompare(findChild(window.contentItem, "putAwayAfter"), "visible", true);
+        tryCompare(bar, "open", false);
+        verify(!browser.putAwayNotice);
+        findChild(window.contentItem, "settingsSection0").Accessible.pressAction();
+        findChild(window.contentItem, "closeSettingsButton").clicked();
+
+        // Once for the installation: the next tab put away says nothing.
+        browser.openInput("https://put-away-notice-again.example/", true);
+        const lastWeek = Date.now() - 7 * 24 * 3600 * 1000;
+        browser.setNowForTests(lastWeek);
+        browser.openInput("https://put-away-reading-again.example/", true);
+        wait(0);
+        browser.setNowForTests(lastWeek + 24 * 3600 * 1000);
+        browser.putAwayUnusedTabs();
+        browser.setNowForTests(0);
+        compare(browser.putAwayTabs.length, 2);
+        verify(!browser.putAwayNotice);
+        verify(!bar.open);
+        endPutAway(put);
+    }
+
+    // The History sheet lists the Space's put-away tabs at the top, newest
+    // first, by title, host and age, and a row opens its tab again.
+    function test_historySheetReopensAPutAwayTab() {
+        const put = putAwayInASpaceOfItsOwn("Put away history",
+                                            "https://put-away-history.example/page");
+        browser.dismissPutAwayNotice();
+        // Visits under the group, as a Space in use has.
+        for (let visit = 0; visit < 12; ++visit)
+            browser.recordVisit("https://put-away-visit.example/" + visit, "Visit " + visit);
+        window.requestHistory();
+        const surface = findChild(window.contentItem, "historySurface");
+        tryVerify(function () {
+            return surface.visible;
+        });
+        const group = findChild(window.contentItem, "historyPutAwayGroup");
+        verify(group !== null);
+        tryCompare(group, "visible", true);
+        // At the top of the sheet where it can be seen, not scrolled out of
+        // the list above its first visit.
+        const historyList = findChild(window.contentItem, "historyList");
+        tryVerify(function () {
+            const top = group.mapToItem(historyList, 0, 0).y;
+            return top >= 0 && top < historyList.height;
+        });
+        compare(findChild(group, "historyPutAwayHeading").text, "put away");
+        const row = findChild(group, "historyPutAwayRow");
+        verify(row !== null);
+        compare(findChild(row, "putAwayHost").text, "put-away-history.example");
+        compare(findChild(row, "putAwayAge").text, "6 days ago");
+
+        // The search narrows them as it narrows the visits.
+        const search = findChild(window.contentItem, "historySearch");
+        search.text = "nothing-put-away-matches";
+        tryCompare(group, "visible", false);
+        search.text = "put-away-history";
+        tryCompare(group, "visible", true);
+
+        // The search built the rows again.
+        const reopen = findChild(findChild(group, "historyPutAwayRow"), "reopenPutAwayButton");
+        settleActions(reopen);
+        const miss = clickReportingAMiss(reopen, function () {
+            return !window.historyOpen;
+        });
+        compare(miss, "");
+        tryCompare(window, "historyOpen", false);
+        compare(String(browser.activeUrl), "https://put-away-history.example/page");
+        compare(browser.putAwayTabs.length, 0);
+        endPutAway(put);
+    }
+
+    // The Omnibar finds a put-away tab as it finds History, and choosing it
+    // opens the tab again.
+    function test_omnibarReopensAPutAwayTab() {
+        const put = putAwayInASpaceOfItsOwn("Put away omnibar",
+                                            "https://put-away-omnibar.example/");
+        browser.dismissPutAwayNotice();
+        window.openOmnibar(true);
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        input.text = "put-away-omni";
+        function putAwayRow() {
+            for (let index = 0; index < panel.rows.length; ++index) {
+                if (panel.rows[index].kind === "putaway")
+                    return index;
+            }
+            return -1;
+        }
+        tryVerify(function () {
+            return putAwayRow() >= 0;
+        });
+        compare(panel.rows[putAwayRow()].url, "https://put-away-omnibar.example/");
+        panel.selected = putAwayRow();
+        panel.accept();
+        tryCompare(panel, "open", false);
+        compare(String(browser.activeUrl), "https://put-away-omnibar.example/");
+        compare(browser.putAwayTabs.length, 0);
+        endPutAway(put);
+    }
+
+    // A row in the hand is in use, however long its tab has gone unshown, and
+    // it goes once the hand lets it go.
+    function test_draggedRowIsNotPutAway() {
+        browser.putAwayUnusedTabs();
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Put away drag");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://put-away-dragged.example/", false);
+        const draggedId = browser.activeTabId;
+        const lastWeek = Date.now() - 7 * 24 * 3600 * 1000;
+        browser.setNowForTests(lastWeek);
+        browser.openInput("https://put-away-held-reading.example/", true);
+        wait(0);
+        browser.setNowForTests(0);
+
+        settleRow(findChild(window.contentItem, "tab-" + draggedId));
+        const row = findChild(window.contentItem, "tab-" + draggedId);
+        verify(row !== null);
+        const grabbed = row.mapToItem(window.contentItem, row.width / 2, row.height / 2);
+        mousePress(row, row.width / 2, row.height / 2);
+        dragRowBy(grabbed, row.height / 2);
+        verify(row.lifted);
+
+        browser.setNowForTests(lastWeek + 24 * 3600 * 1000);
+        browser.putAwayUnusedTabs();
+        compare(browser.putAwayTabs.length, 0);
+
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y + row.height / 2);
+        // Carrying a row is not choosing it.
+        verify(browser.activeTabId !== draggedId);
+        browser.putAwayUnusedTabs();
+        browser.setNowForTests(0);
+        compare(browser.putAwayTabs.length, 1);
+        compare(String(browser.putAwayTabs[0].url), "https://put-away-dragged.example/");
+
+        browser.dismissPutAwayNotice();
+        verify(browser.switchSpace(home));
+        wait(0);
+        verify(browser.deleteSpace(spaceId, "Put away drag"));
+    }
+
+    // Settings offers when unused tabs go, from never to a week, and twelve
+    // hours until the reader chooses.
+    function test_settingsChoosesWhenUnusedTabsArePutAway() {
+        window.requestSettings();
+        railSection("interface").Accessible.pressAction();
+        const choice = findChild(window.contentItem, "putAwayAfter");
+        verify(choice !== null);
+        tryCompare(choice, "visible", true);
+        compare(choice.value, "43200");
+        compare(choice.options.map(function (option) {
+            return option.label;
+        }), ["Off", "1 hour", "12 hours", "1 day", "1 week"]);
+        choice.changed("3600");
+        compare(browser.putAwayAfterSeconds, 3600);
+        tryCompare(choice, "value", "3600");
+        choice.changed("43200");
+        compare(browser.putAwayAfterSeconds, 43200);
+        findChild(window.contentItem, "settingsSection0").Accessible.pressAction();
+        findChild(window.contentItem, "closeSettingsButton").clicked();
     }
 
     // Show agent activity opens the log as a page of its own, in a new tab,
