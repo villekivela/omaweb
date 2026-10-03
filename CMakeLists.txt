@@ -520,6 +520,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtProfileSettings.h
         src/engine/qt/QtWebRtcPolicy.cpp
         src/engine/qt/QtWebRtcPolicy.h
+        src/engine/qt/QtWindowExposure.cpp
+        src/engine/qt/QtWindowExposure.h
         src/engine/qt/QtSecureDns.cpp
         src/engine/qt/QtSecureDns.h
     )

@@ -3279,6 +3279,28 @@ Item {
         });
     }
 
+    // A workspace switch hides the window and shows it again, and afterwards
+    // Chromium's frames no longer reach the scene graph: the page stays black
+    // while the interface keeps drawing (#352, #517). Chromium draws on, and
+    // what is lost is its attachment to the compositor, which hiding and
+    // showing the view makes anew, as switching tabs does. Showing a view that
+    // is hidden for another reason would put a background tab on screen, so
+    // only a view that is on screen is nudged. Hiding it drops the keyboard,
+    // which the reader had in the page, so it is given back.
+    QtWindowExposure {
+        window: webView.Window.window
+        onExposedAgain: Qt.callLater(root.attachPageToCompositorAgain)
+    }
+    function attachPageToCompositorAgain() {
+        if (!webView.visible)
+            return;
+        const hadFocus = webView.activeFocus;
+        webView.visible = false;
+        webView.visible = true;
+        if (hadFocus)
+            webView.forceActiveFocus();
+    }
+
     WebEngineView {
         id: webView
         objectName: "qtWebView"

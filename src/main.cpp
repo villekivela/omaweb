@@ -6,6 +6,7 @@
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
 #include "QtAgentInput.h"
+#include "QtWindowExposure.h"
 #include "ReleaseWatch.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
@@ -426,6 +427,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputMethodReport(&inputMethod);
     omaweb::registerLocaleReport(&localeReport);
     omaweb::registerQtAgentInput();
+    omaweb::registerQtWindowExposure();
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     omaweb::installStoredFavicons(engine);

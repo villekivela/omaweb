@@ -19,6 +19,7 @@
 #include "QtPageFonts.h"
 #include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
+#include "QtWindowExposure.h"
 #include "ContentBlockerContract.h"
 #include "EngineViewContract.h"
 #include "PerformanceProbe.h"
@@ -199,6 +200,7 @@ private slots:
     void adaptersExposeKeyboardNavigationCommands();
     void qtAdapterPropagatesPageState();
     void qtNavigationDrivesPageLoadingIndicator();
+    void qtPaintsThePageAgainWhenItsWindowIsExposedAgain();
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
@@ -680,6 +682,41 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
         QGenericArgument("int", &exitCode)));
     QCOMPARE(failureSpy.count(), 1);
     QVERIFY(failureSpy.takeFirst().first().toString().contains(QString::number(exitCode)));
+}
+
+void QtEngineContractTest::qtPaintsThePageAgainWhenItsWindowIsExposedAgain()
+{
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    auto *webView = adapter->findChild<QQuickItem *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    QSignalSpy visibleSpy(webView, &QQuickItem::visibleChanged);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    // Showing the window for the first time is not a return: nothing was lost.
+    QTest::qWait(100);
+    QCOMPARE(visibleSpy.count(), 0);
+
+    // A workspace switch hides the window and shows it again, after which the
+    // engine's frames no longer reach the scene graph (#517). Flipping the
+    // view's visibility is what makes Chromium attach to the compositor anew.
+    window.hide();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTRY_COMPARE(visibleSpy.count(), 2);
+    QVERIFY(webView->isVisible());
+    QTest::qWait(100);
+    QCOMPARE(visibleSpy.count(), 2);
 }
 
 void QtEngineContractTest::qtNavigationDrivesPageLoadingIndicator()
@@ -7323,6 +7360,7 @@ int main(int argc, char *argv[])
     omaweb::registerEngineBuild();
     omaweb::registerQtCertificates();
     omaweb::registerQtAgentInput();
+    omaweb::registerQtWindowExposure();
     omaweb::registerPageImages();
     omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();
