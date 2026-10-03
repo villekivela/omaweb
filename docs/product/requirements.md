@@ -105,6 +105,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Holding Primary on its own for 400 ms shows Key labels over the navigation row, the address
   trigger, the Spaces and the first nine tabs, read from the live keymap. Releasing Primary,
   pressing another key, or the window losing the keyboard removes them.
+- Every key the chrome shows is drawn as the website's `kbd`: a key cap 22 px tall and at least 22
+  px wide with a 4 px radius, a 1 px accent border at 55% with a 3 px bottom edge, a ground of the
+  accent at 10% over the plate, and the key in the accent in the mono face at weight 500 and 12 px,
+  all scaled with the interface font size. A chord is a row of caps, one to a key. A Key label's cap
+  keeps the ground when Primary finishes the chord it names, and is outlined without it for a key
+  pressed on its own, so the difference the old filled and outlined labels made is kept.
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
 - An Agent tab's row ends with an Agent mark in the Agent accent, in the place the close button

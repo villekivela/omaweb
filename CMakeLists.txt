@@ -646,6 +646,8 @@ set(omaweb_ui_files
     src/ui/FindBar.qml
     src/ui/Glance.qml
     src/ui/HistoryPage.qml
+    src/ui/KeyCap.qml
+    src/ui/KeyCaps.qml
     src/ui/KeyMap.qml
     src/ui/MediaAnnouncement.qml
     src/ui/KeyLabel.qml

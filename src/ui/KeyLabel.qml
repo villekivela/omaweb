@@ -3,9 +3,10 @@ import qs.Commons
 
 // The key a control answers to, laid over it while Primary is held on its own.
 // Primary is already down, so a chord on it is labelled by the key that
-// finishes it, filled; a key pressed on its own is labelled as itself,
-// outlined, because it is not what the held key leads to.
-Rectangle {
+// finishes it, on the key cap's own ground; a key pressed on its own is
+// labelled as itself, outlined without the ground, because it is not what the
+// held key leads to.
+Item {
     id: root
 
     // The binding as the keymap displays it, such as "Ctrl+L" or "r". Empty
@@ -19,21 +20,14 @@ Rectangle {
 
     visible: shown && keys.length > 0
     z: 50
-    width: label.implicitWidth + 8
-    height: label.implicitHeight + 2
-    radius: 2
-    color: chord ? colors.accent : colors.windowOpaque
-    border.width: chord ? 0 : 1
-    border.color: colors.accent
+    width: cap.width
+    height: cap.height
     Accessible.ignored: true
 
-    Text {
-        id: label
-        anchors.centerIn: parent
+    KeyCap {
+        id: cap
+        colors: root.colors
         text: root.text
-        color: root.chord ? root.colors.windowOpaque : root.colors.accent
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        font.bold: true
+        filled: root.chord
     }
 }
