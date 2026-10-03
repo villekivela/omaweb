@@ -36,6 +36,7 @@ private slots:
     void namesTheSixSpaceColoursAndKeepsThemLegible();
     void fillsTheSpaceColoursFromTheDesktopsPalette();
     void offersOnlyThePlainSpaceColoursOnALightTheme();
+    void keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBundledTheme();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
     void handsAPageTheQuietTextTheThemeNamed();
@@ -1547,6 +1548,79 @@ void ThemeControllerTest::namesTheSixSpaceColoursAndKeepsThemLegible()
         }
         QVERIFY2(std::abs(colour.hslHueF() - QColor(named.value(name).toString()).hslHueF()) < 0.02,
             qPrintable(name));
+    }
+}
+
+// The text a reader types into the Omnibar is read on its glass: the overlay
+// at the glass's alpha over whatever is behind it, which on the Start page is
+// the night road, anywhere from black to the sun. It clears 4.5:1 against the
+// glass over both ends in every theme Omaweb bundles, the landing page's
+// nine and the default, and in a light theme and a theme whose text is too
+// close to its ground, which only the floor can rescue.
+void ThemeControllerTest::keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBundledTheme()
+{
+    struct Theme {
+        QString name;
+        QString window;
+        QString sidebar;
+        QString text;
+        QString accent;
+    };
+    QList<Theme> themes {
+        {QStringLiteral("light"), QStringLiteral("#ffffff"), QStringLiteral("#f4f4f4"),
+            QStringLiteral("#1a1a1a"), QStringLiteral("#3b6fd6")},
+        {QStringLiteral("weak text"), QStringLiteral("#101010"), QStringLiteral("#222222"),
+            QStringLiteral("#777777"), QStringLiteral("#3b6fd6")},
+    };
+    QFile css(QStringLiteral(OMAWEB_BUNDLED_THEMES_CSS));
+    QVERIFY(css.open(QIODevice::ReadOnly));
+    const auto sheet = QString::fromUtf8(css.readAll());
+    QRegularExpression block(QStringLiteral(R"RE(\[data-theme="([^"]+)"\] \{([^}]*)\})RE"));
+    QRegularExpression role(QStringLiteral(R"RE(--(\w+): var\(--omaweb-\w+, (#[0-9a-f]{6})\))RE"));
+    auto blocks = block.globalMatch(sheet);
+    int bundled = 0;
+    while (blocks.hasNext()) {
+        const auto found = blocks.next();
+        QHash<QString, QString> roles;
+        auto each = role.globalMatch(found.captured(2));
+        while (each.hasNext()) {
+            const auto one = each.next();
+            roles.insert(one.captured(1), one.captured(2));
+        }
+        themes.append({found.captured(1), roles.value(QStringLiteral("bg")),
+            roles.value(QStringLiteral("sidebar")), roles.value(QStringLiteral("fg")),
+            roles.value(QStringLiteral("accent"))});
+        ++bundled;
+    }
+    QVERIFY2(bundled >= 9, "themes.css names fewer themes than the landing page offers");
+
+    QTemporaryDir root;
+    const auto over = [](const QColor &glass, double alpha, const QColor &behind) {
+        return QColor::fromRgbF(glass.redF() * alpha + behind.redF() * (1 - alpha),
+            glass.greenF() * alpha + behind.greenF() * (1 - alpha),
+            glass.blueF() * alpha + behind.blueF() * (1 - alpha));
+    };
+    for (const auto &theme : themes) {
+        QFile file(root.filePath(theme.name + QStringLiteral(".json")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QStringLiteral(R"({ "window": "%1", "sidebar": "%2", "overlay": "%2",
+            "text": "%3", "accent": "%4" })")
+                .arg(theme.window, theme.sidebar, theme.text, theme.accent)
+                .toUtf8());
+        file.close();
+        const auto palette = ThemeController(file.fileName()).palette();
+        for (const auto &[field, overlay] :
+            {std::pair {QStringLiteral("fieldText"), QStringLiteral("overlay")},
+                std::pair {QStringLiteral("privateFieldText"), QStringLiteral("privateOverlay")}}) {
+            const QColor text(palette.value(field).toString());
+            const QColor glass(palette.value(overlay).toString());
+            QVERIFY2(text.isValid(), qPrintable(theme.name + u' ' + field));
+            const auto alpha = std::min<double>(glass.alphaF(), 0.8);
+            for (const auto &behind : {QColor(Qt::black), QColor(Qt::white)}) {
+                QVERIFY2(contrastRatio(text, over(glass, alpha, behind)) >= minimumContrast,
+                    qPrintable(theme.name + u' ' + field + u' ' + behind.name()));
+            }
+        }
     }
 }
 

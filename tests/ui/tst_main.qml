@@ -9404,6 +9404,35 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting dash");
     }
 
+    // The text the reader types and the caret are drawn plain: in the
+    // theme's field text, which clears 4.5:1 on the glass, with no layer
+    // effect, so no glow, blur or shadow; and the bloom of the rim light on
+    // the field's edge stops short of the glyphs.
+    function test_theTypedTextAndCaretHaveNoGlow() {
+        const input = findChild(window.contentItem, "omnibarInput");
+        const mark = findChild(window.contentItem, "omnibarMark");
+        const field = findChild(window.contentItem, "omnibarField");
+        const bloom = findChild(window.contentItem, "omnibarInnerBloom");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting plain");
+        tryCompare(findChild(window.contentItem, "omnibar"), "arrival", 1);
+        tryVerify(function () {
+            return bloom.light !== null;
+        });
+
+        compare(String(input.color), String(window.colors.fieldText));
+        verify(!input.layer.enabled);
+        verify(!mark.layer.enabled);
+        const caret = findChild(input, "omnibarCaret");
+        verify(caret === null || !caret.layer.enabled);
+        // The bloom reaches no further into the field than the glyphs'
+        // margin above and below the 17 px text.
+        verify(bloom.reach <= (field.height - input.font.pixelSize) / 2,
+               "the bloom reaches the text");
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting plain");
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
     // to list. The Start page stands in: the Omnibar at rest over the road,
     // focused, and no renderer spent on the blank tab behind it.

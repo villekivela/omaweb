@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import QtQuick.Shapes
 import Omaweb
 import qs.Commons
@@ -682,8 +681,8 @@ Item {
             height: 50
 
             // The field is drawn as the website's dash: the Omaweb mark as its
-            // prompt, the typed text and a block caret glowing in the accent,
-            // and a go mark at the end. The mark gives way to `:` in command
+            // prompt, the typed text, a block caret in the accent and a go
+            // mark at the end. The mark gives way to `:` in command
             // scope.
             Item {
                 id: prompt
@@ -708,14 +707,6 @@ Item {
                     scale: parent.width / 38.2
                     visible: !root.commandScope
                     preferredRendererType: Shape.CurveRenderer
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: root.colors.accent
-                        shadowBlur: 0.5
-                        shadowHorizontalOffset: 0
-                        shadowVerticalOffset: 0
-                    }
 
                     ShapePath {
                         fillColor: root.colors.accent
@@ -769,18 +760,6 @@ Item {
                 anchors.left: chip.right
                 anchors.right: modeLabel.left
                 anchors.leftMargin: chip.visible ? 8 : 0
-                // The website's phosphor, in the palette's accent: a tight
-                // halo on the text and the caret, drawn only while the field
-                // changes.
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: root.colors.accent
-                    shadowBlur: 0.4
-                    shadowOpacity: 0.7
-                    shadowHorizontalOffset: 0
-                    shadowVerticalOffset: 0
-                }
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 height: 40
@@ -789,7 +768,9 @@ Item {
                 // text off the prompt icon's centre line.
                 padding: 0
                 verticalAlignment: TextInput.AlignVCenter
-                color: root.colors.text
+                // Plain, with no glow, blur or shadow of any kind: it is read
+                // on the glass, so it is the theme's text held to 4.5:1 there.
+                color: root.colors.fieldText
                 placeholderText: root.commandScope ? qsTr("search every action") : (root.engine
                                                                                     !== null ? qsTr(
                                                                                                    "search %1").arg(
