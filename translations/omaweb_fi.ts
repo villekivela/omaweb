@@ -2078,6 +2078,10 @@
         <translation>Suurenna: %1, nyt %2</translation>
     </message>
     <message>
+        <source>reset</source>
+        <translation>palauta</translation>
+    </message>
+    <message>
         <source>Reset %1 to %2</source>
         <translation>Palauta %1 arvoon %2</translation>
     </message>
@@ -2430,6 +2434,18 @@
     <message>
         <source>Minimum page font size</source>
         <translation>Sivun pienin fonttikoko</translation>
+    </message>
+    <message>
+        <source>language</source>
+        <translation>kieli</translation>
+    </message>
+    <message>
+        <source>Follows the system locale (%1). Shipped: %2.</source>
+        <translation>Seuraa järjestelmän kieliasetusta (%1). Saatavilla: %2.</translation>
+    </message>
+    <message>
+        <source>Follows the system locale. Shipped: %1.</source>
+        <translation>Seuraa järjestelmän kieliasetusta. Saatavilla: %1.</translation>
     </message>
     <message>
         <source>Keyboard navigation</source>
