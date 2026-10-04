@@ -118,6 +118,16 @@ Item {
     // `documentPainted` only once the window has swapped a frame or two since.
     // A window that swaps none, as a hidden one does not, gets it after a
     // moment anyway.
+    // Whether the document being loaded has said it exists, which means its
+    // paint will be reported too. The end of its load is then not the moment
+    // it has painted: a load can end a frame or more before the first paint,
+    // so the canvas waits for the report, for a second at most.
+    property bool documentReported: false
+    Timer {
+        id: lateCanvas
+        interval: 1000
+        onTriggered: root.documentPainted = true
+    }
     property bool canvasShown: false
     property int canvasFramesToWait: 0
     onDocumentPaintedChanged: {
@@ -127,6 +137,7 @@ Item {
             canvasFallback.stop();
             return;
         }
+        lateCanvas.stop();
         root.canvasFramesToWait = 2;
         canvasFallback.restart();
         if (root.Window.window)
@@ -3448,6 +3459,7 @@ Item {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
+                root.documentReported = false;
                 root.blockingRulesChangedSinceLoad = false;
                 root.loadSetOutFrom = loadRequest.url;
                 root.announceDocument(loadRequest.url);
@@ -3526,8 +3538,12 @@ Item {
             // page or a viewer of the engine's own, reports neither moment: it
             // keeps the canvas of the page before it, white after any page has
             // painted, and is on show once its load is over.
-            if (!loading)
-                root.documentPainted = true;
+            if (!loading) {
+                if (root.documentReported)
+                    lateCanvas.restart();
+                else
+                    root.documentPainted = true;
+            }
             // A load that arrived without a certificate failure clears the
             // report. The certificate that failed may since have been fixed,
             // and the adapter must not keep saying otherwise — the engine's
@@ -3697,6 +3713,8 @@ Item {
                     root.pageMediaSession = {};
                 }
             } else if (report.channel === "document_created") {
+                root.documentReported = true;
+                lateCanvas.stop();
                 root.documentPainted = false;
             } else if (report.channel === "document_painted") {
                 root.documentPainted = true;

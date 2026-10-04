@@ -239,6 +239,7 @@ private slots:
     void qtHandsThePaletteOnlyToAPageThatAsks();
     void qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted();
     void qtHoldsTheThemeUntilThePaintedFrameIsOnScreen();
+    void qtKeepsTheThemeAfterTheLoadUntilThePageHasPainted();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtReportsWhereThePageWasPressed();
     void qtKeepsItsPageReportsOutOfThePagesReach();
@@ -3323,6 +3324,56 @@ void QtEngineContractTest::qtHoldsTheThemeUntilThePaintedFrameIsOnScreen()
     // all, because what Chromium draws before its first frame arrives is not
     // the colour it was handed: a recording showed it as light grey.
     QVERIFY(!pageShownOnTheme);
+}
+
+// A document's load can end before its first paint: a page that reveals itself
+// late, or whose first frame waits on the compositor. A recording of the Space
+// switch caught the canvas turning white at the end of the load, a frame or
+// more before the page had painted anything over it. A document the paint
+// script reached therefore keeps the theme after its load until the page
+// reports its paint.
+void QtEngineContractTest::qtKeepsTheThemeAfterTheLoadUntilThePageHasPainted()
+{
+    PageServer server(R"HTML(<!doctype html>
+        <html style="display:none"><title>late</title><body style="background:#123">
+        <script>setTimeout(() => { document.documentElement.style.display = "block"; }, 1500);
+        </script></body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const QColor theme(QStringLiteral("#123456"));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("pageBackgroundColor"), theme},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(320, 240);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(320, 240));
+    window.show();
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    const auto canvas = [&] { return webView->property("backgroundColor").value<QColor>(); };
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("late"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
+
+    // The load is over and nothing has painted: the theme is still on show.
+    QTest::qWait(250);
+    QCOMPARE(canvas(), theme);
+
+    // Once the page reveals itself and paints, or after a long wait, white.
+    QTRY_COMPARE_WITH_TIMEOUT(canvas(), QColor(Qt::white), 15000);
 }
 
 // A window the page asks for comes from somewhere on the page, and the request
