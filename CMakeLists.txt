@@ -212,6 +212,8 @@ omaweb_strict_target(omaweb-content-blocking)
 add_library(omaweb-core STATIC
     src/content-blocking/ContentBlocker.cpp
     src/content-blocking/ContentBlocker.h
+    src/core/AddressWatch.cpp
+    src/core/AddressWatch.h
     src/core/AgentActivityLog.cpp
     src/core/AgentActivityLog.h
     src/core/AgentCommand.cpp
@@ -290,6 +292,8 @@ add_library(omaweb-core STATIC
     src/core/SoundingTabs.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
+    src/core/SpaceProject.cpp
+    src/core/SpaceProject.h
     src/core/SpaceStorage.cpp
     src/core/SpaceStorage.h
     src/core/SyncFeature.h
@@ -1234,6 +1238,16 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-temporary-agent-spaces-tests)
     omaweb_declarative_fixture_target(omaweb-temporary-agent-spaces-tests)
     add_test(NAME omaweb-temporary-agent-spaces COMMAND omaweb-temporary-agent-spaces-tests)
+
+    qt_add_executable(omaweb-dev-projects-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_devprojects.cpp"
+    )
+    target_link_libraries(omaweb-dev-projects-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-dev-projects-tests)
+    omaweb_declarative_fixture_target(omaweb-dev-projects-tests)
+    add_test(NAME omaweb-dev-projects COMMAND omaweb-dev-projects-tests)
 
     qt_add_executable(omaweb-space-colours-tests
         "tests/core/SessionFixture.cpp"

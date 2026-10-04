@@ -40,6 +40,7 @@ void AgentCommandTest::tellsAVerbFromAnAddressToOpen()
     QVERIFY(isAgentCommand({program, QStringLiteral("run"), QStringLiteral("toggle-sidebar")}));
     QVERIFY(isAgentCommand({program, QStringLiteral("focus"), QStringLiteral("github")}));
     QVERIFY(isAgentCommand({program, QStringLiteral("commands")}));
+    QVERIFY(isAgentCommand({program, QStringLiteral("dev")}));
     QVERIFY(!isAgentCommand({program}));
     QVERIFY(!isAgentCommand({program, QStringLiteral("https://example.com/")}));
     QVERIFY(!isAgentCommand({program, QStringLiteral("--version")}));
@@ -118,6 +119,24 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
                QStringLiteral("t1")}
         << base(QStringLiteral("focus"),
                {{QStringLiteral("target"), QStringLiteral("t1")}, {QStringLiteral("raise"), true}})
+        << false;
+    // `dev` names the folder it runs in, which the browser cannot know.
+    const auto here = QDir::currentPath();
+    QTest::newRow("dev with an address")
+        << QStringList {QStringLiteral("dev"), QStringLiteral("localhost:5173")}
+        << base(QStringLiteral("dev"),
+               {{QStringLiteral("address"), QStringLiteral("localhost:5173")},
+                   {QStringLiteral("directory"), here}})
+        << false;
+    QTest::newRow("bare dev") << QStringList {QStringLiteral("dev")}
+                              << base(QStringLiteral("dev"), {{QStringLiteral("directory"), here}})
+                              << false;
+    QTest::newRow("dev with the project's agent")
+        << QStringList {QStringLiteral("dev"), QStringLiteral("--agent"),
+               QStringLiteral("ssh -t devbox \"cd {dir} && claude\"")}
+        << base(QStringLiteral("dev"),
+               {{QStringLiteral("agent"), QStringLiteral("ssh -t devbox \"cd {dir} && claude\"")},
+                   {QStringLiteral("directory"), here}})
         << false;
     QTest::newRow("commands") << QStringList {QStringLiteral("commands"), QStringLiteral("--json")}
                               << base(QStringLiteral("commands")) << true;
@@ -202,6 +221,10 @@ void AgentCommandTest::refusesAMalformedCommand_data()
     QTest::newRow("space with two")
         << QStringList {QStringLiteral("space"), QStringLiteral("Work"), QStringLiteral("Home")};
     QTest::newRow("focus without a tab") << QStringList {QStringLiteral("focus")};
+    QTest::newRow("dev with two addresses") << QStringList {
+        QStringLiteral("dev"), QStringLiteral("localhost:5173"), QStringLiteral("localhost:3000")};
+    QTest::newRow("dev with an agent and no command")
+        << QStringList {QStringLiteral("dev"), QStringLiteral("--agent")};
     QTest::newRow("the picker beside a space") << QStringList {QStringLiteral("tabs"),
         QStringLiteral("--pick"), QStringLiteral("--space"), QStringLiteral("work")};
     QTest::newRow("the picker beside json")
@@ -316,6 +339,14 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
     QCOMPARE(formatAgentAnswer(QStringLiteral("focus"),
                  {{QStringLiteral("ok"), true}, {QStringLiteral("tab"), QStringLiteral("t1")}}),
         QStringLiteral("t1\n"));
+
+    // `dev` says which Space it opened and the address it is showing there.
+    QCOMPARE(formatAgentAnswer(QStringLiteral("dev"),
+                 {{QStringLiteral("ok"), true}, {QStringLiteral("space"), QStringLiteral("s1")},
+                     {QStringLiteral("spaceName"), QStringLiteral("shop")},
+                     {QStringLiteral("directory"), QStringLiteral("/home/reader/shop")},
+                     {QStringLiteral("address"), QStringLiteral("http://localhost:5173")}}),
+        QStringLiteral("shop\thttp://localhost:5173\n"));
 
     const QJsonObject opened {{QStringLiteral("ok"), true},
         {QStringLiteral("tab"), QJsonObject {{QStringLiteral("id"), QStringLiteral("t2")}}}};

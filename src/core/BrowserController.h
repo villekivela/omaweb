@@ -7,6 +7,7 @@
 #include "SessionStore.h"
 #include "ExtensionInstaller.h"
 #include "SpaceListModel.h"
+#include "SpaceProject.h"
 #include "SpaceStorage.h"
 #include "TabListModel.h"
 #include "WindowCapabilities.h"
@@ -29,6 +30,7 @@
 
 namespace omaweb {
 
+class AddressWatch;
 class EngineSuggestions;
 class HistorySearch;
 class ThreadedSessionStore;
@@ -74,6 +76,13 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // no page to show then and no ordinary tab to list, so both read this
     // rather than each deciding what counts as blank for itself.
     Q_PROPERTY(bool atRest READ atRest NOTIFY atRestChanged)
+    // Each project's Space, by Space id, as its `directory`, `address`,
+    // `agentCommand`, and whether the directory is `present` on this machine.
+    Q_PROPERTY(QVariantMap spaceProjects READ spaceProjectRows NOTIFY spaceProjectsChanged)
+    // The Space on show waits for its project's address to answer, and the
+    // interface shows the road driving until it does.
+    Q_PROPERTY(
+        bool activeSpaceAwaitsAddress READ activeSpaceAwaitsAddress NOTIFY addressAwaitChanged)
     // The one tab the engine's inspector is attached to, and whether the tab on
     // show is that tab. Attachment lives in memory only: Developer tools never
     // come back after a restart, and nothing about them is written to a session.
@@ -554,6 +563,35 @@ public:
     QStringList grantedSpaceIds() const;
     bool grantSpace(const QString &spaceId);
     bool revokeSpaceGrant(const QString &spaceId);
+    // A project's Space (`omaweb dev`): the folder it is for, the address its
+    // app is served at and its own agent command. Like a grant it is kept in
+    // the session store beside the Space records, stays on this machine and
+    // never reaches Sync. Deleting the Space takes its project with it.
+    std::optional<SpaceProject> spaceProject(const QString &spaceId) const;
+    QVariantMap spaceProjectRows() const;
+    // The Space whose project directory is `directory` or the nearest folder
+    // above it, or nothing.
+    QString projectSpaceFor(const QString &directory) const;
+    // A new Space of the reader's for the project, named after its folder.
+    // Nothing when either could not be kept.
+    QString createProjectSpace(const SpaceProject &project);
+    // Records or replaces a Space's project. Refused in a Private window.
+    bool setSpaceProject(const QString &spaceId, const SpaceProject &project);
+    // Clears the Space's project directory, address and agent command, and
+    // leaves the Space as it was.
+    Q_INVOKABLE bool forgetSpaceProject(const QString &spaceId);
+    // The Space waits for its project's address to answer before loading it,
+    // so a dev server still starting is never a failed page. It asks the
+    // address's host and port again until something takes the connection,
+    // then loads the address in the Space's blank tab or a new one, and
+    // selects it if the Space is on show. Waiting again restarts the wait.
+    void awaitAddress(const QString &spaceId, const QUrl &url);
+    bool awaitsAddress(const QString &spaceId) const;
+    bool activeSpaceAwaitsAddress() const;
+    // The reader gave up on it, or went somewhere else in the Space.
+    Q_INVOKABLE void stopAwaitingAddress(const QString &spaceId);
+    // Tests ask again sooner.
+    void setAddressRetryMs(int milliseconds);
     // One Space's tabs: the Space on show from its live model, any other from
     // the store. Empty for a Space this window does not have.
     QVector<TabState> spaceTabs(const QString &spaceId) const;
@@ -628,12 +666,20 @@ signals:
     void preferenceChanged(const QString &name);
     void agentSpacesChanged();
     void spaceGrantsChanged();
+    void spaceProjectsChanged();
+    // A Space started or stopped waiting for its address, or another Space
+    // came on show.
+    void addressAwaitChanged();
+    // The address a Space waited for answered, and this tab is loading it.
+    void awaitedAddressLoaded(const QString &spaceId, const QString &tabId);
     // A tab of a Space that is not on show was closed or given a new address
     // behind the page that Space is holding frozen. The page goes, so the tab
     // loads from its saved address when the Space is next shown.
     void awayTabDiscarded(const QString &tabId);
 
 private:
+    // The tab the address went to, or nothing.
+    QString loadAnsweredAddress(const QString &spaceId, const QUrl &url);
     void rememberReadersSpace();
     // Facts held by pages that survived a Space switch. The session store does
     // not write either one, and a process restart starts them empty again.
@@ -831,6 +877,10 @@ private:
     // Agent Space id to the connection name that created it.
     QHash<QString, QString> m_agentSpaces;
     QStringList m_spaceGrants;
+    QHash<QString, SpaceProject> m_spaceProjects;
+    // The Spaces waiting for their project's address to answer.
+    QHash<QString, AddressWatch *> m_addressWatches;
+    int m_addressRetryMs = 500;
     QSet<QString> m_temporarySpaceIds;
 };
 

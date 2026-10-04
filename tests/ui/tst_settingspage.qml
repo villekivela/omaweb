@@ -164,6 +164,38 @@ TestCase {
         property string downloadDirectory: "/home/reader/Downloads"
         property var spaces: spacesFixture
         property var agentSpaceIds: []
+        // Work is a project here; Reading's folder was recorded from inside
+        // a container and is not on this machine.
+        property var spaceProjects: ({})
+        property var forgottenProjects: []
+
+        function resetProjects() {
+            spaceProjects = {
+                "work": {
+                    "directory": "/home/reader/shop",
+                    "address": "http://localhost:5173",
+                    "agentCommand": "incus exec dev --cwd {dir} -- claude",
+                    "present": true
+                },
+                "reading": {
+                    "directory": "/workspace/blog",
+                    "address": "http://localhost:4321",
+                    "agentCommand": "",
+                    "present": false
+                }
+            };
+            forgottenProjects = [];
+        }
+
+        Component.onCompleted: resetProjects()
+
+        function forgetSpaceProject(spaceId) {
+            const projects = Object.assign({}, spaceProjects);
+            delete projects[spaceId];
+            spaceProjects = projects;
+            forgottenProjects = forgottenProjects.concat([spaceId]);
+            return true;
+        }
 
         function setSpaceColour(spaceId, colour) {
             for (let row = 0; row < spacesFixture.count; ++row) {
@@ -321,6 +353,7 @@ TestCase {
         theme.restore();
         fontSettings.resetInterfaceFontSize();
         browserStub.agentSpaceIds = [];
+        browserStub.resetProjects();
         if (livePage !== null) {
             livePage.destroy();
             livePage = null;
@@ -590,6 +623,36 @@ TestCase {
 
     // The reader's Spaces come before the Agent Spaces, and a move does not
     // cross from one to the other, so the arrows that would say so first.
+    // A project's Space shows where its project is, the address it opens and
+    // the agent :ask runs there, read-only, and says when the folder is not
+    // on this computer. Forget project clears them and leaves the Space.
+    function test_aProjectsSpaceShowsItsProjectAndForgetsIt() {
+        const page = makeSpacesPage();
+        const work = findChild(page, "settingsSpace-work");
+        verify(work.note.indexOf("/home/reader/shop") >= 0, work.note);
+        verify(work.note.indexOf("http://localhost:5173") >= 0, work.note);
+        verify(work.note.indexOf("incus exec dev --cwd {dir} -- claude") >= 0, work.note);
+        verify(work.note.indexOf("not on this computer") < 0, work.note);
+        const reading = findChild(page, "settingsSpace-reading");
+        verify(reading.note.indexOf("/workspace/blog") >= 0, reading.note);
+        verify(reading.note.indexOf("not on this computer") >= 0, reading.note);
+        verify(reading.note.indexOf("Agent command from the agents section") >= 0, reading.note);
+        const personal = findChild(page, "settingsSpace-personal");
+        compare(personal.note, "Current Space");
+        verify(!findChild(page, "forgetProject-personal").visible);
+
+        const forget = settleAction(findChild(page, "forgetProject-work"));
+        verify(forget.visible);
+        compare(forget.Accessible.name, "Forget the project of Work");
+        mouseClick(forget);
+        compare(browserStub.forgottenProjects, ["work"]);
+        tryVerify(function () {
+            return work.note.indexOf("/home/reader/shop") < 0;
+        });
+        verify(!forget.visible);
+        verify(findChild(page, "settingsSpace-work") !== null);
+    }
+
     function test_aMoveStaysOnItsSideOfTheAgentSpaces() {
         browserStub.agentSpaceIds = ["reading"];
         const page = makeSpacesPage();

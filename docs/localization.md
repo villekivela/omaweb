@@ -23,6 +23,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Agent tab        | Agentin välilehti     | The tab an Agent is attached to.                                                                |
 | Allow agents     | Salli agentit         | The setting that lets Agents read and act in pages.                                             |
 | Agent command    | Agentin komento       | What `:ask` runs in the reader's terminal.                                                      |
+| Project          | Projekti              | The folder a Space is for, which `omaweb dev` opens. "Projektikansio" for the folder itself.    |
 | Start page       | Aloitussivu           |                                                                                                 |
 | Tab              | Välilehti             |                                                                                                 |
 | Pinned tab       | Kiinnitetty välilehti |                                                                                                 |
