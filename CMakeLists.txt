@@ -674,6 +674,7 @@ set(omaweb_ui_files
     src/ui/SheetInsets.qml
     src/ui/SheetLift.qml
     src/ui/SiteInformationPanel.qml
+    src/ui/SiteInformationCardPrototype.qml
     src/ui/MultilineField.qml
     src/ui/CertificateDialog.qml
     src/ui/ClearBrowsingDataDialog.qml

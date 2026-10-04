@@ -22,6 +22,10 @@ Rectangle {
     property bool floating: false
     property var blocker: null
     property bool statusOpen: false
+    // PROTOTYPE #541: with --site-variant the window hosts a throwaway card
+    // in place of the real panel, which stays shut.
+    readonly property bool sitePrototype: Qt.application.arguments.indexOf("--site-variant") >= 0
+    property alias addressItem: addressButton
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool canGoBack: false
@@ -761,7 +765,7 @@ Rectangle {
 
     Shortcut {
         sequence: "Esc"
-        enabled: root.statusOpen
+        enabled: root.statusOpen && !root.sitePrototype
         context: Qt.WindowShortcut
         onActivated: root.statusOpen = false
     }
@@ -1748,7 +1752,7 @@ Rectangle {
         siteDataEntries: root.siteDataEntries
         retainedDataEntries: root.retainedDataEntries
         siteDataGeneration: root.siteDataGeneration
-        open: root.statusOpen
+        open: root.statusOpen && !root.sitePrototype
 
         onActionRequested: function (action) {
             root.siteActionRequested(action);

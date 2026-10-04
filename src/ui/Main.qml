@@ -4567,6 +4567,18 @@ ApplicationWindow {
         }
     }
 
+    // PROTOTYPE #541: throwaway Site information card variants, lab only.
+    SiteInformationCardPrototype {
+        anchors.fill: parent
+        z: 1000
+        visible: sidebar.sitePrototype
+        colors: window.colors
+        iconFontFamily: materialSymbols.name
+        addressItem: sidebar.addressItem
+        open: sidebar.statusOpen && sidebar.sitePrototype
+        onCloseRequested: sidebar.statusOpen = false
+    }
+
     CertificateDialog {
         id: certificateDialog
         anchors.fill: parent
