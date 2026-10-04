@@ -1671,6 +1671,17 @@ void QtEngineContractTest::qtLeavesAHiddenPageHiddenWhenItsWindowIsExposedAgain(
 
     QCOMPARE(visibleSpy.count(), 0);
     QVERIFY(!shown.webView->isVisible());
+
+    // The same for a page whose own view is the hidden one.
+    shown.view->setVisible(true);
+    shown.webView->setVisible(false);
+    visibleSpy.clear();
+    shown.window.hide();
+    shown.window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QTest::qWait(100);
+    QCOMPARE(visibleSpy.count(), 0);
+    QVERIFY(!shown.webView->isVisible());
 }
 
 // The engine draws the frame it has as an opaque texture, and after the window
