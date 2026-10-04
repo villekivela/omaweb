@@ -342,6 +342,12 @@ def suggestions(query: str) -> list:
     return [query, proposals.get(query.strip().lower(), [])]
 
 
+# How long each beat holds still under its caption before its action starts, so the caption is read
+# first and the eye then goes to what it names. The caption comes in 0.3 s into a beat.
+CAPTION_LEAD = 1.5
+# The Theme beat holds the old theme longer, so the change it names is the thing watched.
+THEME_HOLD = 2.5
+
 # The film's beats, in the order they play: what the caption says and, for each moment the camera
 # moves, where it looks. A place is a fraction of the window, (left, top, width, height), so it
 # holds at any output size; `None` is the whole window. Times are seconds into the beat.
@@ -363,19 +369,19 @@ FORM = (0.32, 0.03, 0.66, 0.66)
 
 BEATS = [
     Beat("Omnibar", "One Omnibar for tabs, Spaces and search",
-         [(0.0, None), (1.0, OMNIBAR), (5.2, None)]),
+         [(0.0, None), (CAPTION_LEAD + 0.2, OMNIBAR), (CAPTION_LEAD + 4.4, None)]),
     Beat("Space switch", "Each Space keeps its own logins and tabs",
-         [(0.0, FOOTER), (2.2, None)]),
+         [(0.0, FOOTER), (CAPTION_LEAD + 1.6, None)]),
     Beat("Sidebar", "Hide the sidebar and the page takes the window", [(0.0, None)]),
     Beat("Blocking", "Ads and trackers stopped before they load",
-         [(0.0, None), (2.4, ADDRESS)]),
+         [(0.0, None), (CAPTION_LEAD + 2.0, ADDRESS)]),
     Beat("Theme", "Your Omarchy theme reaches the whole browser", [(0.0, None)]),
     Beat("Agent", "An Agent works in a Space of its own",
-         [(0.0, AGENT_TAB), (3.0, FORM), (11.0, None)]),
+         [(0.0, AGENT_TAB), (CAPTION_LEAD + 3.0, FORM), (CAPTION_LEAD + 11.0, None)]),
 ]
 
 # The frame the page shows before the film plays: the Omnibar with its rows open.
-POSTER = ("Omnibar", 3.6)
+POSTER = ("Omnibar", CAPTION_LEAD + 2.8)
 
 # What the reader's two Spaces hold when the film starts. The Omnibar beat types "tra", which finds
 # the trail shoe open here, the tracing guide open in Work, and the engine's suggestions.
@@ -636,7 +642,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
 
     beat = beats["Omnibar"]
     start = recorder.now()
-    time.sleep(0.8)
+    time.sleep(CAPTION_LEAD)
     keys("Primary+l", settle=0.6)
     type_text(TYPED)
     time.sleep(2.2)
@@ -651,7 +657,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
 
     beat = beats["Space switch"]
     start = recorder.now()
-    time.sleep(0.6)
+    time.sleep(CAPTION_LEAD)
     keys("Primary+2", settle=3.4)
     end = recorder.now()
     expect_space_on_show(beat.name, answer(beat.name, browser, "spaces"), "Work")
@@ -660,7 +666,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     beat = beats["Sidebar"]
     before = server.reports()
     start = recorder.now()
-    time.sleep(0.6)
+    time.sleep(CAPTION_LEAD)
     keys("Primary+b", settle=3.8)
     end = recorder.now()
     expect_wider(beat.name, before, server.reports(), "quillstack.test")
@@ -674,7 +680,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     beat = beats["Blocking"]
     since = len(server.reports())
     start = recorder.now()
-    time.sleep(0.4)
+    time.sleep(CAPTION_LEAD)
     expect_ran(beat.name, omaweb(browser, "run", "reload"))
     path = urllib.parse.urlsplit(MAGAZINE).path
     wait_for(beat.name, "the magazine to load", reported(server, "halyard.test", path, since))
@@ -691,7 +697,8 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     sample = (int(OUTPUT_MODE[0] * 0.01), int(OUTPUT_MODE[1] * 0.5))
     was = pixel(frame(), *sample)
     start = recorder.now()
-    time.sleep(0.8)
+    # Long enough to read the caption over the old theme, so the change it names comes after it.
+    time.sleep(THEME_HOLD)
     write_theme("tokyo-night", config)
     time.sleep(4.6)
     end = recorder.now()
@@ -705,6 +712,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
 
     beat = beats["Agent"]
     start = recorder.now()
+    time.sleep(CAPTION_LEAD)
     created = omaweb(browser, "space", "new", "Invoices", name=AGENT)
     expect_ran(beat.name, created)
     space = created.stdout.strip()

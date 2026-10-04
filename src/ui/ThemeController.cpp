@@ -698,6 +698,35 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         palette.insert(QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
     }
 
+    // What the reader types into the Omnibar is read on its glass: the overlay
+    // at the glass's alpha, over whatever is behind it. On the Start page that
+    // is the night road, from black to the sun, so the text has to clear 4.5:1
+    // over both ends. A theme whose text already does keeps it exactly.
+    const auto glassGrounds = [&palette](const QString &overlayKey) {
+        QList<QColor> grounds;
+        const QColor overlay(palette.value(overlayKey).toString());
+        if (!overlay.isValid()) {
+            return grounds;
+        }
+        const auto alpha = std::min<double>(overlay.alphaF(), 0.8);
+        for (const auto &behind : {QColor(Qt::black), QColor(Qt::white)}) {
+            grounds.append(QColor::fromRgbF(overlay.redF() * alpha + behind.redF() * (1 - alpha),
+                overlay.greenF() * alpha + behind.greenF() * (1 - alpha),
+                overlay.blueF() * alpha + behind.blueF() * (1 - alpha)));
+        }
+        return grounds;
+    };
+    for (const auto &[field, overlay] :
+        {std::pair {QStringLiteral("fieldText"), QStringLiteral("overlay")},
+            std::pair {QStringLiteral("privateFieldText"), QStringLiteral("privateOverlay")}}) {
+        const auto grounds = glassGrounds(overlay);
+        if (text.isValid() && !grounds.isEmpty()) {
+            palette.insert(field,
+                adjustedForContrast(text, text, grounds, 4.5, /*preserveHue=*/true)
+                    .name(QColor::HexRgb));
+        }
+    }
+
     // The Agent accent is read as well as seen: the page frame's label is
     // the window colour written on it, and the mark on a row or a Space is
     // drawn on the sidebar. So it keeps its hue and changes lightness only

@@ -309,6 +309,7 @@ private slots:
     void bringsTheWindowForwardWhenItIsAskedTo();
     void picksATabThroughOmarchysMenuAndBringsItForward();
     void leavesTheWindowAloneWhenThePickIsCancelled();
+    void focusesATabThatSwitchingToItsSpaceWouldPutAway();
     void saysOmarchysMenuIsMissingAndExitsNonZero();
     void leavesPinnedTabsAndTheReadersTabsAlone();
     void closesAndLoadsTabsOfASpaceNotOnShow();
@@ -614,6 +615,37 @@ void AgentControlTest::picksATabThroughOmarchysMenuAndBringsItForward()
         0);
     QCOMPARE(browser->activeTabId(), QStringLiteral("docs-first"));
     QCOMPARE(forward.count(), 2);
+}
+
+// A tab the reader has not shown for days is put away as its Space comes on show, unless it is
+// the tab the Space is left on. Choosing that tab from the menu has to arrive on it.
+void AgentControlTest::focusesATabThatSwitchingToItsSpaceWouldPutAway()
+{
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    auto session = readersSession();
+    session.spaces[1].tabs = {
+        TabSpec {.id = QStringLiteral("work-reading"),
+            .url = QUrl(QStringLiteral("https://reading.example/")),
+            .lastShownAt = now},
+        TabSpec {.id = QStringLiteral("work-old"),
+            .url = QUrl(QStringLiteral("https://old.example/")),
+            .lastShownAt = now},
+    };
+    session.spaces[1].activeTabId = QStringLiteral("work-reading");
+    QTemporaryDir config;
+    SessionFixture fixture(session);
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QVERIFY(browser->setPutAwayAfterSeconds(12 * 60 * 60));
+    browser->setNowForTests(now + 24 * 60 * 60 * 1000);
+
+    const auto focused = ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-old")}});
+
+    QVERIFY2(succeeded(focused), qPrintable(focused.value(QStringLiteral("error")).toString()));
+    QCOMPARE(browser->activeSpaceId(), QStringLiteral("work"));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("work-old"));
 }
 
 void AgentControlTest::leavesTheWindowAloneWhenThePickIsCancelled()

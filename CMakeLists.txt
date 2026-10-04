@@ -648,10 +648,13 @@ set(omaweb_ui_files
     src/ui/FindBar.qml
     src/ui/Glance.qml
     src/ui/HistoryPage.qml
+    src/ui/KeyCap.qml
+    src/ui/KeyCaps.qml
     src/ui/KeyMap.qml
     src/ui/MediaAnnouncement.qml
     src/ui/KeyLabel.qml
     src/ui/NavigationCluster.qml
+    src/ui/OmnibarHints.qml
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
     src/ui/AgentMark.qml
@@ -1656,6 +1659,7 @@ if(BUILD_TESTING)
     # is believed to say.
     target_compile_definitions(omaweb-theme-tests PRIVATE
         OMAWEB_OMARCHY_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb.json.tpl"
+        OMAWEB_BUNDLED_THEMES_CSS="${CMAKE_CURRENT_SOURCE_DIR}/website/assets/shots/themes.css"
     )
     omaweb_strict_target(omaweb-theme-tests)
     add_test(NAME omaweb-theme COMMAND omaweb-theme-tests)

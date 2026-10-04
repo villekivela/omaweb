@@ -444,6 +444,7 @@ ApplicationWindow {
         palette.surface = source.privateSurface;
         palette.surfaceHover = source.privateSurfaceHover;
         palette.mutedText = source.privateMutedText;
+        palette.fieldText = source.privateFieldText;
         palette.border = source.privateBorder;
         palette.accent = source.privateAccent;
         return palette;
@@ -2586,8 +2587,14 @@ ApplicationWindow {
             window.restartStartPageField();
             return;
         }
-        if (!window.startPageSummoned)
+        // In a Space at rest there is no page to go back to. Escape hands the
+        // keyboard to the browser instead: the field is released, so the bare
+        // keys of the key map work as they do over a page, and `o`,
+        // Primary+L or a click on the field take it back.
+        if (!window.startPageSummoned) {
+            startPage.forceActiveFocus();
             return;
+        }
         window.startPageSummoned = false;
         window.forgetOmnibarSuggestions();
         window.focusPage();
@@ -2814,10 +2821,7 @@ ApplicationWindow {
                 // Above the page while a Space arrives, so a page arriving
                 // from the left slides in from under the shelf rather than
                 // over it.
-                // Over the page area while the Start page's road runs under
-                // both.
-                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : startPage.underSidebar ? 1 :
-                                                                                                  0
+                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
@@ -3405,24 +3409,12 @@ ApplicationWindow {
                     privateWindow: window.privateWindow
                     open: window.startPageShown
                     ease: window.chromeEase
-                    // Visible and drawing its road, which then runs under the
-                    // sidebar to the window's edge.
-                    readonly property bool underSidebar: visible && roadEnabled && !inPane
-                    // Under the sidebar the road is as much wider as the
-                    // sidebar is, so its vanishing point stays under the
-                    // Omnibar in the middle of the page area. The settled
-                    // width, so a sliding seam does not redraw it.
-                    roadWidth: inPane ? window.width : window.width + chromeRow.settledSeam
-                    // The viewport is moved by a Space arriving, and the road
-                    // is not: it reaches back past the move to the window.
-                    roadReach: inPane ? 0 : chromeRow.seam + chromeRow.pageArrival
                     roadEnabled: window.startPageRoad
                     glassEnabled: window.startPageGlass
                     reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
                     driving: window.startPageDriving
-                    fieldBelowHorizon: omnibar.fieldBelowHorizon
                     pageSource: window.pagelessViewport ? null : engineLoader
                 }
 
@@ -4791,6 +4783,7 @@ ApplicationWindow {
         z: 50
         colors: window.colors
         commands: browserCommands
+        keymap: keymap
         browser: window.windowBrowser
         agentSpaceIds: window.agentSpaceIds
         agentActivity: window.agentTabActivity

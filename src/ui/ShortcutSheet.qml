@@ -108,11 +108,13 @@ Rectangle {
     // owns the font size: `Style.spacing.*` and `Style.space()` already move
     // with it, and so must the column that holds the keys.
 
-    FontMetrics {
-        id: keyMetrics
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body
-        font.bold: true
+    // Measures a binding's row of key caps, which the key column is as wide
+    // as the widest of.
+    KeyCaps {
+        id: keyRuler
+        visible: false
+        colors: root.colors
+        iconFontFamily: root.iconFontFamily
     }
 
     FontMetrics {
@@ -144,34 +146,37 @@ Rectangle {
     readonly property int headingGap: Style.space(28)
     readonly property int keyGap: Style.spacing.xl
 
-    // The widest string any row will draw in one of its two columns, measured
-    // in the face that row is drawn in. Six and a half characters was a guess,
+    // The widest any row will draw in one of its two columns, measured in the
+    // face that row is drawn in. Six and a half characters was a guess,
     // and a guess is too narrow for a long chord and too wide for a keymap
     // without one.
-    function widestOf(metrics, field) {
+    function widestOf(measure, field) {
         let widest = 0;
         for (let group = 0; group < root.sections.length; ++group) {
             const entries = root.sections[group].entries;
             for (let index = 0; index < entries.length; ++index)
-                widest = Math.max(widest, metrics.advanceWidth(entries[index][field]));
+                widest = Math.max(widest, measure(entries[index][field]));
         }
         return Math.ceil(widest);
     }
 
     readonly property int keyColumnWidth: {
-        // The font is read here for the dependency alone: advanceWidth()
-        // measures in C++ off a font the binding never otherwise touches, so a
+        // The type is read here for the dependency alone: the caps are
+        // measured in C++ off a font the binding never otherwise touches, so a
         // theme that changes the type would leave the column on the last size
         // it was measured at.
-        void (keyMetrics.font.pixelSize);
-        void (keyMetrics.font.family);
-        return root.widestOf(keyMetrics, "keys");
+        void (keyRuler.measuredPixelSize);
+        void (keyRuler.measuredFamily);
+        void (keyRuler.measuredIconFamily);
+        return root.widestOf(keyRuler.widthOf, "keys");
     }
 
     readonly property int titleColumnWidth: {
         void (titleMetrics.font.pixelSize);
         void (titleMetrics.font.family);
-        return root.widestOf(titleMetrics, "title");
+        return root.widestOf(function (text) {
+            return titleMetrics.advanceWidth(text);
+        }, "title");
     }
 
     // A column is exactly as wide as the widest row it has to hold: a key, the
@@ -201,8 +206,12 @@ Rectangle {
                                                                                              - 1)
 
     // A row is the body line plus the room its rule needs under it, so the text
-    // never grows into the hairline the way a fixed 24 pixels let it.
-    readonly property int rowHeight: Math.ceil(titleMetrics.height) + Style.spacing.lg
+    // never grows into the hairline the way a fixed 24 pixels let it. The
+    // key caps are taller than the line at the website's type size, so the
+    // row holds the taller of the two.
+    readonly property int rowHeight: Math.max(Math.ceil(titleMetrics.height), Math.ceil(22
+                                                                                        * Style.font.body
+                                                                                        / 12)) + Style.spacing.lg
 
     readonly property int headingWidth: Math.ceil(headingMetrics.advanceWidth) + root.closeSize
                                         + root.keyGap
@@ -429,26 +438,24 @@ Rectangle {
                                         Accessible.role: Accessible.StaticText
                                         Accessible.name: modelData.title + ": " + modelData.keys
 
-                                        // The keys are set exactly as the
-                                        // Omnibar sets them, so the same
-                                        // command reads the same way in both
-                                        // places.
-                                        Text {
+                                        // The keys are the website's key
+                                        // caps, one to a key, so the same
+                                        // command reads the same way here as
+                                        // in the Omnibar's hint row.
+                                        KeyCaps {
                                             id: entryKeys
                                             anchors.left: parent.left
                                             anchors.verticalCenter: parent.verticalCenter
-                                            width: root.keyColumnWidth
-                                            text: entryRow.modelData.keys
-                                            color: root.colors.accent
-                                            elide: Text.ElideRight
-                                            font.family: Style.font.family
-                                            font.pixelSize: Style.font.body
-                                            font.bold: true
+                                            colors: root.colors
+                                            iconFontFamily: root.iconFontFamily
+                                            plate: root.colors.windowOpaque
+                                            drawn: root.open
+                                            keys: entryRow.modelData.keys
                                         }
 
                                         Text {
-                                            anchors.left: entryKeys.right
-                                            anchors.leftMargin: root.keyGap
+                                            anchors.left: parent.left
+                                            anchors.leftMargin: root.keyColumnWidth + root.keyGap
                                             anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: entryRow.modelData.title

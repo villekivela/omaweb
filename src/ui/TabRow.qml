@@ -337,6 +337,7 @@ Item {
     // the close button already take turns.
     KeyLabel {
         objectName: "keyLabel-tab-" + root.tabId
+        iconFontFamily: root.iconFontFamily
         anchors.horizontalCenter: tile.horizontalCenter
         anchors.verticalCenter: tile.verticalCenter
         keys: root.keyLabel

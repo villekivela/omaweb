@@ -2,7 +2,8 @@
 
 The website opens on a film of Omaweb in use, after its hero. It is the real browser on its own
 engine, recorded by a script in CI's Arch container, so a release's film is that release's browser.
-The film is silent, about 40 seconds long, with its captions burned in. In order:
+The film is silent, about 50 seconds long, with its captions burned in. Each caption is up before
+the action it names starts, so it is read first. In order:
 
 1. The Omnibar. `tra` finds the trail shoe open in this Space, the tracing guide open in Work, and
    Kestrel's suggestions. The reader picks a suggestion.

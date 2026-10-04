@@ -1320,12 +1320,15 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     const hint = document.querySelector('#__omaweb_link_hints > span');
                     if (!hint) return;
                     const style = getComputedStyle(hint);
-                    // The hint is the sidebar's site chip: a surface plate,
-                    // and the code itself in the accent the border wears.
-                    if (style.backgroundColor === 'rgb(18, 52, 86)'
-                            && style.borderColor === 'rgb(101, 67, 33)'
-                            && style.color === 'rgb(101, 67, 33)'
-                            && style.borderRadius === '2px'
+                    // The hint is the website's: an accent plate with the
+                    // code in the window's ground on it, square, no border.
+                    if (style.backgroundColor === 'rgb(101, 67, 33)'
+                            && style.color === 'rgb(10, 20, 30)'
+                            && style.borderTopWidth === '0px'
+                            && style.borderRadius === '0px'
+                            && style.paddingTop === '2px'
+                            && style.paddingLeft === '4px'
+                            && style.textTransform === 'uppercase'
                             && style.fontWeight === '600'
                             && style.fontFamily.includes('Courier')
                             && style.fontSize === '17px') document.title = 'themed';
@@ -1539,6 +1542,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
         {QStringLiteral("hintTheme"),
             QVariantMap {
                 {QStringLiteral("surface"), QStringLiteral("#123456")},
+                {QStringLiteral("windowOpaque"), QStringLiteral("#0a141e")},
                 {QStringLiteral("text"), QStringLiteral("#eeeeee")},
                 {QStringLiteral("mutedText"), QStringLiteral("#999999")},
                 {QStringLiteral("accent"), QStringLiteral("#654321")},

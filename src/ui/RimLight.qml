@@ -28,6 +28,9 @@ ShaderEffect {
     // Draws the bloom's half inside the plate, from inside it, rather than the
     // rim and the bloom's half outside.
     property bool inner: false
+    // How much of the light is drawn, from 0 to 1: the rim and the bloom
+    // fade together.
+    property real strength: 1
 
     // How far the bloom reaches past the plate's edge: half its band and
     // three sigmas of its blur.
@@ -60,7 +63,7 @@ ShaderEffect {
     width: root.plate ? root.plate.width + 2 * root.reach : 0
     height: root.plate ? root.plate.height + 2 * root.reach : 0
     // Inside the plate it already fades with it.
-    opacity: root.plate && !root.inner ? root.plate.opacity : 1
+    opacity: (root.plate && !root.inner ? root.plate.opacity : 1) * root.strength
 
     property size itemSize: Qt.size(root.width, root.height)
     property rect plateRect: Qt.rect(root.reach, root.reach, root.plate ? root.plate.width : 0,

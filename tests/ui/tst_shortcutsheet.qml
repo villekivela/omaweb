@@ -126,24 +126,26 @@ TestCase {
         }
     }
 
-    FontMetrics {
-        id: keyMetrics
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body
-        font.bold: true
+    // What the longest binding actually paints: its keys as a row of caps, as
+    // the sheet draws them. A column reserved from the advance alone can still
+    // cut off the one chord it was measured from, and that is the failure the
+    // column exists to avoid.
+    Component {
+        id: keyProbeComponent
+
+        Omaweb.KeyCaps {
+            keys: testCase.longestKeys
+            colors: testCase.colorsFixture
+        }
     }
 
-    // What the longest binding actually paints, rather than what it advances
-    // by. A column reserved from the advance alone can still elide the one
-    // chord it was measured from, and eliding the longest key is the failure
-    // the measurement exists to prevent.
-    Text {
-        id: keyProbe
-        visible: false
-        text: testCase.longestKeys
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body
-        font.bold: true
+    // The width the longest binding paints, drawn fresh: a probe kept from
+    // before a change of type keeps the size it was laid out at.
+    function longestKeysWidth() {
+        const probe = keyProbeComponent.createObject(testCase);
+        const width = Math.ceil(probe.implicitWidth);
+        probe.destroy();
+        return width;
     }
 
     // Both axes the theme can move the sheet along, shared with the other
@@ -180,16 +182,132 @@ TestCase {
         return liveSheet;
     }
 
+    // Every item under `item` named `name`.
+    function descendants(item, name) {
+        let found = [];
+        const below = item.contentItem ? [item.contentItem].concat(Array.from(item.children)) :
+                                         Array.from(item.children);
+        for (const child of below) {
+            if (child.objectName === name)
+                found.push(child);
+            found = found.concat(descendants(child, name));
+        }
+        return found;
+    }
+
+    Component {
+        id: keyCapComponent
+
+        Omaweb.KeyCap {
+            colors: testCase.colorsFixture
+        }
+    }
+
+    // A special key is drawn as a symbol, not a word: a Material Symbols icon
+    // where the font carries a matching glyph, otherwise the Unicode symbol in
+    // the interface face, and without the icon font the Unicode symbol for
+    // all. Escape, Ctrl, Alt and the navigation keys without a clear symbol
+    // stay words, and every cap keeps the key's spoken name.
+    function test_specialKeysAreSymbolsAndTheRestWords() {
+        const cap = keyCapComponent.createObject(testCase, {
+                                                     "iconFontFamily": "Material Symbols Rounded"
+                                                 });
+        const icons = {
+            "Return": "keyboard_return",
+            "Enter": "keyboard_return",
+            "Up": "arrow_upward",
+            "Down": "arrow_downward",
+            "Left": "arrow_back",
+            "Right": "arrow_forward",
+            "Tab": "keyboard_tab",
+            "Backspace": "backspace",
+            "Shift": "shift",
+            "Space": "space_bar"
+        };
+        for (const key in icons) {
+            compare(cap.faceFor(key).text, icons[key], key);
+            verify(cap.faceFor(key).icon, key);
+        }
+        compare(cap.faceFor("Delete").text, "\u2326");
+        verify(!cap.faceFor("Delete").icon);
+        for (const key of ["Ctrl", "Alt", "Home", "End", "PageUp", "PageDown", "R", "[", "F10"]) {
+            compare(cap.faceFor(key).text, key);
+            verify(!cap.faceFor(key).icon, key);
+        }
+        compare(cap.faceFor("Esc").text, "Esc");
+        compare(cap.faceFor("Escape").text, "Esc");
+        compare(cap.spokenName("Return"), "Return");
+        compare(cap.spokenName("Esc"), "Escape");
+        compare(cap.spokenName("Up"), "Up");
+        cap.iconFontFamily = "";
+        const glyphs = {
+            "Return": "\u21b5",
+            "Up": "\u2191",
+            "Down": "\u2193",
+            "Left": "\u2190",
+            "Right": "\u2192",
+            "Tab": "\u21e5",
+            "Backspace": "\u232b",
+            "Shift": "\u21e7",
+            "Space": "\u2423"
+        };
+        for (const key in glyphs) {
+            compare(cap.faceFor(key).text, glyphs[key], key);
+            verify(!cap.faceFor(key).icon, key);
+        }
+        cap.destroy();
+    }
+
+    // A command with two bindings, which the key map joins with a dot, is
+    // two runs of caps with the dot between, not one cap holding both.
+    function test_alternativeBindingsAreSeparateRunsOfCaps() {
+        const probe = keyProbeComponent.createObject(testCase, {
+                                                         "keys": "Ctrl+[  \u00b7  H"
+                                                     });
+        compare(probe.parts.join(), "Ctrl,[,H");
+        compare(probe.entries.filter(function (entry) {
+            return entry.separator;
+        }).length, 1);
+        compare(probe.entries[2].key, "\u00b7");
+        compare(Math.ceil(probe.implicitWidth), Math.ceil(probe.widthOf("Ctrl+[  \u00b7  H")));
+        probe.destroy();
+    }
+
+    // Each binding is a row of the website's key caps, one cap to a key, so a
+    // chord of four keys is four caps and the column holds the widest row.
+    function test_everyBindingIsARowOfKeyCaps() {
+        const sheet = makeSheet();
+        const rows = descendants(sheet, "keycaps");
+        verify(rows.length > 0);
+        let longest = 0;
+        for (const row of rows) {
+            // The rulers that measure the rows hold no key.
+            if (row.keys.length === 0)
+                continue;
+            const caps = descendants(row, "keycap").filter(function (cap) {
+                return cap.text.length > 0;
+            });
+            compare(caps.length, row.parts.length);
+            for (const cap of caps) {
+                compare(cap.height, 22 * Style.font.body / 12);
+                verify(cap.width >= 22 * Style.font.body / 12);
+                compare(String(findChild(cap, "keycapLabel").color), String(
+                            testCase.colorsFixture.accent));
+            }
+            longest = Math.max(longest, row.parts.length);
+        }
+        compare(longest, testCase.longestKeys.split("+").length);
+    }
+
     // The key column is the widest binding the keymap actually sets, measured
     // in the face it is drawn in — and wide enough for what that binding
     // paints, not merely for what it advances by.
     function test_keyColumnIsMeasuredFromTheWidestBinding() {
         const sheet = makeSheet();
-        verify(sheet.keyColumnWidth >= Math.ceil(keyProbe.implicitWidth));
+        verify(sheet.keyColumnWidth >= testCase.longestKeysWidth());
         // And no wider than that binding needs: the rest of the row is title.
         // One body glyph of slack is the most a rounded measurement can add.
-        verify(sheet.keyColumnWidth <= Math.ceil(keyMetrics.advanceWidth(testCase.longestKeys))
-               + Style.font.body);
+        verify(sheet.keyColumnWidth <= testCase.longestKeysWidth() + Style.font.body);
     }
 
     // Everything on the row grows with the type, so the column that holds it
@@ -207,7 +325,7 @@ TestCase {
         verify(sheet.rowHeight > smallRow);
         // The row still has room for the line it draws and the rule under it.
         verify(sheet.rowHeight > Style.font.body);
-        verify(sheet.keyColumnWidth >= Math.ceil(keyProbe.implicitWidth));
+        verify(sheet.keyColumnWidth >= testCase.longestKeysWidth());
     }
 
     // A column count is a question about the type, not about pixels: the same

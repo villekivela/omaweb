@@ -81,6 +81,62 @@ QtObject {
         return single;
     }
 
+    // The keys the Omnibar's field answers, by the name of the key and what it
+    // does there. The field takes its keys from here and its hint row names
+    // them from here, so a key the row shows is a key the field answers.
+    property var omnibarBindings: ({
+                                       "Up": "previous",
+                                       "Down": "next",
+                                       "Return": "go",
+                                       "Enter": "go",
+                                       "Backspace": "leave"
+                                   })
+
+    function keyName(key) {
+        switch (key) {
+        case Qt.Key_Up:
+            return "Up";
+        case Qt.Key_Down:
+            return "Down";
+        case Qt.Key_Left:
+            return "Left";
+        case Qt.Key_Right:
+            return "Right";
+        case Qt.Key_Return:
+            return "Return";
+        case Qt.Key_Enter:
+            return "Enter";
+        case Qt.Key_Backspace:
+            return "Backspace";
+        }
+        return "";
+    }
+
+    // What the field does on a key, or an empty string for a key it leaves
+    // to typing.
+    function omnibarActionFor(key) {
+        return omnibarBindings[keyName(key)] || "";
+    }
+
+    // The keys that do any of `actions`, by name, for the caps to draw. Return
+    // and the keypad's Enter are one key to the reader, so one is named.
+    function omnibarKeysFor(actions) {
+        const keys = [];
+        for (const binding in omnibarBindings) {
+            const name = binding === "Enter" ? "Return" : binding;
+            if (actions.indexOf(omnibarBindings[binding]) >= 0 && keys.indexOf(name) < 0)
+                keys.push(name);
+        }
+        return keys;
+    }
+
+    readonly property var omnibarKeys: ({
+                                            "select": omnibarKeysFor(["previous", "next"]),
+                                            "go": omnibarKeysFor(["go"]),
+                                            "run": omnibarKeysFor(["go"]),
+                                            "leave": omnibarKeysFor(["leave"])
+                                        })
+
     // Every binding that invokes a command, formatted for the Omnibar.
     function keysFor(command) {
         const chords = [];

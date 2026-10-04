@@ -88,10 +88,11 @@ and appends at the end. Each half of a split is its own entry. Each Space has on
 switch to another Space and back. _Avoid_: Tab history, recent tabs, tab stack, last tab
 
 **Start page**: What Omaweb shows where a webpage would be when there is none to show: a Space at
-rest, `about:blank`, and a new-tab request that has no destination yet. It is the Omnibar at rest in
-the middle of the page area, focused, over the CRT road, a Scene that runs under the whole window
-with the sidebar standing over it. It costs no engine. A new-tab request shows it over the page on
-show, and `Escape` gives that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
+rest, `about:blank`, and a new-tab request that has no destination yet. It is the Omnibar at rest
+above the road's horizon, centred in the page area, focused, over the CRT road, a Scene that fills
+the page area, drawn as the website draws it in a viewport of that size, and never runs under the
+sidebar. It costs no engine. A new-tab request shows it over the page on show, and `Escape` gives
+that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
 
 **Scene**: The drawing behind the Start page, and nothing else: the host sizes it, keeps its clock
 and shows it, through the CRT glass when it declares one. A Scene may also name the light it casts,
@@ -135,9 +136,9 @@ receive selected conflicting keys. _Avoid_: Vim mode, Vimium extension
 
 **Omnibar**: One field and one ranked list for opening addresses, searching, switching to an open
 tab or a Space, and invoking browser commands. Over a page it is a centered overlay; on the Start
-page it is at rest on the road's horizon. The tab on show is never listed. A new-tab request creates
-its tab only after the user commits a destination in the Omnibar. _Avoid_: Command bar, omnibox,
-command palette, command panel
+page it is at rest above the road's horizon. The tab on show is never listed. A new-tab request
+creates its tab only after the user commits a destination in the Omnibar. _Avoid_: Command bar,
+omnibox, command palette, command panel
 
 **Command scope**: The Omnibar narrowed to browser commands, shown as a leading `:` in the field.
 Typing `:` into the field enters it and backspacing the `:` leaves it, keeping the typed text.
