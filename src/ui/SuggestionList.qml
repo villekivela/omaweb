@@ -5,11 +5,12 @@ import qs.Ui as Omarchy
 // The list Omaweb draws under a focused page field to offer what could go in
 // it. The field keeps the keyboard, so nothing here takes focus: the page
 // hands over the keys that walk the list, and the owner moves `highlighted`
-// and decides what accepting a row does. Form history is the first owner;
-// addresses and payment cards offer theirs through the same surface.
+// and decides what accepting a row does. Form history owns the first list;
+// it is one surface so that what else is offered under a field is drawn the
+// same way.
 //
 // It is drawn on the kit's popup surface, at least as wide as the field, under
-// it, or above it where the window has no room below.
+// it, or above it where the page has no room below.
 Omarchy.BorderSurface {
     id: root
 
@@ -19,8 +20,10 @@ Omarchy.BorderSurface {
     property var rows: []
     property int highlighted: -1
     property bool open: false
-    // The field, in the parent's coordinates.
+    // The field and the page it is in, in the parent's coordinates. The list
+    // stays within the page.
     property rect anchorRect: Qt.rect(0, 0, 0, 0)
+    property rect boundsRect: Qt.rect(0, 0, 0, 0)
 
     readonly property int count: rows.length
     readonly property bool shown: open && count > 0
@@ -32,7 +35,6 @@ Omarchy.BorderSurface {
                                                               Style.normalBorderWidth)
 
     signal accepted(int index)
-    signal hovered(int index)
 
     function escaped(text) {
         return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -45,17 +47,17 @@ Omarchy.BorderSurface {
                 + "</b>";
     }
 
-    readonly property real roomBelow: parent ? parent.height - anchorRect.y - anchorRect.height
-                                               - edgeMargin : 0
-    readonly property bool above: implicitHeight > roomBelow && anchorRect.y - edgeMargin
-                                  > roomBelow
+    readonly property real roomBelow: boundsRect.y + boundsRect.height - anchorRect.y
+                                      - anchorRect.height - edgeMargin
+    readonly property bool above: implicitHeight > roomBelow && anchorRect.y - boundsRect.y
+                                  - edgeMargin > roomBelow
 
     visible: shown
-    width: parent ? Math.min(Math.max(anchorRect.width, Math.min(rowsColumn.implicitWidth
-                                                                 + contentLeftInset
-                                                                 + contentRightInset, maxWidth)),
-                             parent.width - 2 * edgeMargin) : 0
-    x: parent ? Math.max(edgeMargin, Math.min(anchorRect.x, parent.width - width - edgeMargin)) : 0
+    readonly property real boundsRight: boundsRect.x + boundsRect.width
+    width: Math.max(0, Math.min(Math.max(anchorRect.width, Math.min(rowsColumn.implicitWidth + contentLeftInset
+                                                                    + contentRightInset, maxWidth)),
+                                boundsRect.width - 2 * edgeMargin))
+    x: Math.max(boundsRect.x + edgeMargin, Math.min(anchorRect.x, boundsRight - width - edgeMargin))
     y: above ? anchorRect.y - height : anchorRect.y + anchorRect.height
     implicitHeight: contentTopInset + rowsColumn.implicitHeight + contentBottomInset
     height: implicitHeight
@@ -81,12 +83,17 @@ Omarchy.BorderSurface {
                 required property int index
                 readonly property string value: modelData.value
                 readonly property bool current: index === root.highlighted
+                // A pointer over a row shows it and no more: highlighting it
+                // would hand Enter to the list while the reader is typing.
+                readonly property bool hot: pointer.containsMouse && !current
 
                 objectName: "suggestionRow" + index
                 width: rowsColumn.width
                 implicitWidth: label.implicitWidth + 2 * Style.spacing.controlPaddingX
                 height: root.rowHeight
-                color: current ? Style.hoverFillFor(Color.popups.text, Color.accent) : "transparent"
+                color: current || hot ? Style.hoverFillFor(Color.popups.text, Color.accent) :
+                                        "transparent"
+
                 Accessible.role: Accessible.ListItem
                 Accessible.name: value
                 Accessible.selected: current
@@ -111,10 +118,10 @@ Omarchy.BorderSurface {
                 // Accepted on the press: a release would come after the page
                 // had heard of a press outside its field.
                 MouseArea {
+                    id: pointer
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onPositionChanged: root.hovered(row.index)
                     onPressed: root.accepted(row.index)
                 }
             }

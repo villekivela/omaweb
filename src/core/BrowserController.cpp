@@ -3233,14 +3233,12 @@ namespace {
 
 } // namespace
 
-// A Space deleted while its page was submitting is not given a database back.
-// A Private window's store keeps nothing, and is the one that says so.
+// A Space deleted while its page was submitting, or while its list asked, is
+// not given a database back. A Private window's store keeps nothing, and is
+// the one that says so.
 void BrowserController::rememberFormFields(const QString &spaceId, const QVariantList &fields)
 {
-    const auto &spaces = m_spaces.items();
-    if (!m_privateBrowsing
-        && std::none_of(spaces.cbegin(), spaces.cend(),
-            [&spaceId](const SpaceState &space) { return space.id == spaceId; })) {
+    if (m_spaces.rowOf(spaceId) < 0) {
         return;
     }
     for (const auto &field : fields) {
@@ -3256,7 +3254,7 @@ void BrowserController::rememberFormFields(const QString &spaceId, const QVarian
 
 QStringList BrowserController::formHistory(const QString &spaceId, const QString &field) const
 {
-    if (field.isEmpty()) {
+    if (field.isEmpty() || m_spaces.rowOf(spaceId) < 0) {
         return {};
     }
     return m_store->formEntries(spaceId, field);
@@ -3265,7 +3263,7 @@ QStringList BrowserController::formHistory(const QString &spaceId, const QString
 bool BrowserController::forgetFormEntry(
     const QString &spaceId, const QString &field, const QString &value)
 {
-    return m_store->forgetFormEntry(spaceId, field, value);
+    return m_spaces.rowOf(spaceId) >= 0 && m_store->forgetFormEntry(spaceId, field, value);
 }
 
 bool BrowserController::clearBrowsingData(

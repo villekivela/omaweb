@@ -30,7 +30,16 @@ Item {
     // Escape and accepting close the list for this focus of the field only.
     property bool dismissed: false
 
-    readonly property bool open: field !== null && !dismissed
+    // The page the field is in, and whether the field is on show in it: a
+    // field scrolled out of the page has no list, which would stand over the
+    // chrome.
+    readonly property rect pageRect: engine ? engine.mapToItem(root, 0, 0, engine.width,
+                                                               engine.height) : Qt.rect(0, 0, 0, 0)
+    readonly property rect fieldRect: field ? engine.mapToItem(root, field.x, field.y, field.width,
+                                                               field.height) : Qt.rect(0, 0, 0, 0)
+    readonly property bool fieldOnShow: fieldRect.y + fieldRect.height > pageRect.y && fieldRect.y
+                                        < pageRect.y + pageRect.height
+    readonly property bool open: field !== null && !dismissed && fieldOnShow
     readonly property var rows: root.offered(root.entries, root.fieldValue)
 
     // A row is built here rather than in the arrow function that maps to it:
@@ -127,16 +136,12 @@ Item {
         objectName: "formSuggestions"
         rows: root.rows
         open: root.open
-        anchorRect: root.field ? root.engine.mapToItem(root, root.field.x, root.field.y,
-                                                       root.field.width, root.field.height) :
-                                 Qt.rect(0, 0, 0, 0)
+        anchorRect: root.fieldRect
+        boundsRect: root.pageRect
         onShownChanged: root.tellPage()
         onHighlightedChanged: root.tellPage()
         onAccepted: function (index) {
             root.accept(index);
-        }
-        onHovered: function (index) {
-            list.highlighted = index;
         }
     }
 }

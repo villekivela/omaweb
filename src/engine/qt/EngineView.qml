@@ -144,11 +144,11 @@ Item {
                                                                                                 * scale), Math.max(
                                        1, Number(report.height) * scale));
     }
-    // The field form history may keep that has the keyboard, or null: its
-    // name, what it holds, a number that changes each time it is focused, and
-    // where it is, in the view's own units as the press origin is. Main
-    // frame only, for the same reason. The page decides which fields
-    // qualify, because only the page knows what a field is marked as.
+    // The focused field, when form history may keep what is typed into it,
+    // or else null: its name, what it holds, a number that changes each time
+    // it is focused, and where it is, in the view's own units as the press
+    // origin is. Main frame only, for the same reason. The page decides which
+    // fields qualify, because only the page knows how a field is marked.
     property var formField: null
     signal formSubmitted(var fields)
     // A key the suggestion list answers, taken from the page while the list
@@ -2548,11 +2548,12 @@ Item {
     }
 
     // Form history's eyes in the page. A field qualifies when it is a text,
-    // search, email, telephone or address input with a name or an id, and
-    // neither it nor the form it inherits from says `autocomplete=off`, nor
-    // marks it as a card, password or one-time code. A name that reads as a
-    // card number or security code is kept out too: a page that marks
-    // nothing is the common case. The application world keeps the listeners
+    // search, email, telephone or URL input with a name or an id, and neither
+    // it nor the form it inherits from says `autocomplete=off`, nor marks it
+    // as a card, password or one-time code. A name that reads as a card number
+    // or security code is kept out too: a page that marks nothing is the
+    // common case. A submit reports only the fields the reader typed into or
+    // filled from the list. The application world keeps the listeners
     // out of the page's reach. The keys are taken in the capture phase at the
     // window by a listener added as the document is created, so it runs
     // before any the page or keyboard navigation adds there later.
@@ -2582,6 +2583,9 @@ Item {
                     return false;
                 return true;
             };
+            // The fields the reader typed into, or filled from the list. A
+            // value the page wrote or sent prefilled is not the reader's.
+            const typed = new WeakSet();
             let current = null;
             let serial = 0;
             let last = '';
@@ -2597,20 +2601,21 @@ Item {
                 last = encoded;
                 report('form_field', field);
             };
-            const adopt = element => {
-                current = element;
-                serial += 1;
+            const closeList = () => {
                 last = '';
                 shown = false;
                 highlighted = false;
+            };
+            const adopt = element => {
+                current = element;
+                serial += 1;
+                closeList();
                 send();
             };
             const leave = () => {
                 if (!current) return;
                 current = null;
-                last = '';
-                shown = false;
-                highlighted = false;
+                closeList();
                 report('form_field', null);
             };
             document.addEventListener('focusin', event => {
@@ -2621,6 +2626,7 @@ Item {
                 if (event.target === current) leave();
             }, true);
             document.addEventListener('input', event => {
+                if (event.isTrusted) typed.add(event.target);
                 if (event.target === current) send();
             }, true);
             addEventListener('scroll', send, {capture: true, passive: true});
@@ -2628,25 +2634,27 @@ Item {
             document.addEventListener('submit', event => {
                 const fields = [];
                 for (const element of event.target.elements || []) {
-                    if (keeps(element) && element.value)
+                    if (keeps(element) && element.value && typed.has(element))
                         fields.push({name: fieldName(element), value: element.value});
                 }
                 if (fields.length) report('form_submit', fields);
             }, true);
             addEventListener('keydown', event => {
                 if (!shown || event.target !== current || event.isComposing) return;
-                const plain = !event.ctrlKey && !event.metaKey && !event.altKey;
+                if (event.ctrlKey || event.metaKey || event.altKey) return;
                 let key = '';
-                if (plain && !event.shiftKey && event.key === 'ArrowDown') key = 'down';
-                else if (plain && !event.shiftKey && event.key === 'ArrowUp') key = 'up';
-                else if (plain && !event.shiftKey && event.key === 'Escape') key = 'escape';
-                else if (plain && !event.shiftKey && event.key === 'Enter' && highlighted)
-                    key = 'accept';
-                else if (plain && event.shiftKey && event.key === 'Delete' && highlighted)
-                    key = 'forget';
+                if (event.shiftKey)
+                    key = event.key === 'Delete' && highlighted ? 'forget' : '';
+                else if (event.key === 'ArrowDown') key = 'down';
+                else if (event.key === 'ArrowUp') key = 'up';
+                else if (event.key === 'Escape') key = 'escape';
+                else if (event.key === 'Enter' && highlighted) key = 'accept';
                 if (!key) return;
                 event.preventDefault();
                 event.stopImmediatePropagation();
+                // Both close the list, and the next key may come before the
+                // shell says so: an Escape the page then took would be lost.
+                if (key === 'escape' || key === 'accept') closeList();
                 report('form_key', key);
             }, true);
             globalThis.__omawebFormHistory = {
@@ -2659,6 +2667,7 @@ Item {
                 // value hears of the change.
                 fill(value) {
                     if (!current) return;
+                    typed.add(current);
                     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
                         .set.call(current, value);
                     current.dispatchEvent(new Event('input', {bubbles: true}));

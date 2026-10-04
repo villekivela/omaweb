@@ -424,20 +424,22 @@ reports the gap and remains experimental rather than imitating behavior it canno
   rejected with a `NotSupportedError` the page can catch. The floating window waits for an engine
   that surfaces the request.
 - Form history remembers what the reader typed into an ordinary text field when its form is
-  submitted, under the field's name or else its id, within the Space of the page: a text, search,
-  email, telephone or address input in the page's main frame. It never remembers a password field, a
-  field or form the page marks `autocomplete=off`, a field marked as a card, password or one-time
-  code, a field whose name reads as a card number or security code, or a value of thirteen to
-  nineteen digits that passes the Luhn check, whatever the field is called. Submitting a value again
-  makes it the most recently used. A Private window neither offers nor remembers anything, and form
-  history stays out of Sync.
+  submitted, under the field's name or else its id, within the Space of the page. Only a value the
+  reader typed or picked from the list counts, never one the page wrote or sent prefilled, and an
+  Agent tab's forms are not kept. The field is a text, search, email, telephone or URL input in the
+  page's main frame. It never remembers a password field, a field or form the page marks
+  `autocomplete=off`, a field marked as a card, password or one-time code, a field whose name reads
+  as a card number or security code, or a value of thirteen to nineteen digits that passes the Luhn
+  check, whatever the field is called. Submitting a value again makes it the most recently used. A
+  Private window neither offers nor remembers anything, and form history stays out of Sync.
 - Focusing a field with history opens a suggestion list Omaweb draws on the component kit's popup
-  surface, at least as wide as the field, under it, or above it when there is no room below. It
-  lists the field's values most recently used first, at most six, each with the typed prefix in
-  regular weight and the rest in bold, and leaves out a value equal to what the field holds. Typing
-  narrows it to the values that start with what was typed. The field keeps the keyboard: the page
-  gives up `Down`, `Up` and `Escape` only while the list is shown, and `Enter` and `Shift+Delete`
-  only while a row is highlighted. `Enter` or a press on a row fills the field and closes the list,
+  surface, at least as wide as the field, under it, or above it when the page has no room below, and
+  none while the field is scrolled out of the page. It lists the field's values most recently used
+  first, at most six, each with the typed prefix in regular weight and the rest in bold, and leaves
+  out a value equal to what the field holds. Typing narrows it to the values that start with what
+  was typed. The field keeps the keyboard: the page gives up `Down`, `Up` and `Escape` only while
+  the list is shown, and `Enter` and `Shift+Delete` only while the keyboard has highlighted a row; a
+  pointer over a row only shows it. `Enter` or a press on a row fills the field and closes the list,
   `Shift+Delete` forgets the highlighted value, and `Escape` closes the list until the field is
   focused again; a Glance closes on the next `Escape`. No value reaches the page until the reader
   accepts it.

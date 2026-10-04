@@ -2151,6 +2151,15 @@ ApplicationWindow {
 
     // The page the reader is looking at: the tab on show, or the Glance over
     // it. A question from any other page is one they cannot answer.
+    // The engine in front whose page has a field form history may keep
+    // focused: the Glance's, or else the tab's beneath it.
+    function formFieldEngine() {
+        if (window.glanceEngine && window.glanceEngine.formField)
+            return window.glanceEngine;
+        const tab = engineLoader.item;
+        return tab && tab.formField ? tab : null;
+    }
+
     function inFront(engine) {
         return engine !== null && (engine === engineLoader.item || engine === window.glanceEngine);
     }
@@ -3299,6 +3308,7 @@ ApplicationWindow {
                     openAsTabAllowed: !window.glanceIsExtension
                     pageSource: window.pagelessViewport ? null : engineLoader
                     engine: window.glanceEngine
+                    escapeTaken: formSuggestions.shown
 
                     onClosed: window.closeGlance()
                     onOpenAsTabRequested: window.openGlanceAsTab()
@@ -4513,10 +4523,7 @@ ApplicationWindow {
         anchors.fill: parent
         z: 54
         browser: window.windowBrowser
-        engine: window.glanceEngine && window.glanceEngine.formField ? window.glanceEngine :
-                                                                       engineLoader.item
-                                                                       && engineLoader.item.formField
-                                                                       ? engineLoader.item : null
+        engine: window.formFieldEngine()
     }
 
     ChromeMenu {

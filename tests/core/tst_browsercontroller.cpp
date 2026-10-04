@@ -194,6 +194,7 @@ private slots:
     void remembersASubmittedFieldForItsNameInItsSpace();
     void remembersNothingShapedLikeACardNumber();
     void clearingFormHistoryClearsItForTheSpace();
+    void aDeletedSpaceIsGivenNoFormHistoryDatabaseBack();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void remembersOnlyThePermissionsThatMayBeRemembered();
     void listsAndResetsOneSitesPermissionsWithinItsSpace();
@@ -2513,6 +2514,28 @@ void BrowserControllerTest::clearingFormHistoryClearsItForTheSpace()
     QCOMPARE(controller.formHistory(workSpaceId, QStringLiteral("email")),
         QStringList {QStringLiteral("me@work.example")});
     QCOMPARE(controller.history({}).size(), 1);
+}
+
+// A page of a Space being deleted can still submit, and the list can still
+// ask, while the deletion lands. Neither gives the Space a database back.
+void BrowserControllerTest::aDeletedSpaceIsGivenNoFormHistoryDatabaseBack()
+{
+    QTemporaryDir root;
+    const SpaceStorage storage(root.path(), QStringLiteral("test"));
+    BrowserController controller(storage);
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    controller.rememberFormFields(
+        workSpaceId, {formField(QStringLiteral("email"), QStringLiteral("me@work.example"))});
+    QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
+    QTRY_VERIFY(!QFileInfo::exists(storage.databasePathFor(workSpaceId)));
+
+    controller.rememberFormFields(
+        workSpaceId, {formField(QStringLiteral("email"), QStringLiteral("late@work.example"))});
+    QVERIFY(controller.formHistory(workSpaceId, QStringLiteral("email")).isEmpty());
+    QVERIFY(!controller.forgetFormEntry(
+        workSpaceId, QStringLiteral("email"), QStringLiteral("late@work.example")));
+    QTest::qWait(100);
+    QVERIFY(!QFileInfo::exists(storage.databasePathFor(workSpaceId)));
 }
 
 void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()

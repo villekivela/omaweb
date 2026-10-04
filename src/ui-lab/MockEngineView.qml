@@ -421,8 +421,9 @@ Rectangle {
     function simulatePress(x, y, width, height) {
         root.pressOrigin = Qt.rect(x, y, width, height);
     }
-    // Form history: the field a test focuses, what the shell told the page
-    // about its keys, and what it filled.
+    // Form history. A test focuses a field and presses the list's keys as
+    // the page would report them; the page's own rule for which keys it
+    // gives up is mirrored here, so a key the page would keep never arrives.
     property var formField: null
     property int formFieldSerial: 0
     property bool formSuggestionsShown: false
@@ -462,6 +463,10 @@ Rectangle {
     function simulateFormKey(key) {
         const taken = root.formSuggestionsShown && (key === "down" || key === "up" || key
                                                     === "escape" || root.formSuggestionHighlighted);
+        if (taken && (key === "escape" || key === "accept")) {
+            root.formSuggestionsShown = false;
+            root.formSuggestionHighlighted = false;
+        }
         if (taken)
             root.formKeyPressed(key);
         return taken;

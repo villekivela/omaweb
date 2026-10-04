@@ -115,11 +115,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // reads it when a page asks for a window, so what the ask opens can
         // come from where the reader pointed.
         {"pressOrigin", QMetaType::QRectF},
-        // The field form history may keep that has the keyboard, or null:
-        // `name`, `value`, a `serial` that changes with each focus, and its
-        // `x`, `y`, `width` and `height` in the view's own coordinates. The
-        // page judges which fields qualify, because only the page knows how
-        // a field is marked; the shell draws the suggestions under it.
+        // The focused field, when form history may keep what is typed into
+        // it, or else null: `name`, `value`, a `serial` that changes with each
+        // focus, and its `x`, `y`, `width` and `height` in the view's own
+        // coordinates. The page judges which fields qualify, because only the
+        // page knows how a field is marked; the shell draws the suggestions.
         {"formField", QMetaType::QVariant},
         // Whether the view takes the keyboard when it is made. The shell makes
         // an Agent tab's page while the reader is looking at another, and an
@@ -198,8 +198,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // reader one tooltip in one style, so an adapter that lets its engine
         // draw its own puts a second one in the window.
         {"pageTooltipRequested", true, 1},
-        // A submitted form's fields that form history may keep, each a map of
-        // `name` and `value`.
+        // A submitted form's fields that form history may keep and the reader
+        // typed into, each a map of `name` and `value`.
         {"formSubmitted", true, 1},
         // A key the suggestion list answers, which the page did not get:
         // "down", "up", "escape", "accept" or "forget".

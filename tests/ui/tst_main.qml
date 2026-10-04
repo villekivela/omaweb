@@ -13368,8 +13368,12 @@ TestCase {
             return engineHost.item !== null && engineHost.item !== first
                     && engineHost.item.currentUrl.toString() === "https://forms-second.example/";
         });
+        // Focused until it has counted as far as the page the list was closed
+        // on, so the two focuses share a number.
         const second = engineHost.item;
-        second.simulateFormFieldFocus("shared-field", "", 100, 200, 240, 30);
+        do {
+            second.simulateFormFieldFocus("shared-field", "", 100, 200, 240, 30);
+        } while (second.formFieldSerial < first.formFieldSerial)
         compare(second.formField.serial, first.formFieldSerial);
         tryVerify(function () {
             return list.shown;
@@ -13417,6 +13421,77 @@ TestCase {
         mouseRelease(window.contentItem, point.x, point.y);
         tryVerify(function () {
             return !list.shown;
+        });
+        engine.simulateFormFieldBlur();
+    }
+
+    // What an Agent types into a page is not the reader's, so its forms are
+    // not remembered, even in a Space the reader can open.
+    function test_anAgentsFormsAreNotRemembered() {
+        const drive = driveAnAgentSpace(false);
+        const engine = findChild(window.contentItem, "engineLoader").item;
+        submitForm(engine, "agent-field", ["typed by an Agent"]);
+        compare(browser.formHistory(drive.spaceId, "agent-field"), []);
+        endAgentDrive(drive);
+    }
+
+    // A Glance remembers and offers in its Space like the tab beneath it,
+    // and the Escape that would close the Glance closes its list first.
+    function test_aGlanceOffersItsFieldsAndEscapeClosesTheListFirst() {
+        openPage("https://forms-glance.example/");
+        const glance = openGlance("https://forms-glance.example/glanced");
+        const engine = window.glanceEngine;
+        submitForm(engine, "glance-field", ["glanced"]);
+        compare(browser.formHistory(engine.spaceId, "glance-field"), ["glanced"]);
+        engine.simulateFormFieldFocus("glance-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        keyClick(Qt.Key_Escape);
+        wait(50);
+        verify(window.glanceEngine !== null);
+        engine.simulateFormKey("escape");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+    }
+
+    // A pointer over a row shows where a press would land and nothing more:
+    // Enter goes on submitting the form until the keyboard picks a row.
+    function test_aPointerOverARowLeavesEnterToThePage() {
+        const engine = openPage("https://forms-hover.example/");
+        submitForm(engine, "hovered-field", ["under the pointer"]);
+        engine.simulateFormFieldFocus("hovered-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        const row = findChild(list, "suggestionRow0");
+        mouseMove(row, row.width / 2, row.height / 2);
+        wait(50);
+        compare(list.highlighted, -1);
+        verify(!engine.formSuggestionHighlighted);
+        verify(!engine.simulateFormKey("accept"));
+        engine.simulateFormFieldBlur();
+    }
+
+    // A field scrolled out of the page has no list, which would otherwise
+    // stand over the chrome.
+    function test_aFieldOutsideThePageHasNoList() {
+        const engine = openPage("https://forms-outside.example/");
+        submitForm(engine, "outside-field", ["out of sight"]);
+        engine.simulateFormFieldFocus("outside-field", "", 100, -60, 240, 30);
+        const list = formSuggestions();
+        wait(50);
+        verify(!list.shown);
+        engine.simulateFormFieldFocus("outside-field", "", 100, 200, 240, 30);
+        tryVerify(function () {
+            return list.shown;
         });
         engine.simulateFormFieldBlur();
     }
