@@ -1076,7 +1076,9 @@ Item {
                             anchors.centerIn: parent
                             visible: modelData.kind === "command"
                             text: visible ? root.commands.groupSymbols[modelData.group] || "" : ""
-                            color: row.isSelected ? root.colors.text : root.colors.mutedText
+                            // The accent, full on the selected row and softer on
+                            // the others, which still reads on the glass.
+                            color: Qt.alpha(root.colors.accent, row.isSelected ? 1 : 0.6)
                             opacity: row.usable ? 1 : 0.6
                             font.family: root.iconFontFamily
                             font.pixelSize: Style.font.iconLarge

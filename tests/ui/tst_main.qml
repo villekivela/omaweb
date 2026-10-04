@@ -9680,6 +9680,38 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // A command row's symbol is drawn in the accent: full on the selected row,
+    // softer on the others. The picture of a tab, history or Space row is a
+    // favicon or a colour and is left as it is.
+    function test_aCommandRowsSymbolIsDrawnInTheAccent() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        openPage("https://command-symbols-page.example/");
+        activateWindow();
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.rows.length > 1;
+        });
+        tryVerify(function () {
+            return panel.selected >= 0;
+        });
+        const accent = Qt.color(String(window.colors.accent));
+        const symbolOf = function (index) {
+            return findChild(omnibarRowItem(list, index), "omnibarRowSymbol");
+        };
+        const selected = symbolOf(panel.selected);
+        compare(String(selected.color), String(accent));
+        const other = symbolOf(panel.selected + 1);
+        fuzzyCompare(other.color.r, accent.r, 0.01);
+        fuzzyCompare(other.color.g, accent.g, 0.01);
+        fuzzyCompare(other.color.b, accent.b, 0.01);
+        fuzzyCompare(other.color.a, 0.6, 0.01);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
     // The block caret stands before the placeholder in an empty field, as the
     // website's does, and never over its first letter. Typing puts it after
     // the text.

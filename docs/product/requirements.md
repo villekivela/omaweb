@@ -308,7 +308,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   code and tint for a site the Space never loaded. They never show another Space's or window's
   artwork. Another Space's tab row draws the favicon that Space stored for its page, as the Space's
   outline does once it is on show. A Space row shows the Space's colour, and a command row its
-  group's symbol. Omaweb never fetches an icon from the network to fill a row.
+  group's symbol, in the accent: full on the selected row and softer on the others. Omaweb never
+  fetches an icon from the network to fill a row.
 - A tab or history row reads as the title, then the host in the muted colour; a history row gives
   its full address to a screen reader as the row's description. At its right edge a row says what
   committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by
