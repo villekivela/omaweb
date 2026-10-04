@@ -92,17 +92,6 @@ QtObject {
                                        "Backspace": "leave"
                                    })
 
-    // How a key is written on a key cap.
-    readonly property var keyGlyphs: ({
-                                          "Up": "\u2191",
-                                          "Down": "\u2193",
-                                          "Left": "\u2190",
-                                          "Right": "\u2192",
-                                          "Return": "\u21b5",
-                                          "Enter": "\u21b5",
-                                          "Backspace": "\u232b"
-                                      })
-
     function keyName(key) {
         switch (key) {
         case Qt.Key_Up:
@@ -129,15 +118,16 @@ QtObject {
         return omnibarBindings[keyName(key)] || "";
     }
 
-    // The caps for the keys that do any of `actions`, each glyph once.
+    // The keys that do any of `actions`, by name, for the caps to draw. Return
+    // and the keypad's Enter are one key to the reader, so one is named.
     function omnibarKeysFor(actions) {
-        const glyphs = [];
-        for (const name in omnibarBindings) {
-            const glyph = keyGlyphs[name] || name;
-            if (actions.indexOf(omnibarBindings[name]) >= 0 && glyphs.indexOf(glyph) < 0)
-                glyphs.push(glyph);
+        const keys = [];
+        for (const binding in omnibarBindings) {
+            const name = binding === "Enter" ? "Return" : binding;
+            if (actions.indexOf(omnibarBindings[binding]) >= 0 && keys.indexOf(name) < 0)
+                keys.push(name);
         }
-        return glyphs;
+        return keys;
     }
 
     readonly property var omnibarKeys: ({

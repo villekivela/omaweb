@@ -114,6 +114,7 @@ Rectangle {
         id: keyRuler
         visible: false
         colors: root.colors
+        iconFontFamily: root.iconFontFamily
     }
 
     FontMetrics {
@@ -166,6 +167,7 @@ Rectangle {
         // it was measured at.
         void (keyRuler.measuredPixelSize);
         void (keyRuler.measuredFamily);
+        void (keyRuler.measuredIconFamily);
         return root.widestOf(keyRuler.widthOf, "keys");
     }
 
@@ -445,6 +447,7 @@ Rectangle {
                                             anchors.left: parent.left
                                             anchors.verticalCenter: parent.verticalCenter
                                             colors: root.colors
+                                            iconFontFamily: root.iconFontFamily
                                             plate: root.colors.windowOpaque
                                             drawn: root.open
                                             keys: entryRow.modelData.keys

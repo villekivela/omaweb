@@ -11,6 +11,9 @@ Row {
 
     property var colors
     property string keys: ""
+    // The Material Symbols family, where the window has loaded it: a special
+    // key is an icon of it, and measured in it.
+    property string iconFontFamily: ""
     property color plate: root.colors ? root.colors.windowOpaque : "black"
     property bool filled: true
     // Whether the caps are made. The Shortcut sheet holds a row for every
@@ -29,6 +32,8 @@ Row {
     // otherwise touches, so a change of type would leave it on the last size.
     readonly property real measuredPixelSize: metrics.font.pixelSize
     readonly property string measuredFamily: metrics.font.family
+    readonly property string measuredIconFamily: root.iconFontFamily + "/"
+                                                 + iconMetrics.font.pixelSize
 
     function entriesFor(keys) {
         const entries = [];
@@ -56,8 +61,14 @@ Row {
         let width = Math.max(0, row.length - 1) * root.spacing;
         for (const entry of row)
             width += entry.separator ? Math.ceil(metrics.advanceWidth(entry.key)) : ruler.widthFor(
-                                           metrics.advanceWidth(entry.key));
+                                           root.advanceOf(entry.key));
         return width;
+    }
+
+    // How far a key's face advances, in the face it is drawn in.
+    function advanceOf(key) {
+        const face = ruler.faceFor(key);
+        return face.icon ? iconMetrics.advanceWidth(face.text) : metrics.advanceWidth(face.text);
     }
 
     spacing: 4
@@ -65,6 +76,13 @@ Row {
     KeyCap {
         id: ruler
         visible: false
+        iconFontFamily: root.iconFontFamily
+    }
+
+    FontMetrics {
+        id: iconMetrics
+        font.family: root.iconFontFamily
+        font.pixelSize: 14 * ruler.unit
     }
 
     FontMetrics {
@@ -88,6 +106,7 @@ Row {
                 visible: !entry.modelData.separator
                 colors: root.colors
                 text: entry.modelData.separator ? "" : entry.modelData.key
+                iconFontFamily: root.iconFontFamily
                 plate: root.plate
                 filled: root.filled
             }

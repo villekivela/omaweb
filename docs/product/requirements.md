@@ -110,7 +110,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   accent at 10% over the plate, and the key in the accent in the mono face at weight 500 and 12 px,
   all scaled with the interface font size. A chord is a row of caps, one to a key. A Key label's cap
   keeps the ground when Primary finishes the chord it names, and is outlined without it for a key
-  pressed on its own, so the difference the old filled and outlined labels made is kept.
+  pressed on its own, so the difference the old filled and outlined labels made is kept. A special
+  key is a symbol, not a word: Return and Enter `↵`, the arrows `↑ ↓ ← →`, Tab `⇥`, Backspace `⌫`,
+  Delete `⌦`, Shift `⇧` and Space `␣`, as a Material Symbols icon where the font carries a matching
+  glyph and as the Unicode symbol in the mono face where it does not. Escape is "Esc", and Ctrl,
+  Alt, Home, End, Page Up and Page Down stay words. A cap keeps the key's spoken name.
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
 - An Agent tab's row ends with an Agent mark in the Agent accent, in the place the close button

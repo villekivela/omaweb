@@ -14,6 +14,7 @@ Item {
     property string keys: ""
     property bool shown: false
     property var colors
+    property string iconFontFamily: ""
 
     readonly property bool chord: keys.indexOf("Ctrl+") === 0
     readonly property string text: chord ? keys.slice("Ctrl+".length) : keys
@@ -27,6 +28,7 @@ Item {
     KeyCap {
         id: cap
         colors: root.colors
+        iconFontFamily: root.iconFontFamily
         text: root.text
         filled: root.chord
     }

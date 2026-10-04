@@ -1212,6 +1212,7 @@ Item {
             visible: root.rows.length > 0 || root.shownResting
             colors: root.colors
             keymap: root.keymap
+            iconFontFamily: root.iconFontFamily
             commandScope: root.commandScope
             listed: root.rows.length > 0
         }

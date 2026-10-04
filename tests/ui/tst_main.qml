@@ -9624,7 +9624,12 @@ TestCase {
                 return cap.text;
             });
         };
-        compare(capsOf(hints).join(), "\u2191,\u2193,\u21b5,?");
+        compare(capsOf(hints).join(), "Up,Down,Return,?");
+        const arrow = childrenNamed(hints, "keycap").filter(function (cap) {
+            return cap.visible && cap.text === "Up";
+        })[0];
+        compare(findChild(arrow, "keycapLabel").text, "arrow_upward");
+        compare(findChild(arrow, "keycapLabel").font.family, panel.iconFontFamily);
         const word = childrenNamed(hints, "omnibarHintWord")[0];
         compare(word.font.pixelSize, Style.font.bodySmall);
         compare(String(word.color), String(window.colors.mutedText));
@@ -9778,7 +9783,7 @@ TestCase {
             "Return": "go",
             "Backspace": "leave"
         };
-        compare(hints.keys.select.join(), "\u2190");
+        compare(hints.keys.select.join(), "Left");
         keyClick(Qt.Key_Down);
         compare(panel.selected, 0);
         keyClick(Qt.Key_Left);

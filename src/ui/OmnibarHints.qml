@@ -14,6 +14,8 @@ Item {
 
     property var colors
     property var keymap
+    // The Material Symbols family, where the window has loaded it.
+    property string iconFontFamily: ""
     property bool commandScope: false
     // There are results to work: without them the row holds `?` alone.
     property bool listed: true
@@ -96,6 +98,7 @@ Item {
                             required property string modelData
                             colors: root.colors
                             text: modelData
+                            iconFontFamily: root.iconFontFamily
                             plate: root.plate
                         }
                     }
