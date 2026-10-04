@@ -3327,21 +3327,10 @@ Item {
         });
     }
 
-    // The theme stands behind the engine's surface, and the surface is not
-    // drawn until the canvas is shown: what Chromium puts on screen before its
-    // first frame arrives is not the colour it was handed, and a recording
-    // caught it as a light grey pane for a few frames.
-    Rectangle {
-        anchors.fill: parent
-        color: root.pageBackgroundColor
-        visible: !root.canvasShown
-    }
-
     WebEngineView {
         id: webView
         objectName: "qtWebView"
         anchors.fill: parent
-        opacity: root.canvasShown ? 1 : 0
         profile: root.resolvedProfile()
         // Where a save from the page's menu goes. The profile reads it from
         // the download's view and clears it once the download has started.
