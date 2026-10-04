@@ -34,8 +34,8 @@ fi
 # is the GL the browser draws with; `ffmpeg` cuts and encodes the film. The fonts are the ones the
 # chrome and the fixture sites ask for by name.
 pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative \
-    qt6-shadertools qt6-wayland libsecret libsodium cage wtype gnu-free-fonts mesa wf-recorder \
-    grim wlr-randr ffmpeg python ttf-jetbrains-mono inter-font ttf-ibm-plex noto-fonts
+    qt6-shadertools qt6-tools qt6-wayland libsecret libsodium cage wtype gnu-free-fonts mesa \
+    wf-recorder grim wlr-randr ffmpeg python ttf-jetbrains-mono inter-font ttf-ibm-plex noto-fonts
 scripts/trust_omaweb_repository.sh
 pacman -Syu --noconfirm omaweb-qtwebengine
 
