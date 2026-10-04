@@ -23,3 +23,19 @@ the last break's assertion.
 
 A break that makes the app recurse, such as a Space switch inside a handler for Space switches,
 hangs the test binary. Give every run a timeout.
+
+## Tests of eased movement
+
+The `BrowserChrome` tests in `tests/ui/tst_main.qml` check an eased movement by watching it, not by
+polling it. Start `watchChanges(item, prop)` before the input, then assert with
+`passedBetween(watch, from, to)`. `watchFrames(read)` reads what a frame draws, consistently across
+items. `init()` stops any watch a failed test left behind and waits for the sidebar to rest.
+
+`wait()` and `tryVerify` miss movements on a loaded machine, where one poll can outlast a 120 ms
+slide. Qt also credits a starting animation with up to 50 ms from before it started, so a starved
+120 ms animation can end 70 ms after the input; `passedBetween` accepts a movement seen only at its
+end after 60 ms.
+
+To soak them, run the plain and themed UI suites side by side, 100 times, in an arm64 container
+limited to four CPUs (`--cpus 4`) with `stress-ng --cpu 4` beside them. The binary reads QML live
+from `src/ui`, so nothing may edit `src/ui` or run a break proof while a soak runs.
