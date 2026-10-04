@@ -1060,7 +1060,7 @@ TestCase {
 
     // A security key's request is one prompt that changes as the engine moves
     // through it, and it names who is asking and in which Space.
-    function test_aSecurityKeyTouchNamesTheOriginAndSpaceAndCancelDeclines() {
+    function test_aSecurityKeyTouchNamesTheSiteAndSpaceAndCancelDeclines() {
         const engine = openPage("https://key.example/sign-in");
         const bar = findChild(window.contentItem, "securityKeyBar");
         verify(bar !== null);

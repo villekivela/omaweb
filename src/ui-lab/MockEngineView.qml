@@ -499,8 +499,8 @@ Rectangle {
                                     });
     }
     // One request at a time, as an engine runs one for a page: each step is
-    // sent under the same id until a `closed` step ends it. Cancelling ends
-    // it from inside the answer, as the Qt engine does.
+    // sent under the same id until a `closed` step ends it. A decline ends
+    // it on the next turn of the event loop, as the Qt engine does.
     property var securityKeyTransports: ["usb"]
     property string securityKeyRequestId: ""
     property int nextSecurityKeyId: 0
@@ -515,7 +515,7 @@ Rectangle {
         const page = String(root.currentUrl);
         const match = page.match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i);
         root.securityKeyRequested(requestId, Object.assign({
-                                                               "origin": match ? match[1] : page
+                                                               "site": match ? match[1] : page
                                                            }, step));
         return requestId;
     }
@@ -524,9 +524,9 @@ Rectangle {
             return;
         root.lastSecurityKeyAnswer = answer;
         if (answer.action === "cancel")
-            root.simulateSecurityKey({
-                                         "state": "closed"
-                                     });
+            Qt.callLater(root.simulateSecurityKey, {
+                             "state": "closed"
+                         });
     }
     function simulateExternalProtocol(application, destination) {
         const address = String(destination);

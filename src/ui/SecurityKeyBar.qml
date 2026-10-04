@@ -165,7 +165,7 @@ PageQuestionBar {
             return root.failureMessage(String(root.step.failure || ""));
         return qsTr("Touch your security key");
     }
-    detail: qsTr("%1 · %2").arg(String(root.step.origin || "")).arg(root.place)
+    detail: qsTr("%1 · %2").arg(String(root.step.site || "")).arg(root.place)
     actions: root.stage === "pin" ? [
                                         {
                                             "label": qsTr("Continue"),

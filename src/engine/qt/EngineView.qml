@@ -411,17 +411,15 @@ Item {
         case WebEngineWebAuthUxRequest.WebAuthUxState.CollectPin:
         {
             const pin = request.pinRequest;
-            const unlocking = pin.reason === WebEngineWebAuthUxRequest.PinEntryReason.Challenge;
+            const purpose = root.securityKeyPinPurpose(pin.reason);
             return {
                 "state": "pin",
                 "pin": {
-                    "purpose": unlocking ? "unlock" : pin.reason
-                                           === WebEngineWebAuthUxRequest.PinEntryReason.Set ? "set" :
-                                                                                              "change",
+                    "purpose": purpose,
                     "error": root.securityKeyPinError(pin.error),
                     // The engine counts attempts only for a PIN that
                     // unlocks the key.
-                    "attemptsLeft": unlocking ? pin.remainingAttempts : -1,
+                    "attemptsLeft": purpose === "unlock" ? pin.remainingAttempts : -1,
                     "minimumLength": pin.minPinLength
                 }
             };
@@ -444,6 +442,16 @@ Item {
         return {
             "state": ""
         };
+    }
+
+    function securityKeyPinPurpose(reason) {
+        switch (reason) {
+        case WebEngineWebAuthUxRequest.PinEntryReason.Set:
+            return "set";
+        case WebEngineWebAuthUxRequest.PinEntryReason.Change:
+            return "change";
+        }
+        return "unlock";
     }
 
     function securityKeyPinError(error) {
@@ -490,8 +498,6 @@ Item {
         return "";
     }
 
-    // The engine deletes a request once it has closed, so nothing calls into
-    // one after that.
     function presentSecurityKey(requestId) {
         const request = root.pendingSecurityKeys[requestId];
         if (!request)
@@ -503,15 +509,30 @@ Item {
         // answer already: the request ends as a decline, without a failure to
         // close.
         if (step.state === "failed" && step.failure === "declined") {
-            request.cancel();
+            root.cancelSecurityKey(requestId);
             return;
         }
+        // The engine deletes a request once it has closed, so nothing calls
+        // into one after that.
         if (step.state === "closed")
             delete root.pendingSecurityKeys[requestId];
-        root.securityKeyRequested(requestId, Object.assign({
-                                                               "origin": root.originAddress(
-                                                                             webView.url)
-                                                           }, step));
+        // The relying party is the site the key signs in to, which a frame
+        // inside the page may name rather than the page itself.
+        const site = String(request.relyingPartyId || "");
+        step.site = site.length > 0 ? site : root.originAddress(webView.url);
+        root.securityKeyRequested(requestId, step);
+    }
+
+    // Qt marks a request's prompt as shown only once the signal handing it
+    // over has returned, and a cancel made inside that signal starts a second
+    // prompt for the same request. The decline waits for the next turn of the
+    // event loop, where the engine is ready for it.
+    function cancelSecurityKey(requestId) {
+        Qt.callLater(function () {
+            const request = root.pendingSecurityKeys[requestId];
+            if (request)
+                request.cancel();
+        });
     }
 
     function respondToSecurityKey(requestId, answer) {
@@ -523,7 +544,7 @@ Item {
         else if (answer.action === "account")
             request.setSelectedAccount(String(answer.name || ""));
         else
-            request.cancel();
+            root.cancelSecurityKey(requestId);
     }
 
     // Chromium's own permission numbers, in the words the shell's policy is

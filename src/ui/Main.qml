@@ -1005,9 +1005,7 @@ ApplicationWindow {
         if (window.pendingBrowserPromptResponder === engine)
             window.respondToBrowserPrompt(false, "", "", "", false, false);
         if (window.securityKeyResponder === engine)
-            window.answerSecurityKey({
-                                         "action": "cancel"
-                                     });
+            window.declineSecurityKey();
         if (window.pendingFileSelectionResponder === engine)
             window.respondToFileSelection([]);
         if (window.pendingPermissionResponder === engine) {
@@ -2266,8 +2264,8 @@ ApplicationWindow {
         window.securityKeyStep = ({});
     }
 
-    // Cleared before the engine hears a decline, because the engine ends the
-    // request from inside the answer and reports it closed.
+    // A decline puts the bar away at once. The engine reports the request
+    // closed afterwards, and that finds nothing left to put away.
     function answerSecurityKey(answer) {
         const responder = window.securityKeyResponder;
         const requestId = window.securityKeyRequestId;
@@ -2276,6 +2274,12 @@ ApplicationWindow {
         if (answer.action === "cancel")
             window.clearSecurityKey();
         responder.respondToSecurityKey(requestId, answer);
+    }
+
+    function declineSecurityKey() {
+        window.answerSecurityKey({
+                                     "action": "cancel"
+                                 });
     }
 
     function openLocalFile(fileUrl) {
@@ -3923,9 +3927,7 @@ ApplicationWindow {
                         enabled: window.securityKeyTabId.length > 0
                         function onActiveTabChanged() {
                             if (window.windowBrowser.activeTabId !== window.securityKeyTabId)
-                                window.answerSecurityKey({
-                                                             "action": "cancel"
-                                                         });
+                                window.declineSecurityKey();
                         }
                     }
                 }

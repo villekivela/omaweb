@@ -206,7 +206,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"pageSiteDataCleared", true, 3, QMetaType::QString},
         {"fileSelectionRequested", true, 2},
         // Each step of a security key request, under one id until a step whose
-        // state is "closed" ends it: "touch", "pin" with the PIN's purpose,
+        // state is "closed" ends it, naming the `site` the key would sign in
+        // to: "touch", "pin" with the PIN's purpose,
         // error and attempts left, "accounts" with each account's name and
         // display name, and "failed" with its cause, in Omaweb's words rather
         // than the engine's.
