@@ -2244,8 +2244,8 @@ ApplicationWindow {
                 window.clearSecurityKey();
             return;
         }
-        if (!current && (window.securityKeyResponder !== null || !(inFront === true || window.inFront(
-                                                                       engine)))) {
+        const visible = inFront === true || window.inFront(engine);
+        if (!current && (window.securityKeyResponder !== null || !visible)) {
             engine.respondToSecurityKey(requestId, {
                                             "action": "cancel"
                                         });
