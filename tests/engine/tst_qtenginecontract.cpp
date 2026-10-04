@@ -242,7 +242,8 @@ private slots:
     void qtKeepsTheProceduralApplierOutOfThePagesReach();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
-    void qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted();
+    void qtGivesAPageWithNoBackgroundAWhiteGroundOfItsOwn();
+    void qtWaitsForThePaintReportAfterTheLoad();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtReportsWhereThePageWasPressed();
     void qtKeepsItsPageReportsOutOfThePagesReach();
@@ -3317,42 +3318,26 @@ void QtEngineContractTest::qtHandsThePaletteOnlyToAPageThatAsks()
         adapter->property("pageTitle").toString(), first + "#" + changed, 15000);
 }
 
-// A page that draws no background of its own is painted on the canvas every
-// browser gives it, white, rather than on the theme: the engine paints the
-// colour it is handed under the page for the page's whole life. The theme's
-// colour is shown only where no page has painted yet, from a document's
-// creation to its first paint, so a navigation under a dark theme never
-// flashes a bright rectangle through the chrome. The second page is held open
-// after its title, created but with nothing yet to paint. Chromium's own rule
-// draws a page declaring `color-scheme: dark` on a dark canvas whatever colour
-// it is handed, which is checked by eye, because a window grabbed under the
-// offscreen platform carries no web frame.
-void QtEngineContractTest::qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted()
+// A document's load can end before its first paint: a page that reveals itself
+// late, or whose first frame waits on the compositor. The shell takes the page
+// to have painted when the page says so, and a document the paint script reached
+// is not taken to have painted at the end of its load: the road a new tab shows
+// until its page has painted would end a frame or more too early.
+void QtEngineContractTest::qtWaitsForThePaintReportAfterTheLoad()
 {
-    QTcpServer server;
+    PageServer server(R"HTML(<!doctype html>
+        <html style="display:none"><title>late</title><body style="background:#123">
+        <script>setTimeout(() => { document.documentElement.style.display = "block"; }, 1500);
+        </script></body></html>)HTML");
     QVERIFY(server.listen(QHostAddress::LocalHost));
-    QTcpSocket *pageSocket = nullptr;
-    bool requested = false;
-    const QByteArray body = QByteArrayLiteral("<!doctype html><title>held</title><p>page</p>");
-    const qsizetype bodySplitOffset
-        = body.indexOf("</title>") + QByteArrayLiteral("</title>").size();
-    connect(&server, &QTcpServer::newConnection, &server, [&] {
-        pageSocket = server.nextPendingConnection();
-        connect(pageSocket, &QTcpSocket::readyRead, pageSocket, [&, pageSocket] {
-            pageSocket->readAll();
-            requested = true;
-        });
-    });
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
-    const QColor theme(QStringLiteral("#123456"));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("pageBackgroundColor"), theme},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *view = qobject_cast<QQuickItem *>(adapter.get());
@@ -3362,37 +3347,96 @@ void QtEngineContractTest::qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted()
     view->setParentItem(window.contentItem());
     view->setSize(QSizeF(320, 240));
     window.show();
-    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
-    QVERIFY(webView);
-    const auto canvas = [&] { return webView->property("backgroundColor").value<QColor>(); };
 
-    // Nothing has painted, so the view shows the theme rather than a canvas.
-    QCOMPARE(canvas(), theme);
-
-    QVERIFY(adapter->setProperty(
-        "currentUrl", QUrl(QStringLiteral("data:text/html,<title>first</title><p>first</p>"))));
-    QTRY_COMPARE_WITH_TIMEOUT(canvas(), QColor(Qt::white), 15000);
-    QTRY_VERIFY(!adapter->property("loading").toBool());
-    QCOMPARE(canvas(), QColor(Qt::white));
-
-    // The page on show keeps its canvas while the next document is fetched,
-    // and loses it to the theme once that document exists.
-    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
-    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
-    QTRY_VERIFY(requested);
-    QCOMPARE(canvas(), QColor(Qt::white));
-    pageSocket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
-        + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n"
-        + body.first(bodySplitOffset));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
     QTRY_COMPARE_WITH_TIMEOUT(
-        adapter->property("pageTitle").toString(), QStringLiteral("held"), 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(canvas(), theme, 15000);
+        adapter->property("pageTitle").toString(), QStringLiteral("late"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
 
-    pageSocket->write(body.sliced(bodySplitOffset));
-    pageSocket->disconnectFromHost();
-    QTRY_COMPARE_WITH_TIMEOUT(canvas(), QColor(Qt::white), 15000);
-    QTRY_VERIFY(!adapter->property("loading").toBool());
-    QCOMPARE(canvas(), QColor(Qt::white));
+    // The load is over and nothing has painted.
+    QTest::qWait(250);
+    QVERIFY(!adapter->property("documentPainted").toBool());
+
+    // Once the page reveals itself and paints.
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("documentPainted").toBool(), 15000);
+}
+
+// A page is written against the white canvas every browser gives it, and the
+// view's own colour under the page is the theme's, held constant: changing it
+// after the page's first frame was shown as a white frame with nothing of the
+// page on it. So the page script gives the document the white itself, in the
+// page's own frames, and only where the page set no ground of its own: html and
+// body both transparent, and not a page that chose a dark canvas. A page that
+// sets only the body's background keeps it spreading to the canvas, a page that
+// sets the root's is left alone, and a frame inside a page is not the page.
+void QtEngineContractTest::qtGivesAPageWithNoBackgroundAWhiteGroundOfItsOwn()
+{
+    const QString report = QStringLiteral(R"JS(
+        addEventListener("load", () => setTimeout(() => {
+            const of = (element) => getComputedStyle(element).backgroundColor;
+            document.title = "ground:" + of(document.documentElement) + "|" + of(document.body);
+        }, 700));)JS");
+    const auto groundOf = [&](const QString &html, const QString &expectedTitlePrefix) {
+        PageServer server(html.toUtf8());
+        if (!server.listen(QHostAddress::LocalHost))
+            return QString();
+        QTemporaryDir root;
+        QQmlEngine engine;
+        QQmlComponent component(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+        const QColor theme(QStringLiteral("#123456"));
+        const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+            {QStringLiteral("pageBackgroundColor"), theme},
+        }));
+        if (!adapter)
+            return QString();
+        auto *view = qobject_cast<QQuickItem *>(adapter.get());
+        QQuickWindow window;
+        window.resize(320, 240);
+        view->setParentItem(window.contentItem());
+        view->setSize(QSizeF(320, 240));
+        window.show();
+        auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+        adapter->setProperty("currentUrl",
+            QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort())));
+        QElapsedTimer waited;
+        waited.start();
+        while (!adapter->property("pageTitle").toString().startsWith(expectedTitlePrefix)
+            && waited.elapsed() < 15000)
+            QTest::qWait(50);
+        // The view's own colour is the theme's for the page's whole life.
+        if (webView->property("backgroundColor").value<QColor>() != theme)
+            return QStringLiteral("the view's colour changed");
+        return adapter->property("pageTitle").toString();
+    };
+    const QString script = QStringLiteral("<script>") + report + QStringLiteral("</script>");
+
+    // Nothing set: the root is given the white.
+    QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title><body><p>bare</p>") + script,
+                 QStringLiteral("ground:")),
+        QStringLiteral("ground:rgb(255, 255, 255)|rgba(0, 0, 0, 0)"));
+    // Only the body set: its background still spreads to the canvas.
+    QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title>"
+                                     "<body style=\"background:#123456\"><p>body</p>")
+                     + script,
+                 QStringLiteral("ground:")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
+    // The root set: left alone.
+    QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title>"
+                                     "<html style=\"background:#654321\"><body><p>root</p>")
+                     + script,
+                 QStringLiteral("ground:")),
+        QStringLiteral("ground:rgb(101, 67, 33)|rgba(0, 0, 0, 0)"));
+    // A frame inside the page is not the page: it stays as it was written.
+    QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title><body><iframe srcdoc=\""
+                                     "&lt;script&gt;addEventListener('load',()=&gt;"
+                                     "parent.document.title='frame:'+getComputedStyle("
+                                     "document.documentElement).backgroundColor)"
+                                     "&lt;/script&gt;\"></iframe>"),
+                 QStringLiteral("frame:")),
+        QStringLiteral("frame:rgba(0, 0, 0, 0)"));
 }
 
 // A window the page asks for comes from somewhere on the page, and the request
