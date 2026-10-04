@@ -122,4 +122,30 @@ private:
     QFileSystemWatcher *m_watcher = nullptr;
 };
 
+// `IpcHandler { enabled; target }`. Omaweb answers no `qs ipc` call, so the handler only holds the
+// two properties the kit sets. `qs.Commons` declares an `IpcRegistry` singleton that holds one, and
+// the engine resolves every type in a module's directory when any of them loads, so a missing
+// `IpcHandler` fails every `qs.Commons` token, not only a panel.
+class IpcHandler : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(QString target READ target WRITE setTarget NOTIFY targetChanged)
+
+public:
+    explicit IpcHandler(QObject *parent = nullptr);
+
+    bool enabled() const;
+    void setEnabled(bool enabled);
+    QString target() const;
+    void setTarget(const QString &target);
+
+signals:
+    void enabledChanged();
+    void targetChanged();
+
+private:
+    bool m_enabled = true;
+    QString m_target;
+};
+
 } // namespace omaweb::quickshell

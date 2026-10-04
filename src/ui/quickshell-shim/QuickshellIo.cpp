@@ -250,4 +250,31 @@ void FileView::refreshWatch()
     }
 }
 
+IpcHandler::IpcHandler(QObject *parent)
+    : QObject(parent)
+{
+}
+
+bool IpcHandler::enabled() const { return m_enabled; }
+
+void IpcHandler::setEnabled(bool enabled)
+{
+    if (m_enabled == enabled) {
+        return;
+    }
+    m_enabled = enabled;
+    emit enabledChanged();
+}
+
+QString IpcHandler::target() const { return m_target; }
+
+void IpcHandler::setTarget(const QString &target)
+{
+    if (m_target == target) {
+        return;
+    }
+    m_target = target;
+    emit targetChanged();
+}
+
 } // namespace omaweb::quickshell

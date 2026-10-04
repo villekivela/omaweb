@@ -26,6 +26,18 @@ TestCase {
                                  })
 
     Component {
+        id: shellIpcComponent
+
+        ShellIpc {
+            target: "omaweb-test"
+
+            function ping(word: string): string {
+                return "pong " + word;
+            }
+        }
+    }
+
+    Component {
         id: actionButtonComponent
 
         Omaweb.ActionButton {
@@ -112,6 +124,33 @@ TestCase {
         verify(Style.spacing.controlPaddingX >= 0);
         verify(Color.foreground.a > 0);
         verify(Border.none() !== undefined);
+    }
+
+    // `IpcRegistry` is a `Singleton` that holds an `IpcHandler`, and it sits in `qs.Commons` beside
+    // the tokens, so both shim types have to exist for any token to load. With no handler
+    // registered the registry answers nothing, because Omaweb serves no `qs ipc` call.
+    function test_theIpcRegistryAnswersNothingWithoutAHandler() {
+        compare(IpcRegistry.handlerFor("omaweb-test"), null);
+        compare(IpcRegistry.call("omaweb-test", "toggle", []).ran, false);
+    }
+
+    // A kit panel declares `ShellIpc { target; enabled }` and the registry finds it by target, so the
+    // shim's `IpcHandler` has to keep both properties.
+    function test_aShellIpcHandlerIsFoundByTargetWhileEnabled() {
+        var handler = createTemporaryObject(shellIpcComponent, testCase);
+        compare(IpcRegistry.handlerFor("omaweb-test"), handler);
+        handler.enabled = false;
+        compare(IpcRegistry.handlerFor("omaweb-test"), null);
+    }
+
+    // The registry runs only what a handler declares, by name and argument count.
+    function test_theRegistryRunsAFunctionAHandlerDeclares() {
+        createTemporaryObject(shellIpcComponent, testCase);
+        var answer = IpcRegistry.call("omaweb-test", "ping", ["a"]);
+        compare(answer.ran, true);
+        compare(answer.output, "pong a");
+        compare(IpcRegistry.call("omaweb-test", "ping", []).ran, false);
+        compare(IpcRegistry.call("omaweb-test", "destroy", []).ran, false);
     }
 
     // Omaweb's own Typography object is gone: the kit's scale is the only type

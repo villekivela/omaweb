@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/omacom/omarchy",
   "branch": "quattro",
-  "ref": "c5b4db77d68e7fbce5cf11120712ea322557e967",
-  "fetched": "2026-09-27",
+  "ref": "97a9fce54f5df007afe7b8637ddc09314f38ad00",
+  "fetched": "2026-10-04",
   "license": "MIT",
   "files": {
     "LICENSE": {
@@ -25,6 +25,16 @@
       "blob": "4fd2452b3b93dfeb2fc32d571d38e96d98ffbbc2",
       "sha256": "b7b0f7df6e820851a50ddc641e1a87e33b8a6adbc14149fddf2d1e4f879dd163"
     },
+    "qs/Commons/IpcRegistry.qml": {
+      "upstream": "shell/Commons/IpcRegistry.qml",
+      "blob": "e479df288ecdfd63719e404f7b0a62f18b2956a7",
+      "sha256": "e3da03778f65eed0b47a5249abc9c22afe936dd0ce49077d3cd0b3d710b0eda2"
+    },
+    "qs/Commons/ShellIpc.qml": {
+      "upstream": "shell/Commons/ShellIpc.qml",
+      "blob": "15f5d27e5321ec485871598fc63d7b2e6a610b50",
+      "sha256": "53bcdaf6125f750029088a36c4565b7a163070f6a6cfb58067f9621e99b53809"
+    },
     "qs/Commons/Style.qml": {
       "upstream": "shell/Commons/Style.qml",
       "blob": "ec61252b7626fead302a2b69012e548b06982e88",
@@ -37,18 +47,18 @@
     },
     "qs/Commons/qmldir": {
       "upstream": "shell/Commons/qmldir",
-      "blob": "4bfd0b7838128144312a52dc33368df64e0968c3",
-      "sha256": "5593fa25d33b1e2d3ed8628ca2e0dce5074497608f2bad6652689e390727e5e8"
+      "blob": "1c9101c12847259e3b96d5986e5cd529f9d6364c",
+      "sha256": "f2eec85cc8322585b10f203407336c4909586c3f0b522741f43a94c59e7142db"
     },
     "qs/Ui/BackgroundMedia.qml": {
       "upstream": "shell/Ui/BackgroundMedia.qml",
-      "blob": "aabde8d1f8189d8e55f39d4bddc8fdb7b7c06426",
-      "sha256": "f807fc72481e0c15270ecf22e2e5a9af55e6111bf2fbe01caa99847c2c348a1c"
+      "blob": "8640769f3f10661c98f3cf7941cdf5b2de988bf0",
+      "sha256": "a4811ff7034044a59c8877b62ce42f6b2b0108551e6d02efe1ce50578dafe479"
     },
     "qs/Ui/BarIconButton.qml": {
       "upstream": "shell/Ui/BarIconButton.qml",
-      "blob": "e2af8808a769ff404bd99130b83e3f1ef21c987a",
-      "sha256": "bae9894d021655105b67d4ae7dec734bcd36ebf3b17a4aaef2c462e0cfa0c874"
+      "blob": "32214bb4141db18e3b62db9f6907bfbca52952d8",
+      "sha256": "f23c670b8eb5b374284afcb5fb7c32caa67af2de8afcfd766de668dabe0a7c09"
     },
     "qs/Ui/BarIndicator.qml": {
       "upstream": "shell/Ui/BarIndicator.qml",
@@ -112,13 +122,18 @@
     },
     "qs/Ui/OpticalGlyph.qml": {
       "upstream": "shell/Ui/OpticalGlyph.qml",
-      "blob": "a8881d4909c28b957925a1068b7c36a57641304a",
-      "sha256": "293e2863c7ff18998a7aea651fa952a564a860df125bf8900b7e739500b3c352"
+      "blob": "201c2d0197a66ed36f05ec90efc59e4fd085f392",
+      "sha256": "a2a64297efb43bd3173fca4a33413a011474c8c4a2de5a3670e042403c6bd1ec"
+    },
+    "qs/Ui/OverlayWindow.qml": {
+      "upstream": "shell/Ui/OverlayWindow.qml",
+      "blob": "43a9c32c27a21190f48bc822b2dddcc0ba072ac8",
+      "sha256": "4a5d5eb53a572617df69d15ed74698587313866cb819ad3b968d4f58116ae045"
     },
     "qs/Ui/Panel.qml": {
       "upstream": "shell/Ui/Panel.qml",
-      "blob": "b8866b5be2316440c7cb6db7ec4c1ff55a817484",
-      "sha256": "e6588b3d7c1075d68c6392d028483fcc5d4d2bcb29180758fe265a957cbdc71d"
+      "blob": "371d2c6e1f6c650654ab59c78f0b562e8f0859c4",
+      "sha256": "5f3cefe0d661add566b19d2ccf9686e07eb0369f94c73c0bfdf63a3344e53c0d"
     },
     "qs/Ui/PanelActionButton.qml": {
       "upstream": "shell/Ui/PanelActionButton.qml",
@@ -137,8 +152,8 @@
     },
     "qs/Ui/PanelKeyCatcher.qml": {
       "upstream": "shell/Ui/PanelKeyCatcher.qml",
-      "blob": "bac394e5247381ac5de95ad05e33fe6255901236",
-      "sha256": "76abaf157317ea260b81591a614460dfbc7173f545963be25558ed5a8cddedb4"
+      "blob": "b110b223592a1c6891dac2db31dac35bf9b7e6c5",
+      "sha256": "567f6fd8d4426fdd77b36be790fcc7be9204b61dca9170bd43f09b9f77f45fb7"
     },
     "qs/Ui/PanelSectionHeader.qml": {
       "upstream": "shell/Ui/PanelSectionHeader.qml",
@@ -212,8 +227,8 @@
     },
     "qs/Ui/qmldir": {
       "upstream": "shell/Ui/qmldir",
-      "blob": "464e25b74a1ab354b6af139074cf3b43c0a71d9b",
-      "sha256": "b1f578a93d7a46350e7f53ac78af55d62ac053698c4ca1a67bb1b20ab78e10c1"
+      "blob": "9061ad6ab71ffcf73570ec7c6dcca08b633a2598",
+      "sha256": "8d1475f0c79172cc3ad0b8974b9f48f660b496b0015160cca60182997e88c5c6"
     }
   }
 }
