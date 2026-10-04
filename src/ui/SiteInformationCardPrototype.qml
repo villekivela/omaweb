@@ -13,6 +13,7 @@ import qs.Commons
 //   --site-variant N      1-6, the variant to start on
 //   --site-scenario NAME  secure | http | cert | start
 //   --site-detail NAME    certificate | blocked | cookies | third
+//   --site-radius N       B3 corner radius; default follows Style.cornerRadius
 // Keys while the card is open: Left/Right variant, Up/Down row, Enter opens a
 // row, Escape steps back and then closes. The strip at the bottom does the
 // same with the pointer and also cycles the scenario.
@@ -42,6 +43,9 @@ Item {
     property string scenario: argument("--site-scenario", "secure")
     property string detail: ""
     property int cursor: 0
+    // B3 follows the chrome: panels such as FindBar and NoticeBox take the
+    // theme's corner radius rather than a literal.
+    readonly property real corner: Number(argument("--site-radius", String(Style.cornerRadius)))
     property real anchorX: 16
     property real anchorY: 90
     readonly property real flushX: addressItem ? mapFromItem(addressItem, addressItem.width + 16, 0).x : 320
@@ -586,7 +590,7 @@ Item {
         }
         width: 400
         height: Math.round(hero.implicitHeight + (b.mode === 2 ? 0 : 24) + (body.implicitHeight * (1 - p) + detailBody.implicitHeight * p))
-        radius: 10
+        radius: b.mode === 2 ? root.corner : 10
         color: b.mode === 2 ? root.colors.overlayOpaque : root.colors.overlay
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.14)
@@ -608,7 +612,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         width: b.badgeSize - b.p * (b.mode === 0 ? 26 : 10)
                         height: width
-                        radius: width / 2
+                        radius: b.mode === 2 ? root.corner : width / 2
                         color: root.verdictColor
                         G {
                             anchors.centerIn: parent
@@ -642,7 +646,7 @@ Item {
                             color: Qt.rgba(1, 1, 1, 0.1)
                             width: backLabel.width + 20
                             height: 24
-                            radius: 12
+                            radius: b.mode === 2 ? root.corner : 12
                             T {
                                 id: backLabel
                                 anchors.centerIn: parent
@@ -673,7 +677,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: b.badgeSize
                     height: width
-                    radius: width / 2
+                    radius: b.mode === 2 ? root.corner : width / 2
                     color: root.verdictColor
                     G {
                         anchors.centerIn: parent
@@ -706,7 +710,7 @@ Item {
                 color: Qt.rgba(1, 1, 1, 0.1)
                 width: bandBack.width + 20
                 height: 24
-                radius: 12
+                radius: b.mode === 2 ? root.corner : 12
                 T {
                     id: bandBack
                     anchors.centerIn: parent
@@ -745,7 +749,7 @@ Item {
                             required property var modelData
                             width: (b.width - 24 - 8) / 2
                             height: 66
-                            radius: 8
+                            radius: b.mode === 2 ? root.corner : 8
                             color: ma.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.05)
                             border.width: root.cursor === index ? 1 : 0
                             border.color: root.colors.accent
@@ -795,7 +799,7 @@ Item {
                             required property var modelData
                             width: (b.width - 24 - 8) / 2
                             height: 40
-                            radius: 8
+                            radius: b.mode === 2 ? root.corner : 8
                             color: Qt.rgba(1, 1, 1, 0.05)
                             G {
                                 x: 10
@@ -845,7 +849,7 @@ Item {
                             required property var modelData
                             width: (b.width - 24 - 8) / 2
                             height: 30
-                            radius: 15
+                            radius: b.mode === 2 ? root.corner : 15
                             color: root.confirming === modelData.id ? root.colors.urgent : "transparent"
                             border.width: 1
                             border.color: root.confirming === modelData.id ? root.colors.urgent : Qt.rgba(1, 1, 1, 0.25)
@@ -873,7 +877,7 @@ Item {
                         required property var modelData
                         width: b.width - 24
                         height: lineCol.implicitHeight + 16
-                        radius: 8
+                        radius: b.mode === 2 ? root.corner : 8
                         color: Qt.rgba(1, 1, 1, 0.05)
                         Column {
                             id: lineCol
@@ -1319,7 +1323,7 @@ Item {
         }
         width: 108
         height: 26
-        radius: 4
+        radius: root.corner
         color: Qt.rgba(1, 1, 1, 0.06)
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.25)
@@ -1347,7 +1351,7 @@ Item {
                 color: root.colors.overlayOpaque
                 border.width: 1
                 border.color: Qt.rgba(1, 1, 1, 0.25)
-                radius: 4
+                radius: root.corner
             }
             contentItem: Column {
                 Repeater {
