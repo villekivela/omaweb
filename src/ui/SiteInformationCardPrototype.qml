@@ -662,7 +662,8 @@ Item {
             }
         }
 
-        // The compact band: badge and verdict on one line, the TLS line under.
+        // The compact band: the badge centred on the text block beside it, which
+        // is the verdict and, under it, the TLS line when there is one.
         Item {
             visible: b.mode === 2
             x: 12
@@ -670,14 +671,13 @@ Item {
             width: b.width - 24
             height: b.heroHeight - b.p * b.heroShrink
             Row {
-                id: bandRow
-                y: 8
+                anchors.verticalCenter: parent.verticalCenter
                 spacing: 8
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: b.badgeSize
                     height: width
-                    radius: b.mode === 2 ? root.corner : width / 2
+                    radius: root.corner
                     color: root.verdictColor
                     G {
                         anchors.centerIn: parent
@@ -686,31 +686,32 @@ Item {
                         size: parent.width * 0.62
                     }
                 }
-                T {
+                Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: b.p > 0.5 ? root.detailTitle(root.detail) : root.site.verdict
                     width: b.width - 24 - b.badgeSize - 8 - (b.p > 0.5 ? 110 : 0)
-                    font.pixelSize: 15
-                    font.bold: true
+                    T {
+                        text: b.p > 0.5 ? root.detailTitle(root.detail) : root.site.verdict
+                        width: parent.width
+                        font.pixelSize: 15
+                        font.bold: true
+                    }
+                    T {
+                        visible: b.p < 0.5 && root.site.sub.length > 0
+                        text: root.site.sub
+                        width: parent.width
+                        color: root.colors.mutedText
+                        font.pixelSize: Style.font.bodySmall
+                    }
                 }
-            }
-            T {
-                visible: b.p < 0.5
-                x: b.badgeSize + 8
-                y: 8 + b.badgeSize / 2 + 9
-                text: root.site.sub
-                width: parent.width - x
-                color: root.colors.mutedText
-                font.pixelSize: Style.font.bodySmall
             }
             Rectangle {
                 visible: b.p > 0.5
                 anchors.right: parent.right
-                y: 8
+                anchors.verticalCenter: parent.verticalCenter
                 color: Qt.rgba(1, 1, 1, 0.1)
                 width: bandBack.width + 20
                 height: 24
-                radius: b.mode === 2 ? root.corner : 12
+                radius: root.corner
                 T {
                     id: bandBack
                     anchors.centerIn: parent
