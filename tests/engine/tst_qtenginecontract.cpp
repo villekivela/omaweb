@@ -3299,12 +3299,15 @@ void QtEngineContractTest::qtHoldsTheThemeUntilThePaintedFrameIsOnScreen()
     // What each swapped frame finds: the paint reported and the canvas it is shown on.
     int framesOnThemeAfterPaint = 0;
     bool white = false;
+    bool pageShownOnTheme = false;
     connect(&window, &QQuickWindow::frameSwapped, &window, [&] {
         const bool painted = adapter->property("documentPainted").toBool();
         const bool onWhite
             = webView->property("backgroundColor").value<QColor>() == QColor(Qt::white);
         if (painted && !onWhite)
             ++framesOnThemeAfterPaint;
+        if (!onWhite && webView->property("opacity").toReal() > 0)
+            pageShownOnTheme = true;
         white = white || onWhite;
     });
 
@@ -3315,6 +3318,11 @@ void QtEngineContractTest::qtHoldsTheThemeUntilThePaintedFrameIsOnScreen()
     // The paint was reported and the window swapped a frame still showing the
     // theme before the canvas turned white.
     QVERIFY(framesOnThemeAfterPaint >= 1);
+
+    // Until the canvas turns white the engine's own surface is not drawn at
+    // all, because what Chromium draws before its first frame arrives is not
+    // the colour it was handed: a recording showed it as light grey.
+    QVERIFY(!pageShownOnTheme);
 }
 
 // A window the page asks for comes from somewhere on the page, and the request
