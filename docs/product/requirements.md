@@ -319,8 +319,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by
   `search`. The selected row is the website's: the accent at 14% over the panel, so the glass shows
   through it, with a 2 px accent bar at its left edge. The action is bright on the selected row and
-  muted on the others. A command row shows its keys there instead. Every row's accessible name still
-  says what it does.
+  muted on the others. A command row shows its keys there instead, as key caps: one to a key, the
+  bare binding before the chord, a quiet gap between bindings and no dot, right-aligned so the caps
+  line up down the list, and the title elides before the caps clip. A keyword stays typed text.
+  Every row's accessible name still says what it does.
 - `Return` commits the typed address or search, even when a row matches elsewhere in its title. When
   an open tab's title or host starts with the typed text, that tab's row is selected instead and
   `Return` switches to it, and to another Space's tab only when no tab of the active Space holds the

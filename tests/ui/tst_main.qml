@@ -9685,6 +9685,93 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // The keys at a command row's right edge are key caps, one to a key, the
+    // bare binding before the chord with a quiet gap between bindings rather
+    // than a dot, and they are right-aligned so they line up down the list.
+    // The title elides before the caps clip.
+    function test_aCommandRowsKeysAreKeyCapsRightAligned() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        openPage("https://command-caps-page.example/");
+        activateWindow();
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.rows.length > 5;
+        });
+        let two = -1;
+        let one = -1;
+        for (let i = 0; i < panel.rows.length; ++i) {
+            const row = panel.rows[i];
+            if (row.kind !== "command" || !row.keys)
+                continue;
+            if (two < 0 && row.keys.indexOf("\u00b7") >= 0)
+                two = i;
+            if (one < 0 && row.keys.indexOf("\u00b7") < 0)
+                one = i;
+        }
+        verify(two >= 0 && one >= 0, "the list has a command with two bindings and one with one");
+
+        const capsOf = function (index) {
+            const row = omnibarRowItem(list, index);
+            const keys = findChild(row, "omnibarRowKeys");
+            verify(keys !== null, "no keys on row " + index);
+            return {
+                "row": row,
+                "keys": keys,
+                "caps": childrenNamed(keys, "keycap").filter(function (cap) {
+                    return cap.visible && cap.text.length > 0;
+                })
+            };
+        };
+        const withTwo = capsOf(two);
+        // No dot anywhere, and one cap for each key of each binding, the
+        // shorter binding first.
+        const gaps = childrenNamed(withTwo.keys, "keycapSeparator").filter(function (gap) {
+            return gap.visible;
+        });
+        compare(gaps.length, 1);
+        compare(gaps[0].text, "");
+        const bindings = panel.rows[two].keys.split(/\s+\u00b7\s+/);
+        const expected = bindings.map(function (binding) {
+            return binding.split(/\+(?=.)/);
+        }).sort(function (a, b) {
+            return a.length - b.length;
+        });
+        compare(withTwo.caps.map(function (cap) {
+            return cap.text;
+        }).join(), [].concat.apply([], expected).join());
+        // Caps of a chord are 4 px apart, bindings further apart than that.
+        const edge = function (cap) {
+            return cap.mapToItem(withTwo.keys, cap.width, 0).x;
+        };
+        const start = function (cap) {
+            return cap.mapToItem(withTwo.keys, 0, 0).x;
+        };
+        const chordFrom = expected[0].length;
+        if (withTwo.caps.length > chordFrom + 1)
+            compare(start(withTwo.caps[chordFrom + 1]) - edge(withTwo.caps[chordFrom]), 4);
+        verify(start(withTwo.caps[chordFrom]) - edge(withTwo.caps[chordFrom - 1]) > 4);
+
+        // The last cap of every row stands at the same distance from the
+        // row's edge, so the caps line up down the list.
+        const withOne = capsOf(one);
+        const rightGap = function (found) {
+            const last = found.caps[found.caps.length - 1];
+            return found.row.width - last.mapToItem(found.row, last.width, 0).x;
+        };
+        compare(rightGap(withTwo), rightGap(withOne));
+        compare(rightGap(withOne), 14);
+
+        // The title gives way before the caps do.
+        const title = findChild(withTwo.row, "omnibarRowTitle");
+        verify(title.mapToItem(withTwo.row, title.width, 0).x <= withTwo.keys.mapToItem(withTwo.row,
+                                                                                        0, 0).x);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
     // A command row's symbol is drawn in the accent: full on the selected row,
     // softer on the others. The picture of a tab, history or Space row is a
     // favicon or a colour and is left as it is.

@@ -998,7 +998,8 @@ Item {
                                                         ? modelData.spaceName : ""
 
                     width: rowList.width
-                    height: 28
+                    // Tall enough for the key caps, which grow with the type.
+                    height: Math.max(28, Math.ceil(22 * Style.font.body / 12) + 6)
                     Accessible.role: Accessible.Button
                     Accessible.name: root.spokenName(modelData, row.title) + (row.spaceName.length
                                                                               > 0 ? " " + qsTr(
@@ -1162,9 +1163,24 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 10
 
-                        Text {
+                        // A command's keys are caps, one to a key and the
+                        // bare binding first, with a gap between bindings.
+                        KeyCaps {
                             objectName: "omnibarRowKeys"
-                            visible: row.keys.length > 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: modelData.kind === "command" && row.keys.length > 0
+                            colors: root.colors
+                            iconFontFamily: root.iconFontFamily
+                            plate: root.colors.overlayOpaque
+                            keys: visible ? row.keys : ""
+                            dotted: false
+                            bareFirst: true
+                        }
+
+                        // A keyword is typed text, not a key.
+                        Text {
+                            objectName: "omnibarRowKeyword"
+                            visible: modelData.kind === "keyword" && row.keys.length > 0
                             text: row.keys
                             color: root.colors.mutedText
                             opacity: 0.85

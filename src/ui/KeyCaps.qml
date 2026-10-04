@@ -16,6 +16,11 @@ Row {
     property string iconFontFamily: ""
     property color plate: root.colors ? root.colors.windowOpaque : "black"
     property bool filled: true
+    // Whether alternatives are joined by a dot. Off, they are set apart by a
+    // quiet gap alone.
+    property bool dotted: true
+    // Whether the alternative with the fewest keys, the bare one, comes first.
+    property bool bareFirst: false
     // Whether the caps are made. The Shortcut sheet holds a row for every
     // command whether it is open or not, and a closed sheet that drew them all
     // slowed the rest of the window down.
@@ -39,13 +44,22 @@ Row {
         const entries = [];
         if (keys.length === 0)
             return entries;
-        for (const alternative of keys.split(/\s+\u00b7\s+/)) {
+        const alternatives = keys.split(/\s+\u00b7\s+/).map(function (alternative) {
+            return alternative.split(/\+(?=.)/);
+        });
+        if (root.bareFirst) {
+            // The sort is stable, so alternatives of one length keep their order.
+            alternatives.sort(function (a, b) {
+                return a.length - b.length;
+            });
+        }
+        for (const alternative of alternatives) {
             if (entries.length > 0)
                 entries.push({
                                  "separator": true,
-                                 "key": "\u00b7"
+                                 "key": root.dotted ? "\u00b7" : ""
                              });
-            for (const key of alternative.split(/\+(?=.)/))
+            for (const key of alternative)
                 entries.push({
                                  "separator": false,
                                  "key": key
@@ -60,8 +74,9 @@ Row {
         const row = root.entriesFor(keys);
         let width = Math.max(0, row.length - 1) * root.spacing;
         for (const entry of row)
-            width += entry.separator ? Math.ceil(metrics.advanceWidth(entry.key)) : ruler.widthFor(
-                                           root.advanceOf(entry.key));
+            width += entry.separator ? (root.dotted ? Math.ceil(metrics.advanceWidth(entry.key)) : 6
+                                                      * ruler.unit) : ruler.widthFor(root.advanceOf(
+                                                                                         entry.key));
         return width;
     }
 
@@ -98,7 +113,8 @@ Row {
         Item {
             id: entry
             required property var modelData
-            width: modelData.separator ? dot.implicitWidth : cap.width
+            width: modelData.separator ? (root.dotted ? dot.implicitWidth : 6 * cap.unit) :
+                                         cap.width
             height: cap.height
 
             KeyCap {
@@ -113,6 +129,7 @@ Row {
 
             Text {
                 id: dot
+                objectName: "keycapSeparator"
                 anchors.centerIn: parent
                 visible: entry.modelData.separator
                 text: entry.modelData.key
