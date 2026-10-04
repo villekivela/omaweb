@@ -3327,19 +3327,6 @@ Item {
         });
     }
 
-    // The theme over the engine's surface until the canvas is shown. What the
-    // surface draws before its first frame arrives is white whatever colour it
-    // was handed, and a recording caught it for several frames when a Space
-    // came on show. The surface goes on drawing underneath, which an item at
-    // opacity zero does not: its first frame on show is then the stale one.
-    Rectangle {
-        objectName: "pageThemeCover"
-        anchors.fill: parent
-        z: 1
-        color: root.pageBackgroundColor
-        visible: !root.canvasShown
-    }
-
     WebEngineView {
         id: webView
         objectName: "qtWebView"
