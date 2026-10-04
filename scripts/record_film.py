@@ -409,6 +409,8 @@ OUTPUT_SCALE = 1.5
 FILM_SIZE = (1920, 1080)
 FPS = 30
 FADE = 0.4
+# How long the Theme beat shows the old theme, under its caption, before the change.
+THEME_HOLD = 2.5
 
 # What the film may weigh, per file, which together stay under the 5 MB the page can afford.
 BUDGET = {"omaweb.webm": 2_000_000, "omaweb.mp4": 2_600_000, "poster.webp": 250_000}
@@ -691,7 +693,8 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     sample = (int(OUTPUT_MODE[0] * 0.01), int(OUTPUT_MODE[1] * 0.5))
     was = pixel(frame(), *sample)
     start = recorder.now()
-    time.sleep(0.8)
+    # Long enough to read the caption over the old theme, so the change it names comes after it.
+    time.sleep(THEME_HOLD)
     write_theme("tokyo-night", config)
     time.sleep(4.6)
     end = recorder.now()
