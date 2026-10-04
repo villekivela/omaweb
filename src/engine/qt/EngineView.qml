@@ -1830,6 +1830,14 @@ Item {
             });
     }
 
+    Rectangle {
+        objectName: "pageGround"
+        anchors.fill: parent
+        z: 1
+        visible: root.awaitingPageFrame
+        color: root.documentPainted ? root.pageGroundColor : root.pageBackgroundColor
+    }
+
     Connections {
         target: root.contentBlocker
         ignoreUnknownSignals: true
@@ -2253,6 +2261,10 @@ Item {
                 return /dark/.test(scheme) && !/light/.test(scheme) ? 'rgb(18, 18, 18)'
                                                                      : 'rgb(255, 255, 255)';
             };
+            // Asked for after a return of the window: says when the page has
+            // made two frames, the second being one made after the call.
+            globalThis.__omawebAfterFrame = () => requestAnimationFrame(
+                () => requestAnimationFrame(() => report('frame_after_return')));
             const paint = () => {
                 if (painted) return;
                 painted = true;
@@ -3318,17 +3330,23 @@ Item {
         const hadFocus = webView.activeFocus || webView.focus;
         webView.visible = false;
         webView.visible = true;
+        root.coverUntilPageFrame();
         if (hadFocus)
             webView.forceActiveFocus();
     }
 
-    // What the page area shows where the page draws nothing: the window
-    // behind it is transparent and the desktop shows through as black. It is
-    // the colour the page itself sits on, which the page reports, so a page
-    // waiting for its next frame after the nudge, or after the window's
-    // return, is blank in its own colour instead of black. Before the page has
-    // painted it is the theme's, as the view's own ground is.
+    // What the page area shows from the window's return until the page has
+    // made its first new frame. The engine draws the frame it has as an opaque
+    // texture, and after the window was away that texture is black, so a colour
+    // behind the view would never be seen: the cover is over it. It is the
+    // colour the page itself reported, so the wait is blank in the page's
+    // colour instead of black; before the page has painted it is the theme's.
+    // It is up before the window's first frame, and it comes down shortly
+    // after the page says its frame was made, or after a time that does not
+    // depend on the page saying so: a page the script does not reach, such as
+    // an error page, never will.
     property color pageGroundColor: "white"
+    property bool awaitingPageFrame: false
     function readPageGround(body) {
         let css = "";
         try {
@@ -3341,10 +3359,26 @@ Item {
             root.pageGroundColor = Qt.rgba(channels[1] / 255, channels[2] / 255, channels[3] / 255,
                                            1);
     }
-    Rectangle {
-        objectName: "pageGround"
-        anchors.fill: parent
-        color: root.documentPainted ? root.pageGroundColor : root.pageBackgroundColor
+    function coverUntilPageFrame() {
+        root.awaitingPageFrame = true;
+        pageFrameGiveUp.restart();
+        webView.runJavaScript("globalThis.__omawebAfterFrame && globalThis.__omawebAfterFrame()",
+                              WebEngineScript.ApplicationWorld);
+    }
+    Timer {
+        id: pageFrameGiveUp
+        interval: 400
+        onTriggered: root.awaitingPageFrame = false
+    }
+    // The frame the page made still has to reach the screen, which takes the
+    // compositor a frame or two after the page has made it.
+    Timer {
+        id: pageFrameArrival
+        interval: 50
+        onTriggered: {
+            pageFrameGiveUp.stop();
+            root.awaitingPageFrame = false;
+        }
     }
 
     WebEngineView {
@@ -3721,6 +3755,9 @@ Item {
                 root.documentPainted = false;
             } else if (report.channel === "document_painted") {
                 root.documentPainted = true;
+            } else if (report.channel === "frame_after_return") {
+                if (root.awaitingPageFrame)
+                    pageFrameArrival.restart();
             } else if (report.channel === "page_ground") {
                 root.readPageGround(report.body);
             } else if (report.channel === "user_activation") {

@@ -784,9 +784,10 @@ void QtEngineContractTest::qtLeavesAHiddenPageHiddenWhenItsWindowIsExposedAgain(
     QVERIFY(!shown.webView->isVisible());
 }
 
-// The window behind the page area is transparent, so a page that has no frame
-// for a moment would show the desktop, which is black. Under the view sits the
-// colour the page itself reported.
+// The engine draws the frame it has as an opaque texture, and after the window
+// was away that texture is black. A colour under the view would never show, so
+// the page's own colour is over the view from the return until the page has
+// made a new frame, and is gone again after.
 void QtEngineContractTest::qtShowsThePagesOwnColourWhereThePageDrawsNothing()
 {
     ViewInWindow shown;
@@ -795,7 +796,18 @@ void QtEngineContractTest::qtShowsThePagesOwnColourWhereThePageDrawsNothing()
     QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
     auto *ground = shown.adapter->findChild<QQuickItem *>(QStringLiteral("pageGround"));
     QVERIFY(ground);
+    QVERIFY(!ground->isVisible());
     QTRY_COMPARE(ground->property("color").value<QColor>(), QColor(10, 200, 30));
+
+    shown.window.hide();
+    shown.window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    // Up before the window's first frame after the return, over the view.
+    QVERIFY(ground->isVisible());
+    QVERIFY(ground->z() > shown.webView->z());
+    // And down once the page has made its frame, well inside the time it
+    // would otherwise be held for.
+    QTRY_VERIFY_WITH_TIMEOUT(!ground->isVisible(), 2000);
 }
 
 void QtEngineContractTest::qtNavigationDrivesPageLoadingIndicator()
