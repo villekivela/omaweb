@@ -36,7 +36,9 @@ Omarchy.BorderSurface {
     readonly property Item optionItems: optionList
     readonly property bool hot: hover.hovered || root.activeFocus
 
-    signal changed(string value)
+    // A choice the reader made. The owner stores it and only then sets
+    // `value`, so the dropdown never shows an answer that was not kept.
+    signal chosen(string value)
 
     function labelOf(value) {
         for (const option of root.options) {
@@ -51,8 +53,7 @@ Omarchy.BorderSurface {
         popup.close();
         if (!option || option.value === root.value)
             return;
-        root.value = option.value;
-        root.changed(option.value);
+        root.chosen(option.value);
     }
 
     implicitWidth: 108

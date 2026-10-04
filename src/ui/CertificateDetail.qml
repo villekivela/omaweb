@@ -195,6 +195,13 @@ Column {
                 radius: Style.cornerRadius
                 color: row.current ? root.colors.surface : "transparent"
 
+                // The field the arrows are on, which Return copies.
+                Rectangle {
+                    width: 2
+                    height: parent.height
+                    color: row.current ? root.colors.accent : "transparent"
+                }
+
                 MouseArea {
                     anchors.fill: parent
                     onClicked: root.selectedField = row.index
@@ -247,5 +254,17 @@ Column {
                 }
             }
         }
+    }
+
+    // What the keys do here, as the certificate dialog's foot said: nothing
+    // else on the detail shows that the arrows and Return work.
+    Text {
+        objectName: "certificateKeys"
+        width: parent.width
+        visible: root.chain.length > 0
+        text: qsTr("←→ chain · ↑↓ field · ⏎ copy")
+        color: root.colors.mutedText
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
     }
 }

@@ -196,14 +196,21 @@ DialogPanel {
                 font.pixelSize: Style.font.caption
             }
 
-            // A row is picked by a pointer that moves onto it. One that only
+            // A row is picked by a pointer that moves over it. One that only
             // appeared under a still pointer, as the dialog opening over the
-            // button that asked for it does, leaves the keyboard's row alone.
+            // button that asked for it does, leaves the keyboard's row alone:
+            // the window reports that as an entry and a move to the same spot.
             MouseArea {
+                property point enteredAt
+
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onPositionChanged: root.selected = index
+                onEntered: enteredAt = Qt.point(mouseX, mouseY)
+                onPositionChanged: {
+                    if (mouseX !== enteredAt.x || mouseY !== enteredAt.y)
+                        root.selected = index;
+                }
                 onClicked: root.rowActivated(index)
             }
         }

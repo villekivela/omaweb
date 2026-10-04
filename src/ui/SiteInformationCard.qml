@@ -1,4 +1,5 @@
 import QtQuick
+import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
 
@@ -80,6 +81,11 @@ Omarchy.BorderSurface {
         pageAddress: root.activeUrl
     }
 
+    // The detail still being drawn while the card slides back to its top.
+    property string shownDetail: ""
+    // How far the detail has slid in, from the top (0) to the detail (1).
+    property real slide: 0
+
     // What the reader asked for, by name, for the window to ask about.
     signal actionRequested(string action)
     signal closeRequested
@@ -90,6 +96,10 @@ Omarchy.BorderSurface {
     readonly property real gutter: 12
     readonly property real tileGap: 8
     readonly property real bandHeight: root.detail.length > 0 ? 42 : 56
+    // Half the card's inner width, beside a neighbour: a tile, a permission
+    // row, an action.
+    readonly property real halfWidth: (root.width - root.borderLeft - root.borderRight - 2
+                                       * root.gutter - root.tileGap) / 2
 
     readonly property bool overTls: root.connectionState === "secure" || root.connectionState
                                     === "certificate-error"
@@ -103,67 +113,59 @@ Omarchy.BorderSurface {
     }
     readonly property string hostLabel: root.blank ? qsTr("Start page") : root.originLabel
 
-    readonly property string verdict: {
-        switch (root.connectionState) {
-        case "secure":
-            return qsTr("Connection is secure");
-        case "certificate-error":
-            return qsTr("Certificate could not be verified");
-        case "insecure":
-            return qsTr("Not secure");
-        default:
-            return qsTr("Omaweb's own page");
-        }
-    }
-    // The line under the verdict: what qualifies it, from what the engine and
-    // Omaweb know. The engine reports no protocol version, so none is named.
-    readonly property string verdictDetail: {
-        if (root.lookupFailedBy.length > 0)
-            return qsTr("%1 could not find this site, over Secure DNS").arg(root.lookupFailedBy);
-        switch (root.connectionState) {
-        case "secure":
-            return root.upgradedByHttpsOnly ? qsTr(
-                                                  "Encrypted · upgraded from HTTP by HTTPS-only mode") :
-                                              qsTr("Encrypted");
-        case "certificate-error":
-            return qsTr("Waived for this session");
-        case "insecure":
-            return qsTr("Anything sent here can be read on the way");
-        default:
-            return qsTr("Nothing was loaded from the network");
-        }
-    }
-    readonly property string verdictGlyph: {
-        switch (root.connectionState) {
-        case "secure":
-            return "lock";
-        case "certificate-error":
-            return "warning";
-        case "insecure":
-            return "lock_open";
-        default:
-            return "home";
-        }
-    }
-    readonly property color verdictColor: {
-        switch (root.connectionState) {
-        case "secure":
-            return root.colors.accent;
-        case "certificate-error":
-            return root.colors.urgent;
-        case "insecure":
-            return root.colors.spaces && root.colors.spaces.yellow ? root.colors.spaces.yellow :
-                                                                     root.colors.urgent;
-        default:
-            return root.colors.mutedText;
-        }
-    }
+    // The verdict for each connection the engine reports: what the band says,
+    // the line under it, its glyph and its colour. Anything that is not a
+    // connection the engine made is Omaweb's own page.
+    readonly property var verdicts: ({
+                                         "secure": {
+                                             "text": qsTr("Connection is secure"),
+                                             "detail": root.upgradedByHttpsOnly ? qsTr(
+                                                                                      "Encrypted · upgraded from HTTP by HTTPS-only mode") :
+                                                                                  qsTr("Encrypted",
+                                                                                       "the connection"),
+                                             "glyph": "lock",
+                                             "color": root.colors.accent
+                                         },
+                                         "certificate-error": {
+                                             "text": qsTr("Certificate could not be verified"),
+                                             "detail": qsTr("Waived for this session"),
+                                             "glyph": "warning",
+                                             "color": root.colors.urgent
+                                         },
+                                         "insecure": {
+                                             "text": qsTr("Not secure"),
+                                             "detail": qsTr(
+                                                           "Anything sent here can be read on the way"),
+                                             "glyph": "lock_open",
+                                             "color": root.colors.spaces
+                                                      && root.colors.spaces.yellow
+                                                      ? root.colors.spaces.yellow :
+                                                        root.colors.urgent
+                                         },
+                                         "internal": {
+                                             "text": qsTr("Omaweb's own page"),
+                                             "detail": qsTr("Nothing was loaded from the network"),
+                                             "glyph": "home",
+                                             "color": root.colors.mutedText
+                                         }
+                                     })
+    readonly property var shownVerdict: root.verdicts[root.connectionState]
+                                        || root.verdicts.internal
+    readonly property string verdict: root.shownVerdict.text
+    // The engine reports no protocol version, so none is named. A name the
+    // chosen Secure DNS resolver could not find says whose answer that was:
+    // the engine's own error page says only that the name was not found.
+    readonly property string verdictDetail: root.lookupFailedBy.length > 0 ? qsTr(
+                                                                                 "%1 could not find this site, over Secure DNS").arg(
+                                                                                 root.lookupFailedBy) :
+                                                                             root.shownVerdict.detail
+    readonly property color verdictColor: root.shownVerdict.color
 
     // Who vouches for the site: the certificate above its own in the chain,
     // or, for one sent alone, the name it was issued by.
     function issuerName(chain) {
         if (chain.length === 0)
-            return qsTr("Not reported");
+            return qsTr("Not reported", "a certificate the engine has not reported");
         if (chain.length > 1)
             return String(chain[1].name);
         if (chain[0].selfSigned)
@@ -178,13 +180,21 @@ Omarchy.BorderSurface {
         return count === 1 ? one : many.arg(count);
     }
 
+    // Each detail's title, which is also its tile's label.
+    readonly property var titles: ({
+                                       "certificate": qsTr("Certificate"),
+                                       "blocked": qsTr("Blocked",
+                                                       "requests Content blocking refused"),
+                                       "cookies": qsTr("Cookies and site data"),
+                                       "third-parties": qsTr("Third parties")
+                                   })
+
     readonly property var tiles: {
         const list = [];
         if (root.overTls) {
             list.push({
                           "key": "certificate",
                           "glyph": "badge",
-                          "label": qsTr("Certificate"),
                           "value": root.issuerName(root.certificateChain),
                           "drills": root.certificateChain.length > 0
                       });
@@ -192,79 +202,100 @@ Omarchy.BorderSurface {
         list.push({
                       "key": "blocked",
                       "glyph": "shield",
-                      "label": qsTr("Blocked", "requests Content blocking refused"),
-                      "value": root.countLabel(root.refusalTally, qsTr("None"), qsTr("1 request"),
-                                               qsTr("%1 requests")),
+                      "value": root.countLabel(root.refusalTally, qsTr("None",
+                                                                       "no requests were blocked"),
+                                               qsTr("1 request"), qsTr("%1 requests")),
                       "drills": root.refusalTally > 0
                   });
         list.push({
                       "key": "cookies",
                       "glyph": "cookie",
-                      "label": qsTr("Cookies and site data"),
-                      "value": root.blank ? qsTr("None") : root.countLabel(root.cookieCount, qsTr(
-                                                                               "No cookies"), qsTr(
-                                                                               "1 cookie"), qsTr(
-                                                                               "%1 cookies")),
+                      "value": root.blank ? qsTr("None", "Omaweb's own page holds no site data") :
+                                            root.countLabel(root.cookieCount, qsTr("No cookies"),
+                                                            qsTr("1 cookie"), qsTr("%1 cookies")),
                       "drills": !root.blank
                   });
         list.push({
                       "key": "third-parties",
                       "glyph": "hub",
-                      "label": qsTr("Third parties"),
-                      "value": root.countLabel(root.cookieAllowanceRows.length, qsTr("None allowed"),
+                      "value": root.countLabel(root.cookieAllowanceRows.length, qsTr("None allowed",
+                                                                                     "third parties"),
                                                qsTr("1 allowed"), qsTr("%1 allowed")),
                       "drills": root.thirdPartyCookieControlAvailable
                                 && root.cookieAllowanceRows.length
                                 + root.refusedThirdParties.length > 0
                   });
-        return list;
+        return list.map(function (tile) {
+            return Object.assign(tile, {
+                                     "label": root.titles[tile.key]
+                                 });
+        });
     }
 
-    // The decisions the core stores, named here so nothing in this file
-    // compares against a bare number.
-    readonly property int askEachTime: 0
-    readonly property int allowedOnce: 1
-    readonly property int allowedPersistently: 2
-    readonly property int blocked: 3
-
     // The permissions a site can hold a standing answer for, in the order the
-    // card lists them. A row the store keeps for something else, such as the
-    // plain-HTTP choice HTTPS-only mode remembers, has no Allow, Ask or Block.
-    readonly property var permissionKinds: ["camera", "microphone", "camera-and-microphone",
-        "geolocation", "notifications", "automatic-downloads"]
+    // card lists them, each with its name and glyph. A row the store keeps for
+    // something else, such as the plain-HTTP choice HTTPS-only mode remembers,
+    // has no Allow, Ask or Block.
+    readonly property var permissionKinds: [
+        {
+            "permission": "camera",
+            "label": qsTr("Camera"),
+            "glyph": "videocam"
+        },
+        {
+            "permission": "microphone",
+            "label": qsTr("Microphone"),
+            "glyph": "mic"
+        },
+        {
+            "permission": "camera-and-microphone",
+            "label": qsTr("Camera and microphone"),
+            "glyph": "perm_camera_mic"
+        },
+        {
+            "permission": "geolocation",
+            "label": qsTr("Location"),
+            "glyph": "location_on"
+        },
+        {
+            "permission": "notifications",
+            "label": qsTr("Notifications"),
+            "glyph": "notifications"
+        },
+        {
+            "permission": "automatic-downloads",
+            "label": qsTr("Automatic downloads"),
+            "glyph": "download"
+        }
+    ]
+
+    function permissionKind(permission) {
+        return root.permissionKinds.find(function (kind) {
+            return kind.permission === permission;
+        });
+    }
 
     readonly property var permissionRows: {
-        const rows = [];
-        const listed = {};
-        for (const row of root.sitePermissionRows) {
-            if (root.permissionKinds.indexOf(row.permission) < 0)
-                continue;
-            listed[row.permission] = true;
-            rows.push({
-                          "permission": row.permission,
-                          "value": root.choiceFor(row.decision)
-                      });
-        }
-        if (root.askedPermission.length > 0 && root.permissionKinds.indexOf(root.askedPermission)
-                >= 0 && !listed[root.askedPermission]) {
-            rows.push({
-                          "permission": root.askedPermission,
-                          "value": "ask"
-                      });
-        }
-        rows.sort(function (left, right) {
-            return root.permissionKinds.indexOf(left.permission) - root.permissionKinds.indexOf(
-                        right.permission);
+        const choices = {};
+        for (const row of root.sitePermissionRows)
+            choices[row.permission] = root.choiceFor(row.decision);
+        if (root.askedPermission.length > 0 && choices[root.askedPermission] === undefined)
+            choices[root.askedPermission] = "ask";
+        return root.permissionKinds.filter(function (kind) {
+            return choices[kind.permission] !== undefined;
+        }).map(function (kind) {
+            return Object.assign({
+                                     "value": choices[kind.permission]
+                                 }, kind);
         });
-        return rows;
     }
 
     function choiceFor(decision) {
         switch (Number(decision)) {
-        case root.allowedOnce:
-        case root.allowedPersistently:
+        case BrowserController.AllowOnce:
+        case BrowserController.AllowPersistently:
             return "allow";
-        case root.blocked:
+        case BrowserController.Block:
             return "block";
         default:
             return "ask";
@@ -273,74 +304,15 @@ Omarchy.BorderSurface {
 
     function decisionFor(choice) {
         if (choice === "allow")
-            return root.allowedPersistently;
-        return choice === "block" ? root.blocked : root.askEachTime;
+            return BrowserController.AllowPersistently;
+        return choice === "block" ? BrowserController.Block : BrowserController.Ask;
     }
 
-    function permissionLabel(permission) {
-        switch (permission) {
-        case "camera":
-            return qsTr("Camera");
-        case "microphone":
-            return qsTr("Microphone");
-        case "camera-and-microphone":
-            return qsTr("Camera and microphone");
-        case "geolocation":
-            return qsTr("Location");
-        case "notifications":
-            return qsTr("Notifications");
-        case "automatic-downloads":
-            return qsTr("Automatic downloads");
-        default:
-            return permission;
-        }
-    }
-
-    function permissionGlyph(permission) {
-        switch (permission) {
-        case "camera":
-            return "videocam";
-        case "microphone":
-            return "mic";
-        case "camera-and-microphone":
-            return "perm_camera_mic";
-        case "geolocation":
-            return "location_on";
-        case "notifications":
-            return "notifications";
-        default:
-            return "download";
-        }
-    }
-
-    // The dropdown is the decision: it is stored for this Space straight away,
-    // and the row keeps the answer the reader gave.
+    // The dropdown is the decision: it is stored for this Space straight away.
+    // Returns whether it was, so the dropdown shows only a stored answer.
     function decidePermission(permission, choice) {
-        if (!root.browser || !root.browser.decideSitePermission(root.activeUrl, permission, root.decisionFor(
-                                                                    choice)))
-            return;
-        const rows = root.sitePermissionRows.filter(function (row) {
-            return row.permission !== permission;
-        });
-        rows.push({
-                      "permission": permission,
-                      "decision": root.decisionFor(choice)
-                  });
-        root.sitePermissionRows = rows;
-    }
-
-    function detailTitle(key) {
-        switch (key) {
-        case "certificate":
-            return qsTr("Certificate");
-        case "blocked":
-            return qsTr("Blocked requests");
-        case "cookies":
-            return qsTr("Cookies and site data");
-        case "third-parties":
-            return qsTr("Third parties");
-        }
-        return "";
+        return !!root.browser && root.browser.decideSitePermission(root.activeUrl, permission,
+                                                                   root.decisionFor(choice));
     }
 
     // Cookies, storage and cache, measured as the engine can measure them.
@@ -420,10 +392,6 @@ Omarchy.BorderSurface {
         }
     }
 
-    // The detail still being drawn while the card slides back to its top.
-    property string shownDetail: ""
-    // How far the detail has slid in, from the top (0) to the detail (1).
-    property real slide: 0
     NumberAnimation {
         id: slideAnimation
         target: root
@@ -532,7 +500,7 @@ Omarchy.BorderSurface {
 
                 Text {
                     anchors.centerIn: parent
-                    text: root.verdictGlyph
+                    text: root.shownVerdict.glyph
                     color: root.colors.overlayOpaque
                     font.family: root.iconFontFamily
                     font.pixelSize: 16
@@ -549,7 +517,8 @@ Omarchy.BorderSurface {
                 Text {
                     objectName: "siteInformationVerdict"
                     width: parent.width
-                    text: root.detail.length > 0 ? root.detailTitle(root.detail) : root.verdict
+                    text: root.detail === "blocked" ? qsTr("Blocked requests") : root.detail.length
+                                                      > 0 ? root.titles[root.detail] : root.verdict
                     color: root.colors.text
                     elide: Text.ElideRight
                     font.family: Style.font.family
@@ -628,7 +597,7 @@ Omarchy.BorderSurface {
                         required property var modelData
 
                         objectName: "siteInformationTile_" + modelData.key
-                        width: (overview.width - 2 * root.gutter - root.tileGap) / 2
+                        width: root.halfWidth
                         height: 66
                         radius: Style.cornerRadius
                         color: tileMouse.containsMouse && tile.modelData.drills
@@ -636,7 +605,8 @@ Omarchy.BorderSurface {
                         border.width: root.activeFocus && root.cursor === tile.index ? 1 : 0
                         border.color: root.colors.accent
                         Accessible.role: Accessible.Button
-                        Accessible.name: tile.modelData.label + ": " + tile.modelData.value
+                        Accessible.name: qsTr("%1: %2").arg(tile.modelData.label).arg(
+                                             tile.modelData.value)
 
                         Text {
                             x: 10
@@ -712,7 +682,7 @@ Omarchy.BorderSurface {
                         required property var modelData
 
                         objectName: "sitePermission_" + modelData.permission
-                        width: (overview.width - 2 * root.gutter - root.tileGap) / 2
+                        width: root.halfWidth
                         height: 40
                         radius: Style.cornerRadius
                         color: root.colors.surface
@@ -720,7 +690,7 @@ Omarchy.BorderSurface {
                         Text {
                             x: 10
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.permissionGlyph(permissionRow.modelData.permission)
+                            text: permissionRow.modelData.glyph
                             color: root.colors.mutedText
                             font.family: root.iconFontFamily
                             font.pixelSize: Style.font.icon
@@ -728,6 +698,7 @@ Omarchy.BorderSurface {
                         }
 
                         PermissionDropdown {
+                            id: choice
                             objectName: "sitePermissionChoice_" + permissionRow.modelData.permission
                             anchors.right: parent.right
                             anchors.rightMargin: 7
@@ -735,9 +706,11 @@ Omarchy.BorderSurface {
                             colors: root.colors
                             iconFontFamily: root.iconFontFamily
                             value: permissionRow.modelData.value
-                            accessibleName: root.permissionLabel(permissionRow.modelData.permission)
-                            onChanged: function (value) {
-                                root.decidePermission(permissionRow.modelData.permission, value);
+                            accessibleName: permissionRow.modelData.label
+                            onChosen: function (value) {
+                                if (root.decidePermission(permissionRow.modelData.permission,
+                                                          value))
+                                    choice.value = value;
                             }
                         }
                     }
@@ -749,7 +722,7 @@ Omarchy.BorderSurface {
 
                 ActionButton {
                     objectName: "clearSiteStorage"
-                    width: (overview.width - 2 * root.gutter - root.tileGap) / 2
+                    width: root.halfWidth
                     colors: root.colors
                     label: qsTr("Clear site data")
                     enabled: !root.blank
@@ -758,7 +731,7 @@ Omarchy.BorderSurface {
 
                 ActionButton {
                     objectName: "resetSitePermissions"
-                    width: (overview.width - 2 * root.gutter - root.tileGap) / 2
+                    width: root.halfWidth
                     colors: root.colors
                     label: qsTr("Reset permissions")
                     enabled: !root.blank
@@ -859,8 +832,9 @@ Omarchy.BorderSurface {
                                   {
                                       "name": "siteInformationCookieCount",
                                       "label": qsTr("Cookies this site set"),
-                                      "value": root.countLabel(root.cookieCount, qsTr("None"), qsTr(
-                                                                   "1 cookie"), qsTr("%1 cookies"))
+                                      "value": root.countLabel(root.cookieCount, qsTr("None",
+                                                                                      "no cookies"),
+                                                               qsTr("1 cookie"), qsTr("%1 cookies"))
                                   }
                               ];
                         if (root.siteDataOnDisk && root.siteDataBytes >= 0) {
@@ -920,7 +894,7 @@ Omarchy.BorderSurface {
                         required property string modelData
 
                         objectName: "refusedThirdParty" + index
-                        label: qsTr("Refused")
+                        label: qsTr("Refused", "a third party refused cookies and storage")
                         value: modelData
                     }
                 }

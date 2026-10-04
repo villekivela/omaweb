@@ -50,9 +50,10 @@ public:
     // for this and the request comes through here — the one object that
     // already holds the store.
     Q_INVOKABLE bool deleteAllCookies(QObject *profile);
-    // How many cookies one Space holds for a site: those for its host and the
-    // hosts beneath it. Site information states this; the engine names no
-    // size for one site, only for the whole profile.
+    // How many cookies one Space holds for a site: those set for its host and
+    // for the domains above it, which are the ones a request to it carries.
+    // Site information states this; the engine names no size for one site,
+    // only for the whole profile.
     Q_INVOKABLE int siteCookieCount(const QString &spaceId, const QUrl &site) const;
     // The origin a cookie access belongs to, in the shape the core's
     // allowances are keyed by.

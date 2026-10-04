@@ -21,7 +21,10 @@ Rectangle {
     property bool collapsed: false
     property bool floating: false
     property var blocker: null
-    property bool statusOpen: false
+    // Whether Site information is open, which the address is drawn focused
+    // for, and the verdict it gives, which the lock speaks.
+    property bool siteInformationOpen: false
+    property string siteInformationVerdict: ""
     // The address, which Site information floats from.
     readonly property Item addressItem: addressButton
     property bool useFavicons: true
@@ -343,7 +346,7 @@ Rectangle {
     signal releaseNotesRequested(url notes)
     // The lock and the shield ask the window for Site information, at its top
     // or at one detail, and a click on the outline while it is open puts it
-    // away. `statusOpen` is the window's answer, drawn on the address.
+    // away.
     signal siteInformationRequested(string detail)
     signal siteInformationDismissed
     signal tabActivated(string tabId)
@@ -920,7 +923,7 @@ Rectangle {
             id: addressButton
             objectName: "addressButton"
             property string accessibleName: qsTr("Search or enter address")
-            readonly property bool focused: root.statusOpen || addressButton.activeFocus
+            readonly property bool focused: root.siteInformationOpen || addressButton.activeFocus
             width: parent.width
             height: 34
             radius: 2
@@ -969,7 +972,7 @@ Rectangle {
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.Button
-                Accessible.name: qsTr("Site information")
+                Accessible.name: qsTr("Site information: %1").arg(root.siteInformationVerdict)
                 Accessible.onPressAction: root.siteInformationRequested("")
 
                 MouseArea {
@@ -977,8 +980,8 @@ Rectangle {
                     anchors.margins: -5
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.statusOpen ? root.siteInformationDismissed() :
-                                                 root.siteInformationRequested("")
+                    onClicked: root.siteInformationOpen ? root.siteInformationDismissed() :
+                                                          root.siteInformationRequested("")
                 }
             }
 
@@ -1695,7 +1698,7 @@ Rectangle {
     // the page edge. A click on the outline while it is open puts it away.
     MouseArea {
         anchors.fill: parent
-        visible: root.statusOpen
+        visible: root.siteInformationOpen
         z: 4
         onClicked: root.siteInformationDismissed()
     }

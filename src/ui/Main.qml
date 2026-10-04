@@ -145,9 +145,6 @@ ApplicationWindow {
     // Bumped when the engine reports it has finished clearing, so Site
     // information re-reads a size that has actually moved.
     property int siteDataGeneration: 0
-    // The categories the engine said it could not take, from the last clearing
-    // it was asked for.
-    property var untouchedDataCategories: []
     // Every third party this page has had refused, and every one it has been
     // allowed, as the rows the dialog offers.
     property var thirdPartyRows: []
@@ -404,11 +401,11 @@ ApplicationWindow {
     // the certificate question opened it: the chain the engine refused, as it
     // was when the reader asked to see it.
     property bool siteInformationOpen: false
-    property var certificateViewChain: []
-    property string certificateViewOrigin: ""
+    property var refusedCertificateChain: []
+    property string refusedCertificateOrigin: ""
     // Whether the certificate question opened it, so closing it hands the
     // keyboard back to the question rather than the page.
-    property bool certificateViewFromQuestion: false
+    property bool siteInformationFromQuestion: false
     property var pendingBrowserPrompt: ({})
     property var pendingBrowserPromptResponder: null
     property string pendingBrowserPromptId: ""
@@ -2024,21 +2021,22 @@ ApplicationWindow {
         if (window.sidebarCollapsed)
             window.sidebarPeeked = true;
         if (detail !== "certificate")
-            window.certificateViewFromQuestion = false;
+            window.siteInformationFromQuestion = false;
         siteInformationCard.detail = detail || "";
+        siteInformationLayer.place();
         window.siteInformationOpen = true;
         siteInformationCard.forceActiveFocus();
     }
 
     function closeSiteInformation() {
         window.siteInformationOpen = false;
-        window.certificateViewFromQuestion = false;
+        window.siteInformationFromQuestion = false;
     }
 
-    // Escape at the card's top: the keyboard goes back to where it was asked
-    // from, the certificate question or the page.
+    // Escape at the card's top, or a click off it: the keyboard goes back to
+    // where the card was asked from, the certificate question or the page.
     function dismissSiteInformation() {
-        const fromQuestion = window.certificateViewFromQuestion;
+        const fromQuestion = window.siteInformationFromQuestion;
         window.closeSiteInformation();
         if (fromQuestion && window.certificateQuestionOpen)
             certificateQuestionBar.forceActiveFocus();
@@ -2053,12 +2051,11 @@ ApplicationWindow {
             return;
         const text = String(address);
         const separator = text.indexOf("://");
-        window.certificateViewChain = chain;
-        window.certificateViewOrigin = (separator === -1 ? text : text.substring(separator
-                                                                                 + 3)).split(
+        window.refusedCertificateChain = chain;
+        window.refusedCertificateOrigin = (separator === -1 ? text : text.substring(separator + 3)).split(
                     "/")[0];
         window.openSiteInformation("certificate");
-        window.certificateViewFromQuestion = true;
+        window.siteInformationFromQuestion = true;
     }
 
     function respondToCertificateError(accepted) {
@@ -2094,7 +2091,7 @@ ApplicationWindow {
                           "purpose": ""
                       });
         }
-        // Read from the panel, which asked the engine's filter when it opened.
+        // Read from the card, which asked the engine's filter when it opened.
         // Asking again here would be a second place that knows how to.
         const refused = siteInformationCard.refusedThirdParties;
         for (let index = 0; index < refused.length; ++index) {
@@ -2835,11 +2832,12 @@ ApplicationWindow {
                 easeSpaces: window.chromeEase
                 spacesCanMove: !window.reducedMotion
                 connectionState: window.connectionState
-                statusOpen: window.siteInformationOpen
+                siteInformationOpen: window.siteInformationOpen
+                siteInformationVerdict: siteInformationCard.verdict
                 onSiteInformationRequested: function (detail) {
                     window.openSiteInformation(detail);
                 }
-                onSiteInformationDismissed: window.closeSiteInformation()
+                onSiteInformationDismissed: window.dismissSiteInformation()
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
@@ -4047,12 +4045,8 @@ ApplicationWindow {
                         engineLoader.discardEngine(tabId);
                     }
 
-                    // The engine answers straight away with what it could not
-                    // take, which is what the notice about it reports.
                     function onEngineDataClearRequested(spaceIds, dataTypes, since) {
-                        window.untouchedDataCategories = engineLoader.clearBrowsingData(spaceIds,
-                                                                                        dataTypes,
-                                                                                        since);
+                        engineLoader.clearBrowsingData(spaceIds, dataTypes, since);
                     }
 
                     function onEngineOriginPermissionsResetRequested(spaceId, origin) {
@@ -4159,7 +4153,7 @@ ApplicationWindow {
             // under this still gets hover, so it says which shape the pointer
             // takes; the click stays here and only closes the status.
             cursorShape: undefined
-            onClicked: window.closeSiteInformation()
+            onClicked: window.dismissSiteInformation()
         }
 
         MouseArea {
@@ -4554,15 +4548,29 @@ ApplicationWindow {
         anchors.fill: parent
         z: 55
 
-        // Where the address is when the card opens, which is where it unfolds
-        // from. Read again while open as the sidebar moves or is resized.
-        readonly property point anchor: {
-            const width = sidebar.width + sidebar.x;
-            const shown = window.siteInformationOpen;
+        // Under the address, which is where the card unfolds from. Placed when
+        // it opens and again whenever the sidebar moves or is resized under it.
+        property point anchor: Qt.point(16, 64)
+
+        function place() {
             const address = sidebar.addressItem;
-            if (!address || !shown || width < 0)
-                return Qt.point(16, 64);
-            return address.mapToItem(siteInformationLayer, 0, address.height + 8);
+            if (address)
+                siteInformationLayer.anchor = address.mapToItem(siteInformationLayer, 0,
+                                                                address.height + 8);
+        }
+
+        Connections {
+            target: sidebar
+            enabled: window.siteInformationOpen
+            function onXChanged() {
+                siteInformationLayer.place();
+            }
+            function onYChanged() {
+                siteInformationLayer.place();
+            }
+            function onWidthChanged() {
+                siteInformationLayer.place();
+            }
         }
 
         SiteInformationCard {
@@ -4590,11 +4598,11 @@ ApplicationWindow {
             lookupFailedBy: window.lookupFailedBy
             upgradedByHttpsOnly: !!engineLoader.item
                                  && engineLoader.item.arrivedThroughHttpsUpgrade === true
-            certificateChain: window.certificateViewFromQuestion ? window.certificateViewChain :
+            certificateChain: window.siteInformationFromQuestion ? window.refusedCertificateChain :
                                                                    window.certificateChain
-            certificateOrigin: window.certificateViewFromQuestion ? window.certificateViewOrigin :
+            certificateOrigin: window.siteInformationFromQuestion ? window.refusedCertificateOrigin :
                                                                     siteInformationCard.originLabel
-            certificateVerified: !window.certificateViewFromQuestion && window.connectionState
+            certificateVerified: !window.siteInformationFromQuestion && window.connectionState
                                  === "secure"
             thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
             siteDataOnDisk: window.siteDataOnDisk

@@ -7047,8 +7047,8 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
 }
 
 // Site information says how many cookies the site on show holds in its
-// Space. The count is the site's host and the hosts beneath it, kept as the
-// store adds and removes them, and a Space knows only its own store.
+// Space: the ones a request to its host carries, kept as the store adds and
+// removes them. A Space knows only its own store.
 void QtEngineContractTest::qtCookiePolicyCountsTheCookiesASiteHolds()
 {
     PageServer pageServer(R"HTML(<!doctype html><html><body><title>waiting</title><script>

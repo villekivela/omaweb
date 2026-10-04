@@ -459,6 +459,10 @@
         <source>Copy %1</source>
         <translation>Kopioi: %1</translation>
     </message>
+    <message>
+        <source>←→ chain · ↑↓ field · ⏎ copy</source>
+        <translation>←→ ketju · ↑↓ kenttä · ⏎ kopioi</translation>
+    </message>
 </context>
 <context>
     <name>ClearBrowsingDataDialog</name>
@@ -3396,11 +3400,7 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     </message>
     <message>
         <source>Encrypted · upgraded from HTTP by HTTPS-only mode</source>
-        <translation>Salattu · päivitetty HTTP:stä Vain HTTPS -tilan toimesta</translation>
-    </message>
-    <message>
-        <source>Encrypted</source>
-        <translation>Salattu</translation>
+        <translation>Salattu · Vain HTTPS -tila vaihtoi HTTP:n HTTPS:ään</translation>
     </message>
     <message>
         <source>Waived for this session</source>
@@ -3415,10 +3415,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Verkosta ei ladattu mitään</translation>
     </message>
     <message>
-        <source>Not reported</source>
-        <translation>Ei ilmoitettu</translation>
-    </message>
-    <message>
         <source>Self-signed</source>
         <translation>Itse allekirjoitettu</translation>
     </message>
@@ -3430,10 +3426,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <source>Blocked</source>
         <comment>requests Content blocking refused</comment>
         <translation>Estetyt</translation>
-    </message>
-    <message>
-        <source>None</source>
-        <translation>Ei yhtään</translation>
     </message>
     <message>
         <source>1 request</source>
@@ -3462,10 +3454,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Third parties</source>
         <translation>Kolmannet osapuolet</translation>
-    </message>
-    <message>
-        <source>None allowed</source>
-        <translation>Ei sallittuja</translation>
     </message>
     <message>
         <source>1 allowed</source>
@@ -3508,20 +3496,49 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Sivuston tiedot</translation>
     </message>
     <message>
+        <source>Encrypted</source>
+        <comment>the connection</comment>
+        <translation>Salattu</translation>
+    </message>
+    <message>
+        <source>Not reported</source>
+        <comment>a certificate the engine has not reported</comment>
+        <translation>Ei ilmoitettu</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>no requests were blocked</comment>
+        <translation>Ei yhtään</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>Omaweb&apos;s own page holds no site data</comment>
+        <translation>Ei yhtään</translation>
+    </message>
+    <message>
+        <source>None allowed</source>
+        <comment>third parties</comment>
+        <translation>Ei sallittuja</translation>
+    </message>
+    <message>
         <source>Back to %1</source>
         <translation>Takaisin: %1</translation>
     </message>
     <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
         <source>Clear site data</source>
-        <translation>Tyhjennä sivuston tiedot</translation>
+        <translation>Tyhjennä sivustotiedot</translation>
     </message>
     <message>
         <source>Reset permissions</source>
-        <translation>Nollaa luvat</translation>
+        <translation>Nollaa käyttöoikeudet</translation>
     </message>
     <message>
         <source>through %1</source>
-        <translation>kautta %1</translation>
+        <translation>nimen %1 kautta</translation>
     </message>
     <message numerus="yes">
         <source>and %n more</source>
@@ -3533,6 +3550,11 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Cookies this site set</source>
         <translation>Tämän sivuston asettamat evästeet</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>no cookies</comment>
+        <translation>Ei yhtään</translation>
     </message>
     <message>
         <source>Cookies and cache in this Space</source>
@@ -3552,6 +3574,7 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     </message>
     <message>
         <source>Refused</source>
+        <comment>a third party refused cookies and storage</comment>
         <translation>Evätty</translation>
     </message>
     <message>
@@ -3590,8 +3613,8 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Hae tai kirjoita osoite</translation>
     </message>
     <message>
-        <source>Site information</source>
-        <translation>Sivuston tiedot</translation>
+        <source>Site information: %1</source>
+        <translation>Sivuston tiedot: %1</translation>
     </message>
     <message>
         <source>search or enter address</source>

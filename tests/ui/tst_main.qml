@@ -2450,6 +2450,10 @@ TestCase {
         compare(findChild(detail, "certificateValue_subjectAlternativeNames").text,
                 "DNS:chain.example, DNS:www.chain.example");
         compare(findChild(detail, "certificateValue_notAfter").text, "2026-12-31 23:59:59 UTC");
+        // As the dialog's foot did, the detail says which keys work it.
+        const keysHint = findChild(detail, "certificateKeys");
+        verify(keysHint.visible);
+        compare(keysHint.text, "←→ chain · ↑↓ field · ⏎ copy");
 
         // Each certificate in the chain is picked by pointer or by arrow.
         const anchor = findChild(detail, "certificateChainEntry2");

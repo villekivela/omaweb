@@ -95,6 +95,10 @@ Rectangle {
     property bool cnameUncloakingAvailable: false
     // Whether this build's engine applies procedural cosmetic rules (ADR 0052).
     property bool proceduralCosmeticFilteringAvailable: false
+    // Whether this window is a Private one. The capability above is the
+    // build's and is the same in every window, so without this the section
+    // offers a reader a switch that cannot do anything here.
+    property bool privateWindow: false
     // What this build's engine can answer for about a site. Site information
     // states facts about the site; where the engine falls short, the shortfall
     // is the build's and is said here.
@@ -103,10 +107,6 @@ Rectangle {
     property bool thirdPartyCookieControlAvailable: true
     property bool siteDataOnDisk: true
     property bool insecureContentBlocked: true
-    // Whether this window is a Private one. The capability above is the
-    // build's and is the same in every window, so without this the section
-    // offers a reader a switch that cannot do anything here.
-    property bool privateWindow: false
     // Why the last download ended with nothing written, when one did.
     property string extensionFailure: ""
     property var subscriptions: []
