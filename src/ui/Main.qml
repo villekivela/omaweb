@@ -2667,7 +2667,14 @@ ApplicationWindow {
         window.startPageDriving = true;
         window.windowBrowser.openInput(text, newTab);
         window.startPageSummoned = false;
-        window.startPageDriveTabId = window.windowBrowser.activeTabId;
+        window.startStartPageDrive(window.windowBrowser.activeTabId);
+    }
+
+    // The road drives until this tab's page first paints, for up to
+    // `startPageDriveLimit` milliseconds.
+    function startStartPageDrive(tabId) {
+        window.startPageDriving = true;
+        window.startPageDriveTabId = tabId;
         startPageDriveLimitTimer.restart();
     }
 
@@ -2692,9 +2699,7 @@ ApplicationWindow {
         function onAwaitedAddressLoaded(spaceId, tabId) {
             if (spaceId !== window.windowBrowser.activeSpaceId || !window.startPageRoad)
                 return;
-            window.startPageDriving = true;
-            window.startPageDriveTabId = tabId;
-            startPageDriveLimitTimer.restart();
+            window.startStartPageDrive(tabId);
         }
     }
 

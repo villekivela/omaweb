@@ -582,9 +582,9 @@ public:
     Q_INVOKABLE bool forgetSpaceProject(const QString &spaceId);
     // The Space waits for its project's address to answer before loading it,
     // so a dev server still starting is never a failed page. It asks the
-    // address's host and port again until something takes the connection,
-    // then loads the address in the Space's blank tab or a new one, and
-    // selects it if the Space is on show. Waiting again restarts the wait.
+    // address again until the server answers (see AddressWatch), then loads
+    // the address in the Space's blank tab or a new one, and selects it if the
+    // Space is on show. Waiting again restarts the wait.
     void awaitAddress(const QString &spaceId, const QUrl &url);
     bool awaitsAddress(const QString &spaceId) const;
     bool activeSpaceAwaitsAddress() const;
@@ -878,7 +878,6 @@ private:
     QHash<QString, QString> m_agentSpaces;
     QStringList m_spaceGrants;
     QHash<QString, SpaceProject> m_spaceProjects;
-    // The Spaces waiting for their project's address to answer.
     QHash<QString, AddressWatch *> m_addressWatches;
     int m_addressRetryMs = 500;
     QSet<QString> m_temporarySpaceIds;

@@ -25,11 +25,14 @@ it fails and says how to give one. Omaweb never reads the project's files to gue
 ## Omaweb opens and never runs
 
 `omaweb dev` switches to the Space and raises the window, as `focus --raise` does, and selects a tab
-already on the address's origin. Otherwise the Space waits for the address to answer: Omaweb tries a
-TCP connection to its host and port until one is taken, sending nothing over it, while the Start
-page's road drives. Then the address loads in the Space's blank tab. The CLI returns at once. Omaweb
-never starts, stops or watches the dev server, and a server that never comes up leaves the road
-driving until the reader presses Escape or goes elsewhere in the Space.
+already on the address's origin. Otherwise the Space waits for the address to answer, while the
+Start page's road drives. Omaweb sends a HEAD request, with no cookies and no redirects followed,
+every half second until the server answers with any HTTP status or presents a certificate. A
+connection alone is not an answer: a port forward into a container or to another machine takes the
+connection before the server behind it is up. Then the address loads in the Space's blank tab. The
+CLI returns at once. Omaweb never starts, stops or watches the dev server, and a server that never
+comes up leaves the road driving until the reader presses Escape, opens something else from the
+Start page, or forgets the project.
 
 It is a browser command, open with Allow agents off, because any process can run it and none of it
 reads a page. For the same reason it grants nothing: no Space grant, no Agent tab. An agent that

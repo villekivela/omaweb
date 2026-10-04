@@ -330,9 +330,6 @@ Rectangle {
         }
     }
 
-    // A project's Space, as its row says it: the folder, whether that folder
-    // is on this computer, the address `omaweb dev` opens, and the agent
-    // :ask runs there.
     function projectNote(project) {
         if (!project)
             return "";
@@ -2192,8 +2189,6 @@ Rectangle {
                                                                              spaceRow.spaceName)
                                     }
 
-                                    // Clears the folder, the address and the
-                                    // agent command, and keeps the Space.
                                     ActionButton {
                                         id: forgetProject
                                         objectName: "forgetProject-" + spaceRow.spaceId

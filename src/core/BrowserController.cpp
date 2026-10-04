@@ -1108,6 +1108,7 @@ bool BrowserController::forgetSpaceProject(const QString &spaceId)
         return false;
     }
     m_spaceProjects.remove(spaceId);
+    stopAwaitingAddress(spaceId);
     emit spaceProjectsChanged();
     return true;
 }

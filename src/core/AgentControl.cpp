@@ -1476,25 +1476,26 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
 // the Space and never makes its tabs an Agent's.
 QJsonObject AgentControl::openProject(const QJsonObject &request)
 {
-    const auto given = request.value(QStringLiteral("directory")).toString();
-    if (given.isEmpty() || QDir::isRelativePath(given)) {
+    const auto sentDirectory = request.value(QStringLiteral("directory")).toString();
+    if (sentDirectory.isEmpty() || QDir::isRelativePath(sentDirectory)) {
         return refusal(QStringLiteral("bad-request"),
             QStringLiteral("`dev` names the folder it was run in by its whole path."));
     }
-    const auto directory = QDir::cleanPath(given);
-    const auto input = request.value(QStringLiteral("address")).toString().trimmed();
+    const auto directory = QDir::cleanPath(sentDirectory);
+    const auto typedAddress = request.value(QStringLiteral("address")).toString().trimmed();
     QString spaceId;
     SpaceProject project {.directory = directory, .address = {}, .agentCommand = {}};
-    if (!input.isEmpty()) {
+    if (!typedAddress.isEmpty()) {
         // Given an address, the folder is the project, even below another
         // project's: a monorepo's apps are a Space each.
-        const auto url = m_browser->resolveAddress(input);
+        const auto url = m_browser->resolveAddress(typedAddress);
         const auto web = url.scheme() == u"http" || url.scheme() == u"https";
         // Words become a search, which is no project's address.
-        if (!openable(input, url) || !web || !input.contains(url.host(), Qt::CaseInsensitive)) {
+        if (!openable(typedAddress, url) || !web
+            || !typedAddress.contains(url.host(), Qt::CaseInsensitive)) {
             return refusal(QStringLiteral("bad-request"),
                 QStringLiteral("\"%1\" is not the address of a web app, such as localhost:5173.")
-                    .arg(input));
+                    .arg(typedAddress));
         }
         const auto nearest = m_browser->projectSpaceFor(directory);
         if (const auto existing = m_browser->spaceProject(nearest);
@@ -1542,6 +1543,8 @@ QJsonObject AgentControl::openProject(const QJsonObject &request)
     for (const auto &tab : m_browser->spaceTabs(spaceId)) {
         if (tab.url.adjusted(appOrigin) == origin
             && m_browser->activateTabInSpace(spaceId, tab.id)) {
+            // A wait an earlier `dev` began would open the app a second time.
+            m_browser->stopAwaitingAddress(spaceId);
             answer.insert(QStringLiteral("tab"), tab.id);
             return success(answer);
         }

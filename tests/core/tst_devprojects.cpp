@@ -291,14 +291,16 @@ void DevProjectsTest::selectsATabAlreadyOnTheAddress()
     const auto browser = fixture.createController();
     AgentControl control(browser.get(), config.path());
     const auto shop = folder(projects, QStringLiteral("shop"));
-    const auto spaceId = control.answer(dev(shop, QStringLiteral("localhost:5173")))
+    // Nothing answers on port 1, so the Space is still waiting for the app.
+    const auto spaceId = control.answer(dev(shop, QStringLiteral("127.0.0.1:1")))
                              .value(QStringLiteral("space"))
                              .toString();
     QVERIFY(!spaceId.isEmpty());
+    QVERIFY(browser->awaitsAddress(spaceId));
     const auto docs
         = browser->openTabInSpace(spaceId, QUrl(QStringLiteral("https://vite.dev/guide/")));
     const auto cart
-        = browser->openTabInSpace(spaceId, QUrl(QStringLiteral("http://localhost:5173/cart")));
+        = browser->openTabInSpace(spaceId, QUrl(QStringLiteral("http://127.0.0.1:1/cart")));
     browser->activateTab(docs);
     QVERIFY(browser->switchSpace(QStringLiteral("personal")));
     const auto before = browser->spaceTabs(spaceId).size();
@@ -310,7 +312,10 @@ void DevProjectsTest::selectsATabAlreadyOnTheAddress()
     QCOMPARE(browser->activeTabId(), cart);
     QCOMPARE(answer.value(QStringLiteral("tab")).toString(), cart);
     QCOMPARE(browser->spaceTabs(spaceId).size(), before);
-    QCOMPARE(browser->activeUrl(), QUrl(QStringLiteral("http://localhost:5173/cart")));
+    QCOMPARE(browser->activeUrl(), QUrl(QStringLiteral("http://127.0.0.1:1/cart")));
+    // The tab is the app, so a wait an earlier `dev` began is over: its answer
+    // would open the app a second time.
+    QVERIFY(!browser->awaitsAddress(spaceId));
 }
 
 // The CLI returns at once, and Omaweb never starts the server. Until the
@@ -344,7 +349,30 @@ void DevProjectsTest::waitsForTheAddressToAnswerBeforeLoading()
         QVERIFY(!tab.url.toString().startsWith(address));
     }
 
+    // A port forward to a container or another machine takes the connection
+    // before the server behind it is up, and hangs up. That is not an answer.
+    auto answering = false;
+    QObject::connect(&server, &QTcpServer::newConnection, &server, [&server, &answering] {
+        while (auto *connection = server.nextPendingConnection()) {
+            if (!answering) {
+                connection->abort();
+                connection->deleteLater();
+                continue;
+            }
+            QObject::connect(connection, &QTcpSocket::readyRead, connection, [connection] {
+                connection->readAll();
+                connection->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+                connection->disconnectFromHost();
+            });
+        }
+    });
     QVERIFY(server.listen(QHostAddress::LocalHost, port));
+    QTest::qWait(200);
+    QVERIFY(browser->activeSpaceAwaitsAddress());
+    QVERIFY(browser->activeTabBlank());
+
+    // Any HTTP answer is the server's, even one that is not the page.
+    answering = true;
     QTRY_VERIFY(!browser->activeSpaceAwaitsAddress());
     QCOMPARE(browser->activeUrl(), QUrl(address));
     // The Space's resting tab became the app's, rather than one beside it.
@@ -549,8 +577,11 @@ void DevProjectsTest::asksTheProjectsOwnAgent()
     // rest, and the global one is back.
     QCOMPARE(control.answer(dev(shop)).value(QStringLiteral("space")).toString(), spaceId);
     QVERIFY(!browser->spaceProject(spaceId)->agentCommand.isEmpty());
+    browser->awaitAddress(spaceId, QUrl(QStringLiteral("http://127.0.0.1:1")));
     QVERIFY(browser->forgetSpaceProject(spaceId));
     QVERIFY(!browser->spaceProject(spaceId));
+    // Nothing is waited for on behalf of a project that is gone.
+    QVERIFY(!browser->awaitsAddress(spaceId));
     QVERIFY(!fixture.createController()->spaceProject(spaceId));
     QVERIFY(QFile::remove(terminal + QStringLiteral(".args")));
     QVERIFY(control.askAgent(tabId, QStringLiteral("again")).value(QStringLiteral("ok")).toBool());

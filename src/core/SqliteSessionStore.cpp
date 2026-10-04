@@ -428,12 +428,12 @@ bool SqliteSessionStore::saveSpaceProject(const QString &spaceId, const SpacePro
         "VALUES(?, ?, ?, ?) ON CONFLICT(space_id) DO UPDATE SET directory = excluded.directory, "
         "address = excluded.address, agent_command = excluded.agent_command"));
     // A null string is bound as NULL, which the columns refuse.
-    const auto text
+    const auto notNull
         = [](const QString &value) { return value.isNull() ? QStringLiteral("") : value; };
     query.addBindValue(spaceId);
-    query.addBindValue(text(project.directory));
-    query.addBindValue(text(project.address));
-    query.addBindValue(text(project.agentCommand));
+    query.addBindValue(notNull(project.directory));
+    query.addBindValue(notNull(project.address));
+    query.addBindValue(notNull(project.agentCommand));
     return query.exec();
 }
 

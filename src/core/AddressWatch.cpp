@@ -1,43 +1,60 @@
 #include "AddressWatch.h"
 
+#include <QNetworkReply>
+#include <QNetworkRequest>
+
 namespace omaweb {
 
 AddressWatch::AddressWatch(const QUrl &url, int retryMs, QObject *parent)
     : QObject(parent)
     , m_url(url)
 {
+    m_network.setCookieJar(nullptr);
     m_retry.setSingleShot(true);
     m_retry.setInterval(retryMs);
-    m_timeout.setSingleShot(true);
-    m_timeout.setInterval(attemptTimeoutMs);
-    connect(&m_retry, &QTimer::timeout, this, &AddressWatch::attempt);
-    connect(&m_timeout, &QTimer::timeout, this, &AddressWatch::retry);
-    connect(&m_socket, &QTcpSocket::errorOccurred, this, &AddressWatch::retry);
-    connect(&m_socket, &QTcpSocket::connected, this, [this] {
-        m_timeout.stop();
-        m_socket.abort();
-        emit answered();
-    });
-    attempt();
+    connect(&m_retry, &QTimer::timeout, this, &AddressWatch::ask);
+    ask();
+}
+
+AddressWatch::~AddressWatch()
+{
+    if (m_reply) {
+        disconnect(m_reply, nullptr, this, nullptr);
+        m_reply->abort();
+    }
 }
 
 QUrl AddressWatch::url() const { return m_url; }
 
-void AddressWatch::attempt()
+void AddressWatch::ask()
 {
-    m_socket.abort();
-    m_timeout.start();
-    m_socket.connectToHost(
-        m_url.host(), static_cast<quint16>(m_url.port(m_url.scheme() == u"https" ? 443 : 80)));
+    QNetworkRequest request(m_url);
+    request.setAttribute(
+        QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    request.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
+    request.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
+    request.setAttribute(
+        QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+    request.setTransferTimeout(requestTimeoutMs);
+    m_certificate = false;
+    m_reply = m_network.head(request);
+    // A certificate the engine would refuse still means a server is there, and
+    // the page is the place to say what is wrong with it.
+    connect(m_reply, &QNetworkReply::sslErrors, this, [this, reply = m_reply] {
+        m_certificate = true;
+        reply->abort();
+    });
+    connect(m_reply, &QNetworkReply::finished, this, [this, reply = m_reply] { heard(reply); });
 }
 
-void AddressWatch::retry()
+void AddressWatch::heard(QNetworkReply *reply)
 {
-    m_timeout.stop();
-    m_socket.abort();
-    if (!m_retry.isActive()) {
-        m_retry.start();
+    reply->deleteLater();
+    if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).isValid() || m_certificate) {
+        emit answered();
+        return;
     }
+    m_retry.start();
 }
 
 } // namespace omaweb
