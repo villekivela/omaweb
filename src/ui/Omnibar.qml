@@ -902,19 +902,19 @@ Item {
                 }
             }
 
-            SectionLabel {
+            // Where Return goes, in the muted word and size the rows' own
+            // labels are set in, before the arrow.
+            Text {
                 id: modeLabel
+                objectName: "omnibarMode"
                 anchors.right: goMark.left
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                colors: root.colors
-                text: root.commandScope ? qsTr("command") : (root.newTabIntent ? qsTr("new tab") :
-                                                                                 qsTr("this tab"))
-                // Centred in a bar of its own rather than stacked over rows, so
-                // it is centred on its glyphs: the lean a section label carries
-                // in a scrolling pane would drop it below the address beside it.
-                topPadding: overshoot
-                bottomPadding: overshoot
+                text: root.commandScope ? qsTr("Command") : (root.newTabIntent ? qsTr("New Tab") :
+                                                                                 qsTr("This Tab"))
+                color: root.colors.mutedText
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
             }
 
             Rectangle {

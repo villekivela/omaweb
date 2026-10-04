@@ -9835,6 +9835,43 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // The label at the field's right end names where Return goes, in title case
+    // and muted at the size of the rows' own labels, with the arrow kept. It is
+    // not the spaced capitals of a section label.
+    function test_theFieldsRightLabelIsTitleCaseAndMuted() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://mode-label-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        const mode = findChild(window.contentItem, "omnibarMode");
+        compare(mode.text, "This Tab");
+        compare(mode.font.capitalization, Font.MixedCase);
+        compare(String(mode.color), String(window.colors.mutedText));
+        compare(mode.font.pixelSize, Style.font.body);
+        verify(findChild(window.contentItem, "omnibarGo").visible);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        compare(mode.text, "Command");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openOmnibar(true);
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.newTabIntent;
+        });
+        compare(mode.text, "New Tab");
+        window.dismissStartPage();
+        tryVerify(function () {
+            return !window.startPageSummoned;
+        });
+    }
+
     // A command row's symbol is drawn in the accent: full on the selected row,
     // softer on the others. The picture of a tab, history or Space row is a
     // favicon or a colour and is left as it is.

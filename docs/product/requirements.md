@@ -256,13 +256,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   accent, drawn 32 px across as the website draws it, the typed text and a blinking block caret, and
   a `→` go mark that commits as `Return` does. In command scope the mark gives way to `:`. The field
   asks "Where to?", as the website's does, and "Where to? · opens in a new tab" for a new tab;
-  command scope and an engine keyword keep their own prompts. A screen reader hears what the field
-  takes, "Address, search, tabs and Spaces", rather than the prompt. The typed text and the caret
-  carry no glow, rim light, blur or shadow, and the text clears 4.5:1 against the field's glass in
-  every theme, over the darkest and the lightest the road can put behind it. Over the road the glass
-  blurs it heavily under a nearly opaque tint of the overlay, so the rows read cleanly, and over a
-  page it blurs the page. The sun's light on the field's edge is drawn at half the website's
-  strength.
+  command scope and an engine keyword keep their own prompts. The label at the field's right end,
+  before the arrow, says where Return goes: "This Tab", "New Tab" or "Command", muted and at the
+  size of the rows' own labels, in title case in English and as plain words in Finnish. A screen
+  reader hears what the field takes, "Address, search, tabs and Spaces", rather than the prompt. The
+  typed text and the caret carry no glow, rim light, blur or shadow, and the text clears 4.5:1
+  against the field's glass in every theme, over the darkest and the lightest the road can put
+  behind it. Over the road the glass blurs it heavily under a nearly opaque tint of the overlay, so
+  the rows read cleanly, and over a page it blurs the page. The sun's light on the field's edge is
+  drawn at half the website's strength.
 - `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
   after the user commits a destination. Choosing an open tab from it switches to that tab and
   creates none. `Escape` brings back the page that was on show; in a Space at rest it releases the

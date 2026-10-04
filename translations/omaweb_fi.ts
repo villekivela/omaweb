@@ -2010,16 +2010,16 @@
         <translation>Siirry</translation>
     </message>
     <message>
-        <source>command</source>
-        <translation>komento</translation>
+        <source>Command</source>
+        <translation>Komento</translation>
     </message>
     <message>
-        <source>new tab</source>
-        <translation>uusi välilehti</translation>
+        <source>New Tab</source>
+        <translation>Uusi välilehti</translation>
     </message>
     <message>
-        <source>this tab</source>
-        <translation>tämä välilehti</translation>
+        <source>This Tab</source>
+        <translation>Tämä välilehti</translation>
     </message>
     <message>
         <source>Switch to Tab</source>
