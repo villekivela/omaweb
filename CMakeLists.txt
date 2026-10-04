@@ -1244,7 +1244,12 @@ if(BUILD_TESTING)
         "tests/core/SessionFixture.h"
         "tests/core/tst_devprojects.cpp"
     )
-    target_link_libraries(omaweb-dev-projects-tests PRIVATE omaweb-core Qt6::Test)
+    target_link_libraries(omaweb-dev-projects-tests PRIVATE omaweb-core Qt6::Network Qt6::Test)
+    # An HTTPS dev server's own certificate is what the wait hears from it.
+    target_compile_definitions(omaweb-dev-projects-tests PRIVATE
+        OMAWEB_UNTRUSTED_CERTIFICATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.crt"
+        OMAWEB_UNTRUSTED_KEY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.key"
+    )
     omaweb_strict_target(omaweb-dev-projects-tests)
     omaweb_declarative_fixture_target(omaweb-dev-projects-tests)
     add_test(NAME omaweb-dev-projects COMMAND omaweb-dev-projects-tests)

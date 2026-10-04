@@ -1,3 +1,4 @@
+#include "AddressWatch.h"
 #include "AgentCommand.h"
 #include "AgentControl.h"
 #include "BrowserController.h"
@@ -13,6 +14,11 @@
 #include <QJsonObject>
 #include <QHostAddress>
 #include <QSignalSpy>
+#include <QSslCertificate>
+#include <QSslConfiguration>
+#include <QSslKey>
+#include <QSslServer>
+#include <QSslSocket>
 #include <QTcpServer>
 #include <QTemporaryDir>
 #include <QTest>
@@ -20,6 +26,7 @@
 
 #include <memory>
 
+using omaweb::AddressWatch;
 using omaweb::AgentControl;
 using omaweb::BrowserController;
 using omaweb::BrowserStateExchangeAdapter;
@@ -151,6 +158,7 @@ private slots:
     void refusesABareDevWithNoAddressToOpen();
     void selectsATabAlreadyOnTheAddress();
     void waitsForTheAddressToAnswerBeforeLoading();
+    void countsACertificateAsTheServersAnswer();
     void grantsNothing();
     void neverGivesAPrivateWindowAProject();
     void keepsTheProjectOutOfSync();
@@ -377,6 +385,37 @@ void DevProjectsTest::waitsForTheAddressToAnswerBeforeLoading()
     QCOMPARE(browser->activeUrl(), QUrl(address));
     // The Space's resting tab became the app's, rather than one beside it.
     QCOMPARE(browser->spaceTabs(spaceId).size(), 1);
+}
+
+// An HTTPS dev server with a certificate of its own has answered when it
+// presents it, whether or not anything trusts it: the page is where the
+// reader learns what is wrong with it. This server completes the handshake
+// and never answers a request, so only the certificate can say it is there.
+void DevProjectsTest::countsACertificateAsTheServersAnswer()
+{
+    QVERIFY2(QSslSocket::supportsSsl(), "This Qt has no TLS backend to serve with.");
+    QFile certificate(QStringLiteral(OMAWEB_UNTRUSTED_CERTIFICATE_PATH));
+    QFile key(QStringLiteral(OMAWEB_UNTRUSTED_KEY_PATH));
+    QVERIFY(certificate.open(QIODevice::ReadOnly));
+    QVERIFY(key.open(QIODevice::ReadOnly));
+    auto configuration = QSslConfiguration::defaultConfiguration();
+    configuration.setLocalCertificate(QSslCertificate(&certificate, QSsl::Pem));
+    configuration.setPrivateKey(QSslKey(&key, QSsl::Rsa, QSsl::Pem));
+    QVERIFY(!configuration.localCertificate().isNull());
+    QSslServer server;
+    server.setSslConfiguration(configuration);
+    QList<QTcpSocket *> held;
+    QObject::connect(&server, &QTcpServer::pendingConnectionAvailable, &server, [&server, &held] {
+        while (auto *connection = server.nextPendingConnection()) {
+            held.append(connection);
+        }
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    AddressWatch watch(QUrl(QStringLiteral("https://127.0.0.1:%1/").arg(server.serverPort())), 20);
+    QSignalSpy answered(&watch, &AddressWatch::answered);
+    QTRY_COMPARE(answered.count(), 1);
+    QVERIFY(!held.isEmpty());
 }
 
 // Any process can run `omaweb dev`, so it never lets an Agent into a Space:
