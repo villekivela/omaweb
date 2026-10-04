@@ -105,13 +105,26 @@ Item {
     // profile (ADR 0037). Empty in a Private window, whose shared session has
     // no Space of its own.
     property string spaceId: ""
-    // What the view shows where no page has painted yet. A page itself sits on
-    // the canvas every browser gives it, white or the dark one Chromium draws
-    // under `color-scheme: dark`; the theme's colour is shown only from the
-    // moment a document is created until it first paints, which is the window
-    // in which white would flash through dark chrome.
+    // The colour the view holds under the page for its whole life: the theme's.
+    // A page is written against the white canvas every browser gives it, and it
+    // gets that white from its own script (the document painted script below),
+    // in the frames it paints, because changing this colour after the page's
+    // first frame was on show put a white frame on screen with nothing of the
+    // page on it.
     property color pageBackgroundColor: "#16151d"
     property bool documentPainted: false
+    // Whether the document being loaded has said it exists, which means its
+    // paint will be reported too. The end of its load is then not the moment
+    // it has painted: a load can end a frame or more before the first paint,
+    // so the page is taken to have painted when it says so, for a second at
+    // most after its load.
+    property bool documentReported: false
+    Timer {
+        id: lateCanvas
+        interval: 1000
+        onTriggered: root.documentPainted = true
+    }
+    onDocumentPaintedChanged: lateCanvas.stop()
     // The colour a page's own controls are drawn in: the checked box, the
     // selected option, the filled track. Chromium draws them itself and has no
     // idea what the window around them looks like, so the shell says.
@@ -2239,10 +2252,35 @@ Item {
         script.runsOnSubFrames = false;
         script.sourceCode = root.reporting(`
             report('document_created');
+            // The white a page without a ground is written against. A page
+            // that set none, html and body both transparent and no canvas of
+            // its own choosing, gets it as a rule no page rule can lose to, so
+            // it arrives in the page's own frames. A body that sets a ground
+            // keeps spreading it to the canvas, and a root that sets one is
+            // left alone.
+            let whitened = false;
+            const whiten = () => {
+                const root = document.documentElement;
+                const body = document.body;
+                if (whitened || !root || !body) return;
+                const clear = (element) => {
+                    const style = getComputedStyle(element);
+                    return style.backgroundColor === 'rgba(0, 0, 0, 0)'
+                        && style.backgroundImage === 'none';
+                };
+                if (!clear(root) || !clear(body)) return;
+                if (getComputedStyle(root).colorScheme.includes('dark')) return;
+                whitened = true;
+                const rule = document.createElement('style');
+                rule.textContent = ':where(html) { background-color: white; }';
+                (document.head || root).appendChild(rule);
+            };
+            document.addEventListener('DOMContentLoaded', whiten);
             let painted = false;
             const paint = () => {
                 if (painted) return;
                 painted = true;
+                whiten();
                 report('document_painted');
             };
             try {
@@ -3309,12 +3347,10 @@ Item {
         // page written against a browser renders here as its author saw it.
         settings.localContentCanAccessFileUrls: false
         settings.localContentCanAccessRemoteUrls: true
-        // Chromium paints this under the page for the page's whole life, not
-        // only before the page supplies a background, so a page that draws
-        // none gets the white it was written against. The theme stands in
-        // only between a document's creation and its first paint, where white
-        // would flash a bright rectangle through dark chrome.
-        backgroundColor: root.documentPainted ? "white" : root.pageBackgroundColor
+        // Chromium paints this under the page for the page's whole life, and
+        // it is held: the white a page without a ground is written against is
+        // given by the page's own script, not by changing this.
+        backgroundColor: root.pageBackgroundColor
         focus: root.pageTakesFocus
         userScripts.collection: root.userScriptList()
         // Chromium's autoplay policy is per view. Requiring a gesture blocks
@@ -3401,6 +3437,7 @@ Item {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
+                root.documentReported = false;
                 root.blockingRulesChangedSinceLoad = false;
                 root.loadSetOutFrom = loadRequest.url;
                 root.announceDocument(loadRequest.url);
@@ -3479,8 +3516,12 @@ Item {
             // page or a viewer of the engine's own, reports neither moment: it
             // keeps the canvas of the page before it, white after any page has
             // painted, and is on show once its load is over.
-            if (!loading)
-                root.documentPainted = true;
+            if (!loading) {
+                if (root.documentReported)
+                    lateCanvas.restart();
+                else
+                    root.documentPainted = true;
+            }
             // A load that arrived without a certificate failure clears the
             // report. The certificate that failed may since have been fixed,
             // and the adapter must not keep saying otherwise — the engine's
@@ -3650,6 +3691,8 @@ Item {
                     root.pageMediaSession = {};
                 }
             } else if (report.channel === "document_created") {
+                root.documentReported = true;
+                lateCanvas.stop();
                 root.documentPainted = false;
             } else if (report.channel === "document_painted") {
                 root.documentPainted = true;

@@ -18,6 +18,7 @@ import re
 import shutil
 import signal
 import socket
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -415,6 +416,11 @@ OUTPUT_SCALE = 1.5
 FILM_SIZE = (1920, 1080)
 FPS = 30
 FADE = 0.4
+# A frame whose mean luma, on 0-255, is over the ceiling or more than the jump above the frames
+# around it is a flash: a white frame on a dark site, which the reader sees as a blink.
+FLASH_CEILING = 120
+FLASH_JUMP = 18
+FLASH_WINDOW = 6
 
 # What the film may weigh, per file, which together stay under the 5 MB the page can afford.
 BUDGET = {"omaweb.webm": 2_000_000, "omaweb.mp4": 2_600_000, "poster.webp": 250_000}
@@ -872,6 +878,7 @@ def compose(out: Path) -> None:
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", str(master)],
                    check=True)
     encode(out, master)
+    expect_no_flash("Film", out / "omaweb.mp4")
     poster_beat, poster_at = POSTER
     poster = next(cue for cue in cues if cue[3] == poster_beat)[4] + poster_at
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{poster:.3f}", "-i", str(master),
@@ -884,6 +891,37 @@ def compose(out: Path) -> None:
     expect_within("Film", [out / name for name in BUDGET], sum(BUDGET.values()))
     for name, limit in BUDGET.items():
         expect_within(name, [out / name], limit)
+
+
+def frame_brightness(film: Path) -> list[float]:
+    """The mean luma of every frame of `film`, on a 0-255 scale, from ffmpeg's `signalstats`."""
+    filters = "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-"
+    report = subprocess.run(["ffmpeg", "-v", "error", "-i", str(film), "-vf", filters,
+                             "-f", "null", "-"], capture_output=True, text=True, check=True).stdout
+    return [float(level) for level in re.findall(r"YAVG=([0-9.]+)", report)]
+
+
+def flashed_frames(levels: list[float]) -> list[tuple[int, float]]:
+    """The frames that are light outright or jump above the frames around them, as (index, level).
+
+    A white frame on a dark site is both. Around a frame is the median of the six before it and of
+    the six after it, so a bright scene that fades in is not a flash and a single bright frame is.
+    """
+    flashed = []
+    for index, level in enumerate(levels):
+        before = levels[max(0, index - FLASH_WINDOW):index]
+        after = levels[index + 1:index + 1 + FLASH_WINDOW]
+        around = [statistics.median(side) for side in (before, after) if side]
+        if level > FLASH_CEILING or (around and level - max(around) > FLASH_JUMP):
+            flashed.append((index, level))
+    return flashed
+
+
+def expect_no_flash(beat: str, film: Path) -> None:
+    flashed = flashed_frames(frame_brightness(film))
+    if flashed:
+        frames = ", ".join(f"{index / FPS:.2f}s (mean {level:.0f})" for index, level in flashed[:5])
+        raise BeatMissed(beat, f"{film.name} flashes a light frame at {frames}")
 
 
 def encode(out: Path, master: Path) -> None:
