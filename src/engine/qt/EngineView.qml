@@ -2308,8 +2308,11 @@ Item {
                 whiten();
                 report('document_painted');
                 report('page_ground', ground());
-                addEventListener('load', () => report('page_ground', ground()), {once: true});
             };
+            // Said when the page is parsed and loaded as well, because a view
+            // that is not drawing makes no paint to hang it on.
+            document.addEventListener('DOMContentLoaded', () => report('page_ground', ground()));
+            addEventListener('load', () => report('page_ground', ground()), {once: true});
             try {
                 new PerformanceObserver(paint).observe({type: 'paint', buffered: true});
             } catch (error) {
