@@ -196,11 +196,14 @@ DialogPanel {
                 font.pixelSize: Style.font.caption
             }
 
+            // A row is picked by a pointer that moves onto it. One that only
+            // appeared under a still pointer, as the dialog opening over the
+            // button that asked for it does, leaves the keyboard's row alone.
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: root.selected = index
+                onPositionChanged: root.selected = index
                 onClicked: root.rowActivated(index)
             }
         }

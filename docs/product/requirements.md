@@ -246,8 +246,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - In Settings, an unhandled letter selects the next section whose name begins with it and moves the
   keyboard onto that name in the rail. Repeated presses cycle through matching sections. A field
   keeps the letters typed into it.
-- Security state and the blocked-request count ride inline in the address trigger, and open the
-  site-information panel.
+- Security state and the blocked-request count ride inline in the address trigger. The lock opens
+  Site information at its top, and the shield beside the count opens it at the blocked requests.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens the Omnibar for the
   current tab. The Omnibar has one place whatever it opens over: centred in the page area with its
   top edge 50 px above the Start page's horizon, where a new tab shows it. Its rows grow down from
@@ -518,8 +518,8 @@ The default browser commands include:
 - `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and
   `Primary+K` or `:` for the Omnibar's command scope.
 - `Alt+H`, `Alt+J`, `Alt+K` and `Alt+L` to move the keyboard between the regions on screen.
-- `Primary+Shift+I` for Developer tools, `Primary+Alt+C` to inspect an element, and
-  `Primary+Shift+C` to copy the address of the page on show.
+- `Primary+Shift+I` for Developer tools, `Primary+Alt+C` to inspect an element, `Primary+Shift+C` to
+  copy the address of the page on show, and `Primary+Shift+L` for Site information.
 - `Primary+F` or `/` to find in the page, `Primary+G` or `n` for the next match and
   `Primary+Shift+G` or `N` for the previous one.
 - `Primary+=`, `Primary+-` and `Primary+0` to zoom the tab in, out and back to 100 percent.
@@ -561,7 +561,8 @@ The default page commands include:
   window raises none: a desktop notification records the origin in a list that outlives the private
   session and is read by whoever is at the machine.
 - Third-party cookies are blocked by default. Authentication and payment flows may receive a
-  temporary origin-specific allowance visible and revocable in the site-information panel.
+  temporary origin-specific allowance listed in Site information's third-party detail and revocable
+  from it.
 - Global Privacy Control is on by default and browser-wide. While it is on, every request from every
   Engine profile carries `Sec-GPC: 1`, subresources and the engine's own requests on a page's behalf
   included, and `navigator.globalPrivacyControl` reads `true` in every frame. Spaces and Private
@@ -601,17 +602,37 @@ The default page commands include:
   the policy, leaves the engine's default of every interface, and says so in the setting's place.
   Omaweb offers no per-site exception and cannot disable WebRTC outright.
 - The address trigger reports secure connection, insecure connection, or certificate error only from
-  facts the adapter can prove. The site-information panel shows origin, connection state,
-  Space-specific permissions, blocked-request count, stored-data size, and confirmed actions to
-  clear site data or reset permissions.
-- Site information on a page reached over TLS offers View certificate, which shows the chain from
-  the site's own certificate to the trust anchor, one selectable entry per certificate, with
-  subject, issuer, validity period, SHA-256 fingerprint, and subject alternative names, each
-  copyable. The certificate interstitial offers the same view for the certificate it refused, so a
-  reader can judge a Local-development site's certificate before letting it through. A Private
-  window shows it like any other window. The chain a page arrived over comes from the engine patch
-  that reports it ([ADR 0054](../adr/0054-read-a-pages-certificate-from-the-engine.md)); an engine
-  without it shows only the chain a failure was raised for, and Site information says so.
+  facts the adapter can prove.
+- Site information is a card about 400 px wide that floats from the address over the page edge, on
+  an opaque ground, with every corner on Omarchy's corner radius and 12 px inside every edge. A band
+  in the verdict's colour leads it: a badge and "Connection is secure", "Not secure", the
+  certificate error, or "Omaweb's own page" for the Start page, with a second line that qualifies it
+  (encrypted, upgraded by HTTPS-only mode, waived for this session, readable on the way, nothing
+  loaded, or the Secure DNS resolver that could not find the site). The badge centres on the verdict
+  and its second line together. The site's host follows, then four tiles, each a value, a label and
+  `›`: Certificate with its issuer (over TLS only), Blocked with the request count, Cookies and site
+  data with the cookie count the engine holds for the site, and Third parties with the count
+  allowed. Then a row for each permission the site asked for or the reader decided in this Space,
+  with an Allow, Ask or Block dropdown that is stored for the Space at once and makes the engine
+  forget its own record, and a site that never asked has none. Clear site data and Reset permissions
+  close it, side by side, each confirmed in the centred dialog first.
+- A tile opens its detail inside the card, which keeps its width and place, with "‹ <host>" to go
+  back. Enter opens the tile the arrows are on, Escape steps back to the top, and Escape again
+  closes the card. The lock opens it at its top, the shield at the blocked requests, and the "Site
+  information" command, `Primary+Shift+L` by default, at its top. A collapsed sidebar peeks while
+  the card is open.
+- The certificate detail shows the chain from the site's own certificate to the trust anchor, one
+  selectable entry per certificate, with subject, issuer, validity period, SHA-256 fingerprint, and
+  subject alternative names, each copyable. The certificate interstitial opens the same detail for
+  the certificate it refused, so a reader can judge a Local-development site's certificate before
+  letting it through, and Escape hands the keyboard back to the question. A Private window shows it
+  like any other window. The chain a page arrived over comes from the engine patch that reports it
+  ([ADR 0054](../adr/0054-read-a-pages-certificate-from-the-engine.md)); an engine without it shows
+  only the chain a failure was raised for.
+- Site information states facts about the site and never what this build's engine cannot do. The
+  privacy section of Settings states each shortfall, and only on an engine that has it: that it
+  cannot report a certificate failure, cannot show the certificate a page arrived over, cannot
+  refuse a third party, keeps no site data on disk, or is not blocking insecure content.
 - Certificate failures block by default. A Local-development site's main frame may receive a
   one-time exception only when the engine marks the failure overridable. Subresource, fatal,
   public-site, and remembered exceptions are refused, and the address trigger keeps the exception
@@ -624,9 +645,10 @@ The default page commands include:
   phishing, malware, or download-reputation verdicts and does not present Content blocking as
   equivalent protection. A future provider integration must first resolve licensing, credentials,
   update format, privacy, false positives, bypass behavior, and offline operation.
-- Site data is cleared at whichever scope the engine can reach, and the panel names which that is:
-  cookies and cache for a whole Space, and one origin's storage, databases, caches and service
-  workers emptied from inside its own page.
+- Site data is cleared at whichever scope the engine can reach, and the dialog names which that is.
+  Site information's Clear site data empties one origin's storage, databases, caches and service
+  workers from inside its own page. Cookies and cache go for a whole Space, from Settings' Browsing
+  data only, and the cookies detail names their size as the Space's.
 - Executables, scripts, installers, disk images, and common archives require confirmation before
   download. The prompt identifies the file type. Omaweb never opens a download, removes its execute
   permissions, and records its source address in operating-system metadata. Automatic downloads and

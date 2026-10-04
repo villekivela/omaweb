@@ -194,6 +194,7 @@ private slots:
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void remembersOnlyThePermissionsThatMayBeRemembered();
     void listsAndResetsOneSitesPermissionsWithinItsSpace();
+    void decidesOneSitePermissionFromSiteInformation();
     void refusesEveryCertificateExceptionButAnOverridableLocalMainFrame();
     void keepsCertificateExceptionsOutOfEveryStoreAndSession();
     void keepsAGrantedCertificateExceptionVisibleForItsSession();
@@ -3507,6 +3508,77 @@ void BrowserControllerTest::listsAndResetsOneSitesPermissionsWithinItsSpace()
     QCOMPARE(controller.permissionDecision(
                  QUrl(QStringLiteral("https://other.example")), QStringLiteral("camera")),
         BrowserController::AllowPersistently);
+}
+
+// Site information's dropdown answers Allow, Ask or Block for one permission
+// of one site, in the Space on show, and that answer outlives the session. The
+// engine is told to drop its own record of the site, so the next request is
+// asked of the core again rather than answered from the engine's memory.
+void BrowserControllerTest::decidesOneSitePermissionFromSiteInformation()
+{
+    QTemporaryDir root;
+    const QUrl site(QStringLiteral("https://site.example/page"));
+    QString personalSpaceId;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        personalSpaceId = controller.activeSpaceId();
+        QSignalSpy engineReset(
+            &controller, &BrowserController::engineOriginPermissionsResetRequested);
+        QVERIFY(controller.setPermissionDecision(
+            site, QStringLiteral("camera"), BrowserController::AllowPersistently));
+        QVERIFY(controller.setPermissionDecision(
+            site, QStringLiteral("notifications"), BrowserController::AllowOnce));
+        QVERIFY(controller.setPermissionDecision(
+            site, QStringLiteral("geolocation"), BrowserController::AllowPersistently));
+        QCOMPARE(engineReset.count(), 0);
+
+        QVERIFY(controller.decideSitePermission(
+            site, QStringLiteral("camera"), BrowserController::Ask));
+        QCOMPARE(
+            controller.permissionDecision(site, QStringLiteral("camera")), BrowserController::Ask);
+        // An answer the session held for one request is replaced, not kept
+        // beside the new one.
+        QVERIFY(controller.decideSitePermission(
+            site, QStringLiteral("notifications"), BrowserController::Block));
+        QCOMPARE(controller.permissionDecision(site, QStringLiteral("notifications")),
+            BrowserController::Block);
+        QVERIFY(controller.decideSitePermission(
+            site, QStringLiteral("geolocation"), BrowserController::AllowPersistently));
+        QCOMPARE(engineReset.count(), 3);
+        QCOMPARE(engineReset.at(0).at(0).toString(), personalSpaceId);
+        QCOMPARE(engineReset.at(0).at(1).toUrl(), site);
+
+        // Allowing once is the question bar's answer to one request; the
+        // dropdown's Allow is a standing one. A capability Omaweb never
+        // remembers has no row to decide.
+        QVERIFY(!controller.decideSitePermission(
+            site, QStringLiteral("camera"), BrowserController::AllowOnce));
+        QVERIFY(!controller.decideSitePermission(
+            site, QStringLiteral("clipboard-read"), BrowserController::Block));
+        QCOMPARE(engineReset.count(), 3);
+
+        // The Space beside it was not decided for.
+        const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(controller.sitePermissions(site).isEmpty());
+        QVERIFY(controller.switchSpace(personalSpaceId));
+    }
+
+    // A row the reader set to Ask is still one they decided, so it stays
+    // listed with the others after a restart.
+    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(restored.activeSpaceId(), personalSpaceId);
+    QVariantMap byPermission;
+    for (const auto &entry : restored.sitePermissions(site)) {
+        const auto row = entry.toMap();
+        byPermission.insert(row.value(QStringLiteral("permission")).toString(),
+            row.value(QStringLiteral("decision")));
+    }
+    QCOMPARE(byPermission.value(QStringLiteral("camera")).toInt(), int(BrowserController::Ask));
+    QCOMPARE(
+        byPermission.value(QStringLiteral("notifications")).toInt(), int(BrowserController::Block));
+    QCOMPARE(byPermission.value(QStringLiteral("geolocation")).toInt(),
+        int(BrowserController::AllowPersistently));
 }
 
 // A certificate failure blocks. The one exception Omaweb will even offer is a

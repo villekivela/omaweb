@@ -3361,6 +3361,27 @@ QVariantList BrowserController::sitePermissions(const QUrl &url) const
     return permissions;
 }
 
+bool BrowserController::decideSitePermission(
+    const QUrl &url, const QString &permission, int decision)
+{
+    const auto origin = normalizedOrigin(url);
+    const auto normalizedPermission = permission.trimmed().toLower();
+    if (origin.isEmpty() || permissionPolicy(normalizedPermission) != Rememberable
+        || (decision != Ask && decision != AllowPersistently && decision != Block)) {
+        return false;
+    }
+    // A standing answer replaces whatever the session held for one request.
+    // Ask is stored like the others: the reader decided it, and the row stays.
+    m_sessionPermissionDecisions->remove(sessionPermissionKey(origin, normalizedPermission));
+    if (!m_store->savePermissionDecision(m_activeSpaceId, origin, normalizedPermission, decision)) {
+        return false;
+    }
+    // The engine answers a persistent type from its own record before it asks
+    // again, so that record goes and the next request reaches the core.
+    emit engineOriginPermissionsResetRequested(m_activeSpaceId, url);
+    return true;
+}
+
 bool BrowserController::resetSitePermissions(const QUrl &url)
 {
     const auto origin = normalizedOrigin(url);

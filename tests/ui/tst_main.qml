@@ -246,6 +246,7 @@ TestCase {
         window.settingsOpen = false;
         window.historyOpen = false;
         window.dialogMode = "";
+        window.closeSiteInformation();
         window.tabMenuOpen = false;
         window.pageMenuOpen = false;
         window.extensionMenuOpen = false;
@@ -1445,12 +1446,12 @@ TestCase {
         engine.pageScrollOffset = 0;
     }
 
-    // Site information stands over the outline rather than the page, and the
-    // outline's tab list scrolls by wheel the same way.
+    // Site information stands over the outline as well as the page, and the
+    // outline's tab list under it does not scroll by a wheel meant for it.
     function test_siteInformationTakesTheWheelOverTheOutline() {
         openPage("https://reported.example");
         const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
+        const panel = siteCard();
         const tabScroll = findChild(sidebar, "tabScroll");
         verify(tabScroll !== null);
         const tabList = tabScroll.contentItem;
@@ -1466,17 +1467,17 @@ TestCase {
         });
         tabList.contentY = 0;
 
-        sidebar.statusOpen = true;
+        window.openSiteInformation("");
         tryVerify(function () {
             return panel.visible;
         });
         wait(250);
-        // The panel's foot, which stands over the list rather than over the
-        // address it unfolded from. With the panel away the list scrolls
-        // there; with it open, the same wheel stops at the panel.
-        const foot = panel.mapToItem(tabList, panel.width / 2, panel.height - 8);
-        verify(tabList.contains(foot), "the panel does not reach the tab list");
-        sidebar.statusOpen = false;
+        // The card's foot, over the list rather than over the address it
+        // unfolded from. With the card away the list scrolls there; with it
+        // open, the same wheel stops at the card.
+        const foot = panel.mapToItem(tabList, 40, panel.height - 8);
+        verify(tabList.contains(foot), "the card does not reach the tab list");
+        window.closeSiteInformation();
         wait(250);
         // The list scrolls over the frames that follow rather than at once.
         mouseWheel(tabList, foot.x, foot.y, 0, -120);
@@ -1486,12 +1487,12 @@ TestCase {
         tryCompare(tabList, "moving", false);
         tabList.contentY = 0;
 
-        sidebar.statusOpen = true;
+        window.openSiteInformation("");
         wait(250);
         mouseWheel(tabList, foot.x, foot.y, 0, -120);
         wait(400);
         compare(tabList.contentY, 0);
-        sidebar.statusOpen = false;
+        window.closeSiteInformation();
         for (let index = 0; index < opened.length; ++index)
             browser.closeTab(opened[index]);
     }
@@ -2268,69 +2269,203 @@ TestCase {
         tryCompare(security, "text", "warning");
 
         mouseClick(security, security.width / 2, security.height / 2);
-        const panel = findChild(window.contentItem, "siteInformationPanel");
+        const card = siteCard();
         tryVerify(function () {
-            return panel.visible;
+            return card.visible;
         });
-        const connection = findChild(window.contentItem, "siteInformationConnection");
-        compare(connection.text, "· certificate could not be verified · waived for this session");
+        compare(findChild(card, "siteInformationVerdict").text,
+                "Certificate could not be verified");
+        compare(findChild(card, "siteInformationVerdictDetail").text, "Waived for this session");
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
-            return !panel.visible;
+            return !card.visible;
         });
     }
 
-    // An https page's certificate is one press away from Site information:
-    // the chain from the site's own certificate to the trust anchor, each
-    // entry selectable, each field copied whole.
-    function test_siteInformationShowsTheChainAPageArrivedOver() {
-        window.requestActivate();
-        tryVerify(function () {
-            return window.active;
-        });
-        openPage("https://chain.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        verify(!findChild(panel, "siteInformationNoCertificate").visible);
-        const view = findChild(panel, "viewCertificate");
-        verify(view.visible);
-        settleActions(view);
-        mouseClick(view, view.width / 2, view.height / 2);
+    // Every piece of text the card shows at the moment, so a test can say what
+    // is and is not on it.
+    function visibleTexts(item) {
+        const texts = [];
+        const walk = function (node) {
+            if (!node || !node.visible)
+                return;
+            if (node.text !== undefined && typeof node.text === "string" && node.text.length > 0)
+                texts.push(node.text);
+            for (let index = 0; index < node.children.length; ++index)
+                walk(node.children[index]);
+        };
+        walk(item);
+        return texts;
+    }
 
-        const dialog = findChild(window.contentItem, "certificatePanel");
-        tryVerify(function () {
-            return dialog.visible;
+    function tileSummary(card) {
+        return card.tiles.map(function (tile) {
+            return tile.key + "=" + tile.value;
         });
+    }
+
+    // The card leads with a verdict for each kind of page, and the rows under
+    // it. Nothing in it is about what this build's engine cannot do: that is
+    // Settings' to say, and a caveat beside a site reads as the site's problem.
+    function test_siteInformationStatesEachKindOfPage() {
+        const card = siteCard();
+        const read = function () {
+            const state = {
+                "verdict": findChild(card, "siteInformationVerdict").text,
+                "detail": findChild(card, "siteInformationVerdictDetail").text,
+                "host": findChild(card, "siteInformationHost").text,
+                "tiles": tileSummary(card),
+                "texts": visibleTexts(card)
+            };
+            closeSiteCard();
+            return state;
+        };
+
+        openPage("https://verdict-secure.example/page");
+        openSiteCard("");
+        const secure = read();
+
+        openPage("http://verdict-plain.example/page");
+        openSiteCard("");
+        const plain = read();
+
+        const engine = openPage("https://verdict-refused.example/page");
+        engine.simulateCertificateError({});
+        tryCompare(engine, "connectionState", "certificate-error");
+        openSiteCard("");
+        const refused = read();
+        engine.certificateErrorOrigin = "";
+
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        browser.openInput("about:blank", true);
         tryVerify(function () {
-            return !panel.visible;
+            return engineHost.item === null;
         });
-        compare(findChild(dialog, "certificateOrigin").text,
+        openSiteCard("");
+        const start = read();
+        browser.closeActiveTab();
+
+        compare([secure.verdict, secure.detail, secure.host], ["Connection is secure", "Encrypted",
+                                                               "verdict-secure.example"]);
+        compare(secure.tiles, ["certificate=Omaweb Lab Intermediate", "blocked=None",
+                               "cookies=No cookies", "third-parties=None allowed"]);
+        compare([plain.verdict, plain.detail, plain.host], ["Not secure",
+                                                            "Anything sent here can be read on the way",
+                                                            "verdict-plain.example"]);
+        compare(plain.tiles, ["blocked=None", "cookies=No cookies", "third-parties=None allowed"]);
+        compare([refused.verdict, refused.detail], ["Certificate could not be verified",
+                                                    "Waived for this session"]);
+        // The certificate the failure was raised for signed itself.
+        compare(refused.tiles[0], "certificate=Self-signed");
+        compare([start.verdict, start.detail, start.host], ["Omaweb's own page",
+                                                            "Nothing was loaded from the network",
+                                                            "Start page"]);
+        compare(start.tiles, ["blocked=None", "cookies=None", "third-parties=None allowed"]);
+
+        for (const state of [secure, plain, refused, start]) {
+            const caveats = state.texts.filter(function (text) {
+                return /engine|cannot/i.test(text);
+            });
+            compare(caveats, [], state.verdict);
+        }
+    }
+
+    // The card is drawn as the chrome draws a panel: every corner on Omarchy's
+    // corner radius, the same 12 px inside every edge, an opaque ground, and
+    // the badge centred on the verdict and the line under it together.
+    function test_siteInformationFollowsTheChromesCornersAndPadding() {
+        // Rounded, as a desktop whose Hyprland corners are rounded has it:
+        // square corners would pass whatever the card drew.
+        const before = Style.cornerRadius;
+        Style.cornerRadius = 6;
+        openPage("https://card-shape.example/page");
+        const card = openSiteCard("");
+        browser.setPermissionDecision("https://card-shape.example/page", "camera", 3);
+        closeSiteCard();
+        openSiteCard("");
+        const host = findChild(card, "siteInformationHost");
+        const band = findChild(card, "siteInformationBand");
+        const badge = findChild(card, "siteInformationBadge");
+        const block = findChild(card, "siteInformationVerdictBlock");
+        const reset = findChild(card, "resetSitePermissions");
+        const tile = findChild(card, "siteInformationTile_certificate");
+        const choice = findChild(card, "sitePermissionChoice_camera");
+        settleActions(reset);
+        tryVerify(function () {
+            return findChild(card, "siteInformationTile_third-parties").y > 0;
+        });
+        wait(250);
+
+        const left = card.borderLeft;
+        const right = card.width - card.borderRight;
+        const bottom = card.height - card.borderBottom;
+        const hostAt = host.mapToItem(card, 0, 0);
+        const resetAt = reset.mapToItem(card, 0, 0);
+        const tileAt = tile.mapToItem(card, 0, 0);
+        const badgeMiddle = badge.mapToItem(band, 0, badge.height / 2).y;
+        const blockMiddle = block.mapToItem(band, 0, block.height / 2).y;
+        const shape = {
+            "corners": [card.radius, tile.radius, badge.radius, choice.radius, reset.radius],
+            "padding": [hostAt.x - left, tileAt.x - left, right - (resetAt.x + reset.width), bottom - (
+                    resetAt.y + reset.height)],
+            "opaque": card.color.a,
+            "badge": Math.abs(badgeMiddle - blockMiddle) <= 0.5,
+            "lines": findChild(card, "siteInformationVerdictDetail").visible
+        };
+        browser.resetSitePermissions("https://card-shape.example/page");
+        closeSiteCard();
+        Style.cornerRadius = before;
+        compare(shape.corners, [6, 6, 6, 6, 6]);
+        compare(shape.padding, [12, 12, 12, 12]);
+        compare(shape.opaque, 1);
+        verify(shape.lines);
+        verify(shape.badge, "the badge is not centred on the verdict and its line");
+    }
+
+    // An https page's certificate is in the card's certificate detail: the
+    // chain from the site's own certificate to the trust anchor, each entry
+    // selectable, each field copied whole. There is no dialog of its own.
+    function test_siteInformationShowsTheChainAPageArrivedOver() {
+        activateWindow();
+        openPage("https://chain.example/page");
+        settleMotion();
+        const card = openSiteCard("");
+        const tile = findChild(card, "siteInformationTile_certificate");
+        compare(findChild(card, "siteInformationTileValue_certificate").text,
+                "Omaweb Lab Intermediate");
+        tryVerify(function () {
+            return findChild(card, "siteInformationTile_third-parties").y > 0;
+        });
+        mouseClick(tile, tile.width / 2, tile.height / 2);
+        tryCompare(card, "detail", "certificate");
+        compare(findChild(window.contentItem, "certificatePanel"), null);
+        // The card grows to the detail before a press inside it lands.
+        wait(250);
+
+        const detail = findChild(card, "certificateDetail");
+        compare(findChild(detail, "certificateOrigin").text,
                 "chain.example · verified by the engine");
-        compare(findChild(dialog, "certificateRole").text, "the site's own");
-        compare(findChild(dialog, "certificateValue_subject").text, "CN=chain.example");
-        compare(findChild(dialog, "certificateValue_subjectAlternativeNames").text,
+        compare(findChild(detail, "certificateRole").text, "the site's own");
+        compare(findChild(detail, "certificateValue_subject").text, "CN=chain.example");
+        compare(findChild(detail, "certificateValue_subjectAlternativeNames").text,
                 "DNS:chain.example, DNS:www.chain.example");
-        compare(findChild(dialog, "certificateValue_notAfter").text, "2026-12-31 23:59:59 UTC");
+        compare(findChild(detail, "certificateValue_notAfter").text, "2026-12-31 23:59:59 UTC");
 
         // Each certificate in the chain is picked by pointer or by arrow.
-        const anchor = findChild(dialog, "certificateChainEntry2");
-        verify(findChild(dialog, "certificateChainEntry1") !== null);
+        const anchor = findChild(detail, "certificateChainEntry2");
+        verify(findChild(detail, "certificateChainEntry1") !== null);
         settleActions(anchor);
         mouseClick(anchor, anchor.width / 2, anchor.height / 2);
-        compare(findChild(dialog, "certificateRole").text, "trust anchor");
-        compare(findChild(dialog, "certificateValue_subject").text,
+        compare(findChild(detail, "certificateRole").text, "trust anchor");
+        compare(findChild(detail, "certificateValue_subject").text,
                 "O=Omaweb Lab, CN=Omaweb Lab Root");
-        compare(findChild(dialog, "certificateValue_subjectAlternativeNames").text, "none");
+        compare(findChild(detail, "certificateValue_subjectAlternativeNames").text, "none");
         keyClick(Qt.Key_Left);
-        compare(findChild(dialog, "certificateRole").text, "intermediate");
+        compare(findChild(detail, "certificateRole").text, "intermediate");
 
         // The copy button puts the whole value on the clipboard and says so.
         SystemClipboard.copyText("something the reader already had");
-        const copy = findChild(dialog, "copyCertificateField_sha256");
+        const copy = findChild(detail, "copyCertificateField_sha256");
         settleActions(copy);
         mouseClick(copy, copy.width / 2, copy.height / 2);
         compare(SystemClipboard.text(), "22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:"
@@ -2348,29 +2483,31 @@ TestCase {
                       "subjectAlternativeNames"];
         const copied = keys.map(function (key) {
             SystemClipboard.copyText("something the reader already had");
-            const button = findChild(dialog, "copyCertificateField_" + key);
+            const button = findChild(detail, "copyCertificateField_" + key);
             settleActions(button);
             mouseClick(button, button.width / 2, button.height / 2);
-            return SystemClipboard.text() === findChild(dialog, "certificateValue_" + key).text;
+            return SystemClipboard.text() === findChild(detail, "certificateValue_" + key).text;
         });
         compare(copied, keys.map(function () {
             return true;
         }));
 
         keyClick(Qt.Key_Escape);
+        tryCompare(card, "detail", "");
+        verify(card.visible);
+        keyClick(Qt.Key_Escape);
         tryVerify(function () {
-            return !dialog.visible;
+            return !card.visible;
         });
     }
 
     // A Local-development site's certificate usually signed itself, and the
-    // interstitial shows it before the reader decides whether to let it
-    // through. Looking at it answers nothing: the question stays.
+    // certificate question shows it before the reader decides whether to let
+    // it through, in the card's certificate detail. Looking at it answers
+    // nothing: the question stays, and has the keyboard back once the card is
+    // put away.
     function test_theCertificateQuestionShowsTheCertificateItRefused() {
-        window.requestActivate();
-        tryVerify(function () {
-            return window.active;
-        });
+        activateWindow();
         const engine = openPage("https://localhost:6443/app");
         const bar = findChild(window.contentItem, "certificateQuestionBar");
         const requestId = engine.simulateCertificateError({});
@@ -2383,24 +2520,29 @@ TestCase {
         settleActions(view);
         mouseClick(view, view.width / 2, view.height / 2);
 
-        const dialog = findChild(window.contentItem, "certificatePanel");
+        const card = siteCard();
         tryVerify(function () {
-            return dialog.visible;
+            return card.visible;
         });
-        compare(findChild(dialog, "certificateOrigin").text,
+        compare(card.detail, "certificate");
+        const detail = findChild(card, "certificateDetail");
+        compare(findChild(detail, "certificateOrigin").text,
                 "localhost:6443 · could not be verified");
-        compare(findChild(dialog, "certificateRole").text, "self-signed");
-        verify(findChild(dialog, "certificateChainEntry1") === null);
-        compare(findChild(dialog, "certificateValue_issuer").text, "CN=localhost, O=Omaweb Lab");
+        compare(findChild(detail, "certificateRole").text, "self-signed");
+        verify(findChild(detail, "certificateChainEntry1") === null);
+        compare(findChild(detail, "certificateValue_issuer").text, "CN=localhost, O=Omaweb Lab");
         SystemClipboard.copyText("something the reader already had");
         keyClick(Qt.Key_Return);
         compare(SystemClipboard.text(), "CN=localhost, O=Omaweb Lab");
 
         keyClick(Qt.Key_Escape);
+        tryCompare(card, "detail", "");
+        keyClick(Qt.Key_Escape);
         tryVerify(function () {
-            return !dialog.visible;
+            return !card.visible;
         });
         verify(bar.open);
+        verify(focusIsInside(bar));
         verify(engine.certificateDecisions[requestId] === undefined);
         const block = findChild(bar, "questionAction2");
         settleActions(block);
@@ -2411,31 +2553,28 @@ TestCase {
         compare(engine.certificateDecisions[requestId], false);
     }
 
-    // Plain HTTP has no certificate, so there is nothing to offer and nothing
-    // to explain. An engine that cannot report the chain a page arrived over
-    // says so instead of leaving the button out without a word.
+    // Plain HTTP has no certificate, so there is no certificate tile. An https
+    // page whose engine has not reported its chain has the tile with nothing
+    // behind it, and nothing on it about the engine.
     function test_siteInformationOffersACertificateOnlyWhereThereIsOne() {
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
+        const card = siteCard();
+        const certificateTile = function () {
+            const tile = card.tiles.filter(function (entry) {
+                return entry.key === "certificate";
+            })[0];
+            return tile ? tile.value + (tile.drills ? " ›" : "") : "none";
+        };
         openPage("http://plain.example/page");
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const view = findChild(panel, "viewCertificate");
-        const missing = findChild(panel, "siteInformationNoCertificate");
-        const overHttp = [view.visible, missing.visible];
-        sidebar.statusOpen = false;
+        openSiteCard("");
+        const overHttp = certificateTile();
+        closeSiteCard();
 
         const engine = openPage("https://stock-engine.example/page");
         engine.pageCertificatesAvailable = false;
         engine.certificateChain = [];
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const stock = [view.visible, missing.visible, missing.text];
-        sidebar.statusOpen = false;
+        openSiteCard("");
+        const stock = certificateTile();
+        closeSiteCard();
         engine.pageCertificatesAvailable = true;
 
         // Plain HTTP offers none even where the engine still holds a chain
@@ -2443,35 +2582,28 @@ TestCase {
         const plain = openPage("http://stale.example/page");
         plain.certificateChain = plain.labCertificateChain("https://stale.example/page");
         verify(plain.certificateChain.length > 0);
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const staleOverHttp = view.visible;
-        sidebar.statusOpen = false;
+        openSiteCard("");
+        const staleOverHttp = certificateTile();
+        closeSiteCard();
 
         const engineHost = findChild(window.contentItem, "engineLoader");
         browser.openInput("about:blank", true);
         tryVerify(function () {
             return engineHost.item === null;
         });
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const atRest = view.visible;
-        sidebar.statusOpen = false;
+        openSiteCard("");
+        const atRest = certificateTile();
+        closeSiteCard();
         browser.closeActiveTab();
 
-        compare(overHttp, [false, false]);
-        compare(stock, [false, true,
-                        "· this engine cannot show the certificate a page arrived over"]);
-        verify(!staleOverHttp);
-        verify(!atRest);
+        compare(overHttp, "none");
+        compare(stock, "Not reported");
+        compare(staleOverHttp, "none");
+        compare(atRest, "none");
     }
 
     // A Private window's page arrived over a certificate like any other, and
-    // Site information there shows it the same way.
+    // its Site information shows it the same way.
     function test_aPrivateWindowShowsTheCertificateLikeAnyOther() {
         windowManager.openPrivateWindow();
         tryCompare(windowManager, "privateWindowCount", 1);
@@ -2481,42 +2613,45 @@ TestCase {
         tryVerify(function () {
             return privateEngine.item !== null;
         });
-        const sidebar = findChild(privateBrowser.contentItem, "sidebar");
-        const panel = findChild(privateBrowser.contentItem, "siteInformationPanel");
-        sidebar.statusOpen = true;
+        privateBrowser.openSiteInformation("certificate");
+        const card = findChild(privateBrowser.contentItem, "siteInformationCard");
         tryVerify(function () {
-            return panel.visible;
+            return card.visible;
         });
-        const view = findChild(panel, "viewCertificate");
-        const offered = view.visible;
-        settleActions(view);
-        mouseClick(view, view.width / 2, view.height / 2);
-        const dialog = findChild(privateBrowser.contentItem, "certificatePanel");
-        tryVerify(function () {
-            return dialog.visible;
-        });
-        const origin = findChild(dialog, "certificateOrigin").text;
-        const subject = findChild(dialog, "certificateValue_subject").text;
+        const detail = findChild(card, "certificateDetail");
+        const shown = detail.visible;
+        const origin = findChild(detail, "certificateOrigin").text;
+        const subject = findChild(detail, "certificateValue_subject").text;
         privateBrowser.windowBrowser.closeActiveTab();
         tryCompare(windowManager, "privateWindowCount", 0);
         window.requestActivate();
         tryVerify(function () {
             return window.active;
         });
-        verify(offered);
+        verify(shown);
         compare(origin, "private-chain.example · verified by the engine");
         compare(subject, "CN=private-chain.example");
     }
 
-    // The tally says how many; the list says which. An uncloaked refusal is
-    // listed under the address the page asked for, which is the one in the
-    // page's own network log, with the canonical name that explains it.
     // Settings names CNAME uncloaking as unsupported only on an engine that
     // lacks it, and the window is what tells it which engine this build has
     // (ADR 0050).
     function test_settingsKnowsWhetherThisBuildsEngineUncloaks() {
         const settings = findChild(window.contentItem, "settingsSurface");
         compare(settings.cnameUncloakingAvailable, EngineBuild.cnameUncloaking);
+    }
+
+    // Settings states what this build's engine cannot do about a site, and the
+    // window is what tells it.
+    function test_settingsKnowsWhatThisBuildsEngineCannotDoAboutASite() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare([settings.certificateDecisionsAvailable, settings.pageCertificatesAvailable,
+                 settings.thirdPartyCookieControlAvailable, settings.siteDataOnDisk,
+                 settings.insecureContentBlocked], [window.certificateDecisionsAvailable,
+                                                    window.pageCertificatesAvailable,
+                                                    window.thirdPartyCookieControlAvailable,
+                                                    window.siteDataOnDisk,
+                                                    window.insecureContentBlocked]);
     }
 
     // And the same for procedural cosmetic rules (ADR 0052).
@@ -2526,42 +2661,35 @@ TestCase {
                 EngineBuild.proceduralCosmeticFiltering);
     }
 
+    // The tally says how many; the list says which. An uncloaked refusal is
+    // listed under the address the page asked for, which is the one in the
+    // page's own network log, with the canonical name that explains it.
     function test_siteInformationListsTheRequestsItRefused() {
         openPage("https://news.example/story");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        const blocker = panel.blocker;
-        panel.blocker = refusingBlockerComponent.createObject(testCase);
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
+        const card = siteCard();
+        const blocker = card.blocker;
+        card.blocker = refusingBlockerComponent.createObject(testCase);
+        openSiteCard("");
+        const tally = findChild(card, "siteInformationTileValue_blocked").text;
+        closeSiteCard();
+        openSiteCard("blocked");
 
-        const tally = findChild(panel, "siteInformationBlocked");
-        const first = findChild(panel, "refusedRequest0");
-        const cloaked = findChild(panel, "refusedRequest1");
-        const third = findChild(panel, "refusedRequest2");
-        const fourth = findChild(panel, "refusedRequest3");
-        const overflow = findChild(panel, "refusedRequestOverflow");
-        const firstThrough = findChild(panel, "refusedRequestThrough0");
-        const cloakedThrough = findChild(panel, "refusedRequestThrough1");
-        const texts = [tally ? tally.text : null, first ? first.text : null, cloaked ? cloaked.text :
-                                                                                       null, third
-                       ? third.text : null, fourth !== null && fourth.visible, overflow
-                       ? overflow.text : null, firstThrough !== null && firstThrough.visible,
+        const first = findChild(card, "refusedRequest0");
+        const cloaked = findChild(card, "refusedRequest1");
+        const fourth = findChild(card, "refusedRequest4");
+        const overflow = findChild(card, "refusedRequestOverflow");
+        const firstThrough = findChild(card, "refusedRequestThrough0");
+        const cloakedThrough = findChild(card, "refusedRequestThrough1");
+        const texts = [tally, first ? first.text : null, cloaked ? cloaked.text : null, fourth
+                       !== null && fourth.visible ? fourth.text : null, overflow !== null
+                       && overflow.visible, firstThrough !== null && firstThrough.visible,
                        cloakedThrough !== null && cloakedThrough.visible ? cloakedThrough.text :
                                                                            null];
 
-        sidebar.statusOpen = false;
-        panel.blocker = blocker;
-        compare(texts[0], "· 5 requests blocked on this page");
-        compare(texts[1], "· ads.example/banner.js");
-        compare(texts[2], "· metrics.news.example/collect.js");
-        compare(texts[3], "· ads.example/second.js");
-        compare(texts[4], false);
-        compare(texts[5], "· and 2 more");
-        compare(texts[6], false);
-        compare(texts[7], "  through collect.tracker.example");
+        closeSiteCard();
+        card.blocker = blocker;
+        compare(texts, ["5 requests", "ads.example/banner.js", "metrics.news.example/collect.js",
+                        "ads.example/fourth.js", false, false, "through collect.tracker.example"]);
     }
 
     // With Secure DNS on, a page whose name could not be looked up says whose
@@ -2570,39 +2698,28 @@ TestCase {
     // found it.
     function test_siteInformationNamesTheResolverThatCouldNotFindTheSite() {
         const engine = openPage("https://unresolved.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
         verify(secureDns.useResolver("quad9"));
         engine.lastLoadNameUnresolved = true;
         // Choosing another resolver afterwards does not move the blame.
         verify(secureDns.useResolver("cloudflare"));
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const connection = findChild(window.contentItem, "siteInformationConnection");
-        const text = connection.text;
-        sidebar.statusOpen = false;
+        const card = openSiteCard("");
+        const text = findChild(card, "siteInformationVerdictDetail").text;
+        closeSiteCard();
         engine.lastLoadNameUnresolved = false;
         secureDns.turnOff();
-        compare(text, "· Quad9 could not find this site, over Secure DNS");
+        compare(text, "Quad9 could not find this site, over Secure DNS");
     }
 
     // A resolver the engine would not take looks nothing up: the system did,
     // so a name it could not find is not the chosen resolver's to answer for.
     function test_siteInformationBlamesNoResolverTheEngineRefused() {
         const engine = openPage("https://refused-resolver.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
         verify(secureDns.useResolver("quad9"));
         engineSecureDns.applied = false;
         engine.lastLoadNameUnresolved = true;
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const text = findChild(window.contentItem, "siteInformationConnection").text;
-        sidebar.statusOpen = false;
+        const card = openSiteCard("");
+        const text = findChild(card, "siteInformationVerdictDetail").text;
+        closeSiteCard();
         engine.lastLoadNameUnresolved = false;
         engineSecureDns.applied = true;
         secureDns.turnOff();
@@ -2611,142 +2728,85 @@ TestCase {
 
     function test_siteInformationCountsOneRefusalInTheSingular() {
         openPage("https://one-refusal.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        const blocker = panel.blocker;
-        panel.blocker = oneRefusalBlockerComponent.createObject(testCase);
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const text = findChild(panel, "siteInformationBlocked").text;
-        sidebar.statusOpen = false;
-        panel.blocker = blocker;
-        compare(text, "· 1 request blocked on this page");
+        const card = siteCard();
+        const blocker = card.blocker;
+        card.blocker = oneRefusalBlockerComponent.createObject(testCase);
+        openSiteCard("");
+        const text = findChild(card, "siteInformationTileValue_blocked").text;
+        closeSiteCard();
+        card.blocker = blocker;
+        compare(text, "1 request");
     }
 
-    // A section label leans away from what precedes it. The panel's own name is
-    // the first thing in it, so there is nothing to lean away from and the lean
-    // would read as dead space between the border and the name.
-    function test_siteInformationDoesNotLeanItsNameAwayFromNothing() {
-        openPage("https://panel-leading-label.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-
-        const name = findChild(panel, "siteInformationName");
-        const origin = findChild(window.contentItem, "siteInformationOrigin");
-        verify(name !== null);
-        compare(name.topPadding, name.overshoot);
-        // The gap under it is still the label's own, so the name is no closer
-        // to the origin it introduces than a section label ever is — the lean
-        // is reversed rather than the padding flattened.
-        verify(name.bottomPadding > name.topPadding);
-        // And the name starts where the panel's own padding puts it, not a
-        // section's worth of separation below it.
-        verify(name.mapToItem(panel, 0, 0).y < origin.mapToItem(panel, 0, 0).y);
-        verify(name.mapToItem(panel, 0, name.topPadding).y <= 14);
-
-        sidebar.statusOpen = false;
-        tryVerify(function () {
-            return !panel.visible;
-        });
-    }
-
-    // Nothing in the panel may reach past its own border. Every answer it
-    // offers is a button the reader has to be able to hit, and a button drawn
-    // outside the panel is drawn over the page behind it.
+    // Nothing in the card reaches past its own border, and the card stays on
+    // the window however narrow the window is. Every answer it offers is
+    // something the reader has to be able to hit.
     function test_siteInformationKeepsEveryAnswerInsideItsBorder() {
         const engine = openPage("https://panel-geometry.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        const width = window.sidebarWidth;
-        // The narrowest the sidebar goes, which is where an overflowing row
-        // shows up first. The layout carries the width on its next pass, so
-        // it is waited for.
-        window.sidebarWidth = window.sidebarMinimumWidth;
-        tryVerify(function () {
-            return sidebar.width === window.sidebarMinimumWidth;
-        });
+        const card = siteCard();
         engine.persistentProfilesAvailable = true;
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-
-        // The longest content the panel ever carries: a refused third party
-        // with an origin no sidebar is wide enough for, and an allowance.
-        panel.refusedThirdParties = ["https://private-user-images.githubusercontent.com",
-                                     "https://avatars.githubusercontent.com"];
+        const control = card.thirdPartyCookieControlAvailable;
+        card.thirdPartyCookieControlAvailable = true;
+        browser.setPermissionDecision("https://panel-geometry.example/page", "camera", 2);
+        browser.setPermissionDecision("https://panel-geometry.example/page", "geolocation", 3);
+        browser.setPermissionDecision("https://panel-geometry.example/page", "notifications", 3);
         browser.allowThirdPartyCookies("https://collector-pxxxxxx.eu-north-1.example", "payment");
-        panel.refreshSiteInformation();
-        panel.retainedDataBytes = 322.7 * 1024 * 1024;
-
-        const answers = ["clearSiteStorage", "clearSiteData", "resetSitePermissions",
-                         "manageThirdParties"];
-        const lines = ["siteInformationOrigin", "siteInformationConnection",
-                       "siteInformationSiteData", "siteInformationRetainedData",
-                       "siteInformationCookies", "refusedThirdParty0", "cookieAllowance0",
-                       "refusedThirdPartyOverflow", "siteInformationNoPermissions"];
-        for (const name of answers)
-            settleActions(findChild(window.contentItem, name));
-
-        // Measured first, asserted last: restoring the window before the
-        // verify keeps a failure here from reaching the next test.
         const problems = [];
-        const left = panel.mapToItem(window.contentItem, 0, 0).x;
-        const right = left + panel.width;
-        if (right > sidebar.width) {
-            problems.push("the panel ends at " + right + ", past the sidebar's " + sidebar.width);
-        }
-        for (const name of answers.concat(lines)) {
-            const item = findChild(window.contentItem, name);
-            if (item === null) {
-                if (answers.indexOf(name) !== -1)
+        const measure = function (names) {
+            const left = card.mapToItem(window.contentItem, 0, 0).x;
+            const right = left + card.width;
+            if (left < 0 || right > window.width)
+                problems.push("the card spans " + left + " to " + right + " in a window of "
+                              + window.width);
+            for (const name of names) {
+                const item = findChild(card, name);
+                if (item === null) {
                     problems.push(name + " is missing");
-                continue;
+                    continue;
+                }
+                if (!item.visible)
+                    continue;
+                const at = item.mapToItem(window.contentItem, 0, 0);
+                if (at.x < left)
+                    problems.push(name + " starts at " + at.x + ", left of " + left);
+                if (at.x + item.width > right)
+                    problems.push(name + " ends at " + (at.x + item.width) + ", past " + right);
             }
-            if (!item.visible)
-                continue;
-            const at = item.mapToItem(window.contentItem, 0, 0);
-            if (at.x < left)
-                problems.push(name + " starts at " + at.x + ", left of " + left);
-            if (at.x + item.width > right) {
-                problems.push(name + " ends at " + (at.x + item.width) + ", past " + right);
-            }
-        }
+        };
 
+        openSiteCard("");
+        settleActions(findChild(card, "resetSitePermissions"));
+        wait(250);
+        measure(["siteInformationHost", "siteInformationTile_third-parties",
+                 "sitePermissionChoice_notifications", "clearSiteStorage", "resetSitePermissions"]);
+        closeSiteCard();
+        openSiteCard("third-parties");
+        card.refusedThirdParties = ["https://private-user-images.githubusercontent.com",
+                                    "https://avatars.githubusercontent.com"];
+        settleActions(findChild(card, "manageThirdParties"));
+        wait(250);
+        measure(["refusedThirdParty0", "cookieAllowance0", "manageThirdParties"]);
+
+        closeSiteCard();
         browser.revokeThirdPartyCookieAllowance("https://collector-pxxxxxx.eu-north-1.example");
-        panel.refusedThirdParties = [];
+        browser.resetSitePermissions("https://panel-geometry.example/page");
+        card.refusedThirdParties = [];
+        card.thirdPartyCookieControlAvailable = control;
         engine.persistentProfilesAvailable = false;
-        sidebar.statusOpen = false;
-        window.sidebarWidth = width;
-        tryVerify(function () {
-            return !panel.visible;
-        });
-
         compare(problems.join("; "), "");
     }
 
-    // Every question the panel leads to is asked in the window's own centred
-    // dialog, which has room to name the scope. The panel goes away when the
+    // Every question the card leads to is asked in the window's own centred
+    // dialog, which has room to name the scope. The card goes away when the
     // dialog opens, so one surface holds the question.
-    // `prepare` runs once the panel is open, for the state the lab has no
-    // engine to supply — the panel reads that when it opens, so naming it
+    // `prepare` runs once the card is open, for the state the lab has no
+    // engine to supply — the card reads that when it opens, so naming it
     // earlier would be overwritten.
-    function openSiteAction(name, prepare) {
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
+    function openSiteAction(name, prepare, detail) {
+        const card = openSiteCard(detail === undefined ? "" : detail);
         if (prepare !== undefined)
-            prepare(panel);
-        const trigger = findChild(window.contentItem, name);
+            prepare(card);
+        const trigger = findChild(card, name);
         verify(trigger !== null, name + " is missing");
         verify(trigger.enabled, name + " is not enabled");
         settleActions(trigger);
@@ -2755,14 +2815,14 @@ TestCase {
         tryVerify(function () {
             return dialog.open;
         });
-        // One surface holds the question: the panel goes away behind it.
+        // One surface holds the question: the card goes away behind it.
         tryVerify(function () {
-            return !panel.visible;
+            return !card.visible;
         });
         return dialog;
     }
 
-    // The only clearing that is about the site the panel is headed by. The
+    // The only clearing that is about the site the card is headed by. The
     // engine exposes no per-origin removal, so the page is asked to empty its
     // own storage and reports what it managed to take.
     function test_siteInformationEmptiesOneSitesStorageThroughItsPage() {
@@ -2776,6 +2836,14 @@ TestCase {
         verify(dialog.message.indexOf("cookies are not included") !== -1);
         compare(engine.pageSiteDataClearCount, 0);
 
+        // Put away unanswered, nothing is taken.
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !dialog.open;
+        });
+        compare(engine.pageSiteDataClearCount, 0);
+
+        openSiteAction("clearSiteStorage");
         keyClick(Qt.Key_Return);
         tryVerify(function () {
             return engine.pageSiteDataClearCount === 1;
@@ -2809,79 +2877,98 @@ TestCase {
         engine.pageSiteData = ["local storage", "databases"];
     }
 
+    // Resetting is confirmed first, and then this site's decisions in this
+    // Space are gone.
+    function test_siteInformationResetsTheSitesPermissionsOnceConfirmed() {
+        openPage("https://reset-site.example/page");
+        verify(browser.setPermissionDecision("https://reset-site.example/page", "camera", 2));
+        const dialog = openSiteAction("resetSitePermissions");
+        verify(window.dialogMode === "reset-permissions");
+        verify(dialog.message.indexOf("reset-site.example") !== -1);
+        compare(browser.sitePermissions("https://reset-site.example/page").length, 1);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !dialog.open;
+        });
+        compare(browser.sitePermissions("https://reset-site.example/page").length, 1);
+
+        openSiteAction("resetSitePermissions");
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return browser.sitePermissions("https://reset-site.example/page").length === 0;
+        });
+        const notice = findChild(window.contentItem, "pageNotice");
+        tryVerify(function () {
+            return notice.message === "Reset every decision for this site";
+        });
+    }
+
     // Clearing cookies and cache is the Space's, because the engine can only
-    // take those for every site at once. The dialog says so before it happens.
-    function test_siteInformationClearsTheSpacesDataOnceConfirmed() {
+    // take those for every site at once, so it is not one of this site's
+    // actions: Settings' Browsing data is where it is done. The card still
+    // says how much the Space holds, as the Space's.
+    function test_siteInformationLeavesClearingTheSpaceToSettings() {
         const engine = openPage("https://space-data.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
         // An engine that keeps a profile on disk and names what it keeps
         // there, which the lab otherwise does not.
         engine.persistentProfilesAvailable = true;
-        sidebar.siteDataEntries = ["Cookies", "cache"];
-        sidebar.retainedDataEntries = ["Local Storage", "IndexedDB"];
-        window.spaceProfileHost.untouchedCategories = ["storage"];
+        const card = siteCard();
+        const entries = card.siteDataEntries;
+        const retainedEntries = card.retainedDataEntries;
+        card.siteDataEntries = ["Cookies", "cache"];
+        card.retainedDataEntries = ["Local Storage", "IndexedDB"];
 
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        sidebar.statusOpen = true;
+        openSiteCard("cookies");
+        const siteData = findChild(card, "siteInformationSiteData");
+        const sizes = [siteData !== null && siteData.visible ? findChild(siteData, "detailValue").text :
+                                                               null];
+        card.retainedDataBytes = 900 * 1024 * 1024;
         tryVerify(function () {
-            return panel.visible;
+            return findChild(card, "siteInformationRetainedData") !== null;
         });
-        const siteData = findChild(window.contentItem, "siteInformationSiteData");
-        tryVerify(function () {
-            return siteData.text.indexOf("of cookies and cache in this Space") !== -1;
+        const retained = findChild(card, "siteInformationRetainedData");
+        sizes.push(findChild(retained, "detailValue").text);
+        closeSiteCard();
+        openSiteCard("");
+        const actions = ["clearSiteStorage", "resetSitePermissions", "clearSiteData"].map(function (
+            name) {
+            return findChild(card, name) !== null;
         });
-        // What the engine holds and cannot take is a line of its own, never a
-        // byte counted as clearable.
-        const retained = findChild(window.contentItem, "siteInformationRetainedData");
-        verify(retained !== null);
-        verify(!retained.visible);
-        panel.retainedDataBytes = 900 * 1024 * 1024;
-        tryVerify(function () {
-            return retained.visible;
-        });
-        compare(retained.text, "· 900 MB of storage and databases");
-        sidebar.statusOpen = false;
+        closeSiteCard();
 
-        const dialog = openSiteAction("clearSiteData");
-        verify(dialog.message.indexOf("Every site in") !== -1);
-        verify(dialog.message.indexOf("Storage and databases stay") !== -1);
-        const cleared = window.spaceProfileHost.browsingDataClearCount;
+        window.settingsOpen = true;
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("privacy");
+        const clearButton = findChild(settings, "clearBrowsingDataButton");
+        const inSettings = clearButton !== null && clearButton.visible;
+        window.settingsOpen = false;
 
-        keyClick(Qt.Key_Return);
-        tryVerify(function () {
-            return window.spaceProfileHost.browsingDataClearCount === cleared + 1;
-        });
-        // The notice says what was taken, and the engine is what says which
-        // categories it could not take.
-        const notice = findChild(window.contentItem, "pageNotice");
-        tryVerify(function () {
-            return notice.showing;
-        });
-        compare(notice.message, "Cleared this Space's cookies and cache");
-        compare(notice.detail, "Site storage stayed: this engine has no way to remove them");
-
+        card.siteDataEntries = entries;
+        card.retainedDataEntries = retainedEntries;
         engine.persistentProfilesAvailable = false;
-        sidebar.siteDataEntries = [];
-        sidebar.retainedDataEntries = [];
-        window.spaceProfileHost.untouchedCategories = [];
+        verify(sizes[0] !== null && [" B", " kB", " MB"].some(function (unit) {
+            return sizes[0].endsWith(unit);
+        }), String(sizes[0]));
+        compare(sizes[1], "900 MB");
+        compare(actions, [true, true, false]);
+        verify(inSettings);
     }
 
-    // A blocked third party is named in the panel and answered in the dialog,
-    // where there is room to say what allowing one is for. A reader looking at
-    // an embedded asset host cannot judge it from its name alone.
+    // A blocked third party is named in the card's third-party detail and
+    // answered in the dialog, where there is room to say what allowing one is
+    // for. A reader looking at an embedded asset host cannot judge it from its
+    // name alone.
     function test_thirdPartyAllowanceIsChosenInTheDialog() {
         openPage("https://allowance.example/checkout");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
+        const card = siteCard();
+        const control = card.thirdPartyCookieControlAvailable;
+        card.thirdPartyCookieControlAvailable = true;
 
-        // With nothing refused and nothing allowed there is nothing to answer.
-        const trigger = findChild(window.contentItem, "manageThirdParties");
-        verify(trigger !== null);
-        verify(!trigger.enabled);
+        // With nothing refused and nothing allowed there is nothing to open.
+        openSiteCard("");
+        const empty = card.tiles[card.tiles.length - 1];
+        closeSiteCard();
 
         // The lab has no third-party filter, so the origins one would have
         // refused are named here.
@@ -2890,26 +2977,18 @@ TestCase {
         const name = function (surface) {
             surface.refusedThirdParties = refused;
         };
-        panel.refusedThirdParties = refused;
+        openSiteCard("third-parties");
+        name(card);
         tryVerify(function () {
-            return trigger.enabled;
+            return findChild(card, "refusedThirdParty3") !== null;
         });
-        // Only the first few are listed; the rest are the dialog's to show.
-        verify(findChild(window.contentItem, "refusedThirdParty2") !== null);
-        compare(findChild(window.contentItem, "refusedThirdParty3"), null);
-        const overflow = findChild(window.contentItem, "refusedThirdPartyOverflow");
-        tryVerify(function () {
-            return overflow.visible;
-        });
-        compare(overflow.text, "· and 1 more, listed under third parties");
+        const listed = findChild(findChild(card, "refusedThirdParty3"), "detailValue").text;
+        closeSiteCard();
 
-        sidebar.statusOpen = false;
-
-        const dialog = openSiteAction("manageThirdParties", name);
+        const dialog = openSiteAction("manageThirdParties", name, "third-parties");
         verify(dialog.message.indexOf("not working") !== -1);
         verify(dialog.message.indexOf("does not need it") !== -1);
         compare(window.thirdPartyRows.length, 8);
-        compare(findChild(window.contentItem, "commandDialogRow0").objectName, "commandDialogRow0");
 
         // The second row is the payment answer for the first origin.
         keyClick(Qt.Key_Down);
@@ -2927,19 +3006,19 @@ TestCase {
         compare(notice.message, "Allowing https://pay.example");
         verify(notice.detail.indexOf("for a payment") !== -1);
 
-        // The panel now names it as allowed, beside the ones still refused.
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        panel.refusedThirdParties = refused;
-        const allowed = findChild(window.contentItem, "cookieAllowance0");
-        verify(allowed !== null);
-        compare(allowed.text, "· https://pay.example — allowed for payment");
-        sidebar.statusOpen = false;
+        // The card now counts it, and names it as allowed beside the ones
+        // still refused.
+        openSiteCard("");
+        const tile = findChild(card, "siteInformationTileValue_third-parties").text;
+        closeSiteCard();
+        openSiteCard("third-parties");
+        name(card);
+        const allowed = findChild(card, "cookieAllowance0");
+        const allowance = [findChild(allowed, "detailValue").text, allowed.label];
+        closeSiteCard();
 
         // An allowance is taken back the same way, from the top of the list.
-        openSiteAction("manageThirdParties", name);
+        openSiteAction("manageThirdParties", name, "third-parties");
         compare(window.thirdPartyRows[0].purpose, "");
         keyClick(Qt.Key_Return);
         tryVerify(function () {
@@ -2950,45 +3029,385 @@ TestCase {
             return notice.message === "Stopped allowing https://pay.example";
         });
 
-        panel.refusedThirdParties = [];
+        card.refusedThirdParties = [];
+        card.thirdPartyCookieControlAvailable = control;
+        compare([empty.value, empty.drills], ["None allowed", false]);
+        compare(listed, "https://fonts.example");
+        compare(tile, "1 allowed");
+        compare(allowance, ["https://pay.example", "Allowed for a payment"]);
     }
 
-    function test_siteStatusStaysWithAddressAndDismisses() {
-        openPage("https://status-position.example");
+    // The permissions a site has rows for, as `kind=choice`.
+    function permissionSummary(card) {
+        return card.permissionRows.map(function (row) {
+            const choice = findChild(card, "sitePermissionChoice_" + row.permission);
+            return row.permission + "=" + (choice ? findChild(choice,
+                                                              "permissionDropdownValue").text :
+                                                    "missing");
+        });
+    }
+
+    // Only what this site asked for or the reader decided in this Space has a
+    // row. A site that never asked has none, rather than a line saying so.
+    function test_siteInformationListsOnlyPermissionsAskedOrDecided() {
+        const site = "https://asked-or-decided.example/page";
+        const engine = openPage(site);
+        const card = openSiteCard("");
+        const never = permissionSummary(card);
+        const noRow = findChild(card, "sitePermission_camera");
+        closeSiteCard();
+
+        verify(browser.setPermissionDecision(site, "camera", BrowserController.AllowPersistently));
+        verify(browser.setPermissionDecision(site, "notifications", BrowserController.Block));
+        openSiteCard("");
+        const decided = permissionSummary(card);
+        closeSiteCard();
+
+        // A question the page has open is a permission it asked for, before
+        // there is any answer.
+        verify(engine.simulateSitePermission("https://asked-or-decided.example",
+                                             "geolocation").length > 0);
+        tryCompare(window, "permissionOpen", true);
+        openSiteCard("");
+        const asked = permissionSummary(card);
+        closeSiteCard();
+        window.respondToPermission(BrowserController.Block);
+        browser.resetSitePermissions(site);
+
+        // Another Space holds no decision of this one's.
+        compare(never, []);
+        compare(noRow, null);
+        compare(decided, ["camera=Allow", "notifications=Block"]);
+        compare(asked, ["camera=Allow", "geolocation=Ask", "notifications=Block"]);
+    }
+
+    function test_siteInformationPermissionTakesEachChoice_data() {
+        return [
+                    {
+                        "tag": "allow",
+                        "from": BrowserController.Block,
+                        "label": "Allow",
+                        "decision": BrowserController.AllowPersistently
+                    },
+                    {
+                        "tag": "ask",
+                        "from": BrowserController.AllowPersistently,
+                        "label": "Ask",
+                        "decision": BrowserController.Ask
+                    },
+                    {
+                        "tag": "block",
+                        "from": BrowserController.AllowOnce,
+                        "label": "Block",
+                        "decision": BrowserController.Block
+                    }
+                ];
+    }
+
+    // Choosing in a permission's dropdown is the decision: the core answers
+    // the site's next request with it, the engine is told to forget its own
+    // record so that request reaches the core, and it is kept in the Space,
+    // where the card finds it again.
+    function test_siteInformationPermissionTakesEachChoice(data) {
+        const site = "https://choice-" + data.tag + ".example/page";
+        openPage(site);
+        settleMotion();
+        verify(browser.setPermissionDecision(site, "camera", data.from));
+        const resets = window.spaceProfileHost.resetPermissionOrigins.length;
+        const card = openSiteCard("");
+        const choice = findChild(card, "sitePermissionChoice_camera");
+        verify(choice !== null);
+        settleActions(choice);
+        wait(250);
+        mouseClick(choice, choice.width / 2, choice.height / 2);
+        let option = null;
+        tryVerify(function () {
+            option = findChild(choice.optionItems, "permissionOption_" + data.tag);
+            return option !== null && option.visible && option.width > 0;
+        });
+        mouseClick(option, option.width / 2, option.height / 2);
+        tryCompare(findChild(choice, "permissionDropdownValue"), "text", data.label);
+        closeSiteCard();
+
+        const stored = browser.sitePermissions(site).map(function (row) {
+            return row.permission + "=" + row.decision;
+        });
+        const engineTold = window.spaceProfileHost.resetPermissionOrigins.slice(resets);
+        openSiteCard("");
+        const again = permissionSummary(card);
+        closeSiteCard();
+        const answered = browser.permissionDecision(site, "camera");
+        browser.resetSitePermissions(site);
+
+        compare(stored, ["camera=" + data.decision]);
+        compare(engineTold, [site]);
+        compare(again, ["camera=" + data.label]);
+        compare(answered, data.decision);
+    }
+
+    // The dropdown answers the keyboard as the kit's does: Return opens it,
+    // the arrows walk it, Return picks, and Escape puts it away before the
+    // card's own Escape is reached.
+    function test_siteInformationPermissionAnswersTheKeyboard() {
+        const site = "https://choice-keys.example/page";
+        openPage(site);
+        settleMotion();
+        verify(browser.setPermissionDecision(site, "notifications", BrowserController.Block));
+        const card = openSiteCard("");
+        const choice = findChild(card, "sitePermissionChoice_notifications");
+        choice.forceActiveFocus();
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return choice.popupOpen;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !choice.popupOpen;
+        });
+        const stillOpen = card.visible;
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return choice.popupOpen;
+        });
+        keyClick(Qt.Key_Up);
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return !choice.popupOpen;
+        });
+        const answered = browser.permissionDecision(site, "notifications");
+        closeSiteCard();
+        browser.resetSitePermissions(site);
+        verify(stillOpen);
+        compare(answered, BrowserController.Ask);
+    }
+
+    // Site information, as the window hosts it: a card over the page edge,
+    // floating from the address it reports on.
+    function siteCard() {
+        const card = findChild(window.contentItem, "siteInformationCard");
+        verify(card !== null, "there is no Site information card");
+        return card;
+    }
+
+    function openSiteCard(detail) {
+        window.openSiteInformation(detail === undefined ? "" : detail);
+        const card = siteCard();
+        tryVerify(function () {
+            return card.visible && card.open;
+        });
+        return card;
+    }
+
+    function closeSiteCard() {
+        window.closeSiteInformation();
+        const card = siteCard();
+        tryVerify(function () {
+            return !card.visible;
+        });
+    }
+
+    // The lock opens the card at its top, under the address, about 400 px wide
+    // and over the edge of the page rather than inside the sidebar.
+    function test_theLockOpensSiteInformationAtItsTop() {
+        openPage("https://status-position.example/page");
         const sidebar = findChild(window.contentItem, "sidebar");
         const address = findChild(window.contentItem, "addressButton");
         const security = findChild(window.contentItem, "securityIndicator");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
-        verify(sidebar !== null);
-        verify(address !== null);
-        verify(security !== null);
-        verify(panel !== null);
+        const card = siteCard();
+        verify(!card.visible);
 
         mouseClick(security, security.width / 2, security.height / 2);
         tryVerify(function () {
-            return panel.visible;
+            return card.visible;
         });
-        // The panel unfolds from the address, so its place is read once it
-        // has settled there.
+        compare(card.detail, "");
+        compare(findChild(card, "siteInformationVerdict").text, "Connection is secure");
+        compare(findChild(card, "siteInformationHost").text, "status-position.example");
+        // It unfolds from the address, so its place is read once it settles.
         const addressBottom = address.mapToItem(window.contentItem, 0, address.height).y;
         tryVerify(function () {
-            const panelTop = panel.mapToItem(window.contentItem, 0, 0).y;
-            return panelTop >= addressBottom + 6 && panelTop <= addressBottom + 10;
+            const top = card.mapToItem(window.contentItem, 0, 0).y;
+            return top >= addressBottom + 6 && top <= addressBottom + 10;
         });
+        compare(card.mapToItem(window.contentItem, 0, 0).x, address.mapToItem(window.contentItem, 0,
+                                                                              0).x);
+        compare(card.width, 400);
+        verify(card.mapToItem(window.contentItem, card.width, 0).x > sidebar.width);
 
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
-            return !panel.visible;
+            return !card.visible;
         });
 
+        // A click anywhere off the card puts it away, and only that.
         mouseClick(security, security.width / 2, security.height / 2);
         tryVerify(function () {
-            return panel.visible;
+            return card.visible;
         });
-        mouseClick(window.contentItem, sidebar.width + 80, window.height / 2);
+        mouseClick(window.contentItem, window.width - 40, window.height - 40);
         tryVerify(function () {
-            return !panel.visible;
+            return !card.visible;
         });
+    }
+
+    // The shield beside the address counts what Content blocking refused, and
+    // a click on it opens the card straight at those requests.
+    function test_theShieldOpensSiteInformationAtTheBlockedRequests() {
+        openPage("https://news.example/story");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const card = siteCard();
+        const outlineBlocker = sidebar.blocker;
+        const cardBlocker = card.blocker;
+        const refusing = refusingBlockerComponent.createObject(testCase);
+        sidebar.blocker = refusing;
+        card.blocker = refusing;
+        const shield = findChild(window.contentItem, "blockedRequestIndicator");
+        tryVerify(function () {
+            return shield.visible;
+        });
+
+        mouseClick(shield, shield.width / 2, shield.height / 2);
+        tryVerify(function () {
+            return card.visible;
+        });
+        const detail = card.detail;
+        const first = findChild(card, "refusedRequest0");
+        const cloakedThrough = findChild(card, "refusedRequestThrough1");
+        const texts = [first ? first.text : null, cloakedThrough && cloakedThrough.visible
+                       ? cloakedThrough.text : null];
+        closeSiteCard();
+        sidebar.blocker = outlineBlocker;
+        card.blocker = cardBlocker;
+        compare(detail, "blocked");
+        compare(texts, ["ads.example/banner.js", "through collect.tracker.example"]);
+    }
+
+    // The command and its key open the card at its top, and both are named
+    // where the reader looks keys up: the Shortcut sheet, and the command's
+    // own row in command scope.
+    function test_siteInformationOpensFromItsCommandAndItsKey() {
+        openPage("https://command-site.example/page");
+        activateWindow();
+        const card = siteCard();
+        verify(window.commands.run("site-information", -1));
+        tryVerify(function () {
+            return card.visible;
+        });
+        compare(card.detail, "");
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !card.visible;
+        });
+
+        keyClick(Qt.Key_L, Qt.ControlModifier | Qt.ShiftModifier);
+        tryVerify(function () {
+            return card.visible;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !card.visible;
+        });
+
+        const keys = window.commands.keymap.keysFor("site-information");
+        compare(keys, window.commands.keymap.displayFor("Primary+Shift+L"));
+
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        let sheetKeys = "";
+        for (let group = 0; group < sheet.sections.length; ++group) {
+            const entries = sheet.sections[group].entries;
+            for (let index = 0; index < entries.length; ++index) {
+                if (entries[index].title === "Site information")
+                    sheetKeys = entries[index].keys;
+            }
+        }
+        compare(sheetKeys, keys);
+
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        // The keys above left the window keyboard-driven, so the Omnibar
+        // opens without easing in.
+        window.openCommandScope();
+        tryCompare(panel, "visible", true);
+        input.text = "site information";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        const row = panel.rows[0];
+        const caps = findChild(omnibarRowItem(list, 0), "omnibarRowKeys");
+        const shown = caps ? caps.keys : "";
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+        compare(row.command, "site-information");
+        compare(row.keys, keys);
+        compare(shown, keys);
+    }
+
+    // Every tile opens its detail inside the card and comes back to the top,
+    // by pointer and by keyboard. Escape steps back, and Escape again closes.
+    function test_eachSiteInformationTileDrillsInAndBack() {
+        openPage("https://drill.example/page");
+        activateWindow();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const card = siteCard();
+        const cardBlocker = card.blocker;
+        const control = card.thirdPartyCookieControlAvailable;
+        card.blocker = refusingBlockerComponent.createObject(testCase);
+        card.thirdPartyCookieControlAvailable = true;
+        openSiteCard("");
+        card.refusedThirdParties = ["https://pay.example"];
+
+        const tiles = ["certificate", "blocked", "cookies", "third-parties"];
+        // The grid places its tiles on its next pass; until then the last one
+        // lies over the first.
+        tryVerify(function () {
+            return findChild(card, "siteInformationTile_third-parties").y > 0;
+        });
+        const byPointer = [];
+        for (const name of tiles) {
+            const tile = findChild(card, "siteInformationTile_" + name);
+            verify(tile !== null, name);
+            mouseClick(tile, tile.width / 2, tile.height / 2);
+            tryCompare(card, "detail", name);
+            const width = card.width;
+            const back = findChild(card, "siteInformationBack");
+            verify(back.visible);
+            compare(back.text, "‹ drill.example");
+            mouseClick(back, back.width / 2, back.height / 2);
+            tryCompare(card, "detail", "");
+            byPointer.push(width);
+        }
+        compare(byPointer, [400, 400, 400, 400]);
+
+        // The keyboard is on the first tile when the card opens; the arrows
+        // walk the grid, two to a row.
+        const byKeyboard = [];
+        const moves = [[], [Qt.Key_Right], [Qt.Key_Down], [Qt.Key_Down, Qt.Key_Right]];
+        for (let index = 0; index < tiles.length; ++index) {
+            closeSiteCard();
+            window.commands.run("site-information", -1);
+            tryVerify(function () {
+                return card.visible;
+            });
+            // The lab has no third-party filter, and the card asks it again
+            // each time it opens.
+            card.refusedThirdParties = ["https://pay.example"];
+            for (const key of moves[index])
+                keyClick(key);
+            keyClick(Qt.Key_Return);
+            byKeyboard.push(card.detail);
+            keyClick(Qt.Key_Escape);
+            byKeyboard.push(card.detail + (card.visible ? ":open" : ":closed"));
+        }
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !card.visible;
+        });
+        card.refusedThirdParties = [];
+        card.blocker = cardBlocker;
+        card.thirdPartyCookieControlAvailable = control;
+        compare(byKeyboard, ["certificate", ":open", "blocked", ":open", "cookies", ":open",
+                             "third-parties", ":open"]);
     }
 
     // A page that sets its own cursor, as the engine's view does over a link.
@@ -3021,14 +3440,14 @@ TestCase {
             return cursorProbe.shape(window) === Qt.PointingHandCursor;
         });
 
-        sidebar.statusOpen = true;
+        window.openSiteInformation("");
         mouseMove(page, x + 2, y);
         tryVerify(function () {
             return cursorProbe.shape(window) === Qt.PointingHandCursor;
         });
 
         mouseClick(page, x + 2, y);
-        tryCompare(sidebar, "statusOpen", false);
+        tryCompare(window, "siteInformationOpen", false);
         compare(page.presses, 0);
         mouseClick(page, x + 2, y);
         compare(page.presses, 1);
@@ -12232,17 +12651,12 @@ TestCase {
     // sent it there.
     function test_siteInformationSaysHttpsOnlyModeUpgradedThePage() {
         const engine = openPage("https://upgraded.example/page");
-        const sidebar = findChild(window.contentItem, "sidebar");
-        const panel = findChild(window.contentItem, "siteInformationPanel");
         engine.arrivedThroughHttpsUpgrade = true;
-        sidebar.statusOpen = true;
-        tryVerify(function () {
-            return panel.visible;
-        });
-        const upgraded = findChild(panel, "siteInformationConnection").text;
-        sidebar.statusOpen = false;
+        const card = openSiteCard("");
+        const upgraded = findChild(card, "siteInformationVerdictDetail").text;
+        closeSiteCard();
         engine.arrivedThroughHttpsUpgrade = false;
-        verify(upgraded.endsWith(" · upgraded from HTTP by HTTPS-only mode"), upgraded);
+        compare(upgraded, "Encrypted · upgraded from HTTP by HTTPS-only mode");
     }
 
     // A Private window remembers nothing, so its page offers the plain

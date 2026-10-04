@@ -92,6 +92,7 @@ namespace {
         QStringLiteral("move-focus-up"),
         QStringLiteral("move-focus-right"),
         QStringLiteral("copy-address"),
+        QStringLiteral("site-information"),
         QStringLiteral("find"),
         QStringLiteral("find-next"),
         QStringLiteral("find-previous"),

@@ -400,13 +400,12 @@ ApplicationWindow {
     property var pendingCertificateResponder: null
     property bool certificateQuestionOpen: false
 
-    // The certificate view, and what it was opened on. The chain is the one
-    // on show when it opened: a page that moves on underneath it does not
-    // change what the reader is reading.
-    property bool certificateViewOpen: false
+    // Site information, and the certificate its certificate detail shows when
+    // the certificate question opened it: the chain the engine refused, as it
+    // was when the reader asked to see it.
+    property bool siteInformationOpen: false
     property var certificateViewChain: []
     property string certificateViewOrigin: ""
-    property bool certificateViewVerified: true
     // Whether the certificate question opened it, so closing it hands the
     // keyboard back to the question rather than the page.
     property bool certificateViewFromQuestion: false
@@ -2019,7 +2018,37 @@ ApplicationWindow {
         window.certificateQuestionOpen = true;
     }
 
-    function showCertificate(chain, address, verified, fromQuestion) {
+    // Site information floats from the address, so a collapsed sidebar peeks
+    // for as long as the card is open. `detail` opens it at one of its tiles.
+    function openSiteInformation(detail) {
+        if (window.sidebarCollapsed)
+            window.sidebarPeeked = true;
+        if (detail !== "certificate")
+            window.certificateViewFromQuestion = false;
+        siteInformationCard.detail = detail || "";
+        window.siteInformationOpen = true;
+        siteInformationCard.forceActiveFocus();
+    }
+
+    function closeSiteInformation() {
+        window.siteInformationOpen = false;
+        window.certificateViewFromQuestion = false;
+    }
+
+    // Escape at the card's top: the keyboard goes back to where it was asked
+    // from, the certificate question or the page.
+    function dismissSiteInformation() {
+        const fromQuestion = window.certificateViewFromQuestion;
+        window.closeSiteInformation();
+        if (fromQuestion && window.certificateQuestionOpen)
+            certificateQuestionBar.forceActiveFocus();
+        else
+            window.focusPage();
+    }
+
+    // The certificate question's chain is one the engine refused before any
+    // page arrived over it, so the card shows that one rather than the page's.
+    function showRefusedCertificate(chain, address) {
         if (!chain || chain.length === 0)
             return;
         const text = String(address);
@@ -2028,17 +2057,8 @@ ApplicationWindow {
         window.certificateViewOrigin = (separator === -1 ? text : text.substring(separator
                                                                                  + 3)).split(
                     "/")[0];
-        window.certificateViewVerified = verified;
-        window.certificateViewFromQuestion = fromQuestion === true;
-        window.certificateViewOpen = true;
-    }
-
-    function closeCertificate() {
-        window.certificateViewOpen = false;
-        if (window.certificateViewFromQuestion && window.certificateQuestionOpen)
-            certificateQuestionBar.forceActiveFocus();
-        else
-            window.focusPage();
+        window.openSiteInformation("certificate");
+        window.certificateViewFromQuestion = true;
     }
 
     function respondToCertificateError(accepted) {
@@ -2076,7 +2096,7 @@ ApplicationWindow {
         }
         // Read from the panel, which asked the engine's filter when it opened.
         // Asking again here would be a second place that knows how to.
-        const refused = sidebar.refusedThirdParties;
+        const refused = siteInformationCard.refusedThirdParties;
         for (let index = 0; index < refused.length; ++index) {
             rows.push({
                           "label": qsTr("allow %1 for a sign-in").arg(refused[index]),
@@ -2112,27 +2132,6 @@ ApplicationWindow {
                                               qsTr("for a sign-in · until this session ends · reload the page to use it"),
                               4200);
         }
-    }
-
-    // What the engine could not remove, said as one sentence per case so that
-    // no list is joined from translated pieces.
-    function stayedNotice(stayed) {
-        const cookies = stayed.indexOf("cookies") >= 0;
-        const storage = stayed.indexOf("storage") >= 0;
-        if (cookies && storage)
-            return qsTr("Cookies and site storage stayed: this engine has no way to remove them");
-        if (cookies)
-            return qsTr("Cookies stayed: this engine has no way to remove them");
-        return qsTr("Site storage stayed: this engine has no way to remove them");
-    }
-
-    function clearSpaceSiteData() {
-        const cleared = window.windowBrowser.clearBrowsingData(["cookies", "storage", "cache"], 0);
-        const stayed = window.untouchedDataCategories;
-        window.showNotice(cleared ? "delete_sweep" : "block", cleared ? qsTr(
-                                                                            "Cleared this Space's cookies and cache") :
-                                                                        qsTr("Could not clear this Space's site data"),
-                          cleared && stayed.length > 0 ? window.stayedNotice(stayed) : "");
     }
 
     function resetSitePermissions() {
@@ -2727,7 +2726,7 @@ ApplicationWindow {
         enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen && !window.settingsOpen
                  && !window.historyOpen && !window.pageMenuOpen && !window.permissionOpen &&
                  !window.certificateQuestionOpen && window.dialogMode.length === 0 &&
-                 !window.certificateViewOpen
+                 !window.siteInformationOpen
         context: Qt.WindowShortcut
         onActivated: window.exitSiteFullscreen()
     }
@@ -2740,7 +2739,7 @@ ApplicationWindow {
         enabled: window.glanceOpen && !engineLoader.siteFullscreenActive && !window.omnibarOpen &&
                  !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen &&
                  !window.permissionOpen && !window.certificateQuestionOpen
-                 && window.dialogMode.length === 0 && !window.certificateViewOpen
+                 && window.dialogMode.length === 0 && !window.siteInformationOpen
         context: Qt.WindowShortcut
         onActivated: window.closeGlance()
     }
@@ -2836,21 +2835,11 @@ ApplicationWindow {
                 easeSpaces: window.chromeEase
                 spacesCanMove: !window.reducedMotion
                 connectionState: window.connectionState
-                lookupFailedBy: window.lookupFailedBy
-                upgradedByHttpsOnly: !!engineLoader.item
-                                     && engineLoader.item.arrivedThroughHttpsUpgrade === true
-                certificateDecisionsAvailable: window.certificateDecisionsAvailable
-                certificateChain: window.certificateChain
-                pageCertificatesAvailable: window.pageCertificatesAvailable
-                thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
-                siteDataOnDisk: window.siteDataOnDisk
-                insecureContentBlocked: window.insecureContentBlocked
-                cookiePolicy: engineCookiePolicy
-                siteDataEntries: window.spaceProfileHost ? window.spaceProfileHost.siteDataEntries :
-                                                           []
-                retainedDataEntries: window.spaceProfileHost
-                                     ? window.spaceProfileHost.retainedDataEntries : []
-                siteDataGeneration: window.siteDataGeneration
+                statusOpen: window.siteInformationOpen
+                onSiteInformationRequested: function (detail) {
+                    window.openSiteInformation(detail);
+                }
+                onSiteInformationDismissed: window.closeSiteInformation()
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
@@ -2871,21 +2860,6 @@ ApplicationWindow {
                     // something else, and a notice that takes the page away is
                     // the interruption this deliberately is not.
                     window.windowBrowser.openInput(notes.toString(), true);
-                }
-
-                // The panel states; the window asks. Opening the dialog puts
-                // the panel away, so there is one surface holding the question.
-                onSiteActionRequested: function (action) {
-                    sidebar.statusOpen = false;
-                    if (action === "certificate") {
-                        window.showCertificate(window.certificateChain,
-                                               window.windowBrowser.activeUrl,
-                                               window.connectionState === "secure");
-                        return;
-                    }
-                    if (action === "third-party")
-                        window.refreshThirdPartyRows();
-                    window.dialogMode = action;
                 }
 
                 onAddressRequested: window.openOmnibar(false)
@@ -3756,9 +3730,9 @@ ApplicationWindow {
 
                     onActionTriggered: function (index) {
                         if (index === 1) {
-                            window.showCertificate(window.pendingCertificateFailure.certificateChain,
-                                                   window.pendingCertificateFailure.url, false,
-                                                   true);
+                            window.showRefusedCertificate(
+                                        window.pendingCertificateFailure.certificateChain,
+                                        window.pendingCertificateFailure.url);
                             return;
                         }
                         window.respondToCertificateError(index === 0);
@@ -3881,6 +3855,11 @@ ApplicationWindow {
                     knownExtensions: window.knownExtensions
                     knownExtensionsAvailable: window.knownExtensionsAvailable
                     cnameUncloakingAvailable: window.cnameUncloakingAvailable
+                    certificateDecisionsAvailable: window.certificateDecisionsAvailable
+                    pageCertificatesAvailable: window.pageCertificatesAvailable
+                    thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
+                    siteDataOnDisk: window.siteDataOnDisk
+                    insecureContentBlocked: window.insecureContentBlocked
                     proceduralCosmeticFilteringAvailable:
                         window.proceduralCosmeticFilteringAvailable
                     privateWindow: window.privateWindow
@@ -4173,14 +4152,14 @@ ApplicationWindow {
             x: chromeRow.seam
             width: parent.width - x
             height: parent.height
-            visible: sidebar.statusOpen
+            visible: window.siteInformationOpen
             z: 50
             // A MouseArea wears the arrow unless told otherwise, and the
             // topmost item with a cursor is the one the window shows. The page
             // under this still gets hover, so it says which shape the pointer
             // takes; the click stays here and only closes the status.
             cursorShape: undefined
-            onClicked: sidebar.statusOpen = false
+            onClicked: window.closeSiteInformation()
         }
 
         MouseArea {
@@ -4209,7 +4188,7 @@ ApplicationWindow {
             // Give the hover handler one event turn to take over from the edge
             // when the sidebar first appears, then put a peek away on exit.
             interval: 120
-            running: window.sidebarPeeked && !sidebarHover.hovered
+            running: window.sidebarPeeked && !sidebarHover.hovered && !window.siteInformationOpen
             onTriggered: window.sidebarPeeked = false
         }
 
@@ -4567,17 +4546,75 @@ ApplicationWindow {
         }
     }
 
-    CertificateDialog {
-        id: certificateDialog
+    // Site information, over the page edge from the address it reports on.
+    // A layer of its own above the window's chrome and below its dialogs, so
+    // the card is never clipped to the outline it floats from.
+    Item {
+        id: siteInformationLayer
         anchors.fill: parent
-        z: 61
-        colors: window.colors
-        open: window.certificateViewOpen
-        chain: window.certificateViewChain
-        origin: window.certificateViewOrigin
-        verified: window.certificateViewVerified
+        z: 55
 
-        onDismissed: window.closeCertificate()
+        // Where the address is when the card opens, which is where it unfolds
+        // from. Read again while open as the sidebar moves or is resized.
+        readonly property point anchor: {
+            const width = sidebar.width + sidebar.x;
+            const shown = window.siteInformationOpen;
+            const address = sidebar.addressItem;
+            if (!address || !shown || width < 0)
+                return Qt.point(16, 64);
+            return address.mapToItem(siteInformationLayer, 0, address.height + 8);
+        }
+
+        SiteInformationCard {
+            id: siteInformationCard
+            x: Math.max(8, Math.min(siteInformationLayer.anchor.x, siteInformationLayer.width - width
+                                    - 8))
+            y: siteInformationLayer.anchor.y
+            transform: SheetLift {
+                id: siteLift
+                shown: window.siteInformationOpen
+                ease: window.chromeEase
+                distance: -8
+            }
+            opacity: siteLift.progress
+            visible: siteLift.showing
+            colors: window.colors
+            iconFontFamily: materialSymbols.name
+            browser: window.windowBrowser
+            blocker: contentBlocker
+            cookiePolicy: engineCookiePolicy
+            activeUrl: window.windowBrowser.activeUrl
+            blank: sidebar.blank
+            privateWindow: window.privateWindow
+            connectionState: window.connectionState
+            lookupFailedBy: window.lookupFailedBy
+            upgradedByHttpsOnly: !!engineLoader.item
+                                 && engineLoader.item.arrivedThroughHttpsUpgrade === true
+            certificateChain: window.certificateViewFromQuestion ? window.certificateViewChain :
+                                                                   window.certificateChain
+            certificateOrigin: window.certificateViewFromQuestion ? window.certificateViewOrigin :
+                                                                    siteInformationCard.originLabel
+            certificateVerified: !window.certificateViewFromQuestion && window.connectionState
+                                 === "secure"
+            thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
+            siteDataOnDisk: window.siteDataOnDisk
+            siteDataEntries: window.spaceProfileHost ? window.spaceProfileHost.siteDataEntries : []
+            retainedDataEntries: window.spaceProfileHost
+                                 ? window.spaceProfileHost.retainedDataEntries : []
+            siteDataGeneration: window.siteDataGeneration
+            askedPermission: window.permissionOpen ? window.pendingPermissionType : ""
+            open: window.siteInformationOpen
+
+            onCloseRequested: window.dismissSiteInformation()
+            // The card states; the window asks. Opening the dialog puts the
+            // card away, so there is one surface holding the question.
+            onActionRequested: function (action) {
+                window.closeSiteInformation();
+                if (action === "third-party")
+                    window.refreshThirdPartyRows();
+                window.dialogMode = action;
+            }
+        }
     }
 
     CommandDialog {
@@ -4588,7 +4625,7 @@ ApplicationWindow {
         colors: window.colors
         open: window.dialogMode.length > 0
         destructive: window.dialogMode === "delete" || window.dialogMode === "confirm-move"
-                     || window.dialogMode === "space-data" || window.dialogMode === "site-storage"
+                     || window.dialogMode === "site-storage"
         inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
                       || window.dialogMode === "delete"
         selectPreset: window.dialogMode === "rename"
@@ -4610,8 +4647,6 @@ ApplicationWindow {
                 return qsTr("discard edited form state");
             case "site-storage":
                 return qsTr("clear this site's storage");
-            case "space-data":
-                return qsTr("clear this Space's site data");
             case "reset-permissions":
                 return qsTr("reset this site's permissions");
             case "third-party":
@@ -4642,22 +4677,17 @@ ApplicationWindow {
                             "This page has edited form state. Moving it reloads the page under the "
                             + "destination identity and discards those edits.");
             }
-            // Each of these names its own scope, because the three of them are
-            // three different sizes and only the wording tells them apart.
+            // Each of these names its own scope, because the two of them are
+            // different sizes and only the wording tells them apart.
             if (window.dialogMode === "site-storage") {
                 return qsTr(
                             "%1 loses the local storage, databases, caches and service workers it kept in this Space. Its cookies are not included: the engine can only take those for every site at once. The page may misbehave until it is reloaded, and this cannot be undone.").arg(
-                            sidebar.siteOrigin);
-            }
-            if (window.dialogMode === "space-data") {
-                return qsTr(
-                            "Every site in %1 loses its cookies and cached files, so open sessions there are signed out. Storage and databases stay: this engine can only take those one site at a time. This cannot be undone.").arg(
-                            window.windowBrowser.activeSpaceName);
+                            siteInformationCard.originLabel);
             }
             if (window.dialogMode === "reset-permissions") {
                 return qsTr(
                             "%1 loses every decision made for it in this Space, and is asked again the next time it wants one. A page already holding a capability keeps it until the site is opened again — reloading is not enough.").arg(
-                            sidebar.siteOrigin);
+                            siteInformationCard.originLabel);
             }
             if (window.dialogMode === "third-party") {
                 return qsTr(
@@ -4681,11 +4711,9 @@ ApplicationWindow {
             case "confirm-move":
                 return qsTr("⏎ discard the edits and move");
             case "site-storage":
-                return qsTr("⏎ clear %1's storage").arg(sidebar.siteOrigin);
-            case "space-data":
-                return qsTr("⏎ clear every site's cookies and cache");
+                return qsTr("⏎ clear %1's storage").arg(siteInformationCard.originLabel);
             case "reset-permissions":
-                return qsTr("⏎ reset %1's permissions").arg(sidebar.siteOrigin);
+                return qsTr("⏎ reset %1's permissions").arg(siteInformationCard.originLabel);
             case "third-party":
                 return qsTr("↑↓ choose      ⏎ answer for that site");
             }
@@ -4725,9 +4753,6 @@ ApplicationWindow {
                 break;
             case "site-storage":
                 engineLoader.clearPageSiteData();
-                break;
-            case "space-data":
-                window.clearSpaceSiteData();
                 break;
             case "reset-permissions":
                 window.resetSitePermissions();

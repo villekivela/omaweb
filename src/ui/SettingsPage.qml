@@ -95,6 +95,14 @@ Rectangle {
     property bool cnameUncloakingAvailable: false
     // Whether this build's engine applies procedural cosmetic rules (ADR 0052).
     property bool proceduralCosmeticFilteringAvailable: false
+    // What this build's engine can answer for about a site. Site information
+    // states facts about the site; where the engine falls short, the shortfall
+    // is the build's and is said here.
+    property bool certificateDecisionsAvailable: true
+    property bool pageCertificatesAvailable: true
+    property bool thirdPartyCookieControlAvailable: true
+    property bool siteDataOnDisk: true
+    property bool insecureContentBlocked: true
     // Whether this window is a Private one. The capability above is the
     // build's and is the same in every window, so without this the section
     // offers a reader a switch that cannot do anything here.
@@ -1970,6 +1978,66 @@ Rectangle {
                         title: qsTr("This build cannot keep calls off your other addresses")
                         detail: qsTr(
                                     "Omaweb was built against another Qt than the one it is running on, so a page setting up a call is offered every address this machine has, the engine's own default. A rebuild against this Qt brings the setting back.")
+                    }
+
+                    // Each row is here only on an engine that lacks what it
+                    // names, so a capable build shows none of them.
+                    SectionLabel {
+                        objectName: "engineCaveatsLabel"
+                        colors: root.colors
+                        visible: !root.certificateDecisionsAvailable ||
+                                 !root.pageCertificatesAvailable ||
+                                 !root.thirdPartyCookieControlAvailable || !root.siteDataOnDisk ||
+                                 !root.insecureContentBlocked
+                        text: qsTr("what this engine cannot do")
+                    }
+
+                    SettingRow {
+                        objectName: "engineCaveat_certificateFailures"
+                        width: pane.width
+                        visible: !root.certificateDecisionsAvailable
+                        colors: root.colors
+                        title: qsTr("This engine cannot report a certificate failure")
+                        note: qsTr(
+                                  "A page whose certificate fails is not stopped for a question, and Site information cannot say it failed.")
+                    }
+
+                    SettingRow {
+                        objectName: "engineCaveat_pageCertificates"
+                        width: pane.width
+                        visible: !root.pageCertificatesAvailable
+                        colors: root.colors
+                        title: qsTr("This engine cannot show the certificate a page arrived over")
+                        note: qsTr(
+                                  "Site information shows only the certificate a failure was raised for.")
+                    }
+
+                    SettingRow {
+                        objectName: "engineCaveat_thirdParties"
+                        width: pane.width
+                        visible: !root.thirdPartyCookieControlAvailable
+                        colors: root.colors
+                        title: qsTr("This engine cannot refuse a third party")
+                        note: qsTr("Sites embedded in a page keep their cookies and storage there.")
+                    }
+
+                    SettingRow {
+                        objectName: "engineCaveat_siteData"
+                        width: pane.width
+                        visible: !root.siteDataOnDisk
+                        colors: root.colors
+                        title: qsTr("This engine keeps no site data on disk")
+                        note: qsTr(
+                                  "Cookies and storage last until Omaweb closes, so there is no size for Site information to give.")
+                    }
+
+                    SettingRow {
+                        objectName: "engineCaveat_insecureContent"
+                        width: pane.width
+                        visible: !root.insecureContentBlocked
+                        colors: root.colors
+                        title: qsTr("This engine is not blocking insecure content")
+                        note: qsTr("A secure page can load scripts and frames over plain HTTP.")
                     }
 
                     SectionLabel {
