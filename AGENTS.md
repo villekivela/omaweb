@@ -24,10 +24,10 @@ code, build files, or automation, read `docs/agents/code-style.md`. After a tool
 documentation or code, run `scripts/format.sh` and inspect its diff. Before committing, run every
 applicable quality gate in `docs/agents/code-style.md`.
 
-### Working on a Mac
+### Local checks
 
-Before formatting, building, testing or taking screenshots on macOS, read
-`docs/agents/local-checks.md`: some of CI's checks only mean the same thing in a Linux container.
+Before formatting, building, testing or taking screenshots outside CI, read
+`docs/agents/local-checks.md`: a check means what CI means only on CI's tools.
 
 ### Proving tests
 
