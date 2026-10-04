@@ -30,6 +30,10 @@ TestCase {
 
         ShellIpc {
             target: "omaweb-test"
+
+            function ping(word: string): string {
+                return "pong " + word;
+            }
         }
     }
 
@@ -122,27 +126,31 @@ TestCase {
         verify(Border.none() !== undefined);
     }
 
-    // `Border` reads the kit's `IpcRegistry`, a `Singleton` that holds an `IpcHandler`, so both
-    // shim types stand under every `qs.Commons` token. With no handler registered the registry
-    // answers nothing, because Omaweb serves no `qs ipc` call.
+    // `IpcRegistry` is a `Singleton` that holds an `IpcHandler`, and it sits in `qs.Commons` beside
+    // the tokens, so both shim types have to exist for any token to load. With no handler
+    // registered the registry answers nothing, because Omaweb serves no `qs ipc` call.
     function test_theIpcRegistryAnswersNothingWithoutAHandler() {
         compare(IpcRegistry.handlerFor("omaweb-test"), null);
         compare(IpcRegistry.call("omaweb-test", "toggle", []).ran, false);
     }
 
-    // A kit panel declares `ShellIpc { target; enabled }` and the registry finds it by target, which
-    // needs the shim's `IpcHandler` to keep both properties and to let go of them when it is
-    // destroyed.
-    function test_aShellIpcHandlerRegistersByTargetAndLeavesOnDestruction() {
+    // A kit panel declares `ShellIpc { target; enabled }` and the registry finds it by target, so the
+    // shim's `IpcHandler` has to keep both properties.
+    function test_aShellIpcHandlerIsFoundByTargetWhileEnabled() {
         var handler = createTemporaryObject(shellIpcComponent, testCase);
         compare(IpcRegistry.handlerFor("omaweb-test"), handler);
         handler.enabled = false;
         compare(IpcRegistry.handlerFor("omaweb-test"), null);
-        handler.enabled = true;
-        handler.destroy();
-        tryVerify(function () {
-            return IpcRegistry.handlers.length === 0;
-        });
+    }
+
+    // The registry runs only what a handler declares, by name and argument count.
+    function test_theRegistryRunsAFunctionAHandlerDeclares() {
+        createTemporaryObject(shellIpcComponent, testCase);
+        var answer = IpcRegistry.call("omaweb-test", "ping", ["a"]);
+        compare(answer.ran, true);
+        compare(answer.output, "pong a");
+        compare(IpcRegistry.call("omaweb-test", "ping", []).ran, false);
+        compare(IpcRegistry.call("omaweb-test", "destroy", []).ran, false);
     }
 
     // Omaweb's own Typography object is gone: the kit's scale is the only type

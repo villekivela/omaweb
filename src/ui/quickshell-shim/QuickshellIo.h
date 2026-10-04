@@ -123,8 +123,9 @@ private:
 };
 
 // `IpcHandler { enabled; target }`. Omaweb answers no `qs ipc` call, so the handler only holds the
-// two properties the kit sets. The kit's `IpcRegistry` singleton declares one, which `Border`
-// reaches through `Color`, so every component that imports `qs.Commons` needs the type to exist.
+// two properties the kit sets. `qs.Commons` declares an `IpcRegistry` singleton that holds one, and
+// the engine resolves every type in a module's directory when any of them loads, so a missing
+// `IpcHandler` fails every `qs.Commons` token, not only a panel.
 class IpcHandler : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
