@@ -3292,6 +3292,8 @@ Item {
         onExposedAgain: Qt.callLater(root.attachPageToCompositorAgain)
     }
     function attachPageToCompositorAgain() {
+        console.log("517 nudge skipped (instrumented run)");
+        return;
         if (!webView.visible)
             return;
         const hadFocus = webView.activeFocus;
@@ -3299,6 +3301,68 @@ Item {
         webView.visible = true;
         if (hadFocus)
             webView.forceActiveFocus();
+    }
+
+    // 517 instrumentation, not for commit.
+    function log517(what) {
+        console.log("517 " + Date.now() + " " + what);
+    }
+    Connections {
+        target: webView
+        function onVisibleChanged() {
+            root.log517("webView.visible=" + webView.visible);
+        }
+        function onActiveFocusChanged() {
+            root.log517("webView.activeFocus=" + webView.activeFocus);
+        }
+        function onLifecycleStateChanged() {
+            root.log517("lifecycleState=" + webView.lifecycleState);
+        }
+        function onRecommendedStateChanged() {
+            root.log517("recommendedState=" + webView.recommendedState);
+        }
+        function onRenderProcessPidChanged() {
+            root.log517("renderProcessPid=" + webView.renderProcessPid);
+        }
+        function onRenderProcessTerminated(status, code) {
+            root.log517("renderProcessTerminated " + status + " " + code);
+        }
+        function onLoadingChanged() {
+            root.log517("loading=" + webView.loading);
+        }
+    }
+    Connections {
+        target: root
+        function onVisibleChanged() {
+            root.log517("root.visible=" + root.visible);
+        }
+        function onOpacityChanged() {
+            root.log517("root.opacity=" + root.opacity);
+        }
+        function onPageFrozenChanged() {
+            root.log517("pageFrozen=" + root.pageFrozen);
+        }
+    }
+    Connections {
+        target: webView.Window.window
+        function onActiveChanged() {
+            root.log517("window.active=" + webView.Window.window.active);
+        }
+        function onVisibilityChanged() {
+            root.log517("window.visibility=" + webView.Window.window.visibility);
+        }
+        function onSceneGraphInvalidated() {
+            root.log517("sceneGraphInvalidated");
+        }
+    }
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: root.log517("beat view=" + webView.visible + " root=" + root.visible + " op="
+                                 + root.opacity + " focus=" + webView.activeFocus + " life="
+                                 + webView.lifecycleState + " pid=" + webView.renderProcessPid
+                                 + " " + webView.width + "x" + webView.height)
     }
 
     WebEngineView {
