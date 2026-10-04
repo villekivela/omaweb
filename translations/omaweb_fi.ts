@@ -2027,7 +2027,7 @@
     </message>
     <message>
         <source>Switch to Space</source>
-        <translation>Siirry Tilaan</translation>
+        <translation>Siirry tilaan</translation>
     </message>
     <message>
         <source>Open</source>
