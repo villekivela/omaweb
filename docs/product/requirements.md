@@ -317,8 +317,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   fetches an icon from the network to fill a row.
 - A tab or history row reads as the title, then the host in the muted colour; a history row gives
   its full address to a screen reader as the row's description. At its right edge a row says what
-  committing it does in a muted word, then an arrow in a key cap: `switch tab`, `switch space`,
-  `open`, `reopen`, or a keyword followed by `search`. A tab of another Space has that Space's name
+  committing it does in a muted word at the row's own size, then an arrow in a key cap:
+  `Switch to Tab`, `Switch to Space`, `Open`, `Reopen`, or a keyword followed by `Search`, in title
+  case in English and as plain sentences in Finnish. A tab of another Space has that Space's name
   there instead, which is said once and not again beside the host. On the selected row the word
   turns to the text colour and the cap fills with the accent, its arrow in the panel's ground
   colour. The selected row is the website's: the accent at 14% over the panel, so the glass shows

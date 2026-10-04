@@ -7777,7 +7777,7 @@ TestCase {
         });
         compare(findChild(away, "omnibarRowTitle").text, alphaTitle);
         compare(findChild(away, "omnibarRowHost").text, "plans.example");
-        compare(away.action, "switch tab");
+        compare(away.action, "Switch to Tab");
         // The title gives way before the host, and the Space's name, the
         // row's label at its right edge, is drawn whole: it is said there
         // and not again beside the host, and the word it replaces is gone.
@@ -7884,7 +7884,7 @@ TestCase {
             return rows.itemAtIndex(spaceRow) !== null;
         });
         compare(rows.itemAtIndex(spaceRow).Accessible.name, "Switch to Space Zephyr reading");
-        compare(rows.itemAtIndex(spaceRow).action, "switch space");
+        compare(rows.itemAtIndex(spaceRow).action, "Switch to Space");
         compare(findChild(rows.itemAtIndex(spaceRow), "omnibarRowSpaceColor").visible, true);
 
         input.text = "zoom in";
@@ -7958,7 +7958,7 @@ TestCase {
             compare(panel.selected, -1);
 
             let row = omnibarRowItem(rows, first);
-            compare(row.action, "search");
+            compare(row.action, "Search");
             compare(row.keys, "");
             compare(row.Accessible.name, "Search Stub for weather");
             compare(findChild(row, "omnibarRowHost").visible, false);
@@ -8170,7 +8170,7 @@ TestCase {
         window.openOmnibar(false);
         input.text = "edge-tab";
         let row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]));
-        compare(row.action, "switch tab");
+        compare(row.action, "Switch to Tab");
         compare(row.keys, "");
         compare(row.Accessible.name, "Switch to tab Edge tab page");
         compare(findChild(row, "omnibarRowTitle").text, "Edge tab page");
@@ -8191,7 +8191,7 @@ TestCase {
             return omnibarRowsOf(panel, "history").length === 1;
         });
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "history")[0]));
-        compare(row.action, "open");
+        compare(row.action, "Open");
         compare(row.keys, "");
         compare(row.Accessible.name, "Open history result Edge history page");
         compare(row.Accessible.description, "https://www.edge-history.example/deep/page");
@@ -8227,7 +8227,7 @@ TestCase {
 
         input.text = "edge space";
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]));
-        compare(row.action, "switch space");
+        compare(row.action, "Switch to Space");
         compare(row.keys, "");
         compare(findChild(row, "omnibarRowTile").visible, false);
         const spaceColor = findChild(row, "omnibarRowSpaceColor");
@@ -8250,7 +8250,7 @@ TestCase {
         // code, and still does with favicons off.
         wait(50);
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "keyword")[0]));
-        compare(row.action, "search");
+        compare(row.action, "Search");
         compare(row.keys, "br");
         tile = findChild(row, "omnibarRowTile");
         compare(tile.visible, true);
@@ -9806,7 +9806,10 @@ TestCase {
         verify(cap !== null && cap.visible);
         compare(cap.text, "Right");
         compare(findChild(cap, "keycapLabel").text, "arrow_forward");
-        compare(label.text, "open");
+        compare(label.text, "Open");
+        // At the row's own size, as the muted host is.
+        compare(label.font.pixelSize, Style.font.body);
+        compare(label.font.pixelSize, findChild(first, "omnibarRowHost").font.pixelSize);
         verify(label.text.indexOf("\u2192") < 0);
         compare(String(label.color), String(window.colors.mutedText));
         verify(!cap.accented);

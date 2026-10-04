@@ -976,12 +976,12 @@ Item {
                     // What committing the row does, at its right edge. A
                     // command runs, which its keys already say.
                     readonly property string action: ({
-                                                          "tab": qsTr("switch tab"),
-                                                          "space": qsTr("switch space"),
-                                                          "history": qsTr("open"),
-                                                          "putaway": qsTr("reopen"),
-                                                          "keyword": qsTr("search"),
-                                                          "suggestion": qsTr("search"),
+                                                          "tab": qsTr("Switch to Tab"),
+                                                          "space": qsTr("Switch to Space"),
+                                                          "history": qsTr("Open"),
+                                                          "putaway": qsTr("Reopen"),
+                                                          "keyword": qsTr("Search"),
+                                                          "suggestion": qsTr("Search"),
                                                           "command": ""
                                                       })[modelData.kind]
                     // The keys that reach a command without the Omnibar, and a
@@ -1180,7 +1180,7 @@ Item {
                             color: row.isSelected ? root.colors.text : root.colors.mutedText
                             opacity: row.isSelected ? 1 : 0.85
                             font.family: Style.font.family
-                            font.pixelSize: Style.font.caption
+                            font.pixelSize: Style.font.body
                         }
 
                         // Another Space's tab says which Space committing it
@@ -1194,7 +1194,7 @@ Item {
                             color: row.isSelected ? root.colors.text : root.spaceColourOf(
                                                         modelData.spaceId, modelData.spaceColor)
                             font.family: Style.font.family
-                            font.pixelSize: Style.font.caption
+                            font.pixelSize: Style.font.body
                         }
 
                         // What committing the row does, as an arrow in a key
