@@ -3198,11 +3198,82 @@ bool BrowserController::saveSearchEngines(
     return true;
 }
 
+namespace {
+
+    // Thirteen to nineteen digits, spaced or hyphenated as they are printed on a
+    // card, that pass the Luhn check. The page decides which fields are card
+    // fields; this catches a card number typed into a field it did not mark, as
+    // ADR 0053 asks.
+    bool shapedLikeACardNumber(const QString &value)
+    {
+        QList<int> digits;
+        for (const auto character : value) {
+            if (character.isDigit()) {
+                digits.append(character.digitValue());
+            } else if (character != QLatin1Char(' ') && character != QLatin1Char('-')) {
+                return false;
+            }
+        }
+        if (digits.size() < 13 || digits.size() > 19) {
+            return false;
+        }
+        int sum = 0;
+        for (qsizetype index = 0; index < digits.size(); ++index) {
+            int digit = digits.at(digits.size() - 1 - index);
+            if (index % 2 == 1) {
+                digit *= 2;
+                if (digit > 9) {
+                    digit -= 9;
+                }
+            }
+            sum += digit;
+        }
+        return sum % 10 == 0;
+    }
+
+} // namespace
+
+// A Space deleted while its page was submitting is not given a database back.
+// A Private window's store keeps nothing, and is the one that says so.
+void BrowserController::rememberFormFields(const QString &spaceId, const QVariantList &fields)
+{
+    const auto &spaces = m_spaces.items();
+    if (!m_privateBrowsing
+        && std::none_of(spaces.cbegin(), spaces.cend(),
+            [&spaceId](const SpaceState &space) { return space.id == spaceId; })) {
+        return;
+    }
+    for (const auto &field : fields) {
+        const auto map = field.toMap();
+        const auto name = map.value(QStringLiteral("name")).toString();
+        const auto value = map.value(QStringLiteral("value")).toString();
+        if (name.isEmpty() || value.trimmed().isEmpty() || shapedLikeACardNumber(value)) {
+            continue;
+        }
+        m_store->recordFormEntry(spaceId, name, value);
+    }
+}
+
+QStringList BrowserController::formHistory(const QString &spaceId, const QString &field) const
+{
+    if (field.isEmpty()) {
+        return {};
+    }
+    return m_store->formEntries(spaceId, field);
+}
+
+bool BrowserController::forgetFormEntry(
+    const QString &spaceId, const QString &field, const QString &value)
+{
+    return m_store->forgetFormEntry(spaceId, field, value);
+}
+
 bool BrowserController::clearBrowsingData(
     const QStringList &dataTypes, qint64 since, bool everySpace, const QString &confirmation)
 {
     static const QSet<QString> allowedTypes {QStringLiteral("cookies"), QStringLiteral("storage"),
-        QStringLiteral("cache"), QStringLiteral("permissions"), QStringLiteral("history")};
+        QStringLiteral("cache"), QStringLiteral("permissions"), QStringLiteral("history"),
+        QStringLiteral("forms")};
     if (!m_capabilities.allows(Capability::ClearBrowsingData) || dataTypes.isEmpty() || since < 0
         || (everySpace && confirmation != QStringLiteral("CLEAR ALL"))) {
         return false;
@@ -3225,6 +3296,9 @@ bool BrowserController::clearBrowsingData(
         if (dataTypes.contains(QStringLiteral("history"))) {
             cleared = m_store->deleteHistorySince(spaceId, since) && cleared;
             cleared = forgetPutAwayTabsSince(spaceId, since) && cleared;
+        }
+        if (dataTypes.contains(QStringLiteral("forms"))) {
+            cleared = m_store->clearFormHistorySince(spaceId, since) && cleared;
         }
         if (dataTypes.contains(QStringLiteral("permissions"))) {
             cleared = m_store->clearPermissionsSince(spaceId, since) && cleared;

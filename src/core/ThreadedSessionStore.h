@@ -76,6 +76,13 @@ public:
     QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const override;
     bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) override;
     bool clearPermissionsSince(const QString &spaceId, qint64 since) override;
+    bool recordFormEntry(
+        const QString &spaceId, const QString &field, const QString &value) override;
+    QStringList formEntries(const QString &spaceId, const QString &field) const override;
+    bool forgetFormEntry(
+        const QString &spaceId, const QString &field, const QString &value) override;
+    bool clearFormHistorySince(const QString &spaceId, qint64 since) override;
+
     bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
         const QString &path, const QString &state, qint64 receivedBytes,
         qint64 totalBytes) override;

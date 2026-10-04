@@ -1482,6 +1482,12 @@ Item {
                     root.pageTooltipRequested(tabSlot.engine, tooltip);
                 }
 
+                // Kept in the Space of the tab the form was in, which an Agent
+                // tab's is not always the Space on show.
+                function onFormSubmitted(fields) {
+                    root.browserController.rememberFormFields(tabSlot.engine.spaceId, fields);
+                }
+
                 function onPrintFinished(destination, succeeded) {
                     root.printFinished(destination, succeeded);
                 }

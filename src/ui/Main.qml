@@ -2734,12 +2734,13 @@ ApplicationWindow {
 
     // A Glance closes with Escape whatever its page does with the key, for the
     // same reason: the reader must not have to know their keymap to get back to
-    // the page they were on.
+    // the page they were on. The one exception is a suggestion list Omaweb
+    // drew under a field of the Glance, which that Escape closes first.
     Shortcut {
         sequence: "Esc"
-        enabled: window.glanceOpen && !engineLoader.siteFullscreenActive && !window.omnibarOpen &&
-                 !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen &&
-                 !window.permissionOpen && !window.certificateQuestionOpen
+        enabled: window.glanceOpen && !formSuggestions.shown && !engineLoader.siteFullscreenActive
+                 && !window.omnibarOpen && !window.settingsOpen && !window.historyOpen &&
+                 !window.pageMenuOpen && !window.permissionOpen && !window.certificateQuestionOpen
                  && window.dialogMode.length === 0 && !window.certificateViewOpen
         context: Qt.WindowShortcut
         onActivated: window.closeGlance()
@@ -3340,6 +3341,11 @@ ApplicationWindow {
 
                     function onPageTooltipRequested(tooltip) {
                         window.showPageTooltip(window.glanceEngine, tooltip);
+                    }
+
+                    function onFormSubmitted(fields) {
+                        window.windowBrowser.rememberFormFields(window.glanceEngine.spaceId,
+                                                                fields);
                     }
 
                     function onSitePermissionRequested(requestId, origin, permission) {
@@ -4497,6 +4503,20 @@ ApplicationWindow {
         text: window.pageTooltipText
         anchorX: window.pageTooltipX
         anchorY: window.pageTooltipY
+    }
+
+    // Form history's suggestions for the field that has the keyboard, in the
+    // tab on show or the Glance over it. Under the menus and the page's own
+    // tooltip, which are drawn over a page and not over a field.
+    FormSuggestions {
+        id: formSuggestions
+        anchors.fill: parent
+        z: 54
+        browser: window.windowBrowser
+        engine: window.glanceEngine && window.glanceEngine.formField ? window.glanceEngine :
+                                                                       engineLoader.item
+                                                                       && engineLoader.item.formField
+                                                                       ? engineLoader.item : null
     }
 
     ChromeMenu {

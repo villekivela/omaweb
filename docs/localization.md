@@ -30,6 +30,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Private window   | Yksityinen ikkuna     |                                                                                                 |
 | Shortcuts        | Pikanäppäimet         |                                                                                                 |
 | History          | Historia              |                                                                                                 |
+| Form history     | Lomakehistoria        | What a Space keeps of what was typed into forms.                                                |
 | Downloads        | Lataukset             |                                                                                                 |
 | Settings         | Asetukset             |                                                                                                 |
 | Engine           | Moottori              | The web engine that renders pages.                                                              |
