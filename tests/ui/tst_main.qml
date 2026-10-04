@@ -10279,6 +10279,68 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting impatient");
     }
 
+    // In a Space at rest there is no page to go back to, so Escape releases
+    // the field: the caret goes, the field is drawn unfocused, and the keyboard
+    // is the browser's, so a bare key from the key map runs its command as it
+    // does over a page. `o`, a click on the field and Primary+L give the field
+    // back.
+    function test_escapeInASpaceAtRestReleasesTheFieldToTheBareKeys() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting release");
+        tryCompare(panel, "arrival", 1);
+        verify(panel.keymap.pageCommandsEnabled);
+        verify(input.activeFocus);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        verify(!input.cursorVisible);
+        verify(panel.shownResting);
+        compare(window.focusedRegionName(), window.pageRegionName());
+
+        keyClick(":");
+        tryVerify(function () {
+            return panel.commandScope;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !panel.commandScope;
+        });
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        keyClick("o");
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        compare(input.text, "");
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        mouseClick(input);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        keyClick(Qt.Key_L, Qt.ControlModifier);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting release");
+    }
+
     // The Shortcut sheet is summoned, not shown: `?` in the Start page's empty
     // field brings it up over the road, and Escape goes back to the field.
     function test_questionMarkSummonsTheShortcutSheetFromTheStartPage() {

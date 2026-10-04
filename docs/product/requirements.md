@@ -258,9 +258,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   every theme, over the darkest and the lightest the road can put behind it.
 - `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
   after the user commits a destination. Choosing an open tab from it switches to that tab and
-  creates none. `Escape` brings back the page that was on show; in a Space at rest it does nothing.
-  In a split the Start page covers both panes, where the committed tab lands, and `Escape` brings
-  the split back. While the Start page is on show, `Primary+L` and `o` focus its Omnibar.
+  creates none. `Escape` brings back the page that was on show; in a Space at rest it releases the
+  field instead: the caret goes, the field is drawn unfocused and the keyboard is the browser's, so
+  every bare key of the key map works as over a page, and `o`, `Primary+L` or a click on the field
+  give the field back. In a split the Start page covers both panes, where the committed tab lands,
+  and `Escape` brings the split back. While the Start page is on show, `Primary+L` and `o` focus its
+  Omnibar.
 - Under the Omnibar's field a hint row, over a rule, holds `?` and "shortcuts" at its right end and,
   while there are results, names the keys that work the list, as the website's dash does: `↑↓` as
   key caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope says "run" for

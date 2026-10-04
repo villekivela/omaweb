@@ -2587,8 +2587,14 @@ ApplicationWindow {
             window.restartStartPageField();
             return;
         }
-        if (!window.startPageSummoned)
+        // In a Space at rest there is no page to go back to. Escape hands the
+        // keyboard to the browser instead: the field is released, so the bare
+        // keys of the key map work as they do over a page, and `o`,
+        // Primary+L or a click on the field take it back.
+        if (!window.startPageSummoned) {
+            startPage.forceActiveFocus();
             return;
+        }
         window.startPageSummoned = false;
         window.forgetOmnibarSuggestions();
         window.focusPage();
