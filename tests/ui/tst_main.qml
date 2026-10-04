@@ -9468,6 +9468,29 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting dash");
     }
 
+    // The sun's light on the field's edge, the rim and the bloom either side
+    // of it, is drawn at one strength, the Omnibar's `rimStrength`, so it can
+    // be tuned in one place. It is half what the website draws.
+    function test_theRimLightIsDrawnAtOneToneDownStrength() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const rim = findChild(window.contentItem, "omnibarRim");
+        const bloom = findChild(window.contentItem, "omnibarInnerBloom");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Rim strength");
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return rim.light !== null;
+        });
+
+        compare(panel.rimStrength, 0.5);
+        compare(rim.strength, panel.rimStrength);
+        compare(bloom.strength, panel.rimStrength);
+        fuzzyCompare(rim.opacity, panel.opacity * panel.rimStrength, 0.001);
+        compare(bloom.opacity, panel.rimStrength);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Rim strength");
+    }
+
     // The text the reader types and the caret are drawn plain: in the
     // theme's field text, which clears 4.5:1 on the glass, with no layer
     // effect, so no glow, blur or shadow; and the bloom of the rim light on

@@ -40,6 +40,10 @@ Item {
     property point roadOrigin: Qt.point(0, 0)
     // The Scene's light on the rim, where the road is behind the panel.
     readonly property var sunlight: road !== null ? road.light : null
+    // How much of that light is drawn on the field's edge, rim and bloom
+    // alike: the one setting for how strongly the sun lights it. 1 is what the
+    // website draws.
+    readonly property real rimStrength: 0.5
 
     // At rest the glass blurs the road alone rather than the window: the road
     // moves every frame, and a blur of the window would render all of it
@@ -660,6 +664,7 @@ Item {
         RimLight {
             objectName: "omnibarInnerBloom"
             inner: true
+            strength: root.rimStrength
             plate: panel
             plateRadius: panel.radius
             light: root.sunlight
@@ -1202,6 +1207,7 @@ Item {
     // and its bloom's half outside the edge.
     RimLight {
         objectName: "omnibarRim"
+        strength: root.rimStrength
         plate: panel
         plateRadius: panel.radius
         light: root.sunlight
