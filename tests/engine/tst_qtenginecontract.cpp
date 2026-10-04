@@ -19,7 +19,7 @@
 #include "QtPageFonts.h"
 #include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
-#include "QtWindowExposure.h"
+#include "WindowExposure.h"
 #include "ContentBlockerContract.h"
 #include "EngineViewContract.h"
 #include "PerformanceProbe.h"
@@ -201,6 +201,9 @@ private slots:
     void qtAdapterPropagatesPageState();
     void qtNavigationDrivesPageLoadingIndicator();
     void qtPaintsThePageAgainWhenItsWindowIsExposedAgain();
+    void qtKeepsTheKeyboardWhereItWasWhenItPaintsThePageAgain();
+    void qtLeavesAHiddenPageHiddenWhenItsWindowIsExposedAgain();
+    void qtShowsThePagesOwnColourWhereThePageDrawsNothing();
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
@@ -684,39 +687,115 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
     QVERIFY(failureSpy.takeFirst().first().toString().contains(QString::number(exitCode)));
 }
 
+namespace {
+
+// An adapter in a window of its own, the way the shell holds one.
+struct ViewInWindow {
+    QQmlEngine engine;
+    std::unique_ptr<QObject> adapter;
+    QQuickItem *view = nullptr;
+    QQuickItem *webView = nullptr;
+    QQuickWindow window;
+
+    bool create(const QUrl &url)
+    {
+        QQmlComponent component(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+        adapter.reset(component.create());
+        view = qobject_cast<QQuickItem *>(adapter.get());
+        if (!view) {
+            return false;
+        }
+        webView = adapter->findChild<QQuickItem *>(QStringLiteral("qtWebView"));
+        window.resize(640, 480);
+        view->setParentItem(window.contentItem());
+        view->setSize(QSizeF(640, 480));
+        window.show();
+        adapter->setProperty("currentUrl", url);
+        return webView != nullptr;
+    }
+};
+
+} // namespace
+
 void QtEngineContractTest::qtPaintsThePageAgainWhenItsWindowIsExposedAgain()
 {
-    QQmlEngine engine;
-    QQmlComponent component(
-        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
-    const std::unique_ptr<QObject> adapter(component.create());
-    QVERIFY2(adapter, qPrintable(component.errorString()));
-    auto *view = qobject_cast<QQuickItem *>(adapter.get());
-    QVERIFY(view);
-    auto *webView = adapter->findChild<QQuickItem *>(QStringLiteral("qtWebView"));
-    QVERIFY(webView);
-
-    QQuickWindow window;
-    window.resize(640, 480);
-    view->setParentItem(window.contentItem());
-    view->setSize(QSizeF(640, 480));
-    QSignalSpy visibleSpy(webView, &QQuickItem::visibleChanged);
-    window.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral("data:text/html,<p>still</p>"))));
+    QSignalSpy visibleSpy(shown.webView, &QQuickItem::visibleChanged);
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
     // Showing the window for the first time is not a return: nothing was lost.
     QTest::qWait(100);
     QCOMPARE(visibleSpy.count(), 0);
 
-    // A workspace switch hides the window and shows it again, after which the
-    // engine's frames no longer reach the scene graph (#517). Flipping the
-    // view's visibility is what makes Chromium attach to the compositor anew.
-    window.hide();
-    window.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&window));
-    QTRY_COMPARE(visibleSpy.count(), 2);
-    QVERIFY(webView->isVisible());
+    // A workspace switch hides the window and shows it again, after which a
+    // page that is not drawing stays black (#517). Flipping the view's
+    // visibility is what makes Chromium attach to the compositor anew, and it
+    // is done once per return.
+    shown.window.hide();
+    shown.window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QCOMPARE(visibleSpy.count(), 2);
+    QVERIFY(shown.webView->isVisible());
     QTest::qWait(100);
     QCOMPARE(visibleSpy.count(), 2);
+}
+
+void QtEngineContractTest::qtKeepsTheKeyboardWhereItWasWhenItPaintsThePageAgain()
+{
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral("data:text/html,<p>still</p>"))));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "focusPage"));
+    QTRY_VERIFY(shown.adapter->property("pageHasFocus").toBool());
+
+    shown.window.hide();
+    shown.window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QTRY_VERIFY(shown.adapter->property("pageHasFocus").toBool());
+
+    // A page the reader was not in does not take the keyboard from the window
+    // around it.
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "releasePageFocus"));
+    QTRY_VERIFY(!shown.adapter->property("pageHasFocus").toBool());
+    shown.window.hide();
+    shown.window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QTest::qWait(100);
+    QVERIFY(!shown.adapter->property("pageHasFocus").toBool());
+}
+
+void QtEngineContractTest::qtLeavesAHiddenPageHiddenWhenItsWindowIsExposedAgain()
+{
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral("data:text/html,<p>still</p>"))));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    // A tab the reader is not looking at has its view hidden, and showing it
+    // again would put it on screen over the one they are.
+    shown.view->setVisible(false);
+    QSignalSpy visibleSpy(shown.webView, &QQuickItem::visibleChanged);
+
+    shown.window.hide();
+    shown.window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QTest::qWait(100);
+
+    QCOMPARE(visibleSpy.count(), 0);
+    QVERIFY(!shown.webView->isVisible());
+}
+
+// The window behind the page area is transparent, so a page that has no frame
+// for a moment would show the desktop, which is black. Under the view sits the
+// colour the page itself reported.
+void QtEngineContractTest::qtShowsThePagesOwnColourWhereThePageDrawsNothing()
+{
+    ViewInWindow shown;
+    QVERIFY(shown.create(
+        QUrl(QStringLiteral("data:text/html,<body style=\"background:rgb(10,200,30)\">page"))));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    auto *ground = shown.adapter->findChild<QQuickItem *>(QStringLiteral("pageGround"));
+    QVERIFY(ground);
+    QTRY_COMPARE(ground->property("color").value<QColor>(), QColor(10, 200, 30));
 }
 
 void QtEngineContractTest::qtNavigationDrivesPageLoadingIndicator()
@@ -7360,7 +7439,7 @@ int main(int argc, char *argv[])
     omaweb::registerEngineBuild();
     omaweb::registerQtCertificates();
     omaweb::registerQtAgentInput();
-    omaweb::registerQtWindowExposure();
+    omaweb::registerWindowExposure();
     omaweb::registerPageImages();
     omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();

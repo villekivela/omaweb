@@ -1,19 +1,18 @@
-#include "QtWindowExposure.h"
+#include "WindowExposure.h"
 
 #include <QEvent>
 #include <QQmlEngine>
-#include <QQuickWindow>
 
 namespace omaweb {
 
-QtWindowExposure::QtWindowExposure(QObject *parent)
+WindowExposure::WindowExposure(QObject *parent)
     : QObject(parent)
 {
 }
 
-QQuickWindow *QtWindowExposure::window() const { return m_window; }
+QWindow *WindowExposure::window() const { return m_window; }
 
-void QtWindowExposure::setWindow(QQuickWindow *window)
+void WindowExposure::setWindow(QWindow *window)
 {
     if (m_window == window) {
         return;
@@ -30,7 +29,7 @@ void QtWindowExposure::setWindow(QQuickWindow *window)
     emit windowChanged();
 }
 
-bool QtWindowExposure::eventFilter(QObject *watched, QEvent *event)
+bool WindowExposure::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == m_window && event->type() == QEvent::Expose) {
         // An expose event with an empty region is how Qt says the window went
@@ -49,9 +48,6 @@ bool QtWindowExposure::eventFilter(QObject *watched, QEvent *event)
     return false;
 }
 
-void registerQtWindowExposure()
-{
-    qmlRegisterType<QtWindowExposure>("Omaweb.Engine", 1, 0, "QtWindowExposure");
-}
+void registerWindowExposure() { qmlRegisterType<WindowExposure>("Omaweb", 1, 0, "WindowExposure"); }
 
 } // namespace omaweb

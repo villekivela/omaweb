@@ -2240,10 +2240,25 @@ Item {
         script.sourceCode = root.reporting(`
             report('document_created');
             let painted = false;
+            // The colour the page sits on, its root's or its body's, or the
+            // canvas when neither has one of its own.
+            const ground = () => {
+                for (const element of [document.documentElement, document.body]) {
+                    if (!element) continue;
+                    const colour = getComputedStyle(element).backgroundColor;
+                    if (colour && colour !== 'rgba(0, 0, 0, 0)' && colour !== 'transparent')
+                        return colour;
+                }
+                const scheme = getComputedStyle(document.documentElement).colorScheme;
+                return /dark/.test(scheme) && !/light/.test(scheme) ? 'rgb(18, 18, 18)'
+                                                                     : 'rgb(255, 255, 255)';
+            };
             const paint = () => {
                 if (painted) return;
                 painted = true;
                 report('document_painted');
+                report('page_ground', ground());
+                addEventListener('load', () => report('page_ground', ground()), {once: true});
             };
             try {
                 new PerformanceObserver(paint).observe({type: 'paint', buffered: true});
@@ -3279,26 +3294,57 @@ Item {
         });
     }
 
-    // A workspace switch hides the window and shows it again, and afterwards
-    // Chromium's frames no longer reach the scene graph: the page stays black
-    // while the interface keeps drawing (#352, #517). Chromium draws on, and
-    // what is lost is its attachment to the compositor, which hiding and
-    // showing the view makes anew, as switching tabs does. Showing a view that
-    // is hidden for another reason would put a background tab on screen, so
-    // only a view that is on screen is nudged. Hiding it drops the keyboard,
-    // which the reader had in the page, so it is given back.
-    QtWindowExposure {
+    // A workspace switch hides the window and shows it again, and a page that
+    // is not drawing is black afterwards until Chromium makes a new frame,
+    // which a page with nothing moving on it never does of its own (#352,
+    // #517). Chromium draws on for a page that animates, and what a still page
+    // lacks is the attachment to the compositor, which hiding and showing the
+    // view makes anew, as switching tabs does. This is done as the window's
+    // exposure returns, ahead of the window's first frame, because the page is
+    // black from that frame on and every frame it waits is seen.
+    //
+    // Showing a view that is hidden for another reason would put a background
+    // tab on screen, so only a view that is on screen is nudged. Hiding it
+    // drops the keyboard the reader had in the page, so it is given back, and
+    // only if the page had it: the nudge never moves focus to a page that did
+    // not.
+    WindowExposure {
         window: webView.Window.window
-        onExposedAgain: Qt.callLater(root.attachPageToCompositorAgain)
+        onExposedAgain: root.attachPageToCompositorAgain()
     }
     function attachPageToCompositorAgain() {
         if (!webView.visible)
             return;
-        const hadFocus = webView.activeFocus;
+        const hadFocus = webView.activeFocus || webView.focus;
         webView.visible = false;
         webView.visible = true;
         if (hadFocus)
             webView.forceActiveFocus();
+    }
+
+    // What the page area shows where the page draws nothing: the window
+    // behind it is transparent and the desktop shows through as black. It is
+    // the colour the page itself sits on, which the page reports, so a page
+    // waiting for its next frame after the nudge, or after the window's
+    // return, is blank in its own colour instead of black. Before the page has
+    // painted it is the theme's, as the view's own ground is.
+    property color pageGroundColor: "white"
+    function readPageGround(body) {
+        let css = "";
+        try {
+            css = JSON.parse(body);
+        } catch (error) {
+            return;
+        }
+        const channels = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(css);
+        if (channels)
+            root.pageGroundColor = Qt.rgba(channels[1] / 255, channels[2] / 255, channels[3] / 255,
+                                           1);
+    }
+    Rectangle {
+        objectName: "pageGround"
+        anchors.fill: parent
+        color: root.documentPainted ? root.pageGroundColor : root.pageBackgroundColor
     }
 
     WebEngineView {
@@ -3675,6 +3721,8 @@ Item {
                 root.documentPainted = false;
             } else if (report.channel === "document_painted") {
                 root.documentPainted = true;
+            } else if (report.channel === "page_ground") {
+                root.readPageGround(report.body);
             } else if (report.channel === "user_activation") {
                 root.userActivated();
             }
