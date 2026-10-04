@@ -180,6 +180,17 @@ def tabs(current, *others):
     ]}
 
 
+def ffmpeg_can_read_brightness() -> bool:
+    """Whether this machine's ffmpeg can make a short clip and read every frame's brightness."""
+    if not shutil.which("ffmpeg"):
+        return False
+    listed = "".join(subprocess.run(["ffmpeg", "-hide_banner", option],
+                                    capture_output=True, text=True).stdout
+                     for option in ("-filters", "-encoders"))
+    names = {line.split()[1] for line in listed.splitlines() if len(line.split()) > 1}
+    return {"signalstats", "drawbox", "libx264"} <= names
+
+
 class BeatChecks(unittest.TestCase):
     """Each check passes the answer a beat that happened gives, and stops the one that did not."""
 
@@ -316,6 +327,34 @@ class BeatChecks(unittest.TestCase):
             self.assertIn("1100", message)
 
 
+    def test_a_single_light_frame_in_a_dark_film_is_a_flash(self):
+        dark = [36.0] * 20
+        self.assertEqual(film.flashed_frames(dark), [])
+        self.assertEqual(film.flashed_frames(dark[:9] + [133.0] + dark[10:]), [(9, 133.0)])
+        self.assertEqual(film.flashed_frames(dark[:9] + [60.0] + dark[10:]), [(9, 60.0)])
+
+    def test_a_scene_that_fades_in_or_changes_at_once_is_not_a_flash(self):
+        fade = [20.0 + 4 * step for step in range(20)]
+        self.assertEqual(film.flashed_frames(fade), [])
+        cut = [30.0] * 10 + [90.0] * 10
+        self.assertEqual(film.flashed_frames(cut), [])
+
+    @unittest.skipUnless(ffmpeg_can_read_brightness(), "this ffmpeg cannot read brightness")
+    def test_a_film_with_a_flash_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dark = Path(directory, "dark.mp4")
+            flash = Path(directory, "flash.mp4")
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                            "color=c=0x202020:size=64x64:rate=30:duration=2", "-c:v", "libx264",
+                            "-pix_fmt", "yuv420p", str(dark)], check=True)
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                            "color=c=0x202020:size=64x64:rate=30:duration=2", "-vf",
+                            "drawbox=w=iw:h=ih:color=white:t=fill:enable='eq(n,30)'", "-c:v",
+                            "libx264", "-pix_fmt", "yuv420p", str(flash)], check=True)
+            film.expect_no_flash("Film", dark)
+            message = self.assertMissed("Film", film.expect_no_flash, flash)
+            self.assertIn("1.00s", message)
+
     def test_the_films_files_together_stay_under_five_megabytes(self):
         self.assertEqual(set(film.BUDGET), {"omaweb.webm", "omaweb.mp4", "poster.webp"})
         self.assertLess(sum(film.BUDGET.values()), 5_000_000)
@@ -378,10 +417,11 @@ class FilmFiles(unittest.TestCase):
     def test_a_recording_is_cut_into_the_film_its_poster_and_its_captions(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory)
-            # A stand-in for the raw recording: a test pattern at the recording's size, cut into
-            # every beat, the Omnibar long enough to hold the poster's frame.
+            # A stand-in for the raw recording: a dark field at the recording's size, as dark as
+            # the film so that its flash check passes, cut into every beat, the Omnibar long
+            # enough to hold the poster's frame.
             subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
-                            "testsrc2=size={}x{}:rate={}:duration=12".format(
+                            "color=c=0x202020:size={}x{}:rate={}:duration=12".format(
                                 *film.OUTPUT_MODE, film.FPS),
                             "-c:v", "libx264", "-preset", "ultrafast", str(out / "raw.mkv")],
                            check=True)
