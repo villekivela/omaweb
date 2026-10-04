@@ -585,9 +585,9 @@ Item {
             }
         }
         width: 400
-        height: Math.round(hero.implicitHeight + 24 + (body.implicitHeight * (1 - p) + detailBody.implicitHeight * p))
+        height: Math.round(hero.implicitHeight + (b.mode === 2 ? 0 : 24) + (body.implicitHeight * (1 - p) + detailBody.implicitHeight * p))
         radius: 10
-        color: root.colors.overlay
+        color: b.mode === 2 ? root.colors.overlayOpaque : root.colors.overlay
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.14)
         clip: true
@@ -692,9 +692,10 @@ Item {
             }
             T {
                 visible: b.p < 0.5
-                y: 8 + b.badgeSize + 4
+                x: b.badgeSize + 8
+                y: 8 + b.badgeSize / 2 + 9
                 text: root.site.sub
-                width: parent.width
+                width: parent.width - x
                 color: root.colors.mutedText
                 font.pixelSize: Style.font.bodySmall
             }
@@ -803,6 +804,7 @@ Item {
                                 size: Style.font.icon
                             }
                             SettingDropdown {
+                                visible: b.mode < 2
                                 anchors.right: parent.right
                                 anchors.rightMargin: 6
                                 anchors.verticalCenter: parent.verticalCenter
@@ -811,6 +813,16 @@ Item {
                                 options: root.permissionOptions
                                 value: modelData.value
                                 onChanged: function (v) {
+                                    root.setPermission(modelData.key, v);
+                                }
+                            }
+                            PermDrop {
+                                visible: b.mode === 2
+                                anchors.right: parent.right
+                                anchors.rightMargin: 6
+                                anchors.verticalCenter: parent.verticalCenter
+                                value: modelData.value
+                                onPicked: function (v) {
                                     root.setPermission(modelData.key, v);
                                 }
                             }
@@ -1292,6 +1304,76 @@ Item {
         font.family: "Menlo"
         font.pixelSize: Style.font.bodySmall
         elide: Text.ElideRight
+    }
+    // Allow / Ask / Block with the icon font's own arrow. The kit's dropdown
+    // draws its arrow from a Nerd Font glyph this Mac does not have.
+    component PermDrop: Rectangle {
+        id: drop
+        property string value: "ask"
+        signal picked(string v)
+        function labelOf(v) {
+            for (const o of root.permissionOptions)
+                if (o.value === v)
+                    return o.label;
+            return v;
+        }
+        width: 108
+        height: 26
+        radius: 4
+        color: Qt.rgba(1, 1, 1, 0.06)
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.25)
+        T {
+            x: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: drop.labelOf(drop.value)
+        }
+        G {
+            anchors.right: parent.right
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            text: "expand_more"
+        }
+        Hit {
+            anchors.fill: parent
+            onClicked: menu.opened ? menu.close() : menu.open()
+        }
+        Popup {
+            id: menu
+            y: drop.height + 2
+            width: drop.width
+            padding: 2
+            background: Rectangle {
+                color: root.colors.overlayOpaque
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.25)
+                radius: 4
+            }
+            contentItem: Column {
+                Repeater {
+                    model: root.permissionOptions
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: drop.width - 4
+                        height: 26
+                        color: pick.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+                        T {
+                            x: 6
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.label
+                        }
+                        Hit {
+                            id: pick
+                            anchors.fill: parent
+                            onClicked: {
+                                drop.picked(modelData.value);
+                                menu.close();
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     component SiteTileMock: Rectangle {
         property string host: ""
