@@ -9619,6 +9619,40 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // The selected result is the website's selected row: the accent at 14%
+    // over the panel, so the glass still shows through it, with the accent bar
+    // at its left edge. A row that is not selected has no tint.
+    function test_theSelectedRowIsATranslucentAccentTint() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        browser.recordVisit("https://selected-tint.example/", "Selected tint");
+        openPage("https://selected-tint-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        input.text = "selected tint";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        keyClick(Qt.Key_Down);
+        tryVerify(function () {
+            return panel.selected >= 0;
+        });
+        const row = omnibarRowItem(list, panel.selected);
+        const tint = findChild(row, "omnibarRowTint");
+        const accent = Qt.color(String(window.colors.accent));
+        fuzzyCompare(tint.color.r, accent.r, 0.01);
+        fuzzyCompare(tint.color.g, accent.g, 0.01);
+        fuzzyCompare(tint.color.b, accent.b, 0.01);
+        fuzzyCompare(tint.color.a, 0.14, 0.01);
+        compare(String(findChild(row, "omnibarRowBar").color), String(accent));
+        compare(findChild(row, "omnibarRowBar").width, 2);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
     // The block caret stands before the placeholder in an empty field, as the
     // website's does, and never over its first letter. Typing puts it after
     // the text.

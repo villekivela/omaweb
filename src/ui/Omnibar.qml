@@ -1004,13 +1004,19 @@ Item {
                     Accessible.description: modelData.kind === "history" || modelData.kind
                                             === "putaway" ? modelData.url : ""
 
+                    // The website's selected row: the accent at 14% over the
+                    // panel, so the glass shows through it. A row the pointer
+                    // is over is tinted by half as much.
                     Rectangle {
+                        objectName: "omnibarRowTint"
                         anchors.fill: parent
-                        color: row.isSelected || rowMouse.containsMouse ? root.colors.surface :
-                                                                          "transparent"
+                        color: Qt.alpha(root.colors.accent, row.isSelected ? 0.14 : (
+                                                                                 rowMouse.containsMouse
+                                                                                 ? 0.07 : 0))
                     }
 
                     Rectangle {
+                        objectName: "omnibarRowBar"
                         width: 2
                         height: parent.height
                         anchors.left: parent.left
