@@ -10,30 +10,22 @@ list what shipped.
 ## Planned
 
 Releases are planned as [milestones](https://github.com/villekivela/omaweb/milestones) on the issue
-tracker. The v0.7 releases shipped Omaweb's own engine build and Known extensions
-([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md)).
-[v0.8.0](https://github.com/villekivela/omaweb/releases/tag/v0.8.0) shipped the page and what the
-reader takes from it: screenshots, the certificate in Site information, an HTTPS-only mode, secure
-DNS, trackers refused behind a CNAME, and procedural cosmetic filters. v0.9.0 is the release in
-progress. The September 2026 feature review named what a daily driver still lacked. Four milestones
-carry what remains, in this order:
+tracker. [v0.9.0](https://github.com/villekivela/omaweb/releases/tag/v0.9.0) shipped Agents and the
+Omnibar ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)): the control socket with the `omaweb`
+CLI and MCP front ends, Agent Spaces and Space grants, the activity log, the page verbs, one Omnibar
+field for addresses, tabs, Spaces and commands, and the Start page.
+[v0.10.0](https://github.com/villekivela/omaweb/releases/tag/v0.10.0) shipped localization: every
+user-facing string wrapped, the first locale finished, and new strings gated. v0.11.0 is the release
+in progress. Two milestones carry what remains, in this order:
 
-1. [v0.9.0](https://github.com/villekivela/omaweb/milestone/8), Agents and the Omnibar
-   ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)): the control socket with the `omaweb` CLI
-   and MCP front ends, browser commands open to every script, Agent Spaces and Space grants, the
-   activity log, and the page verbs. It also makes the Omnibar one field for addresses, tabs in
-   every Space, Spaces and commands, and the Start page that Omnibar over a night road. A committed
-   harness compares Omaweb with stock Chromium and keeps a performance history. It comes before
-   localization so its strings are wrapped with the rest.
-2. [v0.10.0](https://github.com/villekivela/omaweb/milestone/2), localization: the tooling, then
-   every user-facing string wrapped, then the first locale finished and new strings gated. It
-   follows v0.8.0 and v0.9.0 so the wrapping passes cover their features and nothing is in flight
-   when the gate switches on.
-3. [v0.11.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
+1. [v0.11.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
    remembered, then addresses filled, then payment cards, on the storage
-   [ADR 0053](adr/0053-keep-payment-cards-in-the-secret-service.md) proposes. Signing in with a
-   security key or passkey moved here from v0.8.0.
-4. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), the chrome: jumping between tabs
+   [ADR 0053](adr/0053-keep-payment-cards-in-the-secret-service.md) proposes, and signing in with a
+   security key or passkey. It moves the engine to QtWebEngine 6.140.0 with a patch that gives an
+   Agent tab its own debugging session, so an Agent reads the tab's network and, in an Agent Space,
+   the page's main world. `omaweb dev` opens a project's Space, and a small `omaweb` client drives
+   the browser from a container or another host. Site information becomes a card from the address.
+2. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), the chrome: jumping between tabs
    with `Ctrl+O` and `Ctrl+I`, the sidebar on the right, and the sidebar's empty space moving the
    window.
 
