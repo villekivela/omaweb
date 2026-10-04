@@ -1990,12 +1990,16 @@
         <translation>hae: %1</translation>
     </message>
     <message>
-        <source>address or search — opens in a new tab</source>
-        <translation>osoite tai haku — avautuu uudessa välilehdessä</translation>
+        <source>Where to? · opens in a new tab</source>
+        <translation>Minne haluaisit? · avautuu uuteen välilehteen</translation>
     </message>
     <message>
-        <source>address or search</source>
-        <translation>osoite tai haku</translation>
+        <source>Where to?</source>
+        <translation>Minne haluaisit?</translation>
+    </message>
+    <message>
+        <source>Address, search, tabs and Spaces</source>
+        <translation>Osoite, haku, välilehdet ja tilat</translation>
     </message>
     <message>
         <source>Run</source>
@@ -2006,40 +2010,67 @@
         <translation>Siirry</translation>
     </message>
     <message>
-        <source>command</source>
-        <translation>komento</translation>
+        <source>Command</source>
+        <translation>Komento</translation>
     </message>
     <message>
-        <source>new tab</source>
-        <translation>uusi välilehti</translation>
+        <source>New Tab</source>
+        <translation>Uusi välilehti</translation>
     </message>
     <message>
-        <source>this tab</source>
-        <translation>tämä välilehti</translation>
+        <source>This Tab</source>
+        <translation>Tämä välilehti</translation>
     </message>
     <message>
-        <source>switch tab →</source>
-        <translation>vaihda välilehti →</translation>
+        <source>Switch to Tab</source>
+        <translation>Siirry välilehteen</translation>
     </message>
     <message>
-        <source>switch space →</source>
-        <translation>vaihda Tila →</translation>
+        <source>Switch to Space</source>
+        <translation>Siirry tilaan</translation>
     </message>
     <message>
-        <source>open →</source>
-        <translation>avaa →</translation>
+        <source>Open</source>
+        <translation>Avaa</translation>
     </message>
     <message>
-        <source>reopen →</source>
-        <translation>avaa uudelleen →</translation>
+        <source>Reopen</source>
+        <translation>Avaa uudelleen</translation>
     </message>
     <message>
-        <source>search →</source>
-        <translation>hae →</translation>
+        <source>Search</source>
+        <translation>Hae</translation>
     </message>
     <message>
         <source>in %1</source>
         <translation>Tilassa %1</translation>
+    </message>
+</context>
+<context>
+    <name>OmnibarHints</name>
+    <message>
+        <source>select</source>
+        <translation>valitse</translation>
+    </message>
+    <message>
+        <source>run</source>
+        <translation>suorita</translation>
+    </message>
+    <message>
+        <source>go</source>
+        <translation>siirry</translation>
+    </message>
+    <message>
+        <source>back</source>
+        <translation>takaisin</translation>
+    </message>
+    <message>
+        <source>Question mark shows the keyboard shortcuts</source>
+        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
+    </message>
+    <message>
+        <source>shortcuts</source>
+        <translation>pikanäppäimet</translation>
     </message>
 </context>
 <context>
@@ -3609,17 +3640,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Could not migrate tabs for Space %1</source>
         <translation>Tilan %1 välilehtiä ei voitu siirtää</translation>
-    </message>
-</context>
-<context>
-    <name>StartPage</name>
-    <message>
-        <source>Question mark shows the keyboard shortcuts</source>
-        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
-    </message>
-    <message>
-        <source>shortcuts</source>
-        <translation>pikanäppäimet</translation>
     </message>
 </context>
 <context>

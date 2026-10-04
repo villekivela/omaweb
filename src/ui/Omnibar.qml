@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import QtQuick.Shapes
 import Omaweb
 import qs.Commons
@@ -11,6 +10,7 @@ Item {
 
     property var colors
     property var commands
+    property var keymap
     // The sidebar's own favicon settings and icon font, so a site and a
     // command look the same here as where the reader first met them.
     property string iconFontFamily
@@ -40,6 +40,18 @@ Item {
     property point roadOrigin: Qt.point(0, 0)
     // The Scene's light on the rim, where the road is behind the panel.
     readonly property var sunlight: road !== null ? road.light : null
+    // How much of that light is drawn on the field's edge, rim and bloom
+    // alike: the one setting for how strongly the sun lights it. 1 is what the
+    // website draws.
+    readonly property real rimStrength: 0.5
+    // The key whose cap a row ends in, drawn as an arrow.
+    readonly property string goKey: "Right"
+    // The glass over the road: how far the road behind it is blurred, and how
+    // much of the overlay's colour lies over it. The text's contrast is floored
+    // against a glass no thinner than 0.8 (ThemeController), so the tint stays
+    // at or above that.
+    readonly property real glassBlurOverRoad: 40
+    readonly property real glassTintOverRoad: 0.92
 
     // At rest the glass blurs the road alone rather than the window: the road
     // moves every frame, and a blur of the window would render all of it
@@ -142,21 +154,21 @@ Item {
     property bool ease: true
     // 0 on its way in, 1 at rest.
     property real arrival: 1
-    // One place whatever it was opened over: the field on the Start page's
-    // horizon in the middle of the page area, so opening it over a page puts
-    // it where a new tab shows it. The rows grow down from the field and never
-    // move it.
-    readonly property real restWidth: Math.min(660, restArea.width - 96)
+    // One place whatever it was opened over: the website's dash, centred in
+    // the page area and `min(page area - 32px, 720px)` wide, with the road's
+    // horizon 50 px below its top edge as there, so opening it over a page
+    // puts it where a new tab shows it. The rows grow down from the field and
+    // never move it.
+    readonly property real horizonBelowTop: 50
+    readonly property real restWidth: Math.min(720, restArea.width - 32)
     readonly property real restX: restArea.x + (restArea.width - restWidth) / 2
-    readonly property real restY: restArea.y + horizonY - header.height / 2 - panel.border.width
+    readonly property real restY: restArea.y + horizonY - horizonBelowTop
     // What the page area leaves under the field for the rows, keeping a
     // margin off its bottom edge.
     readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height - 2
-                                           * panel.border.width - 8 - 24
-    // How far below the horizon the field ends, which is where the Start page
-    // can draw beneath it.
-    readonly property real fieldBelowHorizon: header.height / 2 + panel.border.width
-    readonly property real restHeight: header.height + body.height + 2 * panel.border.width
+                                           * panel.border.width - 8 - 24 - hints.implicitHeight
+    readonly property real restHeight: header.height + body.height + hints.height + 2
+                                       * panel.border.width
     NumberAnimation {
         id: arrivalEase
         target: root
@@ -633,8 +645,8 @@ Item {
         clip: true
 
         // Glass: what is behind blurred under the overlay. Over the road it
-        // lets a little more through, as the floating sidebar does over a
-        // page, and blurs as little as the website's: the road is the page.
+        // blurs heavily under a nearly opaque tint, so the rows read cleanly
+        // over the road's sun and lanes.
         PageBackdrop {
             objectName: "omnibarGlass"
 
@@ -649,10 +661,10 @@ Item {
             source: root.blurActive ? root.glassSource : null
             textureScale: 0.5
             sourceRect: Qt.rect(panel.x + x - origin.x, panel.y + y - origin.y, width, height)
-            blur: overRoad ? 14 : 48
-            tint: overRoad ? Qt.rgba(overlay.r, overlay.g, overlay.b, Math.min(overlay.a, 0.8)) :
+            blur: overRoad ? root.glassBlurOverRoad : 48
+            tint: overRoad ? Qt.rgba(overlay.r, overlay.g, overlay.b, Math.min(overlay.a,
+                                                                               root.glassTintOverRoad)) :
                              overlay
-
         }
 
         // The bloom's half inside the edge, over the glass and under the text,
@@ -660,6 +672,7 @@ Item {
         RimLight {
             objectName: "omnibarInnerBloom"
             inner: true
+            strength: root.rimStrength
             plate: panel
             plateRadius: panel.radius
             light: root.sunlight
@@ -672,15 +685,16 @@ Item {
         // cut across the panel's own edge and square off its corners.
         Item {
             id: header
+            objectName: "omnibarField"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: panel.border.width
-            height: 62
+            height: 50
 
             // The field is drawn as the website's dash: the Omaweb mark as its
-            // prompt, the typed text and a block caret glowing in the accent,
-            // and a go mark at the end. The mark gives way to `:` in command
+            // prompt, the typed text, a block caret in the accent and a go
+            // mark at the end. The mark gives way to `:` in command
             // scope.
             Item {
                 id: prompt
@@ -689,28 +703,22 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
-                width: 22
-                height: 22
+                width: 32
+                height: 16
 
                 Shape {
                     id: mark
                     objectName: "omnibarMark"
                     // The mark from assets/icons/omaweb.svg, moved to the
-                    // origin: 40.4 by 18.4 in its own units.
+                    // origin: 37.83 by 18.37 in its own units. It is drawn
+                    // as the website's dash draws it, 32 px across its
+                    // 38.2 unit view box.
                     anchors.centerIn: parent
-                    width: 40.4
-                    height: 18.4
-                    scale: parent.width / width
+                    width: 37.83
+                    height: 18.37
+                    scale: parent.width / 38.2
                     visible: !root.commandScope
                     preferredRendererType: Shape.CurveRenderer
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: root.colors.accent
-                        shadowBlur: 0.5
-                        shadowHorizontalOffset: 0
-                        shadowVerticalOffset: 0
-                    }
 
                     ShapePath {
                         fillColor: root.colors.accent
@@ -764,18 +772,6 @@ Item {
                 anchors.left: chip.right
                 anchors.right: modeLabel.left
                 anchors.leftMargin: chip.visible ? 8 : 0
-                // The website's phosphor, in the palette's accent: a tight
-                // halo on the text and the caret, drawn only while the field
-                // changes.
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: root.colors.accent
-                    shadowBlur: 0.4
-                    shadowOpacity: 0.7
-                    shadowHorizontalOffset: 0
-                    shadowVerticalOffset: 0
-                }
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 height: 40
@@ -784,46 +780,62 @@ Item {
                 // text off the prompt icon's centre line.
                 padding: 0
                 verticalAlignment: TextInput.AlignVCenter
-                color: root.colors.text
+                // Plain, with no glow, blur or shadow of any kind: it is read
+                // on the glass, so it is the theme's text held to 4.5:1 there.
+                color: root.colors.fieldText
                 placeholderText: root.commandScope ? qsTr("search every action") : (root.engine
                                                                                     !== null ? qsTr(
                                                                                                    "search %1").arg(
                                                                                                    root.engine.engineName) :
                                                                                                (root.newTabIntent
-                                                                                                ? qsTr("address or search — opens in a new tab") :
-                                                                                                  qsTr("address or search")))
+                                                                                                ? qsTr("Where to? \u00b7 opens in a new tab") :
+                                                                                                  qsTr("Where to?")))
                 placeholderTextColor: root.colors.mutedText
+                readonly property real caretWidth: Math.round(input.font.pixelSize * 0.55)
                 font.family: Style.font.family
                 font.pixelSize: 17
                 selectByMouse: true
-                // The dash's block caret, blinking while the field has focus.
-                cursorDelegate: Rectangle {
-                    objectName: "omnibarCaret"
-                    width: Math.round(input.font.pixelSize * 0.55)
-                    height: Math.round(input.font.pixelSize * 1.1)
-                    color: root.colors.accent
-                    visible: input.cursorVisible
+                // The dash's block caret, blinking while the field has focus. In
+                // an empty field it stands before the placeholder, in the gap
+                // after the mark, as the website's does, and not over its first
+                // letter.
+                cursorDelegate: Item {
+                    width: 0
+                    height: caret.height
 
-                    SequentialAnimation on opacity {
-                        running: root.open && input.activeFocus
-                        loops: Animation.Infinite
-                        alwaysRunToEnd: false
-                        PropertyAction {
-                            value: 0.9
-                        }
-                        PauseAnimation {
-                            duration: 550
-                        }
-                        PropertyAction {
-                            value: 0
-                        }
-                        PauseAnimation {
-                            duration: 550
+                    Rectangle {
+                        id: caret
+                        objectName: "omnibarCaret"
+                        x: input.text.length === 0 ? -(width + 3) : 0
+                        width: input.caretWidth
+                        height: Math.round(input.font.pixelSize * 1.1)
+                        color: root.colors.accent
+                        visible: input.cursorVisible
+
+                        SequentialAnimation on opacity {
+                            running: root.open && input.activeFocus
+                            loops: Animation.Infinite
+                            alwaysRunToEnd: false
+                            PropertyAction {
+                                value: 0.9
+                            }
+                            PauseAnimation {
+                                duration: 550
+                            }
+                            PropertyAction {
+                                value: 0
+                            }
+                            PauseAnimation {
+                                duration: 550
+                            }
                         }
                     }
                 }
-                Accessible.name: root.engine === null ? placeholderText : qsTr("Search %1").arg(
-                                                            root.engine.engineName)
+                // The prompt alone says nothing of what the field takes.
+                Accessible.name: root.commandScope ? placeholderText : (root.engine === null ? qsTr(
+                                                                                                   "Address, search, tabs and Spaces") :
+                                                                                               qsTr("Search %1").arg(
+                                                                                                   root.engine.engineName))
                 Accessible.description: root.destination
 
                 onTextChanged: {
@@ -842,26 +854,24 @@ Item {
                     root.queryChanged(text);
                 }
 
-                onAccepted: root.accept()
-
+                // The keys the field answers are the key map's, which the hint
+                // row under the results names.
                 Keys.onPressed: function (event) {
-                    if (event.key === Qt.Key_Backspace && (root.releaseKeyword() || root.releaseScope(
-                                                               )))
+                    const action = root.keymap ? root.keymap.omnibarActionFor(event.key) : "";
+                    if (action === "next" || action === "previous") {
+                        root.step(action === "next" ? 1 : -1);
                         event.accepted = true;
+                    } else if (action === "go") {
+                        root.accept();
+                        event.accepted = true;
+                    } else if (action === "leave" && (root.releaseKeyword() || root.releaseScope(
+                                                          ))) {
+                        event.accepted = true;
+                    }
                 }
 
                 Keys.onEscapePressed: function (event) {
                     root.dismissed();
-                    event.accepted = true;
-                }
-
-                Keys.onDownPressed: function (event) {
-                    root.step(1);
-                    event.accepted = true;
-                }
-
-                Keys.onUpPressed: function (event) {
-                    root.step(-1);
                     event.accepted = true;
                 }
             }
@@ -892,19 +902,19 @@ Item {
                 }
             }
 
-            SectionLabel {
+            // Where Return goes, in the muted word and size the rows' own
+            // labels are set in, before the arrow.
+            Text {
                 id: modeLabel
+                objectName: "omnibarMode"
                 anchors.right: goMark.left
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                colors: root.colors
-                text: root.commandScope ? qsTr("command") : (root.newTabIntent ? qsTr("new tab") :
-                                                                                 qsTr("this tab"))
-                // Centred in a bar of its own rather than stacked over rows, so
-                // it is centred on its glyphs: the lean a section label carries
-                // in a scrolling pane would drop it below the address beside it.
-                topPadding: overshoot
-                bottomPadding: overshoot
+                text: root.commandScope ? qsTr("Command") : (root.newTabIntent ? qsTr("New Tab") :
+                                                                                 qsTr("This Tab"))
+                color: root.colors.mutedText
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
             }
 
             Rectangle {
@@ -966,12 +976,12 @@ Item {
                     // What committing the row does, at its right edge. A
                     // command runs, which its keys already say.
                     readonly property string action: ({
-                                                          "tab": qsTr("switch tab →"),
-                                                          "space": qsTr("switch space →"),
-                                                          "history": qsTr("open →"),
-                                                          "putaway": qsTr("reopen →"),
-                                                          "keyword": qsTr("search →"),
-                                                          "suggestion": qsTr("search →"),
+                                                          "tab": qsTr("Switch to Tab"),
+                                                          "space": qsTr("Switch to Space"),
+                                                          "history": qsTr("Open"),
+                                                          "putaway": qsTr("Reopen"),
+                                                          "keyword": qsTr("Search"),
+                                                          "suggestion": qsTr("Search"),
                                                           "command": ""
                                                       })[modelData.kind]
                     // The keys that reach a command without the Omnibar, and a
@@ -990,7 +1000,8 @@ Item {
                                                         ? modelData.spaceName : ""
 
                     width: rowList.width
-                    height: 28
+                    // Tall enough for the key caps, which grow with the type.
+                    height: Math.max(28, Math.ceil(22 * Style.font.body / 12) + 6)
                     Accessible.role: Accessible.Button
                     Accessible.name: root.spokenName(modelData, row.title) + (row.spaceName.length
                                                                               > 0 ? " " + qsTr(
@@ -1002,13 +1013,19 @@ Item {
                     Accessible.description: modelData.kind === "history" || modelData.kind
                                             === "putaway" ? modelData.url : ""
 
+                    // The website's selected row: the accent at 14% over the
+                    // panel, so the glass shows through it. A row the pointer
+                    // is over is tinted by half as much.
                     Rectangle {
+                        objectName: "omnibarRowTint"
                         anchors.fill: parent
-                        color: row.isSelected || rowMouse.containsMouse ? root.colors.surface :
-                                                                          "transparent"
+                        color: Qt.alpha(root.colors.accent, row.isSelected ? 0.14 : (
+                                                                                 rowMouse.containsMouse
+                                                                                 ? 0.07 : 0))
                     }
 
                     Rectangle {
+                        objectName: "omnibarRowBar"
                         width: 2
                         height: parent.height
                         anchors.left: parent.left
@@ -1062,7 +1079,9 @@ Item {
                             anchors.centerIn: parent
                             visible: modelData.kind === "command"
                             text: visible ? root.commands.groupSymbols[modelData.group] || "" : ""
-                            color: row.isSelected ? root.colors.text : root.colors.mutedText
+                            // The accent, full on the selected row and softer on
+                            // the others, which still reads on the glass.
+                            color: Qt.alpha(root.colors.accent, row.isSelected ? 1 : 0.6)
                             opacity: row.usable ? 1 : 0.6
                             font.family: root.iconFontFamily
                             font.pixelSize: Style.font.iconLarge
@@ -1071,9 +1090,8 @@ Item {
 
                     Item {
                         id: rowText
-                        // What the title and the host share once another
-                        // Space's name has its place.
-                        readonly property real sharedWidth: width - rowSpace.reservedWidth
+                        // What the title and the host share.
+                        readonly property real sharedWidth: width
 
                         anchors.left: picture.right
                         anchors.leftMargin: 10
@@ -1083,9 +1101,7 @@ Item {
                         anchors.bottom: parent.bottom
 
                         // The title gives way before the host does, since the
-                        // host is what names the site, and both give way
-                        // before another Space's name, which says where
-                        // committing the row goes.
+                        // host is what names the site.
                         Text {
                             id: rowTitle
                             objectName: "omnibarRowTitle"
@@ -1114,26 +1130,10 @@ Item {
                             anchors.leftMargin: 10
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: rowSpace.reservedWidth
                             visible: row.host.length > 0
                             text: row.host
                             color: root.colors.mutedText
                             elide: Text.ElideMiddle
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.body
-                        }
-
-                        Text {
-                            id: rowSpace
-                            objectName: "omnibarRowSpace"
-                            readonly property real reservedWidth: visible ? implicitWidth + 10 : 0
-                            x: (rowHost.visible ? rowHost.x + Math.min(rowHost.implicitWidth,
-                                                                       rowHost.width) :
-                                                  rowTitle.width) + 10
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: row.spaceName.length > 0
-                            text: row.spaceName
-                            color: root.spaceColourOf(modelData.spaceId, modelData.spaceColor)
                             font.family: Style.font.family
                             font.pixelSize: Style.font.body
                         }
@@ -1146,9 +1146,24 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 10
 
-                        Text {
+                        // A command's keys are caps, one to a key and the
+                        // bare binding first, with a gap between bindings.
+                        KeyCaps {
                             objectName: "omnibarRowKeys"
-                            visible: row.keys.length > 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: modelData.kind === "command" && row.keys.length > 0
+                            colors: root.colors
+                            iconFontFamily: root.iconFontFamily
+                            plate: root.colors.overlayOpaque
+                            keys: visible ? row.keys : ""
+                            dotted: false
+                            bareFirst: true
+                        }
+
+                        // A keyword is typed text, not a key.
+                        Text {
+                            objectName: "omnibarRowKeyword"
+                            visible: modelData.kind === "keyword" && row.keys.length > 0
                             text: row.keys
                             color: root.colors.mutedText
                             opacity: 0.85
@@ -1159,12 +1174,41 @@ Item {
                         // Bright only on the row Return would commit.
                         Text {
                             objectName: "omnibarRowAction"
-                            visible: row.action.length > 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: row.action.length > 0 && row.spaceName.length === 0
                             text: row.action
                             color: row.isSelected ? root.colors.text : root.colors.mutedText
                             opacity: row.isSelected ? 1 : 0.85
                             font.family: Style.font.family
-                            font.pixelSize: Style.font.caption
+                            font.pixelSize: Style.font.body
+                        }
+
+                        // Another Space's tab says which Space committing it
+                        // takes the reader to, in that Space's colour until the
+                        // row is the one Return would commit.
+                        Text {
+                            objectName: "omnibarRowSpace"
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: row.spaceName.length > 0
+                            text: row.spaceName
+                            color: row.isSelected ? root.colors.text : root.spaceColourOf(
+                                                        modelData.spaceId, modelData.spaceColor)
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
+
+                        // What committing the row does, as an arrow in a key
+                        // cap, filled with the accent on the row Return would
+                        // commit. A command runs, which its keys already say.
+                        KeyCap {
+                            objectName: "omnibarRowGo"
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: modelData.kind !== "command"
+                            colors: root.colors
+                            iconFontFamily: root.iconFontFamily
+                            plate: root.colors.overlayOpaque
+                            text: root.goKey
+                            accented: row.isSelected
                         }
                     }
 
@@ -1182,12 +1226,31 @@ Item {
                 }
             }
         }
+
+        // The keys that work the list, under the results as the website's dash
+        // has them, and `?` at its end. At rest, with no results, the row is
+        // the Start page's hint for the Shortcut sheet and nothing else.
+        OmnibarHints {
+            id: hints
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: body.bottom
+            anchors.leftMargin: panel.border.width
+            anchors.rightMargin: panel.border.width
+            visible: root.rows.length > 0 || root.shownResting
+            colors: root.colors
+            keymap: root.keymap
+            iconFontFamily: root.iconFontFamily
+            commandScope: root.commandScope
+            listed: root.rows.length > 0
+        }
     }
 
     // The sun's light on the panel's rim, from where the road's sun stands,
     // and its bloom's half outside the edge.
     RimLight {
         objectName: "omnibarRim"
+        strength: root.rimStrength
         plate: panel
         plateRadius: panel.radius
         light: root.sunlight

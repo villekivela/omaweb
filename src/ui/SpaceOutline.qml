@@ -825,6 +825,7 @@ Rectangle {
                     objectName: "collapseButton"
                     KeyLabel {
                         objectName: "keyLabel-collapseButton"
+                        iconFontFamily: root.iconFontFamily
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.bottom
                         anchors.topMargin: -4
@@ -846,6 +847,7 @@ Rectangle {
                     objectName: "commandScopeButton"
                     KeyLabel {
                         objectName: "keyLabel-commandScopeButton"
+                        iconFontFamily: root.iconFontFamily
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.bottom
                         anchors.topMargin: -4
@@ -874,6 +876,7 @@ Rectangle {
                     objectName: "backButton"
                     KeyLabel {
                         objectName: "keyLabel-backButton"
+                        iconFontFamily: root.iconFontFamily
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.bottom
                         anchors.topMargin: -4
@@ -896,6 +899,7 @@ Rectangle {
                     objectName: "forwardButton"
                     KeyLabel {
                         objectName: "keyLabel-forwardButton"
+                        iconFontFamily: root.iconFontFamily
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.bottom
                         anchors.topMargin: -4
@@ -918,6 +922,7 @@ Rectangle {
                     objectName: "reloadButton"
                     KeyLabel {
                         objectName: "keyLabel-reloadButton"
+                        iconFontFamily: root.iconFontFamily
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.bottom
                         anchors.topMargin: -4
@@ -970,6 +975,7 @@ Rectangle {
 
             KeyLabel {
                 objectName: "keyLabel-addressButton"
+                iconFontFamily: root.iconFontFamily
                 anchors.right: parent.right
                 anchors.rightMargin: 4
                 anchors.verticalCenter: parent.verticalCenter
@@ -1385,6 +1391,7 @@ Rectangle {
 
                     KeyLabel {
                         objectName: "keyLabel-space-" + spaceButton.spaceId
+                        iconFontFamily: root.iconFontFamily
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.bottom: parent.top
                         anchors.bottomMargin: 2

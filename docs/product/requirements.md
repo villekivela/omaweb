@@ -105,6 +105,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Holding Primary on its own for 400 ms shows Key labels over the navigation row, the address
   trigger, the Spaces and the first nine tabs, read from the live keymap. Releasing Primary,
   pressing another key, or the window losing the keyboard removes them.
+- Every key the chrome shows is drawn as the website's `kbd`: a key cap 22 px tall and at least 22
+  px wide with a 4 px radius, a 1 px accent border at 55% with a 3 px bottom edge, a ground of the
+  accent at 10% over the plate, and the key in the accent in the mono face at weight 500 and 12 px,
+  all scaled with the interface font size. A chord is a row of caps, one to a key. A Key label's cap
+  keeps the ground when Primary finishes the chord it names, and is outlined without it for a key
+  pressed on its own, so the difference the old filled and outlined labels made is kept. A special
+  key is a symbol, not a word: Return and Enter `↵`, the arrows `↑ ↓ ← →`, Tab `⇥`, Backspace `⌫`,
+  Delete `⌦`, Shift `⇧` and Space `␣`, as a Material Symbols icon where the font carries a matching
+  glyph and as the Unicode symbol in the mono face where it does not. Escape is "Esc", and Ctrl,
+  Alt, Home, End, Page Up and Page Down stay words. A cap keeps the key's spoken name.
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
 - An Agent tab's row ends with an Agent mark in the Agent accent, in the place the close button
@@ -120,8 +130,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   and shows none of these marks.
 - A tab with no address to load shows the Start page in place of a webpage, never an empty viewport.
   That covers a Space at rest and an `about:blank` the reader navigated to, and no engine is spent
-  behind it. The Start page is the Omnibar at rest in the middle of the page area, focused, over a
-  night road. Under the field one line names `?`, the way to the Shortcut sheet.
+  behind it. The Start page is the Omnibar at rest above the road's horizon, centred in the page
+  area, focused, over a night road. The field is the website's dash:
+  `min(page area width - 32 px, 720 px)` wide, its top edge 50 px above the horizon, which lies at
+  half the page area's height, with a 50 px field and 16 px of padding. The Omnibar's hint row,
+  under the field, holds `?` as a key cap with the word "shortcuts", the way to the Shortcut sheet.
+- The road fills the page area, or the one pane of a split it stands in, and is never drawn under
+  the sidebar, which stands on its own fill as it does with the road off. It is drawn at the page
+  area's size, centred on it, with the composition the website draws in a viewport of that size.
+  With the sidebar hidden the page area is the whole window.
 - The road is drawn from the palette and follows a live theme change: a horizon and a banded sun,
   mountains falling to where the road runs out, a star field, the road from the bottom edge toward
   the horizon and lane marks drifting toward the reader. It is shown as a monochrome pixel display
@@ -233,26 +250,47 @@ reports the gap and remains experimental rather than imitating behavior it canno
   site-information panel.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens the Omnibar for the
   current tab. The Omnibar has one place whatever it opens over: centred in the page area with its
-  field on the Start page's horizon, where a new tab shows it. Its rows grow down from the field and
-  never move it; a short page area lists fewer rows at a time instead.
+  top edge 50 px above the Start page's horizon, where a new tab shows it. Its rows grow down from
+  the field and never move it; a short page area lists fewer rows at a time instead.
 - The Omnibar field is drawn as the website's dash: the Omaweb mark as its prompt in the palette's
-  accent, the typed text and a blinking block caret with a faint accent glow, and a `→` go mark that
-  commits as `Return` does. In command scope the mark gives way to `:`.
+  accent, drawn 32 px across as the website draws it, the typed text and a blinking block caret, and
+  a `→` go mark that commits as `Return` does. In command scope the mark gives way to `:`. The field
+  asks "Where to?", as the website's does, and "Where to? · opens in a new tab" for a new tab;
+  command scope and an engine keyword keep their own prompts. The label at the field's right end,
+  before the arrow, says where Return goes: "This Tab", "New Tab" or "Command", muted and at the
+  size of the rows' own labels, in title case in English and as plain words in Finnish. A screen
+  reader hears what the field takes, "Address, search, tabs and Spaces", rather than the prompt. The
+  typed text and the caret carry no glow, rim light, blur or shadow, and the text clears 4.5:1
+  against the field's glass in every theme, over the darkest and the lightest the road can put
+  behind it. Over the road the glass blurs it heavily under a nearly opaque tint of the overlay, so
+  the rows read cleanly, and over a page it blurs the page. The sun's light on the field's edge is
+  drawn at half the website's strength.
 - `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
   after the user commits a destination. Choosing an open tab from it switches to that tab and
-  creates none. `Escape` brings back the page that was on show; in a Space at rest it does nothing.
-  In a split the Start page covers both panes, where the committed tab lands, and `Escape` brings
-  the split back. While the Start page is on show, `Primary+L` and `o` focus its Omnibar.
+  creates none. `Escape` brings back the page that was on show; in a Space at rest it releases the
+  field instead: the caret goes, the field is drawn unfocused and the keyboard is the browser's, so
+  every bare key of the key map works as over a page, and `o`, `Primary+L` or a click on the field
+  give the field back. In a split the Start page covers both panes, where the committed tab lands,
+  and `Escape` brings the split back. While the Start page is on show, `Primary+L` and `o` focus its
+  Omnibar.
+- Under the Omnibar's field a hint row, over a rule, holds `?` and "shortcuts" at its right end and,
+  while there are results, names the keys that work the list, as the website's dash does: `↑↓` as
+  key caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope says "run" for
+  `↵` and adds `⌫` and "back", which leaves the scope. The field answers the keys the key map names
+  for the Omnibar, and the row names the same keys, so a key the row shows is a key the field
+  answers. The words are translated. With no results the row is shown only at rest, on the Start
+  page, and holds `?` alone. An item can join it beside `?`.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
   search keywords, and browser commands in one list. The tab on show is never a row, and a Private
   window lists no Spaces and no history.
 - The Omnibar searches every Space's open tabs. The active Space's tab rows come before any other
   Space's, however weakly they hold the typed text, and the other Spaces' follow in Space order. A
-  tab row from another Space names its Space after the host, in the Space colour, or for an Agent
-  Space in the Agent accent while an Agent is attached and muted otherwise, and committing it
-  switches to that Space with the tab on show as one action: a tab the Space no longer holds leaves
-  the reader where they were. The rows are read from what the session keeps of each Space, so
-  listing them resumes, loads or thaws no page. A Private window lists only its own tabs.
+  tab row from another Space names its Space as its label at the right edge, in the Space colour, or
+  for an Agent Space in the Agent accent while an Agent is attached and muted otherwise, turning to
+  the text colour on the selected row, and committing it switches to that Space with the tab on show
+  as one action: a tab the Space no longer holds leaves the reader where they were. The rows are
+  read from what the session keeps of each Space, so listing them resumes, loads or thaws no page. A
+  Private window lists only its own tabs.
 - Engine suggestions, an installation-wide setting in Settings' network section, are off by default
   and stay out of Sync. With them on, the Omnibar asks a search engine for Engine suggestions only
   when Return on the current text would search: never for an address such as `github.com/foo` or
@@ -277,12 +315,21 @@ reports the gap and remains experimental rather than imitating behavior it canno
   code and tint for a site the Space never loaded. They never show another Space's or window's
   artwork. Another Space's tab row draws the favicon that Space stored for its page, as the Space's
   outline does once it is on show. A Space row shows the Space's colour, and a command row its
-  group's symbol. Omaweb never fetches an icon from the network to fill a row.
+  group's symbol, in the accent: full on the selected row and softer on the others. Omaweb never
+  fetches an icon from the network to fill a row.
 - A tab or history row reads as the title, then the host in the muted colour; a history row gives
   its full address to a screen reader as the row's description. At its right edge a row says what
-  committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by
-  `search`. The action is bright on the selected row and muted on the others. A command row shows
-  its keys there instead. Every row's accessible name still says what it does.
+  committing it does in a muted word at the row's own size, then an arrow in a key cap:
+  `Switch to Tab`, `Switch to Space`, `Open`, `Reopen`, or a keyword followed by `Search`, in title
+  case in English and as plain sentences in Finnish. A tab of another Space has that Space's name
+  there instead, which is said once and not again beside the host. On the selected row the word
+  turns to the text colour and the cap fills with the accent, its arrow in the panel's ground
+  colour. The selected row is the website's: the accent at 14% over the panel, so the glass shows
+  through it, with a 2 px accent bar at its left edge. The action is bright on the selected row and
+  muted on the others. A command row shows its keys there instead, as key caps: one to a key, the
+  bare binding before the chord, a quiet gap between bindings and no dot, right-aligned so the caps
+  line up down the list, and the title elides before the caps clip. A keyword stays typed text.
+  Every row's accessible name still says what it does.
 - `Return` commits the typed address or search, even when a row matches elsewhere in its title. When
   an open tab's title or host starts with the typed text, that tab's row is selected instead and
   `Return` switches to it, and to another Space's tab only when no tab of the active Space holds the

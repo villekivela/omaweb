@@ -3775,6 +3775,67 @@ TestCase {
         return single;
     }
 
+    // A key cap is the website's `kbd`, whichever surface draws it: 22 px
+    // tall and no narrower, with a 4 px radius, the key in the accent in the
+    // mono face at weight 500 and 12 px, all scaled with the interface font.
+    function checkKeycap(cap, name) {
+        const unit = Style.font.body / 12;
+        verify(cap !== null, name);
+        compare(cap.height, 22 * unit, name);
+        verify(cap.width >= 22 * unit, name);
+        compare(cap.radius, 4 * unit, name);
+        const label = findChild(cap, "keycapLabel");
+        compare(label.font.pixelSize, 12 * unit, name);
+        compare(label.font.weight, Font.Medium, name);
+        compare(String(label.color), String(window.colors.accent), name);
+        compare(label.font.family, Style.font.family, name);
+    }
+
+    // The Start page's `?` hint is the Omnibar's hint row's: at rest, with no
+    // results, the row holds `? shortcuts` as the website's key cap and its
+    // word, and nothing is drawn as a line of its own under the field. With
+    // results the row keeps its keys and the same hint stays at its right end.
+    function test_theHintRowHoldsTheShortcutsHintAtRest() {
+        const hints = findChild(window.contentItem, "omnibarHints");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting caps");
+        tryVerify(function () {
+            return hints.visible;
+        });
+        verify(findChild(window.contentItem, "startPageHint") === null);
+        const hint = findChild(hints, "omnibarShortcutsHint");
+        verify(hint.visible);
+        const cap = findChild(hint, "keycap");
+        compare(cap.text, "?");
+        checkKeycap(cap, "hint");
+        compare(findChild(hint, "startPageHintWord").text, "shortcuts");
+        compare(childrenNamed(hints, "omnibarHintWord").length, 0);
+        compare(hints.height, hints.implicitHeight);
+        compare(findChild(window.contentItem, "omnibarFrame").height, panel.restHeight);
+
+        browser.recordVisit("https://hint-rest.example/", "Hint rest");
+        input.text = "hint rest";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        verify(hint.visible);
+        compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
+            return word.text;
+        }).join(), "select,go");
+        const keys = childrenNamed(hints, "omnibarHintWord")[1];
+        verify(hint.mapToItem(hints, 0, 0).x > keys.mapToItem(hints, 0, 0).x + keys.width);
+        const arrow = childrenNamed(hints, "keycap").filter(function (cap) {
+            return cap.visible && cap.text.length > 0;
+        })[0];
+        compare(hint.mapToItem(hints, 0, hint.height / 2).y, arrow.mapToItem(hints, 0, arrow.height
+                                                                             / 2).y);
+        verify(hint.mapToItem(hints, hint.width, 0).x <= hints.width);
+        input.text = "";
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
+    }
+
     // Holding Primary on its own labels the chrome with the keys that run it.
     // A chord on Primary is labelled by the key that finishes it, and a key
     // pressed without Primary is labelled as itself. The labels go the moment
@@ -3810,6 +3871,7 @@ TestCase {
         tryVerify(function () {
             return label.visible;
         });
+        checkKeycap(findChild(label, "keycap"), "Primary held");
         for (let index = 0; index < controls.length; ++index) {
             const control = findChild(window.contentItem, "keyLabel-" + controls[index][0]);
             const binding = bindingFor(controls[index][1]);
@@ -7604,6 +7666,8 @@ TestCase {
         tryVerify(function () {
             return omnibarRowsOf(panel, "tab").length === 1;
         });
+        // The label is the Space's colour until the row is the selected one.
+        panel.selected = -1;
         const suffix = findChild(tabRow(), "omnibarRowSpace");
         compare(suffix.text, "Crawler");
         verify(Qt.colorEqual(suffix.color, window.colors.mutedText));
@@ -7631,8 +7695,11 @@ TestCase {
         tryVerify(function () {
             return omnibarRowsOf(panel, "tab").length === 1;
         });
+        panel.selected = -1;
         verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color,
                              window.colors.agentAccent));
+        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
+        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color, window.colors.text));
         findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
         control.destroy();
         window.closeOmnibar();
@@ -7676,6 +7743,7 @@ TestCase {
         compare(local.Accessible.name, "Switch to tab Notes on orbit");
 
         const away = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[1]));
+        panel.selected = -1;
         const suffix = findChild(away, "omnibarRowSpace");
         compare(suffix.visible, true);
         compare(suffix.text, "Alpha");
@@ -7709,17 +7777,22 @@ TestCase {
         });
         compare(findChild(away, "omnibarRowTitle").text, alphaTitle);
         compare(findChild(away, "omnibarRowHost").text, "plans.example");
-        compare(away.action, "switch tab →");
-        // The title gives way before the host, and the Space's name never
-        // does: it is drawn whole, at the title's size, inside the row's
-        // text.
+        compare(away.action, "Switch to Tab");
+        // The title gives way before the host, and the Space's name, the
+        // row's label at its right edge, is drawn whole: it is said there
+        // and not again beside the host, and the word it replaces is gone.
         const awayTitle = findChild(away, "omnibarRowTitle");
         verify(awayTitle.truncated);
         verify(!findChild(away, "omnibarRowHost").truncated);
-        compare(suffix.font.pixelSize, awayTitle.font.pixelSize);
+        compare(suffix.font.pixelSize, findChild(away, "omnibarRowAction").font.pixelSize);
         compare(suffix.width, suffix.implicitWidth);
-        verify(suffix.x >= awayTitle.x + awayTitle.width);
-        verify(suffix.x + suffix.width <= suffix.parent.width);
+        verify(!findChild(away, "omnibarRowAction").visible);
+        verify(suffix.mapToItem(away, 0, 0).x >= awayTitle.mapToItem(away, awayTitle.width, 0).x);
+        verify(suffix.mapToItem(away, suffix.width, 0).x <= away.width);
+        verify(findChild(away, "omnibarRowGo").visible);
+        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[1]);
+        verify(Qt.colorEqual(suffix.color, window.colors.text));
+        panel.selected = -1;
         compare(away.Accessible.name, "Switch to tab " + alphaTitle + " in Alpha");
 
         compare(Object.keys(engineHost.engines).length, engineCount);
@@ -7811,7 +7884,7 @@ TestCase {
             return rows.itemAtIndex(spaceRow) !== null;
         });
         compare(rows.itemAtIndex(spaceRow).Accessible.name, "Switch to Space Zephyr reading");
-        compare(rows.itemAtIndex(spaceRow).action, "switch space →");
+        compare(rows.itemAtIndex(spaceRow).action, "Switch to Space");
         compare(findChild(rows.itemAtIndex(spaceRow), "omnibarRowSpaceColor").visible, true);
 
         input.text = "zoom in";
@@ -7885,7 +7958,7 @@ TestCase {
             compare(panel.selected, -1);
 
             let row = omnibarRowItem(rows, first);
-            compare(row.action, "search →");
+            compare(row.action, "Search");
             compare(row.keys, "");
             compare(row.Accessible.name, "Search Stub for weather");
             compare(findChild(row, "omnibarRowHost").visible, false);
@@ -8097,7 +8170,7 @@ TestCase {
         window.openOmnibar(false);
         input.text = "edge-tab";
         let row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]));
-        compare(row.action, "switch tab →");
+        compare(row.action, "Switch to Tab");
         compare(row.keys, "");
         compare(row.Accessible.name, "Switch to tab Edge tab page");
         compare(findChild(row, "omnibarRowTitle").text, "Edge tab page");
@@ -8118,7 +8191,7 @@ TestCase {
             return omnibarRowsOf(panel, "history").length === 1;
         });
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "history")[0]));
-        compare(row.action, "open →");
+        compare(row.action, "Open");
         compare(row.keys, "");
         compare(row.Accessible.name, "Open history result Edge history page");
         compare(row.Accessible.description, "https://www.edge-history.example/deep/page");
@@ -8154,7 +8227,7 @@ TestCase {
 
         input.text = "edge space";
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]));
-        compare(row.action, "switch space →");
+        compare(row.action, "Switch to Space");
         compare(row.keys, "");
         compare(findChild(row, "omnibarRowTile").visible, false);
         const spaceColor = findChild(row, "omnibarRowSpaceColor");
@@ -8177,7 +8250,7 @@ TestCase {
         // code, and still does with favicons off.
         wait(50);
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "keyword")[0]));
-        compare(row.action, "search →");
+        compare(row.action, "Search");
         compare(row.keys, "br");
         tile = findChild(row, "omnibarRowTile");
         compare(tile.visible, true);
@@ -8354,11 +8427,11 @@ TestCase {
         verify(frame.y <= panel.restY);
         tryCompare(frame, "y", panel.restY);
         // Over a page it stands where the Start page rests it: centred in the
-        // page area, the field on the horizon.
+        // page area, the horizon 50 px below its top as on the website.
         const startPage = findChild(window.contentItem, "startPage");
         const top = frame.mapToItem(startPage, frame.width / 2, 0);
         fuzzyCompare(top.x, startPage.width / 2, 1);
-        fuzzyCompare(top.y + panel.fieldBelowHorizon, startPage.horizonY, 1);
+        fuzzyCompare(top.y + panel.horizonBelowTop, startPage.horizonY, 1);
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
 
@@ -9341,6 +9414,8 @@ TestCase {
         if (data.text) {
             const changed = Object.assign({}, window.colors);
             changed.text = data.text;
+            // What ThemeController derives from the text for the field.
+            changed.fieldText = data.text;
             changed.overlay = data.overlay;
             window.colors = changed;
         }
@@ -9369,6 +9444,562 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Readable rim");
         window.colors = Qt.binding(function () {
             return theme.palette;
+        });
+    }
+
+    // The Start page's field is the website's dash, measured from
+    // website/styles.css: a panel `min(viewport - 32px, 720px)` wide with its
+    // top 50 px above the horizon, a 50 px field with 16 px of padding, the
+    // mark drawn 32 px wide in the viewBox's 38.2 by 18.8, 12 px before the
+    // 17 px text.
+    function test_theFieldIsTheWebsitesDash() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        const field = findChild(window.contentItem, "omnibarField");
+        const prompt = findChild(window.contentItem, "omnibarPrompt");
+        const mark = findChild(window.contentItem, "omnibarMark");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting dash");
+        tryCompare(findChild(window.contentItem, "omnibar"), "arrival", 1);
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+
+        compare(frame.width, Math.min(startPage.width - 32, 720));
+        const top = frame.mapToItem(startPage, frame.width / 2, 0);
+        fuzzyCompare(top.x, startPage.width / 2, 1);
+        fuzzyCompare(startPage.horizonY - top.y, 50, 0.5);
+        compare(field.height, 50);
+        compare(prompt.x, 16);
+        compare(prompt.width, 32);
+        fuzzyCompare(mark.width * mark.scale, 31.7, 0.1);
+        fuzzyCompare(mark.height * mark.scale, 15.4, 0.1);
+        compare(input.x, prompt.x + prompt.width + 12);
+        compare(input.font.pixelSize, 17);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting dash");
+    }
+
+    // The glass over the road is a heavy one, so the results read cleanly
+    // over it: the road blurred well past a sliver and under a tint of the
+    // overlay that is nearly opaque, never less than the 0.8 the text's
+    // contrast is floored against. Both are the Omnibar's own settings, so
+    // they can be tuned in one place.
+    function test_theGlassOverTheRoadIsBlurredAndNearlyOpaque() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const glass = findChild(window.contentItem, "omnibarGlass");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Heavy glass");
+        tryVerify(function () {
+            return panel.shownResting && scene.light !== null;
+        });
+        tryCompare(panel, "arrival", 1);
+
+        verify(glass.overRoad);
+        compare(glass.blur, panel.glassBlurOverRoad);
+        verify(panel.glassBlurOverRoad >= 32);
+        verify(panel.glassTintOverRoad >= 0.8);
+        fuzzyCompare(glass.tint.a, Math.min(glass.overlay.a, panel.glassTintOverRoad), 0.01);
+        verify(glass.tint.a >= 0.9);
+        compare(glass.source, scene);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Heavy glass");
+    }
+
+    // The sun's light on the field's edge, the rim and the bloom either side
+    // of it, is drawn at one strength, the Omnibar's `rimStrength`, so it can
+    // be tuned in one place. It is half what the website draws.
+    function test_theRimLightIsDrawnAtOneToneDownStrength() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const rim = findChild(window.contentItem, "omnibarRim");
+        const bloom = findChild(window.contentItem, "omnibarInnerBloom");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Rim strength");
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return rim.light !== null;
+        });
+
+        compare(panel.rimStrength, 0.5);
+        compare(rim.strength, panel.rimStrength);
+        compare(bloom.strength, panel.rimStrength);
+        fuzzyCompare(rim.opacity, panel.opacity * panel.rimStrength, 0.001);
+        compare(bloom.opacity, panel.rimStrength);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Rim strength");
+    }
+
+    // The text the reader types and the caret are drawn plain: in the
+    // theme's field text, which clears 4.5:1 on the glass, with no layer
+    // effect, so no glow, blur or shadow; and the bloom of the rim light on
+    // the field's edge stops short of the glyphs.
+    function test_theTypedTextAndCaretHaveNoGlow() {
+        const input = findChild(window.contentItem, "omnibarInput");
+        const mark = findChild(window.contentItem, "omnibarMark");
+        const field = findChild(window.contentItem, "omnibarField");
+        const bloom = findChild(window.contentItem, "omnibarInnerBloom");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting plain");
+        tryCompare(findChild(window.contentItem, "omnibar"), "arrival", 1);
+        tryVerify(function () {
+            return bloom.light !== null;
+        });
+
+        compare(String(input.color), String(window.colors.fieldText));
+        verify(!input.layer.enabled);
+        verify(!mark.layer.enabled);
+        const caret = findChild(input, "omnibarCaret");
+        verify(caret === null || !caret.layer.enabled);
+        // The bloom reaches no further into the field than the glyphs'
+        // margin above and below the 17 px text.
+        verify(bloom.reach <= (field.height - input.font.pixelSize) / 2,
+               "the bloom reaches the text");
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting plain");
+    }
+
+    // The field asks as the website's dash does, "Where to?", wherever the
+    // Omnibar opens, while a mode keeps its own prompt. What a screen reader
+    // speaks names what the field takes, never only the prompt.
+    function test_theFieldAsksWhereTo() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://where-to.example/");
+        activateWindow();
+
+        window.openOmnibar(false);
+        compare(input.placeholderText, "Where to?");
+        compare(input.Accessible.name, "Address, search, tabs and Spaces");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openOmnibar(true);
+        compare(input.placeholderText, "Where to? \u00b7 opens in a new tab");
+        compare(input.Accessible.name, "Address, search, tabs and Spaces");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openCommandScope();
+        compare(input.placeholderText, "search every action");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // Every item under `item` named `name`, delegates and content items
+    // included.
+    function childrenNamed(item, name) {
+        let found = [];
+        const below = item.contentItem ? [item.contentItem].concat(Array.from(item.children)) :
+                                         Array.from(item.children);
+        for (const child of below) {
+            if (child.objectName === name)
+                found.push(child);
+            found = found.concat(childrenNamed(child, name));
+        }
+        return found;
+    }
+
+    // Under the results the Omnibar names the keys that work its list, as the
+    // website's dash does: `select` for the arrows and `go` for Return as key
+    // caps in 11 px dim text over a rule, the keys read from the key map, and
+    // `run` in place of `go` in command scope. Nothing is shown with no
+    // results.
+    function test_theOmnibarNamesItsKeysUnderTheResults() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        const hints = findChild(window.contentItem, "omnibarHints");
+        browser.recordVisit("https://hint-row.example/", "Hint row");
+        openPage("https://hint-row-page.example/");
+        activateWindow();
+
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        verify(!hints.visible);
+        input.text = "hint row";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        verify(hints.visible);
+        compare(hints.keys.select.join(), panel.keymap.omnibarKeys.select.join());
+        compare(hints.keys.go.join(), panel.keymap.omnibarKeys.go.join());
+        const words = childrenNamed(hints, "omnibarHintWord").map(function (word) {
+            return word.text;
+        });
+        compare(words.join(), "select,go");
+        verify(findChild(hints, "omnibarShortcutsHint") !== null);
+        const capsOf = function (group) {
+            return childrenNamed(group, "keycap").filter(function (cap) {
+                return cap.text.length > 0;
+            }).map(function (cap) {
+                return cap.text;
+            });
+        };
+        compare(capsOf(hints).join(), "Up,Down,Return,?");
+        const arrow = childrenNamed(hints, "keycap").filter(function (cap) {
+            return cap.visible && cap.text === "Up";
+        })[0];
+        compare(findChild(arrow, "keycapLabel").text, "arrow_upward");
+        compare(findChild(arrow, "keycapLabel").font.family, panel.iconFontFamily);
+        const word = childrenNamed(hints, "omnibarHintWord")[0];
+        compare(word.font.pixelSize, Style.font.bodySmall);
+        compare(String(word.color), String(window.colors.mutedText));
+        compare(findChild(hints, "omnibarHintRule").height, 1);
+        compare(frame.height, panel.restHeight);
+        verify(hints.y >= findChild(window.contentItem, "omnibarRowList").y);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openCommandScope();
+        input.text = "reopen";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
+            return word.text;
+        }).join(), "select,run,back");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // The selected result is the website's selected row: the accent at 14%
+    // over the panel, so the glass still shows through it, with the accent bar
+    // at its left edge. A row that is not selected has no tint.
+    function test_theSelectedRowIsATranslucentAccentTint() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        browser.recordVisit("https://selected-tint.example/", "Selected tint");
+        openPage("https://selected-tint-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        input.text = "selected tint";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        keyClick(Qt.Key_Down);
+        tryVerify(function () {
+            return panel.selected >= 0;
+        });
+        const row = omnibarRowItem(list, panel.selected);
+        const tint = findChild(row, "omnibarRowTint");
+        const accent = Qt.color(String(window.colors.accent));
+        fuzzyCompare(tint.color.r, accent.r, 0.01);
+        fuzzyCompare(tint.color.g, accent.g, 0.01);
+        fuzzyCompare(tint.color.b, accent.b, 0.01);
+        fuzzyCompare(tint.color.a, 0.14, 0.01);
+        compare(String(findChild(row, "omnibarRowBar").color), String(accent));
+        compare(findChild(row, "omnibarRowBar").width, 2);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // The keys at a command row's right edge are key caps, one to a key, the
+    // bare binding before the chord with a quiet gap between bindings rather
+    // than a dot, and they are right-aligned so they line up down the list.
+    // The title elides before the caps clip.
+    function test_aCommandRowsKeysAreKeyCapsRightAligned() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        openPage("https://command-caps-page.example/");
+        activateWindow();
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.rows.length > 5;
+        });
+        let two = -1;
+        let one = -1;
+        for (let i = 0; i < panel.rows.length; ++i) {
+            const row = panel.rows[i];
+            if (row.kind !== "command" || !row.keys)
+                continue;
+            if (two < 0 && row.keys.indexOf("\u00b7") >= 0)
+                two = i;
+            if (one < 0 && row.keys.indexOf("\u00b7") < 0)
+                one = i;
+        }
+        verify(two >= 0 && one >= 0, "the list has a command with two bindings and one with one");
+
+        const capsOf = function (index) {
+            const row = omnibarRowItem(list, index);
+            const keys = findChild(row, "omnibarRowKeys");
+            verify(keys !== null, "no keys on row " + index);
+            return {
+                "row": row,
+                "keys": keys,
+                "caps": childrenNamed(keys, "keycap").filter(function (cap) {
+                    return cap.visible && cap.text.length > 0;
+                })
+            };
+        };
+        const withTwo = capsOf(two);
+        // No dot anywhere, and one cap for each key of each binding, the
+        // shorter binding first.
+        const gaps = childrenNamed(withTwo.keys, "keycapSeparator").filter(function (gap) {
+            return gap.visible;
+        });
+        compare(gaps.length, 1);
+        compare(gaps[0].text, "");
+        const bindings = panel.rows[two].keys.split(/\s+\u00b7\s+/);
+        const expected = bindings.map(function (binding) {
+            return binding.split(/\+(?=.)/);
+        }).sort(function (a, b) {
+            return a.length - b.length;
+        });
+        compare(withTwo.caps.map(function (cap) {
+            return cap.text;
+        }).join(), [].concat.apply([], expected).join());
+        // Caps of a chord are 4 px apart, bindings further apart than that.
+        const edge = function (cap) {
+            return cap.mapToItem(withTwo.keys, cap.width, 0).x;
+        };
+        const start = function (cap) {
+            return cap.mapToItem(withTwo.keys, 0, 0).x;
+        };
+        const chordFrom = expected[0].length;
+        if (withTwo.caps.length > chordFrom + 1)
+            compare(start(withTwo.caps[chordFrom + 1]) - edge(withTwo.caps[chordFrom]), 4);
+        verify(start(withTwo.caps[chordFrom]) - edge(withTwo.caps[chordFrom - 1]) > 4);
+
+        // The last cap of every row stands at the same distance from the
+        // row's edge, so the caps line up down the list.
+        const withOne = capsOf(one);
+        const rightGap = function (found) {
+            const last = found.caps[found.caps.length - 1];
+            return found.row.width - last.mapToItem(found.row, last.width, 0).x;
+        };
+        compare(rightGap(withTwo), rightGap(withOne));
+        compare(rightGap(withOne), 14);
+
+        // The title gives way before the caps do.
+        const title = findChild(withTwo.row, "omnibarRowTitle");
+        verify(title.mapToItem(withTwo.row, title.width, 0).x <= withTwo.keys.mapToItem(withTwo.row,
+                                                                                        0, 0).x);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // A row that is not a command ends in a muted word for what Return does and
+    // an arrow in a key cap, as Arc's command bar does. On the selected row the
+    // word turns to the text colour and the cap fills with the accent, its
+    // arrow in the panel's ground colour. A command row has no arrow.
+    function test_aRowEndsInALabelAndAnArrowCap() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        browser.recordVisit("https://arrow-cap.example/", "Arrow cap");
+        openPage("https://arrow-cap-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        input.text = "arrow cap";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        const first = omnibarRowItem(list, 0);
+        const label = findChild(first, "omnibarRowAction");
+        const cap = findChild(first, "omnibarRowGo");
+        verify(cap !== null && cap.visible);
+        compare(cap.text, "Right");
+        compare(findChild(cap, "keycapLabel").text, "arrow_forward");
+        compare(label.text, "Open");
+        // At the row's own size, as the muted host is.
+        compare(label.font.pixelSize, Style.font.body);
+        compare(label.font.pixelSize, findChild(first, "omnibarRowHost").font.pixelSize);
+        verify(label.text.indexOf("\u2192") < 0);
+        compare(String(label.color), String(window.colors.mutedText));
+        verify(!cap.accented);
+
+        panel.selected = 0;
+        compare(String(label.color), String(window.colors.text));
+        verify(cap.accented);
+        const accent = Qt.color(String(window.colors.accent));
+        compare(String(cap.color), String(accent));
+        compare(String(findChild(cap, "keycapLabel").color), String(window.colors.overlayOpaque));
+        // Right-aligned like every other cap on a row.
+        compare(first.width - cap.mapToItem(first, cap.width, 0).x, 14);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        verify(!findChild(omnibarRowItem(list, 0), "omnibarRowGo").visible);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // The label at the field's right end names where Return goes, in title case
+    // and muted at the size of the rows' own labels, with the arrow kept. It is
+    // not the spaced capitals of a section label.
+    function test_theFieldsRightLabelIsTitleCaseAndMuted() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://mode-label-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        const mode = findChild(window.contentItem, "omnibarMode");
+        compare(mode.text, "This Tab");
+        compare(mode.font.capitalization, Font.MixedCase);
+        compare(String(mode.color), String(window.colors.mutedText));
+        compare(mode.font.pixelSize, Style.font.body);
+        verify(findChild(window.contentItem, "omnibarGo").visible);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        compare(mode.text, "Command");
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openOmnibar(true);
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.newTabIntent;
+        });
+        compare(mode.text, "New Tab");
+        window.dismissStartPage();
+        tryVerify(function () {
+            return !window.startPageSummoned;
+        });
+    }
+
+    // A command row's symbol is drawn in the accent: full on the selected row,
+    // softer on the others. The picture of a tab, history or Space row is a
+    // favicon or a colour and is left as it is.
+    function test_aCommandRowsSymbolIsDrawnInTheAccent() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        openPage("https://command-symbols-page.example/");
+        activateWindow();
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.rows.length > 1;
+        });
+        tryVerify(function () {
+            return panel.selected >= 0;
+        });
+        const accent = Qt.color(String(window.colors.accent));
+        const symbolOf = function (index) {
+            return findChild(omnibarRowItem(list, index), "omnibarRowSymbol");
+        };
+        const selected = symbolOf(panel.selected);
+        compare(String(selected.color), String(accent));
+        const other = symbolOf(panel.selected + 1);
+        fuzzyCompare(other.color.r, accent.r, 0.01);
+        fuzzyCompare(other.color.g, accent.g, 0.01);
+        fuzzyCompare(other.color.b, accent.b, 0.01);
+        fuzzyCompare(other.color.a, 0.6, 0.01);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // The block caret stands before the placeholder in an empty field, as the
+    // website's does, and never over its first letter. Typing puts it after
+    // the text.
+    function test_theCaretStandsBeforeThePlaceholder() {
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting caret");
+        tryCompare(findChild(window.contentItem, "omnibar"), "arrival", 1);
+        compare(input.text, "");
+        const caret = findChild(input, "omnibarCaret");
+        verify(caret !== null);
+        const textLeft = input.mapToItem(window.contentItem, input.leftPadding, 0).x;
+        const caretRight = caret.mapToItem(window.contentItem, caret.width, 0).x;
+        verify(caretRight <= textLeft, "the caret stands over the placeholder");
+        const prompt = findChild(window.contentItem, "omnibarPrompt");
+        verify(caret.mapToItem(window.contentItem, 0, 0).x >= prompt.mapToItem(window.contentItem,
+                                                                               prompt.width, 0).x,
+               "the caret stands over the mark");
+        input.text = "x";
+        verify(caret.mapToItem(window.contentItem, 0, 0).x >= textLeft);
+        input.text = "";
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting caret");
+    }
+
+    // The Omnibar's field answers the keys its key map names, and the hint row
+    // names the same keys: rebinding the arrows turns the selection the other
+    // way and the row follows.
+    function test_theFieldAnswersTheKeysTheHintRowNames() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const hints = findChild(window.contentItem, "omnibarHints");
+        const keymap = panel.keymap;
+        const original = keymap.omnibarBindings;
+        browser.recordVisit("https://rebind-one.example/", "Rebind one");
+        browser.recordVisit("https://rebind-two.example/", "Rebind two");
+        openPage("https://rebind-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        input.text = "rebind";
+        tryVerify(function () {
+            return panel.rows.length > 1;
+        });
+        panel.selected = 0;
+        keyClick(Qt.Key_Down);
+        compare(panel.selected, 1);
+        keyClick(Qt.Key_Up);
+        compare(panel.selected, 0);
+
+        keymap.omnibarBindings = {
+            "Up": "next",
+            "Down": "previous",
+            "Return": "go",
+            "Backspace": "leave"
+        };
+        keyClick(Qt.Key_Up);
+        compare(panel.selected, 1);
+        keyClick(Qt.Key_Down);
+        compare(panel.selected, 0);
+        compare(hints.keys.select.join(), keymap.omnibarKeys.select.join());
+
+        keymap.omnibarBindings = {
+            "Left": "next",
+            "Return": "go",
+            "Backspace": "leave"
+        };
+        compare(hints.keys.select.join(), "Left");
+        keyClick(Qt.Key_Down);
+        compare(panel.selected, 0);
+        keyClick(Qt.Key_Left);
+        compare(panel.selected, 1);
+
+        keymap.omnibarBindings = original;
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // The Shortcut sheet holds a row for every command whether it is open or
+    // not. A closed sheet draws none of their key caps, which kept the rest of
+    // the window slow enough to miss clicks, and an open one draws them.
+    function test_aClosedShortcutSheetDrawsNoKeyCaps() {
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const capsIn = function () {
+            return childrenNamed(sheet, "keycap").filter(function (cap) {
+                return cap.text.length > 0;
+            }).length;
+        };
+        verify(!window.shortcutsOpen);
+        compare(capsIn(), 0);
+        window.requestShortcuts();
+        tryVerify(function () {
+            return window.shortcutsOpen && capsIn() > 0;
+        });
+        window.shortcutsOpen = false;
+        tryVerify(function () {
+            return capsIn() === 0;
         });
     }
 
@@ -9407,21 +10038,22 @@ TestCase {
         compare(engineLoader.engines[restingTabId], undefined);
         compare(engineLoader.item, null);
 
-        // The field rests on the horizon, in the middle of the page area, once
-        // the Space has arrived.
+        // The field rests above the horizon, in the middle of the page area,
+        // once the Space has arrived.
         tryCompare(panel, "arrival", 1);
         tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
         const top = frame.mapToItem(startPage, frame.width / 2, 0);
         fuzzyCompare(top.x, startPage.width / 2, 1);
         verify(top.y < startPage.horizonY);
-        verify(top.y + panel.fieldBelowHorizon * 2 > startPage.horizonY);
+        fuzzyCompare(top.y + panel.horizonBelowTop, startPage.horizonY, 1);
 
-        // Escape has no page to give back, and leaves what is typed alone.
+        // Escape has no page to give back: it releases the field to the
+        // browser and leaves what is typed alone.
         input.text = "half typed";
         keyClick(Qt.Key_Escape);
         verify(startPage.open);
         compare(input.text, "half typed");
-        verify(input.activeFocus);
+        verify(!input.activeFocus);
 
         // Asking for the address focuses the field and keeps the text.
         window.sidebarCollapsed = false;
@@ -9622,39 +10254,40 @@ TestCase {
         browser.activateTab(firstTabId);
     }
 
-    // On the Start page the road runs under the whole window and the sidebar
-    // stands over it in its own colour, translucent as the theme has it. Once
-    // a page has loaded the Start page and its road are gone and the sidebar
-    // stands on the window again.
-    function test_theRoadRunsUnderTheSidebarOnTheStartPage() {
+    // The Start page's road fills the page area and nothing else: it is
+    // drawn at the page area's own size, as the website draws it in a
+    // viewport, centred on it, and never runs under the sidebar. Over a Start
+    // page the sidebar stands on its own fill, as with the road off.
+    function test_theRoadFillsThePageAreaAndNotTheSidebar() {
         const sidebar = findChild(window.contentItem, "sidebar");
-        const viewport = findChild(window.contentItem, "engineViewport");
         const startPage = findChild(window.contentItem, "startPage");
         const scene = findChild(window.contentItem, "startPageScene");
         const homeSpaceId = browser.activeSpaceId;
-        const restingSpaceId = enterRestingSpace("Resting under");
+        const restingSpaceId = enterRestingSpace("Resting in the page area");
         tryCompare(sidebar, "arriving", false);
         tryVerify(function () {
             return startPage.visible && sidebar.visible && sidebar.width > 0;
         });
 
-        const origin = scene.mapToItem(window.contentItem, 0, 0);
-        compare(origin.x, 0);
-        // Its vanishing point stays in the middle of the page area, under the
-        // Omnibar.
-        const middle = startPage.mapToItem(window.contentItem, startPage.width / 2, 0);
-        compare(origin.x + scene.width / 2, middle.x);
-        // The glass is framed by the window, not by the wider road.
-        compare(scene.frame.x, 0);
-        compare(scene.frame.width, window.width);
-        // Nothing between it and the window cuts it short of the window's
-        // left edge.
-        for (let item = scene.parent; item !== window.contentItem; item = item.parent) {
-            if (item.clip)
-                verify(item.mapToItem(window.contentItem, 0, 0).x <= 0, item + " clips the road");
+        const widths = [window.sidebarMinimumWidth + 40, window.sidebarMinimumWidth + 120];
+        for (const width of widths) {
+            window.sidebarWidth = width;
+            tryCompare(startPage, "width", window.width - width);
+            checkRoadFillsPageArea(startPage, scene);
+            // Nothing between the road and the window cuts it short of the
+            // page area's own edges, and the page area starts at the seam.
+            verify(startPage.clip);
+            compare(startPage.mapToItem(window.contentItem, 0, 0).x, width);
         }
-        // Drawn over the road, not under it.
-        verify(sidebar.z > viewport.z);
+
+        window.sidebarCollapsed = true;
+        tryCompare(startPage, "width", window.width);
+        checkRoadFillsPageArea(startPage, scene);
+        window.sidebarCollapsed = false;
+        tryCompare(startPage, "width", window.width - window.sidebarWidth);
+
+        // Drawn over the road's side of the window, not under it.
+        verify(sidebar.z <= findChild(window.contentItem, "engineViewport").z);
         compare(String(sidebar.color), String(window.colors.sidebar));
 
         const input = findChild(window.contentItem, "omnibarInput");
@@ -9668,10 +10301,51 @@ TestCase {
             return !startPage.visible;
         });
         verify(!scene.visible);
-        verify(sidebar.z <= viewport.z);
-        compare(String(sidebar.color), String(window.colors.sidebar));
 
-        leaveSpace(homeSpaceId, restingSpaceId, "Resting under");
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting in the page area");
+    }
+
+    // Dragging the sidebar's seam changes the page area at every frame, and
+    // the road is drawn again for a size, not for a frame: it stays at the
+    // size it was drawn at, stretched to the page area, with its sun on the
+    // page area's middle, and is drawn again once the seam has settled.
+    function test_theRoadIsDrawnAgainOnlyOnceTheSeamHasSettled() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting while dragged");
+        tryVerify(function () {
+            return startPage.visible && scene.light !== null;
+        });
+        window.sidebarWidth = window.sidebarMinimumWidth + 40;
+        tryCompare(scene, "drawnWidth", scene.width);
+        const drawn = scene.drawnWidth;
+
+        for (let step = 1; step <= 6; ++step) {
+            window.sidebarWidth = window.sidebarMinimumWidth + 40 + step * 12;
+            tryCompare(startPage, "width", window.width - window.sidebarWidth);
+            compare(scene.drawnWidth, drawn);
+            compare(scene.width, startPage.width);
+            verify(Math.abs(scene.light.centre.x - scene.width / 2) <= 2,
+                   "the sun left the middle");
+
+        }
+        tryCompare(scene, "drawnWidth", scene.width);
+
+        window.sidebarWidth = window.sidebarMinimumWidth + 40;
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting while dragged");
+    }
+
+    // The road is as wide as the page area, centred on it, and the glass is
+    // framed by the road itself.
+    function checkRoadFillsPageArea(startPage, scene) {
+        compare(scene.width, startPage.width);
+        compare(scene.x, 0);
+        compare(scene.frame.x, 0);
+        compare(scene.frame.width, startPage.width);
+        const origin = scene.mapToItem(window.contentItem, 0, 0);
+        const page = startPage.mapToItem(window.contentItem, 0, 0);
+        compare(origin.x, page.x);
     }
 
     // The road moves only while the reader could see it: a window that has
@@ -9891,6 +10565,68 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting impatient");
     }
 
+    // In a Space at rest there is no page to go back to, so Escape releases
+    // the field: the caret goes, the field is drawn unfocused, and the keyboard
+    // is the browser's, so a bare key from the key map runs its command as it
+    // does over a page. `o`, a click on the field and Primary+L give the field
+    // back.
+    function test_escapeInASpaceAtRestReleasesTheFieldToTheBareKeys() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting release");
+        tryCompare(panel, "arrival", 1);
+        verify(panel.keymap.pageCommandsEnabled);
+        verify(input.activeFocus);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        verify(!input.cursorVisible);
+        verify(panel.shownResting);
+        compare(window.focusedRegionName(), window.pageRegionName());
+
+        keyClick(":");
+        tryVerify(function () {
+            return panel.commandScope;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !panel.commandScope;
+        });
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        keyClick("o");
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        compare(input.text, "");
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        mouseClick(input);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !input.activeFocus;
+        });
+        keyClick(Qt.Key_L, Qt.ControlModifier);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting release");
+    }
+
     // The Shortcut sheet is summoned, not shown: `?` in the Start page's empty
     // field brings it up over the road, and Escape goes back to the field.
     function test_questionMarkSummonsTheShortcutSheetFromTheStartPage() {
@@ -9900,7 +10636,7 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting sheet");
         tryVerify(function () {
-            return findChild(window.contentItem, "startPageHint").visible;
+            return findChild(window.contentItem, "omnibarShortcutsHint").visible;
         });
 
         keyClick("?");

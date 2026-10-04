@@ -597,6 +597,8 @@ body:has(.drive) > .top {
   position: relative;
   width: min(100% - 32px, 720px);
   border: 1px solid var(--edge);
+  /* The corners of the browser's Omnibar, which the rings of light below follow. */
+  border-radius: 3px;
   background: color-mix(in srgb, var(--plate) 80%, transparent);
   backdrop-filter: blur(14px);
 }
@@ -608,6 +610,7 @@ body:has(.drive) > .top {
   position: absolute;
   inset: -1px;
   padding: 1px;
+  border-radius: inherit;
   background: var(--scene-rim, none);
   mask:
     linear-gradient(#000 0 0) content-box exclude,
@@ -622,6 +625,7 @@ body:has(.drive) > .top {
   position: absolute;
   inset: 0;
   z-index: -1;
+  border-radius: inherit;
   opacity: var(--scene-bloom, 0);
   filter: blur(calc(var(--scene-bloom-blur, 0) * 1px));
   mix-blend-mode: plus-lighter;
