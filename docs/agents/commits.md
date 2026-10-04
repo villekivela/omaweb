@@ -70,9 +70,23 @@ published commits after the baseline exceed the 72-character limit and are exemp
 Merge commits are not checked. GitHub generates their subject, and the convention governs the
 commits an author writes.
 
+`commit-messages` is a required check, and it reads every commit on a branch, so one bad subject
+blocks the pull request even though the squash would discard it. Check each subject before
+committing, not after pushing:
+
+```sh
+scripts/check_commit_messages.sh --message "fix(ui): keep the divider off the page"
+```
+
+A pushed branch only gains commits: take `main` by merging `origin/main` into it, never by rebasing,
+so nothing needs a force push. A subject that is already pushed and fails the check is not exempted
+and not rewritten. Start a new branch from `origin/main`, `git merge --squash` the old one, commit
+once with a valid subject, and open a new pull request that names and closes the old one.
+
 ## Merging
 
 Squash every pull request. One pull request is one commit on `main`, whatever it took to get there.
+A pull request carries the milestone of the issue it closes or refers to.
 
 The commits on a branch are a record of the work, including the parts that were wrong on the way.
 `main` is read by someone asking what changed and by `scripts/release_notes.sh`, which lists every
