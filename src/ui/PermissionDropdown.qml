@@ -8,7 +8,7 @@ import qs.Ui as Omarchy
 // machine without one shows as a box, so this is the same control with the
 // icon font's own arrow: the trigger, the popup and the keys follow the kit's
 // (Return, Space or Down opens; Up, Down, j and k walk; Return picks; Escape
-// closes).
+// closes, as any popup does).
 Omarchy.BorderSurface {
     id: root
 
@@ -142,9 +142,7 @@ Omarchy.BorderSurface {
 
             focus: true
             Keys.onPressed: function (event) {
-                if (event.key === Qt.Key_Escape) {
-                    popup.close();
-                } else if (event.key === Qt.Key_Down || event.text === "j") {
+                if (event.key === Qt.Key_Down || event.text === "j") {
                     optionList.currentIndex = Math.min(root.options.length - 1,
                                                        optionList.currentIndex + 1);
                 } else if (event.key === Qt.Key_Up || event.text === "k") {

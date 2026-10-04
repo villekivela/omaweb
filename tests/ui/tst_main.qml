@@ -2782,6 +2782,7 @@ TestCase {
         settleActions(findChild(card, "resetSitePermissions"));
         wait(250);
         measure(["siteInformationHost", "siteInformationTile_third-parties",
+                 "sitePermissionChoice_camera", "sitePermissionChoice_geolocation",
                  "sitePermissionChoice_notifications", "clearSiteStorage", "resetSitePermissions"]);
         closeSiteCard();
         openSiteCard("third-parties");
@@ -2814,6 +2815,9 @@ TestCase {
         verify(trigger !== null, name + " is missing");
         verify(trigger.enabled, name + " is not enabled");
         settleActions(trigger);
+        // The card grows to what `prepare` named before a press inside it
+        // lands where the trigger is drawn.
+        wait(250);
         mouseClick(trigger, trigger.width / 2, trigger.height / 2);
         const dialog = findChild(window.contentItem, "spaceDialog");
         tryVerify(function () {
@@ -2831,6 +2835,7 @@ TestCase {
     // own storage and reports what it managed to take.
     function test_siteInformationEmptiesOneSitesStorageThroughItsPage() {
         const engine = openPage("https://site-storage.example/app");
+        settleMotion();
         const dialog = openSiteAction("clearSiteStorage");
 
         // The dialog names the site, the scope, and what it cannot take.
@@ -2881,10 +2886,42 @@ TestCase {
         engine.pageSiteData = ["local storage", "databases"];
     }
 
+    // The third-party dialog opens over the card's button, so a row can appear
+    // under a pointer that has not moved. That row does not take the keyboard's
+    // place in the list; a pointer moving over one does.
+    function test_aDialogRowUnderAStillPointerLeavesTheKeyboardsRow() {
+        openPage("https://still-pointer.example/page");
+        settleMotion();
+        const card = siteCard();
+        card.refusedThirdParties = ["https://pay.example", "https://cdn.example"];
+        window.refreshThirdPartyRows();
+        window.dialogMode = "third-party";
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        tryVerify(function () {
+            return dialog.open;
+        });
+        const row = findChild(window.contentItem, "commandDialogRow3");
+        tryVerify(function () {
+            return row !== null && row.width > 0;
+        });
+        settleActions(row);
+        // What the window reports for a row arriving under the pointer: an
+        // entry and a move to the same spot.
+        mouseMove(row, row.width / 2, row.height / 2);
+        const still = dialog.selected;
+        mouseMove(row, row.width / 2 + 6, row.height / 2);
+        const moved = dialog.selected;
+        window.dialogMode = "";
+        card.refusedThirdParties = [];
+        compare(still, 0);
+        compare(moved, 3);
+    }
+
     // Resetting is confirmed first, and then this site's decisions in this
     // Space are gone.
     function test_siteInformationResetsTheSitesPermissionsOnceConfirmed() {
         openPage("https://reset-site.example/page");
+        settleMotion();
         verify(browser.setPermissionDecision("https://reset-site.example/page", "camera", 2));
         const dialog = openSiteAction("resetSitePermissions");
         verify(window.dialogMode === "reset-permissions");
@@ -2965,6 +3002,7 @@ TestCase {
     // name alone.
     function test_thirdPartyAllowanceIsChosenInTheDialog() {
         openPage("https://allowance.example/checkout");
+        settleMotion();
         const card = siteCard();
         const control = card.thirdPartyCookieControlAvailable;
         card.thirdPartyCookieControlAvailable = true;
@@ -3214,6 +3252,7 @@ TestCase {
     // and over the edge of the page rather than inside the sidebar.
     function test_theLockOpensSiteInformationAtItsTop() {
         openPage("https://status-position.example/page");
+        settleMotion();
         const sidebar = findChild(window.contentItem, "sidebar");
         const address = findChild(window.contentItem, "addressButton");
         const security = findChild(window.contentItem, "securityIndicator");
