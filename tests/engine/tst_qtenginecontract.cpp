@@ -248,6 +248,7 @@ private slots:
     void qtReportsWhereThePageWasPressed();
     void qtReportsOnlyAFieldFormHistoryMayKeep();
     void qtTakesTheSuggestionKeysOnlyWhileTheListIsShown();
+    void qtTakesNoSuggestionKeyThePageDispatches();
     void qtKeepsItsPageReportsOutOfThePagesReach();
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
@@ -3792,6 +3793,48 @@ void QtEngineContractTest::qtTakesTheSuggestionKeysOnlyWhileTheListIsShown()
     QTest::keyClick(&form.window, Qt::Key_Return);
     QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("submitted"));
     QCOMPARE(keys.count(), 5);
+}
+
+// The page shares the DOM with the listener, so it could focus a field with
+// history and dispatch the keys that walk the list and accept a row, then
+// read the reader's value out of the field. Only keys the reader pressed
+// reach the shell.
+void QtEngineContractTest::qtTakesNoSuggestionKeyThePageDispatches()
+{
+    FormHistoryView form;
+    QVERIFY(form.load());
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_VERIFY(form.adapter->property("pageHasFocus").toBool());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    QSignalSpy keys(form.adapter.get(), SIGNAL(formKeyPressed(QString)));
+    QVERIFY(keys.isValid());
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (form.field().isEmpty()) {
+            form.focus(QStringLiteral("city"));
+        }
+        return !form.field().isEmpty();
+    }()),
+        15000);
+    QVERIFY(QMetaObject::invokeMethod(
+        form.adapter.get(), "showFormSuggestions", Q_ARG(QVariant, true), Q_ARG(QVariant, true)));
+    QTest::qWait(100);
+
+    form.run(
+        QStringLiteral("const field = document.getElementById('city');"
+                       "for (const [key, shiftKey] of [['ArrowDown', false], ['ArrowUp', false],"
+                       "    ['Enter', false], ['Delete', true], ['Escape', false]])"
+                       "  field.dispatchEvent(new KeyboardEvent('keydown',"
+                       "      {key, shiftKey, bubbles: true, cancelable: true}));"
+                       "document.title = 'dispatched';"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("dispatched"));
+    QTest::qWait(200);
+    QCOMPARE(keys.count(), 0);
+
+    // The reader's own key is still heard.
+    QTest::keyClick(&form.window, Qt::Key_Down);
+    QTRY_COMPARE(keys.count(), 1);
+    QCOMPARE(keys.at(0).first().toString(), QStringLiteral("down"));
 }
 
 // The page reports scroll, media and presses to the shell over its console,

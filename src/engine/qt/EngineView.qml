@@ -2640,7 +2640,10 @@ Item {
                 if (fields.length) report('form_submit', fields);
             }, true);
             addEventListener('keydown', event => {
-                if (!shown || event.target !== current || event.isComposing) return;
+                // A key the page dispatched itself could walk the list and
+                // accept a row, then read the reader's value from the field.
+                if (!event.isTrusted || !shown || event.target !== current || event.isComposing)
+                    return;
                 if (event.ctrlKey || event.metaKey || event.altKey) return;
                 let key = '';
                 if (event.shiftKey)
