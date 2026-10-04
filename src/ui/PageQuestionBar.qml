@@ -19,6 +19,9 @@ Item {
     // The page the bar stands over, blurred under its translucent ground so it
     // shows through as colour and shape but cannot be read. Null over no page.
     property Item backdropSource: null
+    // What a question needs answered beyond a choice, such as a field or a
+    // list, drawn between the message and the actions.
+    property alias content: extra.data
 
     signal actionTriggered(int index)
 
@@ -97,6 +100,12 @@ Item {
                     font.pixelSize: Style.font.caption
                 }
             }
+        }
+
+        Column {
+            id: extra
+            width: parent.width
+            spacing: 8
         }
 
         Row {

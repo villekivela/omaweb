@@ -1049,6 +1049,378 @@ TestCase {
         compare(password.text, "");
     }
 
+    // A question bar's button, by the label the reader reads on it.
+    function questionAction(bar, label) {
+        for (let index = 0; index < bar.actions.length; ++index) {
+            if (bar.actions[index].label === label)
+                return findChild(bar, "questionAction" + index);
+        }
+        return null;
+    }
+
+    // A security key's request is one prompt that changes as the engine moves
+    // through it, and it names who is asking and in which Space.
+    function test_aSecurityKeyTouchNamesTheOriginAndSpaceAndCancelDeclines() {
+        const engine = openPage("https://key.example/sign-in");
+        const bar = findChild(window.contentItem, "securityKeyBar");
+        verify(bar !== null);
+        engine.simulateSecurityKey({
+                                       "state": "touch"
+                                   });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        compare(bar.message, "Touch your security key");
+        compare(bar.detail, "https://key.example · " + browser.activeSpaceName);
+
+        mouseClick(questionAction(bar, "Cancel"));
+        compare(engine.lastSecurityKeyAnswer.action, "cancel");
+        verify(!bar.visible);
+    }
+
+    // The PIN is typed into a masked field and Enter sends it. A wrong one
+    // comes back as the same step, which says so in the same bar with the
+    // attempts the key has left, and the field starts empty again.
+    function test_aSecurityKeyPinIsMaskedAndAWrongOneIsSaidInPlace() {
+        const engine = openPage("https://pin.example/sign-in");
+        const bar = findChild(window.contentItem, "securityKeyBar");
+        const field = findChild(bar, "securityKeyPin");
+        engine.simulateSecurityKey({
+                                       "state": "pin",
+                                       "pin": {
+                                           "purpose": "unlock",
+                                           "error": "",
+                                           "attemptsLeft": -1,
+                                           "minimumLength": 4
+                                       }
+                                   });
+        tryVerify(function () {
+            return bar.visible && field.activeFocus;
+        });
+        compare(bar.message, "Enter your security key's PIN");
+        compare(field.echoMode, TextInput.Password);
+        compare(bar.note, "");
+
+        keyClick(Qt.Key_1);
+        keyClick(Qt.Key_2);
+        keyClick(Qt.Key_3);
+        keyClick(Qt.Key_4);
+        keyClick(Qt.Key_Return);
+        compare(engine.lastSecurityKeyAnswer.action, "pin");
+        compare(engine.lastSecurityKeyAnswer.pin, "1234");
+        verify(bar.visible);
+
+        engine.simulateSecurityKey({
+                                       "state": "pin",
+                                       "pin": {
+                                           "purpose": "unlock",
+                                           "error": "wrong",
+                                           "attemptsLeft": 7,
+                                           "minimumLength": 4
+                                       }
+                                   });
+        tryCompare(bar, "note", "Wrong PIN. 7 attempts left.");
+        compare(field.text, "");
+        verify(field.activeFocus);
+
+        engine.simulateSecurityKey({
+                                       "state": "pin",
+                                       "pin": {
+                                           "purpose": "unlock",
+                                           "error": "wrong",
+                                           "attemptsLeft": 1,
+                                           "minimumLength": 4
+                                       }
+                                   });
+        tryCompare(bar, "note", "Wrong PIN. 1 attempt left.");
+
+        keyClick(Qt.Key_Escape);
+        compare(engine.lastSecurityKeyAnswer.action, "cancel");
+        verify(!bar.visible);
+    }
+
+    // A key holding several accounts for the site lists them, one row each.
+    // The arrows move between rows and Enter chooses the one on.
+    function test_aSecurityKeyAccountIsChosenFromTheKeyboard() {
+        const engine = openPage("https://accounts.example/sign-in");
+        const bar = findChild(window.contentItem, "securityKeyBar");
+        engine.simulateSecurityKey({
+                                       "state": "accounts",
+                                       "accounts": [
+                                           {
+                                               "name": "reader@accounts.example",
+                                               "displayName": "Reader"
+                                           },
+                                           {
+                                               "name": "admin@accounts.example",
+                                               "displayName": ""
+                                           }
+                                       ]
+                                   });
+        tryVerify(function () {
+            return bar.visible && bar.activeFocus;
+        });
+        compare(bar.message, "Choose an account");
+        const first = findChild(bar, "securityKeyAccount0");
+        const second = findChild(bar, "securityKeyAccount1");
+        verify(first !== null && second !== null);
+        compare(first.name, "reader@accounts.example");
+        compare(first.displayName, "Reader");
+        verify(first.current);
+
+        keyClick(Qt.Key_Down);
+        verify(second.current);
+        verify(!first.current);
+        keyClick(Qt.Key_Return);
+        compare(engine.lastSecurityKeyAnswer.action, "account");
+        compare(engine.lastSecurityKeyAnswer.name, "admin@accounts.example");
+
+        engine.simulateSecurityKey({
+                                       "state": "closed"
+                                   });
+        verify(!bar.visible);
+    }
+
+    // A request that failed says why in one line, and Close is the only
+    // answer left: it declines, so the site hears the reader gave up.
+    function test_aSecurityKeyFailureNamesItsCauseAndCloses_data() {
+        return [
+                    {
+                        "tag": "no key",
+                        "failure": "no-key",
+                        "message": "This security key has no sign-in for this site"
+                    },
+                    {
+                        "tag": "already registered",
+                        "failure": "already-registered",
+                        "message": "This security key is already registered with this site"
+                    },
+                    {
+                        "tag": "too many attempts",
+                        "failure": "too-many-attempts",
+                        "message": "Too many wrong PINs. Remove the key and insert it again."
+                    },
+                    {
+                        "tag": "locked",
+                        "failure": "locked",
+                        "message": "Too many wrong PINs. The key is locked until it is reset."
+                    },
+                    {
+                        "tag": "timed out",
+                        "failure": "timed-out",
+                        "message": "The security key was not used in time"
+                    },
+                    {
+                        "tag": "not supported",
+                        "failure": "not-supported",
+                        "message": "This security key cannot do what the site asks"
+                    },
+                    {
+                        "tag": "key removed",
+                        "failure": "key-removed",
+                        "message": "The security key was removed"
+                    },
+                    {
+                        "tag": "key full",
+                        "failure": "key-full",
+                        "message": "This security key has no room for another sign-in"
+                    },
+                    {
+                        "tag": "unknown",
+                        "failure": "something-new",
+                        "message": "The security key could not be used"
+                    }
+                ];
+    }
+
+    function test_aSecurityKeyFailureNamesItsCauseAndCloses(data) {
+        const engine = openPage("https://fails.example/sign-in");
+        const bar = findChild(window.contentItem, "securityKeyBar");
+        engine.simulateSecurityKey({
+                                       "state": "failed",
+                                       "failure": data.failure
+                                   });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        compare(bar.message, data.message);
+        compare(bar.detail, "https://fails.example · " + browser.activeSpaceName);
+        compare(bar.actions.length, 1);
+        compare(bar.actions[0].label, "Close");
+
+        mouseClick(questionAction(bar, "Close"));
+        compare(engine.lastSecurityKeyAnswer.action, "cancel");
+        verify(!bar.visible);
+    }
+
+    // A reader whose passkey is on their phone is told this engine cannot
+    // reach it, rather than left waiting on a key that will never answer.
+    function test_aSecurityKeyPromptSaysWhichAuthenticatorsTheEngineCannotReach() {
+        const engine = openPage("https://reach.example/sign-in");
+        const bar = findChild(window.contentItem, "securityKeyBar");
+        compare(engine.securityKeyTransports, ["usb"]);
+        engine.simulateSecurityKey({
+                                       "state": "touch"
+                                   });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        compare(bar.note,
+                "Only a USB security key works here. A phone, or a passkey stored on this computer, cannot be used.");
+        engine.simulateSecurityKey({
+                                       "state": "failed",
+                                       "failure": "timed-out"
+                                   });
+        compare(bar.note,
+                "Only a USB security key works here. A phone, or a passkey stored on this computer, cannot be used.");
+        keyClick(Qt.Key_Escape);
+        verify(!bar.visible);
+
+        engine.securityKeyTransports = ["usb", "platform"];
+        engine.simulateSecurityKey({
+                                       "state": "touch"
+                                   });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        compare(bar.note, "A phone cannot be used here.");
+        keyClick(Qt.Key_Escape);
+
+        engine.securityKeyTransports = ["usb", "hybrid", "platform"];
+        engine.simulateSecurityKey({
+                                       "state": "touch"
+                                   });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        compare(bar.note, "");
+        keyClick(Qt.Key_Escape);
+        engine.securityKeyTransports = ["usb"];
+        verify(!bar.visible);
+    }
+
+    // A touch answers whatever the key was asked, so it is only ever asked for
+    // the page in front of the reader. Leaving the tab declines the request,
+    // and a page nobody is looking at is declined without a prompt.
+    function test_aSecurityKeyRequestEndsWhenItsPageLeavesTheReader() {
+        const engine = openPage("https://leaves.example/sign-in");
+        const tabId = browser.activeTabId;
+        const bar = findChild(window.contentItem, "securityKeyBar");
+        engine.simulateSecurityKey({
+                                       "state": "touch"
+                                   });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        engine.lastSecurityKeyAnswer = ({});
+        browser.openInput("https://elsewhere.example/", true);
+        tryVerify(function () {
+            return browser.activeUrl.toString() === "https://elsewhere.example/";
+        });
+        verify(!bar.visible);
+        compare(engine.lastSecurityKeyAnswer.action, "cancel");
+
+        engine.lastSecurityKeyAnswer = ({});
+        engine.simulateSecurityKey({
+                                       "state": "touch"
+                                   });
+        verify(!bar.visible);
+        compare(engine.lastSecurityKeyAnswer.action, "cancel");
+
+        browser.activateTab(tabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "engineLoader").item === engine;
+        });
+        verify(!bar.visible);
+        engine.simulateSecurityKey({
+                                       "state": "touch"
+                                   });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        engine.lastSecurityKeyAnswer = ({});
+        window.refuseRequestsFrom(engine);
+        verify(!bar.visible);
+        compare(engine.lastSecurityKeyAnswer.action, "cancel");
+    }
+
+    // A Private window gets the same prompts, and names itself where a Space
+    // would be named.
+    function test_aPrivateWindowAsksForASecurityKeyTheSameWay() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://private-key.example/sign-in", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const bar = findChild(privateBrowser.contentItem, "securityKeyBar");
+        privateEngine.item.simulateSecurityKey({
+                                                   "state": "touch"
+                                               });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        compare(bar.message, "Touch your security key");
+        compare(bar.detail, "https://private-key.example · Private window");
+        mouseClick(questionAction(bar, "Cancel"));
+        compare(privateEngine.item.lastSecurityKeyAnswer.action, "cancel");
+        verify(!bar.visible);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+    }
+
+    // An Auxiliary window is where a sign-in finishes, so a key is often asked
+    // for there. It asks in the window that opened it, like a permission, and a
+    // tab switch there does not take the question from the window it is for.
+    function test_anAuxiliaryWindowAsksForASecurityKeyInItsOpener() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        openPage("https://key-opener.example/start");
+        engineLoader.item.simulateNewWindowRequest("https://key-popup.example/sign-in", true);
+        const auxiliary = findChild(window, "auxiliaryWindow");
+        tryVerify(function () {
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const auxiliaryEngine = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        tryVerify(function () {
+            return auxiliaryEngine.item !== null;
+        });
+        const bar = findChild(window.contentItem, "securityKeyBar");
+        auxiliaryEngine.item.simulateSecurityKey({
+                                                     "state": "touch"
+                                                 });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        browser.openInput("https://other-tab.example/", true);
+        tryVerify(function () {
+            return browser.activeUrl.toString() === "https://other-tab.example/";
+        });
+        verify(bar.visible);
+        mouseClick(questionAction(bar, "Cancel"));
+        compare(auxiliaryEngine.item.lastSecurityKeyAnswer.action, "cancel");
+        verify(!bar.visible);
+
+        // The window closing mid-request takes its question with it.
+        const closing = auxiliaryEngine.item;
+        closing.simulateSecurityKey({
+                                        "state": "touch"
+                                    });
+        tryVerify(function () {
+            return bar.visible;
+        });
+        closing.lastSecurityKeyAnswer = ({});
+        closing.simulateWindowCloseRequest();
+        tryVerify(function () {
+            return !auxiliary.visible;
+        });
+        verify(!bar.visible);
+        window.requestActivate();
+    }
+
     // The routes out that never reach the Sign in or Cancel button: the key
     // that dismisses the bar, and the page the question belonged to being
     // replaced under it.

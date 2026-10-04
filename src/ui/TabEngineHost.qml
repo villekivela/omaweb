@@ -261,6 +261,7 @@ Item {
     signal pageContextRequested(var engine, var context)
     signal pageTooltipRequested(var engine, var tooltip)
     signal browserPromptRequested(var engine, string requestId, var prompt)
+    signal securityKeyRequested(var engine, string requestId, var step)
     signal fileSelectionRequested(var engine, string requestId, var selection)
 
     function keyboardConfiguration(url) {
@@ -1513,6 +1514,10 @@ Item {
 
                 function onBrowserPromptRequested(requestId, prompt) {
                     root.browserPromptRequested(tabSlot.engine, requestId, prompt);
+                }
+
+                function onSecurityKeyRequested(requestId, step) {
+                    root.securityKeyRequested(tabSlot.engine, requestId, step);
                 }
 
                 function onFileSelectionRequested(requestId, selection) {

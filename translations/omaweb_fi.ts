@@ -1757,6 +1757,10 @@
         <translation>Hylkää</translation>
     </message>
     <message>
+        <source>Private window</source>
+        <translation>Yksityinen ikkuna</translation>
+    </message>
+    <message>
         <source>Paste it into the authorization page</source>
         <translation>Liitä se valtuutussivulle</translation>
     </message>
@@ -2227,6 +2231,137 @@
     <message>
         <source>QtWebEngine %1 on Chromium %2, carrying security fixes up to %3, meets the approved baseline of QtWebEngine %4 and Chromium %5.</source>
         <translation>QtWebEngine %1 Chromiumin versiolla %2, jossa on tietoturvakorjaukset versioon %3 asti, täyttää hyväksytyn tason (QtWebEngine %4 ja Chromium %5).</translation>
+    </message>
+</context>
+<context>
+    <name>SecurityKeyBar</name>
+    <message>
+        <source>Only a USB security key works here. A phone, or a passkey stored on this computer, cannot be used.</source>
+        <translation>Vain USB-suojausavain toimii tässä. Puhelinta tai tälle tietokoneelle tallennettua pääsyavainta ei voi käyttää.</translation>
+    </message>
+    <message>
+        <source>A phone cannot be used here.</source>
+        <translation>Puhelinta ei voi käyttää tässä.</translation>
+    </message>
+    <message>
+        <source>A passkey stored on this computer cannot be used here.</source>
+        <translation>Tälle tietokoneelle tallennettua pääsyavainta ei voi käyttää tässä.</translation>
+    </message>
+    <message>
+        <source>Wrong PIN. 1 attempt left.</source>
+        <translation>Väärä PIN-koodi. 1 yritys jäljellä.</translation>
+    </message>
+    <message>
+        <source>Wrong PIN. %1 attempts left.</source>
+        <translation>Väärä PIN-koodi. %1 yritystä jäljellä.</translation>
+    </message>
+    <message>
+        <source>Wrong PIN.</source>
+        <translation>Väärä PIN-koodi.</translation>
+    </message>
+    <message>
+        <source>The PIN needs at least %1 characters.</source>
+        <translation>PIN-koodissa on oltava vähintään %1 merkkiä.</translation>
+    </message>
+    <message>
+        <source>The PIN has characters the key does not accept.</source>
+        <translation>PIN-koodissa on merkkejä, joita avain ei hyväksy.</translation>
+    </message>
+    <message>
+        <source>The new PIN has to differ from the current one.</source>
+        <translation>Uuden PIN-koodin on oltava eri kuin nykyinen.</translation>
+    </message>
+    <message>
+        <source>The key&apos;s own check is locked after too many tries. Enter its PIN instead.</source>
+        <translation>Avaimen oma tunnistus on lukittu liian monen yrityksen jälkeen. Anna sen sijaan avaimen PIN-koodi.</translation>
+    </message>
+    <message>
+        <source>1 attempt left.</source>
+        <translation>1 yritys jäljellä.</translation>
+    </message>
+    <message>
+        <source>%1 attempts left.</source>
+        <translation>%1 yritystä jäljellä.</translation>
+    </message>
+    <message>
+        <source>This security key has no sign-in for this site</source>
+        <translation>Tällä suojausavaimella ei ole kirjautumista tälle sivustolle</translation>
+    </message>
+    <message>
+        <source>This security key is already registered with this site</source>
+        <translation>Tämä suojausavain on jo rekisteröity tälle sivustolle</translation>
+    </message>
+    <message>
+        <source>Too many wrong PINs. Remove the key and insert it again.</source>
+        <translation>Liian monta väärää PIN-koodia. Irrota avain ja liitä se uudelleen.</translation>
+    </message>
+    <message>
+        <source>Too many wrong PINs. The key is locked until it is reset.</source>
+        <translation>Liian monta väärää PIN-koodia. Avain on lukittu, kunnes se nollataan.</translation>
+    </message>
+    <message>
+        <source>The security key was not used in time</source>
+        <translation>Suojausavainta ei käytetty ajoissa</translation>
+    </message>
+    <message>
+        <source>This security key cannot do what the site asks</source>
+        <translation>Tämä suojausavain ei pysty siihen, mitä sivusto pyytää</translation>
+    </message>
+    <message>
+        <source>The security key was removed</source>
+        <translation>Suojausavain irrotettiin</translation>
+    </message>
+    <message>
+        <source>This security key has no room for another sign-in</source>
+        <translation>Tähän suojausavaimeen ei mahdu uutta kirjautumista</translation>
+    </message>
+    <message>
+        <source>The security key could not be used</source>
+        <translation>Suojausavainta ei voitu käyttää</translation>
+    </message>
+    <message>
+        <source>Choose a PIN for your security key</source>
+        <translation>Valitse suojausavaimellesi PIN-koodi</translation>
+    </message>
+    <message>
+        <source>Choose a new PIN for your security key</source>
+        <translation>Valitse suojausavaimellesi uusi PIN-koodi</translation>
+    </message>
+    <message>
+        <source>Enter your security key&apos;s PIN</source>
+        <translation>Anna suojausavaimesi PIN-koodi</translation>
+    </message>
+    <message>
+        <source>Choose an account</source>
+        <translation>Valitse tili</translation>
+    </message>
+    <message>
+        <source>Touch your security key</source>
+        <translation>Kosketa suojausavaintasi</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Jatka</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Peruuta</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Sulje</translation>
+    </message>
+    <message>
+        <source>PIN</source>
+        <translation>PIN-koodi</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>

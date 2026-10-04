@@ -695,6 +695,7 @@ set(omaweb_ui_files
     src/ui/NightRoad.qml
     src/ui/RimLight.qml
     src/ui/SceneHost.qml
+    src/ui/SecurityKeyBar.qml
     src/ui/ShortcutSheet.qml
     src/ui/StartPage.qml
     src/ui/TabEngineHost.qml

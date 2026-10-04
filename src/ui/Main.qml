@@ -416,6 +416,15 @@ ApplicationWindow {
     property string pendingBrowserPromptTabId: ""
     property bool browserPromptOpen: false
     property var browserPromptsByTab: ({})
+    // A security key's request in progress: the page that made it and the step
+    // the engine is on. A page makes one at a time, and only the page in front
+    // of the reader may make one, so the window holds one.
+    property var securityKeyResponder: null
+    property string securityKeyRequestId: ""
+    property var securityKeyStep: ({})
+    // The tab whose page asked, or empty for an Auxiliary window's page, which
+    // a tab switch in this window does not move.
+    property string securityKeyTabId: ""
     property var pendingFileSelection: ({})
     property var pendingFileSelectionResponder: null
     property string pendingFileSelectionId: ""
@@ -995,6 +1004,10 @@ ApplicationWindow {
     function refuseRequestsFrom(engine) {
         if (window.pendingBrowserPromptResponder === engine)
             window.respondToBrowserPrompt(false, "", "", "", false, false);
+        if (window.securityKeyResponder === engine)
+            window.answerSecurityKey({
+                                         "action": "cancel"
+                                     });
         if (window.pendingFileSelectionResponder === engine)
             window.respondToFileSelection([]);
         if (window.pendingPermissionResponder === engine) {
@@ -2218,6 +2231,53 @@ ApplicationWindow {
         window.presentBrowserPromptForActiveTab();
     }
 
+    // Each step of a request comes under the request's id. The first one opens
+    // the bar, the later ones change it in place, and a closed one puts it
+    // away. A request from a page the reader is not looking at, or made while
+    // another stands, is declined: the reader could not see what a touch of
+    // their key would answer.
+    function showSecurityKey(engine, requestId, step, inFront) {
+        const current = window.securityKeyResponder === engine && window.securityKeyRequestId
+              === requestId;
+        if (step.state === "closed") {
+            if (current)
+                window.clearSecurityKey();
+            return;
+        }
+        if (!current && (window.securityKeyResponder !== null || !(inFront === true || window.inFront(
+                                                                       engine)))) {
+            engine.respondToSecurityKey(requestId, {
+                                            "action": "cancel"
+                                        });
+            return;
+        }
+        if (!current) {
+            window.securityKeyResponder = engine;
+            window.securityKeyRequestId = requestId;
+            window.securityKeyTabId = inFront === true ? "" : window.windowBrowser.activeTabId;
+        }
+        window.securityKeyStep = step;
+    }
+
+    function clearSecurityKey() {
+        window.securityKeyResponder = null;
+        window.securityKeyRequestId = "";
+        window.securityKeyTabId = "";
+        window.securityKeyStep = ({});
+    }
+
+    // Cleared before the engine hears a decline, because the engine ends the
+    // request from inside the answer and reports it closed.
+    function answerSecurityKey(answer) {
+        const responder = window.securityKeyResponder;
+        const requestId = window.securityKeyRequestId;
+        if (!responder)
+            return;
+        if (answer.action === "cancel")
+            window.clearSecurityKey();
+        responder.respondToSecurityKey(requestId, answer);
+    }
+
     function openLocalFile(fileUrl) {
         const address = String(fileUrl);
         if (!address.startsWith("file:"))
@@ -3170,6 +3230,10 @@ ApplicationWindow {
                         window.showBrowserPrompt(engine, requestId, prompt);
                     }
 
+                    onSecurityKeyRequested: function (engine, requestId, step) {
+                        window.showSecurityKey(engine, requestId, step);
+                    }
+
                     onFileSelectionRequested: function (engine, requestId, selection) {
                         window.showFileSelection(engine, requestId, selection);
                     }
@@ -3356,6 +3420,10 @@ ApplicationWindow {
 
                     function onBrowserPromptRequested(requestId, prompt) {
                         window.showBrowserPrompt(window.glanceEngine, requestId, prompt);
+                    }
+
+                    function onSecurityKeyRequested(requestId, step) {
+                        window.showSecurityKey(window.glanceEngine, requestId, step);
                     }
 
                     function onFileSelectionRequested(requestId, selection) {
@@ -3829,6 +3897,39 @@ ApplicationWindow {
                     }
                 }
 
+                SecurityKeyBar {
+                    objectName: "securityKeyBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 43
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
+                    open: window.securityKeyResponder !== null
+                    step: window.securityKeyStep
+                    transports: window.securityKeyResponder
+                                ? window.securityKeyResponder.securityKeyTransports : []
+                    place: window.privateWindow ? qsTr("Private window") :
+                                                  window.windowBrowser.activeSpaceName
+
+                    onAnswered: function (answer) {
+                        window.answerSecurityKey(answer);
+                    }
+
+                    // The reader left the page the key would have answered for.
+                    Connections {
+                        target: window.windowBrowser
+                        enabled: window.securityKeyTabId.length > 0
+                        function onActiveTabChanged() {
+                            if (window.windowBrowser.activeTabId !== window.securityKeyTabId)
+                                window.answerSecurityKey({
+                                                             "action": "cancel"
+                                                         });
+                        }
+                    }
+                }
+
                 PagePromptBar {
                     objectName: "browserPromptBar"
                     anchors.fill: parent
@@ -4259,6 +4360,12 @@ ApplicationWindow {
             onCertificateErrorRaised: function (responder, requestId, failure) {
                 window.showCertificateError(responder, requestId, failure, true);
             }
+
+            onSecurityKeyRequested: function (responder, requestId, step) {
+                window.showSecurityKey(responder, requestId, step, true);
+            }
+
+            onClosing: window.refuseRequestsFrom(pageEngine)
         }
     }
 
