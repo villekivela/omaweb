@@ -1070,13 +1070,12 @@ void QtEngineContractTest::qtTranslatesEachSecurityKeyStep_data()
     const auto state = [](WebAuth::WebAuthUxState value) { return static_cast<int>(value); };
     const auto reason = [](WebAuth::RequestFailureReason value) { return static_cast<int>(value); };
 
-    QTest::newRow("accounts")
-        << state(WebAuth::WebAuthUxState::SelectAccount) << QVariantMap {} << 0
-        << QVariantMap {{QStringLiteral("state"), QStringLiteral("accounts")},
-               {QStringLiteral("accounts"),
-                   QVariantList {
-                       QVariantMap {{QStringLiteral("name"), QStringLiteral("reader@key.example")},
-                           {QStringLiteral("displayName"), QString()}}}}};
+    QTest::newRow("accounts") << state(WebAuth::WebAuthUxState::SelectAccount) << QVariantMap {}
+                              << 0
+                              << QVariantMap {{QStringLiteral("state"), QStringLiteral("accounts")},
+                                     {QStringLiteral("accounts"),
+                                         QVariantList {QVariantMap {{QStringLiteral("name"),
+                                             QStringLiteral("reader@key.example")}}}}};
     QTest::newRow("a wrong PIN with attempts left")
         << state(WebAuth::WebAuthUxState::CollectPin)
         << pin(WebAuth::PinEntryReason::Challenge, WebAuth::PinEntryError::WrongPin, 5) << 0

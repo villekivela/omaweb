@@ -1148,12 +1148,10 @@ TestCase {
                                        "state": "accounts",
                                        "accounts": [
                                            {
-                                               "name": "reader@accounts.example",
-                                               "displayName": "Reader"
+                                               "name": "reader@accounts.example"
                                            },
                                            {
-                                               "name": "admin@accounts.example",
-                                               "displayName": ""
+                                               "name": "admin@accounts.example"
                                            }
                                        ]
                                    });
@@ -1165,7 +1163,7 @@ TestCase {
         const second = findChild(bar, "securityKeyAccount1");
         verify(first !== null && second !== null);
         compare(first.name, "reader@accounts.example");
-        compare(first.displayName, "Reader");
+        compare(second.name, "admin@accounts.example");
         verify(first.current);
 
         keyClick(Qt.Key_Down);

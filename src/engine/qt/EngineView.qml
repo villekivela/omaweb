@@ -394,14 +394,13 @@ Item {
         switch (request.state) {
         case WebEngineWebAuthUxRequest.WebAuthUxState.SelectAccount:
         {
-            // Qt reports the name the site stored for each account and
-            // no display name.
+            // Qt reports the name the site stored for each account, and
+            // nothing else about it.
             const accounts = [];
             const names = request.userNames;
             for (let index = 0; index < names.length; ++index)
                 accounts.push({
-                                  "name": String(names[index]),
-                                  "displayName": ""
+                                  "name": String(names[index])
                               });
             return {
                 "state": "accounts",

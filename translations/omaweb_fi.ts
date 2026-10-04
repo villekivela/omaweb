@@ -2359,10 +2359,6 @@
         <source>PIN</source>
         <translation>PIN-koodi</translation>
     </message>
-    <message>
-        <source>%1, %2</source>
-        <translation>%1, %2</translation>
-    </message>
 </context>
 <context>
     <name>SettingStepper</name>

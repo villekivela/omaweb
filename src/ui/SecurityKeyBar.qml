@@ -221,7 +221,7 @@ PageQuestionBar {
             onAccepted: root.submitPin()
         },
         // The engine names each account by the name the site stored on the
-        // key, and by a display name where it reports one.
+        // key.
         Column {
             width: Math.min(420, parent.width)
             visible: root.accounts.length > 0
@@ -234,7 +234,6 @@ PageQuestionBar {
                     required property var modelData
 
                     readonly property string name: String(modelData.name || "")
-                    readonly property string displayName: String(modelData.displayName || "")
                     readonly property bool current: index === root.currentAccount
 
                     objectName: "securityKeyAccount" + index
@@ -244,33 +243,19 @@ PageQuestionBar {
                     color: current ? root.colors.surface : "transparent"
 
                     Accessible.role: Accessible.ListItem
-                    Accessible.name: displayName.length > 0 ? qsTr("%1, %2").arg(displayName).arg(
-                                                                  name) : name
+                    Accessible.name: name
 
-                    Row {
+                    Text {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.leftMargin: 10
                         anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 10
-
-                        Text {
-                            visible: text.length > 0
-                            text: parent.parent.displayName
-                            color: root.colors.text
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.body
-                        }
-
-                        Text {
-                            text: parent.parent.name
-                            color: parent.parent.displayName.length > 0 ? root.colors.mutedText :
-                                                                          root.colors.text
-                            elide: Text.ElideRight
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.body
-                        }
+                        text: parent.name
+                        color: root.colors.text
+                        elide: Text.ElideRight
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
                     }
 
                     MouseArea {

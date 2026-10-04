@@ -166,10 +166,8 @@ QVariantMap securityKeyStep(const QString &step)
         return {{QStringLiteral("state"), QStringLiteral("accounts")},
             {QStringLiteral("accounts"),
                 QVariantList {
-                    QVariantMap {{QStringLiteral("name"), QStringLiteral("reader@example.org")},
-                        {QStringLiteral("displayName"), QStringLiteral("Reader")}},
-                    QVariantMap {{QStringLiteral("name"), QStringLiteral("work@example.org")},
-                        {QStringLiteral("displayName"), QString()}}}}};
+                    QVariantMap {{QStringLiteral("name"), QStringLiteral("reader@example.org")}},
+                    QVariantMap {{QStringLiteral("name"), QStringLiteral("work@example.org")}}}}};
     }
     if (step == QLatin1String("failed")) {
         return {{QStringLiteral("state"), QStringLiteral("failed")},

@@ -574,8 +574,8 @@ The default page commands include:
   authenticator on Linux, so a passkey stored on the computer cannot either. The touch prompt and
   every failure say which of these the engine cannot reach. QtWebEngine raises a request only once
   it has something to ask, so a key that needs no PIN and holds one account for the site is touched
-  without a prompt, and a request no key answers shows nothing until it times out. The engine
-  reports an account's name and no display name.
+  without a prompt, and a request no key answers shows nothing until it times out. The engine names
+  an account only by the name the site stored on the key, so that is what the account chooser shows.
 - Third-party cookies are blocked by default. Authentication and payment flows may receive a
   temporary origin-specific allowance visible and revocable in the site-information panel.
 - Global Privacy Control is on by default and browser-wide. While it is on, every request from every
