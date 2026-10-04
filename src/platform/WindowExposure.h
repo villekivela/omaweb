@@ -37,7 +37,7 @@ signals:
 private:
     QPointer<QWindow> m_window;
     bool m_hasBeenExposed = false;
-    bool m_unexposedSince = false;
+    bool m_wasAway = false;
 };
 
 void registerWindowExposure();

@@ -22,7 +22,7 @@ void WindowExposure::setWindow(QWindow *window)
     }
     m_window = window;
     m_hasBeenExposed = window && window->isExposed();
-    m_unexposedSince = false;
+    m_wasAway = false;
     if (m_window) {
         m_window->installEventFilter(this);
     }
@@ -35,14 +35,14 @@ bool WindowExposure::eventFilter(QObject *watched, QEvent *event)
         // An expose event with an empty region is how Qt says the window went
         // away, so the state is read from the window rather than the event.
         if (m_window->isExposed()) {
-            const bool returned = m_hasBeenExposed && m_unexposedSince;
+            const bool returned = m_hasBeenExposed && m_wasAway;
             m_hasBeenExposed = true;
-            m_unexposedSince = false;
+            m_wasAway = false;
             if (returned) {
                 emit exposedAgain();
             }
         } else if (m_hasBeenExposed) {
-            m_unexposedSince = true;
+            m_wasAway = true;
         }
     }
     return false;

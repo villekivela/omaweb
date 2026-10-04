@@ -3368,7 +3368,7 @@ Item {
     function attachPageToCompositorAgain() {
         if (!webView.visible)
             return;
-        const hadFocus = webView.activeFocus || webView.focus;
+        const hadFocus = webView.activeFocus;
         webView.visible = false;
         webView.visible = true;
         root.coverUntilPageFrame();
@@ -3402,6 +3402,7 @@ Item {
     }
     function coverUntilPageFrame() {
         root.awaitingPageFrame = true;
+        pageFrameArrival.stop();
         pageFrameGiveUp.restart();
         webView.runJavaScript("globalThis.__omawebAfterFrame && globalThis.__omawebAfterFrame()",
                               WebEngineScript.ApplicationWorld);

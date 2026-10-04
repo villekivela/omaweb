@@ -9,8 +9,8 @@ using namespace omaweb;
 
 namespace {
 
-// Records, for each exposure it handles, how many returns the listener had
-// been told of by then, so a test can say whether the listener came first.
+// Counts the exposures the window handles itself, so a test can say whether
+// the listener heard of one before the window did.
 class RecordingWindow final : public QWindow {
 public:
     void exposeEvent(QExposeEvent *event) override
