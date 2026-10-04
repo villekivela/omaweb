@@ -9823,12 +9823,13 @@ TestCase {
         verify(top.y < startPage.horizonY);
         fuzzyCompare(top.y + panel.horizonBelowTop, startPage.horizonY, 1);
 
-        // Escape has no page to give back, and leaves what is typed alone.
+        // Escape has no page to give back: it releases the field to the
+        // browser and leaves what is typed alone.
         input.text = "half typed";
         keyClick(Qt.Key_Escape);
         verify(startPage.open);
         compare(input.text, "half typed");
-        verify(input.activeFocus);
+        verify(!input.activeFocus);
 
         // Asking for the address focuses the field and keeps the text.
         window.sidebarCollapsed = false;
