@@ -79,7 +79,10 @@ and a dialog over it: `--show settings:<section>` opens one of `tabs`, `keyboard
 `--show settings:privacy:clear` stands the clear-browsing-data dialog on Privacy. Naming the section
 is how a layout change is reviewed at a font size the page was not written at: point
 `OMAWEB_THEME_FILE` at a theme whose `font.size` is larger and capture each section in turn.
-`--show site` opens Site information, which is a click on the address trigger.
+`--show site` opens Site information, as a click on the lock does, and `--show site:certificate`,
+`site:blocked`, `site:cookies` or `site:third-parties` opens it at that detail. `--site-page http`,
+`cert` or `start` picks the page it is about, and `--site-sample` names what the lab has no engine
+for: refused requests, decided permissions, third parties and the site's cookies.
 `--tabs --show permission` has the last seeded tab's page ask for notifications, so the question bar
 stands over it; add `--private` to read the Private window's wording. `--show prompt` has the same
 page ask a JavaScript confirm, so the prompt bar stands over it. `--tabs --show ask` stands the
