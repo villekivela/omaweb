@@ -26,6 +26,14 @@ TestCase {
                                  })
 
     Component {
+        id: shellIpcComponent
+
+        ShellIpc {
+            target: "omaweb-test"
+        }
+    }
+
+    Component {
         id: actionButtonComponent
 
         Omaweb.ActionButton {
@@ -112,6 +120,29 @@ TestCase {
         verify(Style.spacing.controlPaddingX >= 0);
         verify(Color.foreground.a > 0);
         verify(Border.none() !== undefined);
+    }
+
+    // `Border` reads the kit's `IpcRegistry`, a `Singleton` that holds an `IpcHandler`, so both
+    // shim types stand under every `qs.Commons` token. With no handler registered the registry
+    // answers nothing, because Omaweb serves no `qs ipc` call.
+    function test_theIpcRegistryAnswersNothingWithoutAHandler() {
+        compare(IpcRegistry.handlerFor("omaweb-test"), null);
+        compare(IpcRegistry.call("omaweb-test", "toggle", []).ran, false);
+    }
+
+    // A kit panel declares `ShellIpc { target; enabled }` and the registry finds it by target, which
+    // needs the shim's `IpcHandler` to keep both properties and to let go of them when it is
+    // destroyed.
+    function test_aShellIpcHandlerRegistersByTargetAndLeavesOnDestruction() {
+        var handler = createTemporaryObject(shellIpcComponent, testCase);
+        compare(IpcRegistry.handlerFor("omaweb-test"), handler);
+        handler.enabled = false;
+        compare(IpcRegistry.handlerFor("omaweb-test"), null);
+        handler.enabled = true;
+        handler.destroy();
+        tryVerify(function () {
+            return IpcRegistry.handlers.length === 0;
+        });
     }
 
     // Omaweb's own Typography object is gone: the kit's scale is the only type

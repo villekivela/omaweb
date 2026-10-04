@@ -122,4 +122,29 @@ private:
     QFileSystemWatcher *m_watcher = nullptr;
 };
 
+// `IpcHandler { enabled; target }`. Omaweb answers no `qs ipc` call, so the handler only holds the
+// two properties the kit sets. The kit's `IpcRegistry` singleton declares one, which `Border`
+// reaches through `Color`, so every component that imports `qs.Commons` needs the type to exist.
+class IpcHandler : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(QString target READ target WRITE setTarget NOTIFY targetChanged)
+
+public:
+    explicit IpcHandler(QObject *parent = nullptr);
+
+    bool enabled() const;
+    void setEnabled(bool enabled);
+    QString target() const;
+    void setTarget(const QString &target);
+
+signals:
+    void enabledChanged();
+    void targetChanged();
+
+private:
+    bool m_enabled = true;
+    QString m_target;
+};
+
 } // namespace omaweb::quickshell

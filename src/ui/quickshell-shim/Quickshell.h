@@ -11,6 +11,7 @@
 // are out of scope, and so are the kit components that need them.
 
 #include <QObject>
+#include <QQmlListProperty>
 #include <QString>
 #include <QStringList>
 
@@ -37,6 +38,20 @@ public:
     // chrome has no business launching desktop helpers, so the call is
     // refused and logged instead of spawning anything.
     Q_INVOKABLE void execDetached(const QStringList &command);
+};
+
+// The `Singleton` root type a kit singleton such as `IpcRegistry` declares under `pragma
+// Singleton`. Upstream's is a QObject whose default property takes the objects declared inside it,
+// as `IpcHandler { id: bareHandler }` does there.
+class Singleton : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QQmlListProperty<QObject> data READ data)
+    Q_CLASSINFO("DefaultProperty", "data")
+
+public:
+    explicit Singleton(QObject *parent = nullptr);
+
+    QQmlListProperty<QObject> data();
 };
 
 } // namespace omaweb::quickshell
