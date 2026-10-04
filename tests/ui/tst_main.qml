@@ -3791,15 +3791,48 @@ TestCase {
         compare(label.font.family, Style.font.family, name);
     }
 
-    // The Start page's hint is drawn as that key cap, and so are the Key
-    // labels while Primary is held, which test_holdingPrimary... checks.
-    function test_theStartPageHintIsTheWebsitesKeycap() {
+    // The Start page's `?` hint is the Omnibar's hint row's: at rest, with no
+    // results, the row holds `? shortcuts` as the website's key cap and its
+    // word, and nothing is drawn as a line of its own under the field. With
+    // results the row keeps its keys and the same hint stays at its right end.
+    function test_theHintRowHoldsTheShortcutsHintAtRest() {
+        const hints = findChild(window.contentItem, "omnibarHints");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting caps");
         tryVerify(function () {
-            return findChild(window.contentItem, "startPageHint").visible;
+            return hints.visible;
         });
-        checkKeycap(findChild(findChild(window.contentItem, "startPageHint"), "keycap"), "hint");
+        verify(findChild(window.contentItem, "startPageHint") === null);
+        const hint = findChild(hints, "omnibarShortcutsHint");
+        verify(hint.visible);
+        const cap = findChild(hint, "keycap");
+        compare(cap.text, "?");
+        checkKeycap(cap, "hint");
+        compare(findChild(hint, "startPageHintWord").text, "shortcuts");
+        compare(childrenNamed(hints, "omnibarHintWord").length, 0);
+        compare(hints.height, hints.implicitHeight);
+        compare(findChild(window.contentItem, "omnibarFrame").height, panel.restHeight);
+
+        browser.recordVisit("https://hint-rest.example/", "Hint rest");
+        input.text = "hint rest";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        verify(hint.visible);
+        compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
+            return word.text;
+        }).join(), "select,go");
+        const keys = childrenNamed(hints, "omnibarHintWord")[1];
+        verify(hint.mapToItem(hints, 0, 0).x > keys.mapToItem(hints, 0, 0).x + keys.width);
+        const arrow = childrenNamed(hints, "keycap").filter(function (cap) {
+            return cap.visible && cap.text.length > 0;
+        })[0];
+        compare(hint.mapToItem(hints, 0, hint.height / 2).y, arrow.mapToItem(hints, 0, arrow.height
+                                                                             / 2).y);
+        verify(hint.mapToItem(hints, hint.width, 0).x <= hints.width);
+        input.text = "";
         leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
     }
 
@@ -9533,6 +9566,7 @@ TestCase {
             return word.text;
         });
         compare(words.join(), "select,go");
+        verify(findChild(hints, "omnibarShortcutsHint") !== null);
         const capsOf = function (group) {
             return childrenNamed(group, "keycap").filter(function (cap) {
                 return cap.text.length > 0;
@@ -9540,7 +9574,7 @@ TestCase {
                 return cap.text;
             });
         };
-        compare(capsOf(hints).join(), "\u2191,\u2193,\u21b5");
+        compare(capsOf(hints).join(), "\u2191,\u2193,\u21b5,?");
         const word = childrenNamed(hints, "omnibarHintWord")[0];
         compare(word.font.pixelSize, Style.font.bodySmall);
         compare(String(word.color), String(window.colors.mutedText));
@@ -10231,7 +10265,7 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting sheet");
         tryVerify(function () {
-            return findChild(window.contentItem, "startPageHint").visible;
+            return findChild(window.contentItem, "omnibarShortcutsHint").visible;
         });
 
         keyClick("?");

@@ -129,8 +129,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   behind it. The Start page is the Omnibar at rest above the road's horizon, centred in the page
   area, focused, over a night road. The field is the website's dash:
   `min(page area width - 32 px, 720 px)` wide, its top edge 50 px above the horizon, which lies at
-  half the page area's height, with a 50 px field and 16 px of padding. Under the field one line
-  names `?`, the way to the Shortcut sheet.
+  half the page area's height, with a 50 px field and 16 px of padding. The Omnibar's hint row,
+  under the field, holds `?` as a key cap with the word "shortcuts", the way to the Shortcut sheet.
 - The road fills the page area, or the one pane of a split it stands in, and is never drawn under
   the sidebar, which stands on its own fill as it does with the road off. It is drawn at the page
   area's size, centred on it, with the composition the website draws in a viewport of that size.
@@ -261,12 +261,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
   creates none. `Escape` brings back the page that was on show; in a Space at rest it does nothing.
   In a split the Start page covers both panes, where the committed tab lands, and `Escape` brings
   the split back. While the Start page is on show, `Primary+L` and `o` focus its Omnibar.
-- Under the Omnibar's results a hint row names the keys that work the list, as the website's dash
-  does: `↑↓` as key caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope
-  says "run" for `↵` and adds `⌫` and "back", which leaves the scope. The field answers the keys the
-  key map names for the Omnibar, and the row names the same keys, so a key the row shows is a key
-  the field answers. The words are translated. The row is not shown while there are no results, and
-  an item can join its right end.
+- Under the Omnibar's field a hint row, over a rule, holds `?` and "shortcuts" at its right end and,
+  while there are results, names the keys that work the list, as the website's dash does: `↑↓` as
+  key caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope says "run" for
+  `↵` and adds `⌫` and "back", which leaves the scope. The field answers the keys the key map names
+  for the Omnibar, and the row names the same keys, so a key the row shows is a key the field
+  answers. The words are translated. With no results the row is shown only at rest, on the Start
+  page, and holds `?` alone. An item can join it beside `?`.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
   search keywords, and browser commands in one list. The tab on show is never a row, and a Private
   window lists no Spaces and no history.

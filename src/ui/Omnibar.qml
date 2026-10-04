@@ -155,9 +155,6 @@ Item {
     // margin off its bottom edge.
     readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height - 2
                                            * panel.border.width - 8 - 24 - hints.implicitHeight
-    // How far below the horizon the field ends, which is where the Start page
-    // can draw beneath it.
-    readonly property real fieldBelowHorizon: header.height + panel.border.width - horizonBelowTop
     readonly property real restHeight: header.height + body.height + hints.height + 2
                                        * panel.border.width
     NumberAnimation {
@@ -1184,7 +1181,8 @@ Item {
         }
 
         // The keys that work the list, under the results as the website's dash
-        // has them; with no results there is no list to work.
+        // has them, and `?` at its end. At rest, with no results, the row is
+        // the Start page's hint for the Shortcut sheet and nothing else.
         OmnibarHints {
             id: hints
             anchors.left: parent.left
@@ -1192,10 +1190,11 @@ Item {
             anchors.top: body.bottom
             anchors.leftMargin: panel.border.width
             anchors.rightMargin: panel.border.width
-            visible: root.rows.length > 0
+            visible: root.rows.length > 0 || root.shownResting
             colors: root.colors
             keymap: root.keymap
             commandScope: root.commandScope
+            listed: root.rows.length > 0
         }
     }
 

@@ -3409,7 +3409,6 @@ ApplicationWindow {
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
                     driving: window.startPageDriving
-                    fieldBelowHorizon: omnibar.fieldBelowHorizon
                     pageSource: window.pagelessViewport ? null : engineLoader
                 }
 

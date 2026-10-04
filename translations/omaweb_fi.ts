@@ -2064,6 +2064,14 @@
         <source>back</source>
         <translation>takaisin</translation>
     </message>
+    <message>
+        <source>Question mark shows the keyboard shortcuts</source>
+        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
+    </message>
+    <message>
+        <source>shortcuts</source>
+        <translation>pikanäppäimet</translation>
+    </message>
 </context>
 <context>
     <name>PageImages</name>
@@ -3632,17 +3640,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Could not migrate tabs for Space %1</source>
         <translation>Tilan %1 välilehtiä ei voitu siirtää</translation>
-    </message>
-</context>
-<context>
-    <name>StartPage</name>
-    <message>
-        <source>Question mark shows the keyboard shortcuts</source>
-        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
-    </message>
-    <message>
-        <source>shortcuts</source>
-        <translation>pikanäppäimet</translation>
     </message>
 </context>
 <context>

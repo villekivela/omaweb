@@ -5,8 +5,8 @@ import qs.Commons
 // What Omaweb shows where a page would be when there is none to show: a Space
 // at rest, `about:blank`, or a new-tab request that has not been given a
 // destination yet. It is the Omnibar at rest over the night road. The Omnibar
-// itself is the window's own, drawn resting on this page's horizon; the page
-// is the road under it and the one line that names the Shortcut sheet.
+// itself is the window's own, drawn resting on this page's horizon, and its
+// hint row names the Shortcut sheet; the page is the road under it.
 //
 // It costs no engine. The road moves only while the page is on show and the
 // window is the reader's. The road fills the page area, or the one pane of a
@@ -35,9 +35,6 @@ Item {
     // A destination was committed from the Omnibar and its page has not
     // painted yet.
     property bool driving: false
-    // How far below the horizon the Omnibar's field ends, so the hint sits
-    // under it rather than behind it.
-    property real fieldBelowHorizon: 1
     // The page the Start page was summoned over, blurred under the sheet tint
     // when the road is off. Must not be an ancestor of this item.
     property Item pageSource: null
@@ -116,52 +113,6 @@ Item {
         navigating: root.driving ? 1 : 0
         scene: Component {
             NightRoad {}
-        }
-    }
-
-    // The Shortcut sheet is summoned, not shown, so the page names the key:
-    // a key cap, as the website draws its `kbd`, and the word beside it, on a
-    // plate of the road's dark so it reads over the lit horizon as well as the
-    // ground.
-    Rectangle {
-        id: hint
-        objectName: "startPageHint"
-
-        readonly property bool onRoad: root.roadEnabled && !!road.sceneItem
-        readonly property color wordColor: onRoad ? road.sceneItem.roles.light : root.colors.text
-
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: root.horizonY + root.fieldBelowHorizon + Style.spacing.xl
-        visible: !root.driving
-        width: hintRow.implicitWidth + Style.spacing.lg * 2
-        height: hintRow.implicitHeight + Style.spacing.sm * 2
-        radius: 3
-        color: Qt.rgba(0, 0, 0, root.roadEnabled ? 0.45 : 0)
-        Accessible.role: Accessible.StaticText
-        Accessible.name: qsTr("Question mark shows the keyboard shortcuts")
-
-        Row {
-            id: hintRow
-            anchors.centerIn: parent
-            spacing: Style.spacing.md
-
-            KeyCap {
-                anchors.verticalCenter: parent.verticalCenter
-                colors: root.colors
-                text: "?"
-                plate: hint.onRoad ? "black" : root.colors.windowOpaque
-            }
-
-            Text {
-                objectName: "startPageHintWord"
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("shortcuts")
-                color: hint.wordColor
-                opacity: 0.85
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-                Accessible.ignored: true
-            }
         }
     }
 }
