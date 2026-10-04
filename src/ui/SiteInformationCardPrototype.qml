@@ -10,7 +10,7 @@ import qs.Commons
 // like? Four structurally different answers, on fake data, switchable live.
 //
 // Run: scripts/prototype_site_card.sh   (UI lab; flags below)
-//   --site-variant N      1-4, the variant to start on
+//   --site-variant N      1-6, the variant to start on
 //   --site-scenario NAME  secure | http | cert | start
 //   --site-detail NAME    certificate | blocked | cookies | third
 // Keys while the card is open: Left/Right variant, Up/Down row, Enter opens a
@@ -36,9 +36,9 @@ Item {
         return at >= 0 && at + 1 < args.length ? args[at + 1] : fallback;
     }
 
-    readonly property var variantNames: ["Dense list", "Hero verdict", "Terminal table", "Flush flyout"]
+    readonly property var variantNames: ["Dense list", "Hero verdict", "Hero verdict, 2/3 hero", "Hero verdict, compact band", "Terminal table", "Flush flyout"]
     readonly property var scenarioKeys: ["secure", "http", "cert", "start"]
-    property int variant: Math.max(0, Math.min(3, Number(argument("--site-variant", "1")) - 1))
+    property int variant: Math.max(0, Math.min(5, Number(argument("--site-variant", "1")) - 1))
     property string scenario: argument("--site-scenario", "secure")
     property string detail: ""
     property int cursor: 0
@@ -266,7 +266,7 @@ Item {
     }
 
     function cycleVariant(by) {
-        variant = (variant + by + 4) % 4;
+        variant = (variant + by + 6) % 6;
     }
 
     function cycleScenario(by) {
@@ -570,8 +570,13 @@ Item {
     }
 
     // ---- B: hero verdict ---------------------------------------------------
+    // B at three hero sizes: 0 full, 1 about two thirds, 2 a compact band.
     component VariantB: Rectangle {
         id: b
+        property int mode: 0
+        readonly property real heroHeight: [112, 75, 56][mode]
+        readonly property real heroShrink: [52, 25, 14][mode]
+        readonly property real badgeSize: [64, 44, 26][mode]
         property real p: root.detail !== "" ? 1 : 0
         Behavior on p {
             NumberAnimation {
@@ -592,15 +597,16 @@ Item {
             width: b.width
             Rectangle {
                 width: parent.width
-                height: 112 - b.p * 52
+                height: b.heroHeight - b.p * b.heroShrink
                 color: Qt.rgba(root.verdictColor.r, root.verdictColor.g, root.verdictColor.b, 0.14)
                 Row {
+                    visible: b.mode < 2
                     anchors.fill: parent
-                    anchors.margins: 16
+                    anchors.margins: b.mode === 0 ? 16 : 12
                     spacing: 14
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 64 - b.p * 26
+                        width: b.badgeSize - b.p * (b.mode === 0 ? 26 : 10)
                         height: width
                         radius: width / 2
                         color: root.verdictColor
@@ -620,7 +626,7 @@ Item {
                             width: parent.width
                             wrapMode: Text.WordWrap
                             elide: Text.ElideNone
-                            font.pixelSize: 19 - b.p * 4
+                            font.pixelSize: (b.mode === 0 ? 19 : 16) - b.p * 4
                             font.bold: true
                         }
                         T {
@@ -648,6 +654,66 @@ Item {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // The compact band: badge and verdict on one line, the TLS line under.
+        Item {
+            visible: b.mode === 2
+            x: 12
+            y: 0
+            width: b.width - 24
+            height: b.heroHeight - b.p * b.heroShrink
+            Row {
+                id: bandRow
+                y: 8
+                spacing: 8
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: b.badgeSize
+                    height: width
+                    radius: width / 2
+                    color: root.verdictColor
+                    G {
+                        anchors.centerIn: parent
+                        text: root.site.glyph
+                        color: root.colors.overlay
+                        size: parent.width * 0.62
+                    }
+                }
+                T {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: b.p > 0.5 ? root.detailTitle(root.detail) : root.site.verdict
+                    width: b.width - 24 - b.badgeSize - 8 - (b.p > 0.5 ? 110 : 0)
+                    font.pixelSize: 15
+                    font.bold: true
+                }
+            }
+            T {
+                visible: b.p < 0.5
+                y: 8 + b.badgeSize + 4
+                text: root.site.sub
+                width: parent.width
+                color: root.colors.mutedText
+                font.pixelSize: Style.font.bodySmall
+            }
+            Rectangle {
+                visible: b.p > 0.5
+                anchors.right: parent.right
+                y: 8
+                color: Qt.rgba(1, 1, 1, 0.1)
+                width: bandBack.width + 20
+                height: 24
+                radius: 12
+                T {
+                    id: bandBack
+                    anchors.centerIn: parent
+                    text: "‹ " + root.site.host
+                }
+                Hit {
+                    anchors.fill: parent
+                    onClicked: root.back()
                 }
             }
         }
@@ -1245,8 +1311,8 @@ Item {
     Item {
         id: slot
         visible: root.open
-        x: root.variant === 3 ? root.flushX : root.anchorX
-        y: root.variant === 3 ? 0 : root.anchorY
+        x: root.variant === 5 ? root.flushX : root.anchorX
+        y: root.variant === 5 ? 0 : root.anchorY
         // Keep the card on the window, as the real one has to.
         MouseArea {
             // Swallow clicks on the card so they do not close it.
@@ -1256,7 +1322,7 @@ Item {
         Item {
             id: card
             width: 400
-            height: root.variant === 0 ? va.height : root.variant === 1 ? vb.height : root.variant === 2 ? vc.height : vd.height
+            height: [va.height, vb.height, vb2.height, vb3.height, vc.height, vd.height][root.variant]
             VariantA {
                 id: va
                 visible: root.variant === 0
@@ -1265,13 +1331,23 @@ Item {
                 id: vb
                 visible: root.variant === 1
             }
+            VariantB {
+                id: vb2
+                mode: 1
+                visible: root.variant === 2
+            }
+            VariantB {
+                id: vb3
+                mode: 2
+                visible: root.variant === 3
+            }
             VariantC {
                 id: vc
-                visible: root.variant === 2
+                visible: root.variant === 4
             }
             VariantD {
                 id: vd
-                visible: root.variant === 3
+                visible: root.variant === 5
                 height: root.height
             }
         }
@@ -1315,7 +1391,7 @@ Item {
                     }
                 }
                 Text {
-                    text: String.fromCharCode(65 + root.variant) + " — " + root.variantNames[root.variant]
+                    text: ["A", "B", "B2", "B3", "C", "D"][root.variant] + " — " + root.variantNames[root.variant]
                     color: "white"
                     font.family: Style.font.family
                     font.pixelSize: 13

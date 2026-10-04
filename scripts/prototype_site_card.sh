@@ -1,6 +1,6 @@
 #!/bin/sh
 # PROTOTYPE #541 — throwaway. Runs the UI lab with the Site information card variants.
-# Usage: scripts/prototype_site_card.sh [variant 1-4] [scenario secure|http|cert|start] [detail]
+# Usage: scripts/prototype_site_card.sh [variant 1-6: A B B2 B3 C D] [scenario secure|http|cert|start] [detail]
 # Build first: cmake --preset ui && cmake --build --preset ui
 set -eu
 cd "$(dirname "$0")/.."
