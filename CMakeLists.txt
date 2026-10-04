@@ -575,6 +575,8 @@ add_library(omaweb-platform STATIC
     src/platform/SystemNotifier.cpp
     src/platform/SystemNotifier.h
     src/platform/WindowChrome.h
+    src/platform/WindowExposure.cpp
+    src/platform/WindowExposure.h
 )
 target_include_directories(omaweb-platform PUBLIC src/platform)
 target_link_libraries(omaweb-platform PUBLIC Qt6::Gui Qt6::Qml Qt6::Quick)
@@ -1514,6 +1516,19 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-system-motion-tests)
     add_test(NAME omaweb-system-motion COMMAND omaweb-system-motion-tests)
+
+    qt_add_executable(omaweb-window-exposure-tests
+        tests/platform/tst_windowexposure.cpp
+    )
+    target_link_libraries(omaweb-window-exposure-tests PRIVATE
+        omaweb-platform
+        Qt6::Test
+    )
+    omaweb_strict_target(omaweb-window-exposure-tests)
+    add_test(NAME omaweb-window-exposure COMMAND omaweb-window-exposure-tests)
+    set_tests_properties(omaweb-window-exposure PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
     # The seam's contract is what it does on a desktop that offers no
     # notification service, so the test is given one. Which service is missing
     # differs by platform: macOS asks a window server, Linux asks the session
