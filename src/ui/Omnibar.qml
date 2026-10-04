@@ -44,6 +44,8 @@ Item {
     // alike: the one setting for how strongly the sun lights it. 1 is what the
     // website draws.
     readonly property real rimStrength: 0.5
+    // The key whose cap a row ends in, drawn as an arrow.
+    readonly property string goKey: "Right"
     // The glass over the road: how far the road behind it is blurred, and how
     // much of the overlay's colour lies over it. The text's contrast is floored
     // against a glass no thinner than 0.8 (ThemeController), so the tint stays
@@ -974,12 +976,12 @@ Item {
                     // What committing the row does, at its right edge. A
                     // command runs, which its keys already say.
                     readonly property string action: ({
-                                                          "tab": qsTr("switch tab →"),
-                                                          "space": qsTr("switch space →"),
-                                                          "history": qsTr("open →"),
-                                                          "putaway": qsTr("reopen →"),
-                                                          "keyword": qsTr("search →"),
-                                                          "suggestion": qsTr("search →"),
+                                                          "tab": qsTr("switch tab"),
+                                                          "space": qsTr("switch space"),
+                                                          "history": qsTr("open"),
+                                                          "putaway": qsTr("reopen"),
+                                                          "keyword": qsTr("search"),
+                                                          "suggestion": qsTr("search"),
                                                           "command": ""
                                                       })[modelData.kind]
                     // The keys that reach a command without the Omnibar, and a
@@ -1088,9 +1090,8 @@ Item {
 
                     Item {
                         id: rowText
-                        // What the title and the host share once another
-                        // Space's name has its place.
-                        readonly property real sharedWidth: width - rowSpace.reservedWidth
+                        // What the title and the host share.
+                        readonly property real sharedWidth: width
 
                         anchors.left: picture.right
                         anchors.leftMargin: 10
@@ -1100,9 +1101,7 @@ Item {
                         anchors.bottom: parent.bottom
 
                         // The title gives way before the host does, since the
-                        // host is what names the site, and both give way
-                        // before another Space's name, which says where
-                        // committing the row goes.
+                        // host is what names the site.
                         Text {
                             id: rowTitle
                             objectName: "omnibarRowTitle"
@@ -1131,26 +1130,10 @@ Item {
                             anchors.leftMargin: 10
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: rowSpace.reservedWidth
                             visible: row.host.length > 0
                             text: row.host
                             color: root.colors.mutedText
                             elide: Text.ElideMiddle
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.body
-                        }
-
-                        Text {
-                            id: rowSpace
-                            objectName: "omnibarRowSpace"
-                            readonly property real reservedWidth: visible ? implicitWidth + 10 : 0
-                            x: (rowHost.visible ? rowHost.x + Math.min(rowHost.implicitWidth,
-                                                                       rowHost.width) :
-                                                  rowTitle.width) + 10
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: row.spaceName.length > 0
-                            text: row.spaceName
-                            color: root.spaceColourOf(modelData.spaceId, modelData.spaceColor)
                             font.family: Style.font.family
                             font.pixelSize: Style.font.body
                         }
@@ -1191,12 +1174,41 @@ Item {
                         // Bright only on the row Return would commit.
                         Text {
                             objectName: "omnibarRowAction"
-                            visible: row.action.length > 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: row.action.length > 0 && row.spaceName.length === 0
                             text: row.action
                             color: row.isSelected ? root.colors.text : root.colors.mutedText
                             opacity: row.isSelected ? 1 : 0.85
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
+                        }
+
+                        // Another Space's tab says which Space committing it
+                        // takes the reader to, in that Space's colour until the
+                        // row is the one Return would commit.
+                        Text {
+                            objectName: "omnibarRowSpace"
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: row.spaceName.length > 0
+                            text: row.spaceName
+                            color: row.isSelected ? root.colors.text : root.spaceColourOf(
+                                                        modelData.spaceId, modelData.spaceColor)
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+
+                        // What committing the row does, as an arrow in a key
+                        // cap, filled with the accent on the row Return would
+                        // commit. A command runs, which its keys already say.
+                        KeyCap {
+                            objectName: "omnibarRowGo"
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: modelData.kind !== "command"
+                            colors: root.colors
+                            iconFontFamily: root.iconFontFamily
+                            plate: root.colors.overlayOpaque
+                            text: root.goKey
+                            accented: row.isSelected
                         }
                     }
 

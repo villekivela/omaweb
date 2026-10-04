@@ -2022,24 +2022,24 @@
         <translation>tämä välilehti</translation>
     </message>
     <message>
-        <source>switch tab →</source>
-        <translation>vaihda välilehti →</translation>
+        <source>switch tab</source>
+        <translation>vaihda välilehti</translation>
     </message>
     <message>
-        <source>switch space →</source>
-        <translation>vaihda Tila →</translation>
+        <source>switch space</source>
+        <translation>vaihda Tila</translation>
     </message>
     <message>
-        <source>open →</source>
-        <translation>avaa →</translation>
+        <source>open</source>
+        <translation>avaa</translation>
     </message>
     <message>
-        <source>reopen →</source>
-        <translation>avaa uudelleen →</translation>
+        <source>reopen</source>
+        <translation>avaa uudelleen</translation>
     </message>
     <message>
-        <source>search →</source>
-        <translation>hae →</translation>
+        <source>search</source>
+        <translation>hae</translation>
     </message>
     <message>
         <source>in %1</source>

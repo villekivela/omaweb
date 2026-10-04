@@ -7666,6 +7666,8 @@ TestCase {
         tryVerify(function () {
             return omnibarRowsOf(panel, "tab").length === 1;
         });
+        // The label is the Space's colour until the row is the selected one.
+        panel.selected = -1;
         const suffix = findChild(tabRow(), "omnibarRowSpace");
         compare(suffix.text, "Crawler");
         verify(Qt.colorEqual(suffix.color, window.colors.mutedText));
@@ -7693,8 +7695,11 @@ TestCase {
         tryVerify(function () {
             return omnibarRowsOf(panel, "tab").length === 1;
         });
+        panel.selected = -1;
         verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color,
                              window.colors.agentAccent));
+        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
+        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color, window.colors.text));
         findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
         control.destroy();
         window.closeOmnibar();
@@ -7738,6 +7743,7 @@ TestCase {
         compare(local.Accessible.name, "Switch to tab Notes on orbit");
 
         const away = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[1]));
+        panel.selected = -1;
         const suffix = findChild(away, "omnibarRowSpace");
         compare(suffix.visible, true);
         compare(suffix.text, "Alpha");
@@ -7771,17 +7777,22 @@ TestCase {
         });
         compare(findChild(away, "omnibarRowTitle").text, alphaTitle);
         compare(findChild(away, "omnibarRowHost").text, "plans.example");
-        compare(away.action, "switch tab →");
-        // The title gives way before the host, and the Space's name never
-        // does: it is drawn whole, at the title's size, inside the row's
-        // text.
+        compare(away.action, "switch tab");
+        // The title gives way before the host, and the Space's name, the
+        // row's label at its right edge, is drawn whole: it is said there
+        // and not again beside the host, and the word it replaces is gone.
         const awayTitle = findChild(away, "omnibarRowTitle");
         verify(awayTitle.truncated);
         verify(!findChild(away, "omnibarRowHost").truncated);
-        compare(suffix.font.pixelSize, awayTitle.font.pixelSize);
+        compare(suffix.font.pixelSize, findChild(away, "omnibarRowAction").font.pixelSize);
         compare(suffix.width, suffix.implicitWidth);
-        verify(suffix.x >= awayTitle.x + awayTitle.width);
-        verify(suffix.x + suffix.width <= suffix.parent.width);
+        verify(!findChild(away, "omnibarRowAction").visible);
+        verify(suffix.mapToItem(away, 0, 0).x >= awayTitle.mapToItem(away, awayTitle.width, 0).x);
+        verify(suffix.mapToItem(away, suffix.width, 0).x <= away.width);
+        verify(findChild(away, "omnibarRowGo").visible);
+        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[1]);
+        verify(Qt.colorEqual(suffix.color, window.colors.text));
+        panel.selected = -1;
         compare(away.Accessible.name, "Switch to tab " + alphaTitle + " in Alpha");
 
         compare(Object.keys(engineHost.engines).length, engineCount);
@@ -7873,7 +7884,7 @@ TestCase {
             return rows.itemAtIndex(spaceRow) !== null;
         });
         compare(rows.itemAtIndex(spaceRow).Accessible.name, "Switch to Space Zephyr reading");
-        compare(rows.itemAtIndex(spaceRow).action, "switch space →");
+        compare(rows.itemAtIndex(spaceRow).action, "switch space");
         compare(findChild(rows.itemAtIndex(spaceRow), "omnibarRowSpaceColor").visible, true);
 
         input.text = "zoom in";
@@ -7947,7 +7958,7 @@ TestCase {
             compare(panel.selected, -1);
 
             let row = omnibarRowItem(rows, first);
-            compare(row.action, "search →");
+            compare(row.action, "search");
             compare(row.keys, "");
             compare(row.Accessible.name, "Search Stub for weather");
             compare(findChild(row, "omnibarRowHost").visible, false);
@@ -8159,7 +8170,7 @@ TestCase {
         window.openOmnibar(false);
         input.text = "edge-tab";
         let row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]));
-        compare(row.action, "switch tab →");
+        compare(row.action, "switch tab");
         compare(row.keys, "");
         compare(row.Accessible.name, "Switch to tab Edge tab page");
         compare(findChild(row, "omnibarRowTitle").text, "Edge tab page");
@@ -8180,7 +8191,7 @@ TestCase {
             return omnibarRowsOf(panel, "history").length === 1;
         });
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "history")[0]));
-        compare(row.action, "open →");
+        compare(row.action, "open");
         compare(row.keys, "");
         compare(row.Accessible.name, "Open history result Edge history page");
         compare(row.Accessible.description, "https://www.edge-history.example/deep/page");
@@ -8216,7 +8227,7 @@ TestCase {
 
         input.text = "edge space";
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]));
-        compare(row.action, "switch space →");
+        compare(row.action, "switch space");
         compare(row.keys, "");
         compare(findChild(row, "omnibarRowTile").visible, false);
         const spaceColor = findChild(row, "omnibarRowSpaceColor");
@@ -8239,7 +8250,7 @@ TestCase {
         // code, and still does with favicons off.
         wait(50);
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "keyword")[0]));
-        compare(row.action, "search →");
+        compare(row.action, "search");
         compare(row.keys, "br");
         tile = findChild(row, "omnibarRowTile");
         compare(tile.visible, true);
@@ -9768,6 +9779,55 @@ TestCase {
         verify(title.mapToItem(withTwo.row, title.width, 0).x <= withTwo.keys.mapToItem(withTwo.row,
                                                                                         0, 0).x);
 
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
+    // A row that is not a command ends in a muted word for what Return does and
+    // an arrow in a key cap, as Arc's command bar does. On the selected row the
+    // word turns to the text colour and the cap fills with the accent, its
+    // arrow in the panel's ground colour. A command row has no arrow.
+    function test_aRowEndsInALabelAndAnArrowCap() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const list = findChild(window.contentItem, "omnibarRowList");
+        browser.recordVisit("https://arrow-cap.example/", "Arrow cap");
+        openPage("https://arrow-cap-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryCompare(panel, "arrival", 1);
+        input.text = "arrow cap";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        const first = omnibarRowItem(list, 0);
+        const label = findChild(first, "omnibarRowAction");
+        const cap = findChild(first, "omnibarRowGo");
+        verify(cap !== null && cap.visible);
+        compare(cap.text, "Right");
+        compare(findChild(cap, "keycapLabel").text, "arrow_forward");
+        compare(label.text, "open");
+        verify(label.text.indexOf("\u2192") < 0);
+        compare(String(label.color), String(window.colors.mutedText));
+        verify(!cap.accented);
+
+        panel.selected = 0;
+        compare(String(label.color), String(window.colors.text));
+        verify(cap.accented);
+        const accent = Qt.color(String(window.colors.accent));
+        compare(String(cap.color), String(accent));
+        compare(String(findChild(cap, "keycapLabel").color), String(window.colors.overlayOpaque));
+        // Right-aligned like every other cap on a row.
+        compare(first.width - cap.mapToItem(first, cap.width, 0).x, 14);
+
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        verify(!findChild(omnibarRowItem(list, 0), "omnibarRowGo").visible);
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
     }

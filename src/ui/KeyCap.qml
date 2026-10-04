@@ -25,6 +25,9 @@ Rectangle {
     property color plate: root.colors ? root.colors.windowOpaque : "black"
     // A cap with no ground of its own, outlined only.
     property bool filled: true
+    // A cap filled with the accent, its key in the plate's colour: the cap of
+    // what Return would do.
+    property bool accented: false
 
     // How a special key is drawn: the icon the font names it by and the
     // Unicode symbol that stands in for it. A key without a clear symbol is not
@@ -121,7 +124,9 @@ Rectangle {
     readonly property var shown: root.faceFor(root.text)
     readonly property real unit: Style.font.body / 12
     readonly property color accent: root.colors ? root.colors.accent : "white"
-    readonly property color ground: root.filled ? root.accentOver(root.plate, 0.1) : root.plate
+    readonly property color ground: root.accented ? root.accent : (root.filled ? root.accentOver(
+                                                                                     root.plate,
+                                                                                     0.1) : root.plate)
 
     function accentOver(base, alpha) {
         return Qt.tint(base, Qt.rgba(root.accent.r, root.accent.g, root.accent.b, alpha));
@@ -136,7 +141,7 @@ Rectangle {
     width: root.widthFor(label.implicitWidth)
     height: 22 * root.unit
     radius: 4 * root.unit
-    color: root.accentOver(root.ground, 0.55)
+    color: root.accented ? root.accent : root.accentOver(root.ground, 0.55)
     Accessible.ignored: true
     Accessible.name: root.spokenName(root.text)
 
@@ -154,7 +159,7 @@ Rectangle {
             objectName: "keycapLabel"
             anchors.centerIn: parent
             text: root.shown.text
-            color: root.accent
+            color: root.accented ? root.plate : root.accent
             font.family: root.shown.icon ? root.iconFontFamily : Style.font.family
             font.pixelSize: (root.shown.icon ? 14 : 12) * root.unit
             font.weight: Font.Medium

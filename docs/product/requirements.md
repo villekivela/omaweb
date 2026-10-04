@@ -283,11 +283,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   window lists no Spaces and no history.
 - The Omnibar searches every Space's open tabs. The active Space's tab rows come before any other
   Space's, however weakly they hold the typed text, and the other Spaces' follow in Space order. A
-  tab row from another Space names its Space after the host, in the Space colour, or for an Agent
-  Space in the Agent accent while an Agent is attached and muted otherwise, and committing it
-  switches to that Space with the tab on show as one action: a tab the Space no longer holds leaves
-  the reader where they were. The rows are read from what the session keeps of each Space, so
-  listing them resumes, loads or thaws no page. A Private window lists only its own tabs.
+  tab row from another Space names its Space as its label at the right edge, in the Space colour, or
+  for an Agent Space in the Agent accent while an Agent is attached and muted otherwise, turning to
+  the text colour on the selected row, and committing it switches to that Space with the tab on show
+  as one action: a tab the Space no longer holds leaves the reader where they were. The rows are
+  read from what the session keeps of each Space, so listing them resumes, loads or thaws no page. A
+  Private window lists only its own tabs.
 - Engine suggestions, an installation-wide setting in Settings' network section, are off by default
   and stay out of Sync. With them on, the Omnibar asks a search engine for Engine suggestions only
   when Return on the current text would search: never for an address such as `github.com/foo` or
@@ -316,8 +317,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   fetches an icon from the network to fill a row.
 - A tab or history row reads as the title, then the host in the muted colour; a history row gives
   its full address to a screen reader as the row's description. At its right edge a row says what
-  committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by
-  `search`. The selected row is the website's: the accent at 14% over the panel, so the glass shows
+  committing it does in a muted word, then an arrow in a key cap: `switch tab`, `switch space`,
+  `open`, `reopen`, or a keyword followed by `search`. A tab of another Space has that Space's name
+  there instead, which is said once and not again beside the host. On the selected row the word
+  turns to the text colour and the cap fills with the accent, its arrow in the panel's ground
+  colour. The selected row is the website's: the accent at 14% over the panel, so the glass shows
   through it, with a 2 px accent bar at its left edge. The action is bright on the selected row and
   muted on the others. A command row shows its keys there instead, as key caps: one to a key, the
   bare binding before the chord, a quiet gap between bindings and no dot, right-aligned so the caps
