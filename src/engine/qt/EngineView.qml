@@ -112,12 +112,6 @@ Item {
     // in which white would flash through dark chrome.
     property color pageBackgroundColor: "#16151d"
     property bool documentPainted: false
-    // Whether the view shows the canvas rather than the theme. The paint is
-    // reported through a script message, which can reach the shell before the
-    // frame the page painted in reaches the screen, so the canvas follows
-    // `documentPainted` only once the window has swapped a frame or two since.
-    // A window that swaps none, as a hidden one does not, gets it after a
-    // moment anyway.
     // Whether the document being loaded has said it exists, which means its
     // paint will be reported too. The end of its load is then not the moment
     // it has painted: a load can end a frame or more before the first paint,
@@ -128,6 +122,13 @@ Item {
         interval: 1000
         onTriggered: root.documentPainted = true
     }
+    // Whether the view shows the canvas rather than the theme. The paint is
+    // reported through a script message, which can reach the shell before the
+    // frame the page painted in reaches the screen, so the canvas follows
+    // `documentPainted` only once the window has swapped a few frames since: the
+    // page's own frame follows the report by about that many.
+    // A window that swaps none, as a hidden one does not, gets it after a
+    // moment anyway.
     property bool canvasShown: false
     property int canvasFramesToWait: 0
     onDocumentPaintedChanged: {
@@ -138,7 +139,7 @@ Item {
             return;
         }
         lateCanvas.stop();
-        root.canvasFramesToWait = 2;
+        root.canvasFramesToWait = 4;
         canvasFallback.restart();
         if (root.Window.window)
             root.Window.window.update();
