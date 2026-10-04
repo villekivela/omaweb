@@ -238,6 +238,7 @@ private slots:
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
     void qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted();
+    void qtHoldsTheThemeUntilThePaintedFrameIsOnScreen();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtReportsWhereThePageWasPressed();
     void qtKeepsItsPageReportsOutOfThePagesReach();
@@ -3265,6 +3266,55 @@ void QtEngineContractTest::qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted()
     QTRY_COMPARE_WITH_TIMEOUT(canvas(), QColor(Qt::white), 15000);
     QTRY_VERIFY(!adapter->property("loading").toBool());
     QCOMPARE(canvas(), QColor(Qt::white));
+}
+
+// The page reports its first paint through a script message, which can reach
+// the shell before the frame the page painted in reaches the screen. The view
+// switches to the white canvas only once the window has swapped a frame after
+// the report, so the theme is never replaced by a white frame with nothing of
+// the page on it.
+void QtEngineContractTest::qtHoldsTheThemeUntilThePaintedFrameIsOnScreen()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const QColor theme(QStringLiteral("#123456"));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("pageBackgroundColor"), theme},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(320, 240);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(320, 240));
+    window.show();
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+
+    // What each swapped frame finds: the paint reported and the canvas it is shown on.
+    int framesOnThemeAfterPaint = 0;
+    bool white = false;
+    connect(&window, &QQuickWindow::frameSwapped, &window, [&] {
+        const bool painted = adapter->property("documentPainted").toBool();
+        const bool onWhite
+            = webView->property("backgroundColor").value<QColor>() == QColor(Qt::white);
+        if (painted && !onWhite)
+            ++framesOnThemeAfterPaint;
+        white = white || onWhite;
+    });
+
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("data:text/html,<title>first</title><p>first</p>"))));
+    QTRY_VERIFY_WITH_TIMEOUT(white, 15000);
+
+    // The paint was reported and the window swapped a frame still showing the
+    // theme before the canvas turned white.
+    QVERIFY(framesOnThemeAfterPaint >= 1);
 }
 
 // A window the page asks for comes from somewhere on the page, and the request

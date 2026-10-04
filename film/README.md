@@ -40,7 +40,9 @@ Each beat is checked as it plays, and a beat that did not happen stops the run b
 encoded: a Space not on show, a tab at the wrong address, a page that did not widen, an ad that was
 fetched, chrome that kept its colour, or an Agent command that failed. The browser's own log is left
 in `build/film/browser.log`. The encoder steps each file's quality down until it fits its share of
-the 5 MB budget, and the run fails if one still does not.
+the 5 MB budget, and the run fails if one still does not. The finished MP4 is then read frame by
+frame with ffmpeg's `signalstats`, and the run fails if any frame's mean brightness is over 120 of
+255 or more than 18 above the frames around it, which is a white frame flashing on a dark site.
 
 The WebM is VP9 rather than AV1, because the aarch64 Arch ffmpeg has no software AV1 encoder.
 Browsers that play AV1 in WebM play VP9 too.

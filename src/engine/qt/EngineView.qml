@@ -112,6 +112,42 @@ Item {
     // in which white would flash through dark chrome.
     property color pageBackgroundColor: "#16151d"
     property bool documentPainted: false
+    // Whether the view shows the canvas rather than the theme. The paint is
+    // reported through a script message, which can reach the shell before the
+    // frame the page painted in reaches the screen, so the canvas follows
+    // `documentPainted` only once the window has swapped a frame or two since.
+    // A window that swaps none, as a hidden one does not, gets it after a
+    // moment anyway.
+    property bool canvasShown: false
+    property int canvasFramesToWait: 0
+    onDocumentPaintedChanged: {
+        if (!root.documentPainted) {
+            root.canvasShown = false;
+            root.canvasFramesToWait = 0;
+            canvasFallback.stop();
+            return;
+        }
+        root.canvasFramesToWait = 2;
+        canvasFallback.restart();
+        if (root.Window.window)
+            root.Window.window.update();
+    }
+    Connections {
+        target: root.Window.window
+        enabled: root.canvasFramesToWait > 0
+
+        function onFrameSwapped() {
+            if (--root.canvasFramesToWait > 0)
+                root.Window.window.update();
+            else
+                root.canvasShown = true;
+        }
+    }
+    Timer {
+        id: canvasFallback
+        interval: 300
+        onTriggered: root.canvasShown = root.documentPainted
+    }
     // The colour a page's own controls are drawn in: the checked box, the
     // selected option, the filled track. Chromium draws them itself and has no
     // idea what the window around them looks like, so the shell says.
@@ -3314,7 +3350,7 @@ Item {
         // none gets the white it was written against. The theme stands in
         // only between a document's creation and its first paint, where white
         // would flash a bright rectangle through dark chrome.
-        backgroundColor: root.documentPainted ? "white" : root.pageBackgroundColor
+        backgroundColor: root.canvasShown ? "white" : root.pageBackgroundColor
         focus: root.pageTakesFocus
         userScripts.collection: root.userScriptList()
         // Chromium's autoplay policy is per view. Requiring a gesture blocks
