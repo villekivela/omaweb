@@ -3529,7 +3529,7 @@ const QByteArray formHistoryPage = R"HTML(<!doctype html><html><head><title>read
         <input data-field="nameless">
         <input id="pin" type="password" name="pin">
         <input id="off" name="off" autocomplete="off">
-        <input id="ccnumber" name="number" autocomplete="cc-number">
+        <input id="payment" name="number" autocomplete="cc-number">
         <input id="cardnumber" name="cardnumber">
         <input id="code" name="code" autocomplete="one-time-code">
         <input id="box" type="checkbox" name="box" checked>
@@ -3635,7 +3635,7 @@ void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
     }
     for (const auto &unkept :
         {QStringLiteral("nameless"), QStringLiteral("pin"), QStringLiteral("off"),
-            QStringLiteral("ccnumber"), QStringLiteral("cardnumber"), QStringLiteral("code"),
+            QStringLiteral("payment"), QStringLiteral("cardnumber"), QStringLiteral("code"),
             QStringLiteral("box"), QStringLiteral("notes"), QStringLiteral("secret")}) {
         form.focus(QStringLiteral("city"));
         QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("city"));
@@ -3647,7 +3647,7 @@ void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
     // none of the others whatever they hold.
     form.run(QStringLiteral(
         "for (const [id, value] of [['city', 'Oulu'], ['q', 'night radio'], ['phone', '040 123'],"
-        "    ['nameless', 'x'], ['pin', 'hunter2'], ['off', 'x'], ['ccnumber', '4111111111111111'],"
+        "    ['nameless', 'x'], ['pin', 'hunter2'], ['off', 'x'], ['payment', '4111111111111111'],"
         "    ['cardnumber', '4111111111111111'], ['code', '123456'], ['notes', 'x']])"
         "  document.querySelector(`#${id}, [data-field=${id}]`).value = value;"
         "document.getElementById('kept').requestSubmit();"));

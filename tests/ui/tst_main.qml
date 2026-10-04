@@ -13251,8 +13251,9 @@ TestCase {
     // holds is not offered back to it.
     function test_typingFiltersTheSuggestionsToThoseThatStartWithIt() {
         const engine = openPage("https://forms-typed.example/");
-        submitForm(engine, "typed-field", ["alpha", "beta", "Alder", "almond", "alto", "alps", "algae",
-                                           "alley"]);
+        // "scalp" holds "alp" without starting with it.
+        submitForm(engine, "typed-field", ["scalp", "alpha", "beta", "Alder", "almond", "alto", "alps",
+                                           "algae", "alley"]);
         engine.simulateFormFieldFocus("typed-field", "", 100, 200, 240, 30);
         const list = formSuggestions();
         tryVerify(function () {
