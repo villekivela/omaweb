@@ -13448,6 +13448,9 @@ TestCase {
         tryVerify(function () {
             return list.shown;
         });
+        // The panel holds the keyboard, so both the window's Escape and the
+        // Glance's own are in reach of the key.
+        glance.forceActiveFocus();
         keyClick(Qt.Key_Escape);
         wait(50);
         verify(window.glanceEngine !== null);
