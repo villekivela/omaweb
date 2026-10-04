@@ -44,6 +44,12 @@ Item {
     // alike: the one setting for how strongly the sun lights it. 1 is what the
     // website draws.
     readonly property real rimStrength: 0.5
+    // The glass over the road: how far the road behind it is blurred, and how
+    // much of the overlay's colour lies over it. The text's contrast is floored
+    // against a glass no thinner than 0.8 (ThemeController), so the tint stays
+    // at or above that.
+    readonly property real glassBlurOverRoad: 40
+    readonly property real glassTintOverRoad: 0.92
 
     // At rest the glass blurs the road alone rather than the window: the road
     // moves every frame, and a blur of the window would render all of it
@@ -637,8 +643,8 @@ Item {
         clip: true
 
         // Glass: what is behind blurred under the overlay. Over the road it
-        // lets a little more through, as the floating sidebar does over a
-        // page, and blurs as little as the website's: the road is the page.
+        // blurs heavily under a nearly opaque tint, so the rows read cleanly
+        // over the road's sun and lanes.
         PageBackdrop {
             objectName: "omnibarGlass"
 
@@ -653,10 +659,10 @@ Item {
             source: root.blurActive ? root.glassSource : null
             textureScale: 0.5
             sourceRect: Qt.rect(panel.x + x - origin.x, panel.y + y - origin.y, width, height)
-            blur: overRoad ? 14 : 48
-            tint: overRoad ? Qt.rgba(overlay.r, overlay.g, overlay.b, Math.min(overlay.a, 0.8)) :
+            blur: overRoad ? root.glassBlurOverRoad : 48
+            tint: overRoad ? Qt.rgba(overlay.r, overlay.g, overlay.b, Math.min(overlay.a,
+                                                                               root.glassTintOverRoad)) :
                              overlay
-
         }
 
         // The bloom's half inside the edge, over the glass and under the text,

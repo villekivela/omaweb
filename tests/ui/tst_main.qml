@@ -9468,6 +9468,33 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting dash");
     }
 
+    // The glass over the road is a heavy one, so the results read cleanly
+    // over it: the road blurred well past a sliver and under a tint of the
+    // overlay that is nearly opaque, never less than the 0.8 the text's
+    // contrast is floored against. Both are the Omnibar's own settings, so
+    // they can be tuned in one place.
+    function test_theGlassOverTheRoadIsBlurredAndNearlyOpaque() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const glass = findChild(window.contentItem, "omnibarGlass");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Heavy glass");
+        tryVerify(function () {
+            return panel.shownResting && scene.light !== null;
+        });
+        tryCompare(panel, "arrival", 1);
+
+        verify(glass.overRoad);
+        compare(glass.blur, panel.glassBlurOverRoad);
+        verify(panel.glassBlurOverRoad >= 32);
+        verify(panel.glassTintOverRoad >= 0.8);
+        fuzzyCompare(glass.tint.a, Math.min(glass.overlay.a, panel.glassTintOverRoad), 0.01);
+        verify(glass.tint.a >= 0.9);
+        compare(glass.source, scene);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Heavy glass");
+    }
+
     // The sun's light on the field's edge, the rim and the bloom either side
     // of it, is drawn at one strength, the Omnibar's `rimStrength`, so it can
     // be tuned in one place. It is half what the website draws.

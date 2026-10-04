@@ -255,7 +255,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   command scope and an engine keyword keep their own prompts. A screen reader hears what the field
   takes, "Address, search, tabs and Spaces", rather than the prompt. The typed text and the caret
   carry no glow, rim light, blur or shadow, and the text clears 4.5:1 against the field's glass in
-  every theme, over the darkest and the lightest the road can put behind it.
+  every theme, over the darkest and the lightest the road can put behind it. Over the road the glass
+  blurs it heavily under a nearly opaque tint of the overlay, so the rows read cleanly, and over a
+  page it blurs the page. The sun's light on the field's edge is drawn at half the website's
+  strength.
 - `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
   after the user commits a destination. Choosing an open tab from it switches to that tab and
   creates none. `Escape` brings back the page that was on show; in a Space at rest it releases the
