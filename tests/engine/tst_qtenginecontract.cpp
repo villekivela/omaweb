@@ -3270,8 +3270,9 @@ void QtEngineContractTest::qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted()
 
 // The page reports its first paint through a script message, which can reach
 // the shell before the frame the page painted in reaches the screen. The view
-// switches to the white canvas only after a hold and the next swapped frame, so
-// the theme is never replaced by a white frame with nothing of the page on it.
+// switches to the white canvas only once the window has swapped a frame after
+// the report, so the theme is never replaced by a white frame with nothing of
+// the page on it.
 void QtEngineContractTest::qtHoldsTheThemeUntilThePaintedFrameIsOnScreen()
 {
     QTemporaryDir root;
@@ -3295,30 +3296,25 @@ void QtEngineContractTest::qtHoldsTheThemeUntilThePaintedFrameIsOnScreen()
     auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
     QVERIFY(webView);
 
-    // What each sample finds: the paint reported and the canvas it is shown
-    // on, sampled on every swapped frame and every few milliseconds.
-    int samplesOnThemeAfterPaint = 0;
+    // What each swapped frame finds: the paint reported and the canvas it is shown on.
+    int framesOnThemeAfterPaint = 0;
     bool white = false;
-    const auto sample = [&] {
+    connect(&window, &QQuickWindow::frameSwapped, &window, [&] {
         const bool painted = adapter->property("documentPainted").toBool();
         const bool onWhite
             = webView->property("backgroundColor").value<QColor>() == QColor(Qt::white);
         if (painted && !onWhite)
-            ++samplesOnThemeAfterPaint;
+            ++framesOnThemeAfterPaint;
         white = white || onWhite;
-    };
-    connect(&window, &QQuickWindow::frameSwapped, &window, sample);
-    QTimer sampler;
-    connect(&sampler, &QTimer::timeout, &sampler, sample);
-    sampler.start(5);
+    });
 
     QVERIFY(adapter->setProperty(
         "currentUrl", QUrl(QStringLiteral("data:text/html,<title>first</title><p>first</p>"))));
     QTRY_VERIFY_WITH_TIMEOUT(white, 15000);
 
-    // The paint was reported and the theme was still on show after it, before
-    // the canvas turned white.
-    QVERIFY(samplesOnThemeAfterPaint >= 1);
+    // The paint was reported and the window swapped a frame still showing the
+    // theme before the canvas turned white.
+    QVERIFY(framesOnThemeAfterPaint >= 1);
 }
 
 // A window the page asks for comes from somewhere on the page, and the request

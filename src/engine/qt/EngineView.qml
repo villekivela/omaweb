@@ -113,43 +113,40 @@ Item {
     property color pageBackgroundColor: "#16151d"
     property bool documentPainted: false
     // Whether the view shows the canvas rather than the theme. The paint is
-    // reported through a script message, and the page's painted frame reaches
-    // the window on a path of its own, later than the report: a recording
-    // showed the canvas bare for four frames when it followed the report. So
-    // the canvas follows `documentPainted` after a hold, and then only on the
-    // frame the window swaps next. A page that draws nothing for itself shows
-    // the theme a moment longer, which is the cost.
+    // reported through a script message, which can reach the shell before the
+    // frame the page painted in reaches the screen, so the canvas follows
+    // `documentPainted` only once the window has swapped a frame or two since.
+    // A window that swaps none, as a hidden one does not, gets it after a
+    // moment anyway.
     property bool canvasShown: false
-    property bool canvasWaitingForFrame: false
+    property int canvasFramesToWait: 0
     onDocumentPaintedChanged: {
-        root.canvasWaitingForFrame = false;
         if (!root.documentPainted) {
             root.canvasShown = false;
-            canvasHold.stop();
+            root.canvasFramesToWait = 0;
+            canvasFallback.stop();
             return;
         }
-        canvasHold.restart();
+        root.canvasFramesToWait = 2;
+        canvasFallback.restart();
+        if (root.Window.window)
+            root.Window.window.update();
     }
     Connections {
         target: root.Window.window
-        enabled: root.canvasWaitingForFrame
+        enabled: root.canvasFramesToWait > 0
 
         function onFrameSwapped() {
-            root.canvasWaitingForFrame = false;
-            root.canvasShown = root.documentPainted;
+            if (--root.canvasFramesToWait > 0)
+                root.Window.window.update();
+            else
+                root.canvasShown = true;
         }
     }
     Timer {
-        id: canvasHold
-        interval: 400
-        onTriggered: {
-            if (!root.Window.window) {
-                root.canvasShown = true;
-                return;
-            }
-            root.canvasWaitingForFrame = true;
-            root.Window.window.update();
-        }
+        id: canvasFallback
+        interval: 300
+        onTriggered: root.canvasShown = root.documentPainted
     }
     // The colour a page's own controls are drawn in: the checked box, the
     // selected option, the filled track. Chromium draws them itself and has no
