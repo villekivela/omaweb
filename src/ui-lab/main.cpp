@@ -436,6 +436,23 @@ int main(int argc, char *argv[])
     omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")),
         suggestUrl.isEmpty() ? QString() : dataRootPath);
     browser.setEngineSuggestions(&engineSuggestions);
+    // `--sample-addresses` saves two addresses for one reader, so the Settings
+    // section and the suggestion list have rows to tell apart.
+    if (arguments.contains(QStringLiteral("--sample-addresses"))) {
+        browser.saveAddress({{QStringLiteral("name"), QStringLiteral("Meri Laine")},
+            {QStringLiteral("street"), QStringLiteral("Rantakatu 4 B 12")},
+            {QStringLiteral("postalCode"), QStringLiteral("90100")},
+            {QStringLiteral("city"), QStringLiteral("Oulu")},
+            {QStringLiteral("country"), QStringLiteral("Finland")},
+            {QStringLiteral("phone"), QStringLiteral("+358 40 123 4567")},
+            {QStringLiteral("email"), QStringLiteral("meri@kotisivu.example")}});
+        browser.saveAddress({{QStringLiteral("name"), QStringLiteral("Meri Laine")},
+            {QStringLiteral("street"), QStringLiteral("Tehtaankatu 5")},
+            {QStringLiteral("postalCode"), QStringLiteral("00140")},
+            {QStringLiteral("city"), QStringLiteral("Helsinki")},
+            {QStringLiteral("country"), QStringLiteral("Finland")},
+            {QStringLiteral("email"), QStringLiteral("meri@work.example")}});
+    }
     omaweb::ContentBlocker contentBlocker(dataRootPath, omaweb::ContentBlocker::DefaultLists::None);
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
     QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
@@ -993,6 +1010,12 @@ int main(int argc, char *argv[])
             // so form history's suggestion list stands under it with its
             // first row highlighted.
             {QStringLiteral("form-suggestions"), {}},
+            // The same page's email field is marked as part of an address and
+            // focused empty, so the saved addresses (`--sample-addresses`)
+            // stand above the field's form history.
+            {QStringLiteral("address-suggestions"), {}},
+            // The Settings addresses section with an address's fields open.
+            {QStringLiteral("settings:add-address"), {{"settingsSurface", "addressEditing", true}}},
             // `:ask` with Allow agents off: the question that offers to turn
             // it on stands over the last seeded tab's page.
             {QStringLiteral("ask"), {{"", "agentQuestionOpen", true}}},
@@ -1024,7 +1047,8 @@ int main(int argc, char *argv[])
         const auto securityKey = requested.startsWith(QLatin1String("security-key:"));
         const auto pageAsks = requested == QLatin1String("permission")
             || requested == QLatin1String("prompt")
-            || requested == QLatin1String("form-suggestions") || securityKey;
+            || requested == QLatin1String("form-suggestions")
+            || requested == QLatin1String("address-suggestions") || securityKey;
         if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
@@ -1048,6 +1072,21 @@ int main(int argc, char *argv[])
                 if (securityKey) {
                     QMetaObject::invokeMethod(view, "simulateSecurityKey",
                         Q_ARG(QVariant, securityKeyStep(requested.section(QLatin1Char(':'), 1))));
+                    return;
+                }
+                if (requested == QLatin1String("address-suggestions")) {
+                    const auto spaceId = view->property("spaceId").toString();
+                    for (const auto &value :
+                        {QStringLiteral("someone@elsewhere.example"),
+                            QStringLiteral("me@work.example"), QStringLiteral("me@home.example")}) {
+                        browser.rememberFormFields(spaceId,
+                            {QVariantMap {{QStringLiteral("name"), QStringLiteral("email")},
+                                {QStringLiteral("value"), value}}});
+                    }
+                    QMetaObject::invokeMethod(view, "simulateFormFieldFocus",
+                        Q_ARG(QVariant, QStringLiteral("email")), Q_ARG(QVariant, QString()),
+                        Q_ARG(QVariant, 240), Q_ARG(QVariant, 180), Q_ARG(QVariant, 320),
+                        Q_ARG(QVariant, 34), Q_ARG(QVariant, QStringLiteral("email")));
                     return;
                 }
                 if (requested == QLatin1String("form-suggestions")) {

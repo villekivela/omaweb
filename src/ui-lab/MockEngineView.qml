@@ -430,13 +430,14 @@ Rectangle {
     property bool formSuggestionHighlighted: false
     signal formSubmitted(var fields)
     signal formKeyPressed(string key)
-    function simulateFormFieldFocus(name, value, x, y, width, height) {
+    function simulateFormFieldFocus(name, value, x, y, width, height, address) {
         root.formFieldSerial += 1;
         root.formSuggestionsShown = false;
         root.formSuggestionHighlighted = false;
         root.formField = {
             "serial": root.formFieldSerial,
             "name": name,
+            "address": address || "",
             "value": value,
             "x": x,
             "y": y,
@@ -477,6 +478,12 @@ Rectangle {
     }
     function fillFormField(value) {
         root.simulateFormFieldInput(value);
+    }
+    // The address the shell last asked the page to fill its form from.
+    property var filledAddress: null
+    function fillAddress(address, serial) {
+        if (root.formField && serial === root.formField.serial)
+            root.filledAddress = address;
     }
     function simulateUserActivation() {
         root.userActivated();

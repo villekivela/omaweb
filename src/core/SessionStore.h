@@ -10,6 +10,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QVector>
 
 #include <functional>
@@ -155,6 +156,15 @@ public:
     virtual bool forgetFormEntry(const QString &spaceId, const QString &field, const QString &value)
         = 0;
     virtual bool clearFormHistorySince(const QString &spaceId, qint64 since) = 0;
+
+    // Addresses: the reader's, kept beside the Spaces rather than in one, and
+    // like the Agent Space label outside anything Sync copies. Each is a map of
+    // `id`, `name`, `street`, `postalCode`, `city`, `country`, `phone` and
+    // `email`, in the order they were first saved. Saving an `id` already kept
+    // replaces that address in place.
+    virtual QVariantList addresses() const = 0;
+    virtual bool saveAddress(const QVariantMap &address) = 0;
+    virtual bool deleteAddress(const QString &id) = 0;
 
     // `spaceId` is the Space the download came from, or nothing for a file
     // Omaweb wrote itself, so a temporary Space's records can go with it.

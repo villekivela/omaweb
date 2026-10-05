@@ -3420,6 +3420,44 @@ bool BrowserController::forgetFormEntry(
     return m_spaces.rowOf(spaceId) >= 0 && m_store->forgetFormEntry(spaceId, field, value);
 }
 
+QVariantList BrowserController::addresses() const { return m_store->addresses(); }
+
+// Only the fields an address has, trimmed. An id is Omaweb's to give: one the
+// store does not hold is not a way to add an address under a name of the
+// caller's choosing.
+QString BrowserController::saveAddress(const QVariantMap &address)
+{
+    static const QStringList fields {QStringLiteral("name"), QStringLiteral("street"),
+        QStringLiteral("postalCode"), QStringLiteral("city"), QStringLiteral("country"),
+        QStringLiteral("phone"), QStringLiteral("email")};
+    QVariantMap kept;
+    for (const auto &field : fields) {
+        kept.insert(field, address.value(field).toString().trimmed());
+    }
+    if (kept.value(QStringLiteral("name")).toString().isEmpty()) {
+        return {};
+    }
+    auto id = address.value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) {
+        id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    } else {
+        const auto saved = m_store->addresses();
+        const bool known = std::any_of(saved.cbegin(), saved.cend(), [&id](const QVariant &value) {
+            return value.toMap().value(QStringLiteral("id")).toString() == id;
+        });
+        if (!known) {
+            return {};
+        }
+    }
+    kept.insert(QStringLiteral("id"), id);
+    return m_store->saveAddress(kept) ? id : QString();
+}
+
+bool BrowserController::removeAddress(const QString &id)
+{
+    return !id.isEmpty() && m_store->deleteAddress(id);
+}
+
 bool BrowserController::clearBrowsingData(
     const QStringList &dataTypes, qint64 since, bool everySpace, const QString &confirmation)
 {
