@@ -11194,6 +11194,37 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // A page kept for a tab that is not on show keeps the width it was last
+    // shown at, so the page area settling at a new width beside the sidebar
+    // does not lay out every page the window keeps, which held the sidebar's
+    // slide over its frame budget (#594). Shown again, it takes the page
+    // area's width before its first frame.
+    function test_aHiddenPageKeepsItsWidthUntilItIsShown() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const hidden = openPage("https://kept-width.example/");
+        const hiddenTabId = browser.activeTabId;
+        browser.openInput("https://shown-width.example/", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== hidden;
+        });
+        tryCompare(hidden, "visible", false);
+        const width = hidden.width;
+        const pageArea = engineHost.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
+        tryVerify(function () {
+            return engineHost.width !== pageArea;
+        });
+        compare(hidden.width, width, "the hidden page took the page area's new width");
+
+        browser.activateTab(hiddenTabId);
+        verify(hidden.visible);
+        compare(hidden.width, engineHost.width);
+        tryCompare(engineHost, "item", hidden);
+        tryCompare(engineHost, "tabNudgeX", 0);
+        browser.closeActiveTab();
+        browser.closeActiveTab();
+    }
+
     // Settings is as wide as the page area while it is on show. Closed, it
     // keeps the width it was last drawn at, so the page area settling at a new
     // width beside the sidebar does not lay every row of it out again, which

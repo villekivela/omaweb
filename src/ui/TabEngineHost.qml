@@ -491,6 +491,16 @@ Item {
             root.noteArrival(tabId);
         engine.visible = visible || root.agentAttached(tabId);
         engine.opacity = visible ? 1 : 0;
+        // A page on show is as wide as its pane. A hidden one keeps the width
+        // it was last shown at: every page the window keeps following the
+        // pane would lay each of them out again whenever the page area
+        // settles at a new width, and the sidebar's slide would wait on them
+        // (#594). Shown again, it takes the pane's width before its first
+        // frame.
+        if (root.onShow(engine))
+            root.bindPane(tabId, engine);
+        else
+            engine.width = engine.width;
         // Under the item that keeps the reader's pointer off it.
         if (!visible && root.agentAttached(tabId))
             engine.z = -1;
