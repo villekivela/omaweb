@@ -5357,6 +5357,73 @@ TestCase {
         tryCompare(browser, "activeTabId", start);
     }
 
+    // Ctrl+O and Ctrl+I walk the Tab jump list from anywhere in the window.
+    // Ctrl+I is the byte a terminal reads as Tab, and the window keeps the two
+    // apart: a plain Tab moves focus and jumps nowhere, and Ctrl+I with nowhere
+    // to jump leaves focus where it was.
+    function test_jumpsBetweenTabsWithControlOAndControlI() {
+        openPage("https://jump-first.example/");
+        const firstTabId = browser.activeTabId;
+        browser.openInput("https://jump-second.example/", true);
+        const secondTabId = browser.activeTabId;
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        keyClick(Qt.Key_O, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", firstTabId);
+        keyClick(Qt.Key_I, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", secondTabId);
+        keyClick(Qt.Key_O, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", firstTabId);
+
+        const addressButton = findChild(window.contentItem, "addressButton");
+        addressButton.forceActiveFocus();
+        keyClick(Qt.Key_Tab);
+        verify(window.activeFocusItem !== addressButton);
+        wait(50);
+        compare(browser.activeTabId, firstTabId);
+
+        keyClick(Qt.Key_I, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", secondTabId);
+        addressButton.forceActiveFocus();
+        keyClick(Qt.Key_I, Qt.ControlModifier);
+        compare(window.activeFocusItem, addressButton);
+        compare(browser.activeTabId, secondTabId);
+
+        browser.closeTab(secondTabId);
+    }
+
+    // The shipped keymap is what the command panel and the shortcut sheet show
+    // for the jumps, and opening a file is left in the panel without a key.
+    function test_theJumpKeysReadTheSameInThePanelAndOnTheSheet() {
+        const bindings = keyboardNavigation.browserBindings;
+        compare(bindings["Primary+O"], "jump-back");
+        compare(bindings["Primary+I"], "jump-forward");
+
+        const listed = {};
+        const actions = window.commands.actions();
+        for (let index = 0; index < actions.length; ++index)
+            listed[actions[index].command] = actions[index];
+        compare(listed["jump-back"].group, "tabs");
+        compare(listed["jump-back"].keys, "Ctrl+O");
+        compare(listed["jump-forward"].group, "tabs");
+        compare(listed["jump-forward"].keys, "Ctrl+I");
+        verify(listed["open-file"] !== undefined);
+        compare(listed["open-file"].keys, "");
+
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const keysByTitle = {};
+        const tabs = sheet.sections.filter(function (section) {
+            return section.group === "tabs";
+        })[0];
+        for (let index = 0; index < tabs.entries.length; ++index)
+            keysByTitle[tabs.entries[index].title] = tabs.entries[index].keys;
+        compare(keysByTitle[listed["jump-back"].title], "Ctrl+O");
+        compare(keysByTitle[listed["jump-forward"].title], "Ctrl+I");
+    }
+
     // Only the Space on show keeps live pages. Putting one away takes its
     // renderers with it: coming back reloads its tabs from their addresses
     // rather than finding the very pages that were left. That is the memory

@@ -122,6 +122,15 @@
         <translation>Edellinen välilehti</translation>
     </message>
     <message>
+        <source>Jump back to the previous tab</source>
+        <translation>Palaa edelliseen välilehteen</translation>
+    </message>
+    <message>
+        <source>Jump forward again</source>
+        <comment>along the tabs, after jumping back</comment>
+        <translation>Siirry taas eteenpäin</translation>
+    </message>
+    <message>
         <source>Jump to tab by number</source>
         <translation>Siirry välilehteen numeron mukaan</translation>
     </message>

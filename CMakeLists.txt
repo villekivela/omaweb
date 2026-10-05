@@ -1507,6 +1507,9 @@ if(BUILD_TESTING)
         tests/core/tst_keyboardnavigation.cpp
     )
     target_link_libraries(omaweb-keyboard-navigation-tests PRIVATE omaweb-core Qt6::Test)
+    target_compile_definitions(omaweb-keyboard-navigation-tests PRIVATE
+        OMAWEB_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
+    )
     omaweb_strict_target(omaweb-keyboard-navigation-tests)
     add_test(NAME omaweb-keyboard-navigation COMMAND omaweb-keyboard-navigation-tests)
 

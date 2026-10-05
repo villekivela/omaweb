@@ -72,7 +72,6 @@ TARGET_PAGE = """<!doctype html>
 UNSWEPT = {
     "print": "opens a portal dialog only a person can answer",
     "minimize-window": "unmaps the window every later check reads",
-    "open-file": "opens a file chooser only a person can answer",
     "private-window": "opens a second window, and has a check of its own",
 }
 

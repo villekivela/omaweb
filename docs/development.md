@@ -261,9 +261,10 @@ It covers browser fullscreen taken and handed back, the sidebar commands resizin
 than the window, a Private window opening as a window of its own, the clipboard crossing in both
 directions including the primary selection, and every browser binding in
 `assets/keybindings/default.json` answering without leaving the browser unable to take the next one.
-Four commands are not sent, each because sending it would end the run rather than test it: `print`
-and `open-file` open dialogs only a person can answer, `minimize-window` unmaps the window every
-later check reads, and `private-window` has a check of its own.
+Three commands are not sent, each because sending it would end the run rather than test it: `print`
+opens a dialog only a person can answer, `minimize-window` unmaps the window every later check
+reads, and `private-window` has a check of its own. `open-file`, whose file chooser only a person
+can answer, has no default key, so the sweep never reaches it.
 
 Two things stay a person's. Moving and resizing the window by its frameless regions needs a pointer
 button no dispatcher synthesises. Becoming the default browser changes the machine that runs the

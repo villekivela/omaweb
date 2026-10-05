@@ -47,6 +47,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   or moving one to another Space, ends the split. Pinned tabs are never paired, a tab is in at most
   one split, and a split's tab is separated before it can be pinned or moved. The pairing is kept
   with the Space's tabs and restored after a restart, and is not part of the Sync projection.
+- Each Space keeps a Tab jump list: the order its tabs became active, without repeats, at most 32
+  entries. `Primary+O` jumps back to the tab before the one on show in that list and `Primary+I`
+  jumps forward again. A jump changes no entry. A tab selected by any other route after jumping back
+  is added at the end, after the tab it was selected from, so the entries ahead are kept and a jump
+  back returns to that tab. Each half of a split is its own entry. A tab that closes leaves the
+  list. The list survives a switch to another Space and back, starts afresh on the tab a restart
+  restores, and is never written down or synced. A Space at rest jumps between its Pinned tabs as
+  any Space does. At either end of the list the keys do nothing and show nothing.
 - Each Space retains its 25 most recently closed tabs across restart. Reopening restores address,
   title, pin state, zoom, and mute in reverse closing order. A Private session keeps the same stack
   only in memory.
@@ -598,6 +606,8 @@ The default browser commands include:
 - `H` and `L` for history, `r` to reload, `o` to open an address.
 - `gt` and `gT` to move between tabs, `1`–`9` to jump to one, `x` to close, `u` to reopen, `t` for a
   new tab, `p` to pin.
+- `Primary+O` and `Primary+I` to jump back and forward through the Tab jump list. Opening a file has
+  no default key and stays in the command scope.
 - `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
 - `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and
   `Primary+K` or `:` for the Omnibar's command scope.

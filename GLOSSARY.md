@@ -84,10 +84,11 @@ secondary tab, other pane
 
 **Tab jump list**: The order in which a Space's tabs became active, kept in memory for the current
 run and never written down. Every activation of a tab appends it, a tab listed earlier moves to the
-end rather than appearing twice, and a tab that closes leaves the list. Jumping back and forward
-walks the list without changing it, so a new activation after a jump keeps the entries ahead of it
-and appends at the end. Each half of a split is its own entry. Each Space has one, and it survives a
-switch to another Space and back. _Avoid_: Tab history, recent tabs, tab stack, last tab
+end rather than appearing twice, and a tab that leaves the Space, closed or otherwise, leaves the
+list. Jumping back and forward walks the list without changing it. A new activation after a jump
+keeps the entries ahead of it: the tab it was made from moves to the end, and the new tab follows,
+so a jump back returns to it. Each half of a split is its own entry. Each Space has one, and it
+survives a switch to another Space and back. _Avoid_: Tab history, recent tabs, tab stack, last tab
 
 **Start page**: What Omaweb shows where a webpage would be when there is none to show: a Space at
 rest, `about:blank`, and a new-tab request that has no destination yet. It is the Omnibar at rest
