@@ -469,13 +469,14 @@ Rectangle {
     }
     // A card field the reader pressed, reported as the page reports one:
     // with its token and whether it is empty, never with what it holds.
-    function simulateCardFieldFocus(card, x, y, width, height) {
-        root.formFieldSerial += 1;
+    function simulateCardFieldFocus(card, x, y, width, height, frame, serial) {
+        root.formFieldSerial = serial !== undefined ? serial : root.formFieldSerial + 1;
         root.formSuggestionsShown = false;
         root.formSuggestionHighlighted = false;
         root.formField = {
             "serial": root.formFieldSerial,
-            "frame": "main",
+            "frame": frame || "main",
+            "origin": root.cardFrameOrigin || root.originOf(root.currentUrl),
             "name": "",
             "address": "",
             "card": card,
@@ -495,6 +496,11 @@ Rectangle {
     }
     function simulateCardFieldBlur() {
         root.simulateFormFieldBlur();
+    }
+    // How many times the shell asked the page to forget what was typed.
+    property int typedInputForgotten: 0
+    function forgetTypedInput() {
+        root.typedInputForgotten += 1;
     }
     function simulatePaymentCardSubmit(card) {
         root.paymentCardSubmitted(card);

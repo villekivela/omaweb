@@ -264,7 +264,7 @@ Item {
     signal securityKeyRequested(var engine, string requestId, var step)
     signal fileSelectionRequested(var engine, string requestId, var selection)
     // A card the reader typed and submitted in a tab's page.
-    signal paymentCardSubmitted(var engine, var card)
+    signal paymentCardSubmitted(var engine, var card, string tabId)
 
     function keyboardConfiguration(url) {
         const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url));
@@ -953,12 +953,35 @@ Item {
     // the shell rather than the page knows a step is running.
     property var agentStepRequests: ({})
 
+    // A step that has ended is still held for a moment: a submit it made is
+    // heard after its answer, once the page has been asked for the card. Its
+    // page forgets what it typed.
+    property var endedAgentSteps: []
+
     function endAgentStep(requestId) {
-        if (root.agentStepRequests[requestId] === undefined)
+        const tabId = root.agentStepRequests[requestId];
+        if (tabId === undefined)
             return;
-        const running = Object.assign({}, root.agentStepRequests);
-        delete running[requestId];
-        root.agentStepRequests = running;
+        if (root.engines[tabId] && root.engines[tabId].forgetTypedInput)
+            root.engines[tabId].forgetTypedInput();
+        root.endedAgentSteps = root.endedAgentSteps.concat([requestId]);
+        agentStepGrace.restart();
+    }
+
+    Timer {
+        id: agentStepGrace
+        interval: 1000
+        onTriggered: {
+            const running = Object.assign({}, root.agentStepRequests);
+            for (const requestId of root.endedAgentSteps) {
+                if (root.engines[running[requestId]]
+                        && root.engines[running[requestId]].forgetTypedInput)
+                    root.engines[running[requestId]].forgetTypedInput();
+                delete running[requestId];
+            }
+            root.endedAgentSteps = [];
+            root.agentStepRequests = running;
+        }
     }
 
     // Whether what the tab's page reports typed may be an Agent's: the tab is
@@ -1543,7 +1566,7 @@ Item {
                 // What an Agent typed is not the reader's card to save.
                 function onPaymentCardSubmitted(card) {
                     if (!root.agentTyping(tabSlot.tabId))
-                        root.paymentCardSubmitted(tabSlot.engine, card);
+                        root.paymentCardSubmitted(tabSlot.engine, card, tabSlot.tabId);
                 }
 
                 function onPrintFinished(destination, succeeded) {

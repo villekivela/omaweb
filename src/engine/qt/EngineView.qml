@@ -206,6 +206,7 @@ Item {
         root.formField = {
             "serial": Number(report.serial),
             "frame": String(report.frame),
+            "origin": String(report.origin || ""),
             "name": String(report.name),
             "address": String(report.address || ""),
             "card": String(report.card || ""),
@@ -228,10 +229,15 @@ Item {
             root.placeFormField();
     }
     // Finds which of the page's frames has this identity by asking each; only
-    // the form script's own world can answer.
-    function identifyFrame(identity) {
-        if (root.identifiedFrames[identity] && root.identifiedFrames[identity].isValid)
+    // the form script's own world can answer. `then`, when given, is handed
+    // the frame once it is found.
+    function identifyFrame(identity, then) {
+        const known = root.identifiedFrames[identity];
+        if (known && known.isValid) {
+            if (then)
+                then(known);
             return;
+        }
         const generation = root.pageGeneration;
         root.forEachFrame(webView.mainFrame, function (frame) {
             if (frame.isMainFrame)
@@ -245,6 +251,8 @@ Item {
                                     const frames = Object.assign({}, root.identifiedFrames);
                                     frames[identity] = frame;
                                     root.identifiedFrames = frames;
+                                    if (then)
+                                        then(frame);
                                 });
         });
     }
@@ -306,10 +314,24 @@ Item {
                         root.paymentCardFills = root.paymentCardFills.concat([listed]);
                     });
     }
+    // Tells every frame to forget what was typed into its forms, which the
+    // shell asks when an Agent's step has ended.
+    function forgetTypedInput() {
+        root.forEachFrame(webView.mainFrame, function (frame) {
+            frame.runJavaScript("globalThis.__omawebFormHistory && "
+                                + "globalThis.__omawebFormHistory.forgetTyped()",
+                                WebEngineScript.ApplicationWorld, function () {});
+        });
+    }
     // Takes the card a frame says was submitted, at once: a form that leaves
     // its page leaves after this call reaches it.
     function takeSubmittedCard(report) {
-        const frame = report.top ? webView.mainFrame : root.identifiedFrames[String(report.frame)];
+        if (report.top)
+            root.takeCardFrom(webView.mainFrame);
+        else
+            root.identifyFrame(String(report.frame), root.takeCardFrom);
+    }
+    function takeCardFrom(frame) {
         if (!frame || !frame.isValid)
             return;
         frame.runJavaScript("globalThis.__omawebFormHistory ? "
@@ -3031,7 +3053,11 @@ Item {
             // The value the reader last typed into each card field, which is
             // the only value that makes a card theirs to save. The security
             // code is never kept here.
-            const cardTyped = new WeakMap();
+            let cardTyped = new WeakMap();
+            // Card fields that held text the reader did not type when they
+            // started typing into them: a page could prefill all but a digit.
+            // Typing into it empty makes it the reader's again.
+            let cardTainted = new WeakSet();
             let heldCard = null;
             let heldTimer = 0;
             // The frames below that told this one where their card field is,
@@ -3039,7 +3065,7 @@ Item {
             const below = new Map();
             // The fields the reader typed into, or filled from the list. A
             // value the page wrote or sent prefilled is not the reader's.
-            const typed = new WeakSet();
+            let typed = new WeakSet();
             let current = null;
             // The field the reader last pressed, and whether the field with
             // the keyboard is one they pressed or typed into. Addresses are
@@ -3088,7 +3114,8 @@ Item {
                 if (!current) return;
                 const rect = current.getBoundingClientRect();
                 const card = cardToken(current) !== '';
-                const field = {frame, top, serial, name: keeps(current) ? fieldName(current) : '',
+                const field = {frame, top, origin: location.origin, serial,
+                    name: keeps(current) ? fieldName(current) : '',
                     address: taken && offersAddress(current) ? addressToken(current) : '',
                     card: taken && offersCard(current) ? cardToken(current) : '',
                     value: card ? '' : current.value, empty: current.value === '',
@@ -3127,11 +3154,20 @@ Item {
             document.addEventListener('focusout', event => {
                 if (event.target === current) leave();
             }, true);
+            document.addEventListener('beforeinput', event => {
+                const token = cardToken(event.target);
+                if (!event.isTrusted || !token || token === 'cc-csc') return;
+                if (event.target.value === '') cardTainted.delete(event.target);
+                else if (cardTyped.get(event.target) !== event.target.value)
+                    cardTainted.add(event.target);
+            }, true);
             document.addEventListener('input', event => {
                 if (event.isTrusted) typed.add(event.target);
                 const token = cardToken(event.target);
-                if (event.isTrusted && token && token !== 'cc-csc')
+                if (event.isTrusted && token && token !== 'cc-csc') {
                     cardTyped.set(event.target, event.target.value);
+                    if (event.target.value === '') cardTainted.delete(event.target);
+                }
                 if (event.target === current && event.isTrusted) taken = true;
                 if (event.target === current) send();
             }, true);
@@ -3158,7 +3194,8 @@ Item {
                 const elements = [...(form.elements || [])];
                 const of = token => elements.find(element => cardToken(element) === token);
                 const number = of('cc-number');
-                if (!number || !number.value || cardTyped.get(number) !== number.value)
+                if (!number || !number.value || cardTyped.get(number) !== number.value
+                    || cardTainted.has(number))
                     return null;
                 const digits = cardDigits(number.value);
                 if (!/^\\d{12,19}$/.test(digits)) return null;
@@ -3188,11 +3225,13 @@ Item {
                         fields.push({name: fieldName(element), value: element.value});
                 }
                 if (fields.length) report('form_submit', fields);
-                // A submit the page made up is not the reader's. The report
-                // says only that there is a card; the shell takes it at once,
-                // before a form that leaves its page has left it.
-                const card = event.isTrusted && isSecureContext ? submittedCard(event.target)
-                    : null;
+                // A submit the page made up is not the reader's, and neither is
+                // one the page made with no input of the reader's behind it,
+                // as requestSubmit() makes one. The report says only that there
+                // is a card; the shell takes it at once, before a form that
+                // leaves its page has left it.
+                const card = event.isTrusted && isSecureContext && navigator.userActivation.isActive
+                    ? submittedCard(event.target) : null;
                 if (!card) return;
                 heldCard = card;
                 clearTimeout(heldTimer);
@@ -3312,6 +3351,14 @@ Item {
                     }
                     send();
                     return {origin: location.origin};
+                },
+                // What an Agent's step typed, which arrives as trusted keys, is
+                // forgotten when the step ends: none of it is the reader's.
+                forgetTyped() {
+                    typed = new WeakSet();
+                    cardTyped = new WeakMap();
+                    cardTainted = new WeakSet();
+                    heldCard = null;
                 },
                 // The submitted card, once: whoever takes it is the last to.
                 takeCard() {

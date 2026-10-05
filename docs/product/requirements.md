@@ -468,8 +468,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Payment cards are kept in the desktop's Secret Service, one item each, whose attributes hold only
   Omaweb's schema name and a random identifier and whose label is the same for every card, and
   nowhere else: not in Omaweb's data directory, not in Sync, not the last four digits. The keyring
-  is read the first time a card is needed, so a locked keyring asks to be unlocked then. A machine
-  with no Secret Service has no payment cards, and Settings says the desktop offers no secret store.
+  is read the first time a card is needed, so a locked keyring asks to be unlocked then; one the
+  reader left locked is asked again only from Settings, never by a page or a field. A machine with
+  no Secret Service has no payment cards, and Settings says the desktop offers no secret store.
   Cards belong to the reader rather than a Space, are offered in every Space, and a Private window
   neither offers nor saves one.
 - Settings lists, adds, edits and removes cards, each by its nickname, or its brand, and its last
@@ -491,16 +492,19 @@ reports the gap and remains experimental rather than imitating behavior it canno
   information lists each fill for the rest of the page's life, by the card's last four digits and
   the origin of the frame it went into when that is not the page's own. Nothing about a fill is
   written to history or to disk.
-- When the reader submits a form, in a secure context, whose `cc-number` field still holds what they
-  typed, a bar on the permission bar's surface offers "Save card •••• 4242 to the keyring?", naming
-  the site and the Space, with Save and Not now. A value the page wrote and a submit the page made
-  up offer nothing. The card is taken from the page by a call of the shell's own, never over the
-  page's console, and held in memory until the offer is answered or another tab is on show. Not now
-  forgets it, and nothing is remembered per site. No offer is made in a Private window, without a
-  Secret Service, or for a card already saved. The security code is never read.
+- When the reader submits a form, in a secure context and in the tab on show, whose `cc-number`
+  field still holds what they typed, a bar on the permission bar's surface offers "Save card ••••
+  4242 to the keyring?", naming the site and the Space, with Save and Not now. A value the page
+  wrote, a field the page had put text in when the reader started typing, a submit the page made up,
+  and one with no input of the reader's behind it, as `requestSubmit()` makes one, offer nothing.
+  The card is taken from the page by a call of the shell's own, never over the page's console, and
+  held in memory until the offer is answered or another tab is on show. Not now forgets it, and
+  nothing is remembered per site. No offer is made in a Private window, without a Secret Service, or
+  for a card already saved. The security code is never read.
 - While an Agent's step runs in a tab, or the tab is an Agent's, what its page reports typed is not
   the reader's: form history keeps none of it, no address or card list is offered, and no card is
-  offered for saving.
+  offered for saving. A step is held for a second after it answers, since a submit it made is heard
+  after, and its page forgets which fields were typed into.
 - Clear browsing data offers Payment cards as a category of its own, off each time the dialog opens,
   which deletes every saved card from the keyring whatever the time range.
 - Video decodes on the GPU where the host has a working VA-API driver, and in software where it has

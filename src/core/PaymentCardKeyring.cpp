@@ -49,6 +49,9 @@ std::optional<QList<KeyringItem>> MemoryPaymentCardKeyring::items()
         return std::nullopt;
     }
     ++m_contents->reads;
+    if (m_contents->locked) {
+        return std::nullopt;
+    }
     return m_contents->items;
 }
 

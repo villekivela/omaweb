@@ -97,7 +97,16 @@ void PaymentCards::setState(State state)
 
 void PaymentCards::read()
 {
-    if (m_state != State::Unread && m_state != State::Unreadable) {
+    if (m_state != State::Unread) {
+        return;
+    }
+    setState(State::Reading);
+    reread();
+}
+
+void PaymentCards::readAgain()
+{
+    if (m_state != State::Unreadable) {
         return;
     }
     setState(State::Reading);
@@ -107,12 +116,15 @@ void PaymentCards::read()
 void PaymentCards::reread()
 {
     auto *keyring = m_keyring.get();
-    onWorker([this, keyring] {
+    onWorker([this, keyring, generation = m_generation] {
         const bool available = keyring->available();
         const auto items = available ? keyring->items() : std::nullopt;
         QMetaObject::invokeMethod(
             this,
-            [this, available, items] {
+            [this, available, items, generation] {
+                if (generation != m_generation) {
+                    return;
+                }
                 if (!available) {
                     m_cards.clear();
                     setState(State::Unavailable);
@@ -297,8 +309,11 @@ bool PaymentCards::remove(const QString &id)
     return true;
 }
 
+// A read already on its way answers for the cards before they went, so it is
+// let go and the keyring is read again once they have.
 void PaymentCards::removeAll()
 {
+    ++m_generation;
     m_cards.clear();
     emit changed();
     auto *keyring = m_keyring.get();
@@ -310,6 +325,9 @@ void PaymentCards::removeAll()
             keyring->remove(item.id);
         }
     });
+    if (m_state == State::Reading) {
+        reread();
+    }
 }
 
 QVariantMap PaymentCards::fill(const QString &id) const

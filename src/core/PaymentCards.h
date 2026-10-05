@@ -29,7 +29,6 @@ class PaymentCards final : public QObject {
 
 public:
     enum class State {
-        // Not read yet.
         Unread,
         Reading,
         Ready,
@@ -46,8 +45,13 @@ public:
     PaymentCards &operator=(const PaymentCards &) = delete;
 
     State state() const { return m_state; }
-    // Reads the cards from the keyring, once.
+    // Reads the cards from the keyring, once: asking again while it is read,
+    // or after it stayed locked, does nothing, so a reader who declined the
+    // desktop's unlock prompt is not asked again by everything that looks.
     void read();
+    // Asks the keyring again after it stayed locked, which only the reader's
+    // own asking does.
+    void readAgain();
 
     // Each card as `id`, `last4`, `brand` (empty when the number's issuer is
     // not one Omaweb knows), `name`, `expiryMonth`, `expiryYear` (0 when not
@@ -98,6 +102,9 @@ private:
     QThread m_thread;
     QObject *m_worker = nullptr;
     State m_state = State::Unread;
+    // Counts the times every card was deleted, so a read that was on its way
+    // before is not taken for what the keyring holds.
+    int m_generation = 0;
     QList<Card> m_cards;
 };
 

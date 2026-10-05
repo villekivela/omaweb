@@ -3501,6 +3501,13 @@ QVariantList BrowserController::paymentCards()
     return m_paymentCards->cards();
 }
 
+void BrowserController::readPaymentCardsAgain()
+{
+    if (m_paymentCards) {
+        m_paymentCards->readAgain();
+    }
+}
+
 QString BrowserController::savePaymentCard(const QVariantMap &card)
 {
     return m_paymentCards ? m_paymentCards->save(card) : QString();

@@ -60,11 +60,14 @@ Item {
     readonly property bool fieldOnShow: fieldRect.y + fieldRect.height > pageRect.y && fieldRect.y
                                         < pageRect.y + pageRect.height
     readonly property bool open: field !== null && !dismissed && fieldOnShow && !agentTyping
-    // An engine keeps a waived certificate for as long as its profile lives
-    // and calls the connection secure again, so the browser's record of the
-    // waiver is asked too.
-    readonly property bool secure: !!engine && !!browser && engine.connectionState === "secure" &&
-                                   !browser.certificateExceptionInEffect(engine.currentUrl)
+    // Whether the page is one a card may be offered on, as the window judges
+    // it: a certificate the engine accepted without an exception. A payment
+    // frame of an origin whose check was waived is no more secure than a page
+    // of one.
+    property bool pageSecure: false
+    readonly property bool secure: pageSecure && !(!!field && !!field.origin && !!browser
+                                                   && browser.certificateExceptionInEffect(
+                                                       field.origin))
     readonly property var rows: root.offeredRows(root.addresses, root.entries, root.field,
                                                  root.fieldValue).concat(root.offeredCards(
                                                                              root.cards, root.field,
@@ -182,11 +185,27 @@ Item {
             root.cards = [];
             return;
         }
-        root.cards = root.field.card ? root.browser.paymentCards() : [];
+        root.refreshCards();
         root.entries = root.field.name ? root.browser.formHistory(root.engine.spaceId,
                                                                   root.field.name) : [];
         root.addresses = root.field.address ? root.browser.addresses() : [];
     }
+
+    // The keyring is read only for a field a card could go into: an empty
+    // card field, on a secure page, that an Agent is not typing into. On any
+    // other page the cards already read say whether there is anything to
+    // say no to.
+    function refreshCards() {
+        const field = root.field;
+        if (!field || !field.card || !field.empty || !root.browser || root.agentTyping) {
+            root.cards = [];
+            return;
+        }
+        root.cards = root.secure || root.browser.paymentCardsState === "ready"
+                ? root.browser.paymentCards() : [];
+    }
+
+    onAgentTypingChanged: root.refreshCards()
 
     // The page takes the list's keys only while it is drawn, and Enter and
     // Shift+Delete only while a row is highlighted, so a key the list has no
@@ -224,7 +243,10 @@ Item {
     }
 
     function follow() {
-        const key = root.field ? root.engineVersion + "/" + root.field.serial : "";
+        // Each frame counts its focuses from the start, so the frame is part
+        // of which focus the list is for.
+        const key = root.field ? root.engineVersion + "/" + (root.field.frame || "") + "/"
+                                 + root.field.serial : "";
         const value = root.field ? root.field.value : "";
         if (key !== root.fieldKey) {
             root.fieldKey = key;
@@ -233,9 +255,13 @@ Item {
             list.highlighted = -1;
             root.refresh();
             root.tellPage();
-        } else if (value !== root.fieldValue) {
-            root.fieldValue = value;
-            list.highlighted = -1;
+        } else {
+            if (value !== root.fieldValue) {
+                root.fieldValue = value;
+                list.highlighted = -1;
+            }
+            // A card field emptied again offers the cards again.
+            root.refreshCards();
         }
     }
 
@@ -251,8 +277,7 @@ Item {
         ignoreUnknownSignals: true
 
         function onPaymentCardsChanged() {
-            if (root.field && root.field.card)
-                root.cards = root.browser.paymentCards();
+            root.refreshCards();
         }
     }
 

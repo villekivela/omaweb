@@ -54,6 +54,8 @@ public:
         mutable QMutex mutex;
         QList<KeyringItem> items;
         bool available = true;
+        // A keyring the reader did not unlock gives no cards up.
+        bool locked = false;
         // How many times the cards were read, which is when a real keyring
         // would ask to be unlocked.
         int reads = 0;

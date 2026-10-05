@@ -121,7 +121,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // field's address token or empty, `card`, its card token or empty,
         // `value`, never what a card field holds, `empty`, whether it holds
         // nothing, a `serial` that changes with each focus, the `frame` it is
-        // in, and its `x`, `y`, `width` and `height` in the view's own
+        // in and that frame's `origin`, and its `x`, `y`, `width` and `height` in the view's own
         // coordinates, in whichever frame it is. The page judges which fields
         // qualify, because only the page knows how a field is marked; the
         // shell draws the suggestions.
@@ -240,6 +240,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // the frame. Never the security code, and never carried where the
         // page's console or a log would show it.
         {"paymentCardSubmitted", true, 1},
+        // Forgets, in every frame, which fields the reader typed into: an
+        // Agent's step types with real keys, and the shell asks this when one
+        // has ended, so nothing it typed is later kept or offered as theirs.
+        {"forgetTypedInput", false, 0},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},

@@ -2483,7 +2483,7 @@ Rectangle {
                                 visible: parent.state === "unreadable"
                                 colors: root.colors
                                 label: qsTr("Try again", "button: ask to unlock the keyring again")
-                                onClicked: root.refreshCards()
+                                onClicked: root.browser.readPaymentCardsAgain()
                             }
                         }
                     }

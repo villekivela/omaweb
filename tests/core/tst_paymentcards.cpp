@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMutexLocker>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -57,6 +58,8 @@ private slots:
     void hasNoCardsWithoutASecretService();
     void knowsASavedCardByItsNumber();
     void clearsCardsOnlyWhenAsked();
+    void asksALockedKeyringAgainOnlyWhenTheReaderDoes();
+    void clearingWhileTheKeyringIsReadKeepsNoCard();
 };
 
 // Settings adds a card, lists it by its last four digits and never by its
@@ -303,6 +306,53 @@ void PaymentCardsTest::clearsCardsOnlyWhenAsked()
     QVERIFY(controller.clearBrowsingData({QStringLiteral("cards")}, 86400000));
     QVERIFY(controller.paymentCards().isEmpty());
     QTRY_COMPARE(keyring->size(), 0);
+}
+
+// A reader who left the desktop's unlock prompt unanswered is not asked again
+// by everything that looks at the cards, only by asking again themselves.
+void PaymentCardsTest::asksALockedKeyringAgainOnlyWhenTheReaderDoes()
+{
+    QTemporaryDir root;
+    auto keyring = std::make_shared<MemoryPaymentCardKeyring::Contents>();
+    keyring->locked = true;
+    PaymentCards cards(std::make_unique<MemoryPaymentCardKeyring>(keyring));
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.setPaymentCards(&cards);
+    controller.paymentCards();
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("unreadable"));
+    for (int asked = 0; asked < 3; ++asked) {
+        QVERIFY(controller.paymentCards().isEmpty());
+    }
+    QTest::qWait(100);
+    QCOMPARE(controller.paymentCardsState(), QStringLiteral("unreadable"));
+    QCOMPARE(keyring->reads, 1);
+
+    {
+        const QMutexLocker locker(&keyring->mutex);
+        keyring->locked = false;
+    }
+    controller.readPaymentCardsAgain();
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("ready"));
+    QCOMPARE(keyring->reads, 2);
+}
+
+// Clearing the cards while the keyring is still being read does not let the
+// read bring back what was deleted.
+void PaymentCardsTest::clearingWhileTheKeyringIsReadKeepsNoCard()
+{
+    QTemporaryDir root;
+    auto keyring = std::make_shared<MemoryPaymentCardKeyring::Contents>();
+    keyring->items.append({.id = QStringLiteral("saved"),
+        .secret = QByteArrayLiteral(R"({"number":"4242424242424242"})")});
+    PaymentCards cards(std::make_unique<MemoryPaymentCardKeyring>(keyring));
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.setPaymentCards(&cards);
+    controller.paymentCards();
+    QVERIFY(controller.clearBrowsingData({QStringLiteral("cards")}, 0));
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("ready"));
+    QTest::qWait(100);
+    QVERIFY(controller.paymentCards().isEmpty());
+    QCOMPARE(keyring->size(), 0);
 }
 
 QTEST_GUILESS_MAIN(PaymentCardsTest)

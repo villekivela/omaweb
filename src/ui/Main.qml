@@ -1581,10 +1581,6 @@ ApplicationWindow {
         return window.windowBrowser.takeOverSpace(window.windowBrowser.activeSpaceId);
     }
 
-    // `:ask` hands the tab on show to the reader's own agent in their
-    // terminal (ADR 0058). The words wait here while the reader is asked to
-    // turn Allow agents on, and go to the tab that was on show when they were
-    // typed.
     // A card the reader typed and submitted, offered for saving (ADR 0053):
     // the card, and the site, Space and tab it was typed in. Held in memory
     // until the offer is answered or put away, and never anywhere else.
@@ -1605,11 +1601,17 @@ ApplicationWindow {
 
     // Offered only in a secure context, never in a Private window, never
     // without a Secret Service and never for a card already saved; the
-    // keyring is read to know that, and the offer waits for it.
-    function offerToSaveCard(engine, card) {
+    // keyring is read to know that, and the offer waits for it. A tab not on
+    // show is not where the reader is typing, a payment frame whose check was
+    // waived is no more secure than a page whose was, and a keyring that
+    // stayed locked is not asked again at a moment a page chose.
+    function offerToSaveCard(engine, card, tabId) {
         const browser = window.windowBrowser;
-        if (window.privateWindow || !window.cardSecure(engine) || browser.paymentCardsState
-                === "unavailable" || !browser.isPaymentCardNumber(card.number))
+        const state = browser.paymentCardsState;
+        if (window.privateWindow || tabId !== browser.activeTabId || !window.cardSecure(engine)
+                || browser.certificateExceptionInEffect(String(card.origin || "")) || state
+                === "unavailable" || state === "unreadable" || !browser.isPaymentCardNumber(
+                    card.number))
             return;
         browser.paymentCards();
         if (browser.paymentCardSaved(card.number))
@@ -1625,7 +1627,7 @@ ApplicationWindow {
             },
             "site": separator < 0 ? address : address.substring(separator + 3),
             "spaceName": browser.activeSpaceName,
-            "tabId": browser.activeTabId
+            "tabId": tabId
         };
     }
 
@@ -1635,6 +1637,10 @@ ApplicationWindow {
         window.cardOffer = null;
     }
 
+    // `:ask` hands the tab on show to the reader's own agent in their
+    // terminal (ADR 0058). The words wait here while the reader is asked to
+    // turn Allow agents on, and go to the tab that was on show when they were
+    // typed.
     property bool agentQuestionOpen: false
     property string agentQuestionTabId: ""
     property string agentQuestionWords: ""
@@ -3276,8 +3282,8 @@ ApplicationWindow {
                         window.showCertificateError(engine, requestId, failure);
                     }
 
-                    onPaymentCardSubmitted: function (engine, card) {
-                        window.offerToSaveCard(engine, card);
+                    onPaymentCardSubmitted: function (engine, card, tabId) {
+                        window.offerToSaveCard(engine, card, tabId);
                     }
 
                     // What the page managed to empty of its own storage. A page
@@ -3486,7 +3492,8 @@ ApplicationWindow {
                     }
 
                     function onPaymentCardSubmitted(card) {
-                        window.offerToSaveCard(window.glanceEngine, card);
+                        window.offerToSaveCard(window.glanceEngine, card,
+                                               window.windowBrowser.activeTabId);
                     }
 
                     function onSitePermissionRequested(requestId, origin, permission) {
@@ -4750,6 +4757,7 @@ ApplicationWindow {
         z: 54
         browser: window.windowBrowser
         engine: window.formFieldEngine()
+        pageSecure: window.cardSecure(engine)
         agentTyping: engineLoader.agentTypingIn(engine)
     }
 

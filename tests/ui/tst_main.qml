@@ -14788,6 +14788,39 @@ TestCase {
         });
         compare(suggestionTexts(), ["Saved cards are offered only on secure pages"]);
         waived.simulateCardFieldBlur();
+
+        // Nor is a payment frame from the waived origin in a secure page.
+        const framed = openPage("https://cards-framed.example/");
+        framed.cardFrameOrigin = "https://localhost:7443";
+        framed.simulateCardFieldFocus("cc-number", 100, 200, 240, 30, "payment");
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["Saved cards are offered only on secure pages"]);
+        framed.simulateCardFieldBlur();
+        framed.cardFrameOrigin = "";
+        removeCards(ids);
+    }
+
+    // Each frame counts its focuses from the start, so a field in another
+    // frame with the same count is a new focus, with its list open again.
+    function test_aCardFieldInAnotherFrameIsANewFocus() {
+        const ids = saveCards([everydayCard]);
+        const engine = openPage("https://cards-frames.example/");
+        const list = formSuggestions();
+        engine.simulateCardFieldFocus("cc-number", 100, 200, 240, 30, "main", 7);
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateFormKey("escape");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateCardFieldFocus("cc-number", 100, 260, 240, 30, "payment", 7);
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateCardFieldBlur();
         removeCards(ids);
     }
 
@@ -14914,6 +14947,11 @@ TestCase {
         tryVerify(function () {
             return !bar.open;
         });
+        compare(window.cardOffer, null);
+        // A tab not on show is not where the reader is typing.
+        secure.simulatePaymentCardSubmit(typedCard);
+        wait(100);
+        verify(!bar.open);
         compare(window.cardOffer, null);
 
         windowManager.openPrivateWindow();
@@ -15204,14 +15242,28 @@ TestCase {
         }
     }
 
+    // A submit the step made is heard after its answer, once the page has
+    // been asked for the card, so the step is held a moment longer; its page
+    // is told to forget what it typed.
     function test_anAgentStepRaisesNoCardSaveOffer() {
         browser.paymentCards();
         tryCompare(browser, "paymentCardsState", "ready");
         const step = startAgentStep("Agent cards", "https://agent-cards.example/", "step-cards");
+        const bar = findChild(window.contentItem, "cardSaveBar");
         try {
             step.engine.simulatePaymentCardSubmit(typedCard);
             wait(100);
-            verify(!findChild(window.contentItem, "cardSaveBar").open);
+            verify(!bar.open);
+            compare(window.cardOffer, null);
+            const forgotten = step.engine.typedInputForgotten;
+            step.engine.releaseAgentAnswers();
+            tryVerify(function () {
+                return agentSocket.replies.length > step.replies;
+            });
+            verify(step.engine.typedInputForgotten > forgotten);
+            step.engine.simulatePaymentCardSubmit(typedCard);
+            wait(100);
+            verify(!bar.open);
             compare(window.cardOffer, null);
         } finally {
             finishAgentStep(step);

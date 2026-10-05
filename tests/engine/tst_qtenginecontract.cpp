@@ -4618,8 +4618,9 @@ void QtEngineContractTest::qtHandsOverATypedCardOnlyWhenTheShellAsksAfterASubmit
 }
 
 // Only the reader's own typing makes a card theirs to save: a number the page
-// wrote, or changed after the reader typed it, and a submit the page made up,
-// offer nothing.
+// wrote, changed after the reader typed it or prefilled but for a digit, a
+// submit the page made up or made with no input of the reader's behind it,
+// and what was typed before the view was told to forget it, offer nothing.
 void QtEngineContractTest::qtOffersNoCardThePageWroteOrSubmitted()
 {
     FormHistoryView form;
@@ -4652,6 +4653,44 @@ void QtEngineContractTest::qtOffersNoCardThePageWroteOrSubmitted()
     form.run(QStringLiteral("document.title = 'ready';"
                             "document.getElementById('number').value = '5555555555554444';"
                             "document.getElementById('pay').requestSubmit();"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    // A page that prefilled all but a digit does not make its number the
+    // reader's by their typing the last one.
+    form.run(QStringLiteral("document.title = 'ready';"
+                            "document.getElementById('number').value = '424242424242424';"));
+    press(form, QStringLiteral("number"));
+    form.run(QStringLiteral("{ const field = document.getElementById('number');"
+                            "field.setSelectionRange(15, 15); }"));
+    form.type(QStringLiteral("2"));
+    QTest::keyClick(&form.window, Qt::Key_Return);
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    // What the reader typed is not submitted by the page when it likes: a
+    // submit with no input of the reader's behind it offers nothing.
+    form.run(
+        QStringLiteral("document.title = 'ready'; document.getElementById('number').value = '';"));
+    press(form, QStringLiteral("number"));
+    form.type(QStringLiteral("4242424242424242"));
+    QTest::qWait(5500);
+    form.run(QStringLiteral("document.getElementById('pay').requestSubmit();"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    // What was typed before the view was told to forget it, as it is when an
+    // Agent's step ends, is not the reader's.
+    form.run(
+        QStringLiteral("document.title = 'ready'; document.getElementById('number').value = '';"));
+    press(form, QStringLiteral("number"));
+    form.type(QStringLiteral("4242424242424242"));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "forgetTypedInput"));
+    QTest::qWait(200);
+    QTest::keyClick(&form.window, Qt::Key_Return);
     QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
     QTest::qWait(300);
     QCOMPARE(submitted.count(), 0);

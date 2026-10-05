@@ -473,6 +473,8 @@ public:
     // Each card by everything but its number, as PaymentCards::cards
     // describes; asking reads them from the keyring the first time.
     Q_INVOKABLE QVariantList paymentCards();
+    // Asks the keyring again after the reader left it locked.
+    Q_INVOKABLE void readPaymentCardsAgain();
     // Adds the card, or edits the one its `id` names, and answers its id, or
     // nothing when it was not kept, as PaymentCards::save describes.
     Q_INVOKABLE QString savePaymentCard(const QVariantMap &card);
