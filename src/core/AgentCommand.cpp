@@ -2,6 +2,7 @@
 
 #include "AgentConsole.h"
 #include "AgentPick.h"
+#include "AgentProtocol.h"
 
 #include <QDir>
 #include <QFile>
@@ -969,8 +970,16 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
     QLocalSocket socket;
     socket.connectToServer(socketPath);
     if (!socket.waitForConnected(answerTimeoutMs)) {
-        print(stderr, QStringLiteral("omaweb: no Omaweb is running for this user.\n"));
+        print(stderr, QStringLiteral("omaweb: %1\n").arg(agentSocketUnreachable(socketPath)));
         return 3;
+    }
+    const auto mismatch = greetAgentBrowser(socket, answerTimeoutMs);
+    if (!mismatch) {
+        print(stderr, QStringLiteral("omaweb: the browser did not answer.\n"));
+        return 3;
+    }
+    if (!mismatch->isEmpty()) {
+        print(stderr, *mismatch + u'\n');
     }
     if (command.pick) {
         return pickTab(socket, command, picker);

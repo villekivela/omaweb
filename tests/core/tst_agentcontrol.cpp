@@ -1,6 +1,7 @@
 #include "AgentActivityLog.h"
 #include "AgentCommand.h"
 #include "AgentControl.h"
+#include "AgentProtocol.h"
 #include "AgentMcp.h"
 #include "BrowserController.h"
 #include "ControlSocket.h"
@@ -322,6 +323,7 @@ private slots:
     void neverListsOrReachesAPrivateWindow();
     void answersOverASocketOnlyItsUserCanOpen();
     void putsTheSocketInTheUsersRuntimeDirectory();
+    void answersAHelloWithItsProtocol();
     void answersTheCommandLineWithAllowAgentsOff();
     void servesAnMcpSessionOverOneConnection();
     void loadsAddressesOnlyInAnAgentsTabs();
@@ -1049,7 +1051,7 @@ void AgentControlTest::answersOverASocketOnlyItsUserCanOpen()
     QVERIFY(succeeded(spaces));
     QCOMPARE(spaces.value(QStringLiteral("spaces")).toArray().size(), 2);
     QCOMPARE(failure(request("not json")), QStringLiteral("bad-request"));
-    QCOMPARE(failure(request(R"({"verb":"fly","name":"test"})")), QStringLiteral("bad-request"));
+    QCOMPARE(failure(request(R"({"verb":"fly","name":"test"})")), QStringLiteral("unknown-verb"));
 
     // A second browser finds the socket answering and leaves it be.
     ControlSocket second(&control);
@@ -1059,6 +1061,32 @@ void AgentControlTest::answersOverASocketOnlyItsUserCanOpen()
 
 // ADR 0051 names `$XDG_RUNTIME_DIR/omaweb/control.sock`, and the macOS
 // development build's per-user temporary directory stands in for it.
+// A client from another release asks first which protocol the browser speaks,
+// and is answered whatever Allow agents says, since the answer reaches no page
+// and no Space. A verb the browser does not know is refused as one.
+void AgentControlTest::answersAHelloWithItsProtocol()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QCoreApplication::setApplicationVersion(QStringLiteral("0.11.0"));
+
+    const auto hello = ask(control, QStringLiteral("agent"), QStringLiteral("hello"),
+        {{QStringLiteral("protocol"), omaweb::agentProtocolVersion + 1},
+            {QStringLiteral("version"), QStringLiteral("0.12.0")}});
+
+    QVERIFY(succeeded(hello));
+    QCOMPARE(hello.value(QStringLiteral("protocol")).toInt(), omaweb::agentProtocolVersion);
+    QCOMPARE(hello.value(QStringLiteral("version")).toString(), QStringLiteral("0.11.0"));
+
+    const auto unknown = ask(control, QStringLiteral("agent"), QStringLiteral("network"));
+    QCOMPARE(failure(unknown), QStringLiteral("unknown-verb"));
+    QCOMPARE(unknown.value(QStringLiteral("error")).toString(),
+        QStringLiteral("Omaweb has no verb \"network\"."));
+}
+
 void AgentControlTest::putsTheSocketInTheUsersRuntimeDirectory()
 {
     QTemporaryDir runtime;
@@ -1071,9 +1099,9 @@ void AgentControlTest::putsTheSocketInTheUsersRuntimeDirectory()
     const auto savedOverride = qgetenv("OMAWEB_CONTROL_SOCKET");
     qputenv(variable, QFile::encodeName(runtime.path()));
     qunsetenv("OMAWEB_CONTROL_SOCKET");
-    const auto path = ControlSocket::defaultPath();
+    const auto path = omaweb::agentSocketPath();
     qputenv("OMAWEB_CONTROL_SOCKET", "/elsewhere/scratch.sock");
-    const auto overridden = ControlSocket::defaultPath();
+    const auto overridden = omaweb::agentSocketPath();
     qputenv(variable, savedRuntime);
     if (savedOverride.isNull()) {
         qunsetenv("OMAWEB_CONTROL_SOCKET");

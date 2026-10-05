@@ -141,15 +141,15 @@ the Rust wrapper, its manifest, or its lockfile.
 
 ### What CI runs
 
-`.github/workflows/ci.yml` runs seven jobs, on a pull request and on a push to `main`. `style` runs
+`.github/workflows/ci.yml` runs eight jobs, on a pull request and on a push to `main`. `style` runs
 the formatters, `qmllint`, the website's own policy check and the release-page tests;
-`commit-messages` checks every non-merge subject in the range; and four Arch containers build and
+`commit-messages` checks every non-merge subject in the range; and five Arch containers build and
 publish the tree: `arch-linux` under clang against Omaweb's engine, which goes on to build the
 `release` preset and load the compiled QML, `arch-linux-gcc` under GCC against Arch's
-`qt6-webengine`, `arch-package` through `scripts/check_package.sh`, and `pacman-repo` through
-`scripts/check_repo_publish.sh`.
+`qt6-webengine`, `arch-linux-cli` the `cli` preset with only `qt6-base` installed, `arch-package`
+through `scripts/check_package.sh`, and `pacman-repo` through `scripts/check_repo_publish.sh`.
 
-Those four cost between two and ten minutes each, and a change confined to `docs/`, `website/` or
+Those five cost between two and ten minutes each, and a change confined to `docs/`, `website/` or
 Markdown cannot break a compile, so a `changes` job decides whether they run at all. It prints the
 files it decided on, and the same question can be asked of any range:
 
@@ -309,12 +309,22 @@ STUN request per run, so it is a check to run by hand rather than a CI gate.
 
 ### Installing and opening links
 
-`cmake --install` puts the browser at `bin/omaweb`, the bootstrapped content-blocking library under
-`lib/omaweb`, and the desktop entry, icon and licences under `share`. The library carries no soname,
-so the build is told as much: without that, linking it by path records that path as the dependency
-itself and an installed copy would look for it in whatever directory happened to build it. The
-runpath is `$ORIGIN`-relative for the same reason, because a package chooses its prefix when it
-installs rather than when it configures.
+`cmake --install` puts the small client at `bin/omaweb`, the browser and the bootstrapped
+content-blocking library under `lib/omaweb`, and the desktop entry, icon and licences under `share`.
+The client's install component is `cli`, with the Agent skill, and everything else is `browser`, so
+each package installs its own half. The library carries no soname, so the build is told as much:
+without that, linking it by path records that path as the dependency itself and an installed copy
+would look for it in whatever directory happened to build it. The runpath is `$ORIGIN`-relative for
+the same reason, because a package chooses its prefix when it installs rather than when it
+configures.
+
+The client is what runs `omaweb`, from a terminal and from the desktop entry. Given a verb or `mcp`
+it talks to the Agent socket. Given anything else it finds the browser beside itself, as a build
+tree has it, or at `lib/omaweb/omaweb-browser` relative to itself, as a package has it, and replaces
+itself with it, so `./build/dev/omaweb` starts the browser built beside it. The process keeps its
+id, which is what a desktop that launched it watches for a window, and takes the name
+`omaweb-browser`. The `cli` preset builds the client alone on Qt's base
+([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)).
 
 The desktop entry stays `omaweb.desktop` rather than taking the application's bus name, which the
 freedesktop convention would ask for. Qt reads the desktop file name as the Wayland app id and the
@@ -443,8 +453,8 @@ claude mcp add omaweb -- omaweb mcp
 
 The tool list costs about 1,400 tokens of schema and the server's instructions 130 more, which every
 conversation the server is registered in pays. An Agent that runs shell commands can use the CLI
-instead, taught by the skill the package installs under `/usr/share/omaweb/skills/omaweb`. Link it
-into the Agent's skills directory:
+instead, taught by the skill the `omaweb-cli` package installs under
+`/usr/share/omaweb/skills/omaweb`. Link it into the Agent's skills directory:
 
 ```sh
 ln -s /usr/share/omaweb/skills/omaweb ~/.claude/skills/omaweb
@@ -468,20 +478,23 @@ from yet, so the version comes from the nearest release tag through `git describ
 CMake takes it from as well, and the two cannot disagree
 ([ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md)).
 
-Two packages come out of that one file. `omaweb-git` is what `makepkg -si` builds from a checkout,
-and it keeps the `-git` name because that is what pacman reads as a package to be rebuilt from
-source. `omaweb` is the binary package the pacman repository serves, and
+One build makes two packages: the browser, and the small client with the Agent skill, which needs
+only `qt6-base` so a sandbox can install it alone. The browser's package depends on the client's at
+the same version. `omaweb-git` and `omaweb-cli-git` are what `makepkg -si` builds from a checkout,
+and they keep the `-git` name because that is what pacman reads as a package to be rebuilt from
+source. `omaweb` and `omaweb-cli` are the binary packages the pacman repository serves, and
 
 ```sh
 scripts/make_release_pkgbuild.sh --version 0.5.0 --output <dir>
 ```
 
-writes it. The two differ in four lines: the name, a version fixed by the tag instead of computed
-from a checkout the reader of a binary package does not have, a `conflicts` on each other, and a
-source naming the tag. Everything else — every dependency, the release preset, the inventory, the
-window-rule notice — is the same file, so the two cannot drift apart while nothing reports it. The
-script checks that each line it rewrites was there to rewrite, so a rename in `packaging/PKGBUILD`
-fails the derivation rather than quietly producing a package missing the change.
+writes their PKGBUILD. The two files differ in a few lines: the names, a version fixed by the tag
+instead of computed from a checkout the reader of a binary package does not have, a `conflicts` on
+each source twin, and a source naming the tag. Everything else is the same file: every dependency,
+the release preset, the inventory and the window-rule notice. So the two cannot drift apart while
+nothing reports it. The script checks that each line it rewrites was there to rewrite, so a rename
+in `packaging/PKGBUILD` fails the derivation rather than quietly producing a package missing the
+change.
 
 Qt is a dependency rather than a bundle, apart from the engine. The engine is `omaweb-qtwebengine`,
 Omaweb's own build, a package of its own installed under `/usr/lib/omaweb` and published in the same
@@ -539,11 +552,15 @@ daemon running, and only typing into a page proves that (#104).
 scripts/check_package.sh
 ```
 
-builds the package and checks what it carries: the binary, the library, the desktop entry, the icon
-and the licences, and nothing outside those directories. Run as root in a container it goes on to
-install, upgrade over itself and remove, checking that a file in the reader's configuration and the
-rest of the system come through untouched. It refuses to install on a host that is not disposable,
-because that would be putting a package on the machine of whoever ran a check.
+builds both packages and checks what each carries: the browser, the library, the desktop entry, the
+icon and the licences in one, the client, the skill and its licence in the other, and nothing
+outside those directories. Run as root in a container it goes on to install, upgrade over itself and
+remove, checking that a file in the reader's configuration and the rest of the system come through
+untouched. Then it upgrades the release before this one, fetched from GitHub, to this build packaged
+as the release packages, and checks that `/usr/bin/omaweb` moved to the client, that the client
+answers, that `omaweb --version` reaches the installed browser and that the desktop entry still
+opens addresses through `omaweb`. It refuses to install on a host that is not disposable, because
+that would be putting a package on the machine of whoever ran a check.
 
 ### Releases
 
@@ -810,9 +827,9 @@ named differently.
 
 ### The pacman repository
 
-A release is also an upgrade. The workflow publishes the `omaweb` package to a pacman repository, so
-a reader who has Omaweb gets the next version from their own `pacman -Syu` rather than from noticing
-that one was released. What was decided and why is
+A release is also an upgrade. The workflow publishes the `omaweb` and `omaweb-cli` packages to a
+pacman repository, so a reader who has Omaweb gets the next version from their own `pacman -Syu`
+rather than from noticing that one was released. What was decided and why is
 [ADR 0043](adr/0043-serve-upgrades-from-a-signed-pacman-repository.md); what follows is how to run
 it.
 

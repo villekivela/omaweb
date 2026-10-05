@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""The engine a package depends on and the capability its build reports, kept together.
+"""What the two PKGBUILDs say about the packages they build.
+
+The engine a package depends on and the capability its build reports, kept together.
 
 Whether Omaweb offers a Known extension is decided when it is compiled, by
 `OMAWEB_KNOWN_EXTENSIONS`, and whether it can host one is decided by the engine
@@ -9,6 +11,10 @@ reader running the patched engine that it ran the system's (#365). A build of
 the package takes too long to be where this is caught, so the lines that decide
 it are read instead, from both the source package and the one a release
 derives from it.
+
+The small client is a package of its own, which the browser's depends on, so a
+sandbox installs it alone and an upgrade from a release that had one package
+brings both.
 """
 
 from __future__ import annotations
@@ -54,6 +60,54 @@ def release_pkgbuild() -> str:
             text=True,
         )
         return (Path(output) / "PKGBUILD").read_text()
+
+
+def package_function(pkgbuild: str, name: str) -> str:
+    pattern = rf"^package_{re.escape(name)}\(\) {{\n(.*?)^}}"
+    body = re.search(pattern, pkgbuild, re.MULTILINE | re.DOTALL)
+    if not body:
+        raise AssertionError(f"the PKGBUILD has no package_{name}()")
+    return body.group(1)
+
+
+def assignment(body: str, name: str) -> str:
+    found = re.findall(rf"^\s*{name}\+?=\((.*)\)$", body, re.MULTILINE)
+    if len(found) != 1:
+        raise AssertionError(f"expected one {name} in the function, found {found}")
+    return found[0]
+
+
+class TwoPackages(unittest.TestCase):
+    def assert_splits(self, pkgbuild: str, browser: str, client: str) -> None:
+        self.assertRegex(pkgbuild, rf"(?m)^pkgname=\('{browser}' '{client}'\)$")
+        browser_body = package_function(pkgbuild, browser)
+        client_body = package_function(pkgbuild, client)
+        # Each installs its own half, and the browser cannot be had without
+        # the command that starts it.
+        self.assertIn("--component browser", browser_body)
+        self.assertIn("--component cli", client_body)
+        self.assertIn('"omaweb-cli=$pkgver"', assignment(browser_body, "depends"))
+        # A sandbox has Qt's base and not the browser's dependencies.
+        self.assertEqual(assignment(client_body, "depends"), "'qt6-base'")
+
+    def test_the_source_package(self) -> None:
+        pkgbuild = SOURCE_PKGBUILD.read_text()
+        self.assert_splits(pkgbuild, "omaweb-git", "omaweb-cli-git")
+        self.assertRegex(pkgbuild, r"(?m)^pkgbase=omaweb-git$")
+        client = package_function(pkgbuild, "omaweb-cli-git")
+        self.assertEqual(assignment(client, "provides"), '"omaweb-cli=$pkgver"')
+        self.assertEqual(assignment(client, "conflicts"), "'omaweb-cli'")
+
+    def test_the_release_package(self) -> None:
+        pkgbuild = release_pkgbuild()
+        self.assert_splits(pkgbuild, "omaweb", "omaweb-cli")
+        self.assertRegex(pkgbuild, r"(?m)^pkgbase=omaweb$")
+        self.assertEqual(
+            assignment(package_function(pkgbuild, "omaweb"), "conflicts"), "'omaweb-git'"
+        )
+        self.assertEqual(
+            assignment(package_function(pkgbuild, "omaweb-cli"), "conflicts"), "'omaweb-cli-git'"
+        )
 
 
 class EngineAndCapability(unittest.TestCase):

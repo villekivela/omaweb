@@ -242,7 +242,7 @@ jobs:
           rm -f /tmp/budget.status
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
           cat >> /tmp/measure.sh <<'SCRIPT'
-          scripts/benchmark_runtime.py --browser build/ci/omaweb --require-dns
+          scripts/benchmark_runtime.py --browser build/ci/omaweb-browser --require-dns
           echo $? > /tmp/budget.status
           SCRIPT
           chmod 0755 /tmp/measure.sh
@@ -335,6 +335,31 @@ jobs:
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
         run: su builder -c 'ctest --preset ci'
+
+  # The small client on its own, where a sandbox has it: Qt's base and nothing
+  # else installed, so a dependency the client must not have fails the build
+  # here rather than on a reader's container. No content blocker, no engine.
+  arch-linux-cli:
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 15
+    steps:
+      - name: Install toolchain
+        run: pacman -Syu --noconfirm git cmake ninja gcc ccache qt6-base
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The client reports the version it takes from the nearest tag.
+          fetch-depth: 0
+      - name: Trust checkout in container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Configure
+        run: cmake --preset cli
+      - name: Build
+        run: cmake --build --preset cli
+      - name: Test
+        run: ctest --preset cli
 
   # The publishing path a release takes to reach `pacman -Syu`. It is the one
   # part of a release that has no dry run of its own: the first time it matters

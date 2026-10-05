@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
-# Writes the PKGBUILD for `omaweb`, the binary package the pacman repository
-# serves, from `packaging/PKGBUILD`, which builds `omaweb-git`.
+# Writes the PKGBUILD for `omaweb` and `omaweb-cli`, the binary packages the
+# pacman repository serves, from `packaging/PKGBUILD`, which builds `omaweb-git`
+# and `omaweb-cli-git`.
 #
-# The two packages differ in four lines and agree on everything else: the same
+# The two PKGBUILDs differ in a few lines and agree on everything else: the same
 # dependencies, the same release preset, the same inventory, the same install
 # notice. Keeping a second PKGBUILD in the tree would mean every dependency
 # added to one and forgotten in the other ships a package that does not run, and
@@ -13,13 +14,16 @@
 # What changes, and why:
 #
 #   pkgname    `-git` names a package pacman expects to be rebuilt from source.
-#              A binary repository serves `omaweb`.
+#              A binary repository serves `omaweb` and `omaweb-cli`, so the
+#              base, both names and both package functions change.
 #   pkgver     A VCS package computes its version in `pkgver()` from a checkout
 #              the reader of a binary package does not have. The tag is the
 #              version here, the same tag CMake reads (ADR 0028).
-#   conflicts  Each package conflicts with the other, so a reader who built from
-#              source is asked before the repository replaces it.
+#   conflicts  Each package conflicts with its source twin, so a reader who
+#              built from source is asked before the repository replaces it.
 #   source     The commit the tag names, rather than a branch.
+#   install    The browser's install file is named for its package, so it
+#              becomes omaweb.install.
 #
 # Every substitution is checked against the file it was made in, so a rename or
 # a reordering upstream fails here rather than silently producing a package that
@@ -126,16 +130,25 @@ HEADER
     cat "$pkgbuild"
 } > "$generated"
 
-replace "pkgname" '^pkgname=omaweb-git$' 'pkgname=omaweb' "$generated"
+replace "pkgbase" '^pkgbase=omaweb-git$' 'pkgbase=omaweb' "$generated"
+replace "pkgname" "^pkgname=\\('omaweb-git' 'omaweb-cli-git'\\)$" \
+    "pkgname=('omaweb' 'omaweb-cli')" "$generated"
+replace "browser package" '^package_omaweb-git\(\) \{$' 'package_omaweb() {' "$generated"
+replace "client package" '^package_omaweb-cli-git\(\) \{$' 'package_omaweb-cli() {' "$generated"
 replace "pkgver" '^pkgver=.+$' "pkgver=${version}" "$generated"
 replace "source" '^source=\(.+\)$' "source=(\"${source_url}\")" "$generated"
 
-# `provides` and `conflicts` are written in terms of `$_pkgname` upstream, which
-# is this package's own name here. A package that provides and conflicts with
-# itself is not what either line is for: what a binary package has to say is
-# that it replaces the source one.
-replace "provides" '^provides=\(.+\)$' "conflicts=('omaweb-git')" "$generated"
-remove "conflicts" '^conflicts=\("\$_pkgname"\)$' "$generated"
+# `provides` and `conflicts` name each binary package upstream, which is the
+# package's own name here. A package that provides and conflicts with itself is
+# not what either line is for: what a binary package has to say is that it
+# replaces the source one.
+replace "browser provides" '^    provides=\("\$_pkgname=\$pkgver"\)$' \
+    "    conflicts=('omaweb-git')" "$generated"
+remove "browser conflicts" '^    conflicts=\("\$_pkgname"\)$' "$generated"
+replace "client provides" '^    provides=\("omaweb-cli=\$pkgver"\)$' \
+    "    conflicts=('omaweb-cli-git')" "$generated"
+remove "client conflicts" "^    conflicts=\\('omaweb-cli'\\)$" "$generated"
+replace "install" '^    install=omaweb-git\.install$' '    install=omaweb.install' "$generated"
 
 # The version is the tag, so the function that computed one from a checkout has
 # nothing left to do. Left in, it would run `git describe` in the source tree and
@@ -155,8 +168,8 @@ if grep -q 'pkgver()' "$generated"; then
     exit 1
 fi
 
-# `install="$pkgname.install"` now names omaweb.install, so the file travels
-# under the name the generated PKGBUILD asks for.
+# The browser's `install=` now names omaweb.install, so the file travels under
+# the name the generated PKGBUILD asks for.
 cp "$install_file" "$output/omaweb.install"
 
 echo "make_release_pkgbuild: wrote $generated for omaweb $version"

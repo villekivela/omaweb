@@ -1,6 +1,7 @@
 #include "AgentCommand.h"
 #include "AgentConsole.h"
 #include "AgentMcp.h"
+#include "AgentProtocol.h"
 
 #include <QFile>
 #include <QJsonArray>
@@ -36,9 +37,10 @@ QStringList toolNames()
     return names;
 }
 
-// What the browser does on the socket: answers each request with its verb and
-// how many it has answered, and can hold the first answer back until the
-// second request comes, as a browser does with a page that is slow to settle.
+// What the browser does on the socket: answers a connection's hello at once,
+// and each request after it with its verb and how many it has answered, and
+// can hold the first answer back until the second request comes, as a browser
+// does with a page that is slow to settle.
 class FakeBrowser final : public QObject {
     Q_OBJECT
 
@@ -75,7 +77,13 @@ private:
     void read(QLocalSocket *socket)
     {
         while (socket->canReadLine()) {
-            requests.append(QJsonDocument::fromJson(socket->readLine()).object());
+            const auto request = QJsonDocument::fromJson(socket->readLine()).object();
+            if (request.value(QStringLiteral("verb")).toString() == u"hello") {
+                const auto answer = omaweb::agentHelloAnswer(QStringLiteral("0.0.0"));
+                socket->write(QJsonDocument(answer).toJson(QJsonDocument::Compact) + '\n');
+                continue;
+            }
+            requests.append(request);
             if (holdFirst && requests.size() == 1) {
                 continue;
             }
