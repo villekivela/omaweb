@@ -646,6 +646,7 @@ set(omaweb_ui_files
     src/ui/DownloadMark.qml
     src/ui/ExtensionMark.qml
     src/ui/FindBar.qml
+    src/ui/FormSuggestions.qml
     src/ui/Glance.qml
     src/ui/HistoryPage.qml
     src/ui/KeyCap.qml
@@ -697,6 +698,7 @@ set(omaweb_ui_files
     src/ui/SceneHost.qml
     src/ui/ShortcutSheet.qml
     src/ui/StartPage.qml
+    src/ui/SuggestionList.qml
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml
 )

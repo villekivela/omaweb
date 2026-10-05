@@ -421,6 +421,63 @@ Rectangle {
     function simulatePress(x, y, width, height) {
         root.pressOrigin = Qt.rect(x, y, width, height);
     }
+    // Form history. A test focuses a field and presses the list's keys as
+    // the page would report them; the page's own rule for which keys it
+    // gives up is mirrored here, so a key the page would keep never arrives.
+    property var formField: null
+    property int formFieldSerial: 0
+    property bool formSuggestionsShown: false
+    property bool formSuggestionHighlighted: false
+    signal formSubmitted(var fields)
+    signal formKeyPressed(string key)
+    function simulateFormFieldFocus(name, value, x, y, width, height) {
+        root.formFieldSerial += 1;
+        root.formSuggestionsShown = false;
+        root.formSuggestionHighlighted = false;
+        root.formField = {
+            "serial": root.formFieldSerial,
+            "name": name,
+            "value": value,
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        };
+    }
+    function simulateFormFieldInput(value) {
+        if (!root.formField)
+            return;
+        root.formField = Object.assign({}, root.formField, {
+                                           "value": value
+                                       });
+    }
+    function simulateFormFieldBlur() {
+        root.formField = null;
+        root.formSuggestionsShown = false;
+        root.formSuggestionHighlighted = false;
+    }
+    function simulateFormSubmit(fields) {
+        root.formSubmitted(fields);
+    }
+    // A key reaches the shell only where the page would have given it up.
+    function simulateFormKey(key) {
+        const taken = root.formSuggestionsShown && (key === "down" || key === "up" || key
+                                                    === "escape" || root.formSuggestionHighlighted);
+        if (taken && (key === "escape" || key === "accept")) {
+            root.formSuggestionsShown = false;
+            root.formSuggestionHighlighted = false;
+        }
+        if (taken)
+            root.formKeyPressed(key);
+        return taken;
+    }
+    function showFormSuggestions(shown, highlighted) {
+        root.formSuggestionsShown = shown && root.formField !== null;
+        root.formSuggestionHighlighted = root.formSuggestionsShown && highlighted;
+    }
+    function fillFormField(value) {
+        root.simulateFormFieldInput(value);
+    }
     function simulateUserActivation() {
         root.userActivated();
     }

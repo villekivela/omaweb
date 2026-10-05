@@ -511,6 +511,14 @@
         <translation>Vierailtu sivut ja osoitepalkin ehdotukset.</translation>
     </message>
     <message>
+        <source>Form history</source>
+        <translation>Lomakehistoria</translation>
+    </message>
+    <message>
+        <source>What was typed into forms, and offered under their fields.</source>
+        <translation>Lomakkeisiin kirjoitettu ja kenttien alla tarjottu teksti.</translation>
+    </message>
+    <message>
         <source>the last hour</source>
         <translation>viimeinen tunti</translation>
     </message>
