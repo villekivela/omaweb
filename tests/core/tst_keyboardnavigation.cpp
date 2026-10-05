@@ -7,6 +7,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <utility>
+
 using omaweb::KeyboardNavigation;
 
 class KeyboardNavigationTest final : public QObject {
@@ -23,6 +25,8 @@ private slots:
     void persistsTheEnabledSetting();
     void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
     void replacesRetiredDefaultWithoutChangingCustomBindings();
+    void movesTheShippedOpenFileKeyToJumpBack();
+    void offersTheShippedJumpForwardKeyOnce();
 };
 
 static QString writeConfiguration(const QString &directory, const QByteArray &contents)
@@ -403,6 +407,77 @@ void KeyboardNavigationTest::replacesRetiredDefaultWithoutChangingCustomBindings
     // The same command on a key the reader chose is the reader's, and stays.
     QCOMPARE(browserBindings.value(QStringLiteral("Primary+Shift+K")).toString(),
         QStringLiteral("inspect-element"));
+}
+
+// Against the keymap Omaweb ships: Primary+O was open-file's, and a file
+// still carrying it there follows the key to the Tab jump list. The reader's
+// own command on the key is theirs.
+void KeyboardNavigationTest::movesTheShippedOpenFileKeyToJumpBack()
+{
+    const auto defaults = QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH);
+    for (const auto &[written, expected] : {
+             std::pair {QStringLiteral("open-file"), QStringLiteral("jump-back")},
+             std::pair {QStringLiteral("reload"), QStringLiteral("reload")},
+         }) {
+        QTemporaryDir root;
+        const auto path = writeConfiguration(root.path(),
+            QStringLiteral(R"JSON({
+            "version": 1,
+            "enabled": true,
+            "bindings": { "j": "scroll-down" },
+            "browser": { "Primary+O": "%1" },
+            "passthrough": {}
+        })JSON")
+                .arg(written)
+                .toUtf8());
+
+        QVERIFY(KeyboardNavigation::adoptDefaults(path, defaults));
+        const auto browser = readConfiguration(path).value(QStringLiteral("browser")).toObject();
+        QCOMPARE(browser.value(QStringLiteral("Primary+O")).toString(), expected);
+        KeyboardNavigation navigation(path);
+        QVERIFY(navigation.valid());
+        QCOMPARE(navigation.errorMessage(), QString {});
+    }
+}
+
+// A file an earlier release wrote, with a ledger that never offered
+// Primary+I, gains it once. Deleted after that, it stays deleted.
+void KeyboardNavigationTest::offersTheShippedJumpForwardKeyOnce()
+{
+    const auto defaults = QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH);
+    QTemporaryDir root;
+    const auto path = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "j": "scroll-down" },
+        "browser": { "Primary+L": "open-address" },
+        "passthrough": {},
+        "adoptedDefaults": {
+            "bindings": ["j"],
+            "browser": ["Primary+L", "Primary+O"]
+        }
+    })JSON");
+
+    QVERIFY(KeyboardNavigation::adoptDefaults(path, defaults));
+    auto settings = readConfiguration(path);
+    auto browser = settings.value(QStringLiteral("browser")).toObject();
+    QCOMPARE(browser.value(QStringLiteral("Primary+I")).toString(), QStringLiteral("jump-forward"));
+    // Primary+O was offered before and the reader had dropped it.
+    QVERIFY(!browser.contains(QStringLiteral("Primary+O")));
+    KeyboardNavigation navigation(path);
+    QVERIFY(navigation.valid());
+    QCOMPARE(navigation.errorMessage(), QString {});
+    QCOMPARE(navigation.browserBindings().value(QStringLiteral("Primary+I")).toString(),
+        QStringLiteral("jump-forward"));
+
+    browser.remove(QStringLiteral("Primary+I"));
+    settings.insert(QStringLiteral("browser"), browser);
+    QVERIFY(!writeConfiguration(root.path(), QJsonDocument(settings).toJson()).isEmpty());
+    QVERIFY(!KeyboardNavigation::adoptDefaults(path, defaults));
+    QVERIFY(!readConfiguration(path)
+            .value(QStringLiteral("browser"))
+            .toObject()
+            .contains(QStringLiteral("Primary+I")));
 }
 
 QTEST_GUILESS_MAIN(KeyboardNavigationTest)

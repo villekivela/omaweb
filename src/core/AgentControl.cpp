@@ -487,6 +487,8 @@ const QStringList &AgentControl::publicCommands()
         QStringLiteral("reopen-tab"),
         QStringLiteral("next-tab"),
         QStringLiteral("previous-tab"),
+        QStringLiteral("jump-back"),
+        QStringLiteral("jump-forward"),
         QStringLiteral("select-tab"),
         QStringLiteral("pin-tab"),
         QStringLiteral("keep-tab-active"),

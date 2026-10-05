@@ -55,6 +55,14 @@ QtObject {
         case "previous-tab":
             window.stepTab(-1);
             return true;
+            // Run even with nowhere to go, as back is on a page without history:
+            // the key is the reader's either way, and nothing is shown.
+        case "jump-back":
+            browser.jumpBack();
+            return true;
+        case "jump-forward":
+            browser.jumpForward();
+            return true;
         case "select-tab":
             window.activateTabAt(argument);
             return true;
@@ -269,6 +277,14 @@ QtObject {
                                              "previous-tab": {
                                                  group: "tabs",
                                                  title: qsTr("Previous tab")
+                                             },
+                                             "jump-back": {
+                                                 group: "tabs",
+                                                 title: qsTr("Jump back to the previous tab")
+                                             },
+                                             "jump-forward": {
+                                                 group: "tabs",
+                                                 title: qsTr("Jump forward again")
                                              },
                                              "select-tab": {
                                                  group: "tabs",

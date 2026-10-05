@@ -107,6 +107,7 @@ but does not install the Qt plugin.
 | `Primary+L` or `o`            | Open an address or search                 |
 | `Primary+T` or `t`            | Start a new tab                           |
 | `Primary+W` or `x`            | Close the current tab                     |
+| `Primary+O` and `Primary+I`   | Jump back to the previous tab and forward |
 | `Primary+F` or `/`            | Find in the page                          |
 | `Primary+Shift+I`             | Toggle Developer tools                    |
 | `Primary+B`                   | Hide or show the sidebar                  |

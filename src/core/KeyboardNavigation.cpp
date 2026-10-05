@@ -63,6 +63,8 @@ namespace {
         QStringLiteral("reopen-tab"),
         QStringLiteral("next-tab"),
         QStringLiteral("previous-tab"),
+        QStringLiteral("jump-back"),
+        QStringLiteral("jump-forward"),
         QStringLiteral("select-tab"),
         QStringLiteral("pin-tab"),
         QStringLiteral("keep-tab-active"),
@@ -348,6 +350,9 @@ bool KeyboardNavigation::adoptDefaults(
         // Copying the address is what this key does in every other browser, so
         // inspecting an element moved to the one Chromium uses for it.
         {QStringLiteral("Primary+Shift+C"), QStringLiteral("inspect-element")},
+        // Vim's jump list is where the keyboard browser looks for this key, so
+        // opening a file gave it up and kept the command panel.
+        {QStringLiteral("Primary+O"), QStringLiteral("open-file")},
     };
     for (auto it = retiredBrowserDefaults.cbegin(); it != retiredBrowserDefaults.cend(); ++it) {
         if (browser.value(it.key()).toString() != it.value()) {

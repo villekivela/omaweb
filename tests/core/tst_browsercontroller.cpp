@@ -238,6 +238,14 @@ private slots:
     void refusesASplitOfPinnedPairedOrUnknownTabs();
     void movesFocusBetweenTheHalvesOfASplit();
     void keepsTheSplitRowWhileAnotherTabIsOnShowAndStepsOverItAsOneStop();
+    void jumpsBackAndForwardThroughTheTabsInTheOrderTheyWereActive();
+    void keepsTheEntriesAheadWhenATabIsSelectedAfterAJump();
+    void listsEachTabOnceAndLeavesTheListAsItIsOnAJump();
+    void keepsTheTabJumpListThroughASpaceSwitchAndStartsItAfresh();
+    void jumpsToEachHalfOfASplitAsItsOwnEntry();
+    void takesAClosedTabOutOfTheTabJumpList();
+    void keepsTheNewestThirtyTwoEntriesOfTheTabJumpList();
+    void jumpsNowhereInASpaceAtRest();
     void separatesASplitIntoTwoAdjacentOrdinaryRows();
     void endsASplitWhenEitherTabClosesOrLeavesTheSpace();
     void keepsASplitTabFromBeingPinnedOrMoved();
@@ -4342,6 +4350,248 @@ void BrowserControllerTest::keepsTheSplitRowWhileAnotherTabIsOnShowAndStepsOverI
     controller.activateTab(thirdId);
     controller.stepTab(-1);
     QCOMPARE(controller.activeTabId(), leftId);
+}
+
+// The Tab jump list is the order the reader visited the tabs in, not the order
+// they are listed in, and it stops at either end rather than wrapping.
+void BrowserControllerTest::jumpsBackAndForwardThroughTheTabsInTheOrderTheyWereActive()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+    controller.activateTab(firstId);
+    controller.activateTab(thirdId);
+
+    // The list reads second, first, third: third moved to the end.
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), firstId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), secondId);
+    QVERIFY(!controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), secondId);
+
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), firstId);
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QVERIFY(!controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), thirdId);
+}
+
+// A tab selected after jumping back keeps what was ahead of the jump, and the
+// tab the reader jumped to is the one a jump back returns to.
+void BrowserControllerTest::keepsTheEntriesAheadWhenATabIsSelectedAfterAJump()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), secondId);
+
+    controller.openInput(QStringLiteral("https://fourth.example"), true);
+    const auto fourthId = controller.activeTabId();
+    QVERIFY(!controller.jumpForward());
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), secondId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), firstId);
+    QVERIFY(!controller.jumpBack());
+    QVERIFY(controller.jumpForward());
+    QVERIFY(controller.jumpForward());
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), fourthId);
+}
+
+// Going back and forth between two tabs leaves two entries, so a jump back
+// never lands on the tab already on show. A jump itself appends nothing, so
+// two jumps back go two entries back rather than bouncing.
+void BrowserControllerTest::listsEachTabOnceAndLeavesTheListAsItIsOnAJump()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+    for (int round = 0; round < 3; ++round) {
+        controller.activateTab(secondId);
+        controller.activateTab(thirdId);
+    }
+
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), secondId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), firstId);
+    QVERIFY(!controller.jumpBack());
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), secondId);
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QVERIFY(!controller.jumpForward());
+}
+
+// Coming back to a Space finds its list where it was left, and the other
+// Space has a list of its own. A restart starts a fresh one on the tab the
+// session restores.
+void BrowserControllerTest::keepsTheTabJumpListThroughASpaceSwitchAndStartsItAfresh()
+{
+    QTemporaryDir root;
+    QString firstId;
+    QString thirdId;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        const auto personalSpaceId = controller.activeSpaceId();
+        const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        controller.openInput(QStringLiteral("https://first.example"), false);
+        firstId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://second.example"), true);
+        const auto secondId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://third.example"), true);
+        thirdId = controller.activeTabId();
+        QVERIFY(controller.jumpBack());
+        QCOMPARE(controller.activeTabId(), secondId);
+
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(!controller.jumpBack());
+        QVERIFY(!controller.jumpForward());
+        QVERIFY(controller.switchSpace(personalSpaceId));
+        QCOMPARE(controller.activeTabId(), secondId);
+        QVERIFY(controller.jumpForward());
+        QCOMPARE(controller.activeTabId(), thirdId);
+        QVERIFY(!controller.jumpForward());
+    }
+
+    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(restored.activeTabId(), thirdId);
+    QVERIFY(!restored.jumpBack());
+    restored.activateTab(firstId);
+    QVERIFY(restored.jumpBack());
+    QCOMPARE(restored.activeTabId(), thirdId);
+    QVERIFY(!restored.jumpBack());
+}
+
+// A split is one stop for stepping through the list but two entries here: a
+// jump lands on the half the reader was in and shows the split from it.
+void BrowserControllerTest::jumpsToEachHalfOfASplitAsItsOwnEntry()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://left.example"), false);
+    const auto leftId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://right.example"), true);
+    const auto rightId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+    controller.activateTab(leftId);
+    QVERIFY(controller.addSplit(rightId));
+    QVERIFY(controller.focusSplitPartner());
+    controller.activateTab(leftId);
+    QVERIFY(controller.focusSplitPartner());
+    controller.activateTab(thirdId);
+
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), rightId);
+    QVERIFY(controller.splitOnShow());
+    QCOMPARE(controller.tabBesideId(), leftId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), leftId);
+    QCOMPARE(controller.tabBesideId(), rightId);
+    QVERIFY(!controller.jumpBack());
+
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), rightId);
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QVERIFY(!controller.splitOnShow());
+}
+
+// A tab that closes leaves the list wherever it sits. Closing the tab on show
+// selects another, and a jump back from there goes to the entry before the
+// one that closed.
+void BrowserControllerTest::takesAClosedTabOutOfTheTabJumpList()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    QStringList ids;
+    for (const auto *host : {"first", "second", "third", "fourth", "fifth"}) {
+        controller.openInput(
+            QStringLiteral("https://%1.example").arg(QLatin1String(host)), !ids.isEmpty());
+        ids.append(controller.activeTabId());
+    }
+    // The list reads first, third, fifth, second, fourth; the rows read first
+    // to fifth.
+    controller.activateTab(ids.at(0));
+    controller.activateTab(ids.at(2));
+    controller.activateTab(ids.at(4));
+    controller.activateTab(ids.at(1));
+    controller.activateTab(ids.at(3));
+
+    // Closing fourth selects the row above it, third, which moves to the end.
+    controller.closeActiveTab();
+    QCOMPARE(controller.activeTabId(), ids.at(2));
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), ids.at(1));
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), ids.at(4));
+
+    // A tab closed behind the reader is skipped, and the entry the reader is at
+    // stays the one on show.
+    controller.closeTab(ids.at(0));
+    QVERIFY(!controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), ids.at(4));
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), ids.at(1));
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), ids.at(2));
+    QVERIFY(!controller.jumpForward());
+}
+
+void BrowserControllerTest::keepsTheNewestThirtyTwoEntriesOfTheTabJumpList()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    QStringList ids;
+    for (int index = 0; index < 34; ++index) {
+        controller.openInput(QStringLiteral("https://tab%1.example").arg(index), index > 0);
+        ids.append(controller.activeTabId());
+    }
+
+    for (int jump = 0; jump < 31; ++jump) {
+        QVERIFY(controller.jumpBack());
+    }
+    QCOMPARE(controller.activeTabId(), ids.at(2));
+    QVERIFY(!controller.jumpBack());
+}
+
+// A Space at rest has nothing open to jump between, even with a Pinned tab
+// and the blank tab both in its list. The key does nothing, as at either end.
+void BrowserControllerTest::jumpsNowhereInASpaceAtRest()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://pinned.example"), true);
+    const auto pinnedId = controller.activeTabId();
+    controller.toggleActivePinned();
+    QVERIFY(controller.tabPinned(pinnedId));
+    QVERIFY(controller.atRest());
+
+    QVERIFY(!controller.jumpBack());
+    QVERIFY(!controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), pinnedId);
 }
 
 void BrowserControllerTest::separatesASplitIntoTwoAdjacentOrdinaryRows()
