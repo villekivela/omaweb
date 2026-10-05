@@ -16,7 +16,7 @@ CLI and MCP front ends, Agent Spaces and Space grants, the activity log, the pag
 field for addresses, tabs, Spaces and commands, and the Start page.
 [v0.10.0](https://github.com/villekivela/omaweb/releases/tag/v0.10.0) shipped localization: every
 user-facing string wrapped, the first locale finished, and new strings gated. v0.11.0 is the release
-in progress. Two milestones carry what remains, in this order:
+in progress. Three milestones carry what remains, in this order:
 
 1. [v0.11.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
    remembered, then addresses filled, then payment cards, on the storage
@@ -25,9 +25,17 @@ in progress. Two milestones carry what remains, in this order:
    the browser from a container or another host. Site information becomes a card from the address,
    and the chrome and pages rest on whole pixels, at fractional display scales too. It ships on the
    6.11.2 engine.
-2. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), the chrome: jumping between tabs
-   with `Ctrl+O` and `Ctrl+I`, the sidebar on the right, and the sidebar's empty space moving the
-   window.
+2. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), performance and the chrome. The
+   6.11.2 engine is rebuilt for speed, with V8's write barriers on and built with clang, LLD and
+   ThinLTO, which on x86_64 measured about 28% more on JetStream and 7% more on Speedometer
+   ([#356](https://github.com/villekivela/omaweb/issues/356)). The browser gains the measurements it
+   lacks: Linux baselines for its probes, a page's first paint, many live tabs, and the chrome's
+   frame times, and what comes in over budget is fixed in the same release. The chrome: jumping
+   between tabs with `Ctrl+O` and `Ctrl+I`, the sidebar on the right, and the sidebar's empty space
+   moving the window.
+3. [v0.13.0](https://github.com/villekivela/omaweb/milestone/9), configuration as files: the
+   reader's settings in a file they can keep in their dotfiles, and links from outside opening in
+   the Space a rule names. Each starts with a prototype.
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
