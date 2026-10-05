@@ -3,10 +3,16 @@ import QtQuick.Controls
 import QtQuick.Effects
 import qs.Commons
 import qs.Ui as Omarchy
+import "DevicePixels.mjs" as DevicePixels
 
 Rectangle {
     id: root
     objectName: "spaceOutline"
+    // The display's pixels per logical pixel, for resting on whole ones.
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
+    // Where the pins and the rows start across, on a whole pixel of the
+    // display, so a pinned tab's icon centred in its tile rests on one.
+    readonly property real listMargin: DevicePixels.snap(16, pixelRatio)
 
     property var colors
     property string iconFontFamily
@@ -1078,7 +1084,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.leftMargin: 16
+            anchors.leftMargin: root.listMargin
             anchors.rightMargin: 16
             anchors.topMargin: visible ? 12 : 0
             height: childrenRect.height
@@ -1143,7 +1149,7 @@ Rectangle {
             anchors.right: parent.right
             anchors.top: pinnedSection.bottom
             anchors.bottom: parent.bottom
-            anchors.leftMargin: 16
+            anchors.leftMargin: root.listMargin
             anchors.topMargin: 12
             anchors.bottomMargin: 12
             // Padding rather than a margin on the trailing side: the scrollbar

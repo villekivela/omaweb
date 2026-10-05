@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "DevicePixels.mjs" as DevicePixels
 
 // The Shortcut sheet: every browser command and the keys that run it, read
 // from the same KeyMap the window dispatches through and the same command
@@ -9,6 +10,8 @@ import qs.Commons
 Rectangle {
     id: root
     objectName: "shortcutSheet"
+    // The display's pixels per logical pixel, for resting on whole ones.
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
 
     property var colors
     property string iconFontFamily
@@ -331,7 +334,9 @@ Rectangle {
             id: sheet
             objectName: "shortcutSheetColumn"
             // On a whole pixel, so the text is not drawn soft.
-            x: Math.max(root.sideMargin, Math.round((sheetView.width - width) / 2))
+            x: Math.max(root.sideMargin, DevicePixels.snap((sheetView.width - width) / 2,
+                                                           root.pixelRatio))
+
             y: root.topInset
             width: root.contentWidth
             spacing: root.headingGap

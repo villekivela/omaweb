@@ -7915,13 +7915,22 @@ TestCase {
     // A page's new-tab request, with the Glance on, and the Glance it opens:
     // over the page, with the requested address, adding no tab.
     // Fails where an item rests between pixels: there its edges and text are
-    // drawn soft, and a page's texture splits along its diagonal (#567).
+    // drawn soft, and a page's texture splits along its diagonal (#567). The
+    // pixels are the display's: under a scale of 1.25 or 1.6 a whole logical
+    // pixel can fall between two of them (#571).
     function verifyOnWholePixels(item, name, axes) {
         const corner = item.mapToItem(null, 0, 0);
+        const ratio = window.devicePixelRatio;
         if (axes !== "y")
-            compare(corner.x, Math.round(corner.x), name + " rests between pixels across");
+            verifyOnDevicePixel(corner.x * ratio, name + " rests between pixels across");
         if (axes !== "x")
-            compare(corner.y, Math.round(corner.y), name + " rests between pixels down");
+            verifyOnDevicePixel(corner.y * ratio, name + " rests between pixels down");
+    }
+
+    // Qt Quick maps a position through single-precision matrices, so one on a
+    // pixel can read a hair off it: 325.99998 for 326 at a scale of 1.25.
+    function verifyOnDevicePixel(position, message) {
+        verify(Math.abs(position - Math.round(position)) < 0.001, message + ": " + position);
     }
 
     function openGlance(requestedUrl) {
@@ -8240,6 +8249,66 @@ TestCase {
         beside.loading = false;
         browser.closeTab(rightTabId);
         browser.closeTab(leftTabId);
+    }
+
+    // The page area rests on whole pixels of the display beside the sidebar at
+    // its default width and at an odd one, while the width the reader chose
+    // stays the whole number that is written down.
+    function test_thePageAreaRestsOnWholePixelsBesideTheSidebar() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        openPage("https://page-area-pixels.example/");
+        compare(window.sidebarWidth, 292);
+        verifyOnWholePixels(engineHost, "the page area beside the default sidebar", "x");
+        window.setSidebarWidth(261);
+        verifyOnWholePixels(engineHost, "the page area beside an odd sidebar", "x");
+        compare(window.sidebarWidth, 261);
+        tryVerify(function () {
+            return browser.preference("sidebar-width", "") === "261";
+        });
+        window.setSidebarWidth(window.sidebarDefaultWidth);
+    }
+
+    // A split's divider, its handle and the pane right of it rest on whole
+    // pixels of the display wherever the reader leaves the divider, here at an
+    // odd width for the left pane.
+    function test_aSplitsPanesRestOnWholePixelsAtAnOddDivider() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        openPage("https://odd-left.example/");
+        const leftTabId = browser.activeTabId;
+        browser.openInput("https://odd-right.example/", true);
+        const rightTabId = browser.activeTabId;
+        browser.activateTab(leftTabId);
+        verify(browser.addSplit(rightTabId));
+        tryCompare(engineHost, "besideEngine", engineHost.engines[rightTabId]);
+        engineHost.setLeftPaneWidth(401);
+        verifyOnWholePixels(findChild(engineHost, "splitDivider"), "the split's divider", "x");
+        verifyOnWholePixels(findChild(engineHost, "splitResizer"), "the split's handle", "x");
+        verifyOnWholePixels(engineHost.engines[rightTabId], "the right pane", "x");
+        browser.closeTab(rightTabId);
+        browser.closeTab(leftTabId);
+    }
+
+    // Developer tools at an odd width start on a whole pixel of the display,
+    // so the page beside them ends on one, while the width the reader chose
+    // stays the whole number that is written down.
+    function test_thePageEndsOnWholePixelsBesideDeveloperTools() {
+        openPage("https://dock-pixels.example/");
+        window.commands.run("developer-tools", -1);
+        const dock = findChild(window.contentItem, "developerToolsDock");
+        tryVerify(function () {
+            return dock.visible;
+        });
+        window.setDeveloperToolsWidth(333);
+        verifyOnWholePixels(dock, "developer tools at an odd width", "x");
+        compare(window.developerToolsWidth, 333);
+        tryVerify(function () {
+            return browser.preference("developer-tools-width", "") === "333";
+        });
+        window.setDeveloperToolsWidth(window.developerToolsDefaultWidth);
+        browser.closeDeveloperTools();
+        tryVerify(function () {
+            return !dock.visible;
+        });
     }
 
     // A pinned tab's icon stands in the middle of its tile, at two sidebar
