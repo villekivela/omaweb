@@ -1378,17 +1378,19 @@ bool BrowserController::jumpBy(int delta)
 {
     auto &list = settledTabJumpList();
     const auto next = list.position + delta;
-    if (m_atRest || next < 0 || next >= list.entries.size()) {
+    if (m_atRest || list.position < 0 || next < 0 || next >= list.entries.size()) {
         return false;
     }
+    // The position moves before the tab is selected, so the list finds the
+    // tab already at its position and changes nothing.
     list.position = next;
     setActiveTab(list.entries.at(next));
     return true;
 }
 
-// The position keeps its count of entries behind it. One that held the
-// entry that left is at the entry before it, so the tab selected in its
-// place follows that one, and a jump back from it goes there.
+// When the entry at the position goes, the position moves back one. The tab
+// selected in place of the one that went then comes after that entry, so a
+// jump back from it lands there.
 BrowserController::TabJumpList &BrowserController::settledTabJumpList()
 {
     auto &list = m_tabJumpLists[m_activeSpaceId];
@@ -4308,8 +4310,9 @@ void BrowserController::ensureActiveTab()
     refreshSoundSuppression();
     persistTabs();
     refreshSplit();
-    // A session restored at launch announces no active tab, and its tab is the
-    // first entry of the Space's list.
+    // A session restored at launch announces no active tab, so its tab is
+    // recorded here as the first entry of the Space's list. A Space switch
+    // announces its tab after this, which then changes nothing.
     noteTabJump();
 }
 

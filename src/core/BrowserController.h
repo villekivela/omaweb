@@ -822,12 +822,12 @@ private:
         QStringList entries;
         qsizetype position = -1;
     };
-    // Brings the Space's Tab jump list up to the active tab. A jump moves the
-    // position before it selects, so the tab it lands on is already there.
+    // Brings the Space's Tab jump list up to the active tab.
     void noteTabJump();
     bool jumpBy(int delta);
-    // Drops the entries of tabs the Space on show no longer holds, however
-    // they left it: closed, moved, put away or taken by sync.
+    // The list of the Space on show, made if it has none, without the tabs
+    // that Space no longer holds, however they left it: closed, moved, put
+    // away or taken by sync.
     TabJumpList &settledTabJumpList();
     static double steppedZoom(double zoom, int direction);
     static bool isBlank(const QUrl &url);

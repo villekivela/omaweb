@@ -246,6 +246,8 @@ private slots:
     void takesAClosedTabOutOfTheTabJumpList();
     void keepsTheNewestThirtyTwoEntriesOfTheTabJumpList();
     void jumpsNowhereInASpaceAtRest();
+    void listsATabMadeActiveByAnyRoute();
+    void keepsATabJumpListInAPrivateWindow();
     void separatesASplitIntoTwoAdjacentOrdinaryRows();
     void endsASplitWhenEitherTabClosesOrLeavesTheSpace();
     void keepsASplitTabFromBeingPinnedOrMoved();
@@ -4592,6 +4594,54 @@ void BrowserControllerTest::jumpsNowhereInASpaceAtRest()
     QVERIFY(!controller.jumpBack());
     QVERIFY(!controller.jumpForward());
     QCOMPARE(controller.activeTabId(), pinnedId);
+}
+
+// Selecting is one route to a new active tab. Duplicating, reopening and a
+// blank split are others, and each is an entry like a tab selected.
+void BrowserControllerTest::listsATabMadeActiveByAnyRoute()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    const auto duplicateId = controller.duplicateTab(firstId);
+    QCOMPARE(controller.activeTabId(), duplicateId);
+    controller.closeTab(secondId);
+    controller.reopenClosedTab();
+    const auto reopenedId = controller.activeTabId();
+    QVERIFY(reopenedId != duplicateId);
+    QVERIFY(controller.addSplit());
+    const auto blankId = controller.activeTabId();
+    QVERIFY(blankId != reopenedId);
+
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), reopenedId);
+    QCOMPARE(controller.tabBesideId(), blankId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), duplicateId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), firstId);
+    QVERIFY(!controller.jumpBack());
+}
+
+// A Private window starts on a blank tab it never announces, and that tab is
+// the first entry of the window's own list.
+void BrowserControllerTest::keepsATabJumpListInAPrivateWindow()
+{
+    QTemporaryDir configRoot;
+    PrivateSessionFixture fixture(configRoot.path());
+    const auto controller = fixture.createController();
+    const auto blankId = controller->activeTabId();
+    controller->openInput(QStringLiteral("https://first.example"), true);
+    const auto firstId = controller->activeTabId();
+
+    QVERIFY(controller->jumpBack());
+    QCOMPARE(controller->activeTabId(), blankId);
+    QVERIFY(!controller->jumpBack());
+    QVERIFY(controller->jumpForward());
+    QCOMPARE(controller->activeTabId(), firstId);
 }
 
 void BrowserControllerTest::separatesASplitIntoTwoAdjacentOrdinaryRows()

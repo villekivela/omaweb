@@ -284,7 +284,8 @@ QtObject {
                                              },
                                              "jump-forward": {
                                                  group: "tabs",
-                                                 title: qsTr("Jump forward again")
+                                                 title: qsTr("Jump forward again",
+                                                             "along the tabs, after jumping back")
                                              },
                                              "select-tab": {
                                                  group: "tabs",

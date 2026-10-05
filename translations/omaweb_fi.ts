@@ -127,6 +127,7 @@
     </message>
     <message>
         <source>Jump forward again</source>
+        <comment>along the tabs, after jumping back</comment>
         <translation>Siirry taas eteenpäin</translation>
     </message>
     <message>
