@@ -1079,8 +1079,8 @@ Rectangle {
         anchors.bottom: footer.top
 
         // The space the rows leave empty moves the window, as the navigation
-        // strip does (#179). A row takes its own press for a reorder, so the
-        // handler only gets a press that nothing in the list wanted.
+        // strip does (#179). A row holds its press for a reorder, which this
+        // cannot take from it.
         DragHandler {
             target: null
             onActiveChanged: if (active)

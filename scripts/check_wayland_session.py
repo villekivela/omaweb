@@ -98,8 +98,9 @@ def check_window_moves_by_its_regions(browser: Browser, report: Report, pointer:
         # grabs.
         ("navigation strip", (at[0] + 130, at[1] + 26)),
         # The browser under test has one tab, so the outline is empty from
-        # below its row down to the Space switcher, which with its margins
-        # takes the bottom 46 pixels (#179).
+        # below its row down to the Space switcher. The switcher and its
+        # margins take the bottom 46 pixels and the list's own margin 12 more,
+        # so 80 up is inside the list, below the row (#179).
         ("empty space", (at[0] + 130, at[1] + size[1] - 80)),
     ):
         before = browser.requests("move")

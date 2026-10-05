@@ -7548,7 +7548,7 @@ TestCase {
 
         moveSpy.target = outline;
         moveSpy.clear();
-        // A click is not a move: the tremor in it stays under the threshold.
+        // A press that does not travel is not a move.
         mouseClick(window.contentItem, at.x, at.y);
         compare(moveSpy.count, 0);
 
@@ -7560,8 +7560,8 @@ TestCase {
         browser.closeTab(tabId);
     }
 
-    // The empty space around the rows moves the window, and the rows keep the
-    // drag that reorders them: carrying one over that space still drops it.
+    // The space around the rows moves the window, and the rows keep the drag
+    // that reorders them: the handler under them cannot take it.
     function test_draggingARowLeavesTheWindowWhereItIs() {
         openPage("https://row-stays.example/one");
         const firstTabId = browser.activeTabId;
@@ -7569,8 +7569,8 @@ TestCase {
         const secondTabId = browser.activeTabId;
         const outline = findChild(window.contentItem, "sidebar");
         verify(outline !== null);
-        settleRow(findChild(window.contentItem, "tab-" + secondTabId));
         const row = findChild(window.contentItem, "tab-" + secondTabId);
+        settleRow(row);
         const place = browser.tabSectionIndex(secondTabId);
         verify(place >= 1);
 
