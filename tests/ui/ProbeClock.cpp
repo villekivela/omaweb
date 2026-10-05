@@ -125,6 +125,11 @@ QVariantMap ProbeClock::frameReport()
         intervals.erase(intervals.begin());
     }
     std::ranges::sort(intervals);
+    QVariantList ends;
+    ends.reserve(static_cast<qsizetype>(m_frameEnds.size()));
+    for (const auto end : m_frameEnds) {
+        ends.append(end / 1e6);
+    }
     return {
         {QStringLiteral("frames"), static_cast<int>(frames.size())},
         {QStringLiteral("meanFrameMilliseconds"), mean(frames) / 1e6},
@@ -134,6 +139,7 @@ QVariantMap ProbeClock::frameReport()
         {QStringLiteral("maxIntervalMilliseconds"),
             intervals.empty() ? 0.0 : intervals.back() / 1e6},
         {QStringLiteral("p95IntervalMilliseconds"), percentile(intervals, 0.95) / 1e6},
+        {QStringLiteral("frameEnds"), ends},
     };
 }
 

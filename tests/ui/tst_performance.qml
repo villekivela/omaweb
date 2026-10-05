@@ -211,80 +211,177 @@ TestCase {
             rate = window.screen.refreshRate;
         return 2 * 1000 / rate;
     }
-    // How many times each movement is taken. One movement is about ten
-    // frames, too few for a 95th percentile to differ from the slowest.
+    // How many movements are watched: five openings and five closings, about
+    // ten frames each.
     readonly property int movementCount: 10
+    // How many of them may have a frame over the ceiling with the surface
+    // still inside the budget. A surface that holds the interface thread once
+    // each time it opens has one in every other movement; one in ten is a
+    // garbage collection or the machine, which a probe on a shared CI runner
+    // cannot tell from the chrome.
+    readonly property int heldMovementAllowance: 1
+    // How many frames are watched after the last movement rests.
+    readonly property int settlingFrames: 3
 
-    // Runs `act` and waits, frame by frame, until `rested` says the movement
-    // it started is over, `movementCount` times, with every frame watched. Each
-    // movement is the pointer's, on a desktop that has not asked for reduced
-    // motion: after a key the chrome steps rather than eases, and a step has
-    // no frames between its ends to measure.
-    function watchMovements(act, rested) {
-        const reducedMotion = SystemMotion.reduced;
-        const pointer = InputOrigin.pointer;
-        SystemMotion.reduced = false;
-        // The first movement builds what each later one only draws, which a
-        // reader pays once; it is not watched.
-        InputOrigin.pointer = true;
-        act(0);
-        waitForRest(rested);
-        probeClock.watchFrames(window);
-        for (let movement = 1; movement <= movementCount; ++movement) {
-            InputOrigin.pointer = true;
-            act(movement);
-            waitForRest(rested);
-        }
-        const report = probeClock.frameReport();
-        SystemMotion.reduced = reducedMotion;
-        InputOrigin.pointer = pointer;
-        return report;
+    // What the movement under watch reads at each frame, and in how many
+    // frames it changed. The page under the chrome redraws every frame, so its
+    // frames say nothing about whether the surface itself moved.
+    property var motion: null
+    property var motionValue: undefined
+    property int movingFrames: 0
+
+    function sampleMotion() {
+        if (motion === null)
+            return;
+        const value = motion();
+        if (motionValue !== undefined && value !== motionValue)
+            ++movingFrames;
+        motionValue = value;
     }
 
-    function waitForRest(rested) {
+    // The slowest interval between frames that ended inside `span`, the
+    // first of them reaching back to the frame before the movement began.
+    // A span runs until the next movement begins, so a frame held up by work
+    // a movement leaves for after it comes to rest, such as laying out the
+    // page at its new width, is that movement's.
+    function slowestIntervalIn(frameEnds, span) {
+        let slowest = 0;
+        for (let frame = 1; frame < frameEnds.length; ++frame) {
+            if (frameEnds[frame] > span.from && frameEnds[frame] <= span.to)
+                slowest = Math.max(slowest, frameEnds[frame] - frameEnds[frame - 1]);
+        }
+        return slowest;
+    }
+
+    // Runs `act` and waits, frame by frame, until `rested` says the movement
+    // it started is over, with every frame watched and `moving` read at each
+    // one. Both are given the movement's number, so a surface that opens a
+    // frame or two after the input is not taken to be at rest closed.
+    // Movement 0 opens the surface and movement 1 closes it; they build what
+    // each later movement only draws, which a reader pays once, and are not
+    // watched. The watched ones run from 2, so the last is a closing and the
+    // next probe starts with nothing open over its page.
+    //
+    // Each movement is the pointer's, on a desktop that has not asked for
+    // reduced motion: after a key the chrome steps rather than eases, and a
+    // step has no frames between its ends to measure. Both are given back,
+    // and the frame watch stopped, whether the movements finish or fail.
+    function watchMovements(act, rested, moving) {
+        const reducedMotion = SystemMotion.reduced;
+        const pointer = InputOrigin.pointer;
+        let watching = false;
+        try {
+            SystemMotion.reduced = false;
+            for (let movement = 0; movement < 2; ++movement) {
+                InputOrigin.pointer = true;
+                act(movement);
+                waitForRest(rested, movement);
+            }
+            motion = moving;
+            motionValue = undefined;
+            movingFrames = 0;
+            probeClock.watchFrames(window);
+            watching = true;
+            // An interval is measured from a frame's end, so one frame has to
+            // end under the watch before the first movement begins.
+            probeClock.waitForFrame(window, 100);
+            const starts = [];
+            for (let movement = 2; movement < movementCount + 2; ++movement) {
+                InputOrigin.pointer = true;
+                starts.push(probeClock.milliseconds());
+                act(movement);
+                waitForRest(rested, movement);
+            }
+            // The frames after the last movement rests, where what it left for
+            // later lands.
+            for (let frame = 0; frame < settlingFrames; ++frame)
+                probeClock.waitForFrame(window, 100);
+            starts.push(probeClock.milliseconds());
+            const spans = starts.slice(0, -1).map(function (from, index) {
+                return {
+                    "from": from,
+                    "to": starts[index + 1]
+                };
+            });
+            const frames = probeClock.frameReport();
+            watching = false;
+            return {
+                "frames": frames,
+                "slowestByMovement": spans.map(function (span) {
+                    return slowestIntervalIn(frames.frameEnds, span);
+                }),
+                "movingFrames": movingFrames
+            };
+        } finally {
+            if (watching)
+                probeClock.frameReport();
+            motion = null;
+            SystemMotion.reduced = reducedMotion;
+            InputOrigin.pointer = pointer;
+        }
+    }
+
+    function waitForRest(rested, movement) {
         const started = probeClock.milliseconds();
         // A movement's first frame comes after the input; one frame first so
         // a state that reads at rest before it starts is not taken for its end.
         probeClock.waitForFrame(window, 100);
-        while (!rested() && probeClock.milliseconds() - started < 5000)
+        sampleMotion();
+        while (!rested(movement) && probeClock.milliseconds() - started < 5000) {
             probeClock.waitForFrame(window, 100);
-        verify(rested(), "the movement never came to rest");
+            sampleMotion();
+        }
+        verify(rested(movement), "movement " + movement + " never came to rest");
     }
 
-    // Holds a surface's frame intervals to the one-frame budget. The 95th
-    // percentile is held; the slowest is printed beside it, so a failure says
-    // whether the movement was slow throughout or hitched once.
+    // Holds a surface to the one-frame budget twice over: the 95th percentile
+    // of every interval watched, and how many movements had any interval over
+    // the ceiling. The second is the one a hitch on every opening crosses: at
+    // one held frame in twenty, the pooled percentile lets it through.
     //
     // A surface that was over the budget when it was first measured passes
-    // `overBudget`: its `guard`, about twice the slowest of those
-    // measurements on a loaded machine, is held so it cannot get worse unnoticed, and the budget
-    // is printed beside the `reason` it is over but not held. The change that
-    // brings the surface inside takes `overBudget` away. An expected failure
-    // would force that, but a surface near the line passes it on a quiet
-    // machine, and an unexpected pass fails the run.
+    // `overBudget`. Both budget lines are printed beside the `reason` it is
+    // over, and not held. What is held is its `guard` on the 95th percentile,
+    // about twice the highest measured on a loaded machine: it catches a
+    // change that doubles what the surface costs, not a smaller one. The
+    // change that brings the surface inside takes `overBudget` away.
     function probeIntervals(name, report, overBudget) {
-        const backend = GraphicsInfo.api === GraphicsInfo.Software ? "software rasteriser" : "GPU";
-        const gpu = report.meanGpuMilliseconds > 0 ? ", " + report.meanGpuMilliseconds.toFixed(2)
-                                                     + " ms of it on the GPU" : "";
-        console.info(name + ": " + report.intervals + " intervals, 95th percentile "
-                     + report.p95IntervalMilliseconds.toFixed(1) + " ms, slowest "
-                     + report.maxIntervalMilliseconds.toFixed(1) + " ms, mean frame cost "
-                     + report.meanFrameMilliseconds.toFixed(2) + " ms" + gpu + ", drawn by the "
-                     + backend);
-        // A movement that steps rather than eases is at rest in the frame
-        // after it starts, so ten of them watch about twenty frames. Three a
-        // movement is below what a slow eased one draws and above that.
-        verify(report.intervals >= movementCount * 3, "only " + report.intervals
-               + " frame intervals were seen, so nothing was moving");
+        const frames = report.frames;
         const ceiling = frameIntervalCeiling();
+        const held = report.slowestByMovement.filter(function (slowest) {
+            return slowest > ceiling;
+        }).length;
+        const backend = GraphicsInfo.api === GraphicsInfo.Software ? "software rasteriser" : "GPU";
+        const gpu = frames.meanGpuMilliseconds > 0 ? ", " + frames.meanGpuMilliseconds.toFixed(2)
+                                                     + " ms of it on the GPU" : "";
+        const byMovement = report.slowestByMovement.map(function (slowest) {
+            return slowest.toFixed(0);
+        }).join(" ");
+        console.info(name + ": " + frames.intervals + " intervals, 95th percentile "
+                     + frames.p95IntervalMilliseconds.toFixed(1) + " ms, slowest "
+                     + frames.maxIntervalMilliseconds.toFixed(1) + " ms");
+        console.info(name + ": " + held + " of " + movementCount + " movements with a frame over "
+                     + ceiling.toFixed(1) + " ms, slowest by movement " + byMovement + " ms");
+        console.info(name + ": mean frame cost " + frames.meanFrameMilliseconds.toFixed(2) + " ms"
+                     + gpu + ", drawn by the " + backend);
+        // A movement that steps rather than eases changes in one frame, so ten
+        // of them change in ten. Three a movement is below what an eased one
+        // changes in and above that.
+        verify(report.movingFrames >= movementCount * 3, "the surface moved in only "
+               + report.movingFrames + " frames, so it was not easing");
         if (!overBudget) {
-            probe(name, report.p95IntervalMilliseconds, "ms", ceiling);
+            probe(name, frames.p95IntervalMilliseconds, "ms", ceiling);
+            probe(name + "-held-movements", held, "movements", heldMovementAllowance);
             return;
         }
-        const budgetLine = probeClock.report(name, report.p95IntervalMilliseconds, "ms", ceiling);
-        if (report.p95IntervalMilliseconds > ceiling)
-            console.warn("over budget, not held: " + budgetLine + ": " + overBudget.reason);
-        probe(name + "-guard", report.p95IntervalMilliseconds, "ms", overBudget.guard);
+        const percentileLine = probeClock.report(name, frames.p95IntervalMilliseconds, "ms",
+                                                 ceiling);
+        const heldLine = probeClock.report(name + "-held-movements", held, "movements",
+                                           heldMovementAllowance);
+        if (frames.p95IntervalMilliseconds > ceiling || held > heldMovementAllowance)
+            console.warn("over budget, not held: " + percentileLine + "; " + heldLine + ": "
+                         + overBudget.reason);
+        probe(name + "-guard", frames.p95IntervalMilliseconds, "ms", overBudget.guard);
     }
 
     // Puts a page that redraws every frame on show, so the window draws at its
@@ -306,11 +403,11 @@ TestCase {
 
         const report = watchMovements(function (movement) {
             window.sidebarCollapsed = movement % 2 === 0;
+        }, function (movement) {
+            return movement % 2 === 0 ? !sidebar.visible : sidebar.x === 0;
         }, function () {
-            return window.sidebarCollapsed ? !sidebar.visible : sidebar.x === 0;
+            return sidebar.x;
         });
-        window.sidebarCollapsed = false;
-        tryCompare(sidebar, "x", 0);
         engine.motionReview = false;
         probeIntervals("sidebar-frame-interval", report, {
                            "guard": 150,
@@ -334,8 +431,10 @@ TestCase {
 
         const report = watchMovements(function (movement) {
             verify(browser.switchSpace(spaceIds[movement % 2]));
+        }, function (movement) {
+            return !sidebar.arriving && browser.activeSpaceId === spaceIds[movement % 2];
         }, function () {
-            return !sidebar.arriving;
+            return sidebar.arrivalOffset;
         });
         engines.forEach(function (engine) {
             engine.motionReview = false;
@@ -372,17 +471,27 @@ TestCase {
             }
             window.openOmnibar(false);
             waitForRest(function () {
-                return omnibar.arrival === 1;
-            });
-            for (const character of "example") {
-                keyClick(character);
+                return window.omnibarOpen && omnibar.arrival === 1;
+            }, movement);
+            // Typed into the field rather than sent as keys: a compositor need
+            // not give the test window the keyboard, and the cost is the
+            // ranking each edit starts, not the key's way to the field. The
+            // first letter replaces the address the field opens with
+            // selected, as a key would.
+            const word = "example";
+            for (let length = 1; length <= word.length; ++length) {
+                input.text = word.slice(0, length);
                 probeClock.waitForFrame(window, 100);
             }
             typed = input.text;
+        }, function (movement) {
+            return movement % 2 === 0 ? window.omnibarOpen && omnibar.arrival === 1 :
+                                        !omnibar.visible;
         }, function () {
-            return window.omnibarOpen ? omnibar.arrival === 1 : !omnibar.visible;
+            return omnibar.arrival;
         });
         compare(typed, "example");
+        verify(!omnibar.visible);
         engine.motionReview = false;
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(spaceId, "Filtering"));
@@ -406,9 +515,12 @@ TestCase {
                 window.closeGlance();
             else
                 engine.simulateNewWindowRequest("https://glanced-" + movement + ".example/", false);
+        }, function (movement) {
+            return movement % 2 === 0 ? window.glanceOpen && glance.arrival === 1 : !glance.visible;
         }, function () {
-            return window.glanceOpen ? glance.visible && glance.arrival === 1 : !glance.visible;
+            return glance.arrival;
         });
+        verify(!glance.visible);
         engine.motionReview = false;
         probeIntervals("glance-frame-interval", report);
     }

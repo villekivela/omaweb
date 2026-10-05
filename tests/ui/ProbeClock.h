@@ -48,6 +48,8 @@ public:
     // zero unless a GPU drew them with timestamps on. `intervals`,
     // `maxIntervalMilliseconds` and `p95IntervalMilliseconds` are the time
     // from each frame's end to the next one's, the percentile by nearest rank.
+    // `frameEnds` lists when each frame ended on `milliseconds()`'s clock, so
+    // a probe can split the intervals by what was moving.
     Q_INVOKABLE QVariantMap frameReport();
 
 private:
