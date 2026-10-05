@@ -122,10 +122,8 @@ jobs:
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
     container: archlinux:base-devel
-    # The build, the tests and the runtime budget on one runner take 19 to 29
-    # minutes, and 30 cancelled a run that was only slow. The other jobs carry
-    # less and keep their limits.
-    timeout-minutes: 45
+    # The runtime budget's steps bring the job to 40 minutes, too close to 45.
+    timeout-minutes: 60
     env:
       CC: clang
       CXX: clang++
