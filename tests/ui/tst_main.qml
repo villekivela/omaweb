@@ -15270,4 +15270,48 @@ TestCase {
         }
         compare(browser.paymentCards(), []);
     }
+
+    // Every control in a Settings row lies wholly inside the pane, in every
+    // section, on whole pixels. A control placed on a fractional position is
+    // snapped by the renderer when it is drawn, and at the pane's right edge,
+    // where a row puts its controls, that can push its border past the pane's
+    // clip: a Remove button once lost its right border there.
+    function test_everySettingsRowControlLiesWhollyInsideThePane() {
+        const cardIds = saveCards([everydayCard]);
+        const addressIds = saveAddresses([homeAddress]);
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const pane = findChild(settings, "settingsPane");
+        const strays = [];
+        const isRow = item => item.hasOwnProperty("separated") && item.hasOwnProperty(
+                                  "verticalPadding") && item.hasOwnProperty("note");
+        const visit = function (item, inRow, section) {
+            if (!item || !item.visible)
+                return;
+            const control = inRow && item.hasOwnProperty("bordered");
+            if (control && item.width > 0) {
+                const rect = item.mapToItem(pane, 0, 0, item.width, item.height);
+                const whole = Number.isInteger(rect.x) && Number.isInteger(rect.width);
+                if (rect.x < 0 || rect.x + rect.width > pane.width || !whole)
+                    strays.push(settings.sections[section] + ": " + (item.objectName || item.text)
+                                + " at " + rect.x + " to " + (rect.x + rect.width) + " of "
+                                + pane.width);
+            }
+            const children = item.children || [];
+            for (let index = 0; index < children.length; ++index)
+                visit(children[index], inRow || isRow(item), section);
+        };
+        try {
+            for (let section = 0; section < settings.sections.length; ++section) {
+                settings.section = section;
+                wait(50);
+                visit(pane, false, section);
+            }
+            compare(strays, []);
+        } finally {
+            window.settingsOpen = false;
+            removeCards(cardIds);
+            removeAddresses(addressIds);
+        }
+    }
 }

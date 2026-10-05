@@ -23,6 +23,10 @@ Omarchy.Button {
 
     readonly property color edge: destructive ? colors.privateAccent : colors.accent
 
+    // The kit sizes a button by its text, to a fraction of a pixel. A button on
+    // a fractional position is snapped when it is drawn, which can push its
+    // border past a clip at its edge, as at the right of a Settings row.
+    width: Math.ceil(implicitWidth)
     text: label
     focusable: true
     bordered: true

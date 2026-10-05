@@ -71,12 +71,15 @@ Item {
         font.pixelSize: Style.font.caption
     }
 
+    // Flush with the row's right, on whole pixels: a control on a fractional
+    // position is snapped when it is drawn, and at the pane's edge that can
+    // push its border past the pane's clip.
     Item {
         id: holder
-        anchors.right: parent.right
+        x: Math.floor(root.width - width)
         anchors.top: parent.top
         anchors.topMargin: root.verticalPadding
-        width: childrenRect.width
+        width: Math.ceil(childrenRect.width)
         height: childrenRect.height
     }
 }

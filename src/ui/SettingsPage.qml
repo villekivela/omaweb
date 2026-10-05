@@ -478,7 +478,7 @@ Rectangle {
     onSectionChanged: root.refreshCards()
 
     Connections {
-        target: root.browser
+        target: root.browser || null
         ignoreUnknownSignals: true
         function onPaymentCardsChanged() {
             root.refreshCards();
@@ -2659,12 +2659,11 @@ Rectangle {
                                 Flow {
                                     id: spaceActions
                                     width: Math.min(pane.width * 0.7, spaceSwatches.width
-                                                    + renameSpace.implicitWidth
-                                                    + deleteSpace.implicitWidth + moveSpaceUp.width
-                                                    + moveSpaceDown.width + spacing * 4 + (
-                                                        forgetProject.visible
-                                                        ? forgetProject.implicitWidth + spacing :
-                                                          0))
+                                                    + renameSpace.width + deleteSpace.width
+                                                    + moveSpaceUp.width + moveSpaceDown.width
+                                                    + spacing * 4 + (forgetProject.visible
+                                                                     ? forgetProject.width
+                                                                       + spacing : 0))
                                     spacing: Style.spacing.sm
 
                                     // The six colours a Space may be drawn in,
