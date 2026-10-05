@@ -21,10 +21,10 @@ in progress. Two milestones carry what remains, in this order:
 1. [v0.11.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
    remembered, then addresses filled, then payment cards, on the storage
    [ADR 0053](adr/0053-keep-payment-cards-in-the-secret-service.md) proposes, and signing in with a
-   security key or passkey. It moves the engine to QtWebEngine 6.140.0 with a patch that gives an
-   Agent tab its own debugging session, so an Agent reads the tab's network and, in an Agent Space,
-   the page's main world. `omaweb dev` opens a project's Space, and a small `omaweb` client drives
-   the browser from a container or another host. Site information becomes a card from the address.
+   security key or passkey. `omaweb dev` opens a project's Space, and a small `omaweb` client drives
+   the browser from a container or another host. Site information becomes a card from the address,
+   and the chrome and pages rest on whole pixels, at fractional display scales too. It ships on the
+   6.11.2 engine.
 2. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), the chrome: jumping between tabs
    with `Ctrl+O` and `Ctrl+I`, the sidebar on the right, and the sidebar's empty space moving the
    window.
@@ -52,6 +52,12 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   ([#175](https://github.com/villekivela/omaweb/issues/175)).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
   outside the default build graph until it satisfies the daily-driver contract.
+- The engine's move to QtWebEngine 6.140.0
+  ([#484](https://github.com/villekivela/omaweb/issues/484)) waits on Qt's final release, and so
+  does what is built on it: an engine patch that gives an Agent tab its own debugging session, so an
+  Agent reads the tab's network ([#373](https://github.com/villekivela/omaweb/issues/373)) and, in
+  an Agent Space, the page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)).
+  They join the release that is open when 6.140.0 is out.
 - Account and Sync with replaceable providers are deferred.
 
 ## Known extensions
