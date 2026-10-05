@@ -572,7 +572,9 @@ Rectangle {
         const state = root.browser ? root.browser.paymentCardsState : "unavailable";
         if (root.unlockingCardId.length === 0 || state === "unread" || state === "reading")
             return;
-        const kept = root.savedCards.some(card => card.id === root.unlockingCardId);
+        // Asked of the browser, because the list is emptied while another
+        // section is on show.
+        const kept = root.browser.paymentCards().some(card => card.id === root.unlockingCardId);
         root.unlockingCardId = "";
         if (!kept) {
             root.cardNotKept = true;

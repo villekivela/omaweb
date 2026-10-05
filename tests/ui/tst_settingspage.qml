@@ -810,6 +810,12 @@ TestCase {
                         "kept": true
                     },
                     {
+                        "tag": "unlocked while another section is on show",
+                        "answer": "ready",
+                        "kept": true,
+                        "away": true
+                    },
+                    {
                         "tag": "left locked",
                         "answer": "locked",
                         "kept": false
@@ -832,6 +838,8 @@ TestCase {
         verify(findChild(page, "cardNumber").visible);
         compare(findChild(page, "noCards").title, "Reading the keyring");
 
+        if (data.away)
+            page.section = page.sections.indexOf("addresses");
         browserStub.paymentCardsState = data.answer;
         if (data.kept)
             browserStub.cardsFixture = [
@@ -846,6 +854,8 @@ TestCase {
                         }
                     ];
         browserStub.paymentCardsChanged();
+        if (data.away)
+            page.section = page.sections.indexOf("payment cards");
         compare(findChild(page, "cardNumber").visible, !data.kept);
         compare(findChild(page, "cardNotKept").visible, !data.kept);
         compare(findChild(page, "cardList").count, data.kept ? 1 : 0);
