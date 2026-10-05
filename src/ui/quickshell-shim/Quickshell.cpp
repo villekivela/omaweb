@@ -25,7 +25,9 @@ void installShim(QQmlEngine &engine)
 
     qmlRegisterSingletonType<Quickshell>("Quickshell", 1, 0, "Quickshell",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new Quickshell; });
+    qmlRegisterType<Singleton>("Quickshell", 1, 0, "Singleton");
     qmlRegisterType<FileView>("Quickshell.Io", 1, 0, "FileView");
+    qmlRegisterType<IpcHandler>("Quickshell.Io", 1, 0, "IpcHandler");
     qmlRegisterType<Process>("Quickshell.Io", 1, 0, "Process");
     qmlRegisterType<StdioCollector>("Quickshell.Io", 1, 0, "StdioCollector");
 }
@@ -44,6 +46,19 @@ void Quickshell::execDetached(const QStringList &command)
 {
     qWarning("Quickshell.execDetached is not available in Omaweb: %s",
         qPrintable(command.join(QLatin1Char(' '))));
+}
+
+Singleton::Singleton(QObject *parent)
+    : QObject(parent)
+{
+}
+
+QQmlListProperty<QObject> Singleton::data()
+{
+    return QQmlListProperty<QObject>(
+        this, nullptr,
+        [](QQmlListProperty<QObject> *list, QObject *child) { child->setParent(list->object); },
+        nullptr, nullptr, nullptr);
 }
 
 } // namespace omaweb::quickshell

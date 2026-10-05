@@ -6,11 +6,13 @@
 // patched, so a sync is a review of upstream's diff rather than a merge.
 //
 // The scope is the subset `qs.Commons` and the Quickshell-free components in
-// `qs.Ui` actually touch: an environment lookup, a watched config file, and a
-// short-lived command run for its output. Layer-shell and Hyprland surfaces
+// `qs.Ui` actually touch: an environment lookup, a watched config file, a
+// short-lived command run for its output, and the `Singleton` and `IpcHandler`
+// types the kit's IPC registry declares. Layer-shell and Hyprland surfaces
 // are out of scope, and so are the kit components that need them.
 
 #include <QObject>
+#include <QQmlListProperty>
 #include <QString>
 #include <QStringList>
 
@@ -37,6 +39,20 @@ public:
     // chrome has no business launching desktop helpers, so the call is
     // refused and logged instead of spawning anything.
     Q_INVOKABLE void execDetached(const QStringList &command);
+};
+
+// The `Singleton` root type a kit singleton such as `IpcRegistry` declares under `pragma
+// Singleton`. Upstream's is a QObject whose default property takes the objects declared inside it,
+// as `IpcHandler { id: bareHandler }` does there.
+class Singleton : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QQmlListProperty<QObject> data READ data)
+    Q_CLASSINFO("DefaultProperty", "data")
+
+public:
+    explicit Singleton(QObject *parent = nullptr);
+
+    QQmlListProperty<QObject> data();
 };
 
 } // namespace omaweb::quickshell

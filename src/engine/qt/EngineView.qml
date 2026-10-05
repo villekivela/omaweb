@@ -144,6 +144,47 @@ Item {
                                                                                                 * scale), Math.max(
                                        1, Number(report.height) * scale));
     }
+    // The focused field, when form history may keep what is typed into it,
+    // or else null: its name, what it holds, a number that changes each time
+    // it is focused, and where it is, in the view's own units as the press
+    // origin is. Main frame only, for the same reason. The page decides which
+    // fields qualify, because only the page knows how a field is marked.
+    property var formField: null
+    signal formSubmitted(var fields)
+    // A key the suggestion list answers, taken from the page while the list
+    // is shown: "down", "up", "escape", and with a row highlighted "accept"
+    // and "forget".
+    signal formKeyPressed(string key)
+    function recordFormField(report) {
+        if (!report) {
+            root.formField = null;
+            return;
+        }
+        const scale = webView.zoomFactor;
+        root.formField = {
+            "serial": Number(report.serial),
+            "name": String(report.name),
+            "value": String(report.value),
+            "x": Number(report.x) * scale,
+            "y": Number(report.y) * scale,
+            "width": Number(report.width) * scale,
+            "height": Number(report.height) * scale
+        };
+    }
+    // Which keys the page hands over: the list's keys while it is shown, and
+    // Enter and Shift+Delete only while a row is highlighted. The values
+    // themselves stay in the shell until one is accepted.
+    function showFormSuggestions(shown, highlighted) {
+        webView.runJavaScript(
+                    "globalThis.__omawebFormHistory && globalThis.__omawebFormHistory.show(" + (
+                        shown ? "true" : "false") + "," + (highlighted ? "true" : "false") + ")",
+                    WebEngineScript.ApplicationWorld);
+    }
+    function fillFormField(value) {
+        webView.runJavaScript(
+                    "globalThis.__omawebFormHistory && globalThis.__omawebFormHistory.fill("
+                    + JSON.stringify(String(value)) + ")", WebEngineScript.ApplicationWorld);
+    }
     property var editedStateScript: {
         const script = WebEngine.script();
         script.name = "Omaweb edited form state";
@@ -2673,6 +2714,141 @@ Item {
         return script;
     }
 
+    // Form history's eyes in the page. A field qualifies when it is a text,
+    // search, email, telephone or URL input with a name or an id, and neither
+    // it nor the form it inherits from says `autocomplete=off`, nor marks it
+    // as a card, password or one-time code. A name that reads as a card number
+    // or security code is kept out too: a page that marks nothing is the
+    // common case. A submit reports only the fields the reader typed into or
+    // filled from the list. The application world keeps the listeners
+    // out of the page's reach. The keys are taken in the capture phase at the
+    // window by a listener added as the document is created, so it runs
+    // before any the page or keyboard navigation adds there later.
+    property var formHistoryScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb form history";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.ApplicationWorld;
+        script.runsOnSubFrames = false;
+        script.sourceCode = root.reporting(`
+            const textTypes = ['text', 'search', 'email', 'tel', 'url'];
+            const unkeptTokens = ['off', 'current-password', 'new-password', 'one-time-code'];
+            const cardName = /c(ard|c)[-_ ]?(num|no$|number)|credit.?card|cvc|cvv|csc|security.?code/i;
+            const fieldName = element => element.name || element.id || '';
+            const tokens = element => (element.getAttribute('autocomplete') || '')
+                .toLowerCase().trim().split(/\\s+/).filter(Boolean);
+            const keeps = element => {
+                if (!(element instanceof HTMLInputElement)) return false;
+                if (!textTypes.includes(element.type) || element.readOnly || element.disabled)
+                    return false;
+                const name = fieldName(element);
+                if (!name || cardName.test(name) || cardName.test(element.id)) return false;
+                const own = tokens(element);
+                if (own.some(token => unkeptTokens.includes(token) || token.startsWith('cc-')))
+                    return false;
+                if (own.length === 0 && element.form && tokens(element.form).includes('off'))
+                    return false;
+                return true;
+            };
+            // The fields the reader typed into, or filled from the list. A
+            // value the page wrote or sent prefilled is not the reader's.
+            const typed = new WeakSet();
+            let current = null;
+            let serial = 0;
+            let last = '';
+            let shown = false;
+            let highlighted = false;
+            const send = () => {
+                if (!current) return;
+                const rect = current.getBoundingClientRect();
+                const field = {serial, name: fieldName(current), value: current.value,
+                    x: rect.left, y: rect.top, width: rect.width, height: rect.height};
+                const encoded = JSON.stringify(field);
+                if (encoded === last) return;
+                last = encoded;
+                report('form_field', field);
+            };
+            const closeList = () => {
+                last = '';
+                shown = false;
+                highlighted = false;
+            };
+            const adopt = element => {
+                current = element;
+                serial += 1;
+                closeList();
+                send();
+            };
+            const leave = () => {
+                if (!current) return;
+                current = null;
+                closeList();
+                report('form_field', null);
+            };
+            document.addEventListener('focusin', event => {
+                if (keeps(event.target)) adopt(event.target);
+                else leave();
+            }, true);
+            document.addEventListener('focusout', event => {
+                if (event.target === current) leave();
+            }, true);
+            document.addEventListener('input', event => {
+                if (event.isTrusted) typed.add(event.target);
+                if (event.target === current) send();
+            }, true);
+            addEventListener('scroll', send, {capture: true, passive: true});
+            addEventListener('resize', send, {passive: true});
+            document.addEventListener('submit', event => {
+                const fields = [];
+                for (const element of event.target.elements || []) {
+                    if (keeps(element) && element.value && typed.has(element))
+                        fields.push({name: fieldName(element), value: element.value});
+                }
+                if (fields.length) report('form_submit', fields);
+            }, true);
+            addEventListener('keydown', event => {
+                // A key the page dispatched itself could walk the list and
+                // accept a row, then read the reader's value from the field.
+                if (!event.isTrusted || !shown || event.target !== current || event.isComposing)
+                    return;
+                if (event.ctrlKey || event.metaKey || event.altKey) return;
+                let key = '';
+                if (event.shiftKey)
+                    key = event.key === 'Delete' && highlighted ? 'forget' : '';
+                else if (event.key === 'ArrowDown') key = 'down';
+                else if (event.key === 'ArrowUp') key = 'up';
+                else if (event.key === 'Escape') key = 'escape';
+                else if (event.key === 'Enter' && highlighted) key = 'accept';
+                if (!key) return;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                // Both close the list, and the next key may come before the
+                // shell says so: an Escape the page then took would be lost.
+                if (key === 'escape' || key === 'accept') closeList();
+                report('form_key', key);
+            }, true);
+            globalThis.__omawebFormHistory = {
+                show(isShown, isHighlighted) {
+                    shown = isShown && current !== null;
+                    highlighted = shown && isHighlighted;
+                },
+                // Through the input's own setter, with the events typing
+                // would raise, so a page that keeps its own copy of the
+                // value hears of the change.
+                fill(value) {
+                    if (!current) return;
+                    typed.add(current);
+                    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+                        .set.call(current, value);
+                    current.dispatchEvent(new Event('input', {bubbles: true}));
+                    current.dispatchEvent(new Event('change', {bubbles: true}));
+                    send();
+                }
+            };
+`);
+        return script;
+    }
+
     // Every script the view runs in a page, in one place: the collection is
     // written whole from this list while the view is built, and a list kept in
     // two places lost the scripts added to only one of them on the first page
@@ -2682,9 +2858,10 @@ Item {
     function userScriptList() {
         return [root.editedStateScript, root.keyboardNavigationScript,
                 root.externalProtocolOriginScript, root.documentPaintedScript,
-                root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
-                root.pagePaletteScript, root.pageScrollbarScript, root.pageScrollReportScript,
-                root.mediaSessionScript, root.cosmeticSurveyScript, root.proceduralFiltersScript];
+                root.userActivationScript, root.pressOriginScript, root.formHistoryScript,
+                root.controlAccentScript, root.pagePaletteScript, root.pageScrollbarScript,
+                root.pageScrollReportScript, root.mediaSessionScript, root.cosmeticSurveyScript,
+                root.proceduralFiltersScript];
     }
 
     property var externalProtocolOriginScript: {
@@ -3720,6 +3897,7 @@ Item {
                 // A press on the page being left says nothing about where a
                 // window the next page asks for should come from.
                 root.pressOrigin = Qt.rect(0, 0, 0, 0);
+                root.formField = null;
                 // The address being loaded, not the one still on show: a
                 // refusal the outgoing document earned belongs to it.
                 root.announcePage(loadRequest.url);
@@ -3948,6 +4126,32 @@ Item {
                     root.recordPressOrigin(JSON.parse(report.body));
                 } catch (error) {
                     console.warn("Could not read the press origin: " + error);
+                }
+            } else if (report.channel === "form_field") {
+                try {
+                    root.recordFormField(JSON.parse(report.body));
+                } catch (error) {
+                    root.formField = null;
+                }
+            } else if (report.channel === "form_submit") {
+                try {
+                    const reported = JSON.parse(report.body);
+                    const fields = [];
+                    for (const field of Array.isArray(reported) ? reported : [])
+                        fields.push({
+                                        "name": String(field.name),
+                                        "value": String(field.value)
+                                    });
+                    if (fields.length > 0)
+                        root.formSubmitted(fields);
+                } catch (error) {
+                    console.warn("Could not read the submitted form: " + error);
+                }
+            } else if (report.channel === "form_key") {
+                try {
+                    root.formKeyPressed(String(JSON.parse(report.body)));
+                } catch (error) {
+                    console.warn("Could not read the suggestion key: " + error);
                 }
             } else if (report.channel === "page_scroll") {
                 root.readPageScroll(report.body);
