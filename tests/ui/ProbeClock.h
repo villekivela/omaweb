@@ -16,8 +16,9 @@ namespace omaweb::test {
 //
 // It is also the frame timer: asked to watch a window, it brackets every
 // scene-graph frame from `beforeFrameBegin` to `afterFrameEnd` and keeps the
-// cost of each, which is what a frame-time probe reads rather than the
-// interval between frames, which the animation timer sets.
+// cost of each. It keeps when each frame ended too, so a probe of a movement
+// can read the interval between frames, which is where the interface thread
+// held up by the movement's own work shows.
 class ProbeClock final : public QObject {
     Q_OBJECT
 
@@ -44,7 +45,11 @@ public:
     // number held; the slowest frame is printed beside it so a failure says
     // whether the cost was even or one hitch. The GPU mean is what the frames
     // cost the GPU itself, which the CPU bracket does not include, and is
-    // zero unless a GPU drew them with timestamps on.
+    // zero unless a GPU drew them with timestamps on. `intervals`,
+    // `maxIntervalMilliseconds` and `p95IntervalMilliseconds` are the time
+    // from each frame's end to the next one's, the percentile by nearest rank.
+    // `frameEnds` lists when each frame ended on `milliseconds()`'s clock, so
+    // a probe can split the intervals by what was moving.
     Q_INVOKABLE QVariantMap frameReport();
 
 private:
@@ -52,6 +57,7 @@ private:
     QQuickWindow *m_watched = nullptr;
     qint64 m_frameStart = 0;
     std::vector<qint64> m_frameNanoseconds;
+    std::vector<qint64> m_frameEnds;
     std::vector<double> m_gpuMilliseconds;
 };
 
