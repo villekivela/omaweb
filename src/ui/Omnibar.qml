@@ -158,11 +158,12 @@ Item {
     // the page area and `min(page area - 32px, 720px)` wide, with the road's
     // horizon 50 px below its top edge as there, so opening it over a page
     // puts it where a new tab shows it. The rows grow down from the field and
-    // never move it.
+    // never move it. Rounded, because the middle of an odd page area is half a
+    // pixel, where the border and the text are drawn soft.
     readonly property real horizonBelowTop: 50
     readonly property real restWidth: Math.min(720, restArea.width - 32)
-    readonly property real restX: restArea.x + (restArea.width - restWidth) / 2
-    readonly property real restY: restArea.y + horizonY - horizonBelowTop
+    readonly property real restX: Math.round(restArea.x + (restArea.width - restWidth) / 2)
+    readonly property real restY: Math.round(restArea.y + horizonY - horizonBelowTop)
     // What the page area leaves under the field for the rows, keeping a
     // margin off its bottom edge.
     readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height - 2

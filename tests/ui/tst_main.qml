@@ -7691,6 +7691,36 @@ TestCase {
         window.closeGlance();
     }
 
+    // The Omnibar and the Shortcut sheet stand in the middle of the page area
+    // on whole pixels, whether the page area is odd or even across: on half a
+    // pixel their borders and text are drawn soft (#567).
+    function test_centredPanelsRestOnWholePixels() {
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const column = findChild(sheet, "shortcutSheetColumn");
+        const onWholePixels = function (item, name) {
+            const corner = item.mapToItem(null, 0, 0);
+            compare(corner.x, Math.round(corner.x), name + " rests between pixels across");
+            compare(corner.y, Math.round(corner.y), name + " rests between pixels down");
+        };
+        const width = window.sidebarWidth;
+        openPage("https://centred.example/");
+        for (const step of [0, 1]) {
+            window.sidebarWidth = window.sidebarMinimumWidth + 40 + step;
+            window.openOmnibar(false);
+            tryCompare(frame, "opacity", 1);
+            onWholePixels(frame, "the Omnibar");
+            window.closeOmnibar();
+            tryCompare(findChild(window.contentItem, "omnibar"), "visible", false);
+            window.requestShortcuts();
+            tryCompare(sheet, "opacity", 1);
+            onWholePixels(column, "the Shortcut sheet");
+            window.shortcutsOpen = false;
+            tryCompare(sheet, "visible", false);
+        }
+        window.sidebarWidth = width;
+    }
+
     // The Glance is the reader's to refuse, from Settings, and the refusal
     // survives a restart because it is a preference like the others there.
     function test_theGlanceIsRefusedFromSettings() {

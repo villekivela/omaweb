@@ -329,7 +329,9 @@ Rectangle {
 
         Column {
             id: sheet
-            x: Math.max(root.sideMargin, (sheetView.width - width) / 2)
+            objectName: "shortcutSheetColumn"
+            // On a whole pixel, so the text is not drawn soft.
+            x: Math.max(root.sideMargin, Math.round((sheetView.width - width) / 2))
             y: root.topInset
             width: root.contentWidth
             spacing: root.headingGap
