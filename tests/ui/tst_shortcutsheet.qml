@@ -489,4 +489,48 @@ TestCase {
         verify(sheet.keyColumnWidth < wide);
         verify(sheet.keyColumnWidth > 0);
     }
+
+    // The bindings each drawn row of caps holds. A Flickable's content item
+    // is also among its children, so `descendants` meets each row twice.
+    function drawnKeys(sheet) {
+        return descendants(sheet, "keycaps").filter(function (row, index, rows) {
+            return row.keys.length > 0 && rows.indexOf(row) === index;
+        }).map(function (row) {
+            return row.keys;
+        });
+    }
+
+    // A closed sheet lays nothing out: the sidebar sliding or a Space switch
+    // changes what it would show, and the chrome moving at that moment must
+    // not wait on it (#594). Opening it shows the keymap and the width it
+    // opens at all the same.
+    function test_aClosedSheetLaysOutOnlyWhenItOpens() {
+        const sheet = makeSheet();
+        const columns = sheet.layoutColumns;
+        const rows = descendants(sheet, "keycaps");
+        verify(sheet.columnCount > 1);
+        verify(drawnKeys(sheet).indexOf(testCase.longestKeys) !== -1);
+        sheet.open = false;
+
+        const shortened = ({});
+        for (const binding in sheet.bindings) {
+            if (binding !== testCase.longestKeys)
+                shortened[binding] = sheet.bindings[binding];
+        }
+        sheet.bindings = shortened;
+        sheet.width = testCase.narrowViewport;
+        verify(sheet.layoutColumns === columns, "the closed sheet packed its columns again");
+        const kept = descendants(sheet, "keycaps");
+        compare(kept.length, rows.length);
+        for (let index = 0; index < rows.length; ++index)
+            verify(kept[index] === rows[index], "the closed sheet built its rows again");
+
+        sheet.open = true;
+        compare(sheet.columnCount, 1);
+        compare(sheet.layoutColumns.length, 1);
+        verify(sheet.contentWidth <= sheet.width);
+        const keys = drawnKeys(sheet);
+        compare(keys.length, Object.keys(shortened).length);
+        verify(keys.indexOf(testCase.longestKeys) === -1);
+    }
 }

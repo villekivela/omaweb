@@ -415,11 +415,7 @@ TestCase {
             return sidebar.x;
         });
         engine.motionReview = false;
-        probeIntervals("sidebar-frame-interval", report, {
-                           "guard": 150,
-                           "reason": "the closed Shortcut sheet lays out its columns again when "
-                                     + "the page area settles at its new width"
-                       });
+        probeIntervals("sidebar-frame-interval", report);
     }
 
     // A Space switch between two Spaces with a moving page each: the list
@@ -448,11 +444,7 @@ TestCase {
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(spaceIds[0], "Sliding left"));
         verify(browser.deleteSpace(spaceIds[1], "Sliding right"));
-        probeIntervals("space-switch-frame-interval", report, {
-                           "guard": 500,
-                           "reason": "showing the arriving Space's page rebuilds the closed "
-                                     + "Shortcut sheet's sections before the slide's first frame"
-                       });
+        probeIntervals("space-switch-frame-interval", report);
     }
 
     // The Omnibar opening over a page in a Space of a hundred tabs, the

@@ -85,6 +85,32 @@ Rectangle {
         return list;
     }
 
+    // What the sheet lays out, and the width it lays it out at: `sections`
+    // and `width` as they were when the sheet last opened, or since while it
+    // stays open. A closed sheet that followed them would measure, pack and
+    // build its columns whenever the page area settled at a new width or a
+    // Space switch changed what the registry offers, and the sidebar or the
+    // Space sliding at that moment would wait on it (#594). Opening takes
+    // both before the sheet's first frame. Closing keeps them, so the sheet
+    // drops away as it was drawn.
+    property var laidOutSections: []
+    property real layoutWidth: 0
+
+    function takeLayout() {
+        if (!root.open)
+            return;
+        // `sections` is a new list whenever anything it reads changes, often
+        // with the same entries, and a new list rebuilds every row, so an
+        // unchanged one is kept.
+        if (JSON.stringify(root.sections) !== JSON.stringify(root.laidOutSections))
+            root.laidOutSections = root.sections;
+        root.layoutWidth = root.width;
+    }
+
+    onSectionsChanged: takeLayout()
+    onWidthChanged: takeLayout()
+    Component.onCompleted: takeLayout()
+
     function groupLabel(name) {
         switch (name) {
         case "navigation":
@@ -155,8 +181,8 @@ Rectangle {
     // without one.
     function widestOf(measure, field) {
         let widest = 0;
-        for (let group = 0; group < root.sections.length; ++group) {
-            const entries = root.sections[group].entries;
+        for (let group = 0; group < root.laidOutSections.length; ++group) {
+            const entries = root.laidOutSections[group].entries;
             for (let index = 0; index < entries.length; ++index)
                 widest = Math.max(widest, measure(entries[index][field]));
         }
@@ -188,19 +214,19 @@ Rectangle {
     // cannot run away on a wide display, and there is nothing left to guess.
     readonly property int minimumColumnWidth: root.keyColumnWidth + root.keyGap
                                               + root.titleColumnWidth
-    readonly property int availableWidth: Math.max(0, root.width - root.sideMargin * 2)
+    readonly property int availableWidth: Math.max(0, root.layoutWidth - root.sideMargin * 2)
 
     // How many of those fit, never more than there are groups to put in them.
     // There is no threshold constant: the answer is a function of the type, so
     // it stays right when the theme changes its size, and it reaches one column
     // in a narrow window by the same arithmetic rather than by a special case.
     readonly property int columnCount: {
-        if (root.sections.length === 0)
+        if (root.laidOutSections.length === 0)
             return 1;
         const fits = Math.floor((root.availableWidth + root.columnGap) / Math.max(1,
                                                                                   root.minimumColumnWidth
                                                                                   + root.columnGap));
-        return Math.max(1, Math.min(root.sections.length, fits));
+        return Math.max(1, Math.min(root.laidOutSections.length, fits));
     }
 
     readonly property int columnWidth: Math.max(1, Math.min(root.minimumColumnWidth,
@@ -286,7 +312,7 @@ Rectangle {
         return packed;
     }
 
-    readonly property var layoutColumns: root.packColumns(root.sections, root.columnCount)
+    readonly property var layoutColumns: root.packColumns(root.laidOutSections, root.columnCount)
 
     visible: open
     // The sheet can be drawn after it closes, for the length of its drop, and
@@ -296,8 +322,12 @@ Rectangle {
     color: "transparent"
     focus: open
 
-    onOpenChanged: if (open)
-                       forceActiveFocus()
+    onOpenChanged: {
+        if (!open)
+            return;
+        takeLayout();
+        forceActiveFocus();
+    }
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
