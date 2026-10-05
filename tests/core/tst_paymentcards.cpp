@@ -65,6 +65,7 @@ private slots:
     void namesWhyTheKeyringGaveNoCards_data();
     void namesWhyTheKeyringGaveNoCards();
     void addingACardAsksALockedKeyringAgain();
+    void aCardALockedKeyringRefusedIsNotListed();
     void clearingWhileTheKeyringIsReadKeepsNoCard();
 };
 
@@ -403,6 +404,28 @@ void PaymentCardsTest::addingACardAsksALockedKeyringAgain()
     QCOMPARE(shownCards.at(0).toMap().value(QStringLiteral("id")), QStringLiteral("saved"));
     QCOMPARE(shownCards.at(1).toMap().value(QStringLiteral("id")), id);
     QCOMPARE(keyring->size(), 2);
+}
+
+// A card saved while the reader dismisses the desktop's prompt again is not
+// listed as if it were kept: the keyring is still locked, and holds nothing new.
+void PaymentCardsTest::aCardALockedKeyringRefusedIsNotListed()
+{
+    QTemporaryDir root;
+    auto keyring = std::make_shared<MemoryPaymentCardKeyring::Contents>();
+    keyring->locked = true;
+    keyring->dismisses = true;
+    PaymentCards cards(std::make_unique<MemoryPaymentCardKeyring>(keyring));
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.setPaymentCards(&cards);
+    controller.paymentCards();
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("locked"));
+
+    QVERIFY(!controller.savePaymentCard(visa()).isEmpty());
+    QCOMPARE(controller.paymentCardsState(), QStringLiteral("reading"));
+    QVERIFY(controller.paymentCards().isEmpty());
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("locked"));
+    QVERIFY(controller.paymentCards().isEmpty());
+    QCOMPARE(keyring->size(), 0);
 }
 
 // Clearing the cards while the keyring is still being read does not let the

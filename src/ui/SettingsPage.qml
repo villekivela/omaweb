@@ -469,6 +469,11 @@ Rectangle {
     property string editingCardId: ""
     property string editingCardLast4: ""
     property bool cardRefused: false
+    // A card saved into a locked keyring, waiting in its fields until the
+    // reader answers the desktop's prompt to unlock it, and whether the keyring
+    // stayed locked and the card was not kept.
+    property string unlockingCardId: ""
+    property bool cardNotKept: false
 
     function refreshCards() {
         root.savedCards = root.browser && root.section === root.cardsSection
@@ -482,6 +487,7 @@ Rectangle {
         ignoreUnknownSignals: true
         function onPaymentCardsChanged() {
             root.refreshCards();
+            root.settleUnlockingCard();
         }
     }
 
@@ -557,10 +563,28 @@ Rectangle {
         cardExpiry.text = card ? root.cardExpiry(card) : "";
         cardNickname.text = card ? card.nickname : "";
         root.cardRefused = false;
+        root.cardNotKept = false;
+        root.unlockingCardId = "";
         root.cardEditing = true;
     }
 
+    function settleUnlockingCard() {
+        const state = root.browser ? root.browser.paymentCardsState : "unavailable";
+        if (root.unlockingCardId.length === 0 || state === "unread" || state === "reading")
+            return;
+        const kept = root.savedCards.some(card => card.id === root.unlockingCardId);
+        root.unlockingCardId = "";
+        if (!kept) {
+            root.cardNotKept = true;
+            return;
+        }
+        cardNumber.text = "";
+        root.cardEditing = false;
+    }
+
     function saveCard() {
+        const unlocking = root.browser.paymentCardsState === "locked";
+        root.cardNotKept = false;
         const saved = root.browser.savePaymentCard({
                                                        "id": root.editingCardId,
                                                        "number": cardNumber.text,
@@ -570,6 +594,11 @@ Rectangle {
                                                    });
         if (saved.length === 0) {
             root.cardRefused = true;
+            return;
+        }
+        root.cardRefused = false;
+        if (unlocking) {
+            root.unlockingCardId = saved;
             return;
         }
         cardNumber.text = "";
@@ -2614,6 +2643,18 @@ Rectangle {
                             wrapMode: Text.Wrap
                         }
 
+                        Text {
+                            objectName: "cardNotKept"
+                            width: pane.width
+                            visible: root.cardNotKept
+                            text: qsTr(
+                                      "The keyring stayed locked, so the card was not saved. Saving it again asks the desktop to unlock it.")
+                            color: root.colors.urgent
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.bodySmall
+                            wrapMode: Text.Wrap
+                        }
+
                         Row {
                             spacing: Style.spacing.lg
 
@@ -2621,8 +2662,10 @@ Rectangle {
                                 objectName: "saveCardButton"
                                 colors: root.colors
                                 label: qsTr("Save")
-                                enabled: cardNumber.text.trim().length > 0
-                                         || root.editingCardId.length > 0
+                                enabled: root.unlockingCardId.length === 0 && (cardNumber.text.trim(
+                                                                                   ).length > 0
+                                                                               || root.editingCardId.length
+                                                                               > 0)
                                 onClicked: root.saveCard()
                             }
 
@@ -2632,6 +2675,8 @@ Rectangle {
                                 label: qsTr("Cancel")
                                 onClicked: {
                                     cardNumber.text = "";
+                                    root.unlockingCardId = "";
+                                    root.cardNotKept = false;
                                     root.cardEditing = false;
                                 }
                             }

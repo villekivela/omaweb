@@ -39,6 +39,7 @@
 #include "WindowManager.h"
 
 #include <algorithm>
+#include <chrono>
 #include <QJSValue>
 #include <QQmlComponent>
 #include <QAbstractItemModel>
@@ -60,6 +61,7 @@
 #include <QQmlContext>
 #include <QTemporaryDir>
 #include <QQuickWindow>
+#include <QThread>
 #include <QTimer>
 
 #include <cstdio>
@@ -365,6 +367,32 @@ void seedAgentActivity(omaweb::AgentActivityLog &log)
     }
 }
 
+// A keyring that takes its time, as one does while the desktop asks the reader
+// to unlock it, so a capture finds Settings still reading. The lab waits out
+// the read when it closes.
+class SlowKeyring final : public omaweb::PaymentCardKeyring {
+public:
+    explicit SlowKeyring(std::unique_ptr<omaweb::PaymentCardKeyring> keyring)
+        : m_keyring(std::move(keyring))
+    {
+    }
+
+    bool available() override { return m_keyring->available(); }
+    std::expected<QList<omaweb::KeyringItem>, omaweb::KeyringFailure> items() override
+    {
+        QThread::sleep(std::chrono::seconds(20));
+        return m_keyring->items();
+    }
+    bool store(const QString &id, const QByteArray &secret) override
+    {
+        return m_keyring->store(id, secret);
+    }
+    bool remove(const QString &id) override { return m_keyring->remove(id); }
+
+private:
+    std::unique_ptr<omaweb::PaymentCardKeyring> m_keyring;
+};
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -451,7 +479,24 @@ int main(int argc, char *argv[])
                     R"({"number":"5555555555554444","name":"Meri Laine","expiryMonth":11,"expiryYear":2030,"nickname":"","added":2})")},
         };
     }
-    omaweb::PaymentCards paymentCards(std::make_unique<omaweb::MemoryPaymentCardKeyring>(keyring));
+    // `--keyring <state>` has the keyring stand where Settings is to be
+    // reviewed: `unavailable`, `unreachable`, `locked`, `failed`, or `reading`,
+    // which answers after 20 seconds.
+    const auto keyringIndex = arguments.indexOf(QStringLiteral("--keyring"));
+    const auto keyringState = keyringIndex >= 0 ? arguments.value(keyringIndex + 1) : QString();
+    keyring->available = keyringState != QLatin1String("unavailable");
+    keyring->locked = keyringState == QLatin1String("locked");
+    if (keyringState == QLatin1String("unreachable")) {
+        keyring->failure = omaweb::KeyringFailure::Unreachable;
+    } else if (keyringState == QLatin1String("failed")) {
+        keyring->failure = omaweb::KeyringFailure::Failed;
+    }
+    std::unique_ptr<omaweb::PaymentCardKeyring> labKeyring
+        = std::make_unique<omaweb::MemoryPaymentCardKeyring>(keyring);
+    if (keyringState == QLatin1String("reading")) {
+        labKeyring = std::make_unique<SlowKeyring>(std::move(labKeyring));
+    }
+    omaweb::PaymentCards paymentCards(std::move(labKeyring));
     browser.setPaymentCards(&paymentCards);
     // `--sample-addresses` saves two addresses for one reader, so the Settings
     // section and the suggestion list have rows to tell apart.

@@ -67,8 +67,10 @@ public:
         QList<KeyringItem> items;
         bool available = true;
         // A keyring the reader did not unlock gives no cards up, until saving a
-        // card asks again and the reader unlocks it.
+        // card asks again and the reader unlocks it, unless the reader
+        // dismisses every prompt.
         bool locked = false;
+        bool dismisses = false;
         // A keyring that did not answer, or answered with an error.
         std::optional<KeyringFailure> failure;
         // How many times the cards were read, which is when a real keyring

@@ -3511,6 +3511,10 @@ Päivitykset osoitteesta %3</translation>
         <translation>Tämä ei ole kortin numero, tai voimassaolo ei ole kuukausi ja vuosi.</translation>
     </message>
     <message>
+        <source>The keyring stayed locked, so the card was not saved. Saving it again asks the desktop to unlock it.</source>
+        <translation>Avainnippu pysyi lukittuna, joten korttia ei tallennettu. Uusi tallennus pyytää työpöytää avaamaan sen.</translation>
+    </message>
+    <message>
         <source>New Space</source>
         <translation>Uusi Tila</translation>
     </message>

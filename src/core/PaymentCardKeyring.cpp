@@ -65,7 +65,10 @@ bool MemoryPaymentCardKeyring::store(const QString &id, const QByteArray &secret
         return false;
     }
     // Saving into a locked keyring asks the reader to unlock it, as a desktop's
-    // does, and the reader here always does.
+    // does.
+    if (m_contents->locked && m_contents->dismisses) {
+        return false;
+    }
     m_contents->locked = false;
     auto &items = m_contents->items;
     const auto found = std::find_if(

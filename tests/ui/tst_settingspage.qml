@@ -190,8 +190,13 @@ TestCase {
         Component.onCompleted: resetProjects()
 
         property string paymentCardsState: "ready"
+        property var cardsFixture: []
+        signal paymentCardsChanged
         function paymentCards() {
-            return [];
+            return cardsFixture;
+        }
+        function savePaymentCard(card) {
+            return "typed-card";
         }
         property int readCardsAgainCount: 0
         function readPaymentCardsAgain() {
@@ -344,6 +349,7 @@ TestCase {
     // test's failure cannot leave the next one reading a shell it did not set.
     function cleanup() {
         browserStub.paymentCardsState = "ready";
+        browserStub.cardsFixture = [];
         browserStub.readCardsAgainCount = 0;
         settingsClosedSpy.target = null;
         settingsClosedSpy.clear();
@@ -790,6 +796,61 @@ TestCase {
             again.clicked();
             compare(browserStub.readCardsAgainCount, 1);
         }
+    }
+
+    // A card saved into a locked keyring waits in its fields while the desktop
+    // asks the reader to unlock it. Unlocked, the card is listed and the fields
+    // close; left locked, the card stays typed in them and the section says it
+    // was not saved, rather than closing on a card that went nowhere.
+    function test_aCardSavedIntoALockedKeyringWaitsForTheReader_data() {
+        return [
+                    {
+                        "tag": "unlocked",
+                        "answer": "ready",
+                        "kept": true
+                    },
+                    {
+                        "tag": "left locked",
+                        "answer": "locked",
+                        "kept": false
+                    }
+                ];
+    }
+
+    function test_aCardSavedIntoALockedKeyringWaitsForTheReader(data) {
+        browserStub.paymentCardsState = "locked";
+        const page = makePage();
+        page.browser = browserStub;
+        page.section = page.sections.indexOf("payment cards");
+        findChild(page, "addCardButton").clicked();
+        findChild(page, "cardNumber").text = "4242 4242 4242 4242";
+        findChild(page, "cardExpiry").text = "08/29";
+        findChild(page, "saveCardButton").clicked();
+
+        browserStub.paymentCardsState = "reading";
+        browserStub.paymentCardsChanged();
+        verify(findChild(page, "cardNumber").visible);
+        compare(findChild(page, "noCards").title, "Reading the keyring");
+
+        browserStub.paymentCardsState = data.answer;
+        if (data.kept)
+            browserStub.cardsFixture = [
+                        {
+                            "id": "typed-card",
+                            "last4": "4242",
+                            "brand": "Visa",
+                            "name": "",
+                            "expiryMonth": 8,
+                            "expiryYear": 2029,
+                            "nickname": ""
+                        }
+                    ];
+        browserStub.paymentCardsChanged();
+        compare(findChild(page, "cardNumber").visible, !data.kept);
+        compare(findChild(page, "cardNotKept").visible, !data.kept);
+        compare(findChild(page, "cardList").count, data.kept ? 1 : 0);
+        if (!data.kept)
+            compare(findChild(page, "cardNumber").text, "4242 4242 4242 4242");
     }
 
     function test_theAgentsSectionListsGrantsToRevoke() {
