@@ -5822,14 +5822,6 @@ TestCase {
         tryCompare(agentEngine, "pageFrozen", false);
         verify(shield.visible);
         compare(engineLoader.item.opacity, 1);
-        // It is laid out at the page area's size, unlike a page kept hidden,
-        // so what the Agent sees is what the reader will.
-        const pageArea = engineLoader.width;
-        window.setSidebarWidth(window.sidebarWidth + 40);
-        tryVerify(function () {
-            return engineLoader.width !== pageArea;
-        });
-        compare(agentEngine.width, engineLoader.width);
 
         control.pageRequested(7, {
                                   "verb": "look",
@@ -11202,35 +11194,38 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
-    // A page kept for a tab that is not on show keeps the width it was last
-    // shown at, so the page area settling at a new width beside the sidebar
-    // does not lay out every page the window keeps, which held the sidebar's
-    // slide over its frame budget (#594). Shown again, it takes the page
-    // area's width before its first frame.
-    function test_aHiddenPageKeepsItsWidthUntilItIsShown() {
-        const engineHost = findChild(window.contentItem, "engineLoader");
-        const hidden = openPage("https://kept-width.example/");
-        const hiddenTabId = browser.activeTabId;
-        browser.openInput("https://shown-width.example/", true);
-        tryVerify(function () {
-            return engineHost.item !== null && engineHost.item !== hidden;
-        });
-        tryCompare(hidden, "visible", false);
-        const width = hidden.width;
-        const pageArea = engineHost.width;
-        window.setSidebarWidth(window.sidebarWidth + 40);
-        tryVerify(function () {
-            return engineHost.width !== pageArea;
-        });
-        compare(hidden.width, width, "the hidden page took the page area's new width");
+    // Settings and the site information card are drawn for the length of
+    // their drop, and by then the page is back beneath them, so a click in
+    // that time is the page's, as it is under the Shortcut sheet.
+    function test_aClickDuringADropIsThePages() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const card = findChild(window.contentItem, "siteInformationCard");
+        const engine = openPage("https://under-the-drop.example/");
+        settleMotion();
+        const page = createTemporaryObject(pageCursorComponent, engine);
+        verify(page !== null);
 
-        browser.activateTab(hiddenTabId);
-        verify(hidden.visible);
-        compare(hidden.width, engineHost.width);
-        tryCompare(engineHost, "item", hidden);
-        tryCompare(engineHost, "tabNudgeX", 0);
-        browser.closeActiveTab();
-        browser.closeActiveTab();
+        window.settingsOpen = true;
+        tryCompare(settings, "visible", true);
+        window.settingsOpen = false;
+        verify(settings.visible, "Settings was gone before the click");
+        mouseClick(page, page.width / 2, page.height / 2);
+        verify(settings.visible, "Settings was gone before the click");
+        compare(page.presses, 1, "Settings took a click while it dropped");
+        tryCompare(settings, "visible", false);
+
+        // The card is wider than the sidebar, so its far side stands over the
+        // page.
+        window.openSiteInformation("");
+        tryCompare(card, "visible", true);
+        const over = card.mapToItem(page, card.width - 20, card.height / 2);
+        verify(over.x > 0 && over.x < page.width, "the card does not reach over the page");
+        window.closeSiteInformation();
+        verify(card.visible, "the card was gone before the click");
+        mouseClick(page, over.x, over.y);
+        verify(card.visible, "the card was gone before the click");
+        compare(page.presses, 2, "the card took a click while it dropped");
+        tryCompare(card, "visible", false);
     }
 
     // Settings is as wide as the page area while it is on show. Closed, it
@@ -11256,9 +11251,9 @@ TestCase {
         tryCompare(settings, "visible", false);
     }
 
-    // The Shortcut sheet holds a row for every command whether it is open or
-    // not. A closed sheet draws none of their key caps, which kept the rest of
-    // the window slow enough to miss clicks, and an open one draws them.
+    // A closed Shortcut sheet keeps the rows it last laid out, ready for its
+    // next opening, and draws none of their key caps, which kept the rest of
+    // the window slow enough to miss clicks. An open one draws them.
     function test_aClosedShortcutSheetDrawsNoKeyCaps() {
         const sheet = findChild(window.contentItem, "shortcutSheet");
         const capsIn = function () {

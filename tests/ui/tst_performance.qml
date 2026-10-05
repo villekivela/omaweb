@@ -418,6 +418,86 @@ TestCase {
         probeIntervals("sidebar-frame-interval", report);
     }
 
+    // One movement watched on its own, from the frame before the input to
+    // the frame it rests in, for a surface whose every movement is a
+    // different one. Returns the slowest interval between frames. The frames
+    // after it rests are not watched: over the Start page they come at the
+    // road's thirty a second, which is no measure of the movement.
+    function watchOneMovement(act, rested) {
+        const reducedMotion = SystemMotion.reduced;
+        const pointer = InputOrigin.pointer;
+        let watching = false;
+        try {
+            SystemMotion.reduced = false;
+            InputOrigin.pointer = true;
+            probeClock.watchFrames(window);
+            watching = true;
+            probeClock.waitForFrame(window, 100);
+            const from = probeClock.milliseconds();
+            act();
+            waitForRest(rested, 0);
+            const span = {
+                "from": from,
+                "to": probeClock.milliseconds()
+            };
+            const frames = probeClock.frameReport();
+            watching = false;
+            return slowestIntervalIn(frames.frameEnds, span);
+        } finally {
+            if (watching)
+                probeClock.frameReport();
+            SystemMotion.reduced = reducedMotion;
+            InputOrigin.pointer = pointer;
+        }
+    }
+
+    // The Shortcut sheet opening, which takes its list and its width as it
+    // opens (#594): the window's first opening, then one over the Start page,
+    // and one over a page after it, whose commands are not the Start page's.
+    // Each is a different movement, so each is held to the ceiling on its
+    // own rather than as one in ten.
+    function test_theShortcutSheetOpensInsideTheFrameBudget() {
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const startPage = findChild(window.contentItem, "startPage");
+        const ceiling = frameIntervalCeiling();
+        const opened = function () {
+            return sheet.visible && sheet.opacity === 1;
+        };
+        const openSheet = function (name) {
+            const slowest = watchOneMovement(function () {
+                window.shortcutsOpen = true;
+            }, opened);
+            window.shortcutsOpen = false;
+            tryCompare(sheet, "visible", false);
+            console.info(name + ": slowest interval " + slowest.toFixed(1) + " ms");
+            return slowest;
+        };
+
+        const engine = openAnimatedPage("https://sheet-motion.example/");
+        const pageTabId = browser.activeTabId;
+        const first = openSheet("shortcut-sheet-first-opening");
+        engine.motionReview = false;
+
+        browser.openInput("about:blank", true);
+        tryVerify(function () {
+            return startPage.visible && startPage.open;
+        });
+        const overStartPage = openSheet("shortcut-sheet-opening-over-the-start-page");
+        browser.closeActiveTab();
+
+        browser.activateTab(pageTabId);
+        engine.motionReview = true;
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        const overPage = openSheet("shortcut-sheet-opening-over-a-page");
+        engine.motionReview = false;
+
+        probe("shortcut-sheet-first-opening", first, "ms", ceiling);
+        probe("shortcut-sheet-opening-over-the-start-page", overStartPage, "ms", ceiling);
+        probe("shortcut-sheet-opening-over-a-page", overPage, "ms", ceiling);
+    }
+
     // A Space switch between two Spaces with a moving page each: the list
     // slides in over a picture of the one leaving, and the page area with it.
     function test_aSpaceSwitchSlidesInsideTheFrameBudget() {

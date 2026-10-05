@@ -44,16 +44,21 @@ Rectangle {
     readonly property var privateExclusions: ["pin-tab", "move-tab", "next-space", "select-space",
         "new-space"]
 
+    // Whether the list is worked out: while the sheet is open, and once at
+    // the start, so the first opening finds its rows built.
+    readonly property bool listing: root.open || !root.primed
+    property bool primed: false
+
     // Worked out again whenever the keymap or what the registry offers
-    // changes while the sheet is open: reading `browserBindings` here is what
-    // makes an edited keyboard configuration reach the sheet, since the keys
-    // themselves come from a function call QML cannot watch. A closed sheet
-    // lists nothing and depends on `open` alone. Asking the registry about
-    // every command costs a Space switch about a frame, because the
+    // changes while the sheet is listing: reading `browserBindings` here is
+    // what makes an edited keyboard configuration reach the sheet, since the
+    // keys themselves come from a function call QML cannot watch. Otherwise
+    // it lists nothing and depends on `listing` alone. Asking the registry
+    // about every command costs a Space switch about a frame, because the
     // registry's answers change with the page on show (#594); opening works
     // the list out again.
     readonly property var sections: {
-        if (!root.open)
+        if (!root.listing)
             return [];
         // Read for the dependency alone: the keys come from keysFor(), and a
         // function call is not something QML can watch for changes.
@@ -93,18 +98,18 @@ Rectangle {
     }
 
     // What the sheet lays out, and the width it lays it out at: `sections`
-    // and `width` as they were when the sheet last opened, or since while it
-    // stays open. A closed sheet that followed `width` would measure, pack
-    // and build its columns whenever the page area settled at a new width,
-    // and the sidebar sliding at that moment would wait on it (#594).
-    // Opening works `sections` out again, which takes both before the
-    // sheet's first frame. Closing keeps them, so the sheet drops away as it
-    // was drawn.
+    // and `width` as they were when the sheet was last listing. A closed
+    // sheet that followed `width` would measure, pack and build its columns
+    // whenever the page area settled at a new width, and the sidebar sliding
+    // at that moment would wait on it (#594). Opening works `sections` out
+    // again, which takes both before the sheet's first frame. Closing keeps
+    // them, so the sheet drops away as it was drawn and opens again on rows
+    // already built.
     property var laidOutSections: []
     property real layoutWidth: 0
 
     function takeLayout() {
-        if (!root.open)
+        if (!root.listing)
             return;
         // `sections` is a new list whenever anything it reads changes, often
         // with the same entries, and a new list rebuilds every row, so an
@@ -112,6 +117,10 @@ Rectangle {
         if (JSON.stringify(root.sections) !== JSON.stringify(root.laidOutSections))
             root.laidOutSections = root.sections;
         root.layoutWidth = root.width;
+        // A keymap or a registry that fills in after the sheet is made is
+        // still laid out before the sheet stops listing.
+        if (root.sections.length > 0)
+            root.primed = true;
     }
 
     onSectionsChanged: takeLayout()
