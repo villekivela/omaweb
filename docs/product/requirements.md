@@ -244,6 +244,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least
   half the window; `Primary+Shift+B` returns it to the default. It survives a restart. A Private
   window neither reads nor records it.
+- A drag on the sidebar's navigation strip or on the outline's empty space below and around its rows
+  moves the window. A drag on a row still reorders it.
 - `Primary+E` moves the keyboard into the outline, landing on the row the reader is already reading,
   and `Escape` or `Primary+Shift+E` hands it back to the page. Focusing a hidden outline shows it
   first.
