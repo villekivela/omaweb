@@ -4496,7 +4496,13 @@ void QtEngineContractTest::qtFillsACardOnlyIntoTheFrameItsFieldIsIn()
         <script>
             const ready = new Set();
             let reads = 0;
+            let leaked = false;
             addEventListener('message', event => {
+                if (event.data && event.data.omawebFrame !== undefined) leaked = true;
+                if (event.data === 'leaked?') {
+                    document.title = leaked ? 'leaked' : 'not leaked';
+                    return;
+                }
                 if (event.data && event.data.ready) ready.add(event.data.who);
                 if (event.data && event.data.values)
                     document.title = JSON.stringify(
@@ -4561,6 +4567,12 @@ void QtEngineContractTest::qtFillsACardOnlyIntoTheFrameItsFieldIsIn()
     QCOMPARE(fills.size(), 1);
     QCOMPARE(fills.at(0).toMap().value(QStringLiteral("origin")).toString(),
         QStringLiteral("http://localhost:%1").arg(payment.serverPort()));
+
+    // Where a frame stands is passed up the frame tree by message, and the
+    // page around it never hears one.
+    form.run(QStringLiteral("postMessage('leaked?', '*');"));
+    QTRY_VERIFY(form.adapter->property("pageTitle").toString().endsWith(QStringLiteral("leaked")));
+    QCOMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("not leaked"));
 }
 
 // A card the reader typed and submitted is handed to the shell when the shell
