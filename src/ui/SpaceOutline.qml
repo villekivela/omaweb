@@ -21,7 +21,12 @@ Rectangle {
     property bool collapsed: false
     property bool floating: false
     property var blocker: null
-    property bool statusOpen: false
+    // Whether Site information is open, which the address is drawn focused
+    // for, and the verdict it gives, which the lock speaks.
+    property bool siteInformationOpen: false
+    property string siteInformationVerdict: ""
+    // The address, which Site information floats from.
+    readonly property Item addressItem: addressButton
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool canGoBack: false
@@ -322,32 +327,10 @@ Rectangle {
     // outline never works this out from the address: an address is what was
     // asked for, and a lock drawn from one is a claim nothing checked.
     property string connectionState: "internal"
-    property string lookupFailedBy: ""
-    property var certificateChain: []
-    property bool pageCertificatesAvailable: false
-    property bool upgradedByHttpsOnly: false
-    // What the engine can and cannot answer for. A gap is said out loud rather
-    // than drawn as a reassuring blank.
-    property bool certificateDecisionsAvailable: false
-    property bool thirdPartyCookieControlAvailable: false
-    property bool siteDataOnDisk: false
-    property bool insecureContentBlocked: true
-    // The engine's third-party filter, which is the only thing that knows
-    // which embedded origins a page has actually had refused.
-    property var cookiePolicy: null
-    property var siteDataEntries: []
-    property var retainedDataEntries: []
-    property int siteDataGeneration: 0
     readonly property bool secure: root.connectionState === "secure"
     readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl)
                                   === "about:blank"
-    // The site the panel is headed by, as the window's dialogs name it, and the
-    // third parties it had refused. The panel is the one place that asks the
-    // engine's filter, so the dialog reads the answer from here rather than
-    // asking again for itself.
-    readonly property string siteOrigin: sitePanel.originLabel
-    readonly property var refusedThirdParties: sitePanel.refusedThirdParties
 
     signal addressRequested
     signal downloadsRequested
@@ -361,9 +344,11 @@ Rectangle {
     }
     signal extensionRequested(rect origin)
     signal releaseNotesRequested(url notes)
-    // What the reader asked Site information for, on its way to the window's
-    // own dialog. The outline states; the window asks.
-    signal siteActionRequested(string action)
+    // The lock and the shield ask the window for Site information, at its top
+    // or at one detail, and a click on the outline while it is open puts it
+    // away.
+    signal siteInformationRequested(string detail)
+    signal siteInformationDismissed
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
     signal tabMuteToggled(string tabId)
@@ -750,20 +735,8 @@ Rectangle {
     // Key events climb from the focused row to here, so one handler covers the
     // whole outline: Escape is the way back to the page.
     Keys.onEscapePressed: function (event) {
-        if (root.statusOpen) {
-            root.statusOpen = false;
-            event.accepted = true;
-            return;
-        }
         root.pageFocusRequested();
         event.accepted = true;
-    }
-
-    Shortcut {
-        sequence: "Esc"
-        enabled: root.statusOpen
-        context: Qt.WindowShortcut
-        onActivated: root.statusOpen = false
     }
 
     color: floating ? "transparent" : colors.sidebar
@@ -950,7 +923,7 @@ Rectangle {
             id: addressButton
             objectName: "addressButton"
             property string accessibleName: qsTr("Search or enter address")
-            readonly property bool focused: root.statusOpen || addressButton.activeFocus
+            readonly property bool focused: root.siteInformationOpen || addressButton.activeFocus
             width: parent.width
             height: 34
             radius: 2
@@ -998,15 +971,17 @@ Rectangle {
                 color: root.certificateError ? root.colors.urgent : root.colors.mutedText
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
-                Accessible.role: Accessible.StaticText
-                Accessible.name: qsTr("Site information: %1").arg(sitePanel.connectionSentence)
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Site information: %1").arg(root.siteInformationVerdict)
+                Accessible.onPressAction: root.siteInformationRequested("")
 
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -5
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.statusOpen = !root.statusOpen
+                    onClicked: root.siteInformationOpen ? root.siteInformationDismissed() :
+                                                          root.siteInformationRequested("")
                 }
             }
 
@@ -1048,6 +1023,20 @@ Rectangle {
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                 }
+
+                Accessible.role: Accessible.Button
+                Accessible.name: root.refusals.sentence
+                Accessible.onPressAction: root.siteInformationRequested("blocked")
+            }
+
+            // The shield opens Site information straight at what it counts.
+            MouseArea {
+                anchors.fill: blockedCount
+                anchors.margins: -5
+                visible: blockedCount.visible
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.siteInformationRequested("blocked")
             }
 
             MouseArea {
@@ -1705,53 +1694,12 @@ Rectangle {
         }
     }
 
+    // Site information is the window's: a card wider than the outline, over
+    // the page edge. A click on the outline while it is open puts it away.
     MouseArea {
         anchors.fill: parent
-        visible: root.statusOpen
+        visible: root.siteInformationOpen
         z: 4
-        onClicked: root.statusOpen = false
-    }
-
-    SiteInformationPanel {
-        id: sitePanel
-        objectName: "siteInformationPanel"
-        anchors.left: parent.left
-        anchors.leftMargin: 16
-        y: outline.y + addressButton.y + addressButton.height + 8
-        width: Math.min(320, Math.max(200, root.width - 32))
-        z: 5
-        // Unfolds from the address it reports on, and folds back into it.
-        transform: SheetLift {
-            id: siteLift
-            shown: sitePanel.open
-            ease: root.easeSpaces
-            distance: -8
-        }
-        opacity: siteLift.progress
-        visible: siteLift.showing
-        colors: root.colors
-        browser: root.browser
-        cookiePolicy: root.cookiePolicy
-        activeUrl: root.activeUrl
-        blank: root.blank
-        privateWindow: root.privateWindow
-        connectionState: root.connectionState
-        lookupFailedBy: root.lookupFailedBy
-        upgradedByHttpsOnly: root.upgradedByHttpsOnly
-        certificateDecisionsAvailable: root.certificateDecisionsAvailable
-        certificateChain: root.certificateChain
-        pageCertificatesAvailable: root.pageCertificatesAvailable
-        thirdPartyCookieControlAvailable: root.thirdPartyCookieControlAvailable
-        siteDataOnDisk: root.siteDataOnDisk
-        insecureContentBlocked: root.insecureContentBlocked
-        blocker: root.blocker
-        siteDataEntries: root.siteDataEntries
-        retainedDataEntries: root.retainedDataEntries
-        siteDataGeneration: root.siteDataGeneration
-        open: root.statusOpen
-
-        onActionRequested: function (action) {
-            root.siteActionRequested(action);
-        }
+        onClicked: root.siteInformationDismissed()
     }
 }

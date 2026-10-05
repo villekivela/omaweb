@@ -39,6 +39,7 @@
 
 #include <algorithm>
 #include <QJSValue>
+#include <QQmlComponent>
 #include <QAbstractItemModel>
 #include <QColor>
 #include <QCoreApplication>
@@ -776,15 +777,15 @@ int main(int argc, char *argv[])
     }
 
     // What Settings and Site information say under the reader's locale: the Language row, the
-    // Settings heading, and the line Site information gives for a window with
-    // no page loaded.
+    // Settings heading, and the verdict Site information gives for a window
+    // with no page loaded.
     if (arguments.contains(QStringLiteral("--report-settings"))) {
         if (engine.rootObjects().isEmpty()) {
             return 1;
         }
         auto *root = engine.rootObjects().constFirst();
         auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
-        auto *connection = root->findChild<QObject *>(QStringLiteral("siteInformationConnection"));
+        auto *connection = root->findChild<QObject *>(QStringLiteral("siteInformationVerdict"));
         auto *language = root->findChild<QObject *>(QStringLiteral("languageRow"));
         if (heading == nullptr || connection == nullptr || language == nullptr) {
             qCritical("Settings or Site information is missing");
@@ -981,7 +982,6 @@ int main(int argc, char *argv[])
             {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
             {QStringLiteral("settings:clear"),
                 {{"", "settingsOpen", true}, {"settingsSurface", "clearDataOpen", true}}},
-            {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
             // The Start page's road without its CRT glass, as the Settings
@@ -1233,6 +1233,96 @@ int main(int argc, char *argv[])
                     }
                 });
             }
+        } else if (requested == QLatin1String("site")
+            || requested.startsWith(QLatin1String("site:"))) {
+            // Site information, opened as the lock opens it, or at a detail as
+            // `site:certificate`, `site:blocked`, `site:cookies` or
+            // `site:third-parties`. `--site-page` picks the page it is about:
+            // `secure` (the default), `http`, `cert` for a certificate error
+            // the reader waived, or `start` for the Start page. `--site-sample`
+            // gives it what the lab has no engine for: refused requests, two
+            // decided permissions, an allowed and two refused third parties,
+            // and the site's cookies.
+            const auto detail = requested.section(QLatin1Char(':'), 1);
+            const auto pageIndex = arguments.indexOf(QStringLiteral("--site-page"));
+            const auto page = pageIndex >= 0 && pageIndex + 1 < arguments.size()
+                ? arguments.at(pageIndex + 1)
+                : QStringLiteral("secure");
+            const auto sample = arguments.contains(QStringLiteral("--site-sample"));
+            static const QHash<QString, QString> addresses = {
+                {QStringLiteral("secure"), QStringLiteral("https://www.example.org/articles/42")},
+                {QStringLiteral("http"), QStringLiteral("http://old.example.net/index.html")},
+                {QStringLiteral("cert"), QStringLiteral("https://localhost:8443/app")},
+            };
+            if (page != QLatin1String("start") && !addresses.contains(page)) {
+                qCritical("Unknown --site-page %s", qPrintable(page));
+                return 1;
+            }
+            const auto address = addresses.value(page);
+            if (!address.isEmpty()) {
+                browser.openInput(address, false);
+            }
+            if (sample && !address.isEmpty()) {
+                browser.setPermissionDecision(QUrl(address), QStringLiteral("camera"),
+                    omaweb::BrowserController::AllowPersistently);
+                browser.setPermissionDecision(QUrl(address), QStringLiteral("notifications"),
+                    omaweb::BrowserController::Block);
+                browser.allowThirdPartyCookies(QUrl(QStringLiteral("https://login.example-id.net")),
+                    QStringLiteral("authentication"));
+                QQmlComponent stub(&engine);
+                stub.setData(R"QML(import QtQml
+QtObject {
+    property int refusalTallyGeneration: 0
+    readonly property var sample: [
+        { "address": "https://doubleclick.example/pixel", "canonicalName": "" },
+        { "address": "https://metrics.shop.example/collect?id=7",
+          "canonicalName": "trk-7f3.cdn-edge.example" },
+        { "address": "https://fonts.cdn-edge.example/loader.js", "canonicalName": "" },
+        { "address": "https://stats.social.example/beacon", "canonicalName": "" }
+    ]
+    function refusalTally(spaceId, pageAddress) { return 14; }
+    function refusedRequests(spaceId, pageAddress) { return sample; }
+    function siteEnabled(url) { return true; }
+    function setSiteEnabled(url, enabled) {}
+}
+)QML",
+                    QUrl());
+                auto *refusals = stub.create();
+                if (refusals == nullptr) {
+                    qCritical("%s", qPrintable(stub.errorString()));
+                    return 1;
+                }
+                refusals->setParent(root);
+                for (const auto *name : {"sidebar", "siteInformationCard"}) {
+                    auto *target = root->findChild<QObject *>(QString::fromLatin1(name));
+                    if (target != nullptr) {
+                        target->setProperty("blocker", QVariant::fromValue(refusals));
+                    }
+                }
+            }
+            QTimer::singleShot(400, root, [root, page, detail, sample] {
+                if (page == QLatin1String("cert")) {
+                    auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
+                    auto *view = host ? host->property("item").value<QObject *>() : nullptr;
+                    if (view != nullptr) {
+                        QMetaObject::invokeMethod(
+                            view, "simulateCertificateError", Q_ARG(QVariant, QVariantMap()));
+                        QMetaObject::invokeMethod(
+                            root, "respondToCertificateError", Q_ARG(QVariant, true));
+                    }
+                }
+                QMetaObject::invokeMethod(root, "openSiteInformation", Q_ARG(QVariant, detail));
+                if (!sample) {
+                    return;
+                }
+                auto *card = root->findChild<QObject *>(QStringLiteral("siteInformationCard"));
+                if (card != nullptr) {
+                    card->setProperty("refusedThirdParties",
+                        QStringList {QStringLiteral("https://pay.example-psp.com"),
+                            QStringLiteral("https://cdn.example-video.net")});
+                    card->setProperty("cookieCount", 9);
+                }
+            });
         } else if (state.isEmpty() && !pageAsks) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;

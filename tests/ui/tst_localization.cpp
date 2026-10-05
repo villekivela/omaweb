@@ -178,7 +178,7 @@ void Localization::siteInformationSpeaksFinnishUnderAFinnishLocale()
 {
     QCOMPARE(reportLine(QStringLiteral("fi_FI.UTF-8"), QStringLiteral("--report-settings"),
                  QStringLiteral("site_information_state")),
-        QStringLiteral("· mitään sivua ei ole ladattu"));
+        QStringLiteral("Omawebin oma sivu"));
 }
 
 void Localization::settingsAndSiteInformationStayEnglishUnderAnEnglishLocale()
@@ -189,7 +189,7 @@ void Localization::settingsAndSiteInformationStayEnglishUnderAnEnglishLocale()
         QStringLiteral("Settings"));
     QCOMPARE(reportLine(locale, QStringLiteral("--report-settings"),
                  QStringLiteral("site_information_state")),
-        QStringLiteral("· no page is loaded"));
+        QStringLiteral("Omaweb's own page"));
 }
 
 void Localization::aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue()

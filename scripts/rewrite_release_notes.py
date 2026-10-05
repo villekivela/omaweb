@@ -68,12 +68,12 @@ BODY_LIMIT = 2000
 ISSUE_LIMIT = 40
 ISSUE_BODY_LIMIT = 4000
 
-# The project's own words. `CONTEXT.md` names every domain term and, for each,
+# The project's own words. `GLOSSARY.md` names every domain term and, for each,
 # the names not to use for it, which is exactly what a writer who has only read
 # the commits would otherwise guess at: v0.4.0's notes called a split a "Split
 # view", a name the glossary lists as one to avoid.
 GLOSSARY = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CONTEXT.md"
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "GLOSSARY.md"
 )
 GLOSSARY_SECTION = "## Language"
 
@@ -308,7 +308,7 @@ def issues(numbers: list[int]) -> list[dict[str, str]]:
 
 
 def vocabulary() -> str:
-    """The glossary section of `CONTEXT.md`, or nothing. An unreadable glossary
+    """The glossary section of `GLOSSARY.md`, or nothing. An unreadable glossary
     is notes in looser words, not a failed release."""
     try:
         with open(GLOSSARY, encoding="utf-8") as handle:

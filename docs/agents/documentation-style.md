@@ -18,7 +18,7 @@ Use these rules for Markdown files and code comments.
 - State concrete behavior, constraints, and decisions. Cut introductions and conclusions that add no
   information.
 - Prefer short active sentences and plain words.
-- Use the repository's domain terms from `CONTEXT.md` consistently.
+- Use the repository's domain terms from `GLOSSARY.md` consistently.
 - Use straight quotes. Prefer commas or separate sentences to dash punctuation.
 - Keep each document's detail appropriate to its purpose. Requirements state behavior. Architecture
   explains boundaries and tradeoffs. Development docs give commands and operational constraints.

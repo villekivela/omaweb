@@ -329,7 +329,7 @@ ctest --preset dev
 Run the browser with `./build/dev/omaweb`. The [development guide](docs/development.md) covers
 setup, build presets, the UI lab, packaging, and releases.
 
-Before changing browser behavior, read the [domain glossary](CONTEXT.md),
+Before changing browser behavior, read the [domain glossary](GLOSSARY.md),
 [product requirements](docs/product/requirements.md), and [architecture](docs/architecture.md).
 [CONTRIBUTING.md](CONTRIBUTING.md) covers the contribution workflow.
 

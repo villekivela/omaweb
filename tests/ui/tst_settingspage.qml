@@ -1047,6 +1047,52 @@ TestCase {
         property bool available: true
     }
 
+    // What this build's engine cannot do about a site is said here, under
+    // privacy, and only where the engine falls short: Site information speaks
+    // about the site, and this is where the build's own state lives.
+    function test_theEnginesCaveatsAreStatedUnderPrivacy() {
+        const page = makePage();
+        page.section = page.sections.indexOf("privacy");
+        const names = ["engineCaveat_certificateFailures", "engineCaveat_pageCertificates",
+                       "engineCaveat_thirdParties", "engineCaveat_siteData",
+                       "engineCaveat_insecureContent"];
+        const shown = function () {
+            return names.filter(function (name) {
+                const row = findChild(page, name);
+                return row !== null && row.visible;
+            });
+        };
+
+        page.certificateDecisionsAvailable = true;
+        page.pageCertificatesAvailable = true;
+        page.thirdPartyCookieControlAvailable = true;
+        page.siteDataOnDisk = true;
+        page.insecureContentBlocked = true;
+        const capable = shown();
+        const label = findChild(page, "engineCaveatsLabel");
+        const labelled = label !== null && label.visible;
+
+        page.certificateDecisionsAvailable = false;
+        page.pageCertificatesAvailable = false;
+        page.thirdPartyCookieControlAvailable = false;
+        page.siteDataOnDisk = false;
+        page.insecureContentBlocked = false;
+        const lacking = shown();
+        const titles = names.map(function (name) {
+            return findChild(page, name).title;
+        });
+
+        compare(capable, []);
+        verify(!labelled);
+        compare(lacking, names);
+        verify(label.visible);
+        compare(titles, ["This engine cannot report a certificate failure",
+                         "This engine cannot show the certificate a page arrived over",
+                         "This engine cannot refuse a third party",
+                         "This engine keeps no site data on disk",
+                         "This engine is not blocking insecure content"]);
+    }
+
     // One switch under privacy for what a page's call may learn about the
     // reader's network, bound to the policy rather than to a state of its own.
     // A build whose engine adapter cannot reach the profile's settings shows

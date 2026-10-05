@@ -248,10 +248,11 @@ it. _Avoid_: Remote suggestion, search suggestion, autocomplete
 
 **Site information**: What Omaweb states about the site on show, for the Space it is on show in: its
 origin, the connection the engine reports and the certificate it arrived over, the requests Content
-blocking refused, the site data the Space holds, the origin's Site permissions, and the confirmed
-ways to clear that data or reset those decisions. Reached from the address trigger, which reports
-the connection from the engine's own facts and never from the address itself. _Avoid_: Site status,
-page info, security panel
+blocking refused, the cookies and site data the Space holds, the third parties the page was refused
+or allowed, the origin's Site permissions, and the confirmed ways to clear its data or reset those
+decisions. A card floating from the address trigger, which reports the connection from the engine's
+own facts and never from the address itself; also opened by its command. It never states what the
+engine cannot do, which is Settings' to say. _Avoid_: Site status, page info, security panel
 
 **Certificate exception**: A reader's decision to let one blocked certificate failure through.
 Omaweb offers it only for an engine-overridable, non-fatal failure in a Local-development site's own

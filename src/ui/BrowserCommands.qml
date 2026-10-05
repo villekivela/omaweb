@@ -138,6 +138,9 @@ QtObject {
         case "copy-address":
             window.copyAddress();
             return true;
+        case "site-information":
+            window.openSiteInformation("");
+            return true;
         case "find":
             window.openFind();
             return true;
@@ -398,6 +401,10 @@ QtObject {
                                                  group: "navigation",
                                                  title: qsTr("Copy address"),
                                                  requires: "page"
+                                             },
+                                             "site-information": {
+                                                 group: "page",
+                                                 title: qsTr("Site information")
                                              },
                                              "find": {
                                                  group: "page",
