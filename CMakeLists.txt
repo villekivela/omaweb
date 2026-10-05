@@ -1271,6 +1271,12 @@ if(BUILD_TESTING)
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_freezing.py"
         )
+        # Which tabs the live-tabs budget opens in which Space, what each is
+        # served, and the arithmetic over its memory and CPU readings.
+        add_test(NAME omaweb-benchmark-livetabs
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_livetabs.py"
+        )
         # The Chromium comparison's run order, ratios, matched build, history
         # lines and plot: what it reports is decided by code that runs no
         # browser.
