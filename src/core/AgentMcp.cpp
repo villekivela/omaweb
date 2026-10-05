@@ -7,7 +7,6 @@
 #include <QDeadlineTimer>
 #include <QJsonDocument>
 #include <QLocalSocket>
-#include <QProcess>
 #include <QThread>
 
 #include <algorithm>
@@ -584,36 +583,18 @@ bool AgentMcpLink::tryConnect()
 
 void AgentMcpLink::greet()
 {
-    const auto version = QCoreApplication::applicationVersion();
-    m_socket.write(QJsonDocument(agentHello(version)).toJson(QJsonDocument::Compact) + '\n');
-    m_socket.waitForBytesWritten(connectTimeoutMs);
-    QDeadlineTimer deadline(connectTimeoutMs);
-    while (!m_socket.canReadLine()) {
-        if (!m_socket.waitForReadyRead(static_cast<int>(deadline.remainingTime()))
-            && deadline.hasExpired()) {
-            // A browser busy past this still answers, ahead of the next call.
+    const auto mismatch = greetAgentBrowser(m_socket, connectTimeoutMs);
+    if (!mismatch) {
+        // A browser busy past this still answers, ahead of the next call.
+        if (m_socket.state() == QLocalSocket::ConnectedState) {
             ++m_owed;
-            return;
         }
+        return;
     }
-    const auto answer = QJsonDocument::fromJson(m_socket.readLine()).object();
-    const auto mismatch = agentProtocolMismatch(answer, version);
-    if (!mismatch.isEmpty() && !m_warned) {
+    if (!mismatch->isEmpty() && !m_warned) {
         m_warned = true;
-        std::fprintf(stderr, "%s\n", qPrintable(mismatch));
+        std::fprintf(stderr, "%s\n", qPrintable(*mismatch));
     }
-}
-
-// The browser outlives this server, and standard output is the MCP channel,
-// so it gets none of this process's streams.
-bool startAgentBrowser(const QString &path)
-{
-    QProcess browser;
-    browser.setProgram(path);
-    browser.setStandardInputFile(QProcess::nullDevice());
-    browser.setStandardOutputFile(QProcess::nullDevice());
-    browser.setStandardErrorFile(QProcess::nullDevice());
-    return browser.startDetached();
 }
 
 int runAgentMcp(

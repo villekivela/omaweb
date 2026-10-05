@@ -1,6 +1,10 @@
 #include "AgentProtocol.h"
 
+#include <QCoreApplication>
+#include <QDeadlineTimer>
 #include <QDir>
+#include <QJsonDocument>
+#include <QLocalSocket>
 #include <QStandardPaths>
 
 namespace omaweb {
@@ -53,6 +57,23 @@ QString agentProtocolMismatch(const QJsonObject &answer, const QString &version)
         .arg(version)
         .arg(protocol.toInt())
         .arg(answer.value(QStringLiteral("version")).toString());
+}
+
+std::optional<QString> greetAgentBrowser(QLocalSocket &socket, int timeoutMs)
+{
+    const auto version = QCoreApplication::applicationVersion();
+    socket.write(QJsonDocument(agentHello(version)).toJson(QJsonDocument::Compact) + '\n');
+    socket.flush();
+    QDeadlineTimer deadline(timeoutMs);
+    while (!socket.canReadLine()) {
+        // A connection that closed answers at once, so it is asked about
+        // before waiting rather than waited on until the deadline.
+        if (socket.state() != QLocalSocket::ConnectedState || deadline.hasExpired()) {
+            return std::nullopt;
+        }
+        socket.waitForReadyRead(static_cast<int>(deadline.remainingTime()));
+    }
+    return agentProtocolMismatch(QJsonDocument::fromJson(socket.readLine()).object(), version);
 }
 
 } // namespace omaweb

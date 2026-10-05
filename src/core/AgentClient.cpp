@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
 #include <QStringList>
 
 #include <cerrno>
@@ -38,6 +39,18 @@ namespace {
     }
 
 } // namespace
+
+// The browser outlives the MCP server that started it, and standard output is
+// the MCP channel, so it gets none of this process's streams.
+bool startAgentBrowser(const QString &path)
+{
+    QProcess browser;
+    browser.setProgram(path);
+    browser.setStandardInputFile(QProcess::nullDevice());
+    browser.setStandardOutputFile(QProcess::nullDevice());
+    browser.setStandardErrorFile(QProcess::nullDevice());
+    return browser.startDetached();
+}
 
 QString findAgentBrowser(const QString &clientDirectory, const QString &installedFromClient)
 {

@@ -89,7 +89,7 @@ omaweb_strict_target(omaweb-agent-client)
 # reason the browser's runpath is relative: a package sets its own prefix.
 file(RELATIVE_PATH omaweb_browser_from_client "${CMAKE_INSTALL_FULL_BINDIR}"
     "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb/omaweb-browser")
-qt_add_executable(omaweb src/cli/main.cpp)
+qt_add_executable(omaweb "src/cli/main.cpp")
 target_link_libraries(omaweb PRIVATE omaweb-agent-client)
 target_compile_definitions(omaweb PRIVATE
     OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
@@ -102,10 +102,10 @@ if(UNIX AND NOT APPLE)
     # An Agent skill is a directory named for the skill, which the reader
     # links into their agent's skills directory. It teaches the client, so it
     # comes with the client.
-    install(DIRECTORY integrations/agent/omaweb
+    install(DIRECTORY "integrations/agent/omaweb"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/skills"
         COMPONENT cli)
-    install(FILES LICENSE
+    install(FILES "LICENSE"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb-cli"
         COMPONENT cli)
 endif()
@@ -132,7 +132,7 @@ if(BUILD_TESTING)
 
     # The client as a reader runs it, and the browser where one is built: every
     # verb has to reach the socket the same through both.
-    qt_add_executable(omaweb-agent-client-tests tests/cli/tst_agentclient.cpp)
+    qt_add_executable(omaweb-agent-client-tests "tests/cli/tst_agentclient.cpp")
     target_link_libraries(omaweb-agent-client-tests PRIVATE omaweb-agent-client Qt6::Test)
     target_compile_definitions(omaweb-agent-client-tests PRIVATE
         OMAWEB_CLIENT_PATH="$<TARGET_FILE:omaweb>"
@@ -149,8 +149,8 @@ if(BUILD_TESTING)
     # A sandbox has Qt's base and no more, so the client must not need more.
     add_test(NAME omaweb-client-links
         COMMAND ${CMAKE_COMMAND}
-            -DOMAWEB_CLIENT=$<TARGET_FILE:omaweb>
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_client_links.cmake
+            "-DOMAWEB_CLIENT=$<TARGET_FILE:omaweb>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_client_links.cmake"
     )
 
     # The package installs the Agent skill, and the reader links the

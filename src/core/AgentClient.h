@@ -16,6 +16,10 @@ namespace omaweb {
 // Nothing when neither is there.
 QString findAgentBrowser(const QString &clientDirectory, const QString &installedFromClient);
 
+// Starts the browser at `path` apart from this process, which it outlives,
+// as `omaweb mcp` does when no browser answers.
+bool startAgentBrowser(const QString &path);
+
 // Runs the client on `commandLine`, its `argv` as it came. A verb goes to the
 // browser on `socketPath` and `mcp` serves MCP, starting the browser at
 // `browserPath` when nothing answers. Anything else is the browser's: a launch,

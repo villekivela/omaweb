@@ -1099,9 +1099,9 @@ void AgentControlTest::putsTheSocketInTheUsersRuntimeDirectory()
     const auto savedOverride = qgetenv("OMAWEB_CONTROL_SOCKET");
     qputenv(variable, QFile::encodeName(runtime.path()));
     qunsetenv("OMAWEB_CONTROL_SOCKET");
-    const auto path = ControlSocket::defaultPath();
+    const auto path = omaweb::agentSocketPath();
     qputenv("OMAWEB_CONTROL_SOCKET", "/elsewhere/scratch.sock");
-    const auto overridden = ControlSocket::defaultPath();
+    const auto overridden = omaweb::agentSocketPath();
     qputenv(variable, savedRuntime);
     if (savedOverride.isNull()) {
         qunsetenv("OMAWEB_CONTROL_SOCKET");

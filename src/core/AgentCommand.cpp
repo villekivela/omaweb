@@ -4,7 +4,6 @@
 #include "AgentPick.h"
 #include "AgentProtocol.h"
 
-#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -974,13 +973,13 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
         print(stderr, QStringLiteral("omaweb: no Omaweb is running for this user.\n"));
         return 3;
     }
-    const auto version = QCoreApplication::applicationVersion();
-    const auto greeting = exchange(socket, agentHello(version));
-    if (!greeting) {
+    const auto mismatch = greetAgentBrowser(socket, answerTimeoutMs);
+    if (!mismatch) {
+        print(stderr, QStringLiteral("omaweb: the browser did not answer.\n"));
         return 3;
     }
-    if (const auto mismatch = agentProtocolMismatch(*greeting, version); !mismatch.isEmpty()) {
-        print(stderr, mismatch + u'\n');
+    if (!mismatch->isEmpty()) {
+        print(stderr, *mismatch + u'\n');
     }
     if (command.pick) {
         return pickTab(socket, command, picker);

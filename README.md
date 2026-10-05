@@ -201,10 +201,12 @@ incus config device add dev omaweb proxy bind=instance \
     listen=unix:/run/omaweb.sock connect=unix:"$XDG_RUNTIME_DIR/omaweb/control.sock" \
     uid=1000 gid=1000 mode=0600 security.uid="$(id -u)" security.gid="$(id -g)"
 incus config set dev environment.OMAWEB_CONTROL_SOCKET=/run/omaweb.sock
-omaweb dev localhost:5173 --agent 'incus exec dev --cwd {dir} -- claude'
+omaweb dev localhost:5173 --agent \
+    'incus exec dev --user 1000 --group 1000 --env HOME=/home/me --cwd {dir} -- claude'
 ```
 
-`uid` and `gid` are your user inside the container. The dev server in the container listens on
+1000 and `/home/me` are your user inside the container. The agent runs as that user, so what it
+writes in the project stays yours on the desktop. The dev server in the container listens on
 `127.0.0.1:5173`.
 
 ### Docker or Podman
@@ -221,8 +223,10 @@ docker run -d --name dev --user "$(id -u):$(id -g)" \
 omaweb dev localhost:5173 --agent 'docker exec -it -w {dir} dev claude'
 ```
 
-The dev server in the container listens on `0.0.0.0:5173`. With rootless Podman, use `podman` for
-`docker` and add `--userns=keep-id`.
+The image needs a home for that user that the agent can write, because the agent keeps its settings
+there. The dev server in the container listens on `0.0.0.0:5173`. This is rootful Docker. Rootless
+Docker runs your user as another, which the socket's directory refuses, so use rootless Podman
+instead: `podman` for `docker`, with `--userns=keep-id` added.
 
 ### Distrobox
 
@@ -233,6 +237,9 @@ the box, then:
 ```sh
 omaweb dev localhost:5173 --agent 'distrobox enter dev -- claude'
 ```
+
+No `{dir}` is needed: `:ask` starts the terminal in the project's folder, and Distrobox enters the
+box in the folder it was started in.
 
 ### Another host over SSH
 

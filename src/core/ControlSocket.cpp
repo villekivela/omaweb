@@ -1,7 +1,6 @@
 #include "ControlSocket.h"
 
 #include "AgentControl.h"
-#include "AgentProtocol.h"
 #include "BrowserController.h"
 
 #include <QDir>
@@ -71,8 +70,6 @@ ControlSocket::~ControlSocket()
         socket->disconnect(this);
     }
 }
-
-QString ControlSocket::defaultPath() { return agentSocketPath(); }
 
 bool ControlSocket::listen(const QString &path)
 {

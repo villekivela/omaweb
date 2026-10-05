@@ -487,11 +487,11 @@ scripts/make_release_pkgbuild.sh --version 0.5.0 --output <dir>
 
 writes their PKGBUILD. The two files differ in a few lines: the names, a version fixed by the tag
 instead of computed from a checkout the reader of a binary package does not have, a `conflicts` on
-each source twin, and a source naming the tag. Everything else — every dependency, the release
-preset, the inventory, the window-rule notice — is the same file, so the two cannot drift apart
-while nothing reports it. The script checks that each line it rewrites was there to rewrite, so a
-rename in `packaging/PKGBUILD` fails the derivation rather than quietly producing a package missing
-the change.
+each source twin, and a source naming the tag. Everything else is the same file: every dependency,
+the release preset, the inventory and the window-rule notice. So the two cannot drift apart while
+nothing reports it. The script checks that each line it rewrites was there to rewrite, so a rename
+in `packaging/PKGBUILD` fails the derivation rather than quietly producing a package missing the
+change.
 
 Qt is a dependency rather than a bundle, apart from the engine. The engine is `omaweb-qtwebengine`,
 Omaweb's own build, a package of its own installed under `/usr/lib/omaweb` and published in the same

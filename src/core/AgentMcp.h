@@ -92,9 +92,6 @@ private:
     int m_owed = 0;
 };
 
-// Starts the browser at `path` apart from this process, which it outlives.
-bool startAgentBrowser(const QString &path);
-
 // Serves MCP on standard input and output until input ends, starting the
 // browser with `start` when none answers on `socketPath`. Answers 0, 2 for a
 // malformed command line, or 1 when `start` is empty and no browser answered:

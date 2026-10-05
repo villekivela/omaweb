@@ -22,6 +22,8 @@
 #   conflicts  Each package conflicts with its source twin, so a reader who
 #              built from source is asked before the repository replaces it.
 #   source     The commit the tag names, rather than a branch.
+#   install    The browser's install file is named for its package, so it
+#              becomes omaweb.install.
 #
 # Every substitution is checked against the file it was made in, so a rename or
 # a reordering upstream fails here rather than silently producing a package that
@@ -129,8 +131,8 @@ HEADER
 } > "$generated"
 
 replace "pkgbase" '^pkgbase=omaweb-git$' 'pkgbase=omaweb' "$generated"
-replace "pkgname" "^pkgname=\\('omaweb-git' 'omaweb-cli-git'\\)$" "pkgname=('omaweb' 'omaweb-cli')" \
-    "$generated"
+replace "pkgname" "^pkgname=\\('omaweb-git' 'omaweb-cli-git'\\)$" \
+    "pkgname=('omaweb' 'omaweb-cli')" "$generated"
 replace "browser package" '^package_omaweb-git\(\) \{$' 'package_omaweb() {' "$generated"
 replace "client package" '^package_omaweb-cli-git\(\) \{$' 'package_omaweb-cli() {' "$generated"
 replace "pkgver" '^pkgver=.+$' "pkgver=${version}" "$generated"
@@ -140,8 +142,8 @@ replace "source" '^source=\(.+\)$' "source=(\"${source_url}\")" "$generated"
 # package's own name here. A package that provides and conflicts with itself is
 # not what either line is for: what a binary package has to say is that it
 # replaces the source one.
-replace "browser provides" '^    provides=\("\$_pkgname=\$pkgver"\)$' "    conflicts=('omaweb-git')" \
-    "$generated"
+replace "browser provides" '^    provides=\("\$_pkgname=\$pkgver"\)$' \
+    "    conflicts=('omaweb-git')" "$generated"
 remove "browser conflicts" '^    conflicts=\("\$_pkgname"\)$' "$generated"
 replace "client provides" '^    provides=\("omaweb-cli=\$pkgver"\)$' \
     "    conflicts=('omaweb-cli-git')" "$generated"

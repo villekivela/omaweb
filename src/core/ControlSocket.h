@@ -29,9 +29,6 @@ public:
     explicit ControlSocket(AgentControl *control, QObject *parent = nullptr);
     ~ControlSocket() override;
 
-    // Where clients look for it: `agentSocketPath()`.
-    static QString defaultPath();
-
     // Listens at `path` with mode 0600, in a directory only this user can
     // enter. A socket another browser is answering on is left alone and this
     // answers false; one left behind by a browser that has gone is replaced.

@@ -114,8 +114,8 @@ usr/share/licenses/omaweb/LICENSE
 usr/share/licenses/omaweb/THIRD_PARTY_NOTICES.md
 usr/share/omaweb/sbom.json
 usr/share/omaweb/translations/omaweb_fi.qm" \
-    '^(usr/(lib|libexec)/omaweb/|usr/share/(applications|icons|licenses/omaweb|omaweb/translations)/)' \
-    '^usr/share/omaweb/sbom\.json$'
+    '^usr/((lib|libexec)/omaweb|share/(applications|icons|licenses/omaweb))/' \
+    '^usr/share/omaweb/(translations/|sbom\.json$)'
 # The Agent skill teaches the client, so it comes with the client.
 check_contents "$client_package" "usr/bin/omaweb
 usr/share/omaweb/skills/omaweb/SKILL.md
@@ -207,21 +207,31 @@ release_client=$(built_package omaweb-cli)
 echo "==> Fetching $previous, as a reader has it"
 arch=$(uname -m)
 mkdir -p "$work/previous"
-previous_package=""
-# The two architectures' packages were compressed differently, so both are
-# tried rather than one assumed.
-for extension in zst xz; do
-    name="omaweb-${previous#v}-1-$arch.pkg.tar.$extension"
-    if curl -fsL -o "$work/previous/$name" \
-        "https://github.com/villekivela/omaweb/releases/download/$previous/$name"; then
-        previous_package="$work/previous/$name"
-        break
-    fi
-done
-[ -n "$previous_package" ] || fail "$previous has no $arch package to upgrade from"
+# What the release attached for this architecture: the browser, and from the
+# release that split it off on, the client the browser depends on. The two
+# architectures' packages were compressed differently, and a release may have
+# been rebuilt, so each name is looked for rather than assumed.
+fetch_previous() {
+    for release in 1 2 3; do
+        for extension in zst xz; do
+            name="$1-${previous#v}-$release-$arch.pkg.tar.$extension"
+            if curl -fsL -o "$work/previous/$name" \
+                "https://github.com/villekivela/omaweb/releases/download/$previous/$name"; then
+                printf '%s\n' "$work/previous/$name"
+                return 0
+            fi
+        done
+    done
+    return 1
+}
+previous_packages=$(fetch_previous omaweb) || fail "$previous has no $arch package to upgrade from"
+if previous_client=$(fetch_previous omaweb-cli); then
+    previous_packages="$previous_packages $previous_client"
+fi
 # shellcheck disable=SC2086
-pacman -U --noconfirm $pacman_dep_flags "$previous_package"
-[ "$(pacman -Qqo /usr/bin/omaweb)" = omaweb ] || fail "$previous did not install /usr/bin/omaweb"
+pacman -U --noconfirm $pacman_dep_flags $previous_packages
+previous_owner=$(pacman -Qqo /usr/bin/omaweb) || fail "$previous did not install /usr/bin/omaweb"
+echo "==> /usr/bin/omaweb is $previous_owner's"
 
 echo "==> Upgrading $previous to $version"
 # shellcheck disable=SC2086
@@ -239,26 +249,32 @@ answered=$(OMAWEB_CONTROL_SOCKET="$work/nobody.sock" omaweb spaces 2>&1) && stat
 printf '%s\n' "$answered" | grep -q 'no Omaweb is running' \
     || fail "omaweb spaces said: $answered"
 # Anything not a verb is the browser's. Its version names the engine, which
-# the client alone cannot, so this is the installed browser answering.
+# the client alone cannot, so this is the installed browser answering. The
+# engine is here even where the dependency is assumed: the package was built
+# against one.
 reported=$(omaweb --version) || fail "omaweb --version failed: $reported"
 printf '%s\n' "$reported" | grep -q '^QtWebEngine ' \
     || fail "omaweb --version did not reach the browser: $reported"
 
 # xdg-open runs the desktop entry's command with the address. The entry names
-# `omaweb`, which is now the client, and the client hands the address on.
+# `omaweb`, which is now the client, and the client hands the address on, which
+# `omaweb-agent-client` in the test suite shows with a browser that records it.
 entry=/usr/share/applications/omaweb.desktop
 [ "$(pacman -Qqo "$entry")" = omaweb ] || fail "The desktop entry is not omaweb's"
 grep -qx 'Exec=omaweb %u' "$entry" || fail "The desktop entry no longer runs omaweb %u"
 # Arch links /usr/sbin to /usr/bin, and either can come first on the PATH.
 [ "$(readlink -f "$(command -v omaweb)")" = /usr/bin/omaweb ] \
     || fail "omaweb on the PATH is $(command -v omaweb)"
+# Nothing is chosen here, so the answer comes from what the installed entries
+# say they open, as it does for a reader who never chose a browser.
 export XDG_CONFIG_HOME="$work/config"
 mkdir -p "$XDG_CONFIG_HOME"
-xdg-mime default omaweb.desktop x-scheme-handler/https
 [ "$(xdg-mime query default x-scheme-handler/https)" = omaweb.desktop ] \
     || fail "xdg-mime does not answer https with omaweb.desktop"
 
 pacman -R --noconfirm omaweb omaweb-cli
-[ ! -e /usr/bin/omaweb ] || fail "Removing the upgraded packages left omaweb behind"
+for left in /usr/bin/omaweb /usr/lib/omaweb/omaweb-browser; do
+    [ ! -e "$left" ] || fail "Removing the upgraded packages left $left behind"
+done
 
 echo "==> $previous upgraded to $version with a working omaweb"

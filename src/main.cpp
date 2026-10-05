@@ -1,7 +1,9 @@
 #include "AgentActivityLog.h"
 #include "AgentCommand.h"
 #include "AgentControl.h"
+#include "AgentClient.h"
 #include "AgentMcp.h"
+#include "AgentProtocol.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
@@ -173,13 +175,13 @@ int main(int argc, char *argv[])
     if (omaweb::isAgentMcpCommand(arguments)) {
         QCoreApplication client(argc, argv);
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
-        return omaweb::runAgentMcp(arguments, omaweb::ControlSocket::defaultPath(),
+        return omaweb::runAgentMcp(arguments, omaweb::agentSocketPath(),
             [] { return omaweb::startAgentBrowser(QCoreApplication::applicationFilePath()); });
     }
     if (omaweb::isAgentCommand(arguments)) {
         QCoreApplication client(argc, argv);
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
-        return omaweb::runAgentCommand(arguments, omaweb::ControlSocket::defaultPath());
+        return omaweb::runAgentCommand(arguments, omaweb::agentSocketPath());
     }
     if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX")) {
         qCritical("Omaweb refuses to start with QTWEBENGINE_DISABLE_SANDBOX set. There is no "
@@ -295,14 +297,14 @@ int main(int argc, char *argv[])
     // it. A check of the QML is not a browser anything should reach.
     omaweb::AgentControl agentControl(&browser, configRoot());
     agentControl.setShotDirectory(
-        QFileInfo(omaweb::ControlSocket::defaultPath()).dir().filePath(QStringLiteral("shots")));
+        QFileInfo(omaweb::agentSocketPath()).dir().filePath(QStringLiteral("shots")));
     // Opened before the socket, so the week-old lines are gone before the
     // first verb adds one.
     omaweb::AgentActivityLog agentActivity(dataRoot());
     agentControl.setActivityLog(&agentActivity);
     omaweb::ControlSocket controlSocket(&agentControl);
     const auto answeringAgents = !validatingQml
-        && omaweb::openAgentSocket(controlSocket, browser, omaweb::ControlSocket::defaultPath());
+        && omaweb::openAgentSocket(controlSocket, browser, omaweb::agentSocketPath());
     // A temporary Agent Space outlives neither its connection nor the browser.
     // Deleted while the shell is still here to let go of its pages. A browser
     // that is not answering on the socket is not the one those Spaces belong

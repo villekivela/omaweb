@@ -3,6 +3,10 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <optional>
+
+class QLocalSocket;
+
 namespace omaweb {
 
 // What the Agent socket carries (ADR 0051), between a client and a browser that
@@ -34,5 +38,10 @@ QJsonObject agentHelloAnswer(const QString &version);
 // older than the protocol refuses the hello as a verb it does not know, and
 // that is a mismatch too.
 QString agentProtocolMismatch(const QJsonObject &answer, const QString &version);
+
+// Says hello on `socket`, a new connection, as this process's release, and
+// waits up to `timeoutMs` for the answer. Answers the warning to print, empty
+// when the protocols agree, or nothing when no answer came.
+std::optional<QString> greetAgentBrowser(QLocalSocket &socket, int timeoutMs);
 
 } // namespace omaweb
