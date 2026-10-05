@@ -48,19 +48,19 @@
       "note": "The same for the page of 40 images from 4 hosts resolved on the warm-up loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. Two runs on CI's runner: a median of 46.0 ms (44.0 to 80.0 ms) and of 60.0 ms (44.0 to 104.0 ms). The ceiling is four times the slower median."
     },
     "live_tab_at_20_mebibytes": {
-      "ceiling": 50.0,
-      "recorded": 23.16,
-      "note": "Provisional until CI has measured it: one run on a developer machine, under a headless cage with the pixman renderer, against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, measured 499.7 MiB with one tab and 939.8 MiB with 20 in five Spaces. The ceiling is about twice the measurement."
+      "ceiling": 40.0,
+      "recorded": 18.7,
+      "note": "What each tab past its Space's first adds with 20 tabs across five Spaces, four in each: the tree at 20 less the tree with five Spaces and one tab each, over 15. Measured on 2026-10-05 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, one run (37360227439): 674.5 MiB with five Spaces open and one tab in each, 955.1 MiB with 20 tabs and 1514.1 MiB with 50. The ceiling is about twice the measurement, as the memory ceilings are."
     },
     "live_tab_at_50_mebibytes": {
-      "ceiling": 50.0,
-      "recorded": 20.46,
-      "note": "Provisional until CI has measured it: one run on a developer machine, under a headless cage with the pixman renderer, against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, measured 1502.1 MiB with 50. The ceiling is about twice the 20-tab measurement."
+      "ceiling": 40.0,
+      "recorded": 18.66,
+      "note": "The same at 50 tabs, ten in each Space, over 45. Measured on 2026-10-05 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, one run (37360227439): 674.5 MiB with five Spaces open and one tab in each, 955.1 MiB with 20 tabs and 1514.1 MiB with 50. A tab costs the same at 50 as at 20, so the ceiling is the same, about twice the measurement."
     },
     "live_tabs_idle_cpu_percent": {
       "ceiling": 2.0,
-      "recorded": 0.2,
-      "note": "Provisional until CI has measured it: one run on a developer machine, under a headless cage with the pixman renderer, against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, measured 0.06 CPU seconds over 30 s, no process above 0.02 s."
+      "recorded": 0.3,
+      "note": "The process tree's CPU over 30 s left alone with 50 tabs open, as a share of one core, the CPU of reaped children counted through their parents. In the same run the tree used 0.09 CPU s, no process more than 0.02 s, and no process ended. The ceiling is 2%, about seven times the measurement, because a share this small moves with whatever else the runner is doing."
     }
   }
 }
