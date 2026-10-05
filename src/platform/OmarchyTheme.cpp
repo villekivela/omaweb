@@ -130,8 +130,10 @@ OmarchyTemplateOutcome followOmarchyTheme(
         // watched for, so it is picked up whenever it lands. A shell because
         // the theme to set is the one Omarchy reports as current, and `$1` is
         // the executable already found rather than a second path lookup.
+        // Skipping the background, because `theme set` otherwise advances the
+        // reader's wallpaper to the theme's next one.
         QProcess::startDetached(QStringLiteral("/bin/sh"),
-            {QStringLiteral("-c"), QStringLiteral(R"SH("$1" theme set "$("$1" theme current)")SH"),
+            {QStringLiteral("-c"), QStringLiteral(R"SH(OMARCHY_THEME_SKIP_BACKGROUND=1 "$1" theme set "$("$1" theme current)")SH"),
                 QStringLiteral("sh"), omarchy});
     }
     return outcome;
