@@ -983,13 +983,15 @@ which runs `website/build/site.mjs` from `website/` and serves the `dist/` it wr
 The live site is built from the `website` branch, the project's production branch in Vercel, and not
 from `main`. A change to `website/` merged to `main` goes live with the next release, so a page
 describing a feature can merge with the feature and still not reach readers before they can install
-it. A push to `main` or a pull request gets a preview deployment, built only when the push changes
-what the site serves: `website/` or a file `SHARED` in `website/build/site.mjs` names. The
-`ignoreCommand` in `website/vercel.json` runs `scripts/website_unchanged.sh` to decide, and a
-skipped preview shows as Canceled in Vercel. Production always builds. To publish between releases,
-for a site-only fix or to roll a bad site back to an earlier release, run the `Publish the website`
-workflow with the tag or commit to publish; everything that commit's `website/` says goes live. Only
-the workflows move the branch.
+it. Preview deployments are turned off in the Vercel project's settings
+(`previewDeploymentsDisabled`), because every branch push used one from the account's quota, so a
+pull request gets no preview: `scripts/serve_website.sh` serves the site locally instead. If
+previews are turned back on, the `ignoreCommand` in `website/vercel.json` runs
+`scripts/website_unchanged.sh`, which builds one only when a push changes what the site serves:
+`website/` or a file `SHARED` in `website/build/site.mjs` names. Production always builds. To
+publish between releases, for a site-only fix or to roll a bad site back to an earlier release, run
+the `Publish the website` workflow with the tag or commit to publish; everything that commit's
+`website/` says goes live. Only the workflows move the branch.
 
 ```sh
 npm ci --prefix website             # the Markdown parser the renderer imports
