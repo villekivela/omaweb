@@ -189,6 +189,11 @@ TestCase {
 
         Component.onCompleted: resetProjects()
 
+        property string paymentCardsState: "ready"
+        function paymentCards() {
+            return [];
+        }
+
         function forgetSpaceProject(spaceId) {
             const projects = Object.assign({}, spaceProjects);
             delete projects[spaceId];
@@ -2055,7 +2060,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 14);
+        compare(page.sections.length, 15);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {

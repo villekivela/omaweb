@@ -11,7 +11,8 @@ import qs.Ui as Omarchy
 // card: the certificate, the requests Content blocking refused, the cookies
 // and site data the Space holds, and the third parties this page was refused
 // or allowed. Then the permissions this site asked for or the reader decided,
-// and the two actions that are this site's alone.
+// each saved card filled into the page, and the two actions that are this
+// site's alone.
 //
 // What this build's engine cannot do is not said here. A caveat about the
 // engine is not a fact about the site, and Settings is where it is stated.
@@ -58,6 +59,9 @@ Omarchy.BorderSurface {
     // A permission the page on show is asking for right now. It has a row
     // before it has a decision.
     property string askedPermission: ""
+    // Each saved card filled into the page on show, as the engine lists them:
+    // `last4`, `brand`, `nickname` and the `origin` of the frame it went into.
+    property var cardFills: []
     property bool open: false
     // The detail on show, or empty for the card's top: "certificate",
     // "blocked", "cookies" or "third-parties".
@@ -310,6 +314,25 @@ Omarchy.BorderSurface {
 
     // The dropdown is the decision: it is stored for this Space straight away.
     // Returns whether it was, so the dropdown shows only a stored answer.
+    // Which card was filled, by its last four digits, and where, when that
+    // was a frame of another origin than the page's: a processor's payment
+    // frame, say.
+    function cardFillText(fill) {
+        const named = qsTr("%1 •••• %2",
+                           "a saved card: its nickname or brand, its last four digits").arg(
+                  fill.nickname || fill.brand || qsTr("Card", "a payment card with no name")).arg(
+                  fill.last4);
+        const address = String(root.activeUrl);
+        const path = address.indexOf("/", address.indexOf("://") + 3);
+        const pageOrigin = path < 0 ? address : address.substring(0, path);
+        const origin = String(fill.origin || "");
+        if (origin.length === 0 || origin === pageOrigin)
+            return qsTr("%1 was filled in", "a saved card was filled into this page").arg(named);
+        return qsTr("%1 was filled in for %2",
+                    "a saved card was filled into a frame of another site").arg(named).arg(
+                    origin.substring(origin.indexOf("://") + 3));
+    }
+
     function decidePermission(permission, choice) {
         return !!root.browser && root.browser.decideSitePermission(root.activeUrl, permission,
                                                                    root.decisionFor(choice));
@@ -712,6 +735,45 @@ Omarchy.BorderSurface {
                                                           value))
                                     choice.value = value;
                             }
+                        }
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width - 2 * root.gutter
+                visible: root.cardFills.length > 0
+                spacing: 4
+
+                Repeater {
+                    model: root.cardFills
+
+                    Row {
+                        id: cardFill
+
+                        required property var modelData
+                        required property int index
+
+                        spacing: 8
+
+                        Text {
+                            id: cardGlyph
+                            text: "credit_card"
+                            color: root.colors.mutedText
+                            font.family: root.iconFontFamily
+                            font.pixelSize: Style.font.icon
+                            Accessible.ignored: true
+                        }
+
+                        Text {
+                            objectName: "siteCardFill" + cardFill.index
+                            width: root.width - root.borderLeft - root.borderRight - 2 * root.gutter
+                                   - cardFill.spacing - cardGlyph.width
+                            text: root.cardFillText(cardFill.modelData)
+                            color: root.colors.text
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.bodySmall
+                            wrapMode: Text.Wrap
                         }
                     }
                 }

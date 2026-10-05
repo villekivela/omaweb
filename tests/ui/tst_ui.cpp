@@ -19,6 +19,7 @@
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
 #include "PagePrinter.h"
+#include "PaymentCards.h"
 #include "ProbeClock.h"
 #include "ProcessResources.h"
 #include "RuntimeSecurity.h"
@@ -434,6 +435,10 @@ public slots:
             omaweb::SpaceStorage(m_dataRoot->path(), QStringLiteral("mock")),
             m_dataRoot->filePath(QStringLiteral("config")));
         m_browser->setEngineSuggestions(m_engineSuggestions.get());
+        // A keyring in memory: these tests never reach the desktop's.
+        m_paymentCards = std::make_unique<omaweb::PaymentCards>(
+            std::make_unique<omaweb::MemoryPaymentCardKeyring>());
+        m_browser->setPaymentCards(m_paymentCards.get());
         m_contentBlocker = std::make_unique<omaweb::ContentBlocker>(m_dataRoot->path());
         m_imageProbe = std::make_unique<ImageProbe>(m_dataRoot->filePath(QStringLiteral("images")));
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));
@@ -589,6 +594,7 @@ public slots:
         m_windowManager.reset();
         m_agentSpaceProbe.reset();
         m_browser.reset();
+        m_paymentCards.reset();
         m_engineSuggestions.reset();
         m_agentActivity.reset();
         m_contentBlocker.reset();
@@ -609,6 +615,7 @@ private:
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     SuggestServerProbe m_suggestServer;
     std::unique_ptr<omaweb::EngineSuggestions> m_engineSuggestions;
+    std::unique_ptr<omaweb::PaymentCards> m_paymentCards;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<AgentSpaceProbe> m_agentSpaceProbe;
     std::unique_ptr<omaweb::AgentActivityLog> m_agentActivity;

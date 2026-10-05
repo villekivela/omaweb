@@ -385,6 +385,10 @@ add_library(omaweb-core STATIC
     src/core/KeyboardNavigation.h
     src/core/LocaleReport.cpp
     src/core/LocaleReport.h
+    src/core/PaymentCardKeyring.cpp
+    src/core/PaymentCardKeyring.h
+    src/core/PaymentCards.cpp
+    src/core/PaymentCards.h
     src/core/RetainedTab.h
     src/core/SessionSiteState.cpp
     src/core/SessionSiteState.h
@@ -434,6 +438,15 @@ pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto)
 target_link_libraries(omaweb-core
     PUBLIC omaweb-agent-client Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
     PRIVATE Qt6::Concurrent Qt6::CorePrivate PkgConfig::LIBCRYPTO omaweb-content-blocking)
+# Payment cards are kept in the desktop's Secret Service (ADR 0053), which the
+# core reaches through libsecret on Linux. Elsewhere the core builds without
+# it, and a machine with no Secret Service has no payment cards.
+if(UNIX AND NOT APPLE)
+    pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET libsecret-1)
+    target_sources(omaweb-core PRIVATE src/core/SecretServiceKeyring.cpp)
+    target_compile_definitions(omaweb-core PRIVATE OMAWEB_SECRET_SERVICE)
+    target_link_libraries(omaweb-core PRIVATE PkgConfig::LIBSECRET)
+endif()
 omaweb_strict_target(omaweb-core)
 # The page-side half of procedural cosmetic filtering (ADR 0052): Brave's
 # vendored matcher and the dispatch that acts on what it finds. Built into the
@@ -453,7 +466,6 @@ if(OMAWEB_BUILD_SYNC)
     endif()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
-    pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET libsecret-1)
     set(omaweb_sync_installed_askpass
         "${CMAKE_INSTALL_FULL_LIBEXECDIR}/omaweb/omaweb-sync-askpass")
     add_executable(omaweb-sync-askpass modules/sync/AskPass.cpp)
@@ -1324,6 +1336,32 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-core-tests)
     omaweb_declarative_fixture_target(omaweb-core-tests)
     add_test(NAME omaweb-core COMMAND omaweb-core-tests)
+
+    qt_add_executable(omaweb-payment-cards-tests
+        "tests/core/tst_paymentcards.cpp"
+    )
+    target_link_libraries(omaweb-payment-cards-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-payment-cards-tests)
+    add_test(NAME omaweb-payment-cards COMMAND omaweb-payment-cards-tests)
+
+    # The desktop keyring against a Secret Service of the test's own, on a
+    # session bus the test starts, so it never reaches the reader's keyring.
+    if(UNIX AND NOT APPLE)
+        qt_add_executable(omaweb-fake-secret-service "tests/core/FakeSecretService.cpp")
+        target_link_libraries(omaweb-fake-secret-service PRIVATE Qt6::Core Qt6::DBus)
+        omaweb_strict_target(omaweb-fake-secret-service)
+        qt_add_executable(omaweb-secret-service-keyring-tests
+            "tests/core/tst_secretservicekeyring.cpp"
+        )
+        target_link_libraries(omaweb-secret-service-keyring-tests
+            PRIVATE omaweb-core Qt6::DBus Qt6::Test)
+        target_compile_definitions(omaweb-secret-service-keyring-tests PRIVATE
+            OMAWEB_FAKE_SECRET_SERVICE_PATH="$<TARGET_FILE:omaweb-fake-secret-service>"
+        )
+        add_dependencies(omaweb-secret-service-keyring-tests omaweb-fake-secret-service)
+        omaweb_strict_target(omaweb-secret-service-keyring-tests)
+        add_test(NAME omaweb-secret-service-keyring COMMAND omaweb-secret-service-keyring-tests)
+    endif()
 
     qt_add_executable(omaweb-put-away-tabs-tests
         "tests/core/SessionFixture.cpp"

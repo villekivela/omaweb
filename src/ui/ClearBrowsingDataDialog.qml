@@ -60,6 +60,11 @@ DialogPanel {
             value: "forms",
             label: qsTr("Form history"),
             note: qsTr("What was typed into forms, and offered under their fields.")
+        },
+        {
+            value: "cards",
+            label: qsTr("Payment cards"),
+            note: qsTr("Every saved card, from the keyring, whatever the time range.")
         }
     ]
 

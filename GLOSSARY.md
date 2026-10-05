@@ -241,6 +241,17 @@ Space in the suggestion list under a field the page marks as part of an address,
 fills the address fields of that form. A Private window offers none, and they are outside the Sync
 projection. _Avoid_: Autofill profile, contact
 
+**Payment card**: A card number, the name on the card, its expiry and a nickname the reader saved,
+kept in the desktop's Secret Service and nowhere else (ADR 0053). Cards are the reader's rather than
+a Space's, offered in every Space in the suggestion list under a field the page marks as a card's,
+on a secure page only, and picking one fills that form in that field's frame. The security code is
+never kept. A Private window neither offers nor saves one, and they never enter Sync. _Avoid_:
+Credit card, saved card data
+
+**Keyring**: The desktop's Secret Service as the reader meets it: `gnome-keyring` on Omarchy,
+KWallet on KDE. Payment cards and Sync's tokens are kept there. Where a desktop has none, Settings
+says it offers no secret store. _Avoid_: Wallet, password store
+
 **Engine suggestion**: A search term a search engine proposes for the text typed into the Omnibar so
 far. Omaweb asks for them only after the reader turns them on, never in a Private window, and only
 from an engine that names where to ask. Choosing one searches for it with the engine that proposed

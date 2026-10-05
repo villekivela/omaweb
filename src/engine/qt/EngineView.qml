@@ -145,41 +145,216 @@ Item {
                                        1, Number(report.height) * scale));
     }
     // The focused field, when form history may keep what is typed into it,
-    // or else null: its name, what it holds, a number that changes each time
-    // it is focused, and where it is, in the view's own units as the press
-    // origin is. Main frame only, for the same reason. The page decides which
-    // fields qualify, because only the page knows how a field is marked.
+    // an address could fill it or a card be offered under it, or else null:
+    // its name, what it holds (never for a card field), a number that changes
+    // each time it is focused, the frame it is in, and where it is, in the
+    // view's own units as the press origin is. The page decides which fields
+    // qualify, because only the page knows how a field is marked.
     property var formField: null
+    // The field as its frame last reported it, and where each frame below the
+    // main one that has a card field stands in the main frame's view, by the
+    // frame's identity. A field in such a frame is not reported until its
+    // frame's place is known.
+    property var formFieldReport: null
+    property var frameOffsets: ({})
+    // The frames the page's frames are, by identity, as found by asking each.
+    property var identifiedFrames: ({})
     signal formSubmitted(var fields)
+    // A card the reader typed and submitted: `number`, `name`, `expiryMonth`,
+    // `expiryYear` and the `origin` of the frame it was typed in. Taken from
+    // the frame with a call of the view's own rather than its console.
+    signal paymentCardSubmitted(var card)
+    // Every card filled into this document, for Site information: `last4`,
+    // `brand`, `nickname` and the `origin` of the frame it went into. Nothing
+    // about a fill is written anywhere.
+    property var paymentCardFills: []
     // A key the suggestion list answers, taken from the page while the list
     // is shown: "down", "up", "escape", and with a row highlighted "accept"
     // and "forget".
     signal formKeyPressed(string key)
     function recordFormField(report) {
+        if (!report || report.serial === undefined) {
+            // A frame that lost its field clears only its own: the frame the
+            // keyboard went to may have reported first.
+            if (!report || !root.formFieldReport || String(report.frame) === String(
+                        root.formFieldReport.frame)) {
+                root.formFieldReport = null;
+                root.formField = null;
+            }
+            return;
+        }
+        root.formFieldReport = report;
+        if (!report.top)
+            root.identifyFrame(String(report.frame));
+        root.placeFormField();
+    }
+    function placeFormField() {
+        const report = root.formFieldReport;
         if (!report) {
+            root.formField = null;
+            return;
+        }
+        const offset = report.top ? {
+                                        "x": 0,
+                                        "y": 0
+                                    } : root.frameOffsets[String(report.frame)];
+        if (!offset) {
             root.formField = null;
             return;
         }
         const scale = webView.zoomFactor;
         root.formField = {
             "serial": Number(report.serial),
+            "frame": String(report.frame),
+            "origin": String(report.origin || ""),
             "name": String(report.name),
             "address": String(report.address || ""),
+            "card": String(report.card || ""),
+            "empty": report.empty === true,
             "value": String(report.value),
-            "x": Number(report.x) * scale,
-            "y": Number(report.y) * scale,
+            "x": (Number(report.x) + Number(offset.x)) * scale,
+            "y": (Number(report.y) + Number(offset.y)) * scale,
             "width": Number(report.width) * scale,
             "height": Number(report.height) * scale
         };
+    }
+    function recordFrameOffset(report) {
+        const offsets = Object.assign({}, root.frameOffsets);
+        offsets[String(report.frame)] = {
+            "x": Number(report.x) || 0,
+            "y": Number(report.y) || 0
+        };
+        root.frameOffsets = offsets;
+        if (root.formFieldReport && String(root.formFieldReport.frame) === String(report.frame))
+            root.placeFormField();
+    }
+    // Finds which of the page's frames has this identity by asking each; only
+    // the form script's own world can answer. `then`, when given, is handed
+    // the frame once it is found.
+    function identifyFrame(identity, then) {
+        const known = root.identifiedFrames[identity];
+        if (known && known.isValid) {
+            if (then)
+                then(known);
+            return;
+        }
+        const generation = root.pageGeneration;
+        root.forEachFrame(webView.mainFrame, function (frame) {
+            if (frame.isMainFrame)
+                return;
+            frame.runJavaScript("globalThis.__omawebFormHistory ? "
+                                + "globalThis.__omawebFormHistory.frame : ''",
+                                WebEngineScript.ApplicationWorld, function (answered) {
+                                    if (generation !== root.pageGeneration || String(answered)
+                                            !== identity)
+                                        return;
+                                    const frames = Object.assign({}, root.identifiedFrames);
+                                    frames[identity] = frame;
+                                    root.identifiedFrames = frames;
+                                    if (then)
+                                        then(frame);
+                                });
+        });
+    }
+    // The frame the focused field is in, or null while it is not known: a
+    // card goes into that frame and no other.
+    function fieldFrame() {
+        const report = root.formFieldReport;
+        if (!report)
+            return null;
+        if (report.top)
+            return webView.mainFrame;
+        const frame = root.identifiedFrames[String(report.frame)];
+        return frame && frame.isValid ? frame : null;
+    }
+    function forgetFormFrames() {
+        root.frameOffsets = {};
+        root.identifiedFrames = {};
+        root.paymentCardFills = [];
     }
     // Which keys the page hands over: the list's keys while it is shown, and
     // Enter and Shift+Delete only while a row is highlighted. The values
     // themselves stay in the shell until one is accepted.
     function showFormSuggestions(shown, highlighted) {
-        webView.runJavaScript(
+        const frame = root.fieldFrame();
+        if (!frame)
+            return;
+        frame.runJavaScript(
                     "globalThis.__omawebFormHistory && globalThis.__omawebFormHistory.show(" + (
                         shown ? "true" : "false") + "," + (highlighted ? "true" : "false") + ")",
-                    WebEngineScript.ApplicationWorld);
+                    WebEngineScript.ApplicationWorld, function () {});
+    }
+    // Fills the focused field's form from a saved card, the reader having
+    // picked it, in the focused field's frame and no other. Only the number,
+    // the name and the expiry are sent. A fill the frame made is listed for
+    // Site information by the card's last four digits.
+    function fillPaymentCard(card, serial) {
+        const frame = root.fieldFrame();
+        if (!frame || !card)
+            return;
+        const sent = {
+            "number": String(card.number || ""),
+            "name": String(card.name || ""),
+            "expiryMonth": Number(card.expiryMonth) || 0,
+            "expiryYear": Number(card.expiryYear) || 0
+        };
+        const listed = {
+            "last4": String(card.last4 || ""),
+            "brand": String(card.brand || ""),
+            "nickname": String(card.nickname || "")
+        };
+        const generation = root.pageGeneration;
+        frame.runJavaScript(
+                    "globalThis.__omawebFormHistory ? globalThis.__omawebFormHistory.fillCard("
+                    + JSON.stringify(sent) + "," + Number(serial) + ") : null",
+                    WebEngineScript.ApplicationWorld, function (filled) {
+                        if (!filled || generation !== root.pageGeneration)
+                            return;
+                        listed.origin = String(filled.origin || "");
+                        root.paymentCardFills = root.paymentCardFills.concat([listed]);
+                    });
+    }
+    // Tells every frame to forget what was typed into its forms, which the
+    // shell asks when an Agent's step has ended.
+    function forgetTypedInput() {
+        root.forEachFrame(webView.mainFrame, function (frame) {
+            frame.runJavaScript("globalThis.__omawebFormHistory && "
+                                + "globalThis.__omawebFormHistory.forgetTyped()",
+                                WebEngineScript.ApplicationWorld, function () {});
+        });
+    }
+    // Takes the card a frame says was submitted, at once: a form that leaves
+    // its page leaves after this call reaches it.
+    function takeSubmittedCard(report) {
+        if (report.top)
+            root.takeCardFrom(webView.mainFrame);
+        else
+            root.identifyFrame(String(report.frame), root.takeCardFrom);
+    }
+    function takeCardFrom(frame) {
+        if (!frame || !frame.isValid)
+            return;
+        frame.runJavaScript("globalThis.__omawebFormHistory ? "
+                            + "globalThis.__omawebFormHistory.takeCard() : null",
+                            WebEngineScript.ApplicationWorld, function (card) {
+                                if (!card || typeof card.number !== "string")
+                                    return;
+                                root.paymentCardSubmitted({
+                                                              "number": String(card.number),
+                                                              "name": String(card.name || ""),
+                                                              "expiryMonth": Number(
+                                                                                 card.expiryMonth)
+                                                                             || 0,
+                                                              "expiryYear": Number(card.expiryYear)
+                                                                            || 0,
+                                                              "origin": root.originOf(frame.url)
+                                                          });
+                            });
+    }
+    function originOf(url) {
+        const address = String(url);
+        const match = /^([a-z][a-z0-9+.-]*:\/\/[^\/?#]*)/i.exec(address);
+        return match ? match[1] : "";
     }
     function fillFormField(value) {
         webView.runJavaScript(
@@ -2736,13 +2911,26 @@ Item {
     // out of the page's reach. The keys are taken in the capture phase at the
     // window by a listener added as the document is created, so it runs
     // before any the page or keyboard navigation adds there later.
+    //
+    // Payment cards (ADR 0053) are its too, in every frame: a processor's
+    // payment frame is where most checkouts take the card. Form history and
+    // addresses stay in the main frame. A frame names itself in what it reports
+    // by a random identity only this world can read, and tells the frame above
+    // where it stands, so the main frame can say where its field is in the
+    // view. What is typed into a card field is never reported: a submitted card
+    // is held here until the shell takes it with a call of its own.
     property var formHistoryScript: {
         const script = WebEngine.script();
         script.name = "Omaweb form history";
         script.injectionPoint = WebEngineScript.DocumentCreation;
         script.worldId = WebEngineScript.ApplicationWorld;
-        script.runsOnSubFrames = false;
+        script.runsOnSubFrames = true;
         script.sourceCode = root.reporting(`
+            const top = window === window.top;
+            // Drawn from getRandomValues, which unlike randomUUID a page that is
+            // not a secure context has too.
+            const frame = Array.from(crypto.getRandomValues(new Uint32Array(4)),
+                part => part.toString(36)).join('');
             const textTypes = ['text', 'search', 'email', 'tel', 'url'];
             const unkeptTokens = ['off', 'current-password', 'new-password', 'one-time-code'];
             const cardName = /c(ard|c)[-_ ]?(num|no$|number)|credit.?card|cvc|cvv|csc|security.?code/i;
@@ -2750,7 +2938,7 @@ Item {
             const tokens = element => (element.getAttribute('autocomplete') || '')
                 .toLowerCase().trim().split(/\\s+/).filter(Boolean);
             const keeps = element => {
-                if (!(element instanceof HTMLInputElement)) return false;
+                if (!top || !(element instanceof HTMLInputElement)) return false;
                 if (!textTypes.includes(element.type) || element.readOnly || element.disabled)
                     return false;
                 const name = fieldName(element);
@@ -2777,6 +2965,7 @@ Item {
             // A 'country' token asks for a country code, which an address does not
             // hold, so only a select with that token takes one.
             const offersAddress = element => {
+                if (!top) return false;
                 const kind = element instanceof HTMLInputElement
                     ? textTypes.includes(element.type) : element instanceof HTMLTextAreaElement;
                 const token = kind ? addressToken(element) : '';
@@ -2816,9 +3005,67 @@ Item {
                 return rect.width >= 4 && rect.height >= 4 && rect.right + scrollX > 0
                     && rect.bottom + scrollY > 0;
             };
+            // A field's card token: its last one, after any section and
+            // shipping or billing word. The security code has one too, so it
+            // is known never to be read.
+            const cardTokens = ['cc-number', 'cc-name', 'cc-given-name', 'cc-family-name',
+                'cc-exp', 'cc-exp-month', 'cc-exp-year'];
+            const cardToken = element => {
+                const own = tokens(element).filter(token => token !== 'webauthn');
+                const token = own.length ? own[own.length - 1] : '';
+                return cardTokens.includes(token) || token === 'cc-csc' ? token : '';
+            };
+            // A text field a saved card is offered under: one marked with a
+            // card token other than the security code, in a secure context.
+            // The shell holds the page to the stricter rule, a certificate the
+            // engine accepted without an exception.
+            const offersCard = element => element instanceof HTMLInputElement
+                && textTypes.includes(element.type) && cardTokens.includes(cardToken(element))
+                && !element.readOnly && !element.disabled && isSecureContext;
+            const cardDigits = text => String(text || '').replace(/[\\s-]/g, '');
+            const twoDigits = number => String(number).padStart(2, '0');
+            // What a card puts in a field with this token, as text a field of
+            // that shape takes; a select is offered each spelling in turn.
+            const cardValues = (card, token, element) => {
+                const name = String(card.name || '').trim();
+                const split = name.lastIndexOf(' ');
+                const month = Number(card.expiryMonth) || 0;
+                const year = Number(card.expiryYear) || 0;
+                switch (token) {
+                case 'cc-number': return [cardDigits(card.number)];
+                case 'cc-name': return [name];
+                case 'cc-given-name': return [split < 0 ? name : name.slice(0, split)];
+                case 'cc-family-name': return [split < 0 ? '' : name.slice(split + 1)];
+                case 'cc-exp':
+                    if (!month || !year) return [''];
+                    return [twoDigits(month) + '/'
+                        + (element.maxLength === 7 || /yyyy/i.test(element.placeholder)
+                            ? String(year) : twoDigits(year % 100))];
+                case 'cc-exp-month':
+                    return month ? [twoDigits(month), String(month)] : [''];
+                case 'cc-exp-year':
+                    if (!year) return [''];
+                    return element.maxLength === 2 ? [twoDigits(year % 100)]
+                        : [String(year), twoDigits(year % 100)];
+                }
+                return [''];
+            };
+            // The value the reader last typed into each card field, which is
+            // the only value that makes a card theirs to save. The security
+            // code is never kept here.
+            let cardTyped = new WeakMap();
+            // Card fields that held text the reader did not type when they
+            // started typing into them: a page could prefill all but a digit.
+            // Typing into it empty makes it the reader's again.
+            let cardTainted = new WeakSet();
+            let heldCard = null;
+            let heldTimer = 0;
+            // The frames below that told this one where their card field is,
+            // by identity, and the frame element each one is drawn in.
+            const below = new Map();
             // The fields the reader typed into, or filled from the list. A
             // value the page wrote or sent prefilled is not the reader's.
-            const typed = new WeakSet();
+            let typed = new WeakSet();
             let current = null;
             // The field the reader last pressed, and whether the field with
             // the keyboard is one they pressed or typed into. Addresses are
@@ -2830,16 +3077,53 @@ Item {
             let last = '';
             let shown = false;
             let highlighted = false;
+            // Where the frame element showing the frame below stands in this
+            // frame's view, passed up to the main frame, which reports it.
+            const place = identity => {
+                const child = below.get(identity);
+                if (!child) return;
+                if (!child.host.isConnected) {
+                    below.delete(identity);
+                    return;
+                }
+                const rect = child.host.getBoundingClientRect();
+                const style = getComputedStyle(child.host);
+                const x = rect.left + child.host.clientLeft + parseFloat(style.paddingLeft) + child.x;
+                const y = rect.top + child.host.clientTop + parseFloat(style.paddingTop) + child.y;
+                if (top) report('frame_offset', {frame: identity, x, y});
+                else parent.postMessage({omawebFrame: identity, x, y}, '*');
+            };
+            addEventListener('message', event => {
+                const data = event.data;
+                if (!data || typeof data !== 'object' || typeof data.omawebFrame !== 'string')
+                    return;
+                // Not the page's business, and the page's own listeners come
+                // after this one, which was added as the document was created.
+                event.stopImmediatePropagation();
+                const host = [...document.querySelectorAll('iframe, frame')]
+                    .find(element => element.contentWindow === event.source);
+                if (!host) return;
+                below.set(data.omawebFrame,
+                    {host, x: Number(data.x) || 0, y: Number(data.y) || 0});
+                place(data.omawebFrame);
+            }, true);
+            const placeBelow = () => {
+                for (const identity of below.keys()) place(identity);
+            };
             const send = () => {
                 if (!current) return;
                 const rect = current.getBoundingClientRect();
-                const field = {serial, name: keeps(current) ? fieldName(current) : '',
+                const card = cardToken(current) !== '';
+                const field = {frame, top, origin: location.origin, serial,
+                    name: keeps(current) ? fieldName(current) : '',
                     address: taken && offersAddress(current) ? addressToken(current) : '',
-                    value: current.value,
+                    card: taken && offersCard(current) ? cardToken(current) : '',
+                    value: card ? '' : current.value, empty: current.value === '',
                     x: rect.left, y: rect.top, width: rect.width, height: rect.height};
                 const encoded = JSON.stringify(field);
                 if (encoded === last) return;
                 last = encoded;
+                if (!top && field.card) parent.postMessage({omawebFrame: frame, x: 0, y: 0}, '*');
                 report('form_field', field);
             };
             const closeList = () => {
@@ -2854,21 +3138,36 @@ Item {
                 closeList();
                 send();
             };
+            // A frame that loses its field says which frame it is, so a report
+            // from the frame the keyboard went to is not undone by it.
             const leave = () => {
                 if (!current) return;
                 current = null;
                 closeList();
-                report('form_field', null);
+                report('form_field', {frame});
             };
             document.addEventListener('focusin', event => {
-                if (keeps(event.target) || offersAddress(event.target)) adopt(event.target);
+                if (keeps(event.target) || offersAddress(event.target) || offersCard(event.target))
+                    adopt(event.target);
                 else leave();
             }, true);
             document.addEventListener('focusout', event => {
                 if (event.target === current) leave();
             }, true);
+            document.addEventListener('beforeinput', event => {
+                const token = cardToken(event.target);
+                if (!event.isTrusted || !token || token === 'cc-csc') return;
+                if (event.target.value === '') cardTainted.delete(event.target);
+                else if (cardTyped.get(event.target) !== event.target.value)
+                    cardTainted.add(event.target);
+            }, true);
             document.addEventListener('input', event => {
                 if (event.isTrusted) typed.add(event.target);
+                const token = cardToken(event.target);
+                if (event.isTrusted && token && token !== 'cc-csc') {
+                    cardTyped.set(event.target, event.target.value);
+                    if (event.target.value === '') cardTainted.delete(event.target);
+                }
                 if (event.target === current && event.isTrusted) taken = true;
                 if (event.target === current) send();
             }, true);
@@ -2880,8 +3179,45 @@ Item {
                     send();
                 }
             }, {capture: true, passive: true});
-            addEventListener('scroll', send, {capture: true, passive: true});
-            addEventListener('resize', send, {passive: true});
+            addEventListener('scroll', () => {
+                send();
+                placeBelow();
+            }, {capture: true, passive: true});
+            addEventListener('resize', () => {
+                send();
+                placeBelow();
+            }, {passive: true});
+            // The card in a submitted form, when the reader typed its number
+            // and the field still holds what they typed. The security code is
+            // not read.
+            const submittedCard = form => {
+                const elements = [...(form.elements || [])];
+                const of = token => elements.find(element => cardToken(element) === token);
+                const number = of('cc-number');
+                if (!number || !number.value || cardTyped.get(number) !== number.value
+                    || cardTainted.has(number))
+                    return null;
+                const digits = cardDigits(number.value);
+                if (!/^\\d{12,19}$/.test(digits)) return null;
+                const given = of('cc-given-name');
+                const family = of('cc-family-name');
+                const name = of('cc-name') ? of('cc-name').value
+                    : [given ? given.value : '', family ? family.value : ''].join(' ');
+                let month = 0;
+                let year = 0;
+                const expiry = of('cc-exp');
+                const parts = expiry ? /^\\s*(\\d{1,2})\\s*[\\/-]?\\s*(\\d{2}|\\d{4})\\s*$/
+                    .exec(expiry.value) : null;
+                if (parts) {
+                    month = Number(parts[1]);
+                    year = Number(parts[2]);
+                } else {
+                    month = Number(of('cc-exp-month') ? of('cc-exp-month').value : 0) || 0;
+                    year = Number(of('cc-exp-year') ? of('cc-exp-year').value : 0) || 0;
+                }
+                if (year > 0 && year < 100) year += 2000;
+                return {number: digits, name: name.trim(), expiryMonth: month, expiryYear: year};
+            };
             document.addEventListener('submit', event => {
                 const fields = [];
                 for (const element of event.target.elements || []) {
@@ -2889,6 +3225,20 @@ Item {
                         fields.push({name: fieldName(element), value: element.value});
                 }
                 if (fields.length) report('form_submit', fields);
+                // A submit the page made up is not the reader's, and neither is
+                // one the page made with no input of the reader's behind it,
+                // as requestSubmit() makes one. The report says only that there
+                // is a card; the shell takes it at once, before a form that
+                // leaves its page has left it.
+                const card = event.isTrusted && isSecureContext && navigator.userActivation.isActive
+                    ? submittedCard(event.target) : null;
+                if (!card) return;
+                heldCard = card;
+                clearTimeout(heldTimer);
+                heldTimer = setTimeout(() => {
+                    heldCard = null;
+                }, 10000);
+                report('card_submit', {frame, top});
             }, true);
             addEventListener('keydown', event => {
                 // A key the page dispatched itself could walk the list and
@@ -2933,6 +3283,7 @@ Item {
                 element.dispatchEvent(new Event('change', {bubbles: true}));
             };
             globalThis.__omawebFormHistory = {
+                frame,
                 show(isShown, isHighlighted) {
                     shown = isShown && current !== null;
                     highlighted = shown && isHighlighted;
@@ -2968,6 +3319,53 @@ Item {
                         writeValue(element, value);
                     }
                     send();
+                },
+                // The focused field, and every empty card field of its form,
+                // or of the frame outside any form when it has none, for the
+                // focus of the field the list was drawn for. The security code
+                // is left for the reader. What a card filled is not typed, so
+                // it is never offered for saving. Answers the frame's origin
+                // for Site information, or null when nothing was filled.
+                fillCard(card, forSerial) {
+                    if (!current || forSerial !== serial || !taken || !offersCard(current))
+                        return null;
+                    const fields = current.form ? [...current.form.elements]
+                        : [...document.querySelectorAll('input, select')]
+                            .filter(element => !element.form);
+                    for (const element of fields) {
+                        const token = cardToken(element);
+                        if (!token || token === 'cc-csc' || !fillable(element, token)) continue;
+                        if (element !== current && element.value !== '') continue;
+                        const values = cardValues(card, token, element).filter(Boolean);
+                        if (!values.length) continue;
+                        typed.delete(element);
+                        cardTyped.delete(element);
+                        if (element instanceof HTMLSelectElement) {
+                            const value = values.find(wanted => [...element.options]
+                                .some(option => option.value === wanted
+                                    || option.text.trim() === wanted));
+                            if (value) writeValue(element, value);
+                        } else {
+                            writeValue(element, values[0]);
+                        }
+                    }
+                    send();
+                    return {origin: location.origin};
+                },
+                // What an Agent's step typed, which arrives as trusted keys, is
+                // forgotten when the step ends: none of it is the reader's.
+                forgetTyped() {
+                    typed = new WeakSet();
+                    cardTyped = new WeakMap();
+                    cardTainted = new WeakSet();
+                    heldCard = null;
+                },
+                // The submitted card, once: whoever takes it is the last to.
+                takeCard() {
+                    const card = heldCard;
+                    heldCard = null;
+                    clearTimeout(heldTimer);
+                    return card;
                 }
             };
 `);
@@ -4258,6 +4656,18 @@ Item {
                 } catch (error) {
                     root.formField = null;
                 }
+            } else if (report.channel === "frame_offset") {
+                try {
+                    root.recordFrameOffset(JSON.parse(report.body));
+                } catch (error) {
+                    console.warn("Could not read where a frame stands: " + error);
+                }
+            } else if (report.channel === "card_submit") {
+                try {
+                    root.takeSubmittedCard(JSON.parse(report.body));
+                } catch (error) {
+                    console.warn("Could not read which frame submitted a card");
+                }
             } else if (report.channel === "form_submit") {
                 try {
                     const reported = JSON.parse(report.body);
@@ -4293,6 +4703,7 @@ Item {
                     root.pageMediaSession = {};
                 }
             } else if (report.channel === "document_created") {
+                root.forgetFormFrames();
                 root.documentReported = true;
                 lateCanvas.stop();
                 root.documentPainted = false;

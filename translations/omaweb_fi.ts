@@ -515,6 +515,14 @@
         <translation>Lomakkeisiin kirjoitettu ja kenttien alla tarjottu teksti.</translation>
     </message>
     <message>
+        <source>Payment cards</source>
+        <translation>Maksukortit</translation>
+    </message>
+    <message>
+        <source>Every saved card, from the keyring, whatever the time range.</source>
+        <translation>Jokainen tallennettu kortti avainnipusta aikavälistä riippumatta.</translation>
+    </message>
+    <message>
         <source>the last hour</source>
         <translation>viimeinen tunti</translation>
     </message>
@@ -789,6 +797,28 @@
     <message>
         <source>Hide find</source>
         <translation>Piilota haku</translation>
+    </message>
+</context>
+<context>
+    <name>FormSuggestions</name>
+    <message>
+        <source>Card</source>
+        <comment>a payment card with no name</comment>
+        <translation>Kortti</translation>
+    </message>
+    <message>
+        <source>%1 •••• %2</source>
+        <comment>a saved card: its nickname or brand, its last four digits</comment>
+        <translation>%1 •••• %2</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <comment>a saved card: the name on it · its expiry</comment>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>Saved cards are offered only on secure pages</source>
+        <translation>Tallennettuja kortteja tarjotaan vain suojatuilla sivuilla</translation>
     </message>
 </context>
 <context>
@@ -1685,6 +1715,25 @@
         <translation>Ei nyt</translation>
     </message>
     <message>
+        <source>Save card •••• %1 to the keyring?</source>
+        <translation>Tallennetaanko kortti •••• %1 avainnippuun?</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <comment>the site a card was typed on · its Space</comment>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <comment>button: save a typed card to the keyring</comment>
+        <translation>Tallenna</translation>
+    </message>
+    <message>
+        <source>Not now</source>
+        <comment>button: do not save a typed card</comment>
+        <translation>Ei nyt</translation>
+    </message>
+    <message>
         <source>%1 asked for a protected browser capability</source>
         <translation>%1 pyysi suojattua selaimen ominaisuutta</translation>
     </message>
@@ -2432,6 +2481,10 @@
         <translation>osoitteet</translation>
     </message>
     <message>
+        <source>payment cards</source>
+        <translation>maksukortit</translation>
+    </message>
+    <message>
         <source>agents</source>
         <translation>agentit</translation>
     </message>
@@ -2542,6 +2595,21 @@
     <message>
         <source>Text files (*.txt)</source>
         <translation>Tekstitiedostot (*.txt)</translation>
+    </message>
+    <message>
+        <source>%1 •••• %2</source>
+        <comment>a saved card: its nickname or brand, its last four digits</comment>
+        <translation>%1 •••• %2</translation>
+    </message>
+    <message>
+        <source>Card</source>
+        <comment>a payment card with no name</comment>
+        <translation>Kortti</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <comment>a saved card: the name on it · its expiry</comment>
+        <translation>%1 · %2</translation>
     </message>
     <message>
         <source>%1 doesn&apos;t offer suggestions.</source>
@@ -3328,6 +3396,97 @@ Päivitykset osoitteesta %3</translation>
         <translation>Tallenna</translation>
     </message>
     <message>
+        <source>Edit</source>
+        <comment>verb: edit a saved card</comment>
+        <translation>Muokkaa</translation>
+    </message>
+    <message>
+        <source>No secret store</source>
+        <translation>Ei salaisuusvarastoa</translation>
+    </message>
+    <message>
+        <source>The keyring stayed locked</source>
+        <translation>Avainnippu pysyi lukittuna</translation>
+    </message>
+    <message>
+        <source>No saved cards</source>
+        <translation>Ei tallennettuja kortteja</translation>
+    </message>
+    <message>
+        <source>Payment cards are saved in a regular window.</source>
+        <translation>Maksukortit tallennetaan tavallisessa ikkunassa.</translation>
+    </message>
+    <message>
+        <source>The desktop offers no secret store, so Omaweb keeps no payment cards.</source>
+        <translation>Työpöytä ei tarjoa salaisuusvarastoa, joten Omaweb ei säilytä maksukortteja.</translation>
+    </message>
+    <message>
+        <source>Omaweb asked the desktop to unlock its keyring, and it did not.</source>
+        <translation>Omaweb pyysi työpöytää avaamaan avainnipun, mutta sitä ei avattu.</translation>
+    </message>
+    <message>
+        <source>Cards are kept in the desktop&apos;s keyring and offered in forms in every Space, never in a Private window. The security code is never kept.</source>
+        <translation>Kortit säilytetään työpöydän avainnipussa, ja niitä tarjotaan lomakkeissa jokaisessa tilassa, ei koskaan yksityisessä ikkunassa. Turvakoodia ei koskaan säilytetä.</translation>
+    </message>
+    <message>
+        <source>Try again</source>
+        <comment>button: ask to unlock the keyring again</comment>
+        <translation>Yritä uudelleen</translation>
+    </message>
+    <message>
+        <source>Add card</source>
+        <translation>Lisää kortti</translation>
+    </message>
+    <message>
+        <source>edit card</source>
+        <translation>muokkaa korttia</translation>
+    </message>
+    <message>
+        <source>add a card</source>
+        <translation>lisää kortti</translation>
+    </message>
+    <message>
+        <source>card number</source>
+        <translation>kortin numero</translation>
+    </message>
+    <message>
+        <source>Card number, ending %1, type another to replace it</source>
+        <translation>Kortin numero, päättyy %1, korvaa kirjoittamalla toinen</translation>
+    </message>
+    <message>
+        <source>Card number</source>
+        <translation>Kortin numero</translation>
+    </message>
+    <message>
+        <source>name on card</source>
+        <translation>nimi kortissa</translation>
+    </message>
+    <message>
+        <source>Name on card</source>
+        <translation>Nimi kortissa</translation>
+    </message>
+    <message>
+        <source>MM/YY</source>
+        <comment>placeholder: a card&apos;s expiry</comment>
+        <translation>KK/VV</translation>
+    </message>
+    <message>
+        <source>Card expiry</source>
+        <translation>Kortin voimassaolo</translation>
+    </message>
+    <message>
+        <source>nickname</source>
+        <translation>lempinimi</translation>
+    </message>
+    <message>
+        <source>Card nickname</source>
+        <translation>Kortin lempinimi</translation>
+    </message>
+    <message>
+        <source>That is not a card number, or the expiry is not a month and year.</source>
+        <translation>Tämä ei ole kortin numero, tai voimassaolo ei ole kuukausi ja vuosi.</translation>
+    </message>
+    <message>
         <source>New Space</source>
         <translation>Uusi Tila</translation>
     </message>
@@ -3785,6 +3944,26 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <source>None allowed</source>
         <comment>third parties</comment>
         <translation>Ei sallittuja</translation>
+    </message>
+    <message>
+        <source>%1 •••• %2</source>
+        <comment>a saved card: its nickname or brand, its last four digits</comment>
+        <translation>%1 •••• %2</translation>
+    </message>
+    <message>
+        <source>Card</source>
+        <comment>a payment card with no name</comment>
+        <translation>Kortti</translation>
+    </message>
+    <message>
+        <source>%1 was filled in</source>
+        <comment>a saved card was filled into this page</comment>
+        <translation>%1 täytettiin</translation>
+    </message>
+    <message>
+        <source>%1 was filled in for %2</source>
+        <comment>a saved card was filled into a frame of another site</comment>
+        <translation>%1 täytettiin sivustolle %2</translation>
     </message>
     <message>
         <source>Back to %1</source>

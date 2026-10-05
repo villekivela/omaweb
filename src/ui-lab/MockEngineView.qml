@@ -396,7 +396,7 @@ Rectangle {
             "above": 0,
             "below": 0
         };
-        Qt.callLater(function () {
+        const answer = function () {
             // Each step goes through, and a step that carries a `name` is
             // reported as reaching an element the page names so.
             const steps = verb === "do" ? ((args || {}).steps || []).map(function (step) {
@@ -415,7 +415,22 @@ Rectangle {
                                        "ok": true,
                                        "look": look
                                    });
-        });
+        };
+        if (root.holdAgentAnswers)
+            root.heldAgentAnswers.push(answer);
+        else
+            Qt.callLater(answer);
+    }
+    // A test holds the page's answers to have an Agent's steps still running
+    // while the page reports what they did.
+    property bool holdAgentAnswers: false
+    property var heldAgentAnswers: []
+    function releaseAgentAnswers() {
+        const held = root.heldAgentAnswers;
+        root.heldAgentAnswers = [];
+        root.holdAgentAnswers = false;
+        for (const answer of held)
+            answer();
     }
     property rect pressOrigin: Qt.rect(0, 0, 0, 0)
     function simulatePress(x, y, width, height) {
@@ -430,6 +445,13 @@ Rectangle {
     property bool formSuggestionHighlighted: false
     signal formSubmitted(var fields)
     signal formKeyPressed(string key)
+    signal paymentCardSubmitted(var card)
+    property var paymentCardFills: []
+    // The card the shell last asked the page to fill its form from, and the
+    // origin of the frame the focused card field is in, which is the page's
+    // own unless a test says otherwise.
+    property var filledCard: null
+    property string cardFrameOrigin: ""
     function simulateFormFieldFocus(name, value, x, y, width, height, address) {
         root.formFieldSerial += 1;
         root.formSuggestionsShown = false;
@@ -444,6 +466,63 @@ Rectangle {
             "width": width,
             "height": height
         };
+    }
+    // A card field the reader pressed, reported as the page reports one:
+    // with its token and whether it is empty, never with what it holds.
+    function simulateCardFieldFocus(card, x, y, width, height, frame, serial) {
+        root.formFieldSerial = serial !== undefined ? serial : root.formFieldSerial + 1;
+        root.formSuggestionsShown = false;
+        root.formSuggestionHighlighted = false;
+        root.formField = {
+            "serial": root.formFieldSerial,
+            "frame": frame || "main",
+            "origin": root.cardFrameOrigin || root.originOf(root.currentUrl),
+            "name": "",
+            "address": "",
+            "card": card,
+            "empty": true,
+            "value": "",
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        };
+    }
+    function simulateCardFieldInput() {
+        if (root.formField)
+            root.formField = Object.assign({}, root.formField, {
+                                               "empty": false
+                                           });
+    }
+    function simulateCardFieldBlur() {
+        root.simulateFormFieldBlur();
+    }
+    // How many times the shell asked the page to forget what was typed.
+    property int typedInputForgotten: 0
+    function forgetTypedInput() {
+        root.typedInputForgotten += 1;
+    }
+    function simulatePaymentCardSubmit(card) {
+        root.paymentCardSubmitted(card);
+    }
+    function fillPaymentCard(card, serial) {
+        if (!root.formField || !root.formField.card || serial !== root.formField.serial)
+            return;
+        root.filledCard = card;
+        root.paymentCardFills = root.paymentCardFills.concat([
+                                                                 {
+                                                                     "last4": card.last4,
+                                                                     "brand": card.brand,
+                                                                     "nickname": card.nickname,
+                                                                     "origin": root.cardFrameOrigin
+                                                                               || root.originOf(
+                                                                                   root.currentUrl)
+                                                                 }
+                                                             ]);
+    }
+    function originOf(url) {
+        const match = /^([a-z][a-z0-9+.-]*:\/\/[^\/?#]*)/i.exec(String(url));
+        return match ? match[1] : "";
     }
     function simulateFormFieldInput(value) {
         if (!root.formField)
@@ -650,6 +729,7 @@ Rectangle {
 
     onCurrentUrlChanged: {
         root.pageGeneration += 1;
+        root.paymentCardFills = [];
         root.documentPainted = root.paintsAtOnce(root.currentUrl);
         root.announcePage(root.currentUrl);
         root.javaScriptDialogsBlocked = false;
@@ -690,6 +770,7 @@ Rectangle {
     function reloadPage() {
         loading = true;
         root.pageGeneration += 1;
+        root.paymentCardFills = [];
         root.announcePage(root.currentUrl);
         settle.restart();
     }

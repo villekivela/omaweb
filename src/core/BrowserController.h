@@ -33,6 +33,7 @@ namespace omaweb {
 class AddressWatch;
 class EngineSuggestions;
 class HistorySearch;
+class PaymentCards;
 class ThreadedSessionStore;
 
 // A window implements DownloadPermissions so its downloads can ask what an
@@ -126,6 +127,10 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // and no engine loads.
     Q_PROPERTY(QUrl agentActivityAddress READ agentActivityAddress CONSTANT)
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
+    // Where the payment cards stand: "unavailable" in a Private window and on a
+    // desktop with no secret store, "unread" until something needs them,
+    // "reading", "ready", or "unreadable" when the keyring would not give them up.
+    Q_PROPERTY(QString paymentCardsState READ paymentCardsState NOTIFY paymentCardsChanged)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
     // The window's downloads, running and recorded. The download directory
@@ -460,6 +465,27 @@ public:
     // or nothing when it was not kept: an address needs a name.
     Q_INVOKABLE QString saveAddress(const QVariantMap &address);
     Q_INVOKABLE bool removeAddress(const QString &id);
+    // Payment cards: the reader's, kept in the desktop's keyring (ADR 0053),
+    // offered in every Space and never in a Private window, which is never
+    // given them. A window that is given none has none.
+    void setPaymentCards(PaymentCards *cards);
+    QString paymentCardsState() const;
+    // Each card by everything but its number, as PaymentCards::cards
+    // describes; asking reads them from the keyring the first time.
+    Q_INVOKABLE QVariantList paymentCards();
+    // Asks the keyring again after the reader left it locked.
+    Q_INVOKABLE void readPaymentCardsAgain();
+    // Adds the card, or edits the one its `id` names, and answers its id, or
+    // nothing when it was not kept, as PaymentCards::save describes.
+    Q_INVOKABLE QString savePaymentCard(const QVariantMap &card);
+    Q_INVOKABLE bool removePaymentCard(const QString &id);
+    // The card with its `number`, for the fill the reader picked and nothing
+    // else.
+    Q_INVOKABLE QVariantMap paymentCardForFill(const QString &id) const;
+    Q_INVOKABLE bool paymentCardSaved(const QString &number) const;
+    // Whether the text is a card number one could be saved under: 12 to 19
+    // digits, spaces and dashes aside, that pass the Luhn check.
+    Q_INVOKABLE bool isPaymentCardNumber(const QString &number) const;
     Q_INVOKABLE bool clearBrowsingData(const QStringList &dataTypes, qint64 since,
         bool everySpace = false, const QString &confirmation = {});
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
@@ -635,6 +661,7 @@ public:
     bool closeTabInSpace(const QString &tabId, const QString &spaceHint = {});
 
 signals:
+    void paymentCardsChanged();
     void activeSpaceChanged();
     void activeTabChanged();
     void atRestChanged();
@@ -836,6 +863,7 @@ private:
     // has no history to search.
     HistorySearch *m_historySearch = nullptr;
     QPointer<EngineSuggestions> m_engineSuggestions;
+    QPointer<PaymentCards> m_paymentCards;
     // Engine suggestions wait for typing to pause, then ask once. The
     // generation names the request the Omnibar is waiting for, so an answer
     // to text the reader has typed past is dropped when it arrives.

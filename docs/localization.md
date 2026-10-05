@@ -33,6 +33,8 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | History           | Historia              |                                                                                                 |
 | Form history      | Lomakehistoria        | What a Space keeps of what was typed into forms.                                                |
 | Address           | Osoite                | A name, street and the rest the reader saved to fill forms with.                                |
+| Payment card      | Maksukortti           | A card the reader saved in the desktop's keyring to fill forms with.                            |
+| Keyring           | Avainnippu            | The desktop's Secret Service, as GNOME's Finnish names it.                                      |
 | Downloads         | Lataukset             |                                                                                                 |
 | Settings          | Asetukset             |                                                                                                 |
 | Engine            | Moottori              | The web engine that renders pages.                                                              |

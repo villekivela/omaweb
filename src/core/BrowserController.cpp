@@ -8,6 +8,7 @@
 #include "ExtensionPackage.h"
 #include "HistoryQuery.h"
 #include "HistorySearch.h"
+#include "PaymentCards.h"
 #include "SqliteSessionStore.h"
 #include "StoredFavicons.h"
 #include "ThreadedSessionStore.h"
@@ -3458,12 +3459,86 @@ bool BrowserController::removeAddress(const QString &id)
     return !id.isEmpty() && m_store->deleteAddress(id);
 }
 
+void BrowserController::setPaymentCards(PaymentCards *cards)
+{
+    if (m_paymentCards) {
+        disconnect(m_paymentCards, nullptr, this, nullptr);
+    }
+    m_paymentCards = m_privateBrowsing ? nullptr : cards;
+    if (m_paymentCards) {
+        connect(
+            m_paymentCards, &PaymentCards::changed, this, &BrowserController::paymentCardsChanged);
+    }
+    emit paymentCardsChanged();
+}
+
+QString BrowserController::paymentCardsState() const
+{
+    if (!m_paymentCards) {
+        return QStringLiteral("unavailable");
+    }
+    switch (m_paymentCards->state()) {
+    case PaymentCards::State::Unread:
+        return QStringLiteral("unread");
+    case PaymentCards::State::Reading:
+        return QStringLiteral("reading");
+    case PaymentCards::State::Ready:
+        return QStringLiteral("ready");
+    case PaymentCards::State::Unavailable:
+        return QStringLiteral("unavailable");
+    case PaymentCards::State::Unreadable:
+        return QStringLiteral("unreadable");
+    }
+    return QStringLiteral("unavailable");
+}
+
+QVariantList BrowserController::paymentCards()
+{
+    if (!m_paymentCards) {
+        return {};
+    }
+    m_paymentCards->read();
+    return m_paymentCards->cards();
+}
+
+void BrowserController::readPaymentCardsAgain()
+{
+    if (m_paymentCards) {
+        m_paymentCards->readAgain();
+    }
+}
+
+QString BrowserController::savePaymentCard(const QVariantMap &card)
+{
+    return m_paymentCards ? m_paymentCards->save(card) : QString();
+}
+
+bool BrowserController::removePaymentCard(const QString &id)
+{
+    return m_paymentCards && m_paymentCards->remove(id);
+}
+
+QVariantMap BrowserController::paymentCardForFill(const QString &id) const
+{
+    return m_paymentCards ? m_paymentCards->fill(id) : QVariantMap();
+}
+
+bool BrowserController::paymentCardSaved(const QString &number) const
+{
+    return m_paymentCards && m_paymentCards->holds(number);
+}
+
+bool BrowserController::isPaymentCardNumber(const QString &number) const
+{
+    return !PaymentCards::cardNumber(number).isEmpty();
+}
+
 bool BrowserController::clearBrowsingData(
     const QStringList &dataTypes, qint64 since, bool everySpace, const QString &confirmation)
 {
     static const QSet<QString> allowedTypes {QStringLiteral("cookies"), QStringLiteral("storage"),
         QStringLiteral("cache"), QStringLiteral("permissions"), QStringLiteral("history"),
-        QStringLiteral("forms")};
+        QStringLiteral("forms"), QStringLiteral("cards")};
     if (!m_capabilities.allows(Capability::ClearBrowsingData) || dataTypes.isEmpty() || since < 0
         || (everySpace && confirmation != QStringLiteral("CLEAR ALL"))) {
         return false;
@@ -3499,6 +3574,11 @@ bool BrowserController::clearBrowsingData(
     }
     if (!cleared) {
         return false;
+    }
+    // Cards are the reader's rather than a Space's, and have no time to clear
+    // since: asking for them deletes every one.
+    if (dataTypes.contains(QStringLiteral("cards")) && m_paymentCards) {
+        m_paymentCards->removeAll();
     }
     if (dataTypes.contains(QStringLiteral("history"))) {
         cancelHistorySuggestions();

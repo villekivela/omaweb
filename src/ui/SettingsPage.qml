@@ -194,11 +194,12 @@ Rectangle {
     // The keys the rest of the chrome finds a section by, and what the rail
     // calls each one, in the same order.
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "addresses", "spaces", "agents", "extensions", "sync",
-        "about"]
+        "downloads", "search", "privacy", "addresses", "payment cards", "spaces", "agents",
+        "extensions", "sync", "about"]
     readonly property var sectionTitles: [qsTr("tabs"), qsTr("interface"), qsTr("keyboard"), qsTr("content blocking"),
         qsTr("network"), qsTr("downloads"), qsTr("search"), qsTr("privacy"), qsTr("addresses"), qsTr(
-            "spaces"), qsTr("agents"), qsTr("extensions"), qsTr("sync"), qsTr("about")]
+            "payment cards"), qsTr("spaces"), qsTr("agents"), qsTr("extensions"), qsTr("sync"), qsTr(
+            "about")]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -458,10 +459,94 @@ Rectangle {
     property bool addressEditing: false
     property string editingAddressId: ""
 
+    // The reader's saved cards, by everything but their number, and the one
+    // open in the fields under the list. They are read from the keyring only
+    // when their section is on show, so opening Settings does not ask the
+    // desktop to unlock it.
+    readonly property int cardsSection: root.sections.indexOf("payment cards")
+    property var savedCards: []
+    property bool cardEditing: false
+    property string editingCardId: ""
+    property string editingCardLast4: ""
+    property bool cardRefused: false
+
+    function refreshCards() {
+        root.savedCards = root.browser && root.section === root.cardsSection
+                ? root.browser.paymentCards() : [];
+    }
+
+    onSectionChanged: root.refreshCards()
+
+    Connections {
+        target: root.browser || null
+        ignoreUnknownSignals: true
+        function onPaymentCardsChanged() {
+            root.refreshCards();
+        }
+    }
+
+    function cardTitle(card) {
+        return qsTr("%1 •••• %2", "a saved card: its nickname or brand, its last four digits").arg(
+                    card.nickname || card.brand || qsTr("Card", "a payment card with no name")).arg(
+                    card.last4);
+    }
+
+    function cardExpiry(card) {
+        return card.expiryMonth > 0 ? String(card.expiryMonth).padStart(2, "0") + "/" + String(
+                                          card.expiryYear % 100).padStart(2, "0") : "";
+    }
+
+    function cardDetail(card) {
+        const expiry = root.cardExpiry(card);
+        return card.name && expiry ? qsTr("%1 · %2",
+                                          "a saved card: the name on it · its expiry").arg(
+                                         card.name).arg(expiry) : card.name || expiry;
+    }
+
+    // Opens the fields under the list, empty for a new card or holding the one
+    // being edited, all but its number: that is shown only as its last four
+    // digits, and stays as it is unless another is typed.
+    function editCard(card) {
+        root.editingCardId = card ? card.id : "";
+        root.editingCardLast4 = card ? card.last4 : "";
+        cardNumber.text = "";
+        cardHolder.text = card ? card.name : "";
+        cardExpiry.text = card ? root.cardExpiry(card) : "";
+        cardNickname.text = card ? card.nickname : "";
+        root.cardRefused = false;
+        root.cardEditing = true;
+    }
+
+    function saveCard() {
+        const saved = root.browser.savePaymentCard({
+                                                       "id": root.editingCardId,
+                                                       "number": cardNumber.text,
+                                                       "name": cardHolder.text,
+                                                       "expiry": cardExpiry.text,
+                                                       "nickname": cardNickname.text
+                                                   });
+        if (saved.length === 0) {
+            root.cardRefused = true;
+            return;
+        }
+        cardNumber.text = "";
+        root.cardEditing = false;
+        root.refreshCards();
+    }
+
+    function removeCard(id) {
+        if (!root.browser.removePaymentCard(id))
+            return;
+        if (root.editingCardId === id)
+            root.cardEditing = false;
+        root.refreshCards();
+    }
+
     function refresh() {
         if (!root.browser)
             return;
         root.savedAddresses = root.browser.addresses();
+        root.refreshCards();
         root.engines = root.browser.searchEngines();
         root.enginePresets = root.browser.searchEnginePresets();
         root.subscriptions = root.blocker ? root.blocker.subscriptions : [];
@@ -479,8 +564,18 @@ Rectangle {
             return;
         const saved = root.browser.preference("clear-data-categories",
                                               "cookies,storage,cache,permissions,history,forms");
-        root.clearCategories = saved.length > 0 ? saved.split(",") : [];
+        root.clearCategories = saved.length > 0 ? saved.split(",").filter(value => value
+                                                                                   !== "cards") :
+                                                  [];
         root.clearRange = root.browser.preference("clear-data-range", "86400000");
+    }
+
+    // Payment cards are not browsing history, so ticking them is never
+    // remembered: they are off each time the dialog opens, as the reach of
+    // every Space is.
+    onClearDataOpenChanged: {
+        if (root.clearDataOpen)
+            root.clearCategories = root.clearCategories.filter(value => value !== "cards");
     }
 
     function toggleClearCategory(value) {
@@ -492,7 +587,9 @@ Rectangle {
             next.push(value);
         root.clearCategories = next;
         if (root.browser)
-            root.browser.setPreference("clear-data-categories", next.join(","));
+            root.browser.setPreference("clear-data-categories", next.filter(kept => kept
+                                                                                    !== "cards").join(
+                                           ","));
     }
 
     function chooseClearRange(value) {
@@ -2312,11 +2409,197 @@ Rectangle {
                     }
                 }
 
+                // ---- payment cards ------------------------------------------
+
+                // Saved cards as rows, and the fields of the one being added or
+                // edited in place under them, as an address's are. They are
+                // kept in the desktop's keyring and nowhere else.
+                Column {
+                    width: pane.width
+                    visible: root.section === root.cardsSection
+                    spacing: pane.spacing
+
+                    Column {
+                        width: pane.width
+                        spacing: 0
+
+                        Repeater {
+                            id: cardList
+                            objectName: "cardList"
+                            model: root.section === root.cardsSection ? root.savedCards : []
+
+                            SettingRow {
+                                required property var modelData
+
+                                width: pane.width
+                                colors: root.colors
+                                title: root.cardTitle(modelData)
+                                note: root.cardDetail(modelData)
+
+                                Row {
+                                    spacing: Style.spacing.lg
+
+                                    ActionButton {
+                                        objectName: "editCardButton"
+                                        colors: root.colors
+                                        label: qsTr("Edit", "verb: edit a saved card")
+                                        onClicked: root.editCard(modelData)
+                                    }
+
+                                    ActionButton {
+                                        objectName: "removeCardButton"
+                                        colors: root.colors
+                                        label: qsTr("Remove")
+                                        destructive: true
+                                        onClicked: root.removeCard(modelData.id)
+                                    }
+                                }
+                            }
+                        }
+
+                        SettingRow {
+                            objectName: "noCards"
+                            readonly property string state: root.browser
+                                                            ? root.browser.paymentCardsState :
+                                                              "unavailable"
+                            width: pane.width
+                            visible: root.savedCards.length === 0
+                            colors: root.colors
+                            title: state === "unavailable" && !root.privateWindow ? qsTr(
+                                                                                        "No secret store") :
+                                                                                    state === "unreadable"
+                                                                                    ? qsTr("The keyring stayed locked") :
+                                                                                      qsTr("No saved cards")
+                            note: root.privateWindow ? qsTr(
+                                                           "Payment cards are saved in a regular window.") :
+                                                       state === "unavailable" ? qsTr(
+                                                                                     "The desktop offers no secret store, so Omaweb keeps no payment cards.") :
+                                                                                 state === "unreadable"
+                                                                                 ? qsTr("Omaweb asked the desktop to unlock its keyring, and it did not.") :
+                                                                                   qsTr("Cards are kept in the desktop's keyring and offered in forms in every Space, never in a Private window. The security code is never kept.")
+
+                            ActionButton {
+                                objectName: "readCardsAgainButton"
+                                visible: parent.state === "unreadable"
+                                colors: root.colors
+                                label: qsTr("Try again", "button: ask to unlock the keyring again")
+                                onClicked: root.browser.readPaymentCardsAgain()
+                            }
+                        }
+                    }
+
+                    ActionButton {
+                        objectName: "addCardButton"
+                        colors: root.colors
+                        label: qsTr("Add card")
+                        visible: !root.cardEditing && !!root.browser
+                                 && root.browser.paymentCardsState === "ready"
+                        onClicked: root.editCard(null)
+                    }
+
+                    Column {
+                        width: pane.width
+                        visible: root.cardEditing
+                        spacing: pane.spacing
+
+                        SectionLabel {
+                            colors: root.colors
+                            text: root.editingCardId.length > 0 ? qsTr("edit card") : qsTr(
+                                                                      "add a card")
+                        }
+
+                        SettingField {
+                            id: cardNumber
+                            objectName: "cardNumber"
+                            width: pane.width
+                            colors: root.colors
+                            placeholder: root.editingCardLast4.length > 0 ? "•••• "
+                                                                            + root.editingCardLast4 :
+                                                                            qsTr("card number")
+                            accessibleName: root.editingCardLast4.length > 0 ? qsTr(
+                                                                                   "Card number, ending %1, type another to replace it").arg(
+                                                                                   root.editingCardLast4) :
+                                                                               qsTr("Card number")
+                            inputMethodHints: Qt.ImhDigitsOnly | Qt.ImhSensitiveData
+                                              | Qt.ImhNoPredictiveText
+                        }
+
+                        SettingField {
+                            id: cardHolder
+                            objectName: "cardHolder"
+                            width: pane.width
+                            colors: root.colors
+                            placeholder: qsTr("name on card")
+                            accessibleName: qsTr("Name on card")
+                        }
+
+                        Row {
+                            id: cardExpiryRow
+                            width: pane.width
+                            spacing: Style.spacing.lg
+
+                            SettingField {
+                                id: cardExpiry
+                                objectName: "cardExpiry"
+                                width: (cardExpiryRow.width - cardExpiryRow.spacing) / 3
+                                colors: root.colors
+                                placeholder: qsTr("MM/YY", "placeholder: a card's expiry")
+                                accessibleName: qsTr("Card expiry")
+                            }
+
+                            SettingField {
+                                id: cardNickname
+                                objectName: "cardNickname"
+                                width: cardExpiryRow.width - cardExpiry.width
+                                       - cardExpiryRow.spacing
+                                colors: root.colors
+                                placeholder: qsTr("nickname")
+                                accessibleName: qsTr("Card nickname")
+                            }
+                        }
+
+                        Text {
+                            objectName: "cardError"
+                            width: pane.width
+                            visible: root.cardRefused
+                            text: qsTr(
+                                      "That is not a card number, or the expiry is not a month and year.")
+                            color: root.colors.urgent
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.bodySmall
+                            wrapMode: Text.Wrap
+                        }
+
+                        Row {
+                            spacing: Style.spacing.lg
+
+                            ActionButton {
+                                objectName: "saveCardButton"
+                                colors: root.colors
+                                label: qsTr("Save")
+                                enabled: cardNumber.text.trim().length > 0
+                                         || root.editingCardId.length > 0
+                                onClicked: root.saveCard()
+                            }
+
+                            ActionButton {
+                                objectName: "cancelCardButton"
+                                colors: root.colors
+                                label: qsTr("Cancel")
+                                onClicked: {
+                                    cardNumber.text = "";
+                                    root.cardEditing = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // ---- spaces -------------------------------------------------
 
                 Column {
                     width: pane.width
-                    visible: root.section === 9
+                    visible: root.section === 10
                     spacing: pane.spacing
 
                     ActionButton {
@@ -2376,12 +2659,11 @@ Rectangle {
                                 Flow {
                                     id: spaceActions
                                     width: Math.min(pane.width * 0.7, spaceSwatches.width
-                                                    + renameSpace.implicitWidth
-                                                    + deleteSpace.implicitWidth + moveSpaceUp.width
-                                                    + moveSpaceDown.width + spacing * 4 + (
-                                                        forgetProject.visible
-                                                        ? forgetProject.implicitWidth + spacing :
-                                                          0))
+                                                    + renameSpace.width + deleteSpace.width
+                                                    + moveSpaceUp.width + moveSpaceDown.width
+                                                    + spacing * 4 + (forgetProject.visible
+                                                                     ? forgetProject.width
+                                                                       + spacing : 0))
                                     spacing: Style.spacing.sm
 
                                     // The six colours a Space may be drawn in,
@@ -2547,7 +2829,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 10
+                    visible: root.section === 11
                     spacing: 0
 
                     // It opens the section, so it takes only the sliver a tall
@@ -2661,7 +2943,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 11
+                    visible: root.section === 12
                     spacing: pane.spacing
 
                     Text {
@@ -2726,7 +3008,7 @@ Rectangle {
                         visible: root.knownExtensionsAvailable && !root.privateWindow
 
                         Repeater {
-                            model: root.section === 11 ? root.knownExtensions : []
+                            model: root.section === 12 ? root.knownExtensions : []
 
                             SettingToggle {
                                 required property var modelData
@@ -2762,7 +3044,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 12
+                    visible: root.section === 13
                     spacing: pane.spacing
 
                     Text {
@@ -3086,7 +3368,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 13
+                    visible: root.section === 14
                     spacing: pane.spacing
 
                     Text {

@@ -270,6 +270,8 @@ Item {
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal securityKeyRequested(var engine, string requestId, var step)
     signal fileSelectionRequested(var engine, string requestId, var selection)
+    // A card the reader typed and submitted in a tab's page.
+    signal paymentCardSubmitted(var engine, var card, string tabId)
 
     function keyboardConfiguration(url) {
         const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url));
@@ -814,6 +816,7 @@ Item {
         if (engine.agentVerbAnswered) {
             engine.agentVerbAnswered.connect(function (requestId, answer) {
                 delete root.pendingAgentRequests[requestId];
+                root.endAgentStep(requestId);
                 root.keepAgentLabels(tabId, engine);
                 if (root.agentControl)
                     root.agentControl.answerPage(requestId, answer);
@@ -952,6 +955,66 @@ Item {
         return root.agentTabIds[tabId] === true;
     }
 
+    // The `do` requests running now, by request, and the tab each acts in. A
+    // step types with real keys, which the page hears as the reader's own, so
+    // the shell rather than the page knows a step is running.
+    property var agentStepRequests: ({})
+
+    // A step that has ended is still held for a moment: a submit it made is
+    // heard after its answer, once the page has been asked for the card. Its
+    // page forgets what it typed.
+    property var endedAgentSteps: []
+
+    function endAgentStep(requestId) {
+        const tabId = root.agentStepRequests[requestId];
+        if (tabId === undefined)
+            return;
+        if (root.engines[tabId] && root.engines[tabId].forgetTypedInput)
+            root.engines[tabId].forgetTypedInput();
+        root.endedAgentSteps = root.endedAgentSteps.concat([requestId]);
+        agentStepGrace.restart();
+    }
+
+    Timer {
+        id: agentStepGrace
+        interval: 1000
+        onTriggered: {
+            const running = Object.assign({}, root.agentStepRequests);
+            for (const requestId of root.endedAgentSteps) {
+                if (root.engines[running[requestId]]
+                        && root.engines[running[requestId]].forgetTypedInput)
+                    root.engines[running[requestId]].forgetTypedInput();
+                delete running[requestId];
+            }
+            root.endedAgentSteps = [];
+            root.agentStepRequests = running;
+        }
+    }
+
+    // Whether what the tab's page reports typed may be an Agent's: the tab is
+    // an Agent's, or an Agent's step is running in it. Nothing of it is kept
+    // or offered as the reader's: no form history, no address or card list,
+    // no offer to save a card.
+    function agentTyping(tabId) {
+        if (root.agentAttached(tabId))
+            return true;
+        for (const requestId in root.agentStepRequests) {
+            if (root.agentStepRequests[requestId] === tabId)
+                return true;
+        }
+        return false;
+    }
+
+    function agentTypingIn(engine) {
+        if (!engine)
+            return false;
+        for (const tabId in root.engines) {
+            if (root.engines[tabId] === engine)
+                return root.agentTyping(tabId);
+        }
+        return false;
+    }
+
     // The tab an engine is the page of, when an Agent holds it, or nothing.
     function agentTabIdOf(engine) {
         for (const tabId in root.engines) {
@@ -1040,6 +1103,11 @@ Item {
             return;
         }
         root.pendingAgentRequests[requestId] = request.tabId;
+        if (request.verb === "do") {
+            const running = Object.assign({}, root.agentStepRequests);
+            running[requestId] = request.tabId;
+            root.agentStepRequests = running;
+        }
         engine.agentNextLabel = Math.max(engine.agentNextLabel, root.agentLabels[request.tabId]
                                          || 1);
 
@@ -1055,6 +1123,7 @@ Item {
             if (root.pendingAgentRequests[requestId] !== tabId)
                 continue;
             delete root.pendingAgentRequests[requestId];
+            root.endAgentStep(requestId);
             if (root.agentControl) {
                 root.agentControl.answerPage(Number(requestId), {
                                                  "ok": false,
@@ -1080,6 +1149,7 @@ Item {
         function onPageRequestsCancelled() {
             for (const requestId in root.pendingAgentRequests)
                 delete root.pendingAgentRequests[requestId];
+            root.agentStepRequests = {};
             for (const tabId in root.engines) {
                 if (root.engines[tabId].cancelAgentVerbs)
                     root.engines[tabId].cancelAgentVerbs();
@@ -1091,8 +1161,10 @@ Item {
             for (let index = 0; index < targetIds.length; ++index) {
                 const tabId = targetIds[index];
                 for (const requestId in root.pendingAgentRequests) {
-                    if (root.pendingAgentRequests[requestId] === tabId)
+                    if (root.pendingAgentRequests[requestId] === tabId) {
                         delete root.pendingAgentRequests[requestId];
+                        root.endAgentStep(requestId);
+                    }
                 }
                 if (root.engines[tabId] && root.engines[tabId].cancelAgentVerbs)
                     root.engines[tabId].cancelAgentVerbs();
@@ -1494,8 +1566,14 @@ Item {
                 // always the Space on show. What an Agent typed is not the
                 // reader's, so an Agent tab's forms are not kept at all.
                 function onFormSubmitted(fields) {
-                    if (!root.agentAttached(tabSlot.tabId))
+                    if (!root.agentTyping(tabSlot.tabId))
                         root.browserController.rememberFormFields(tabSlot.engine.spaceId, fields);
+                }
+
+                // What an Agent typed is not the reader's card to save.
+                function onPaymentCardSubmitted(card) {
+                    if (!root.agentTyping(tabSlot.tabId))
+                        root.paymentCardSubmitted(tabSlot.engine, card, tabSlot.tabId);
                 }
 
                 function onPrintFinished(destination, succeeded) {

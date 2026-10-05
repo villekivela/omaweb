@@ -14873,4 +14873,662 @@ TestCase {
             window.settingsOpen = false;
         }
     }
+
+    // Payment cards (#339). They are the reader's, kept in the test's own
+    // keyring, so every test saves its own and removes them again.
+    readonly property var everydayCard: ({
+                                             "number": "4242 4242 4242 4242",
+                                             "name": "Meri Laine",
+                                             "expiry": "08/29",
+                                             "nickname": "Everyday"
+                                         })
+    readonly property var travelCard: ({
+                                           "number": "5555 5555 5555 4444",
+                                           "name": "Meri A. Laine",
+                                           "expiry": "11/30"
+                                       })
+
+    function saveCards(cards) {
+        browser.paymentCards();
+        tryCompare(browser, "paymentCardsState", "ready");
+        const ids = [];
+        for (const card of cards) {
+            const id = browser.savePaymentCard(card);
+            verify(id.length > 0);
+            ids.push(id);
+        }
+        return ids;
+    }
+
+    function removeCards(ids) {
+        for (const id of ids)
+            browser.removePaymentCard(id);
+    }
+
+    // A card field the reader pressed offers the saved cards: each by its
+    // nickname, or its brand when it has none, and its last four digits, with
+    // the name on the card and the expiry muted under them. Accepting one
+    // fills the form from it, in the field's frame, for that focus.
+    function test_savedCardsAreOfferedUnderACardFieldAndFillTheForm() {
+        const ids = saveCards([everydayCard, travelCard]);
+        const engine = openPage("https://cards.example/checkout");
+        engine.simulateCardFieldFocus("cc-number", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["Everyday •••• 4242", "Mastercard •••• 4444"]);
+        compare(findChild(list, "suggestionRow0").detail, "Meri Laine · 08/29");
+        compare(findChild(list, "suggestionRow1").detail, "Meri A. Laine · 11/30");
+        compare(findChild(list, "suggestionRow1").Accessible.name,
+                "Mastercard •••• 4444, Meri A. Laine · 11/30");
+
+        engine.filledCard = null;
+        engine.simulateFormKey("down");
+        engine.simulateFormKey("down");
+        verify(engine.simulateFormKey("accept"));
+        compare(engine.filledCard.number, "5555555555554444");
+        compare(engine.filledCard.name, "Meri A. Laine");
+        compare(engine.filledCard.expiryMonth, 11);
+        compare(engine.filledCard.expiryYear, 2030);
+        compare(engine.filledCard.last4, "4444");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateCardFieldBlur();
+        removeCards(ids);
+    }
+
+    // The cards stand under an empty card field: once the reader types a card
+    // of their own, the list is out of the way.
+    function test_typingACardPutsTheSavedCardsAway() {
+        const ids = saveCards([everydayCard]);
+        const engine = openPage("https://cards-typed.example/");
+        engine.simulateCardFieldFocus("cc-name", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateCardFieldInput();
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateCardFieldBlur();
+        removeCards(ids);
+    }
+
+    // A page without a certificate the engine accepted is offered no card,
+    // and the list says why rather than leaving the reader to wonder. Saying
+    // so fills nothing.
+    function test_aPageThatIsNotSecureOffersNoCardAndSaysWhy() {
+        const ids = saveCards([everydayCard]);
+        const list = formSuggestions();
+        for (const address of ["http://cards-plain.example/", "https://cards-waived.example/"]) {
+            const engine = openPage(address);
+            if (address.startsWith("https"))
+                engine.simulateCertificateError({
+                                                    "url": address,
+                                                    "overridable": true
+                                                });
+            engine.simulateCardFieldFocus("cc-number", 100, 200, 240, 30);
+            tryVerify(function () {
+                return list.shown;
+            });
+            compare(list.count, 1);
+            compare(suggestionTexts(), ["Saved cards are offered only on secure pages"]);
+            engine.filledCard = null;
+            engine.simulateFormKey("down");
+            engine.simulateFormKey("accept");
+            compare(engine.filledCard, null);
+            engine.simulateCardFieldBlur();
+        }
+
+        // A waived check the engine has since forgotten, calling the
+        // connection secure again, is still not a secure page.
+        const waived = openPage("https://localhost:7443/cards-waived");
+        const bar = findChild(window.contentItem, "certificateQuestionBar");
+        waived.simulateCertificateError({});
+        tryVerify(function () {
+            return bar.open;
+        });
+        const action = findChild(bar, "questionAction0");
+        settleActions(action);
+        mouseClick(action, action.width / 2, action.height / 2);
+        tryVerify(function () {
+            return !bar.open;
+        });
+        waived.certificateErrorOrigin = "";
+        compare(waived.connectionState, "secure");
+        waived.simulateCardFieldFocus("cc-number", 100, 200, 240, 30);
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["Saved cards are offered only on secure pages"]);
+        waived.simulateCardFieldBlur();
+
+        // Nor is a payment frame from the waived origin in a secure page.
+        const framed = openPage("https://cards-framed.example/");
+        framed.cardFrameOrigin = "https://localhost:7443";
+        framed.simulateCardFieldFocus("cc-number", 100, 200, 240, 30, "payment");
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["Saved cards are offered only on secure pages"]);
+        framed.simulateCardFieldBlur();
+        framed.cardFrameOrigin = "";
+        removeCards(ids);
+    }
+
+    // Each frame counts its focuses from the start, so a field in another
+    // frame with the same count is a new focus, with its list open again.
+    function test_aCardFieldInAnotherFrameIsANewFocus() {
+        const ids = saveCards([everydayCard]);
+        const engine = openPage("https://cards-frames.example/");
+        const list = formSuggestions();
+        engine.simulateCardFieldFocus("cc-number", 100, 200, 240, 30, "main", 7);
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateFormKey("escape");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateCardFieldFocus("cc-number", 100, 260, 240, 30, "payment", 7);
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateCardFieldBlur();
+        removeCards(ids);
+    }
+
+    // Without a saved card there is nothing to offer, and no list.
+    function test_aCardFieldWithNoSavedCardHasNoList() {
+        const engine = openPage("https://cards-none.example/");
+        engine.simulateCardFieldFocus("cc-number", 100, 200, 240, 30);
+        wait(100);
+        verify(!formSuggestions().shown);
+        engine.simulateCardFieldBlur();
+    }
+
+    // A Private window offers no saved card, though the reader saved some.
+    function test_aPrivateWindowOffersNoCard() {
+        const ids = saveCards([everydayCard]);
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://cards-private.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        privateEngine.item.simulateCardFieldFocus("cc-number", 100, 200, 240, 30);
+        const list = findChild(privateBrowser.contentItem, "formSuggestions");
+        wait(100);
+        verify(!list.shown);
+        compare(privateBrowser.windowBrowser.paymentCards(), []);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        removeCards(ids);
+    }
+
+    readonly property var typedCard: ({
+                                          "number": "4242424242424242",
+                                          "name": "Meri Laine",
+                                          "expiryMonth": 8,
+                                          "expiryYear": 2029,
+                                          "origin": "https://shop.example"
+                                      })
+
+    // A card the reader typed and submitted is offered for saving on the
+    // permission bar's surface, by its last four digits, naming the site and
+    // the Space. Not now forgets it, Save keeps it in the keyring, and either
+    // answer lets go of the number. A card already saved is not offered again.
+    function test_aSubmittedCardIsOfferedForSaving() {
+        browser.paymentCards();
+        tryCompare(browser, "paymentCardsState", "ready");
+        const bar = findChild(window.contentItem, "cardSaveBar");
+        verify(bar !== null);
+        const engine = openPage("https://shop.example/pay");
+        engine.simulatePaymentCardSubmit(typedCard);
+        tryVerify(function () {
+            return bar.open;
+        });
+        compare(bar.message, "Save card •••• 4242 to the keyring?");
+        compare(bar.detail, "shop.example · " + browser.activeSpaceName);
+        compare(bar.actions.map(function (action) {
+            return action.label;
+        }), ["Save", "Not now"]);
+
+        mouseClick(findChild(bar, "questionAction1"));
+        tryVerify(function () {
+            return !bar.open;
+        });
+        compare(window.cardOffer, null);
+        compare(browser.paymentCards(), []);
+
+        engine.simulatePaymentCardSubmit(typedCard);
+        tryVerify(function () {
+            return bar.open;
+        });
+        mouseClick(findChild(bar, "questionAction0"));
+        tryVerify(function () {
+            return !bar.open;
+        });
+        compare(window.cardOffer, null);
+        const saved = browser.paymentCards();
+        compare(saved.length, 1);
+        compare(saved[0].last4, "4242");
+        compare(saved[0].name, "Meri Laine");
+        compare(saved[0].expiryMonth, 8);
+        compare(saved[0].expiryYear, 2029);
+        compare(saved[0].nickname, "");
+
+        engine.simulatePaymentCardSubmit(typedCard);
+        wait(100);
+        verify(!bar.open);
+        compare(window.cardOffer, null);
+        removeCards(saved.map(card => card.id));
+    }
+
+    // The offer is made only in a secure context, and never in a Private
+    // window, which has no identity to keep a card for. The offer is about
+    // the tab it was typed in, and goes when another is on show.
+    function test_aCardIsOfferedForSavingOnlyWhereTheDecisionAllows() {
+        browser.paymentCards();
+        tryCompare(browser, "paymentCardsState", "ready");
+        const bar = findChild(window.contentItem, "cardSaveBar");
+        const plain = openPage("http://shop-plain.example/pay");
+        plain.simulatePaymentCardSubmit(typedCard);
+        wait(100);
+        verify(!bar.open);
+
+        const waived = openPage("https://shop-waived.example/pay");
+        waived.simulateCertificateError({
+                                            "url": "https://shop-waived.example/pay",
+                                            "overridable": true
+                                        });
+        waived.simulatePaymentCardSubmit(typedCard);
+        wait(100);
+        verify(!bar.open);
+
+        const secure = openPage("https://shop-tabs.example/pay");
+        secure.simulatePaymentCardSubmit(typedCard);
+        tryVerify(function () {
+            return bar.open;
+        });
+        openPageInNewTab("https://elsewhere.example/");
+        tryVerify(function () {
+            return !bar.open;
+        });
+        compare(window.cardOffer, null);
+        // A tab not on show is not where the reader is typing.
+        secure.simulatePaymentCardSubmit(typedCard);
+        wait(100);
+        verify(!bar.open);
+        compare(window.cardOffer, null);
+
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://shop-private.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        privateEngine.item.simulatePaymentCardSubmit(typedCard);
+        wait(100);
+        verify(!findChild(privateBrowser.contentItem, "cardSaveBar").open);
+        compare(privateBrowser.cardOffer, null);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        compare(browser.paymentCards(), []);
+    }
+
+    // Site information lists each card filled into the page for the rest of
+    // the page's life: which card, by its last four digits, and the origin of
+    // the frame it went into when that is not the page's own. A new page
+    // starts with none.
+    function test_siteInformationNamesTheCardsFilledIntoThePage() {
+        const ids = saveCards([everydayCard, travelCard]);
+        const card = siteCard();
+        const engine = openPage("https://fills.example/checkout");
+        const list = formSuggestions();
+        openSiteCard("");
+        verify(findChild(card, "siteCardFill0") === null || !findChild(card,
+                                                                       "siteCardFill0").visible);
+        closeSiteCard();
+
+        engine.simulateCardFieldFocus("cc-number", 100, 200, 240, 30);
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateFormKey("down");
+        verify(engine.simulateFormKey("accept"));
+        engine.simulateCardFieldBlur();
+
+        engine.cardFrameOrigin = "https://pay.processor.example";
+        engine.simulateCardFieldFocus("cc-number", 100, 200, 240, 30);
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateFormKey("down");
+        engine.simulateFormKey("down");
+        verify(engine.simulateFormKey("accept"));
+        engine.simulateCardFieldBlur();
+        engine.cardFrameOrigin = "";
+
+        openSiteCard("");
+        tryVerify(function () {
+            return findChild(card, "siteCardFill1") !== null;
+        });
+        compare(findChild(card, "siteCardFill0").text, "Everyday •••• 4242 was filled in");
+        compare(findChild(card, "siteCardFill1").text,
+                "Mastercard •••• 4444 was filled in for pay.processor.example");
+        closeSiteCard();
+
+        openPage("https://fills-next.example/");
+        openSiteCard("");
+        verify(findChild(card, "siteCardFill0") === null || !findChild(card,
+                                                                       "siteCardFill0").visible);
+        closeSiteCard();
+        removeCards(ids);
+    }
+
+    // Settings lists the saved cards by their nickname or brand and last four
+    // digits, with the name and expiry under them, and adds, edits and removes
+    // them with the fields in place under the list. Once saved, a card's
+    // number is shown only as its last four digits, and an edit that leaves
+    // it empty keeps it.
+    function test_settingsAddsEditsAndRemovesACard() {
+        browser.paymentCards();
+        tryCompare(browser, "paymentCardsState", "ready");
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("payment cards");
+        const field = function (name) {
+            return findChild(settings, name);
+        };
+        const rows = function () {
+            const shown = [];
+            const list = field("cardList");
+            for (let index = 0; index < list.count; ++index)
+                shown.push(list.itemAt(index).title + " | " + list.itemAt(index).note);
+            return shown;
+        };
+        let saved = [];
+        try {
+            verify(settings.sections.indexOf("payment cards") >= 0);
+            compare(field("cardList").count, 0);
+            verify(field("noCards").visible);
+            verify(!field("cardNumber").visible);
+
+            field("addCardButton").clicked();
+            verify(field("cardNumber").visible);
+            verify(!field("saveCardButton").enabled);
+            field("cardNumber").text = "4242 4242 4242 4241";
+            field("cardHolder").text = "Meri Laine";
+            field("cardExpiry").text = "08/29";
+            field("cardNickname").text = "Everyday";
+            verify(field("saveCardButton").enabled);
+            field("saveCardButton").clicked();
+            // Not a card number: nothing is kept, and the fields say so.
+            compare(browser.paymentCards(), []);
+            verify(field("cardNumber").visible);
+            verify(field("cardError").visible);
+
+            field("cardNumber").text = "4242 4242 4242 4242";
+            field("saveCardButton").clicked();
+            saved = browser.paymentCards();
+            compare(saved.length, 1);
+            compare(saved[0].last4, "4242");
+            compare(rows(), ["Everyday •••• 4242 | Meri Laine · 08/29"]);
+            verify(!field("cardNumber").visible);
+            verify(!field("noCards").visible);
+
+            // Edit opens the fields with the card in them, but its number
+            // only as its last four digits.
+            findChild(field("cardList").itemAt(0), "editCardButton").clicked();
+            compare(field("cardNumber").text, "");
+            compare(field("cardNumber").placeholder, "•••• 4242");
+            compare(field("cardHolder").text, "Meri Laine");
+            compare(field("cardExpiry").text, "08/29");
+            compare(field("cardNickname").text, "Everyday");
+            field("cardExpiry").text = "09/30";
+            field("cardNickname").text = "";
+            field("saveCardButton").clicked();
+            saved = browser.paymentCards();
+            compare(saved.length, 1);
+            compare(saved[0].expiryMonth, 9);
+            compare(browser.paymentCardForFill(saved[0].id).number, "4242424242424242");
+            compare(rows(), ["Visa •••• 4242 | Meri Laine · 09/30"]);
+
+            // Cancel leaves the card as it was.
+            findChild(field("cardList").itemAt(0), "editCardButton").clicked();
+            field("cardHolder").text = "Someone Else";
+            field("cancelCardButton").clicked();
+            verify(!field("cardNumber").visible);
+            compare(browser.paymentCards()[0].name, "Meri Laine");
+
+            findChild(field("cardList").itemAt(0), "removeCardButton").clicked();
+            compare(browser.paymentCards(), []);
+            compare(field("cardList").count, 0);
+            saved = [];
+        } finally {
+            removeCards(saved.map(card => card.id));
+            window.settingsOpen = false;
+        }
+    }
+
+    // Clear browsing data offers Payment cards as a category of its own, off
+    // each time the dialog opens: a card is not browsing history, and clearing
+    // a day's history should not cost the reader their cards. Asked for, it
+    // deletes every card from the keyring.
+    function test_clearingBrowsingDataTakesCardsOnlyWhenAskedEachTime() {
+        const ids = saveCards([everydayCard]);
+        readyForBrowsingData();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog");
+        const openButton = findChild(window.contentItem, "clearBrowsingDataButton");
+        try {
+            openButton.clicked();
+            tryVerify(function () {
+                return dialog.visible;
+            });
+            const cards = findChild(dialog, "clearCategory-cards");
+            verify(cards !== null);
+            compare(cards.title, "Payment cards");
+            compare(cards.checked, false);
+            verify(dialog.categories.indexOf("history") >= 0);
+            findChild(dialog, "clearBrowsingDataConfirm").clicked();
+            tryVerify(function () {
+                return !dialog.visible;
+            });
+            compare(browser.paymentCards().length, 1);
+
+            openButton.clicked();
+            tryVerify(function () {
+                return dialog.visible;
+            });
+            cards.clicked();
+            compare(cards.checked, true);
+            dialog.dismissed();
+            tryVerify(function () {
+                return !dialog.visible;
+            });
+            openButton.clicked();
+            tryVerify(function () {
+                return dialog.visible;
+            });
+            compare(cards.checked, false);
+            cards.clicked();
+            findChild(dialog, "clearBrowsingDataConfirm").clicked();
+            tryVerify(function () {
+                return !dialog.visible;
+            });
+            compare(browser.paymentCards(), []);
+        } finally {
+            removeCards(ids);
+            leaveBrowsingData();
+        }
+    }
+
+    // An Agent's `do` types with real keys, which the page hears as trusted
+    // input. What a step typed is never the reader's, so while it runs nothing
+    // of it is kept or offered. Each test runs a step in one of the reader's
+    // Spaces the Agent was granted, and holds the page's answer so the step is
+    // still running while the page reports.
+    function startAgentStep(spaceName, address, agent) {
+        const step = {
+            "startSpaceId": browser.activeSpaceId,
+            "spaceName": spaceName
+        };
+        step.spaceId = browser.createSpace(spaceName);
+        verify(step.spaceId.length > 0);
+        verify(browser.switchSpace(step.spaceId));
+        step.engine = openPage(address);
+        agentControl.allowAgents = true;
+        step.engine.holdAgentAnswers = true;
+        step.replies = agentSocket.replies.length;
+        const bar = findChild(window.contentItem, "agentGrantBar");
+        agentSocket.send({
+                             "verb": "do",
+                             "name": agent,
+                             "tab": browser.activeTabId,
+                             "steps": [
+                                 {
+                                     "action": "back"
+                                 }
+                             ]
+                         });
+        tryCompare(bar, "visible", true);
+        mouseClick(findChild(bar, "browserPromptAccept"));
+        tryCompare(bar, "visible", false);
+        tryVerify(function () {
+            return step.engine.heldAgentAnswers.length === 1;
+        });
+        return step;
+    }
+
+    function finishAgentStep(step) {
+        step.engine.releaseAgentAnswers();
+        tryVerify(function () {
+            return agentSocket.replies.length > step.replies;
+        });
+        agentControl.revokeGrant(step.spaceId);
+        agentControl.allowAgents = false;
+        verify(browser.switchSpace(step.startSpaceId));
+        verify(browser.deleteSpace(step.spaceId, step.spaceName));
+    }
+
+    function test_anAgentStepLeavesNoFormHistory() {
+        const step = startAgentStep("Agent forms", "https://agent-forms.example/", "step-forms");
+        try {
+            step.engine.simulateFormSubmit([
+                                               {
+                                                   "name": "agent-field",
+                                                   "value": "typed by an agent"
+                                               }
+                                           ]);
+            wait(50);
+            compare(browser.formHistory(step.engine.spaceId, "agent-field"), []);
+        } finally {
+            finishAgentStep(step);
+        }
+    }
+
+    function test_anAgentStepOpensNoAddressList() {
+        const ids = saveAddresses([homeAddress]);
+        const step = startAgentStep("Agent addresses", "https://agent-addresses.example/",
+                                    "step-addresses");
+        try {
+            step.engine.simulateFormFieldFocus("", "", 100, 200, 240, 30, "email");
+            wait(100);
+            verify(!formSuggestions().shown);
+            step.engine.simulateFormFieldBlur();
+        } finally {
+            finishAgentStep(step);
+            removeAddresses(ids);
+        }
+    }
+
+    // A submit the step made is heard after its answer, once the page has
+    // been asked for the card, so the step is held a moment longer; its page
+    // is told to forget what it typed.
+    function test_anAgentStepRaisesNoCardSaveOffer() {
+        browser.paymentCards();
+        tryCompare(browser, "paymentCardsState", "ready");
+        const step = startAgentStep("Agent cards", "https://agent-cards.example/", "step-cards");
+        const bar = findChild(window.contentItem, "cardSaveBar");
+        try {
+            step.engine.simulatePaymentCardSubmit(typedCard);
+            wait(100);
+            verify(!bar.open);
+            compare(window.cardOffer, null);
+            const forgotten = step.engine.typedInputForgotten;
+            step.engine.releaseAgentAnswers();
+            tryVerify(function () {
+                return agentSocket.replies.length > step.replies;
+            });
+            verify(step.engine.typedInputForgotten > forgotten);
+            step.engine.simulatePaymentCardSubmit(typedCard);
+            wait(100);
+            verify(!bar.open);
+            compare(window.cardOffer, null);
+        } finally {
+            finishAgentStep(step);
+        }
+        compare(browser.paymentCards(), []);
+    }
+
+    // Every control in a Settings row lies wholly inside the pane, in every
+    // section, on whole pixels. A control placed on a fractional position is
+    // snapped by the renderer when it is drawn, and at the pane's right edge,
+    // where a row puts its controls, that can push its border past the pane's
+    // clip: a Remove button once lost its right border there.
+    function test_everySettingsRowControlLiesWhollyInsideThePane() {
+        const cardIds = saveCards([everydayCard]);
+        const addressIds = saveAddresses([homeAddress]);
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const pane = findChild(settings, "settingsPane");
+        const strays = [];
+        const isRow = item => item.hasOwnProperty("separated") && item.hasOwnProperty(
+                                  "verticalPadding") && item.hasOwnProperty("note");
+        const visit = function (item, inRow, section) {
+            if (!item || !item.visible)
+                return;
+            const control = inRow && item.hasOwnProperty("bordered");
+            if (control && item.width > 0) {
+                const rect = item.mapToItem(pane, 0, 0, item.width, item.height);
+                const whole = Number.isInteger(rect.x) && Number.isInteger(rect.width);
+                if (rect.x < 0 || rect.x + rect.width > pane.width || !whole)
+                    strays.push(settings.sections[section] + ": " + (item.objectName || item.text)
+                                + " at " + rect.x + " to " + (rect.x + rect.width) + " of "
+                                + pane.width);
+            }
+            const children = item.children || [];
+            for (let index = 0; index < children.length; ++index)
+                visit(children[index], inRow || isRow(item), section);
+        };
+        try {
+            for (let section = 0; section < settings.sections.length; ++section) {
+                settings.section = section;
+                wait(50);
+                visit(pane, false, section);
+            }
+            compare(strays, []);
+        } finally {
+            window.settingsOpen = false;
+            removeCards(cardIds);
+            removeAddresses(addressIds);
+        }
+    }
 }
