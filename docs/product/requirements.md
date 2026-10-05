@@ -580,6 +580,22 @@ The default page commands include:
   tab with Keep active enabled can generate a notification while its Space is inactive. A Private
   window raises none: a desktop notification records the origin in a list that outlives the private
   session and is read by whoever is at the machine.
+- A site that asks for a security key or a passkey is answered through Omaweb's own prompt, a bar in
+  the place the Site-permission question takes, naming the site the key would sign in to and the
+  Space, or the Private window. The engine moves one request through its steps and the prompt
+  changes in place: touch the key, enter or choose its PIN with the attempts left where the engine
+  reports them, choose one of the accounts the key holds, or a failure that names its cause in one
+  line. `Escape`, Cancel and Close decline in every step, which the site sees as the reader
+  declining, and so does leaving the tab or closing the page. Only the page in front of the reader
+  may ask; any other is declined without a prompt. An Auxiliary window asks in the window that
+  opened it.
+- Security keys reach the Qt engine over USB HID only. The Arch package's QtWebEngine is built
+  without Bluetooth, so a phone cannot answer over hybrid transport, and Chromium has no platform
+  authenticator on Linux, so a passkey stored on the computer cannot either. The touch prompt and
+  every failure say which of these the engine cannot reach. QtWebEngine raises a request only once
+  it has something to ask, so a key that needs no PIN and holds one account for the site is touched
+  without a prompt, and a request no key answers shows nothing until it times out. The engine names
+  an account only by the name the site stored on the key, so that is what the account chooser shows.
 - Third-party cookies are blocked by default. Authentication and payment flows may receive a
   temporary origin-specific allowance visible and revocable in the site-information panel.
 - Global Privacy Control is on by default and browser-wide. While it is on, every request from every

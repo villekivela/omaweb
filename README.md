@@ -27,6 +27,9 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
   stored data, and Content blocking activity.
 - Screenshot page saves what the page area shows as a PNG in the downloads location, Screenshot full
   page saves the whole page from top to bottom, and the Copy commands put either on the clipboard.
+- Signing in with a security key or a passkey on one goes through Omaweb's own prompts for the
+  touch, the PIN and the account, in a Space or a Private window alike. The engine reaches a USB
+  security key, not a phone or a passkey stored on the computer, and the prompts say so.
 - High-risk downloads require confirmation, lose their execute permissions, and never open
   automatically.
 - Omaweb follows the desktop theme and can import terminal and Omarchy themes without restarting. A

@@ -258,6 +258,7 @@ Item {
     signal sitePermissionRequested(string requestId, string origin, string permission)
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
+    signal securityKeyRequested(string requestId, var step)
     // The page has been rendered, or it has not. Either way the shell hears
     // about it: a print that produced nothing is not a print that quietly
     // didn't happen.
@@ -419,6 +420,172 @@ Item {
     property bool javaScriptDialogsBlocked: false
     property var pendingFileSelections: ({})
     property var externalProtocolOrigins: ({})
+    // QtWebEngine is built without Bluetooth (`use_bluez=false`), so a phone
+    // cannot answer over hybrid transport, and Chromium has no platform
+    // authenticator on Linux. A security key over USB is what reaches Omaweb.
+    readonly property var securityKeyTransports: ["usb"]
+    property var pendingSecurityKeys: ({})
+    property int nextSecurityKeyId: 0
+
+    // Qt's steps in Omaweb's words. Qt raises a request only once it has
+    // something to ask, so a key that needs no PIN and holds one account is
+    // touched and answers before any step reaches the shell; "touch" is the
+    // touch Qt asks for after a PIN.
+    function securityKeyStep(request) {
+        switch (request.state) {
+        case WebEngineWebAuthUxRequest.WebAuthUxState.SelectAccount:
+        {
+            // Qt reports the name the site stored for each account, and
+            // nothing else about it.
+            const accounts = [];
+            const names = request.userNames;
+            for (let index = 0; index < names.length; ++index)
+                accounts.push({
+                                  "name": String(names[index])
+                              });
+            return {
+                "state": "accounts",
+                "accounts": accounts
+            };
+        }
+        case WebEngineWebAuthUxRequest.WebAuthUxState.CollectPin:
+        {
+            const pin = request.pinRequest;
+            const purpose = root.securityKeyPinPurpose(pin.reason);
+            return {
+                "state": "pin",
+                "pin": {
+                    "purpose": purpose,
+                    "error": root.securityKeyPinError(pin.error),
+                    // The engine counts attempts only for a PIN that
+                    // unlocks the key.
+                    "attemptsLeft": purpose === "unlock" ? pin.remainingAttempts : -1,
+                    "minimumLength": pin.minPinLength
+                }
+            };
+        }
+        case WebEngineWebAuthUxRequest.WebAuthUxState.FinishTokenCollection:
+            return {
+                "state": "touch"
+            };
+        case WebEngineWebAuthUxRequest.WebAuthUxState.RequestFailed:
+            return {
+                "state": "failed",
+                "failure": root.securityKeyFailure(request.requestFailureReason)
+            };
+        case WebEngineWebAuthUxRequest.WebAuthUxState.Cancelled:
+        case WebEngineWebAuthUxRequest.WebAuthUxState.Completed:
+            return {
+                "state": "closed"
+            };
+        }
+        return {
+            "state": ""
+        };
+    }
+
+    function securityKeyPinPurpose(reason) {
+        switch (reason) {
+        case WebEngineWebAuthUxRequest.PinEntryReason.Set:
+            return "set";
+        case WebEngineWebAuthUxRequest.PinEntryReason.Change:
+            return "change";
+        }
+        return "unlock";
+    }
+
+    function securityKeyPinError(error) {
+        switch (error) {
+        case WebEngineWebAuthUxRequest.PinEntryError.WrongPin:
+            return "wrong";
+        case WebEngineWebAuthUxRequest.PinEntryError.TooShort:
+            return "too-short";
+        case WebEngineWebAuthUxRequest.PinEntryError.InvalidCharacters:
+            return "invalid-characters";
+        case WebEngineWebAuthUxRequest.PinEntryError.SameAsCurrentPin:
+            return "same-as-current";
+        case WebEngineWebAuthUxRequest.PinEntryError.InternalUvLocked:
+            return "built-in-check-locked";
+        }
+        return "";
+    }
+
+    function securityKeyFailure(reason) {
+        switch (reason) {
+        case WebEngineWebAuthUxRequest.RequestFailureReason.Timeout:
+            return "timed-out";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.KeyNotRegistered:
+            return "no-key";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.KeyAlreadyRegistered:
+            return "already-registered";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.SoftPinBlock:
+            return "too-many-attempts";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.HardPinBlock:
+            return "locked";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.AuthenticatorRemovedDuringPinEntry:
+            return "key-removed";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.AuthenticatorMissingResidentKeys:
+        case WebEngineWebAuthUxRequest.RequestFailureReason.AuthenticatorMissingUserVerification:
+        case WebEngineWebAuthUxRequest.RequestFailureReason.AuthenticatorMissingLargeBlob:
+        case WebEngineWebAuthUxRequest.RequestFailureReason.NoCommonAlgorithms:
+            return "not-supported";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.StorageFull:
+            return "key-full";
+        case WebEngineWebAuthUxRequest.RequestFailureReason.UserConsentDenied:
+        case WebEngineWebAuthUxRequest.RequestFailureReason.WinUserCancelled:
+            return "declined";
+        }
+        return "";
+    }
+
+    function presentSecurityKey(requestId) {
+        const request = root.pendingSecurityKeys[requestId];
+        if (!request)
+            return;
+        const step = root.securityKeyStep(request);
+        if (step.state.length === 0)
+            return;
+        // The reader turned the key down on the key itself, which is their
+        // answer already: the request ends as a decline, without a failure to
+        // close.
+        if (step.state === "failed" && step.failure === "declined") {
+            root.cancelSecurityKey(requestId);
+            return;
+        }
+        // The engine deletes a request once it has closed, so nothing calls
+        // into one after that.
+        if (step.state === "closed")
+            delete root.pendingSecurityKeys[requestId];
+        // The relying party is the site the key signs in to, which a frame
+        // inside the page may name rather than the page itself.
+        const site = String(request.relyingPartyId || "");
+        step.site = site.length > 0 ? site : root.originAddress(webView.url);
+        root.securityKeyRequested(requestId, step);
+    }
+
+    // Qt marks a request's prompt as shown only once the signal handing it
+    // over has returned, and a cancel made inside that signal starts a second
+    // prompt for the same request. The decline waits for the next turn of the
+    // event loop, where the engine is ready for it.
+    function cancelSecurityKey(requestId) {
+        Qt.callLater(function () {
+            const request = root.pendingSecurityKeys[requestId];
+            if (request)
+                request.cancel();
+        });
+    }
+
+    function respondToSecurityKey(requestId, answer) {
+        const request = root.pendingSecurityKeys[requestId];
+        if (!request)
+            return;
+        if (answer.action === "pin")
+            request.setPin(String(answer.pin || ""));
+        else if (answer.action === "account")
+            request.setSelectedAccount(String(answer.name || ""));
+        else
+            root.cancelSecurityKey(requestId);
+    }
 
     // Chromium's own permission numbers, in the words the shell's policy is
     // written in. Translating an engine's events into the common contract is
@@ -4076,6 +4243,17 @@ Item {
                                                                                      request.url)),
                                             "detail": request.realm
                                         });
+        }
+
+        // The first step is on the request when it arrives; each later one,
+        // a wrong PIN's second ask included, comes as a state change.
+        onWebAuthUxRequested: function (request) {
+            const requestId = String(++root.nextSecurityKeyId);
+            root.pendingSecurityKeys[requestId] = request;
+            request.stateChanged.connect(function () {
+                root.presentSecurityKey(requestId);
+            });
+            root.presentSecurityKey(requestId);
         }
 
         onFileDialogRequested: function (request) {
