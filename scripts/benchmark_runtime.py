@@ -17,9 +17,9 @@ Six measurements, each its own subcommand so a developer can run the one they ar
 - `pageload` loads the same pages with Content blocking on and with the site switched off, and
   reports what blocking added to each, which is the cost ADR 0050 measured once by hand. From the
   same loads it reports how soon the fresh-host and known-host pages first painted, blocking on.
-- `livetabs` opens twenty tabs and then fifty across five Spaces, each from a local site of its
-  own, and reports what each tab after the first added at each count, and how much of a core the
-  tree uses over thirty seconds left alone.
+- `livetabs` opens five Spaces, then twenty tabs and then fifty across them, each from a local
+  site of its own, and reports what each tab past a Space's first added at each count, and how much
+  of a core the tree uses over thirty seconds left alone.
 
 This writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, which writes the measurements into the budget in this repository and appends them to
@@ -214,6 +214,9 @@ PROCEDURAL_RULES = ROOT / "tests" / "content-blocking" / "procedural-rules.json"
 # hold the fifty evenly, and a reader's tabs are spread over a few rather than kept in one.
 LIVE_TAB_COUNTS = (20, 50)
 LIVE_TAB_SPACES = 5
+# How long a new tab is waited for in its Space's database: the browser records its tabs 400 ms
+# after they change.
+TAB_RECORDED_WAIT = 3.0
 # How long the tree is left alone, at the last count, while its CPU is read.
 LIVE_TAB_IDLE_WINDOW = 30.0
 # How many of the processes that used CPU in that window the log names.
@@ -423,8 +426,8 @@ def children_by_parent() -> dict[int, list[int]]:
 
 
 def process_states(root: int) -> dict[int, tuple[str, str, float, int]]:
-    """Each process in a tree: its name, its state, the CPU seconds it has used,
-    and its RSS in KiB."""
+    """Each process in a tree: its name, its state, the CPU seconds it and the children it reaped
+    have used, and its RSS in KiB."""
     tree = children_by_parent()
     ticks = os.sysconf("SC_CLK_TCK")
     page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
@@ -438,11 +441,20 @@ def process_states(root: int) -> dict[int, tuple[str, str, float, int]]:
                 stat = handle.read()
         except OSError:
             continue
-        name = stat[stat.index("(") + 1:stat.rindex(")")]
-        fields = stat.rsplit(")", 1)[1].split()
-        states[pid] = (name, fields[0], (int(fields[11]) + int(fields[12])) / ticks,
-                       int(fields[21]) * page_kib)
+        states[pid] = parse_stat(stat, ticks, page_kib)
     return states
+
+
+def parse_stat(stat: str, ticks: int, page_kib: int) -> tuple[str, str, float, int]:
+    """One line of `/proc/<pid>/stat`: the name, the state, the CPU seconds and the RSS in KiB.
+
+    The CPU is the process's own and that of the children it has reaped, so a child that ended
+    between two readings is still in its parent's.
+    """
+    name = stat[stat.index("(") + 1:stat.rindex(")")]
+    fields = stat.rsplit(")", 1)[1].split()
+    cpu = sum(int(field) for field in fields[11:15]) / ticks
+    return (name, fields[0], cpu, int(fields[21]) * page_kib)
 
 
 def describe_processes(root: int) -> list[str]:
@@ -472,9 +484,10 @@ class ProcessCpu:
 class IdleCpu:
     """What a tree used over a window: its share of one core, who used it, and who went.
 
-    `busiest` is each process that used any, busiest first. `ended` names the processes that were
-    gone at the end of the window: what they used in their last moments is lost with them, so a
-    share that left one out can read low.
+    `busiest` is each process that used any, busiest first, a parent's seconds holding those of
+    the children it reaped. `ended` names the processes that were gone at the end of the window:
+    their parent's reading holds what they used, so the share counts it, and the log says they
+    went.
     """
 
     percent: float
@@ -485,7 +498,11 @@ class IdleCpu:
 def idle_cpu(before: dict[int, tuple[str, str, float, int]],
              after: dict[int, tuple[str, str, float, int]], seconds: float) -> IdleCpu:
     """The CPU between two `process_states` readings, a process that started between them counted
-    from nothing."""
+    from nothing.
+
+    A process that ended was reaped by its parent in the tree, whose reading then holds all it ever
+    used, so what it had used by the first reading is taken off the total.
+    """
     used = []
     for pid, (name, _, cpu, _) in after.items():
         previous = before.get(pid)
@@ -493,8 +510,10 @@ def idle_cpu(before: dict[int, tuple[str, str, float, int]],
         if spent > 0:
             used.append(ProcessCpu(pid, name, spent))
     used.sort(key=lambda process: process.seconds, reverse=True)
-    ended = [f"{pid} {name}" for pid, (name, *_) in sorted(before.items()) if pid not in after]
-    return IdleCpu(100.0 * sum(process.seconds for process in used) / seconds, used, ended)
+    gone = {pid: state for pid, state in before.items() if pid not in after}
+    ended = [f"{pid} {name}" for pid, (name, *_) in sorted(gone.items())]
+    spent = sum(process.seconds for process in used) - sum(cpu for _, _, cpu, _ in gone.values())
+    return IdleCpu(100.0 * spent / seconds, used, ended)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1616,15 +1635,17 @@ class LiveTab:
 
 
 def live_tab_plan() -> list[list[LiveTab]]:
-    """The tabs to open before each count is read, each Space's together and in Space order.
+    """The tabs to open before each reading, each Space's together and in Space order.
 
-    Every Space holds an equal share at every count, so what is read at twenty is the same browser
-    as at fifty with fewer tabs in each Space, not one with more Spaces.
+    The first stage is each Space's first tab, so the reading the tabs are measured against is a
+    browser with every Space it has at twenty and fifty. Every Space then holds an equal share at
+    every count, so what is read at twenty is the same browser as at fifty with fewer tabs in each
+    Space, not one with more Spaces.
     """
     stages = []
     number = 0
     held = 0
-    for count in LIVE_TAB_COUNTS:
+    for count in (LIVE_TAB_SPACES, *LIVE_TAB_COUNTS):
         stage = []
         for space in range(1, LIVE_TAB_SPACES + 1):
             for _ in range(held, count // LIVE_TAB_SPACES):
@@ -1638,6 +1659,16 @@ def live_tab_plan() -> list[list[LiveTab]]:
 def live_tab_title(number: int) -> str:
     """A tab's title, ended so that no tab's title begins another's: tab 1 is not tab 12."""
     return f"Omaweb live tab {number}: field notes"
+
+
+def live_tab_space(space: int) -> str:
+    """The name of the Space numbered `space`: a fresh profile's first, and those the step made."""
+    return "Personal" if space == 1 else f"space{space}"
+
+
+def live_tab_shown(tab: LiveTab) -> str:
+    """The start of the window's title once `tab` is on show: its page's, then its Space's."""
+    return f"{live_tab_title(tab.number)} — {live_tab_space(tab.space)} — "
 
 
 # What a reader's tab mostly is: an article with a stylesheet, a picture, a table, a form, and a
@@ -1717,12 +1748,13 @@ def live_tab_page(number: int) -> bytes:
 
 
 def live_tab_results(first: float, totals: dict[int, float], idle_percent: float) -> dict:
-    """What each tab after the first added at each count, and the tree's idle CPU.
+    """What each tab past its Space's first added at each count, and the tree's idle CPU.
 
-    `first` is the tree with one Space and one tab. Dividing the whole tree by the tab count would
-    spread the browser's own cost over the tabs and make a tab look cheaper the more there are.
+    `first` is the tree with every Space open and one tab in each. Read against a browser with
+    fewer Spaces, a tab would carry a share of what a Space costs, and dividing the whole tree by
+    the tab count would spread the browser's own cost over the tabs.
     """
-    results = {f"live_tab_at_{count}_mebibytes": (total - first) / (count - 1)
+    results = {f"live_tab_at_{count}_mebibytes": (total - first) / (count - LIVE_TAB_SPACES)
                for count, total in totals.items()}
     results["live_tabs_idle_cpu_percent"] = idle_percent
     return results
@@ -1791,26 +1823,51 @@ class LiveTabSite:
 
 
 def open_live_tab(keyboard: Keyboard, workspace: Workspace, browser: Browser, site: LiveTabSite,
-                  tab: LiveTab) -> None:
-    """Opens `tab` as a reader would and waits for its page.
+                  tab: LiveTab, shown: int) -> int:
+    """Opens `tab` as a reader would, waits for its page, and returns the Space now on show.
 
-    A Space's first tab is the empty one it opens with, given its address, and every other is the
-    new-tab key and an address typed into the Omnibar, so each one has its own engine from the
-    moment it is shown. The browser is launched with no address for the same reason: a fresh
-    profile opens with an empty tab, and an address on the command line would be a second tab
-    beside it that the new-tab key then reuses rather than adding one.
+    `shown` is the Space on show before it. A Space's first tab is the empty one it opens with,
+    given its address, and every other is the new-tab key and an address typed into the Omnibar,
+    so each one has its own engine from the moment it is shown. The browser is launched with no
+    address for the same reason: a fresh profile opens with an empty tab, and an address on the
+    command line would be a second tab beside it that the new-tab key then reuses rather than
+    adding one.
+
+    A new tab is counted in its Space's database before its page is waited for. The browser makes
+    the tab when the address is entered, not at the new-tab key, so the count is read then, and
+    keys that went elsewhere are sent again as `open_space` sends its own.
     """
     address = site.address(tab.number)
     if workspace.space_count() < tab.space:
-        open_space(keyboard, workspace, f"space{tab.space}", tab.space, f"http://{address}")
+        open_space(keyboard, workspace, live_tab_space(tab.space), tab.space, f"http://{address}")
     elif tab.number == 1:
         keyboard.focus()
         keyboard.enter_address("Primary+L", address)
     else:
         keyboard.focus()
-        keyboard.press(f"Primary+{tab.space}")
-        keyboard.enter_address("Primary+T", address)
-    browser.await_title(live_tab_title(tab.number))
+        if tab.space != shown:
+            keyboard.press(f"Primary+{tab.space}")
+        expected = workspace.tab_count() + 1
+        for _ in range(OPEN_SPACE_ATTEMPTS):
+            keyboard.enter_address("Primary+T", address)
+            if tab_recorded(workspace, expected):
+                break
+            # Whatever took the keys, this closes, so the next attempt starts where the first did.
+            keyboard.press("Escape")
+        else:
+            raise MeasurementFailed(f"the browser would not open tab {tab.number}")
+    browser.await_title(live_tab_shown(tab))
+    return tab.space
+
+
+def tab_recorded(workspace: Workspace, expected: int) -> bool:
+    """Whether the browser has recorded `expected` tabs within `TAB_RECORDED_WAIT`."""
+    deadline = time.monotonic() + TAB_RECORDED_WAIT
+    while workspace.tab_count() != expected:
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True
 
 
 def measure_livetabs(executable: str) -> dict:
@@ -1828,21 +1885,17 @@ def measure_livetabs(executable: str) -> dict:
     site = LiveTabSite(sum(len(stage) for stage in stages))
     workspace = Workspace()
     browser = workspace.browser(executable)
-    totals = {}
     try:
         site.start()
         browser.start("", keybindings=workspace.keybindings)
         browser.await_title("New tab")
         keyboard = Keyboard(browser.window_pid)
-        open_live_tab(keyboard, workspace, browser, site, stages[0][0])
-        first = settled_reading(browser.memory_mib)
-        log(f"  1 tab: {first.mebibytes:.1f} MiB")
-        for stage, count in zip(stages, LIVE_TAB_COUNTS):
+        shown = 1
+        readings = []
+        for stage, count in zip(stages, (LIVE_TAB_SPACES, *LIVE_TAB_COUNTS)):
             for tab in stage:
-                if tab.number == 1:
-                    continue
                 try:
-                    open_live_tab(keyboard, workspace, browser, site, tab)
+                    shown = open_live_tab(keyboard, workspace, browser, site, tab, shown)
                 except MeasurementFailed:
                     log(f"  {workspace.tab_count()} tabs were made")
                     log_messages(browser)
@@ -1854,7 +1907,7 @@ def measure_livetabs(executable: str) -> dict:
             made = workspace.tab_count()
             if made != count:
                 raise MeasurementFailed(f"asked for {count} tabs and the browser made {made}")
-            totals[count] = reading.mebibytes
+            readings.append(reading.mebibytes)
         before = process_states(browser.pid)
         started = time.monotonic()
         time.sleep(LIVE_TAB_IDLE_WINDOW)
@@ -1868,9 +1921,10 @@ def measure_livetabs(executable: str) -> dict:
     for process in idle.busiest[:LIVE_TAB_IDLE_NAMED]:
         log(f"    {process.pid} {process.name}: {process.seconds:.2f} CPU s")
     if idle.ended:
-        log(f"    and these ended in the window, so their last CPU is not counted: "
+        log(f"    and these ended in the window, their CPU counted in their parent's: "
             f"{', '.join(idle.ended)}")
-    return live_tab_results(first.mebibytes, totals, idle.percent)
+    first, *totals = readings
+    return live_tab_results(first, dict(zip(LIVE_TAB_COUNTS, totals)), idle.percent)
 
 
 MEASUREMENTS = {

@@ -25,17 +25,23 @@ import benchmark_runtime as runtime  # noqa: E402
 
 
 class PlanTest(unittest.TestCase):
-    """The tabs open in stages, one per count measured, spread evenly over the Spaces."""
+    """The tabs open in stages: each Space's first tab, then the rest of twenty, then of fifty,
+    spread evenly over the Spaces."""
 
     def setUp(self):
         self.stages = runtime.live_tab_plan()
 
-    def test_there_is_a_stage_for_twenty_tabs_and_one_for_fifty(self):
-        self.assertEqual([len(stage) for stage in self.stages], [20, 30])
+    def test_the_spaces_open_first_and_then_the_tabs_up_to_twenty_and_fifty(self):
+        self.assertEqual([len(stage) for stage in self.stages], [5, 15, 30])
+
+    # So the memory read before the tabs is a browser with every Space it is read with at twenty
+    # and fifty, and what the tabs add holds no Space's cost.
+    def test_the_first_stage_opens_one_tab_in_each_space(self):
+        self.assertEqual([tab.space for tab in self.stages[0]], [1, 2, 3, 4, 5])
 
     def test_each_space_holds_an_equal_share_at_each_count(self):
         held: dict[int, int] = {}
-        for stage, expected in zip(self.stages, (4, 10)):
+        for stage, expected in zip(self.stages, (1, 4, 10)):
             for tab in stage:
                 held[tab.space] = held.get(tab.space, 0) + 1
             self.assertEqual(held, {space: expected for space in range(1, 6)})
@@ -76,10 +82,12 @@ class IdleCpuTest(unittest.TestCase):
                                 30.0)
         self.assertAlmostEqual(idle.percent, 2.0)
 
-    # Its last seconds are lost with it, so the run says it happened rather than reading low.
-    def test_a_process_that_ended_in_the_window_is_named(self):
+    # Its parent reaped it, so what it used is in the parent's reading, the part from before the
+    # window included. That part is taken off, and the process is still named.
+    def test_a_process_that_ended_in_the_window_counts_through_its_parent(self):
         idle = runtime.idle_cpu({1: state(BROWSER, 10.0), 4: state(RENDERER, 2.0)},
-                                {1: state(BROWSER, 10.0)}, 30.0)
+                                {1: state(BROWSER, 12.6)}, 30.0)
+        self.assertAlmostEqual(idle.percent, 2.0)
         self.assertEqual(idle.ended, ["4 QtWebEngineProc"])
 
     def test_the_busiest_process_is_named_first_and_the_still_ones_not_at_all(self):
@@ -94,15 +102,33 @@ class IdleCpuTest(unittest.TestCase):
         self.assertAlmostEqual(idle.busiest[0].seconds, 0.4)
 
 
+class ProcessStatTest(unittest.TestCase):
+    """What one line of `/proc/<pid>/stat` says a process is."""
+
+    LINE = ("4242 (QtWebEngineProc) S 4000 4000 4000 0 -1 4194560 100 0 0 0 "
+            "250 50 120 80 20 0 12 0 9000 2147483648 2560 18446744073709551615")
+
+    # A process's CPU seconds count the children it reaped, so a renderer that went in the window
+    # is not lost with it.
+    def test_a_processes_cpu_counts_its_own_and_its_reaped_childrens(self):
+        name, status, cpu, rss = runtime.parse_stat(self.LINE, ticks=100, page_kib=4)
+        self.assertEqual((name, status, rss), ("QtWebEngineProc", "S", 10240))
+        self.assertAlmostEqual(cpu, 5.0)
+
+    def test_a_name_with_a_parenthesis_in_it_is_read_whole(self):
+        line = self.LINE.replace("(QtWebEngineProc)", "(Web Content (x))")
+        self.assertEqual(runtime.parse_stat(line, ticks=100, page_kib=4)[0], "Web Content (x)")
+
+
 class ResultsTest(unittest.TestCase):
     """What the step hands the budget."""
 
-    # What each tab after the first adds, as `space_mebibytes` is what each Space after the first
-    # does, so the browser's own cost is not spread over the tabs and shrinking as they grow.
-    def test_a_live_tab_is_what_each_tab_after_the_first_added(self):
-        results = runtime.live_tab_results(480.0, {20: 1430.0, 50: 3420.0}, 1.5)
-        self.assertEqual(results, {"live_tab_at_20_mebibytes": 50.0,
-                                   "live_tab_at_50_mebibytes": 60.0,
+    # What each tab past a Space's first adds, read against the browser with all five Spaces open,
+    # so the cost of a Space is not counted as tabs' and the browser's own is not spread over them.
+    def test_a_live_tab_is_what_each_tab_past_the_spaces_first_added(self):
+        results = runtime.live_tab_results(500.0, {20: 1400.0, 50: 3650.0}, 1.5)
+        self.assertEqual(results, {"live_tab_at_20_mebibytes": 60.0,
+                                   "live_tab_at_50_mebibytes": 70.0,
                                    "live_tabs_idle_cpu_percent": 1.5})
 
 
@@ -157,17 +183,115 @@ class TabCountTest(unittest.TestCase):
         self.assertEqual(self.workspace.tab_count(), 2)
 
 
+class FakeKeyboard:
+    def __init__(self):
+        self.keys: list[str] = []
+
+    def focus(self):
+        pass
+
+    def press(self, key: str) -> None:
+        self.keys.append(key)
+
+    def write(self, text: str) -> None:
+        self.keys.append(text)
+
+    def enter_address(self, binding: str, address: str) -> None:
+        self.keys += [binding, address, "Return"]
+
+
+class FakeWorkspace:
+    """A browser with five Spaces open, whose tab count is read from `counts` in turn."""
+
+    def __init__(self, counts: list[int]):
+        self.counts = counts
+
+    def space_count(self) -> int:
+        return 5
+
+    def tab_count(self) -> int:
+        return self.counts.pop(0) if len(self.counts) > 1 else self.counts[0]
+
+
+class FakeBrowser:
+    def __init__(self):
+        self.awaited: list[str] = []
+
+    def await_title(self, fragment: str) -> None:
+        self.awaited.append(fragment)
+
+
+class FakeSite:
+    def address(self, number: int) -> str:
+        return f"127.0.0.{number + 1}:8000/"
+
+
+class OpenTabTest(unittest.TestCase):
+    """The keys a tab past a Space's first is opened with, and what they are checked by."""
+
+    def open(self, tab: runtime.LiveTab, shown: int, counts: list[int]):
+        keyboard, browser = FakeKeyboard(), FakeBrowser()
+        with mock.patch.object(runtime.time, "sleep"):
+            now_shown = runtime.open_live_tab(keyboard, FakeWorkspace(counts), browser,
+                                              FakeSite(), tab, shown)
+        return keyboard.keys, browser.awaited, now_shown
+
+    def test_a_tab_in_the_space_on_show_is_opened_without_a_switch(self):
+        keys, awaited, shown = self.open(runtime.LiveTab(12, 3), 3, [10, 11])
+        self.assertEqual(keys, ["Primary+T", "127.0.0.13:8000/", "Return"])
+        self.assertEqual(awaited, [runtime.live_tab_shown(runtime.LiveTab(12, 3))])
+        self.assertEqual(shown, 3)
+
+    def test_a_tab_in_another_space_switches_to_it_first(self):
+        keys, _, shown = self.open(runtime.LiveTab(12, 3), 2, [10, 11])
+        self.assertEqual(keys, ["Primary+3", "Primary+T", "127.0.0.13:8000/", "Return"])
+        self.assertEqual(shown, 3)
+
+    # Keys sent to a window not ready for them make no tab, and the address typed would otherwise
+    # be counted as a tab that was never made.
+    def test_a_tab_the_browser_did_not_make_is_asked_for_again(self):
+        with mock.patch.object(runtime, "TAB_RECORDED_WAIT", 0.0):
+            keys, _, _ = self.open(runtime.LiveTab(12, 3), 3, [10, 10, 11])
+        self.assertEqual(keys, ["Primary+T", "127.0.0.13:8000/", "Return", "Escape",
+                                "Primary+T", "127.0.0.13:8000/", "Return"])
+
+    def test_a_tab_the_browser_never_makes_fails_the_run(self):
+        with mock.patch.object(runtime, "TAB_RECORDED_WAIT", 0.0), \
+                self.assertRaises(runtime.MeasurementFailed):
+            self.open(runtime.LiveTab(12, 3), 3, [10])
+
+
 class KeyboardTest(unittest.TestCase):
     """Keys go to Hyprland only where there is one to take them."""
 
-    # Under a compositor started from a Hyprland session, as a headless cage run from its terminal
-    # is, `hyprctl` is still on the path and answers that there is no Hyprland, on stdout.
+    # With HYPRLAND_INSTANCE_SIGNATURE unset, as under a headless cage, `hyprctl` is still on the
+    # path and answers that there is no Hyprland, on stdout.
     def test_a_hyprctl_that_finds_no_hyprland_leaves_the_keys_to_wtype(self):
         answer = mock.Mock(returncode=1,
                            stdout="HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)\n")
         with mock.patch.object(runtime.shutil, "which", return_value="/usr/bin/tool"), \
                 mock.patch.object(runtime.subprocess, "run", return_value=answer):
             self.assertFalse(runtime.Keyboard(1).hyprland)
+
+
+class TitleTest(unittest.TestCase):
+    """What the run waits for to know a tab's page is on show."""
+
+    # The run waits for each tab's title, and a title that began another's would end the wait for
+    # tab 1 when tab 12 showed.
+    def test_no_title_begins_another(self):
+        titles = [runtime.live_tab_title(number) for number in range(1, 51)]
+        for title in titles:
+            self.assertEqual([other for other in titles if other.startswith(title)], [title])
+
+
+    # The window's title is the tab's then the Space's, so waiting for both says the tab opened in
+    # the Space it was meant for.
+    def test_a_tab_is_awaited_in_its_own_space(self):
+        self.assertEqual(runtime.live_tab_shown(runtime.LiveTab(12, 3)),
+                         "Omaweb live tab 12: field notes — space3 — ")
+        self.assertEqual(runtime.live_tab_shown(runtime.LiveTab(2, 1)),
+                         "Omaweb live tab 2: field notes — Personal — ")
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"),
@@ -200,13 +324,6 @@ class SiteTest(unittest.TestCase):
         hosts = {urllib.parse.urlsplit(f"http://{self.site.address(number)}").hostname
                  for number in (1, 2, 3)}
         self.assertEqual(len(hosts), 3)
-
-    # The run waits for each tab's title, and a title that began another's would end the wait for
-    # tab 1 when tab 12 showed.
-    def test_no_title_begins_another(self):
-        titles = [runtime.live_tab_title(number) for number in range(1, 51)]
-        for title in titles:
-            self.assertEqual([other for other in titles if other.startswith(title)], [title])
 
     def test_a_page_brings_its_stylesheet_and_picture(self):
         _, page = self.fetch(self.site.address(2))
