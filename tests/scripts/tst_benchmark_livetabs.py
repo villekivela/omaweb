@@ -89,9 +89,9 @@ class IdleCpuTest(unittest.TestCase):
             {1: state(BROWSER, 1.1), 2: state(RENDERER, 1.4),
              3: state("dbus-daemon", 1.0)},
             30.0)
-        self.assertEqual([(pid, name) for pid, name, _ in idle.busiest], [(2, RENDERER),
-                                                                           (1, BROWSER)])
-        self.assertAlmostEqual(idle.busiest[0][2], 0.4)
+        self.assertEqual([(process.pid, process.name) for process in idle.busiest],
+                         [(2, RENDERER), (1, BROWSER)])
+        self.assertAlmostEqual(idle.busiest[0].seconds, 0.4)
 
 
 class ResultsTest(unittest.TestCase):

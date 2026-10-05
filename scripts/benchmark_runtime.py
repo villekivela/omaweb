@@ -215,9 +215,9 @@ PROCEDURAL_RULES = ROOT / "tests" / "content-blocking" / "procedural-rules.json"
 LIVE_TAB_COUNTS = (20, 50)
 LIVE_TAB_SPACES = 5
 # How long the tree is left alone, at the last count, while its CPU is read.
-IDLE_WINDOW = 30.0
+LIVE_TAB_IDLE_WINDOW = 30.0
 # How many of the processes that used CPU in that window the log names.
-IDLE_NAMED = 8
+LIVE_TAB_IDLE_NAMED = 8
 
 
 def procedural_fixture() -> tuple[list[str], str]:
@@ -272,9 +272,9 @@ PAGELOAD_STALL_MILLISECONDS = 5000
 # load event; a page that has not painted by this long reports none and fails the run.
 PAGELOAD_PAINT_MILLISECONDS = 5000
 
-# How much of the browser's own output a quiet load prints: enough to reach back past the page
-# before it, which is a title and a few messages.
-PAGELOAD_MESSAGES = 40
+# How much of the browser's own output a failed step prints: enough to reach back past the page
+# before the one that failed, which is a title and a few messages.
+BROWSER_MESSAGES = 40
 
 # A one-pixel PNG. What an image costs to decode is not what this measures.
 PIXEL = base64.b64decode(
@@ -368,6 +368,12 @@ class Keyboard:
             subprocess.run(command, capture_output=True, check=False)
         time.sleep(settle)
 
+    def enter_address(self, binding: str, address: str) -> None:
+        """Opens the Omnibar with `binding`, types `address` and goes there."""
+        self.press(binding)
+        self.write(address)
+        self.press("Return")
+
     def write(self, text: str) -> None:
         if self.hyprland:
             # One dispatch per character, because the dispatcher sends a key rather than a string.
@@ -454,16 +460,25 @@ def describe_processes(root: int) -> list[str]:
 
 
 @dataclasses.dataclass(frozen=True)
+class ProcessCpu:
+    """The CPU seconds one process used over a window."""
+
+    pid: int
+    name: str
+    seconds: float
+
+
+@dataclasses.dataclass(frozen=True)
 class IdleCpu:
     """What a tree used over a window: its share of one core, who used it, and who went.
 
-    `busiest` is each process that used any, as its id, its name and the CPU seconds, busiest
-    first. `ended` names the processes that were gone at the end of the window: what they used in
-    their last moments is lost with them, so a share that left one out can read low.
+    `busiest` is each process that used any, busiest first. `ended` names the processes that were
+    gone at the end of the window: what they used in their last moments is lost with them, so a
+    share that left one out can read low.
     """
 
     percent: float
-    busiest: list[tuple[int, str, float]]
+    busiest: list[ProcessCpu]
     ended: list[str]
 
 
@@ -476,10 +491,10 @@ def idle_cpu(before: dict[int, tuple[str, str, float, int]],
         previous = before.get(pid)
         spent = cpu - previous[2] if previous and previous[0] == name else cpu
         if spent > 0:
-            used.append((pid, name, spent))
-    used.sort(key=lambda entry: entry[2], reverse=True)
+            used.append(ProcessCpu(pid, name, spent))
+    used.sort(key=lambda process: process.seconds, reverse=True)
     ended = [f"{pid} {name}" for pid, (name, *_) in sorted(before.items()) if pid not in after]
-    return IdleCpu(100.0 * sum(entry[2] for entry in used) / seconds, used, ended)
+    return IdleCpu(100.0 * sum(process.seconds for process in used) / seconds, used, ended)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -776,6 +791,13 @@ class Workspace:
         shutil.rmtree(self.root, ignore_errors=True)
 
 
+def log_messages(browser: Browser) -> None:
+    """Prints the last of what the browser said, for a step that failed waiting on it."""
+    log("  the browser's titles and messages:")
+    for line in browser.messages()[-BROWSER_MESSAGES:]:
+        log(f"    {line}")
+
+
 def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: int,
                url: str = "") -> None:
     """Creates a Space, switches to it, and loads the probe page in its first tab.
@@ -799,9 +821,7 @@ def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: in
         keyboard.press("Escape")
     else:
         raise MeasurementFailed(f"the browser would not open Space {expected}")
-    keyboard.press("Primary+L")
-    keyboard.write(url or workspace.page_url)
-    keyboard.press("Return")
+    keyboard.enter_address("Primary+L", url or workspace.page_url)
     time.sleep(LOAD_SETTLE)
 
 
@@ -1504,9 +1524,7 @@ def run_pageload(executable: str, private: bool) -> dict:
             for line in describe_processes(browser.pid):
                 log(f"    {line}")
             browser.stop()
-            log("  the browser's titles and messages:")
-            for line in browser.messages()[-PAGELOAD_MESSAGES:]:
-                log(f"    {line}")
+            log_messages(browser)
             raise
     finally:
         browser.stop()
@@ -1597,8 +1615,7 @@ class LiveTab:
     space: int
 
 
-def live_tab_plan(counts: tuple[int, ...] = LIVE_TAB_COUNTS,
-                  spaces: int = LIVE_TAB_SPACES) -> list[list[LiveTab]]:
+def live_tab_plan() -> list[list[LiveTab]]:
     """The tabs to open before each count is read, each Space's together and in Space order.
 
     Every Space holds an equal share at every count, so what is read at twenty is the same browser
@@ -1607,13 +1624,13 @@ def live_tab_plan(counts: tuple[int, ...] = LIVE_TAB_COUNTS,
     stages = []
     number = 0
     held = 0
-    for count in counts:
+    for count in LIVE_TAB_COUNTS:
         stage = []
-        for space in range(1, spaces + 1):
-            for _ in range(held, count // spaces):
+        for space in range(1, LIVE_TAB_SPACES + 1):
+            for _ in range(held, count // LIVE_TAB_SPACES):
                 number += 1
                 stage.append(LiveTab(number, space))
-        held = count // spaces
+        held = count // LIVE_TAB_SPACES
         stages.append(stage)
     return stages
 
@@ -1773,7 +1790,6 @@ class LiveTabSite:
         return Handler
 
 
-
 def open_live_tab(keyboard: Keyboard, workspace: Workspace, browser: Browser, site: LiveTabSite,
                   tab: LiveTab) -> None:
     """Opens `tab` as a reader would and waits for its page.
@@ -1789,15 +1805,11 @@ def open_live_tab(keyboard: Keyboard, workspace: Workspace, browser: Browser, si
         open_space(keyboard, workspace, f"space{tab.space}", tab.space, f"http://{address}")
     elif tab.number == 1:
         keyboard.focus()
-        keyboard.press("Primary+L")
-        keyboard.write(address)
-        keyboard.press("Return")
+        keyboard.enter_address("Primary+L", address)
     else:
         keyboard.focus()
         keyboard.press(f"Primary+{tab.space}")
-        keyboard.press("Primary+T")
-        keyboard.write(address)
-        keyboard.press("Return")
+        keyboard.enter_address("Primary+T", address)
     browser.await_title(live_tab_title(tab.number))
 
 
@@ -1832,10 +1844,8 @@ def measure_livetabs(executable: str) -> dict:
                 try:
                     open_live_tab(keyboard, workspace, browser, site, tab)
                 except MeasurementFailed:
-                    log(f"  {workspace.tab_count()} tabs were made; the browser's titles and "
-                        "messages:")
-                    for line in browser.messages()[-PAGELOAD_MESSAGES:]:
-                        log(f"    {line}")
+                    log(f"  {workspace.tab_count()} tabs were made")
+                    log_messages(browser)
                     raise
             reading = settled_reading(browser.memory_mib)
             state = "settled" if reading.settled else "was still moving"
@@ -1847,19 +1857,21 @@ def measure_livetabs(executable: str) -> dict:
             totals[count] = reading.mebibytes
         before = process_states(browser.pid)
         started = time.monotonic()
-        time.sleep(IDLE_WINDOW)
+        time.sleep(LIVE_TAB_IDLE_WINDOW)
         idle = idle_cpu(before, process_states(browser.pid), time.monotonic() - started)
     finally:
         browser.stop()
         site.stop()
         workspace.discard()
-    log(f"  left alone for {IDLE_WINDOW:.0f} s, the tree used {idle.percent:.2f}% of a core")
-    for pid, name, seconds in idle.busiest[:IDLE_NAMED]:
-        log(f"    {pid} {name}: {seconds:.2f} CPU s")
+    log(f"  left alone for {LIVE_TAB_IDLE_WINDOW:.0f} s, the tree used {idle.percent:.2f}% "
+        "of a core")
+    for process in idle.busiest[:LIVE_TAB_IDLE_NAMED]:
+        log(f"    {process.pid} {process.name}: {process.seconds:.2f} CPU s")
     if idle.ended:
         log(f"    and these ended in the window, so their last CPU is not counted: "
             f"{', '.join(idle.ended)}")
     return live_tab_results(first.mebibytes, totals, idle.percent)
+
 
 MEASUREMENTS = {
     "startup": lambda arguments: measure_startup(arguments.browser, arguments.repetitions),

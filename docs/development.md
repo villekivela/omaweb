@@ -1483,10 +1483,12 @@ cheaper the more there are. Every tab but the one on show is frozen, as a reader
 number is what a reader's background tabs hold rather than what running pages take.
 
 The idle CPU is the tree's user and system time over 30 seconds with 50 tabs open, as a share of one
-core, read from `/proc` at both ends of the window. The log names each process that used any,
-busiest first, and any that ended in the window, whose last CPU is lost with it. The browser writes
-its Wayland protocol log for the whole run, and that costs it a little for every frame it presents,
-so a window that keeps drawing shows here with the logging's cost on top.
+core, read from `/proc` at both ends of the window. The window starts as soon as the memory at 50
+has settled, without waiting for the CPU to fall: work the browser goes on doing after its tabs have
+opened is what it is there to catch. The log names each process that used any, busiest first, and
+any that ended in the window, whose last CPU is lost with it. The browser writes its Wayland
+protocol log for the whole run, and that costs it a little for every frame it presents, so a window
+that keeps drawing shows here with the logging's cost on top.
 
 ### Against Chromium
 
