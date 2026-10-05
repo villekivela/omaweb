@@ -1278,6 +1278,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_pkgbuild.py
         )
+        # What a release may publish and in what order, which both workflows
+        # that publish one ask.
+        add_test(NAME omaweb-release-packages
+            COMMAND ${Python3_EXECUTABLE}
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_packages.py"
+        )
         # What CI's `arch-linux` job reads to know it built on Omaweb's engine
         # rather than a stock one it cannot tell apart by compiling (#394).
         add_test(NAME omaweb-check-omaweb-engine

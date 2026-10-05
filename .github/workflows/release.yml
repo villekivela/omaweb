@@ -414,10 +414,11 @@ jobs:
       # on never runs. What is checked here is the case the matrix cannot rule
       # out, a directory of packages with none in it.
       #
-      # The client before the browser, because each package is served as soon
-      # as it is published: the other way round, for the time between the two,
-      # the database lists a browser whose client it does not have, and a
-      # reader's `pacman -Syu` then fails on the dependency.
+      # In the order `release_packages.sh` gives, which also refuses a release
+      # missing either package for an architecture: the client before the
+      # browser, because each package is served as soon as it is published, and
+      # the other way round the database lists, for the time between the two, a
+      # browser whose client it does not have.
       - name: Publish the packages to the repository
         if: steps.key.outputs.signed == 'true'
         env:
@@ -425,9 +426,11 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           published=0
-          for package in artifacts/omaweb-cli-*.pkg.tar.* artifacts/omaweb-[0-9]*.pkg.tar.*; do
-            [ -e "$package" ] || continue
-            case "$package" in *.sig) continue ;; esac
+          scripts/release_packages.sh --tag "$GITHUB_REF_NAME" --dir artifacts \
+            > /tmp/publish-order
+          # Not read line by line from the file: the commands inside could read
+          # the rest of it as their own input. No path in it has a space.
+          for package in $(cat /tmp/publish-order); do
             arch=$(basename "$package")
             arch=${arch##*-}
             arch=${arch%%.pkg.tar.*}

@@ -46,10 +46,11 @@ an agent on this machine reads the project's `CLAUDE.md` and every one above it.
 inside a container that is not on this machine opens the terminal at home instead.
 
 `{dir}` in the command is replaced with the project directory, after the command is split as a shell
-splits a line and inside each argument. `ssh -t devbox "cd {dir} && claude"` keeps a path with a
-space as one argument, and no shell on this machine ever reads it. Quoting the path for the far
-side's shell is the command's to do. In any other Space the command runs as 0058 describes and
-`{dir}` means nothing.
+splits a line and inside each argument. `incus exec dev --cwd {dir} -- claude` keeps a path with a
+space as one argument, and no shell on this machine ever reads it. `:ask` adds its prompt as the
+command's last argument. A command that hands its arguments to another shell, as SSH does, has to
+quote the path and the prompt for that shell itself, which the README's SSH recipe does with a small
+script. In any other Space the command runs as 0058 describes and `{dir}` means nothing.
 
 ## What this costs
 
