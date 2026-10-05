@@ -21,6 +21,7 @@
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
 #include "PagePrinter.h"
+#include "PaymentCards.h"
 #include "ProcessResources.h"
 #include "Quickshell.h"
 #include "RuntimeSecurity.h"
@@ -436,6 +437,22 @@ int main(int argc, char *argv[])
     omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")),
         suggestUrl.isEmpty() ? QString() : dataRootPath);
     browser.setEngineSuggestions(&engineSuggestions);
+    // A keyring in memory: the lab never reaches the desktop's.
+    // `--sample-cards` puts two cards in it, so the Settings section, the
+    // suggestion list and Site information have rows to tell apart.
+    auto keyring = std::make_shared<omaweb::MemoryPaymentCardKeyring::Contents>();
+    if (arguments.contains(QStringLiteral("--sample-cards"))) {
+        keyring->items = {
+            {.id = QStringLiteral("sample-everyday"),
+                .secret = QByteArrayLiteral(
+                    R"({"number":"4242424242424242","name":"Meri Laine","expiryMonth":8,"expiryYear":2029,"nickname":"Everyday","added":1})")},
+            {.id = QStringLiteral("sample-travel"),
+                .secret = QByteArrayLiteral(
+                    R"({"number":"5555555555554444","name":"Meri Laine","expiryMonth":11,"expiryYear":2030,"nickname":"","added":2})")},
+        };
+    }
+    omaweb::PaymentCards paymentCards(std::make_unique<omaweb::MemoryPaymentCardKeyring>(keyring));
+    browser.setPaymentCards(&paymentCards);
     // `--sample-addresses` saves two addresses for one reader, so the Settings
     // section and the suggestion list have rows to tell apart.
     if (arguments.contains(QStringLiteral("--sample-addresses"))) {
@@ -1016,6 +1033,14 @@ int main(int argc, char *argv[])
             {QStringLiteral("address-suggestions"), {}},
             // The Settings addresses section with an address's fields open.
             {QStringLiteral("settings:add-address"), {{"settingsSurface", "addressEditing", true}}},
+            // The same page's card number field, pressed and empty, with the
+            // saved cards (`--sample-cards`) under it.
+            {QStringLiteral("card-suggestions"), {}},
+            // The same page has just had a card typed and submitted, and the
+            // bar offers to save it.
+            {QStringLiteral("card-save-offer"), {}},
+            // The Settings payment cards section with a card's fields open.
+            {QStringLiteral("settings:add-card"), {{"settingsSurface", "cardEditing", true}}},
             // `:ask` with Allow agents off: the question that offers to turn
             // it on stands over the last seeded tab's page.
             {QStringLiteral("ask"), {{"", "agentQuestionOpen", true}}},
@@ -1048,7 +1073,9 @@ int main(int argc, char *argv[])
         const auto pageAsks = requested == QLatin1String("permission")
             || requested == QLatin1String("prompt")
             || requested == QLatin1String("form-suggestions")
-            || requested == QLatin1String("address-suggestions") || securityKey;
+            || requested == QLatin1String("address-suggestions")
+            || requested == QLatin1String("card-suggestions")
+            || requested == QLatin1String("card-save-offer") || securityKey;
         if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
@@ -1087,6 +1114,23 @@ int main(int argc, char *argv[])
                         Q_ARG(QVariant, QStringLiteral("email")), Q_ARG(QVariant, QString()),
                         Q_ARG(QVariant, 240), Q_ARG(QVariant, 180), Q_ARG(QVariant, 320),
                         Q_ARG(QVariant, 34), Q_ARG(QVariant, QStringLiteral("email")));
+                    return;
+                }
+                if (requested == QLatin1String("card-suggestions")) {
+                    QMetaObject::invokeMethod(view, "simulateCardFieldFocus",
+                        Q_ARG(QVariant, QStringLiteral("cc-number")), Q_ARG(QVariant, 240),
+                        Q_ARG(QVariant, 180), Q_ARG(QVariant, 320), Q_ARG(QVariant, 34));
+                    return;
+                }
+                if (requested == QLatin1String("card-save-offer")) {
+                    QMetaObject::invokeMethod(view, "simulatePaymentCardSubmit",
+                        Q_ARG(QVariant,
+                            QVariantMap(
+                                {{QStringLiteral("number"), QStringLiteral("4000056655665556")},
+                                    {QStringLiteral("name"), QStringLiteral("Meri Laine")},
+                                    {QStringLiteral("expiryMonth"), 3},
+                                    {QStringLiteral("expiryYear"), 2031},
+                                    {QStringLiteral("origin"), origin.toString()}})));
                     return;
                 }
                 if (requested == QLatin1String("form-suggestions")) {
@@ -1249,6 +1293,9 @@ int main(int argc, char *argv[])
                 ? arguments.at(pageIndex + 1)
                 : QStringLiteral("secure");
             const auto sample = arguments.contains(QStringLiteral("--site-sample"));
+            // `--site-card-fills` has two saved cards filled into the page,
+            // one into the page and one into a payment processor's frame.
+            const auto cardFills = arguments.contains(QStringLiteral("--site-card-fills"));
             static const QHash<QString, QString> addresses = {
                 {QStringLiteral("secure"), QStringLiteral("https://www.example.org/articles/42")},
                 {QStringLiteral("http"), QStringLiteral("http://old.example.net/index.html")},
@@ -1300,7 +1347,26 @@ QtObject {
                     }
                 }
             }
-            QTimer::singleShot(400, root, [root, page, detail, sample] {
+            QTimer::singleShot(400, root, [root, page, detail, sample, cardFills, address] {
+                if (cardFills) {
+                    auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
+                    auto *view = host ? host->property("item").value<QObject *>() : nullptr;
+                    const auto pageOrigin = QUrl(address).adjusted(
+                        QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+                    if (view != nullptr) {
+                        view->setProperty("paymentCardFills",
+                            QVariantList {
+                                QVariantMap {{QStringLiteral("last4"), QStringLiteral("4242")},
+                                    {QStringLiteral("brand"), QStringLiteral("Visa")},
+                                    {QStringLiteral("nickname"), QStringLiteral("Everyday")},
+                                    {QStringLiteral("origin"), pageOrigin.toString()}},
+                                QVariantMap {{QStringLiteral("last4"), QStringLiteral("4444")},
+                                    {QStringLiteral("brand"), QStringLiteral("Mastercard")},
+                                    {QStringLiteral("nickname"), QString()},
+                                    {QStringLiteral("origin"),
+                                        QStringLiteral("https://js.pay.example-psp.com")}}});
+                    }
+                }
                 if (page == QLatin1String("cert")) {
                     auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
                     auto *view = host ? host->property("item").value<QObject *>() : nullptr;

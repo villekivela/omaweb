@@ -95,6 +95,13 @@ CPP_ENGLISH = {
     },
     "Downloads.cpp": {"A window is given the downloads its controller holds.": "an assertion"},
     "FontSettings.cpp": {"The reader's font settings are handed to QML, not built there.": "an assertion"},
+    "PaymentCards.cpp": {
+        "American Express": "a card network's name",
+        "Diners Club": "a card network's name",
+    },
+    "SecretServiceKeyring.cpp": {
+        "Omaweb payment card": "the label every card's keyring item is stored under",
+    },
     "KnownExtensions.cpp": {
         "Bitwarden Password Manager": "a product name",
         "AgileBits Inc.": "a publisher's name",

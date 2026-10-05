@@ -30,6 +30,7 @@
 #include "MediaAnnouncer.h"
 #include "OmarchyTheme.h"
 #include "PagePrinter.h"
+#include "PaymentCards.h"
 #include "ProcessResources.h"
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
@@ -284,9 +285,13 @@ int main(int argc, char *argv[])
     // Before the browser that asks through it, so it is still there while the
     // browser lets go of a request it has in flight.
     omaweb::EngineSuggestions engineSuggestions(configRoot());
+    // The reader's payment cards, in the desktop's keyring. Only the main
+    // browser is given them; a Private window never is.
+    omaweb::PaymentCards paymentCards(omaweb::makeDesktopKeyring());
     omaweb::BrowserController browser(
         omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")), configRoot());
     browser.setEngineSuggestions(&engineSuggestions);
+    browser.setPaymentCards(&paymentCards);
     // The Agent socket is always open for browser commands, and Allow agents
     // decides what else it answers. It opens before the shell loads, so a
     // temporary Agent Space a crash left behind is gone before anything shows

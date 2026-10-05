@@ -43,10 +43,10 @@ who can read the repository, GitHub included, can read them. A repository an ear
 
 ### Never synced
 
-Passwords, cookies and active logins. Browsing history. Form history, what you typed into forms.
-Saved addresses. Downloads. Site permissions. Per-site content-blocking exceptions and your own
-rules. Anything in a Private window. Which Space and tab you have open stays on the machine, and so
-does your theme.
+Passwords, cookies and active logins. Payment cards, which stay in your desktop's keyring. Browsing
+history. Form history, what you typed into forms. Saved addresses. Downloads. Site permissions.
+Per-site content-blocking exceptions and your own rules. Anything in a Private window. Which Space
+and tab you have open stays on the machine, and so does your theme.
 
 ## What encryption covers, and what it doesn't
 

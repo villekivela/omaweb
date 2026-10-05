@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Keep payment cards in the Secret Service
@@ -99,7 +99,7 @@ own manager lists and removes them under Omaweb's schema name.
 When #339 lands:
 
 - The README's Privacy and security paragraph lists payment cards among what never enters Sync.
-- The Sync privacy page, `website/pages/sync.html`, lists payment cards under Never synced.
+- The Sync privacy page, `docs/sync-privacy.md`, lists payment cards under Never synced.
 - The requirements gain the filling rules above: the pick as the confirmation, secure contexts only,
   the security code never stored, Private windows excluded, and Site information naming the fill.
 - The network request ledger needs no change: the Secret Service is a local D-Bus service.

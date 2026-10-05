@@ -17,7 +17,8 @@ Omarchy.BorderSurface {
     // Each row is `{value, typed}`: the value offered and the part of it the
     // reader has already typed, which is drawn regular with the rest bold, as
     // an Engine suggestion is in the Omnibar. A row may instead carry a
-    // `detail`, drawn muted on a second line under a value drawn plain. Rows
+    // `detail`, drawn muted on a second line under a value drawn plain, or be
+    // a `note`, drawn muted, which says something rather than offers it. Rows
     // come in `group`s, and a hairline divides one group from the next.
     property var rows: []
     property int highlighted: -1
@@ -89,7 +90,8 @@ Omarchy.BorderSurface {
                 readonly property bool current: index === root.highlighted
                 // A pointer over a row shows it and no more: highlighting it
                 // would hand Enter to the list while the reader is typing.
-                readonly property bool hot: pointer.containsMouse && !current
+                readonly property bool hot: pointer.containsMouse && !current && !note
+                readonly property bool note: modelData.note === true
 
                 readonly property string detail: modelData.detail || ""
                 readonly property bool divided: index > 0 && root.rows[index - 1].group
@@ -126,8 +128,9 @@ Omarchy.BorderSurface {
                     y: row.dividerSpace
                     width: parent.width
                     height: parent.height - row.dividerSpace
-                    color: row.current || row.hot ? Style.hoverFillFor(Color.popups.text, Color.accent) :
-                                                    "transparent"
+                    color: (row.current && !row.note) || row.hot ? Style.hoverFillFor(
+                                                                       Color.popups.text,
+                                                                       Color.accent) : "transparent"
                 }
 
                 Text {
@@ -141,8 +144,9 @@ Omarchy.BorderSurface {
                                                    body.height - height) / 2
                     textFormat: Text.StyledText
                     text: root.markup(row.modelData)
-                    color: row.current ? Style.hoverStateColor(Color.popups.text, Color.accent) :
-                                         Color.popups.text
+                    color: row.note ? Color.muted : row.current ? Style.hoverStateColor(Color.popups.text,
+                                                                                        Color.accent) :
+                                                                  Color.popups.text
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     elide: Text.ElideRight

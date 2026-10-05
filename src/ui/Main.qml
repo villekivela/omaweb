@@ -1585,6 +1585,56 @@ ApplicationWindow {
     // terminal (ADR 0058). The words wait here while the reader is asked to
     // turn Allow agents on, and go to the tab that was on show when they were
     // typed.
+    // A card the reader typed and submitted, offered for saving (ADR 0053):
+    // the card, and the site, Space and tab it was typed in. Held in memory
+    // until the offer is answered or put away, and never anywhere else.
+    property var cardOffer: null
+    readonly property bool cardOfferOpen: !!window.cardOffer
+                                          && window.windowBrowser.paymentCardsState === "ready" &&
+                                          !window.windowBrowser.paymentCardSaved(
+                                              window.cardOffer.card.number)
+
+    // Whether a card may be offered or taken on the engine's page: a
+    // certificate the engine accepted without an exception. An engine calls a
+    // waived check secure again once it has accepted it, so Omaweb's own
+    // record of the waiver is asked too.
+    function cardSecure(engine) {
+        return !!engine && engine.connectionState === "secure" &&
+                !window.windowBrowser.certificateExceptionInEffect(engine.currentUrl);
+    }
+
+    // Offered only in a secure context, never in a Private window, never
+    // without a Secret Service and never for a card already saved; the
+    // keyring is read to know that, and the offer waits for it.
+    function offerToSaveCard(engine, card) {
+        const browser = window.windowBrowser;
+        if (window.privateWindow || !window.cardSecure(engine) || browser.paymentCardsState
+                === "unavailable" || !browser.isPaymentCardNumber(card.number))
+            return;
+        browser.paymentCards();
+        if (browser.paymentCardSaved(card.number))
+            return;
+        const address = String(card.origin || "");
+        const separator = address.indexOf("://");
+        window.cardOffer = {
+            "card": {
+                "number": String(card.number),
+                "name": String(card.name || ""),
+                "expiryMonth": Number(card.expiryMonth) || 0,
+                "expiryYear": Number(card.expiryYear) || 0
+            },
+            "site": separator < 0 ? address : address.substring(separator + 3),
+            "spaceName": browser.activeSpaceName,
+            "tabId": browser.activeTabId
+        };
+    }
+
+    function answerCardOffer(save) {
+        if (save && window.cardOffer)
+            window.windowBrowser.savePaymentCard(window.cardOffer.card);
+        window.cardOffer = null;
+    }
+
     property bool agentQuestionOpen: false
     property string agentQuestionTabId: ""
     property string agentQuestionWords: ""
@@ -3226,6 +3276,10 @@ ApplicationWindow {
                         window.showCertificateError(engine, requestId, failure);
                     }
 
+                    onPaymentCardSubmitted: function (engine, card) {
+                        window.offerToSaveCard(engine, card);
+                    }
+
                     // What the page managed to empty of its own storage. A page
                     // that held nothing says so rather than reporting a success
                     // the reader would read as having taken something.
@@ -3429,6 +3483,10 @@ ApplicationWindow {
                     function onFormSubmitted(fields) {
                         window.windowBrowser.rememberFormFields(window.glanceEngine.spaceId,
                                                                 fields);
+                    }
+
+                    function onPaymentCardSubmitted(card) {
+                        window.offerToSaveCard(window.glanceEngine, card);
                     }
 
                     function onSitePermissionRequested(requestId, origin, permission) {
@@ -3737,6 +3795,59 @@ ApplicationWindow {
                         function onActiveTabChanged() {
                             if (window.windowBrowser.activeTabId !== window.agentQuestionTabId)
                                 window.answerAgentQuestion(false);
+                        }
+                    }
+                }
+
+                // A card the reader typed and submitted. Not now forgets it,
+                // and nothing is remembered about the site.
+                PageQuestionBar {
+                    objectName: "cardSaveBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 38
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
+                    open: window.cardOfferOpen
+                    glyph: "credit_card"
+                    message: window.cardOffer ? qsTr("Save card •••• %1 to the keyring?").arg(
+                                                    window.cardOffer.card.number.slice(-4)) : ""
+                    detail: window.cardOffer ? qsTr("%1 · %2",
+                                                    "the site a card was typed on · its Space").arg(
+                                                   window.cardOffer.site).arg(
+                                                   window.cardOffer.spaceName) : ""
+                    actions: [
+                        {
+                            "label": qsTr("Save", "button: save a typed card to the keyring")
+                        },
+                        {
+                            "label": qsTr("Not now", "button: do not save a typed card")
+                        }
+                    ]
+
+                    onActionTriggered: function (index) {
+                        window.answerCardOffer(index === 0);
+                    }
+
+                    Connections {
+                        target: window.windowBrowser
+                        enabled: !!window.cardOffer
+                        function onActiveTabChanged() {
+                            if (window.cardOffer && window.windowBrowser.activeTabId
+                                    !== window.cardOffer.tabId)
+                                window.answerCardOffer(false);
+                        }
+                        // A keyring that could not be read has no answer to
+                        // whether the card is saved, and the offer goes, as
+                        // it does once the keyring is read and holds it.
+                        function onPaymentCardsChanged() {
+                            const state = window.windowBrowser.paymentCardsState;
+                            if (state === "unavailable" || state === "unreadable"
+                                    || window.windowBrowser.paymentCardSaved(
+                                        window.cardOffer.card.number))
+                                window.answerCardOffer(false);
                         }
                     }
                 }
@@ -4639,6 +4750,7 @@ ApplicationWindow {
         z: 54
         browser: window.windowBrowser
         engine: window.formFieldEngine()
+        agentTyping: engineLoader.agentTypingIn(engine)
     }
 
     ChromeMenu {
@@ -4780,6 +4892,8 @@ ApplicationWindow {
                                  ? window.spaceProfileHost.retainedDataEntries : []
             siteDataGeneration: window.siteDataGeneration
             askedPermission: window.permissionOpen ? window.pendingPermissionType : ""
+            cardFills: engineLoader.item && engineLoader.item.paymentCardFills
+                       ? engineLoader.item.paymentCardFills : []
             open: window.siteInformationOpen
 
             onCloseRequested: window.dismissSiteInformation()

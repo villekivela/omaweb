@@ -248,9 +248,10 @@ Sync is optional, off until you connect it, and unavailable in a Private window.
 tabs, keybindings, filter subscription addresses, and four approved Settings keys between your own
 machines through a private git repository you own. Spaces and tabs are encrypted before upload;
 keybindings, subscription addresses, and those settings are readable in that repository. Passwords,
-cookies, browsing history, form history, saved addresses, downloads, site permissions, and every
-Private window never enter Sync. [What is synced, and what is not](docs/sync-privacy.md) states the
-full boundary and the forge permissions it asks for.
+payment cards, cookies, browsing history, form history, saved addresses, downloads, site
+permissions, and every Private window never enter Sync. Payment cards are kept in your desktop's
+keyring and nowhere else. [What is synced, and what is not](docs/sync-privacy.md) states the full
+boundary and the forge permissions it asks for.
 
 HTTPS-only mode is on by default: a page's own address goes over HTTPS whoever wrote the link, and
 Omaweb asks before loading a site that cannot be reached that way over plain HTTP.

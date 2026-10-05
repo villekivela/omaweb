@@ -116,13 +116,20 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // come from where the reader pointed.
         {"pressOrigin", QMetaType::QRectF},
         // The focused field, when form history may keep what is typed into
-        // it or an address could fill it, or else null: `name`, empty where
-        // form history keeps nothing, `address`, the field's address token or
-        // empty, `value`, a `serial` that changes with each focus, and its
-        // `x`, `y`, `width` and `height` in the view's own coordinates. The
-        // page judges which fields qualify, because only the page knows how a
-        // field is marked; the shell draws the suggestions.
+        // it, an address could fill it or a card be offered under it, or else
+        // null: `name`, empty where form history keeps nothing, `address`, the
+        // field's address token or empty, `card`, its card token or empty,
+        // `value`, never what a card field holds, `empty`, whether it holds
+        // nothing, a `serial` that changes with each focus, the `frame` it is
+        // in, and its `x`, `y`, `width` and `height` in the view's own
+        // coordinates, in whichever frame it is. The page judges which fields
+        // qualify, because only the page knows how a field is marked; the
+        // shell draws the suggestions.
         {"formField", QMetaType::QVariant},
+        // Each card filled into the document on show: `last4`, `brand`,
+        // `nickname` and the `origin` of the frame it went into. A new
+        // document starts with none, and nothing about a fill is kept.
+        {"paymentCardFills", QMetaType::QVariant},
         // Whether the view takes the keyboard when it is made. The shell makes
         // an Agent tab's page while the reader is looking at another, and an
         // Agent tab never takes the reader's keyboard.
@@ -223,6 +230,16 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // address the reader picked, for the focus whose `serial` the list
         // was drawn for and no other.
         {"fillAddress", false, 2},
+        // Fills the card fields of the focused field's form, in that field's
+        // frame and no other, from a saved card the reader picked: its
+        // `number`, `name`, `expiryMonth` and `expiryYear`, for the focus whose
+        // `serial` the list was drawn for. The security code is never filled.
+        {"fillPaymentCard", false, 2},
+        // A card the reader typed and submitted in a secure context: its
+        // `number`, `name`, `expiryMonth`, `expiryYear` and the `origin` of
+        // the frame. Never the security code, and never carried where the
+        // page's console or a log would show it.
+        {"paymentCardSubmitted", true, 1},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},

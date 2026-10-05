@@ -282,6 +282,11 @@ private slots:
     void qtTakesNoSuggestionKeyThePageDispatches();
     void qtFillsEveryAddressFieldOfTheFocusedForm();
     void qtFillsTheAddressFieldsAPartialFormHas();
+    void qtReportsACardFieldButNeverWhatIsTypedIntoIt();
+    void qtFillsTheCardFieldsOfTheFocusedFormButTheSecurityCode();
+    void qtFillsACardOnlyIntoTheFrameItsFieldIsIn();
+    void qtHandsOverATypedCardOnlyWhenTheShellAsksAfterASubmit();
+    void qtOffersNoCardThePageWroteOrSubmitted();
     void qtKeepsItsPageReportsOutOfThePagesReach();
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
@@ -3852,15 +3857,22 @@ void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
         form.focus(kept);
         QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), kept);
     }
-    for (const auto &unkept :
-        {QStringLiteral("nameless"), QStringLiteral("pin"), QStringLiteral("off"),
-            QStringLiteral("payment"), QStringLiteral("cardnumber"), QStringLiteral("code"),
-            QStringLiteral("box"), QStringLiteral("notes"), QStringLiteral("secret")}) {
+    for (const auto &unkept : {QStringLiteral("nameless"), QStringLiteral("pin"),
+             QStringLiteral("off"), QStringLiteral("cardnumber"), QStringLiteral("code"),
+             QStringLiteral("box"), QStringLiteral("notes"), QStringLiteral("secret")}) {
         form.focus(QStringLiteral("city"));
         QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("city"));
         form.focus(unkept);
         QTRY_VERIFY2(form.field().isEmpty(), qPrintable(unkept));
     }
+    // A card field is reported, so a press can offer the saved cards, but
+    // with nothing form history could keep and nothing of what it holds.
+    form.focus(QStringLiteral("city"));
+    QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("city"));
+    form.focus(QStringLiteral("payment"));
+    QTRY_VERIFY(form.field().value(QStringLiteral("name")).toString().isEmpty());
+    QCOMPARE(form.field().value(QStringLiteral("value")).toString(), QString());
+    QCOMPARE(form.field().value(QStringLiteral("card")).toString(), QString());
 
     // Submitting reports the fields that may be kept and have a value, and
     // none of the others whatever they hold.
@@ -4255,6 +4267,402 @@ void QtEngineContractTest::qtFillsTheAddressFieldsAPartialFormHas()
         QStringLiteral("Rantakatu 1 A 2"));
     QCOMPARE(form.values(QStringLiteral("#full input")).value(QStringLiteral("email")).toString(),
         QString());
+}
+
+namespace {
+
+// A payment form with every card token beside the security code and a field
+// that is not the card's, and a second form with a card field of its own.
+const QByteArray cardPage = R"HTML(<!doctype html><html><head><title>ready</title></head>
+    <body style="margin:0">
+    <form id="pay" onsubmit="event.preventDefault(); document.title = 'paid'">
+        <input id="number" name="cardnumber" autocomplete="cc-number" inputmode="numeric">
+        <input id="holder" name="holder" autocomplete="billing cc-name">
+        <input id="expiry" name="expiry" autocomplete="cc-exp" placeholder="MM / YY">
+        <select id="month" name="month" autocomplete="cc-exp-month">
+            <option value="">MM</option><option value="7">07</option>
+            <option value="8">08</option><option value="9">09</option>
+        </select>
+        <input id="year" name="year" autocomplete="cc-exp-year">
+        <input id="shortYear" name="shortYear" autocomplete="cc-exp-year" maxlength="2">
+        <input id="code" name="cvc" autocomplete="cc-csc">
+        <input id="email" type="email" name="email" autocomplete="email">
+        <input id="hidden" name="hidden" autocomplete="cc-name" style="display:none">
+        <button>Pay</button>
+    </form>
+    <form id="other" onsubmit="event.preventDefault()">
+        <input id="otherNumber" name="otherNumber" autocomplete="cc-number">
+    </form>
+    </body></html>)HTML";
+
+QVariantMap savedCard()
+{
+    return {{QStringLiteral("id"), QStringLiteral("everyday")},
+        {QStringLiteral("number"), QStringLiteral("4242424242424242")},
+        {QStringLiteral("last4"), QStringLiteral("4242")},
+        {QStringLiteral("brand"), QStringLiteral("Visa")},
+        {QStringLiteral("name"), QStringLiteral("Meri Laine")}, {QStringLiteral("expiryMonth"), 8},
+        {QStringLiteral("expiryYear"), 2029},
+        {QStringLiteral("nickname"), QStringLiteral("Everyday")}};
+}
+
+bool fillCard(FormHistoryView &form, int serial)
+{
+    return QMetaObject::invokeMethod(form.adapter.get(), "fillPaymentCard",
+        Q_ARG(QVariant, savedCard()), Q_ARG(QVariant, serial));
+}
+
+// Every console message the page's view hears, the adapter's own reports
+// among them, and the page's.
+std::unique_ptr<QSignalSpy> consoleSpy(QObject *webView)
+{
+    const auto *meta = webView->metaObject();
+    for (int index = 0; index < meta->methodCount(); ++index) {
+        const auto method = meta->method(index);
+        if (method.name() == "javaScriptConsoleMessage") {
+            return std::make_unique<QSignalSpy>(webView, method);
+        }
+    }
+    return nullptr;
+}
+
+// The adapter's reports carry random base-36 tokens, so what is looked for is
+// long enough not to turn up in one by chance.
+bool consoleCarries(const QSignalSpy &console, const QString &text)
+{
+    for (const auto &message : console) {
+        if (message.value(1).toString().contains(text)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QVariantMap asMap(const QVariant &value)
+{
+    return value.metaType() == QMetaType::fromType<QJSValue>()
+        ? value.value<QJSValue>().toVariant().toMap()
+        : value.toMap();
+}
+
+} // namespace
+
+// A card field is reported with its token once the reader has pressed it,
+// and never with what is in it: the field's report goes over the page's
+// console, which the inspector shows. The security code is not a field a
+// card is offered under, and is not reported at all.
+void QtEngineContractTest::qtReportsACardFieldButNeverWhatIsTypedIntoIt()
+{
+    FormHistoryView form;
+    QVERIFY(form.load({}, cardPage));
+    const auto console = consoleSpy(form.webView);
+    QVERIFY(console && console->isValid());
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+
+    // The page focusing the field itself offers no card.
+    focusFirstAddressField(form, QStringLiteral("number"));
+    QCOMPARE(form.field().value(QStringLiteral("card")).toString(), QString());
+    press(form, QStringLiteral("number"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("card")).toString(), QStringLiteral("cc-number"));
+    QVERIFY(form.field().value(QStringLiteral("empty")).toBool());
+    QCOMPARE(form.field().value(QStringLiteral("name")).toString(), QString());
+
+    form.type(QStringLiteral("4242424242424242"));
+    QTRY_VERIFY(!form.field().value(QStringLiteral("empty")).toBool());
+    QCOMPARE(form.field().value(QStringLiteral("value")).toString(), QString());
+
+    press(form, QStringLiteral("holder"));
+    QTRY_COMPARE(form.field().value(QStringLiteral("card")).toString(), QStringLiteral("cc-name"));
+    form.type(QStringLiteral("Meri"));
+    QTRY_VERIFY(!form.field().value(QStringLiteral("empty")).toBool());
+    QCOMPARE(form.field().value(QStringLiteral("value")).toString(), QString());
+
+    press(form, QStringLiteral("code"));
+    QTRY_VERIFY(form.field().isEmpty());
+    form.type(QStringLiteral("867530"));
+    QTest::qWait(300);
+    QVERIFY(form.field().isEmpty());
+    QVERIFY(!consoleCarries(*console, QStringLiteral("4242424242")));
+    QVERIFY(!consoleCarries(*console, QStringLiteral("867530")));
+}
+
+// Accepting a card fills the focused field and every empty card field of
+// its form that the reader could see, for the focus the list was drawn for:
+// the number, the name, the expiry as the field asks for it. The security
+// code is left for the reader, and so is everything outside the form. Site
+// information is told which card went where.
+void QtEngineContractTest::qtFillsTheCardFieldsOfTheFocusedFormButTheSecurityCode()
+{
+    FormHistoryView form;
+    QVERIFY(form.load({}, cardPage));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    form.run(QStringLiteral("document.getElementById('year').value = '2031';"));
+
+    press(form, QStringLiteral("holder"));
+    QTRY_COMPARE(form.field().value(QStringLiteral("card")).toString(), QStringLiteral("cc-name"));
+    QVERIFY(fillCard(form, fieldSerial(form) - 1));
+    QTest::qWait(300);
+    QCOMPARE(form.values(QStringLiteral("#pay input")).value(QStringLiteral("number")),
+        QVariant(QString()));
+    QVERIFY(form.adapter->property("paymentCardFills").toList().isEmpty());
+
+    QVERIFY(fillCard(form, fieldSerial(form)));
+    QTRY_COMPARE(form.values(QStringLiteral("#pay input")).value(QStringLiteral("number")),
+        QVariant(QStringLiteral("4242424242424242")));
+    const QVariantMap expected {
+        {QStringLiteral("number"), QStringLiteral("4242424242424242")},
+        {QStringLiteral("holder"), QStringLiteral("Meri Laine")},
+        {QStringLiteral("expiry"), QStringLiteral("08/29")},
+        {QStringLiteral("month"), QStringLiteral("8")},
+        {QStringLiteral("year"), QStringLiteral("2031")},
+        {QStringLiteral("shortYear"), QStringLiteral("29")},
+        {QStringLiteral("code"), QString()},
+        {QStringLiteral("email"), QString()},
+        {QStringLiteral("hidden"), QString()},
+        {QStringLiteral("otherNumber"), QString()},
+    };
+    QCOMPARE(form.values(QStringLiteral("input, select")), expected);
+    const auto fills = form.adapter->property("paymentCardFills").toList();
+    QCOMPARE(fills.size(), 1);
+    QCOMPARE(fills.at(0).toMap().value(QStringLiteral("last4")).toString(), QStringLiteral("4242"));
+    QVERIFY(!fills.at(0).toMap().contains(QStringLiteral("number")));
+
+    // The fill is the card's, not typed, so submitting offers nothing to save.
+    QSignalSpy submitted(form.adapter.get(), SIGNAL(paymentCardSubmitted(QVariant)));
+    QVERIFY(submitted.isValid());
+    press(form, QStringLiteral("code"));
+    form.type(QStringLiteral("123"));
+    QTest::keyClick(&form.window, Qt::Key_Return);
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    // A new document forgets what was filled into the last one.
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "reloadPage"));
+    QTRY_VERIFY(form.adapter->property("paymentCardFills").toList().isEmpty());
+}
+
+namespace {
+
+// A page answering a card form of its own, and when asked by a message, the
+// values its fields hold.
+QByteArray framedCardPage(const QByteArray &who)
+{
+    return QByteArray(R"HTML(<!doctype html><html><body style="margin:0">
+        <form onsubmit="event.preventDefault()">
+            <input id="number" autocomplete="cc-number"
+                   style="position:absolute;left:10px;top:10px;width:200px;height:24px">
+            <input id="holder" autocomplete="cc-name"
+                   style="position:absolute;left:10px;top:50px;width:200px;height:24px">
+        </form>
+        <script>
+            addEventListener('message', event => {
+                if (event.data !== 'values') return;
+                parent.postMessage({who: 'WHO', values: Object.fromEntries(
+                    [...document.querySelectorAll('input')].map(field => [field.id, field.value]))},
+                    '*');
+            });
+            addEventListener('load', () => parent.postMessage({who: 'WHO', ready: true}, '*'));
+        </script></body></html>)HTML")
+        .replace("WHO", who);
+}
+
+} // namespace
+
+// A payment frame from a processor gets the card and the page around it does
+// not: the field's report names its frame and where it stands in the view,
+// and the fill goes into that frame alone, never the page or a frame beside it.
+void QtEngineContractTest::qtFillsACardOnlyIntoTheFrameItsFieldIsIn()
+{
+    PageServer payment(framedCardPage("payment"));
+    QVERIFY(payment.listen(QHostAddress::LocalHost));
+    PageServer sibling(framedCardPage("sibling"));
+    QVERIFY(sibling.listen(QHostAddress::LocalHost));
+    PageServer page(QByteArray(R"HTML(<!doctype html><html><head><title>loading</title></head>
+        <body style="margin:0">
+        <form onsubmit="event.preventDefault()">
+            <input id="pageNumber" autocomplete="cc-number"
+                   style="position:absolute;left:10px;top:10px;width:200px;height:24px">
+        </form>
+        <iframe id="payment" src="http://localhost:PAYMENT/"
+                style="position:absolute;left:40px;top:150px;width:300px;height:100px;border:0"></iframe>
+        <iframe id="sibling" src="http://localhost:SIBLING/"
+                style="position:absolute;left:40px;top:300px;width:300px;height:100px;border:0"></iframe>
+        <script>
+            const ready = new Set();
+            let reads = 0;
+            addEventListener('message', event => {
+                if (event.data && event.data.ready) ready.add(event.data.who);
+                if (event.data && event.data.values)
+                    document.title = JSON.stringify(
+                        {read: ++reads, who: event.data.who, values: event.data.values});
+                else if (ready.size === 2) document.title = 'ready';
+            });
+        </script></body></html>)HTML")
+            .replace("PAYMENT", QByteArray::number(payment.serverPort()))
+            .replace("SIBLING", QByteArray::number(sibling.serverPort())));
+    QVERIFY(page.listen(QHostAddress::LocalHost));
+
+    FormHistoryView form;
+    QVERIFY(form.load());
+    QVERIFY(form.adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(page.serverPort()))));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+
+    // The frame's field, pressed where the reader sees it. The first press
+    // after a load can reach the view before the frame takes input.
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (form.field().value(QStringLiteral("card")).toString().isEmpty()) {
+            QTest::mouseClick(
+                &form.window, Qt::LeftButton, Qt::NoModifier, QPoint(40 + 110, 150 + 22));
+        }
+        return form.field().value(QStringLiteral("card")).toString() == QLatin1String("cc-number");
+    }()),
+        15000);
+    QVERIFY(!form.field().value(QStringLiteral("frame")).toString().isEmpty());
+    QTRY_COMPARE(qRound(form.field().value(QStringLiteral("x")).toDouble()), 50);
+    QCOMPARE(qRound(form.field().value(QStringLiteral("y")).toDouble()), 160);
+
+    QVERIFY(fillCard(form, fieldSerial(form)));
+    const auto valuesOf = [&form](const QString &frame) {
+        const auto reads = form.adapter->property("pageTitle").toString();
+        form.run(QStringLiteral("document.getElementById('%1').contentWindow.postMessage("
+                                "'values', '*');")
+                .arg(frame));
+        QJsonObject read;
+        static_cast<void>(QTest::qWaitFor(
+            [&] {
+                read = QJsonDocument::fromJson(
+                    form.adapter->property("pageTitle").toString().toUtf8())
+                           .object();
+                return read.value(QStringLiteral("who")).toString() == frame
+                    && form.adapter->property("pageTitle").toString() != reads;
+            },
+            5000));
+        return read.value(QStringLiteral("values")).toObject().toVariantMap();
+    };
+    QTRY_COMPARE(valuesOf(QStringLiteral("payment")).value(QStringLiteral("number")).toString(),
+        QStringLiteral("4242424242424242"));
+    QCOMPARE(valuesOf(QStringLiteral("payment")).value(QStringLiteral("holder")).toString(),
+        QStringLiteral("Meri Laine"));
+    QCOMPARE(valuesOf(QStringLiteral("sibling")),
+        (QVariantMap {
+            {QStringLiteral("number"), QString()}, {QStringLiteral("holder"), QString()}}));
+    QCOMPARE(form.values(QStringLiteral("input")),
+        (QVariantMap {{QStringLiteral("pageNumber"), QString()}}));
+    const auto fills = form.adapter->property("paymentCardFills").toList();
+    QCOMPARE(fills.size(), 1);
+    QCOMPARE(fills.at(0).toMap().value(QStringLiteral("origin")).toString(),
+        QStringLiteral("http://localhost:%1").arg(payment.serverPort()));
+}
+
+// A card the reader typed and submitted is handed to the shell when the shell
+// asks for it, which it does the moment the page says a card was submitted:
+// never over the page's console, where the inspector would show it. A form
+// that leaves its page on submit leaves it after the card is handed over. The
+// security code is never read.
+void QtEngineContractTest::qtHandsOverATypedCardOnlyWhenTheShellAsksAfterASubmit()
+{
+    PageServer page(QByteArray(R"HTML(<!doctype html><html><head><title>ready</title></head>
+        <body style="margin:0">
+        <form id="pay" method="post" action="/paid">
+            <input id="number" name="number" autocomplete="cc-number">
+            <input id="holder" name="holder" autocomplete="cc-name">
+            <input id="expiry" name="expiry" autocomplete="cc-exp">
+            <input id="code" name="code" autocomplete="cc-csc">
+            <button>Pay</button>
+        </form></body></html>)HTML"));
+    QVERIFY(page.listen(QHostAddress::LocalHost));
+    FormHistoryView form;
+    QVERIFY(form.load());
+    const auto console = consoleSpy(form.webView);
+    QVERIFY(console && console->isValid());
+    QSignalSpy submitted(form.adapter.get(), SIGNAL(paymentCardSubmitted(QVariant)));
+    QVERIFY(submitted.isValid());
+    QVERIFY(form.adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(page.serverPort()))));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+
+    press(form, QStringLiteral("number"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("card")).toString(), QStringLiteral("cc-number"));
+    form.type(QStringLiteral("4242 4242 4242 4242"));
+    press(form, QStringLiteral("holder"));
+    form.type(QStringLiteral("Meri Laine"));
+    press(form, QStringLiteral("expiry"));
+    form.type(QStringLiteral("08/29"));
+    press(form, QStringLiteral("code"));
+    form.type(QStringLiteral("867530"));
+    QTest::keyClick(&form.window, Qt::Key_Return);
+
+    QTRY_COMPARE_WITH_TIMEOUT(submitted.count(), 1, 10000);
+    QTRY_VERIFY(page.requested().contains(QStringLiteral("/paid")));
+    const auto card = asMap(submitted.first().first());
+    QCOMPARE(card,
+        (QVariantMap {{QStringLiteral("number"), QStringLiteral("4242424242424242")},
+            {QStringLiteral("name"), QStringLiteral("Meri Laine")},
+            {QStringLiteral("expiryMonth"), 8}, {QStringLiteral("expiryYear"), 2029},
+            {QStringLiteral("origin"),
+                QStringLiteral("http://127.0.0.1:%1").arg(page.serverPort())}}));
+    QVERIFY(!consoleCarries(*console, QStringLiteral("4242424242")));
+    QVERIFY(!consoleCarries(*console, QStringLiteral("867530")));
+}
+
+// Only the reader's own typing makes a card theirs to save: a number the page
+// wrote, or changed after the reader typed it, and a submit the page made up,
+// offer nothing.
+void QtEngineContractTest::qtOffersNoCardThePageWroteOrSubmitted()
+{
+    FormHistoryView form;
+    QVERIFY(form.load({}, cardPage));
+    QSignalSpy submitted(form.adapter.get(), SIGNAL(paymentCardSubmitted(QVariant)));
+    QVERIFY(submitted.isValid());
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+
+    form.run(QStringLiteral("document.getElementById('number').value = '4242424242424242';"
+                            "document.getElementById('pay').requestSubmit();"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    form.run(
+        QStringLiteral("document.title = 'ready'; document.getElementById('number').value = '';"));
+    press(form, QStringLiteral("number"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("card")).toString(), QStringLiteral("cc-number"));
+    form.type(QStringLiteral("4242424242424242"));
+    QTRY_VERIFY(!form.field().value(QStringLiteral("empty")).toBool());
+    form.run(QStringLiteral("document.getElementById('pay').dispatchEvent("
+                            "new Event('submit', {bubbles: true, cancelable: true}));"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    form.run(QStringLiteral("document.title = 'ready';"
+                            "document.getElementById('number').value = '5555555555554444';"
+                            "document.getElementById('pay').requestSubmit();"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("paid"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    // The reader's own submit of what they typed is offered.
+    form.run(
+        QStringLiteral("document.title = 'ready'; document.getElementById('number').value = '';"));
+    press(form, QStringLiteral("number"));
+    form.type(QStringLiteral("4242424242424242"));
+    QTest::keyClick(&form.window, Qt::Key_Return);
+    QTRY_COMPARE(submitted.count(), 1);
 }
 
 // The page reports scroll, media and presses to the shell over its console,
