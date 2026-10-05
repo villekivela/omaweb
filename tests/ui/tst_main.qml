@@ -280,6 +280,19 @@ TestCase {
         tryVerify(function () {
             return sidebar.visible && Math.round(sidebar.x) === 0;
         });
+        // So does the drop of a sheet or card the last test left open, and
+        // until it ends the sheet can take a click that lands on it: Settings
+        // and the site information card do. A test that clicked the page or
+        // the outline straight away hit the one still dropping, and passed
+        // only while the closed Shortcut sheet's rebuild on each page held the
+        // interface thread for the length of the drop (#594).
+        for (const name of ["settingsSurface", "historySurface", "siteInformationCard",
+                            "shortcutSheet"]) {
+            const surface = findChild(window.contentItem, name);
+            tryVerify(function () {
+                return !surface.visible;
+            }, 5000, name + " was still dropping");
+        }
     }
 
     // A Download record outlives the test that made it, and every test here
