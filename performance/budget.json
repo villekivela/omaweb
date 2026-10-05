@@ -38,14 +38,14 @@
       "note": "The common case with a page that procedural cosmetic rules are written against (ADR 0052): the markup and rules of tests/content-blocking/procedural-rules.json, one rule per operator and action, for both page hosts: 146.6 ms against 144.6 ms. The common case in the same run added 4.0 ms, so what the rules add over it is below what the runner can tell apart. Measured on 2026-09-28 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, so this holds CNAME uncloaking's lookups as well as the rule check, the Refusal tally and the refused-request list. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Four times the difference is 8 ms, under the 20 ms floor."
     },
     "first_contentful_paint_fresh_hosts_milliseconds": {
-      "ceiling": 200.0,
-      "recorded": 62.0,
-      "note": "How soon the page of 40 images from 40 hosts it has never seen first paints, blocking on, the median of ten loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. The ten ran from 44.0 to 96.0 ms. The ceiling is twice the slowest, rounded up to ten milliseconds: a median past it is every load slower than the slowest one recorded, not one slow load."
+      "ceiling": 380.0,
+      "recorded": 94.0,
+      "note": "How soon the page of 40 images from 40 hosts it has never seen first paints, blocking on, the median of ten loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. Two runs on CI's runner: a median of 62.0 ms (loads from 44.0 to 96.0 ms) and of 94.0 ms (64.0 to 112.0 ms), so the runner alone moved the median by half. The ceiling is four times the slower median, rounded up to ten milliseconds, as the startup and page-load ceilings are."
     },
     "first_contentful_paint_known_hosts_milliseconds": {
-      "ceiling": 160.0,
-      "recorded": 46.0,
-      "note": "The same for the page of 40 images from 4 hosts resolved on the warm-up loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. The ten ran from 44.0 to 80.0 ms. The ceiling is twice the slowest, rounded up to ten milliseconds."
+      "ceiling": 240.0,
+      "recorded": 60.0,
+      "note": "The same for the page of 40 images from 4 hosts resolved on the warm-up loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. Two runs on CI's runner: a median of 46.0 ms (44.0 to 80.0 ms) and of 60.0 ms (44.0 to 104.0 ms). The ceiling is four times the slower median."
     }
   }
 }

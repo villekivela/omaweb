@@ -1413,23 +1413,27 @@ presented, which on a slow runner can come after the `load` event, so the page w
 to five seconds. A counted load with no entry by then fails the run rather than leaving the median
 to the loads that had one.
 
-The log prints, for each case, the median of its ten loads and the fastest and slowest of them. CI's
-run on 2026-10-05 printed:
+The log prints, for each case, the median of its ten loads and the fastest and slowest of them. Two
+CI runs on 2026-10-05 printed:
 
 ```text
   first contentful paint, 40 fresh hosts, blocking on: 62.0 ms (median of 10 loads, 44.0 to 96.0 ms)
   first contentful paint, 4 known hosts, blocking on: 46.0 ms (median of 10 loads, 44.0 to 80.0 ms)
+
+  first contentful paint, 40 fresh hosts, blocking on: 94.0 ms (median of 10 loads, 64.0 to 112.0 ms)
+  first contentful paint, 4 known hosts, blocking on: 60.0 ms (median of 10 loads, 44.0 to 104.0 ms)
 ```
 
 What the budget holds is that median. The first contentful paint waits on one image, not on all 40,
-so the fresh-host page pays one host's lookups before it and the known-host page none. The fastest
-load was 44.0 ms on both pages, so on CI one lookup is small next to drawing the frame. A rise in
+so the fresh-host page pays one host's lookups before it and the known-host page none. A rise in
 both medians is the engine drawing later. A rise in the fresh-host page's alone is the lookup in
 front of the first image, and `pageload_fresh_hosts_milliseconds` is where to look next. A wide
 spread with a steady median is the runner, not the browser.
 
-Each ceiling is twice the slowest of the ten loads CI recorded, rounded up to ten milliseconds, so a
-median past it is every load slower than the slowest one recorded rather than one slow load.
+The same browser's fresh-host median moved from 62 to 94 ms between the two runs, so the runner
+alone moves it by half. Each ceiling is four times the slower run's median, rounded up to ten
+milliseconds, as the startup and page-load ceilings are: 380 ms for the fresh-host page and 240 ms
+for the known-host one.
 
 CI has no GPU, so the paint is Chromium's software rasteriser under cage's pixman renderer. The
 number is CI's, held against itself to catch a regression, and is not what a reader's GPU takes.
