@@ -5822,6 +5822,14 @@ TestCase {
         tryCompare(agentEngine, "pageFrozen", false);
         verify(shield.visible);
         compare(engineLoader.item.opacity, 1);
+        // It is laid out at the page area's size, unlike a page kept hidden,
+        // so what the Agent sees is what the reader will.
+        const pageArea = engineLoader.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
+        tryVerify(function () {
+            return engineLoader.width !== pageArea;
+        });
+        compare(agentEngine.width, engineLoader.width);
 
         control.pageRequested(7, {
                                   "verb": "look",

@@ -44,13 +44,14 @@ Rectangle {
     readonly property var privateExclusions: ["pin-tab", "move-tab", "next-space", "select-space",
         "new-space"]
 
-    // Worked out again whenever the keymap changes while the sheet is open:
-    // reading `browserBindings` here is what makes an edited keyboard
-    // configuration reach the sheet, since the keys themselves come from a
-    // function call QML cannot watch. A closed sheet lists nothing and
-    // depends on `open` alone. Asking the registry about every command costs
-    // a Space switch about a frame, because the registry's answers change
-    // with the page on show (#594); opening works the list out again.
+    // Worked out again whenever the keymap or what the registry offers
+    // changes while the sheet is open: reading `browserBindings` here is what
+    // makes an edited keyboard configuration reach the sheet, since the keys
+    // themselves come from a function call QML cannot watch. A closed sheet
+    // lists nothing and depends on `open` alone. Asking the registry about
+    // every command costs a Space switch about a frame, because the
+    // registry's answers change with the page on show (#594); opening works
+    // the list out again.
     readonly property var sections: {
         if (!root.open)
             return [];

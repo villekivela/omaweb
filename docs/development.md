@@ -1309,12 +1309,13 @@ The sidebar and a Space switch were over the budget until #594, because what the
 see kept laying itself out. When the sidebar's seam settled, the page area took its new width, and
 the closed Shortcut sheet packed its columns and built them again for it, about 30 ms on the
 interface thread on the offscreen platform. The closed Settings page laid every row out again at
-that width, and so did every page the window kept for a tab not on show, which cost more the more
+that width, and so did every page the window kept for a tab not on show, a cost that grew with what
 the suites before the probe had left behind. Showing the arriving Space's page rebuilt the closed
 sheet's sections, about 100 ms before the slide's first frame, and working that list out asked the
 command registry about every command, which cost another frame. A closed sheet now lists nothing and
 keeps the layout it last drew, closed Settings keeps the width it was last drawn at, and a hidden
-page keeps the width it was last shown at. Each one lays out when it is shown again.
+page other than an Agent tab's keeps the width it had when it was hidden. Each one lays out when it
+is shown again.
 
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
