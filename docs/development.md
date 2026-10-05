@@ -925,7 +925,7 @@ claims the name; naming the one key it must be is what makes `pacman-key --recv-
 
 `scripts/rewrite_release_notes.py` then rewrites that commit list into notes addressed to a reader,
 from the commit bodies in the range, the issues they reference, and the glossary in
-[CONTEXT.md](../CONTEXT.md), which is what keeps the notes calling things what the project calls
+[GLOSSARY.md](../GLOSSARY.md), which is what keeps the notes calling things what the project calls
 them rather than what a commit subject happened to call them. It runs on every tag, prerelease
 included. The rewrite carries the compare URL over itself, and repairs the layout. It has nothing to
 say about the notes' markup, because `website/build/render.mjs` parses CommonMark: what a release

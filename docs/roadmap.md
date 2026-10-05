@@ -1,6 +1,6 @@
 # Roadmap
 
-Omaweb is alpha. The daily-driver contract in `CONTEXT.md` holds on Linux, and every release since
+Omaweb is alpha. The daily-driver contract in `GLOSSARY.md` holds on Linux, and every release since
 [v0.2.0](https://github.com/villekivela/omaweb/releases/tag/v0.2.0) carries the Arch package that
 proves it. A version number records what a build is compatible with, not how finished it is
 ([ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md)). This page states the stage and

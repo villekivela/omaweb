@@ -6,7 +6,7 @@ These rules tell engineering skills how to read this repository's domain documen
 
 Read the following files when they exist:
 
-- `CONTEXT.md` at the repository root.
+- `GLOSSARY.md` at the repository root.
 - Relevant decisions under `docs/adr/`.
 
 If a file does not exist, continue without reporting its absence or proposing that it be created.
@@ -19,7 +19,7 @@ This repository uses a single-context layout:
 
 ```text
 /
-├── CONTEXT.md
+├── GLOSSARY.md
 ├── docs/adr/
 │   ├── 0001-example-decision.md
 │   └── 0002-another-decision.md
@@ -28,7 +28,7 @@ This repository uses a single-context layout:
 
 ## Use the glossary vocabulary
 
-Use the terms defined in `CONTEXT.md` when naming domain concepts in issues, proposals, hypotheses,
+Use the terms defined in `GLOSSARY.md` when naming domain concepts in issues, proposals, hypotheses,
 and tests. Do not substitute synonyms that the glossary explicitly rejects.
 
 A missing term may mean either that the proposed language does not fit the project or that the
