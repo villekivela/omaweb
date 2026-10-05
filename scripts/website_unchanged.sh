@@ -30,6 +30,15 @@ build() {
     exit 1
 }
 
+# Vercel's clone has an `origin` it cannot fetch from, so on Vercel `main` comes
+# from the repository's public address, which only a public repository answers.
+fetch_main() {
+    git fetch --quiet --depth=50 origin main 2>/dev/null && return
+    [ "${VERCEL_GIT_PROVIDER:-}" = github ] || return 1
+    git fetch --quiet --depth=50 \
+        "https://github.com/${VERCEL_GIT_REPO_OWNER:-}/${VERCEL_GIT_REPO_SLUG:-}.git" main 2>/dev/null
+}
+
 if [ "${VERCEL_ENV:-}" != preview ]; then
     build "because only a preview is ever skipped"
 fi
@@ -38,8 +47,7 @@ fi
 # clone, and a branch's first push has none.
 base="${VERCEL_GIT_PREVIOUS_SHA:-}"
 if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-    git fetch --quiet --depth=50 origin main 2>/dev/null ||
-        build "because main could not be fetched to compare with"
+    fetch_main || build "because main could not be fetched to compare with"
     base=$(git merge-base FETCH_HEAD HEAD 2>/dev/null) ||
         build "because the branch and main share no commit in the clone"
 fi
