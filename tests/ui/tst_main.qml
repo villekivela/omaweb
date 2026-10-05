@@ -11191,6 +11191,29 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
+    // Settings is as wide as the page area while it is on show. Closed, it
+    // keeps the width it was last drawn at, so the page area settling at a new
+    // width beside the sidebar does not lay every row of it out again, which
+    // held the sidebar's slide over its frame budget (#594). Opening it takes
+    // the page area's width before its first frame.
+    function test_aClosedSettingsPageKeepsItsWidth() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        verify(!settings.visible);
+        const width = settings.width;
+        const pageArea = settings.parent.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
+        tryVerify(function () {
+            return settings.parent.width !== pageArea;
+        });
+        compare(settings.width, width, "the closed Settings page took the page area's new width");
+
+        window.settingsOpen = true;
+        verify(settings.visible);
+        compare(settings.width, settings.parent.width);
+        window.settingsOpen = false;
+        tryCompare(settings, "visible", false);
+    }
+
     // The Shortcut sheet holds a row for every command whether it is open or
     // not. A closed sheet draws none of their key caps, which kept the rest of
     // the window slow enough to miss clicks, and an open one draws them.

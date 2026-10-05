@@ -4122,7 +4122,18 @@ ApplicationWindow {
                 SettingsPage {
                     id: settingsSurface
                     objectName: "settingsSurface"
-                    anchors.fill: parent
+                    // As wide as the page area while it is drawn. Closed, it
+                    // keeps the width it was last drawn at: following the
+                    // page area would lay every row out again each time the
+                    // sidebar's slide settles, and the slide would wait on it
+                    // (#594). Opening takes the width before the first frame.
+                    height: parent.height
+                    Component.onCompleted: width = parent.width
+                    Binding on width {
+                        when: settingsLift.showing
+                        value: settingsSurface.parent.width
+                        restoreMode: Binding.RestoreNone
+                    }
                     z: 45
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
