@@ -330,6 +330,31 @@ bool ThreadedSessionStore::clearPermissionsSince(const QString &spaceId, qint64 
     return ask([this, &spaceId, since] { return m_store->clearPermissionsSince(spaceId, since); });
 }
 
+bool ThreadedSessionStore::recordFormEntry(
+    const QString &spaceId, const QString &field, const QString &value)
+{
+    return queue("form entry record",
+        [this, spaceId, field, value] { return m_store->recordFormEntry(spaceId, field, value); });
+}
+
+QStringList ThreadedSessionStore::formEntries(const QString &spaceId, const QString &field) const
+{
+    return ask([this, &spaceId, &field] { return m_store->formEntries(spaceId, field); });
+}
+
+bool ThreadedSessionStore::forgetFormEntry(
+    const QString &spaceId, const QString &field, const QString &value)
+{
+    return ask([this, &spaceId, &field, &value] {
+        return m_store->forgetFormEntry(spaceId, field, value);
+    });
+}
+
+bool ThreadedSessionStore::clearFormHistorySince(const QString &spaceId, qint64 since)
+{
+    return ask([this, &spaceId, since] { return m_store->clearFormHistorySince(spaceId, since); });
+}
+
 bool ThreadedSessionStore::recordDownload(const QString &id, const QString &spaceId,
     const QUrl &url, const QString &path, const QString &state, qint64 receivedBytes,
     qint64 totalBytes)

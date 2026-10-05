@@ -92,6 +92,11 @@ private slots:
     void adaptersRecordDownloadsOnlyIfTheyRecord_data();
     void adaptersAnswerASitePermissionTheyWereGiven();
     void adaptersAnswerASitePermissionTheyWereGiven_data();
+    void adaptersOfferFormHistoryOnlyIfTheyRecord();
+    void adaptersOfferFormHistoryOnlyIfTheyRecord_data();
+    void aSpaceIsOfferedNoFormHistoryAnotherSpaceKept();
+    void aRecordingStoreForgetsOneFormEntry();
+    void clearingFormHistoryRemovesTheSpacesEntriesSinceAMoment();
     void aRecordingStoreKeepsItsSessionAcrossAReopen();
     void adaptersRecordASplitWithItsTabsOnlyIfTheyRecord();
     void adaptersRecordASplitWithItsTabsOnlyIfTheyRecord_data();
@@ -249,6 +254,97 @@ void SessionStoreTest::adaptersAnswerASitePermissionTheyWereGiven()
     QCOMPARE(store->permissionDecision(
                  spaceId(), QStringLiteral("https://b.example"), QStringLiteral("camera")),
         0);
+}
+
+void SessionStoreTest::adaptersOfferFormHistoryOnlyIfTheyRecord_data() { adapterRows(); }
+
+// A value is offered again under the name of the field it was typed into, the
+// one used last first, and a value typed twice is offered once.
+void SessionStoreTest::adaptersOfferFormHistoryOnlyIfTheyRecord()
+{
+    QFETCH(QString, kind);
+    QFETCH(bool, records);
+    QTemporaryDir root;
+    auto store = makeStore(kind, root.path());
+    QVERIFY(store->open());
+    store->saveSpace(makeSpace());
+
+    QCOMPARE(
+        store->recordFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Oulu")), records);
+    QTest::qWait(2);
+    store->recordFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Turku"));
+    QTest::qWait(2);
+    store->recordFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Oulu"));
+    store->recordFormEntry(spaceId(), QStringLiteral("street"), QStringLiteral("Kauppakatu 1"));
+
+    const QStringList cities
+        = records ? QStringList {QStringLiteral("Oulu"), QStringLiteral("Turku")} : QStringList {};
+    const QStringList streets
+        = records ? QStringList {QStringLiteral("Kauppakatu 1")} : QStringList {};
+    QCOMPARE(store->formEntries(spaceId(), QStringLiteral("city")), cities);
+    QCOMPARE(store->formEntries(spaceId(), QStringLiteral("street")), streets);
+    QVERIFY(store->formEntries(spaceId(), QStringLiteral("email")).isEmpty());
+}
+
+void SessionStoreTest::aSpaceIsOfferedNoFormHistoryAnotherSpaceKept()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    store.saveSpace(makeSpace());
+    SpaceState work = makeSpace();
+    work.id = QStringLiteral("space-2");
+    work.name = QStringLiteral("Work");
+    work.active = false;
+    store.saveSpace(work);
+
+    QVERIFY(store.recordFormEntry(spaceId(), QStringLiteral("email"), QStringLiteral("me@home")));
+
+    QCOMPARE(store.formEntries(spaceId(), QStringLiteral("email")),
+        QStringList {QStringLiteral("me@home")});
+    QVERIFY(store.formEntries(work.id, QStringLiteral("email")).isEmpty());
+}
+
+void SessionStoreTest::aRecordingStoreForgetsOneFormEntry()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    store.saveSpace(makeSpace());
+    store.recordFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Oulu"));
+    store.recordFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Turku"));
+    store.recordFormEntry(spaceId(), QStringLiteral("town"), QStringLiteral("Oulu"));
+
+    QVERIFY(store.forgetFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Oulu")));
+
+    QCOMPARE(store.formEntries(spaceId(), QStringLiteral("city")),
+        QStringList {QStringLiteral("Turku")});
+    QCOMPARE(
+        store.formEntries(spaceId(), QStringLiteral("town")), QStringList {QStringLiteral("Oulu")});
+}
+
+// The range Clear browsing data names reaches back from now, over the entries
+// used within it; all time is every entry the Space has.
+void SessionStoreTest::clearingFormHistoryRemovesTheSpacesEntriesSinceAMoment()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    store.saveSpace(makeSpace());
+    store.recordFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Oulu"));
+    QTest::qWait(5);
+    const qint64 since = QDateTime::currentMSecsSinceEpoch();
+    QTest::qWait(5);
+    store.recordFormEntry(spaceId(), QStringLiteral("city"), QStringLiteral("Turku"));
+    store.recordFormEntry(spaceId(), QStringLiteral("email"), QStringLiteral("me@home"));
+
+    QVERIFY(store.clearFormHistorySince(spaceId(), since));
+    QCOMPARE(
+        store.formEntries(spaceId(), QStringLiteral("city")), QStringList {QStringLiteral("Oulu")});
+    QVERIFY(store.formEntries(spaceId(), QStringLiteral("email")).isEmpty());
+
+    QVERIFY(store.clearFormHistorySince(spaceId(), 0));
+    QVERIFY(store.formEntries(spaceId(), QStringLiteral("city")).isEmpty());
 }
 
 void SessionStoreTest::aRecordingStoreKeepsItsSessionAcrossAReopen()

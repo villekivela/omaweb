@@ -246,6 +246,9 @@ private slots:
     void qtWaitsForThePaintReportAfterTheLoad();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtReportsWhereThePageWasPressed();
+    void qtReportsOnlyAFieldFormHistoryMayKeep();
+    void qtTakesTheSuggestionKeysOnlyWhileTheListIsShown();
+    void qtTakesNoSuggestionKeyThePageDispatches();
     void qtKeepsItsPageReportsOutOfThePagesReach();
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
@@ -3511,6 +3514,327 @@ void QtEngineContractTest::qtReportsWhereThePageWasPressed()
     // A press on the page being left says nothing about the next page.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pressOrigin").toRectF(), QRectF(), 15000);
+}
+
+namespace {
+
+// A page of fields for form history, each placed where its report can be
+// checked, and a form that submits to nowhere so the document stays.
+const QByteArray formHistoryPage = R"HTML(<!doctype html><html><head><title>ready</title></head>
+    <body style="margin:0">
+    <form id="kept" onsubmit="event.preventDefault(); document.title = 'submitted'">
+        <input id="city" name="city"
+               style="position:absolute;left:20px;top:40px;width:200px;height:24px;box-sizing:border-box">
+        <input id="q" type="search" name="q">
+        <input id="phone" type="tel" autocomplete="tel" name="phone">
+        <input data-field="nameless">
+        <input id="pin" type="password" name="pin">
+        <input id="off" name="off" autocomplete="off">
+        <input id="payment" name="number" autocomplete="cc-number">
+        <input id="cardnumber" name="cardnumber">
+        <input id="code" name="code" autocomplete="one-time-code">
+        <input id="box" type="checkbox" name="box" checked>
+        <input id="prefilled" name="prefilled" value="from the server">
+        <input id="scripted" name="scripted">
+        <textarea id="notes" name="notes"></textarea>
+        <button>Send</button>
+    </form>
+    <form id="unkept" autocomplete="off" onsubmit="event.preventDefault()">
+        <input id="secret" name="secret">
+        <input id="allowed" name="allowed" autocomplete="email">
+    </form>
+    </body></html>)HTML";
+
+struct FormHistoryView {
+    QTemporaryDir root;
+    QQmlEngine engine;
+    std::unique_ptr<QObject> adapter;
+    QQuickWindow window;
+    QObject *webView = nullptr;
+
+    bool load(const QVariantMap &extra = {})
+    {
+        QFile page(root.filePath(QStringLiteral("form.html")));
+        if (!page.open(QIODevice::WriteOnly)
+            || page.write(formHistoryPage) != formHistoryPage.size())
+            return false;
+        page.close();
+        QQmlComponent component(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+        QVariantMap properties = extra;
+        properties.insert(QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")));
+        adapter.reset(component.createWithInitialProperties(properties));
+        if (!adapter) {
+            qWarning() << component.errorString();
+            return false;
+        }
+        window.resize(640, 480);
+        auto *view = qobject_cast<QQuickItem *>(adapter.get());
+        view->setParentItem(window.contentItem());
+        view->setSize(QSizeF(640, 480));
+        window.show();
+        window.requestActivate();
+        webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+        return webView && adapter->setProperty("currentUrl", QUrl::fromLocalFile(page.fileName()));
+    }
+
+    void run(const QString &script)
+    {
+        QMetaObject::invokeMethod(webView, "runJavaScript", Q_ARG(QString, script));
+    }
+
+    // Focuses a field afresh, as the reader's Tab would.
+    void focus(const QString &id)
+    {
+        run(QStringLiteral("document.activeElement && document.activeElement.blur();"
+                           "document.querySelector('#%1, [data-field=%1]').focus();")
+                .arg(id));
+    }
+
+    // Keys the reader presses, which is what makes a value theirs.
+    void type(const QString &text)
+    {
+        for (const auto character : text) {
+            QTest::keyClick(&window, character.toLatin1());
+        }
+    }
+
+    QVariantMap field() const { return adapter->property("formField").toMap(); }
+};
+
+} // namespace
+
+// The page says which field has the keyboard only for a field whose value
+// form history may keep: a text field with a name, which the page has not
+// marked as a password, a card field, a one-time code, or not to be
+// remembered. What it reports is in the view's own units, zoom and all.
+void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
+{
+    FormHistoryView form;
+    QVERIFY(form.load());
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "setZoomFactor", Q_ARG(QVariant, 2.0)));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    QSignalSpy submitted(form.adapter.get(), SIGNAL(formSubmitted(QVariant)));
+    QVERIFY(submitted.isValid());
+
+    // The report script arrives with the finished document, which nothing
+    // the view exposes announces, so the first focus is offered until heard.
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (form.field().isEmpty()) {
+            form.focus(QStringLiteral("city"));
+        }
+        return !form.field().isEmpty();
+    }()),
+        15000);
+    QCOMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("city"));
+    QCOMPARE(form.field().value(QStringLiteral("x")).toReal(), 40.0);
+    QCOMPARE(form.field().value(QStringLiteral("y")).toReal(), 80.0);
+    QCOMPARE(form.field().value(QStringLiteral("width")).toReal(), 400.0);
+    QCOMPARE(form.field().value(QStringLiteral("height")).toReal(), 48.0);
+
+    form.run(QStringLiteral("document.getElementById('city').value = 'Ou';"
+                            "document.getElementById('city').dispatchEvent("
+                            "new InputEvent('input', {bubbles: true}));"));
+    QTRY_COMPARE(form.field().value(QStringLiteral("value")).toString(), QStringLiteral("Ou"));
+
+    for (const auto &kept :
+        {QStringLiteral("q"), QStringLiteral("phone"), QStringLiteral("allowed")}) {
+        form.focus(kept);
+        QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), kept);
+    }
+    for (const auto &unkept :
+        {QStringLiteral("nameless"), QStringLiteral("pin"), QStringLiteral("off"),
+            QStringLiteral("payment"), QStringLiteral("cardnumber"), QStringLiteral("code"),
+            QStringLiteral("box"), QStringLiteral("notes"), QStringLiteral("secret")}) {
+        form.focus(QStringLiteral("city"));
+        QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("city"));
+        form.focus(unkept);
+        QTRY_VERIFY2(form.field().isEmpty(), qPrintable(unkept));
+    }
+
+    // Submitting reports the fields that may be kept and have a value, and
+    // none of the others whatever they hold.
+    // Only what the reader typed counts: a value the page wrote itself, or
+    // sent prefilled, is not theirs.
+    form.run(QStringLiteral("document.getElementById('city').value = '';"));
+    for (const auto &[id, text] : std::initializer_list<std::pair<QString, QString>> {
+             {QStringLiteral("city"), QStringLiteral("Oulu")},
+             {QStringLiteral("q"), QStringLiteral("night radio")},
+             {QStringLiteral("phone"), QStringLiteral("040 123")},
+             {QStringLiteral("pin"), QStringLiteral("hunter2")},
+             {QStringLiteral("payment"), QStringLiteral("4111111111111111")},
+             {QStringLiteral("cardnumber"), QStringLiteral("4111111111111111")},
+             {QStringLiteral("notes"), QStringLiteral("typed")}}) {
+        form.focus(id);
+        QTest::qWait(150);
+        form.type(text);
+    }
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+    form.run(QStringLiteral(
+        "for (const [id, value] of [['nameless', 'x'], ['off', 'x'], ['code', '123456'],"
+        "    ['scripted', 'written by the page']])"
+        "  document.querySelector(`#${id}, [data-field=${id}]`).value = value;"
+        "document.getElementById('kept').requestSubmit();"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("submitted"));
+    QTRY_COMPARE(submitted.count(), 1);
+    const QVariantList expected {
+        QVariantMap {{QStringLiteral("name"), QStringLiteral("city")},
+            {QStringLiteral("value"), QStringLiteral("Oulu")}},
+        QVariantMap {{QStringLiteral("name"), QStringLiteral("q")},
+            {QStringLiteral("value"), QStringLiteral("night radio")}},
+        QVariantMap {{QStringLiteral("name"), QStringLiteral("phone")},
+            {QStringLiteral("value"), QStringLiteral("040 123")}},
+    };
+    const auto reported = submitted.takeFirst().first();
+    QCOMPARE(reported.metaType() == QMetaType::fromType<QJSValue>()
+            ? reported.value<QJSValue>().toVariant().toList()
+            : reported.toList(),
+        expected);
+
+    // A form the page marked not to be remembered reports nothing on submit.
+    form.focus(QStringLiteral("secret"));
+    QTest::qWait(150);
+    form.type(QStringLiteral("typed"));
+    form.run(QStringLiteral("document.getElementById('unkept').requestSubmit();"));
+    QTest::qWait(300);
+    QCOMPARE(submitted.count(), 0);
+
+    // Accepting a value fills the field the page reported.
+    form.focus(QStringLiteral("city"));
+    QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("city"));
+    QVERIFY(QMetaObject::invokeMethod(
+        form.adapter.get(), "fillFormField", Q_ARG(QVariant, QStringLiteral("Turku"))));
+    QTRY_COMPARE(form.field().value(QStringLiteral("value")).toString(), QStringLiteral("Turku"));
+
+    // The page being left takes its field with it.
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "reloadPage"));
+    QTRY_VERIFY(form.field().isEmpty());
+}
+
+// The keys that walk the list reach the shell only while the list is shown,
+// and Enter and Shift+Delete only while a row is highlighted. Otherwise the
+// page has them, and Escape goes on handing the keyboard back to the page as
+// keyboard navigation has it do.
+void QtEngineContractTest::qtTakesTheSuggestionKeysOnlyWhileTheListIsShown()
+{
+    FormHistoryView form;
+    const QVariantMap configuration = {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"), QVariantMap {}},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
+    };
+    QVERIFY(form.load({
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+    }));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_VERIFY(form.adapter->property("pageHasFocus").toBool());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    QSignalSpy keys(form.adapter.get(), SIGNAL(formKeyPressed(QString)));
+    QVERIFY(keys.isValid());
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (form.field().isEmpty()) {
+            form.focus(QStringLiteral("city"));
+        }
+        return !form.field().isEmpty();
+    }()),
+        15000);
+
+    QTest::keyClick(&form.window, Qt::Key_Down);
+    QTest::keyClick(&form.window, Qt::Key_Escape);
+    QTRY_VERIFY(form.field().isEmpty());
+    QCOMPARE(keys.count(), 0);
+
+    form.focus(QStringLiteral("city"));
+    QTRY_VERIFY(!form.field().isEmpty());
+    QVERIFY(QMetaObject::invokeMethod(
+        form.adapter.get(), "showFormSuggestions", Q_ARG(QVariant, true), Q_ARG(QVariant, false)));
+    QTest::qWait(100);
+    QTest::keyClick(&form.window, Qt::Key_Down);
+    QTRY_COMPARE(keys.count(), 1);
+    QTest::keyClick(&form.window, Qt::Key_Up);
+    QTRY_COMPARE(keys.count(), 2);
+    QTest::qWait(300);
+    QTest::keyClick(&form.window, Qt::Key_Escape);
+    QTRY_COMPARE(keys.count(), 3);
+    QCOMPARE(keys.at(0).first().toString(), QStringLiteral("down"));
+    QCOMPARE(keys.at(1).first().toString(), QStringLiteral("up"));
+    QCOMPARE(keys.at(2).first().toString(), QStringLiteral("escape"));
+    // Escape closed the list and left the field with the keyboard. The page
+    // knows the list is gone without waiting to be told, so the next Escape
+    // is the page's own again and hands the keyboard back.
+    QTest::qWait(200);
+    QVERIFY(!form.field().isEmpty());
+    QTest::keyClick(&form.window, Qt::Key_Escape);
+    QTRY_VERIFY(form.field().isEmpty());
+    QCOMPARE(keys.count(), 3);
+    form.focus(QStringLiteral("city"));
+    QTRY_VERIFY(!form.field().isEmpty());
+
+    QVERIFY(QMetaObject::invokeMethod(
+        form.adapter.get(), "showFormSuggestions", Q_ARG(QVariant, true), Q_ARG(QVariant, true)));
+    QTest::qWait(100);
+    QTest::keyClick(&form.window, Qt::Key_Delete, Qt::ShiftModifier);
+    QTest::keyClick(&form.window, Qt::Key_Return);
+    QTRY_COMPARE(keys.count(), 5);
+    QCOMPARE(keys.at(3).first().toString(), QStringLiteral("forget"));
+    QCOMPARE(keys.at(4).first().toString(), QStringLiteral("accept"));
+    QCOMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+
+    // With the list gone again, Enter is the page's and submits its form.
+    QVERIFY(QMetaObject::invokeMethod(
+        form.adapter.get(), "showFormSuggestions", Q_ARG(QVariant, false), Q_ARG(QVariant, false)));
+    QTest::qWait(100);
+    QTest::keyClick(&form.window, Qt::Key_Return);
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("submitted"));
+    QCOMPARE(keys.count(), 5);
+}
+
+// The page shares the DOM with the listener, so it could focus a field with
+// history and dispatch the keys that walk the list and accept a row, then
+// read the reader's value out of the field. Only keys the reader pressed
+// reach the shell.
+void QtEngineContractTest::qtTakesNoSuggestionKeyThePageDispatches()
+{
+    FormHistoryView form;
+    QVERIFY(form.load());
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_VERIFY(form.adapter->property("pageHasFocus").toBool());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    QSignalSpy keys(form.adapter.get(), SIGNAL(formKeyPressed(QString)));
+    QVERIFY(keys.isValid());
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (form.field().isEmpty()) {
+            form.focus(QStringLiteral("city"));
+        }
+        return !form.field().isEmpty();
+    }()),
+        15000);
+    QVERIFY(QMetaObject::invokeMethod(
+        form.adapter.get(), "showFormSuggestions", Q_ARG(QVariant, true), Q_ARG(QVariant, true)));
+    QTest::qWait(100);
+
+    form.run(
+        QStringLiteral("const field = document.getElementById('city');"
+                       "for (const [key, shiftKey] of [['ArrowDown', false], ['ArrowUp', false],"
+                       "    ['Enter', false], ['Delete', true], ['Escape', false]])"
+                       "  field.dispatchEvent(new KeyboardEvent('keydown',"
+                       "      {key, shiftKey, bubbles: true, cancelable: true}));"
+                       "document.title = 'dispatched';"));
+    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("dispatched"));
+    QTest::qWait(200);
+    QCOMPARE(keys.count(), 0);
+
+    // The reader's own key is still heard.
+    QTest::keyClick(&form.window, Qt::Key_Down);
+    QTRY_COMPARE(keys.count(), 1);
+    QCOMPARE(keys.at(0).first().toString(), QStringLiteral("down"));
 }
 
 // The page reports scroll, media and presses to the shell over its console,

@@ -55,6 +55,11 @@ DialogPanel {
             value: "history",
             label: qsTr("History"),
             note: qsTr("Pages visited, and what the address bar suggests.")
+        },
+        {
+            value: "forms",
+            label: qsTr("Form history"),
+            note: qsTr("What was typed into forms, and offered under their fields.")
         }
     ]
 

@@ -155,8 +155,12 @@ FocusScope {
             root.engine.focusPage();
     }
 
+    // A list Omaweb drew under a field of the Glance's page takes the next
+    // Escape for itself.
+    property bool escapeTaken: false
+
     Keys.onPressed: function (event) {
-        if (event.key === Qt.Key_Escape) {
+        if (event.key === Qt.Key_Escape && !root.escapeTaken) {
             root.closed();
             event.accepted = true;
         }

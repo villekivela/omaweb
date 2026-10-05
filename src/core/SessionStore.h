@@ -144,6 +144,18 @@ public:
     virtual bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) = 0;
     virtual bool clearPermissionsSince(const QString &spaceId, qint64 since) = 0;
 
+    // Form history: what the reader typed into a field and submitted, kept
+    // by the field's name within the Space. A value submitted again is the
+    // same entry, used more recently. Which fields and values may be kept is
+    // the caller's rule; this only keeps what it is given.
+    virtual bool recordFormEntry(const QString &spaceId, const QString &field, const QString &value)
+        = 0;
+    // The values kept for a field's name, the one used last first.
+    virtual QStringList formEntries(const QString &spaceId, const QString &field) const = 0;
+    virtual bool forgetFormEntry(const QString &spaceId, const QString &field, const QString &value)
+        = 0;
+    virtual bool clearFormHistorySince(const QString &spaceId, qint64 since) = 0;
+
     // `spaceId` is the Space the download came from, or nothing for a file
     // Omaweb wrote itself, so a temporary Space's records can go with it.
     virtual bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,

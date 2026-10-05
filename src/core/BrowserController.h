@@ -442,6 +442,15 @@ public:
     // `engineName` and `keyword`. Nothing for blank text, text with a space,
     // or the default engine, which plain text already searches.
     Q_INVOKABLE QVariantList searchKeywordOffers(const QString &text) const;
+    // Form history. `spaceId` is the Space of the engine the form was in,
+    // which is not always the one on show. Each field is a map of `name` and
+    // `value`; a nameless field, a blank value and a value shaped like a card
+    // number are never kept.
+    Q_INVOKABLE void rememberFormFields(const QString &spaceId, const QVariantList &fields);
+    // The values kept for a field's name, the one used last first.
+    Q_INVOKABLE QStringList formHistory(const QString &spaceId, const QString &field) const;
+    Q_INVOKABLE bool forgetFormEntry(
+        const QString &spaceId, const QString &field, const QString &value);
     Q_INVOKABLE bool clearBrowsingData(const QStringList &dataTypes, qint64 since,
         bool everySpace = false, const QString &confirmation = {});
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);

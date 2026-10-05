@@ -968,6 +968,56 @@ bool SqliteSessionStore::clearPermissionsForOrigin(const QString &spaceId, const
     return query.exec();
 }
 
+bool SqliteSessionStore::recordFormEntry(
+    const QString &spaceId, const QString &field, const QString &value)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(
+        QStringLiteral("INSERT INTO form_history(field, value, used_at) VALUES(?, ?, ?) "
+                       "ON CONFLICT(field, value) DO UPDATE SET used_at = excluded.used_at"));
+    query.addBindValue(field);
+    query.addBindValue(value);
+    query.addBindValue(QDateTime::currentMSecsSinceEpoch());
+    return query.exec();
+}
+
+QStringList SqliteSessionStore::formEntries(const QString &spaceId, const QString &field) const
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral(
+        "SELECT value FROM form_history WHERE field = ? ORDER BY used_at DESC, rowid DESC"));
+    query.addBindValue(field);
+    QStringList values;
+    if (!query.exec()) {
+        return values;
+    }
+    while (query.next()) {
+        values.append(query.value(0).toString());
+    }
+    return values;
+}
+
+bool SqliteSessionStore::forgetFormEntry(
+    const QString &spaceId, const QString &field, const QString &value)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral("DELETE FROM form_history WHERE field = ? AND value = ?"));
+    query.addBindValue(field);
+    query.addBindValue(value);
+    return query.exec();
+}
+
+bool SqliteSessionStore::clearFormHistorySince(const QString &spaceId, qint64 since)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(since > 0 ? QStringLiteral("DELETE FROM form_history WHERE used_at >= ?")
+                            : QStringLiteral("DELETE FROM form_history"));
+    if (since > 0) {
+        query.addBindValue(since);
+    }
+    return query.exec();
+}
+
 bool SqliteSessionStore::recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
     const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {
@@ -1361,6 +1411,11 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
                                "PRIMARY KEY(origin, permission))"));
     schema.exec(QStringLiteral(
         "ALTER TABLE site_permissions ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0"));
+    schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS form_history ("
+                               "field TEXT NOT NULL, "
+                               "value TEXT NOT NULL, "
+                               "used_at INTEGER NOT NULL, "
+                               "PRIMARY KEY(field, value))"));
     m_spaceConnectionNames.insert(spaceId, connectionName);
     m_spaceDatabases.insert(spaceId, database);
     return database;

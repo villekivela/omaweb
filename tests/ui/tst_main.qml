@@ -9023,7 +9023,7 @@ TestCase {
         findChild(window.contentItem, "clearTimeRange").changed("0");
         dialog.everySpace = true;
         compare(browser.preference("clear-data-categories", ""),
-                "cookies,storage,permissions,history");
+                "cookies,storage,permissions,history,forms");
         compare(browser.preference("clear-data-range", ""), "0");
 
         dialog.dismissed();
@@ -9035,7 +9035,7 @@ TestCase {
         // A second launch of the page against the same preferences.
         const restarted = restartedSettingsComponent.createObject(testCase);
         verify(restarted !== null);
-        compare(restarted.clearCategories.join(","), "cookies,storage,permissions,history");
+        compare(restarted.clearCategories.join(","), "cookies,storage,permissions,history,forms");
         compare(restarted.clearRange, "0");
         const restartedDialog = findChild(restarted, "clearBrowsingDataDialog");
         compare(restartedDialog.everySpace, false);
@@ -13236,6 +13236,359 @@ TestCase {
         host.cancelDownload(cut);
         tryVerify(function () {
             return downloadRole(downloadRowFor(cut), Downloads.StateRole) === "cancelled";
+        });
+    }
+
+    // Form history (#329). Each test keeps its values under a field name of
+    // its own, because every test shares the window and its Space's store.
+    function formSuggestions() {
+        return findChild(window.contentItem, "formSuggestions");
+    }
+
+    function suggestionTexts() {
+        const list = formSuggestions();
+        const texts = [];
+        for (let row = 0; row < list.count; ++row)
+            texts.push(findChild(list, "suggestionRow" + row).value);
+        return texts;
+    }
+
+    function submitForm(engine, name, values) {
+        for (const value of values) {
+            engine.simulateFormSubmit([
+                                          {
+                                              "name": name,
+                                              "value": value
+                                          }
+                                      ]);
+            wait(3);
+        }
+    }
+
+    function test_aSubmittedValueIsOfferedOnTheNextFocusOfItsField() {
+        const engine = openPage("https://forms.example/");
+        submitForm(engine, "remembered-city", ["Oulu", "Turku"]);
+        const list = formSuggestions();
+        verify(list !== null);
+        verify(!list.shown);
+
+        engine.simulateFormFieldFocus("remembered-city", "", 100, 200, 240, 30);
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["Turku", "Oulu"]);
+        // At least the field's width, under it.
+        const field = engine.mapToItem(list.parent, 100, 200, 240, 30);
+        verify(list.width >= field.width);
+        compare(Math.round(list.x), Math.round(field.x));
+        verify(list.y >= field.y + field.height);
+
+        // Another field's name has nothing to offer.
+        engine.simulateFormFieldFocus("remembered-street", "", 100, 200, 240, 30);
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateFormFieldBlur();
+    }
+
+    // The list sits above a field it would not fit under.
+    function test_theSuggestionsSitAboveAFieldWithNoRoomBelow() {
+        const engine = openPage("https://forms-low.example/");
+        submitForm(engine, "low-field", ["one", "two", "three"]);
+        engine.simulateFormFieldFocus("low-field", "", 100, engine.height - 40, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        const field = engine.mapToItem(list.parent, 100, engine.height - 40, 240, 30);
+        verify(list.y + list.height <= field.y);
+        engine.simulateFormFieldBlur();
+    }
+
+    // Typing narrows the list to the values that start with what was typed,
+    // most recent first and six at most. The typed part is drawn regular and
+    // the rest bold, as an Engine suggestion is, and a value the field already
+    // holds is not offered back to it.
+    function test_typingFiltersTheSuggestionsToThoseThatStartWithIt() {
+        const engine = openPage("https://forms-typed.example/");
+        // "scalp" holds "alp" without starting with it.
+        submitForm(engine, "typed-field", ["scalp", "alpha", "beta", "Alder", "almond", "alto", "alps",
+                                           "algae", "alley"]);
+        engine.simulateFormFieldFocus("typed-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["alley", "algae", "alps", "alto", "almond", "Alder"]);
+
+        engine.simulateFormFieldInput("al");
+        tryCompare(list, "count", 6);
+        compare(suggestionTexts(), ["alley", "algae", "alps", "alto", "almond", "Alder"]);
+        engine.simulateFormFieldInput("alp");
+        tryVerify(function () {
+            return list.count === 2;
+        });
+        compare(suggestionTexts(), ["alps", "alpha"]);
+        compare(findChild(findChild(list, "suggestionRow0"), "suggestionText").text, "alp<b>s</b>");
+        engine.simulateFormFieldInput("alps");
+        tryVerify(function () {
+            return list.count === 0 && !list.shown;
+        });
+        engine.simulateFormFieldInput("alpz");
+        verify(!list.shown);
+        engine.simulateFormFieldInput("b");
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["beta"]);
+        engine.simulateFormFieldBlur();
+    }
+
+    // The arrow keys walk the rows and Enter fills the field with the one
+    // highlighted. The page hands over Enter only while a row is.
+    function test_theArrowKeysWalkTheSuggestionsAndEnterFillsTheField() {
+        const engine = openPage("https://forms-keys.example/");
+        submitForm(engine, "keyed-field", ["first", "second", "third"]);
+        engine.simulateFormFieldFocus("keyed-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown && engine.formSuggestionsShown;
+        });
+        compare(list.highlighted, -1);
+        verify(!engine.formSuggestionHighlighted);
+        verify(!engine.simulateFormKey("accept"));
+
+        verify(engine.simulateFormKey("down"));
+        compare(list.highlighted, 0);
+        tryVerify(function () {
+            return engine.formSuggestionHighlighted;
+        });
+        engine.simulateFormKey("down");
+        engine.simulateFormKey("down");
+        engine.simulateFormKey("down");
+        compare(list.highlighted, 2);
+        engine.simulateFormKey("up");
+        compare(list.highlighted, 1);
+        verify(engine.simulateFormKey("accept"));
+        compare(engine.formField.value, "second");
+        tryVerify(function () {
+            return !list.shown && !engine.formSuggestionsShown;
+        });
+        engine.simulateFormFieldBlur();
+    }
+
+    // Escape closes the list until the field is focused again.
+    function test_escapeClosesTheSuggestionsUntilTheFieldIsFocusedAgain() {
+        const engine = openPage("https://forms-escape.example/");
+        submitForm(engine, "escaped-field", ["kept", "known"]);
+        engine.simulateFormFieldFocus("escaped-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        verify(engine.simulateFormKey("escape"));
+        tryVerify(function () {
+            return !list.shown && !engine.formSuggestionsShown;
+        });
+        engine.simulateFormFieldInput("k");
+        wait(50);
+        verify(!list.shown);
+        verify(!engine.simulateFormKey("escape"));
+
+        engine.simulateFormFieldFocus("escaped-field", "k", 100, 200, 240, 30);
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["known", "kept"]);
+        engine.simulateFormFieldBlur();
+        tryVerify(function () {
+            return !list.shown;
+        });
+    }
+
+    // Closing the list on one page says nothing about a field on another,
+    // whose page counts its focuses from the start again.
+    function test_aListClosedOnOnePageStillOpensOnAnother() {
+        const first = openPage("https://forms-first.example/");
+        submitForm(first, "shared-field", ["shared"]);
+        first.simulateFormFieldFocus("shared-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        first.simulateFormKey("escape");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        first.simulateFormFieldBlur();
+
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        browser.openInput("https://forms-second.example/", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== first
+                    && engineHost.item.currentUrl.toString() === "https://forms-second.example/";
+        });
+        // Focused until it has counted as far as the page the list was closed
+        // on, so the two focuses share a number.
+        const second = engineHost.item;
+        do {
+            second.simulateFormFieldFocus("shared-field", "", 100, 200, 240, 30);
+        } while (second.formFieldSerial < first.formFieldSerial)
+        compare(second.formField.serial, first.formFieldSerial);
+        tryVerify(function () {
+            return list.shown;
+        });
+        second.simulateFormFieldBlur();
+    }
+
+    // Shift+Delete forgets the highlighted value, in this Space and for good.
+    function test_shiftDeleteForgetsTheHighlightedSuggestion() {
+        const engine = openPage("https://forms-forget.example/");
+        submitForm(engine, "forgotten-field", ["keep me", "forget me"]);
+        engine.simulateFormFieldFocus("forgotten-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateFormKey("down");
+        verify(engine.simulateFormKey("forget"));
+        compare(suggestionTexts(), ["keep me"]);
+        compare(browser.formHistory(engine.spaceId, "forgotten-field"), ["keep me"]);
+        compare(list.highlighted, 0);
+        engine.simulateFormKey("forget");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        compare(browser.formHistory(engine.spaceId, "forgotten-field"), []);
+        engine.simulateFormFieldBlur();
+    }
+
+    // A press on a row fills the field with it, and the press does not take
+    // the keyboard from the page.
+    function test_aPressOnASuggestionFillsTheField() {
+        const engine = openPage("https://forms-press.example/");
+        submitForm(engine, "pressed-field", ["pressed", "passed"]);
+        engine.simulateFormFieldFocus("pressed-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        const row = findChild(list, "suggestionRow1");
+        const point = row.mapToItem(window.contentItem, row.width / 2, row.height / 2);
+        mousePress(row, row.width / 2, row.height / 2);
+        compare(engine.formField.value, "pressed");
+        // The row is gone with the list by the time the button comes up.
+        mouseRelease(window.contentItem, point.x, point.y);
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateFormFieldBlur();
+    }
+
+    // What an Agent types into a page is not the reader's, so its forms are
+    // not remembered, even in a Space the reader can open.
+    function test_anAgentsFormsAreNotRemembered() {
+        const drive = driveAnAgentSpace(false);
+        const engine = findChild(window.contentItem, "engineLoader").item;
+        submitForm(engine, "agent-field", ["typed by an Agent"]);
+        compare(browser.formHistory(drive.spaceId, "agent-field"), []);
+        endAgentDrive(drive);
+    }
+
+    // A Glance remembers and offers in its Space like the tab beneath it,
+    // and the Escape that would close the Glance closes its list first.
+    function test_aGlanceOffersItsFieldsAndEscapeClosesTheListFirst() {
+        openPage("https://forms-glance.example/");
+        const glance = openGlance("https://forms-glance.example/glanced");
+        const engine = window.glanceEngine;
+        submitForm(engine, "glance-field", ["glanced"]);
+        compare(browser.formHistory(engine.spaceId, "glance-field"), ["glanced"]);
+        engine.simulateFormFieldFocus("glance-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        // The panel holds the keyboard, so both the window's Escape and the
+        // Glance's own are in reach of the key.
+        glance.forceActiveFocus();
+        keyClick(Qt.Key_Escape);
+        wait(50);
+        verify(window.glanceEngine !== null);
+        engine.simulateFormKey("escape");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+    }
+
+    // A pointer over a row shows where a press would land and nothing more:
+    // Enter goes on submitting the form until the keyboard picks a row.
+    function test_aPointerOverARowLeavesEnterToThePage() {
+        const engine = openPage("https://forms-hover.example/");
+        submitForm(engine, "hovered-field", ["under the pointer"]);
+        engine.simulateFormFieldFocus("hovered-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        const row = findChild(list, "suggestionRow0");
+        mouseMove(row, row.width / 2, row.height / 2);
+        wait(50);
+        compare(list.highlighted, -1);
+        verify(!engine.formSuggestionHighlighted);
+        verify(!engine.simulateFormKey("accept"));
+        engine.simulateFormFieldBlur();
+    }
+
+    // A field scrolled out of the page has no list, which would otherwise
+    // stand over the chrome.
+    function test_aFieldOutsideThePageHasNoList() {
+        const engine = openPage("https://forms-outside.example/");
+        submitForm(engine, "outside-field", ["out of sight"]);
+        engine.simulateFormFieldFocus("outside-field", "", 100, -60, 240, 30);
+        const list = formSuggestions();
+        wait(50);
+        verify(!list.shown);
+        engine.simulateFormFieldFocus("outside-field", "", 100, 200, 240, 30);
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.simulateFormFieldBlur();
+    }
+
+    // A Private window offers nothing and keeps nothing.
+    function test_aPrivateWindowNeitherOffersNorKeepsFormHistory() {
+        const engine = openPage("https://forms-private.example/");
+        submitForm(engine, "private-field", ["from a Space"]);
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://forms-private.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const page = privateEngine.item;
+        page.simulateFormSubmit([
+                                    {
+                                        "name": "private-field",
+                                        "value": "from a Private window"
+                                    }
+                                ]);
+        page.simulateFormFieldFocus("private-field", "", 100, 200, 240, 30);
+        const list = findChild(privateBrowser.contentItem, "formSuggestions");
+        wait(100);
+        verify(!list.shown);
+        compare(privateBrowser.windowBrowser.formHistory(page.spaceId, "private-field"), []);
+        compare(browser.formHistory(engine.spaceId, "private-field"), ["from a Space"]);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
         });
     }
 }

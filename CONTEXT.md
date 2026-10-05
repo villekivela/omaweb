@@ -217,16 +217,23 @@ protected browser capability. A Private window retains its Site permissions only
 private session exists. _Avoid_: System permission, engine permission
 
 **Browsing data**: What a Space accumulates as it is used and can be cleared without unmaking the
-Space: its cookies, site storage, cache, Site permissions, and history with the favicons its pages
-showed. Browsing data is cleared by category and time range, and clearing it leaves the Space
-itself, its Pinned tabs, its name and colour, and everything the reader configured about the
-browser. Deleting a Space is the separate act that removes the Space as well. _Avoid_: History,
-cache, site data, user data
+Space: its cookies, site storage, cache, Site permissions, history with the favicons its pages
+showed, and Form history. Browsing data is cleared by category and time range, and clearing it
+leaves the Space itself, its Pinned tabs, its name and colour, and everything the reader configured
+about the browser. Deleting a Space is the separate act that removes the Space as well. _Avoid_:
+History, cache, site data, user data
 
 **History search**: The Omnibar's search of the addresses and titles a Space has visited, answered
 off the interface's thread while the reader types. It reads one Space, the one on show, and answers
 only the most recent request. A Private window keeps no history, so it has none to search and is
 answered with nothing. _Avoid_: Autocomplete, suggestions, omnibox search
+
+**Form history**: What a Space keeps of the values the reader typed into ordinary text fields of
+forms they submitted, by the field's name, and offers again in a suggestion list Omaweb draws under
+the next field of that name to have focus. A value reaches the page only when the reader accepts it.
+Password fields, fields the page marks not to be remembered, and card numbers are never kept, a
+Private window keeps and offers none, and it is outside the Sync projection. _Avoid_: Autocomplete,
+autofill, saved form data
 
 **Engine suggestion**: A search term a search engine proposes for the text typed into the Omnibar so
 far. Omaweb asks for them only after the reader turns them on, never in a Private window, and only

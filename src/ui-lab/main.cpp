@@ -948,6 +948,11 @@ int main(int argc, char *argv[])
             // The same page asks a JavaScript question, so the prompt bar
             // stands over it.
             {QStringLiteral("prompt"), {}},
+            // The last seeded tab's page has an email field focused with "me"
+            // typed into it, over values the Space remembers for that field,
+            // so form history's suggestion list stands under it with its
+            // first row highlighted.
+            {QStringLiteral("form-suggestions"), {}},
             // `:ask` with Allow agents off: the question that offers to turn
             // it on stands over the last seeded tab's page.
             {QStringLiteral("ask"), {{"", "agentQuestionOpen", true}}},
@@ -976,8 +981,9 @@ int main(int argc, char *argv[])
             }
         }
         // Both are asked by the page on show rather than set on the window.
-        const auto pageAsks
-            = requested == QLatin1String("permission") || requested == QLatin1String("prompt");
+        const auto pageAsks = requested == QLatin1String("permission")
+            || requested == QLatin1String("prompt")
+            || requested == QLatin1String("form-suggestions");
         if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
@@ -987,7 +993,7 @@ int main(int argc, char *argv[])
             browser.activateTab(tabId);
             // The page's engine is built once the tab is on show, so the
             // question waits for it.
-            QTimer::singleShot(300, root, [root, requested] {
+            QTimer::singleShot(300, root, [root, requested, &browser] {
                 auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
                 auto *view = host ? host->property("item").value<QObject *>() : nullptr;
                 if (view == nullptr) {
@@ -998,6 +1004,26 @@ int main(int argc, char *argv[])
                     = view->property("currentUrl")
                           .toUrl()
                           .adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+                if (requested == QLatin1String("form-suggestions")) {
+                    const auto spaceId = view->property("spaceId").toString();
+                    for (const auto &value :
+                        {QStringLiteral("someone@elsewhere.example"),
+                            QStringLiteral("meri@kotisivu.example"),
+                            QStringLiteral("me@work.example"), QStringLiteral("me@home.example")}) {
+                        browser.rememberFormFields(spaceId,
+                            {QVariantMap {{QStringLiteral("name"), QStringLiteral("email")},
+                                {QStringLiteral("value"), value}}});
+                    }
+                    QMetaObject::invokeMethod(view, "simulateFormFieldFocus",
+                        Q_ARG(QVariant, QStringLiteral("email")),
+                        Q_ARG(QVariant, QStringLiteral("me")), Q_ARG(QVariant, 240),
+                        Q_ARG(QVariant, 180), Q_ARG(QVariant, 320), Q_ARG(QVariant, 34));
+                    QTimer::singleShot(100, view, [view] {
+                        QMetaObject::invokeMethod(
+                            view, "simulateFormKey", Q_ARG(QVariant, QStringLiteral("down")));
+                    });
+                    return;
+                }
                 if (requested == QLatin1String("prompt")) {
                     QMetaObject::invokeMethod(view, "simulateJavaScriptPrompt",
                         Q_ARG(QVariant, QStringLiteral("confirm")),

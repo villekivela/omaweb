@@ -161,7 +161,7 @@ Rectangle {
     // arguments belong to is confirmed (ADR 0031). It is remembered anyway,
     // because a reader who took the same categories last month means the same
     // ones now. Scope is not remembered, and the dialog owns it.
-    property var clearCategories: ["cookies", "storage", "cache", "permissions", "history"]
+    property var clearCategories: ["cookies", "storage", "cache", "permissions", "history", "forms"]
     property string clearRange: "86400000"
     property bool clearDataOpen: false
 
@@ -462,7 +462,7 @@ Rectangle {
         if (!root.browser)
             return;
         const saved = root.browser.preference("clear-data-categories",
-                                              "cookies,storage,cache,permissions,history");
+                                              "cookies,storage,cache,permissions,history,forms");
         root.clearCategories = saved.length > 0 ? saved.split(",") : [];
         root.clearRange = root.browser.preference("clear-data-range", "86400000");
     }

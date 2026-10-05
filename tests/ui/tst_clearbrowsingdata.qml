@@ -36,7 +36,8 @@ TestCase {
                                      windowOpaque: "#16151d"
                                  })
 
-    readonly property var everyCategory: ["cookies", "storage", "cache", "permissions", "history"]
+    readonly property var everyCategory: ["cookies", "storage", "cache", "permissions", "history",
+        "forms"]
 
     Component {
         id: dialogComponent
@@ -151,7 +152,7 @@ TestCase {
 
         keyClick(Qt.Key_Return);
         compare(dialog.confirmCount, 1);
-        compare(dialog.lastConfirm.categories.length, 5);
+        compare(dialog.lastConfirm.categories.length, testCase.everyCategory.length);
         compare(dialog.lastConfirm.everySpace, false);
 
         findChild(dialog, "clearTimeRange").forceActiveFocus();
