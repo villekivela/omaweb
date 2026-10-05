@@ -47,6 +47,12 @@ TestCase {
         signalName: "pageFrozenChanged"
     }
 
+    // What the sidebar asks of the window when a press on it becomes a drag.
+    SignalSpy {
+        id: moveSpy
+        signalName: "windowMoveRequested"
+    }
+
     // Whether the Space on show changed, even for a moment, while the other
     // Spaces' tabs were only being listed.
     SignalSpy {
@@ -7516,6 +7522,68 @@ TestCase {
         compare(browser.tabSectionIndex(thirdTabId), 0);
 
         browser.closeTab(thirdTabId);
+        browser.closeTab(secondTabId);
+        browser.closeTab(firstTabId);
+    }
+
+    // The outline's empty space below the rows is the largest surface the
+    // chrome has, and a reader looking for somewhere to grab the window reaches
+    // for it first (#179).
+    function test_theOutlinesEmptySpaceMovesTheWindow() {
+        openPage("https://empty-space.example/one");
+        const tabId = browser.activeTabId;
+        const outline = findChild(window.contentItem, "sidebar");
+        const list = findChild(window.contentItem, "ordinaryList");
+        const tabScroll = findChild(window.contentItem, "tabScroll");
+        verify(outline !== null && list !== null && tabScroll !== null);
+        settleRow(findChild(window.contentItem, "tab-" + tabId));
+
+        // Halfway between the last row and the bottom of the list, which a
+        // test sharing the window with others still leaves room for.
+        const listBottom = list.mapToItem(window.contentItem, 0, list.height).y;
+        const scrollBottom = tabScroll.mapToItem(window.contentItem, 0, tabScroll.height).y;
+        verify(scrollBottom - listBottom > 40, "the rows leave no empty space to grab");
+        const at = tabScroll.mapToItem(window.contentItem, tabScroll.width / 2, 0);
+        at.y = (listBottom + scrollBottom) / 2;
+
+        moveSpy.target = outline;
+        moveSpy.clear();
+        // A click is not a move: the tremor in it stays under the threshold.
+        mouseClick(window.contentItem, at.x, at.y);
+        compare(moveSpy.count, 0);
+
+        mousePress(window.contentItem, at.x, at.y);
+        dragRowBy(at, 60);
+        mouseRelease(window.contentItem, at.x, at.y + 60);
+        compare(moveSpy.count, 1);
+
+        browser.closeTab(tabId);
+    }
+
+    // The empty space around the rows moves the window, and the rows keep the
+    // drag that reorders them: carrying one over that space still drops it.
+    function test_draggingARowLeavesTheWindowWhereItIs() {
+        openPage("https://row-stays.example/one");
+        const firstTabId = browser.activeTabId;
+        browser.openInput("https://row-stays.example/two", true);
+        const secondTabId = browser.activeTabId;
+        const outline = findChild(window.contentItem, "sidebar");
+        verify(outline !== null);
+        settleRow(findChild(window.contentItem, "tab-" + secondTabId));
+        const row = findChild(window.contentItem, "tab-" + secondTabId);
+        const place = browser.tabSectionIndex(secondTabId);
+        verify(place >= 1);
+
+        moveSpy.target = outline;
+        moveSpy.clear();
+        const grabbed = row.mapToItem(window.contentItem, row.width / 2, row.height / 2);
+        mousePress(row, row.width / 2, row.height / 2);
+        dragRowBy(grabbed, -row.height);
+        verify(row.lifted);
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y - row.height);
+        compare(browser.tabSectionIndex(secondTabId), place - 1);
+        compare(moveSpy.count, 0);
+
         browser.closeTab(secondTabId);
         browser.closeTab(firstTabId);
     }
