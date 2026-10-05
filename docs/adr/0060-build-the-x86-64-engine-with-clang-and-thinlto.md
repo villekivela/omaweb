@@ -1,4 +1,4 @@
-# Build the engine with clang and ThinLTO
+# Build the x86_64 engine with clang and ThinLTO
 
 Amends [0049](0049-ship-omawebs-own-engine-build.md), which ships Omaweb's own build of QtWebEngine
 and left the compiler to Qt's default, GCC.
@@ -6,8 +6,10 @@ and left the compiler to Qt's default, GCC.
 The engine is built the way Chrome is built where that was measured to be faster: clang and LLD,
 with ThinLTO, Chrome's PGO profile for the engine's Chromium, and V8's profile for its builtins.
 That is x86_64. aarch64, which has no Chrome profile, measured no faster and keeps GCC. The series
-repository's `scripts/engine-toolchain.sh` names it, every build reads that one answer, and
-`OMAWEB_ENGINE_TOOLCHAIN` overrides it for a single build.
+repository's `scripts/engine-toolchain.sh` names it, the local and rented builds read that one
+answer, and `OMAWEB_ENGINE_TOOLCHAIN` overrides it for a single build. `refresh.sh` run by hand
+still configures Qt's own choice, GCC, unless asked for clang. Measured and decided in
+[#575](https://github.com/villekivela/omaweb/issues/575).
 
 ## What was measured
 
@@ -32,8 +34,11 @@ aarch64 is an Apple M2 Max in an arm64 Linux container under headless cage, all 
 evening, GCC between the two clang sessions. Chrome publishes no Linux PGO profile for aarch64, so
 clang there gets ThinLTO and V8's builtins profile only. Omaweb's own Speedometer score was 24.74
 with GCC and 24.10 and 24.77 with clang, and its JetStream score 368.2 with GCC and 372.6 and 370.7
-with clang. Both differences are within the run-to-run spread of 1% to 3%, so aarch64 keeps GCC. It
-is measured again when Chrome publishes an aarch64 profile or the series moves to a new Chromium.
+with clang: −2.6% and +0.1%, and +1.2% and +0.7%. Omaweb's own three runs spread by 0.8% to 4.6%
+within a session, so both differences are within the spread and aarch64 keeps GCC. The second clang
+session's 0.973 on JetStream is one low run of Chromium 140, 359.09 against 385.71 and 397.68, not a
+faster Omaweb, so Omaweb's own scores are the comparison. aarch64 is measured again when Chrome
+publishes an aarch64 profile or the series moves to a new Chromium.
 
 ## How the PGO profile follows the Chromium
 
@@ -57,13 +62,14 @@ refuses the other, and a patch outside the series, because Qt turns ThinLTO on o
 was built for LLD and turns PGO on never. That patch changes how the engine is compiled, not what
 its code does, and the package's `MODIFICATIONS.md` says so.
 
-The link is not what limits a build's memory. Sampled every five seconds with an empty cache, the
-ThinLTO link of `libQt6WebEngineCore.so` peaked at about 5 GB with sixteen threads on x86_64 and 4.3
-GB with six on aarch64, page cache included, against 13 GB for the compile at six jobs. The local
-build's `OMAWEB_ENGINE_MEMORY` caps the container and sizes the compile's jobs, so a machine with
-less memory sets it lower. Whether Hetzner's builders fit is checked when the engine is next
-published, at [#576](https://github.com/villekivela/omaweb/issues/576), since both builds here ran
-locally.
+The link is not what limits a build's memory. Sampled every five seconds as the container's
+anonymous memory, what its processes hold without the page cache, the ThinLTO link of
+`libQt6WebEngineCore.so` peaked at 3.5 GB with sixteen threads on x86_64 and 2.5 GB with six on
+aarch64, with an empty ThinLTO cache. The aarch64 compile peaked at 13.0 GB on the same measure at
+six jobs; the x86_64 build was incremental, so its compile was not measured. The local build's
+`OMAWEB_ENGINE_MEMORY` caps the container and sizes the compile's jobs, so a machine with less
+memory sets it lower. Both builds ran locally, so whether Hetzner's builders complete the link is
+unverified.
 
 Moving the series to 6.140.0 is measured again on both architectures, because the PGO profiles and
 the toolchain's gain move with the Chromium.

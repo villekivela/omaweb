@@ -24,7 +24,7 @@ whole pixels. v0.12.0 is the release in progress. Two milestones carry what rema
    and 7% more on Speedometer on x86_64 ([#356](https://github.com/villekivela/omaweb/issues/356)),
    and building with clang, LLD, ThinLTO and Chrome's PGO profile about 6% more on Speedometer
    again. aarch64 keeps GCC, where clang without a PGO profile measured no faster
-   ([ADR 0060](adr/0060-build-the-engine-with-clang-and-thinlto.md)). The browser gains the
+   ([ADR 0060](adr/0060-build-the-x86-64-engine-with-clang-and-thinlto.md)). The browser gains the
    measurements it lacks: Linux baselines for its probes, a page's first paint, many live tabs, and
    the chrome's frame times, and what comes in over budget is fixed in the same release. The chrome:
    jumping between tabs with `Ctrl+O` and `Ctrl+I`, the sidebar on the right, and the sidebar's
