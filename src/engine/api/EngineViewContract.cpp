@@ -137,6 +137,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // `agentDownloadDirectory`, the connection's own.
         {"agentOwned", QMetaType::Bool},
         {"agentDownloadDirectory", QMetaType::QString},
+        // The authenticators a security key request can reach: "usb", "hybrid"
+        // (a phone) and "platform" (a passkey stored on the computer). The
+        // prompt names the ones missing (ADR 0030) rather than leave a reader
+        // waiting on one that cannot answer.
+        {"securityKeyTransports", QMetaType::QVariant},
     };
     static constexpr Method requiredMethods[] = {
         {"goBack", false, 0},
@@ -191,6 +196,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // answer says what it managed to empty.
         {"clearPageSiteData", false, 0},
         {"respondToFileSelection", false, 2},
+        // A security key request's answer: `{action: "cancel"}`, which the
+        // site hears as the reader declining, `{action: "pin", pin}` or
+        // `{action: "account", name}`.
+        {"respondToSecurityKey", false, 2},
         {"performPageContextAction", false, 2},
         {"developerToolsClosed", true, 0},
         {"printFinished", true, 2, QMetaType::QString},
@@ -218,6 +227,13 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},
         {"fileSelectionRequested", true, 2},
+        // Each step of a security key request, under one id until a step whose
+        // state is "closed" ends it, naming the `site` the key would sign in
+        // to: "touch", "pin" with the PIN's purpose,
+        // error and attempts left, "accounts" with each account's name, and
+        // "failed" with its cause, in Omaweb's words rather than the
+        // engine's.
+        {"securityKeyRequested", true, 2},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},
         {"auxiliaryWindowRequested", true, 2},
