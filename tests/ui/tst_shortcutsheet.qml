@@ -500,10 +500,10 @@ TestCase {
         });
     }
 
-    // A closed sheet lays nothing out: the sidebar sliding or a Space switch
-    // changes what it would show, and the chrome moving at that moment must
-    // not wait on it (#594). Opening it still shows the current keymap at the
-    // current width.
+    // A closed sheet lays nothing out when its width or the keymap changes,
+    // as they do when the sidebar slides or the reader edits their keys, and
+    // the chrome moving at that moment must not wait on it (#594). Opening it
+    // still shows the current keymap at the current width.
     function test_aClosedSheetLaysOutOnlyWhenItOpens() {
         const sheet = makeSheet();
         const columns = sheet.layoutColumns;
