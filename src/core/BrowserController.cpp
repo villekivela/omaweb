@@ -1378,7 +1378,7 @@ bool BrowserController::jumpBy(int delta)
 {
     auto &list = settledTabJumpList();
     const auto next = list.position + delta;
-    if (m_atRest || list.position < 0 || next < 0 || next >= list.entries.size()) {
+    if (list.position < 0 || next < 0 || next >= list.entries.size()) {
         return false;
     }
     // The position moves before the tab is selected, so the list finds the
@@ -1388,9 +1388,10 @@ bool BrowserController::jumpBy(int delta)
     return true;
 }
 
-// When the entry at the position goes, the position moves back one. The tab
-// selected in place of the one that went then comes after that entry, so a
-// jump back from it lands there.
+// The position stays on its entry: when an entry behind it goes, it moves
+// back one with it. When the entry at the position goes, it moves back one
+// to the entry before, so the tab selected in its place comes after that
+// entry and a jump back from it lands there.
 BrowserController::TabJumpList &BrowserController::settledTabJumpList()
 {
     auto &list = m_tabJumpLists[m_activeSpaceId];

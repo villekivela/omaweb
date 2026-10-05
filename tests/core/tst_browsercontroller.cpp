@@ -245,7 +245,7 @@ private slots:
     void jumpsToEachHalfOfASplitAsItsOwnEntry();
     void takesAClosedTabOutOfTheTabJumpList();
     void keepsTheNewestThirtyTwoEntriesOfTheTabJumpList();
-    void jumpsNowhereInASpaceAtRest();
+    void jumpsBetweenThePinnedTabsOfASpaceAtRest();
     void listsATabMadeActiveByAnyRoute();
     void keepsATabJumpListInAPrivateWindow();
     void separatesASplitIntoTwoAdjacentOrdinaryRows();
@@ -4579,21 +4579,31 @@ void BrowserControllerTest::keepsTheNewestThirtyTwoEntriesOfTheTabJumpList()
     QVERIFY(!controller.jumpBack());
 }
 
-// A Space at rest has nothing open to jump between, even with a Pinned tab
-// and the blank tab both in its list. The key does nothing, as at either end.
-void BrowserControllerTest::jumpsNowhereInASpaceAtRest()
+// A Space at rest has no page open, but its Pinned tabs are still tabs the
+// reader moves between, and the list jumps between them as between any
+// others. Only the ends of the list stop a jump.
+void BrowserControllerTest::jumpsBetweenThePinnedTabsOfASpaceAtRest()
 {
     QTemporaryDir root;
     BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    controller.openInput(QStringLiteral("https://pinned.example"), true);
-    const auto pinnedId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://mail.example"), true);
+    const auto mailId = controller.activeTabId();
     controller.toggleActivePinned();
-    QVERIFY(controller.tabPinned(pinnedId));
+    controller.openInput(QStringLiteral("https://chat.example"), true);
+    const auto chatId = controller.activeTabId();
+    controller.toggleActivePinned();
+    QVERIFY(controller.tabPinned(mailId));
+    QVERIFY(controller.tabPinned(chatId));
     QVERIFY(controller.atRest());
 
-    QVERIFY(!controller.jumpBack());
+    controller.activateTab(mailId);
+    controller.activateTab(chatId);
+    QVERIFY(controller.jumpBack());
+    QCOMPARE(controller.activeTabId(), mailId);
+    QVERIFY(controller.jumpForward());
+    QCOMPARE(controller.activeTabId(), chatId);
     QVERIFY(!controller.jumpForward());
-    QCOMPARE(controller.activeTabId(), pinnedId);
+    QCOMPARE(controller.activeTabId(), chatId);
 }
 
 // Selecting is one route to a new active tab. Duplicating, reopening and a

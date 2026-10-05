@@ -53,8 +53,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   is added at the end, after the tab it was selected from, so the entries ahead are kept and a jump
   back returns to that tab. Each half of a split is its own entry. A tab that closes leaves the
   list. The list survives a switch to another Space and back, starts afresh on the tab a restart
-  restores, and is never written down or synced. At either end, or in a Space at rest, the keys do
-  nothing and show nothing.
+  restores, and is never written down or synced. A Space at rest jumps between its Pinned tabs as
+  any Space does. At either end of the list the keys do nothing and show nothing.
 - Each Space retains its 25 most recently closed tabs across restart. Reopening restores address,
   title, pin state, zoom, and mute in reverse closing order. A Private session keeps the same stack
   only in memory.

@@ -248,8 +248,8 @@ public:
     // split is one stop, entered on the half the reader was last in.
     Q_INVOKABLE void stepTab(int delta);
     // One entry back or forward in the Space's Tab jump list, selecting the
-    // tab there. Answers whether it moved: at either end, or in a Space at
-    // rest, there is nowhere to go.
+    // tab there. Answers whether it moved: at either end there is nowhere to
+    // go. A Space at rest still jumps between its Pinned tabs.
     Q_INVOKABLE bool jumpBack();
     Q_INVOKABLE bool jumpForward();
     // Pairs the named tab with the active tab, or pairs a new blank tab with
@@ -822,7 +822,9 @@ private:
         QStringList entries;
         qsizetype position = -1;
     };
-    // Brings the Space's Tab jump list up to the active tab.
+    // Brings the Space's Tab jump list up to the active tab. The list hears of
+    // a new active tab only this way, so every change of it must emit
+    // activeTabChanged or go through ensureActiveTab, or the list misses it.
     void noteTabJump();
     bool jumpBy(int delta);
     // The list of the Space on show, made if it has none, without the tabs
