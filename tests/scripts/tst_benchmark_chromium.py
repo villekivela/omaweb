@@ -331,6 +331,16 @@ class PlotDataTest(unittest.TestCase):
         self.assertEqual(marks, [{"date": "2026-10-10T10:00:00Z", "machine": "vm",
                                   "engine": "omaweb-qtwebengine 6.12.0-1"}])
 
+    def test_an_engine_built_with_another_toolchain_is_an_update_that_names_it(self):
+        # aarch64's measured clang 6.11.2-5 was never published, and the 6.11.2-5 that is
+        # published there is GCC, so a version alone cannot tell the two apart (#575).
+        clang = dict(ENGINE, toolchain="clang")
+        records = [comparison("2026-09-28T10:00:00Z"),
+                   comparison("2026-09-28T12:00:00Z", engine=clang)]
+        self.assertEqual(history.engine_updates(records),
+                         [{"date": "2026-09-28T12:00:00Z", "machine": "vm",
+                           "engine": f"omaweb-qtwebengine {ENGINE['version']}, clang"}])
+
     def test_a_second_machines_first_line_is_not_an_update(self):
         self.assertFalse(any(mark["machine"] == "laptop"
                              for mark in history.engine_updates(self.records)))
