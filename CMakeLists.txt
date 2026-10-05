@@ -815,6 +815,7 @@ set(omaweb_ui_files
     src/ui/CertificateDetail.qml
     src/ui/ClearBrowsingDataDialog.qml
     src/ui/SettingCheckbox.qml
+    src/ui/SettingChoice.qml
     src/ui/SettingDropdown.qml
     src/ui/SettingField.qml
     src/ui/SettingRow.qml

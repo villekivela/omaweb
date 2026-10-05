@@ -10,6 +10,8 @@ Rectangle {
     property bool canGoBack: false
     property bool canGoForward: false
     property bool sidebarCollapsed: false
+    // Which edge the sidebar the toggle brings back stands against.
+    property bool sidebarOnRight: false
 
     // The item to sample for the blur. It must not be an ancestor of this
     // strip, or the effect source would feed on its own output.
@@ -153,7 +155,10 @@ Rectangle {
             objectName: "collapseButton"
             width: 28
             height: 26
-            icon: root.sidebarCollapsed ? "left_panel_open" : "left_panel_close"
+            icon: root.sidebarOnRight ? (root.sidebarCollapsed ? "right_panel_open" :
+                                                                 "right_panel_close") : (
+                                            root.sidebarCollapsed ? "left_panel_open" :
+                                                                    "left_panel_close")
             accessibleName: root.sidebarCollapsed ? qsTr("Show sidebar") : qsTr("Hide sidebar")
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText

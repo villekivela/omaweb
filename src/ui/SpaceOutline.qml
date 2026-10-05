@@ -25,6 +25,9 @@ Rectangle {
     property var hostedExtensions: []
     property bool privateWindow: false
     property bool collapsed: false
+    // Whether the sidebar stands against the window's right edge, which puts
+    // its divider on its left and turns the glyph that hides it round.
+    property bool onRight: false
     property bool floating: false
     property var blocker: null
     // Whether Site information is open, which the address is drawn focused
@@ -762,9 +765,10 @@ Rectangle {
     }
 
     // The seam down the sidebar is a divider rather than a frame, so it is
-    // drawn as the bar draws one.
+    // drawn as the bar draws one, on the edge that meets the page.
     Rectangle {
-        anchors.right: parent.right
+        objectName: "sidebarDivider"
+        x: root.onRight ? 0 : parent.width - width
         width: 1
         height: parent.height
         color: root.colors.separator
@@ -814,7 +818,10 @@ Rectangle {
                     }
                     width: 28
                     height: 26
-                    icon: root.collapsed ? "left_panel_open" : "left_panel_close"
+                    icon: root.onRight ? (root.collapsed ? "right_panel_open" :
+                                                           "right_panel_close") : (root.collapsed
+                                                                                   ? "left_panel_open" :
+                                                                                     "left_panel_close")
                     accessibleName: root.collapsed ? qsTr("Show sidebar") : qsTr("Hide sidebar")
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText

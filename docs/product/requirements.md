@@ -200,7 +200,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   its pages' icons in memory for that window alone and never reads a Space's.
 - Browser chrome does not occupy a toolbar above the webpage. The webpage uses the full height
   beside the sidebar. While the sidebar is hidden, the navigation controls, the sidebar toggle and
-  the command-scope trigger float over the bottom-left of the page instead of taking a band from it.
+  the command-scope trigger float over the page's top corner on the sidebar's side instead of taking
+  a band from it.
+- The sidebar stands against the window's left edge until the reader chooses the right one under
+  Sidebar side in Settings' interface section. The choice moves the sidebar, its seam and resize
+  handle, the page beside it, the edge it hides toward and peeks from, and the floating controls at
+  once, and it survives a restart. The find bar stands across the page from the sidebar's side.
 - `Primary+B` hides the sidebar entirely. In that chromeless state the page keeps the whole window,
   the floating controls appear. Hiding or showing the sidebar eases the seam and the page travels
   with it, keeping one width for the whole movement: the page lays out once rather than at every

@@ -41,6 +41,7 @@ import argparse
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import time
@@ -67,6 +68,12 @@ TARGET_PAGE = """<!doctype html>
 """
 
 
+# The sidebar's width in a store nobody has resized it in. The move regions are
+# measured from the sidebar's own left edge, which a right sidebar puts this far
+# in from the window's right one.
+SIDEBAR_WIDTH = 292
+
+
 # Commands the sweep sends nothing for, each because sending it would end the
 # run rather than test it.
 UNSWEPT = {
@@ -76,7 +83,9 @@ UNSWEPT = {
 }
 
 
-def check_window_moves_by_its_regions(browser: Browser, report: Report, pointer: Pointer) -> None:
+def check_window_moves_by_its_regions(
+    browser: Browser, report: Report, pointer: Pointer, side: str
+) -> None:
     """The move regions are judged by the request they send, not by the window.
 
     Hyprland's interactive move follows relative pointer motion, and a cursor
@@ -91,23 +100,28 @@ def check_window_moves_by_its_regions(browser: Browser, report: Report, pointer:
     if not at or not size:
         report.check(False, "the sidebar's regions move the window", "the window went away")
         return
+    # The outline is the same way round on either side, so each region is the
+    # same distance in from the sidebar's left edge, and each drag heads for
+    # the page.
+    left = at[0] if side == "left" else at[0] + size[0] - SIDEBAR_WIDTH
+    toward_page = 160 if side == "left" else -160
     for region, grab in (
         # The strip is inset by the outline's own margin and has a button row
         # anchored at each end. The gap between those rows is what a reader
         # grabs.
-        ("navigation strip", (at[0] + 130, at[1] + 26)),
+        ("navigation strip", (left + 130, at[1] + 26)),
         # The browser under test has one tab, so the outline is empty from
         # below its row down to the Space switcher. The switcher and its
         # margins take the bottom 46 pixels and the list's own margin 12 more,
         # so 80 up is inside the list, below the row (#179).
-        ("empty space", (at[0] + 130, at[1] + size[1] - 80)),
+        ("empty space", (left + 130, at[1] + size[1] - 80)),
     ):
         before = browser.requests("move")
-        pointer.drag(grab, (grab[0] + 160, grab[1] - 120))
+        pointer.drag(grab, (grab[0] + toward_page, grab[1] - 120))
         sent = browser.requests("move") - before
         report.check(
             sent > 0,
-            f"a drag on the sidebar's {region} asks the compositor to move the window",
+            f"a drag on a {side} sidebar's {region} asks the compositor to move the window",
             f"xdg_toplevel.move sent {sent}x" if sent else "no xdg_toplevel.move was sent",
         )
 
@@ -141,7 +155,7 @@ def check_window_resizes_by_its_edges(browser: Browser, report: Report, pointer:
         )
 
 
-def check_frameless_regions(browser: Browser, report: Report) -> None:
+def check_frameless_regions(browser: Browser, report: Report, side: str) -> None:
     try:
         pointer = Pointer()
     except SessionError as error:
@@ -157,7 +171,11 @@ def check_frameless_regions(browser: Browser, report: Report) -> None:
         print("skipped: the window under test could not be floated, and a tiled one cannot move")
         return
     try:
-        check_window_moves_by_its_regions(browser, report, pointer)
+        check_window_moves_by_its_regions(browser, report, pointer, side)
+        # The window's edges stay where they are whichever side the sidebar
+        # takes, so one run checks them.
+        if side != "left":
+            return
         # Comfortably above Omaweb's own 840x560 minimum and well inside the
         # output, so all four edges have somewhere to travel.
         if browser.reshape(1200, 900):
@@ -183,6 +201,24 @@ def check_fullscreen(browser: Browser, report: Report) -> None:
         "browser fullscreen is taken and handed back",
         f"{before} → {taken} → {given_back}",
     )
+
+
+def choose_sidebar_side(root: str, side: str) -> bool:
+    """Stores the side as Settings does, for the next browser on `root` to read.
+
+    The store is the one the browsers before it created, so this writes into
+    its table rather than making one the browser would have to agree with.
+    """
+    store = os.path.join(root, "data", "state.sqlite")
+    if not os.path.exists(store):
+        return False
+    with sqlite3.connect(store) as database:
+        database.execute(
+            "INSERT INTO preferences(name, value) VALUES(?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET value = excluded.value",
+            ("sidebar-side", side),
+        )
+    return True
 
 
 def check_sidebar_is_not_the_window(browser: Browser, report: Report) -> None:
@@ -335,17 +371,28 @@ def main() -> int:
             browser.stop()
 
     # A browser of its own, because the move regions are judged by the protocol
-    # and WAYLAND_DEBUG over the sweep above would be a log nobody can read.
-    regions = Browser(arguments.browser, root, protocol_log=os.path.join(root, "protocol.log"))
+    # and WAYLAND_DEBUG over the sweep above would be a log nobody can read. The
+    # regions move with the sidebar, so each side has one, started on a store
+    # that already names its side (#169).
     try:
-        regions.start(pages["probe"])
-        regions.focus()
-        check_frameless_regions(regions, report)
-    except SessionError as error:
-        print(f"skipped: {error}")
+        for side in ("left", "right"):
+            if side != "left" and not choose_sidebar_side(root, side):
+                print(f"skipped: the {side} sidebar, because no store was left to choose it in")
+                continue
+            regions = Browser(
+                arguments.browser, root, protocol_log=os.path.join(root, f"protocol-{side}.log")
+            )
+            try:
+                regions.start(pages["probe"])
+                regions.focus()
+                check_frameless_regions(regions, report, side)
+            except SessionError as error:
+                print(f"skipped: {error}")
+            finally:
+                if not arguments.keep:
+                    regions.stop()
     finally:
         if not arguments.keep:
-            regions.stop()
             shutil.rmtree(root, ignore_errors=True)
 
     print()

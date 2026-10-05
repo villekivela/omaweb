@@ -1003,6 +1003,11 @@ int main(int argc, char *argv[])
         auto *window = engine.rootObjects().constFirst();
         window->setProperty("sidebarWidth", window->property("sidebarMinimumWidth"));
     }
+    // `--sidebar-right` stands the sidebar against the window's right edge, as
+    // Settings' interface section does.
+    if (arguments.contains(QStringLiteral("--sidebar-right")) && !engine.rootObjects().isEmpty()) {
+        engine.rootObjects().constFirst()->setProperty("sidebarSide", QStringLiteral("right"));
+    }
     // `--space-overflow` opens the menu of the Spaces the footer left out, which
     // is a click on its count. Late enough that a compositor has given the
     // window its size: the menu hangs from where the count stands then.
