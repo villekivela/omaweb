@@ -1108,6 +1108,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_publish_website.py
         )
+        # Which pushes Vercel builds a website preview for: those that change
+        # what the site serves, and every production build.
+        add_test(NAME omaweb-website-unchanged
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_website_unchanged.py
+        )
         # The website's policy check, on a site it is pointed at: markup and
         # loads the policy blocks, from the pages and from the scripts that
         # build them.
