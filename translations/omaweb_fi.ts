@@ -3062,7 +3062,36 @@ Päivitykset osoitteesta %3</translation>
     </message>
     <message>
         <source>Edit</source>
+        <comment>verb: edit a saved address</comment>
         <translation>Muokkaa</translation>
+    </message>
+    <message>
+        <source>Address name</source>
+        <translation>Osoitteen nimi</translation>
+    </message>
+    <message>
+        <source>Address street</source>
+        <translation>Osoitteen katuosoite</translation>
+    </message>
+    <message>
+        <source>Address postal code</source>
+        <translation>Osoitteen postinumero</translation>
+    </message>
+    <message>
+        <source>Address city</source>
+        <translation>Osoitteen kaupunki</translation>
+    </message>
+    <message>
+        <source>Address country</source>
+        <translation>Osoitteen maa</translation>
+    </message>
+    <message>
+        <source>Address phone</source>
+        <translation>Osoitteen puhelin</translation>
+    </message>
+    <message>
+        <source>Address email</source>
+        <translation>Osoitteen sähköposti</translation>
     </message>
     <message>
         <source>No saved addresses</source>
@@ -3094,56 +3123,28 @@ Päivitykset osoitteesta %3</translation>
         <translation>nimi</translation>
     </message>
     <message>
-        <source>Name</source>
-        <translation>Nimi</translation>
-    </message>
-    <message>
         <source>street</source>
         <translation>katuosoite</translation>
-    </message>
-    <message>
-        <source>Street</source>
-        <translation>Katuosoite</translation>
     </message>
     <message>
         <source>postal code</source>
         <translation>postinumero</translation>
     </message>
     <message>
-        <source>Postal code</source>
-        <translation>Postinumero</translation>
-    </message>
-    <message>
         <source>city</source>
         <translation>kaupunki</translation>
-    </message>
-    <message>
-        <source>City</source>
-        <translation>Kaupunki</translation>
     </message>
     <message>
         <source>country</source>
         <translation>maa</translation>
     </message>
     <message>
-        <source>Country</source>
-        <translation>Maa</translation>
-    </message>
-    <message>
         <source>phone</source>
         <translation>puhelin</translation>
     </message>
     <message>
-        <source>Phone</source>
-        <translation>Puhelin</translation>
-    </message>
-    <message>
         <source>email</source>
         <translation>sähköposti</translation>
-    </message>
-    <message>
-        <source>Email</source>
-        <translation>Sähköposti</translation>
     </message>
     <message>
         <source>Save</source>

@@ -91,7 +91,6 @@ Item {
         case "country-name":
             return address.country;
         case "tel":
-        case "tel-national":
             return address.phone;
         case "email":
             return address.email;
@@ -147,7 +146,7 @@ Item {
         const row = root.rows[index];
         root.dismissed = true;
         if (row.address)
-            root.engine.fillAddress(row.address);
+            root.engine.fillAddress(row.address, root.field.serial);
         else
             root.engine.fillFormField(row.value);
     }

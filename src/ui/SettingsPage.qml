@@ -2093,7 +2093,7 @@ Rectangle {
                                     ActionButton {
                                         objectName: "editAddressButton"
                                         colors: root.colors
-                                        label: qsTr("Edit")
+                                        label: qsTr("Edit", "verb: edit a saved address")
                                         onClicked: root.editAddress(modelData)
                                     }
 
@@ -2146,7 +2146,7 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             placeholder: qsTr("name", "placeholder: the name an address is for")
-                            accessibleName: qsTr("Name")
+                            accessibleName: qsTr("Address name")
                         }
 
                         SettingField {
@@ -2155,7 +2155,7 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             placeholder: qsTr("street")
-                            accessibleName: qsTr("Street")
+                            accessibleName: qsTr("Address street")
                         }
 
                         Row {
@@ -2169,7 +2169,7 @@ Rectangle {
                                 width: (addressPlaceRow.width - addressPlaceRow.spacing) / 3
                                 colors: root.colors
                                 placeholder: qsTr("postal code")
-                                accessibleName: qsTr("Postal code")
+                                accessibleName: qsTr("Address postal code")
                             }
 
                             SettingField {
@@ -2179,7 +2179,7 @@ Rectangle {
                                        - addressPlaceRow.spacing
                                 colors: root.colors
                                 placeholder: qsTr("city")
-                                accessibleName: qsTr("City")
+                                accessibleName: qsTr("Address city")
                             }
                         }
 
@@ -2189,7 +2189,7 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             placeholder: qsTr("country")
-                            accessibleName: qsTr("Country")
+                            accessibleName: qsTr("Address country")
                         }
 
                         SettingField {
@@ -2198,7 +2198,7 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             placeholder: qsTr("phone")
-                            accessibleName: qsTr("Phone")
+                            accessibleName: qsTr("Address phone")
                         }
 
                         SettingField {
@@ -2207,7 +2207,7 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             placeholder: qsTr("email")
-                            accessibleName: qsTr("Email")
+                            accessibleName: qsTr("Address email")
                         }
 
                         Row {

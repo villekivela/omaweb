@@ -13532,6 +13532,25 @@ TestCase {
         });
     }
 
+    // The list follows its engine away when the field is left, and is told
+    // so before its field is: refreshing then must not read the engine that
+    // is gone.
+    function test_leavingAFieldWithItsListOpenRaisesNoError() {
+        const engine = openPage("https://forms-left.example/");
+        submitForm(engine, "left-field", ["left behind"]);
+        engine.simulateFormFieldFocus("left-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        failOnWarning(/TypeError/);
+        engine.simulateFormFieldBlur();
+        tryVerify(function () {
+            return !list.shown;
+        });
+        wait(50);
+    }
+
     // Addresses (#338). They are the reader's, so every test saves its own
     // and removes them again: the window's store is shared.
     function saveAddresses(addresses) {

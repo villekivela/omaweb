@@ -447,17 +447,24 @@ reports the gap and remains experimental rather than imitating behavior it canno
   email, and lists, adds, edits and removes them. An address needs a name. Addresses belong to the
   browser rather than a Space, are offered in every Space and never in a Private window, and stay
   out of Sync.
-- A text field whose autocomplete token is `name`, `given-name`, `family-name`, `street-address`,
-  `address-line1`, `postal-code`, `address-level2`, `country`, `country-name`, `tel`, `tel-national`
-  or `email`, after any section, `shipping`, `billing` or contact word, offers the saved addresses
-  in the suggestion list whether or not form history keeps the field. They come first, each its name
-  with the street and city muted under it, then the field's form history below a divider, six rows
-  in all. Typing narrows them to those whose value for the field starts with what was typed.
-  Accepting one fills every field with one of those tokens in the focused field's form, or outside
-  any form when the field has none: a `given-name` takes the name but its last word, a `family-name`
-  its last word, and a select the option whose value or text matches. It fills only a field the
-  reader can see and type into, leaves a field the address has no value for as it was, and form
-  history does not keep what it filled. `Shift+Delete` forgets no address; Settings removes one.
+- A text field or text area whose autocomplete token is `name`, `given-name`, `family-name`,
+  `street-address`, `address-line1`, `postal-code`, `address-level2`, `country-name`, `tel` or
+  `email`, after any section, `shipping`, `billing` or contact word, offers the saved addresses in
+  the suggestion list whether or not form history keeps the field, once the reader has pressed the
+  field or typed into it. A field the page focused itself offers none until then. The addresses come
+  first, each its name with the street and city muted under it, then the field's form history below
+  a divider, six rows in all. Typing narrows them to those whose value for the field starts with
+  what was typed.
+- Accepting an address fills every field with one of those tokens in the focused field's form, or
+  outside any form when the field has none, and only for the focus the list was drawn for: a page
+  that moved the keyboard since gets nothing. A `given-name` takes the name but its last word, a
+  `family-name` its last word, and a select marked `country` or `country-name` the option whose
+  value or text matches the country; a text field marked `country` asks for a code an address does
+  not hold and is left alone. It fills only a field the reader could type into and see: one that is
+  drawn, not transparent, at least four pixels each way and not before the page's start. A field
+  clipped away or covered by another element is not caught. It overwrites what a field held, leaves
+  a field the address has no value for as it was, and form history does not keep what it filled.
+  `Shift+Delete` forgets no address; Settings removes one.
 - Video decodes on the GPU where the host has a working VA-API driver, and in software where it has
   none. A missing driver is not a refusal to start, and the driver packages are `optdepends` rather
   than dependencies because which one a host needs depends on its GPU.

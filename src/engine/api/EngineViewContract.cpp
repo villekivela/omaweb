@@ -211,8 +211,9 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"showFormSuggestions", false, 2},
         {"fillFormField", false, 1},
         // Fills every address field of the focused field's form from a saved
-        // address the reader picked.
-        {"fillAddress", false, 1},
+        // address the reader picked, for the focus whose `serial` the list
+        // was drawn for and no other.
+        {"fillAddress", false, 2},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},

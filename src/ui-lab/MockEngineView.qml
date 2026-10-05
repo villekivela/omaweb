@@ -481,8 +481,9 @@ Rectangle {
     }
     // The address the shell last asked the page to fill its form from.
     property var filledAddress: null
-    function fillAddress(address) {
-        root.filledAddress = address;
+    function fillAddress(address, serial) {
+        if (root.formField && serial === root.formField.serial)
+            root.filledAddress = address;
     }
     function simulateUserActivation() {
         root.userActivated();
