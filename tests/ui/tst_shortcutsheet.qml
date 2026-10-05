@@ -490,7 +490,7 @@ TestCase {
         verify(sheet.keyColumnWidth > 0);
     }
 
-    // The bindings each drawn row of caps holds. A Flickable's content item
+    // The keys of each drawn row of caps. A Flickable's content item
     // is also among its children, so `descendants` meets each row twice.
     function drawnKeys(sheet) {
         return descendants(sheet, "keycaps").filter(function (row, index, rows) {
@@ -502,8 +502,8 @@ TestCase {
 
     // A closed sheet lays nothing out: the sidebar sliding or a Space switch
     // changes what it would show, and the chrome moving at that moment must
-    // not wait on it (#594). Opening it shows the keymap and the width it
-    // opens at all the same.
+    // not wait on it (#594). Opening it still shows the current keymap at the
+    // current width.
     function test_aClosedSheetLaysOutOnlyWhenItOpens() {
         const sheet = makeSheet();
         const columns = sheet.layoutColumns;

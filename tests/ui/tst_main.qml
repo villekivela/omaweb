@@ -283,9 +283,8 @@ TestCase {
         // So does the drop of a sheet or card the last test left open, and
         // until it ends the sheet can take a click that lands on it: Settings
         // and the site information card do. A test that clicked the page or
-        // the outline straight away hit the one still dropping, and passed
-        // only while the closed Shortcut sheet's rebuild on each page held the
-        // interface thread for the length of the drop (#594).
+        // the outline straight away hit the one still dropping whenever
+        // nothing else held the interface thread for the length of the drop.
         for (const name of ["settingsSurface", "historySurface", "siteInformationCard",
                             "shortcutSheet"]) {
             const surface = findChild(window.contentItem, name);
