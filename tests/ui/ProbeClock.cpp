@@ -9,6 +9,8 @@
 #include <rhi/qrhi.h>
 
 #include <algorithm>
+#include <cmath>
+#include <iterator>
 #include <numeric>
 
 namespace omaweb::test {
@@ -61,6 +63,7 @@ void ProbeClock::watchFrames(QQuickWindow *window)
     }
     m_watched = window;
     m_frameNanoseconds.clear();
+    m_frameEnds.clear();
     m_gpuMilliseconds.clear();
     m_frameStart = 0;
     if (window == nullptr) {
@@ -77,7 +80,9 @@ void ProbeClock::watchFrames(QQuickWindow *window)
             if (m_frameStart <= 0) {
                 return;
             }
-            m_frameNanoseconds.push_back(m_clock.nsecsElapsed() - m_frameStart);
+            const auto end = m_clock.nsecsElapsed();
+            m_frameNanoseconds.push_back(end - m_frameStart);
+            m_frameEnds.push_back(end);
             // What the GPU spent on a frame, which the CPU bracket above never
             // sees: it records commands and moves on. Read off the swapchain's
             // command buffer, which is the one the frames are submitted on,
@@ -105,11 +110,24 @@ QVariantMap ProbeClock::frameReport()
     }
     const auto &frames = m_frameNanoseconds;
     const auto max = frames.empty() ? 0.0 : *std::max_element(frames.begin(), frames.end()) / 1e6;
+    std::vector<qint64> intervals;
+    std::adjacent_difference(m_frameEnds.begin(), m_frameEnds.end(), std::back_inserter(intervals));
+    if (!intervals.empty()) {
+        intervals.erase(intervals.begin());
+    }
+    std::ranges::sort(intervals);
+    const auto p95 = intervals.empty()
+        ? 0.0
+        : intervals[static_cast<std::size_t>(std::ceil(0.95 * intervals.size())) - 1] / 1e6;
     return {
         {QStringLiteral("frames"), static_cast<int>(frames.size())},
         {QStringLiteral("meanFrameMilliseconds"), mean(frames) / 1e6},
         {QStringLiteral("maxFrameMilliseconds"), max},
         {QStringLiteral("meanGpuMilliseconds"), mean(m_gpuMilliseconds)},
+        {QStringLiteral("intervals"), static_cast<int>(intervals.size())},
+        {QStringLiteral("maxIntervalMilliseconds"),
+            intervals.empty() ? 0.0 : intervals.back() / 1e6},
+        {QStringLiteral("p95IntervalMilliseconds"), p95},
     };
 }
 

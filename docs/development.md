@@ -1186,7 +1186,8 @@ about four times it for the two startup probes, seven and ten times for the tab 
 frame, which are under ten milliseconds, where scheduling jitter is a larger share of a sample than
 the machine is, and about twice for memory. The three session writes hold the 2 ms that #214 set as
 the point to take them off the interface thread, which is the bound they were moved for rather than
-a margin over their first measurement. All eight run under `ctest --preset ci`.
+a margin over their first measurement. All eight run under `ctest --preset ci`, as do the
+[frame intervals](#frame-intervals) of the chrome's movements, which are held to a budget instead.
 
 Baseline measured on the initial macOS development machine, an Apple M2 Max on macOS 26.6.2, with
 the `dev` preset on 2026-09-12:
@@ -1259,6 +1260,60 @@ Set `QT_QPA_PLATFORM=offscreen` for the middle two, or `QT_QPA_PLATFORM=cocoa QS
 draw the frame probe through Metal and read what the frames cost the GPU. The Linux numbers are
 still to be taken: re-run on Linux hardware when it is available and record them here beside the
 macOS ones.
+
+### Frame intervals
+
+ADR 0007 lets Omaweb's own animation follow the display without holding the interface thread for
+more than one frame. Four probes in `tst_performance.qml` hold the chrome's movements to that: the
+sidebar leaving and coming back, a Space switch, the Omnibar opening over a Space of a hundred tabs
+and filtering them as a word is typed, and a Glance opening over a page and going back. Each takes
+the movement ten times over a page that redraws every frame, after one movement that is not watched,
+and reports the time from each frame's end to the next one's: the 95th percentile by nearest rank,
+and the slowest beside it. A frame that waited on one held frame arrives two frames after the last,
+so the ceiling is two frames at the display's refresh rate, 33.3 ms at 60 Hz. The 95th percentile is
+held, because one garbage collection would decide the slowest.
+
+The interval is what these probes read, not the frame's cost: the cost is the scene graph's own, and
+a movement's script and layout run on the interface thread between frames, where the cost bracket
+does not see them. Each movement is the pointer's, because after a key the chrome steps rather than
+eases and a step has no frames between its ends.
+
+Three surfaces were over the budget when the probes were first taken. Each holds a guard of about
+twice the slowest of those measurements instead, so it cannot get worse unnoticed, and prints the
+budget line with the reason it is over:
+
+- The sidebar. When the seam settles, the page area takes its new width and the closed Shortcut
+  sheet packs its columns and builds them again for it, about 50 ms on the interface thread at each
+  end of the movement.
+- A Space switch. Showing the arriving Space's page rebuilds the closed Shortcut sheet's sections,
+  about 130 ms before the slide's first frame on the offscreen platform.
+- The Omnibar. Each keystroke ranks the tabs and the commands up to three times: for the text, then
+  for the history answer and the engine answer as each arrives. On the GPU it is inside the budget;
+  on the offscreen platform it is near the line and crosses it under load.
+
+The change that brings a surface inside removes its `overBudget` argument, so the budget is held.
+
+Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
+2026-10-05. The offscreen rows are six runs, three at a time; the GPU rows are three runs in a
+headless cage drawing through radeonsi, because the laptop's own display was off and draws no frames
+then:
+
+| Surface      | Offscreen, 95th percentile | GPU, 95th percentile | GPU, slowest    | Held to         |
+| ------------ | -------------------------- | -------------------- | --------------- | --------------- |
+| Sidebar      | 44 to 47 ms                | 30.4 to 32.4 ms      | 35.8 to 50.7 ms | guard, 150 ms   |
+| Space switch | 128 to 150 ms              | 61 to 74 ms          | 78 to 95 ms     | guard, 500 ms   |
+| Omnibar      | 27 to 29 ms                | 16.4 to 17.8 ms      | 25 to 28 ms     | guard, 120 ms   |
+| Glance       | 21 to 23 ms                | 16.3 to 16.4 ms      | 17 to 21 ms     | budget, 33.3 ms |
+
+On the offscreen platform under a parallel build, the Omnibar's 95th percentile reached 59 ms and
+the Space switch's 222 ms. The software rasteriser draws no blur, so the Omnibar's glass, the
+Glance's backdrop and the sidebar's floating shelf are priced only by the GPU rows. Take those with:
+
+```sh
+WLR_BACKENDS=headless WLR_RENDERER=gles2 WLR_RENDER_DRM_DEVICE=/dev/dri/renderD128 cage -- \
+    env QT_QPA_PLATFORM=wayland QT_SCALE_FACTOR=1 QSG_RHI_PROFILE=1 \
+    build/ci/omaweb-ui-tests -input tests/ui/tst_performance.qml
+```
 
 ### The runtime budget
 

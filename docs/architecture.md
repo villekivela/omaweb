@@ -608,8 +608,10 @@ On the initial M2 Max development machine, provisional budgets are:
 These are budgets rather than measurements. `scripts/benchmark_build.sh` measures configure, clean
 build, incremental rebuild, and no-op build against them. The runtime numbers are measurements the
 tests keep: startup, session restore, tab switch, chromeless frame time and a frozen tab's memory
-each have a probe that CI runs and fails when the number crosses its threshold. The recorded
-baseline, the thresholds and the machine they came from are in
+each have a probe that CI runs and fails when the number crosses its threshold. The sidebar, a Space
+switch, the Omnibar and a Glance each have a probe of the interval between frames while they move,
+measured against [ADR 0007](adr/0007-keep-dependencies-out-of-the-fast-build.md)'s budget of one
+frame. The recorded baseline, the thresholds and the machine they came from are in
 [the development guide](development.md#performance).
 
 Those probes measure the browser's parts, on the offscreen platform and mostly without an engine.
