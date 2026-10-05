@@ -6,7 +6,7 @@ match costs by `tests/benchmarks/`. How long the browser takes to appear, and wh
 Spaces open, were held to nothing, so this measures them and fails when a recorded ceiling is
 crossed.
 
-Five measurements, each its own subcommand so a developer can run the one they are working on:
+Six measurements, each its own subcommand so a developer can run the one they are working on:
 
 - `startup` launches the browser and times process start to the window mapping.
 - `memory` reads the resident memory of the process tree with one Space and one page.
@@ -17,6 +17,9 @@ Five measurements, each its own subcommand so a developer can run the one they a
 - `pageload` loads the same pages with Content blocking on and with the site switched off, and
   reports what blocking added to each, which is the cost ADR 0050 measured once by hand. From the
   same loads it reports how soon the fresh-host and known-host pages first painted, blocking on.
+- `livetabs` opens five Spaces, then twenty tabs and then fifty across them, each from a local
+  site of its own, and reports what each tab past a Space's first added at each count, and how much
+  of a core the tree uses over thirty seconds left alone.
 
 This writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, which writes the measurements into the budget in this repository and appends them to
@@ -24,7 +27,8 @@ aside, which writes the measurements into the budget in this repository and appe
 theme and default-browser checks it needs no opt-in guard: it puts nothing back because it put
 nothing anywhere. It does take the keyboard focus while it runs.
 `pageload` runs its browser in a network namespace of its own, with its own resolver files bound
-over the machine's, so the DNS server it starts answers that browser and nothing else.
+over the machine's, so the DNS server it starts answers that browser and nothing else. `livetabs`
+serves its pages from the loopback addresses it binds, for as long as it runs.
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
 compositor, because CI's compositor is not the reader's. `WAYLAND_DEBUG=1` costs about a thousand
@@ -48,6 +52,7 @@ Usage:
     scripts/benchmark_runtime.py startup --browser build/dev/omaweb
     scripts/benchmark_runtime.py spaces --spaces 4
     scripts/benchmark_runtime.py pageload --require-dns
+    scripts/benchmark_runtime.py livetabs
     scripts/benchmark_runtime.py --record
 """
 
@@ -65,6 +70,7 @@ import re
 import shutil
 import signal
 import socket
+import sqlite3
 import statistics
 import subprocess
 import sys
@@ -204,6 +210,19 @@ FIRST_CONTENTFUL_PAINT_CASES = ("fresh", "known")
 PROCEDURAL_RULES = ROOT / "tests" / "content-blocking" / "procedural-rules.json"
 
 
+# How many live tabs the live-tabs step reads the memory at, and over how many Spaces. Five Spaces
+# hold the fifty evenly, and a reader's tabs are spread over a few rather than kept in one.
+LIVE_TAB_COUNTS = (20, 50)
+LIVE_TAB_SPACES = 5
+# How long a new tab is waited for in its Space's database: the browser records its tabs 400 ms
+# after they change.
+TAB_RECORDED_WAIT = 3.0
+# How long the tree is left alone, at the last count, while its CPU is read.
+LIVE_TAB_IDLE_WINDOW = 30.0
+# How many of the processes that used CPU in that window the log names.
+LIVE_TAB_IDLE_NAMED = 8
+
+
 def procedural_fixture() -> tuple[list[str], str]:
     """The procedural rules for the page hosts, and the markup they are written against.
 
@@ -256,9 +275,9 @@ PAGELOAD_STALL_MILLISECONDS = 5000
 # load event; a page that has not painted by this long reports none and fails the run.
 PAGELOAD_PAINT_MILLISECONDS = 5000
 
-# How much of the browser's own output a quiet load prints: enough to reach back past the page
-# before it, which is a title and a few messages.
-PAGELOAD_MESSAGES = 40
+# How much of the browser's own output a failed step prints: enough to reach back past the page
+# before the one that failed, which is a title and a few messages.
+BROWSER_MESSAGES = 40
 
 # A one-pixel PNG. What an image costs to decode is not what this measures.
 PIXEL = base64.b64decode(
@@ -312,9 +331,11 @@ class Keyboard:
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
-        self.hyprland = shutil.which("hyprctl") is not None and bool(
-            subprocess.run(["hyprctl", "version"], capture_output=True, text=True,
-                           check=False).stdout.strip())
+        # By its status, not its output: with no Hyprland to reach, as under a cage started from a
+        # Hyprland session, it says so on stdout, and every key would go to a dispatcher that is
+        # not there.
+        self.hyprland = shutil.which("hyprctl") is not None and subprocess.run(
+            ["hyprctl", "version"], capture_output=True, text=True, check=False).returncode == 0
         if not self.hyprland and shutil.which("wtype") is None:
             raise Unavailable(
                 "neither Hyprland nor wtype is here, and these measurements need a keyboard")
@@ -349,6 +370,12 @@ class Keyboard:
                 command += ["-m", modifier]
             subprocess.run(command, capture_output=True, check=False)
         time.sleep(settle)
+
+    def enter_address(self, binding: str, address: str) -> None:
+        """Opens the Omnibar with `binding`, types `address` and goes there."""
+        self.press(binding)
+        self.write(address)
+        self.press("Return")
 
     def write(self, text: str) -> None:
         if self.hyprland:
@@ -399,8 +426,8 @@ def children_by_parent() -> dict[int, list[int]]:
 
 
 def process_states(root: int) -> dict[int, tuple[str, str, float, int]]:
-    """Each process in a tree: its name, its state, the CPU seconds it has used,
-    and its RSS in KiB."""
+    """Each process in a tree: its name, its state, the CPU seconds it and the children it reaped
+    have used, and its RSS in KiB."""
     tree = children_by_parent()
     ticks = os.sysconf("SC_CLK_TCK")
     page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
@@ -414,11 +441,20 @@ def process_states(root: int) -> dict[int, tuple[str, str, float, int]]:
                 stat = handle.read()
         except OSError:
             continue
-        name = stat[stat.index("(") + 1:stat.rindex(")")]
-        fields = stat.rsplit(")", 1)[1].split()
-        states[pid] = (name, fields[0], (int(fields[11]) + int(fields[12])) / ticks,
-                       int(fields[21]) * page_kib)
+        states[pid] = parse_stat(stat, ticks, page_kib)
     return states
+
+
+def parse_stat(stat: str, ticks: int, page_kib: int) -> tuple[str, str, float, int]:
+    """One line of `/proc/<pid>/stat`: the name, the state, the CPU seconds and the RSS in KiB.
+
+    The CPU is the process's own and that of the children it has reaped, so a child that ended
+    between two readings is still in its parent's.
+    """
+    name = stat[stat.index("(") + 1:stat.rindex(")")]
+    fields = stat.rsplit(")", 1)[1].split()
+    cpu = sum(int(field) for field in fields[11:15]) / ticks
+    return (name, fields[0], cpu, int(fields[21]) * page_kib)
 
 
 def describe_processes(root: int) -> list[str]:
@@ -433,6 +469,51 @@ def describe_processes(root: int) -> list[str]:
     return [f"{pid} {name} {state} {rss / 1024:.0f} MiB, "
             f"{cpu - before.get(pid, (name, state, cpu, rss))[2]:.2f} CPU s in the last second"
             for pid, (name, state, cpu, rss) in sorted(after.items())]
+
+
+@dataclasses.dataclass(frozen=True)
+class ProcessCpu:
+    """The CPU seconds one process used over a window."""
+
+    pid: int
+    name: str
+    seconds: float
+
+
+@dataclasses.dataclass(frozen=True)
+class IdleCpu:
+    """What a tree used over a window: its share of one core, who used it, and who went.
+
+    `busiest` is each process that used any, busiest first, a parent's seconds holding those of
+    the children it reaped. `ended` names the processes that were gone at the end of the window:
+    their parent's reading holds what they used, so the share counts it, and the log says they
+    went.
+    """
+
+    percent: float
+    busiest: list[ProcessCpu]
+    ended: list[str]
+
+
+def idle_cpu(before: dict[int, tuple[str, str, float, int]],
+             after: dict[int, tuple[str, str, float, int]], seconds: float) -> IdleCpu:
+    """The CPU between two `process_states` readings, a process that started between them counted
+    from nothing.
+
+    A process that ended was reaped by its parent in the tree, whose reading then holds all it ever
+    used, so what it had used by the first reading is taken off the total.
+    """
+    used = []
+    for pid, (name, _, cpu, _) in after.items():
+        previous = before.get(pid)
+        spent = cpu - previous[2] if previous and previous[0] == name else cpu
+        if spent > 0:
+            used.append(ProcessCpu(pid, name, spent))
+    used.sort(key=lambda process: process.seconds, reverse=True)
+    gone = {pid: state for pid, state in before.items() if pid not in after}
+    ended = [f"{pid} {name}" for pid, (name, *_) in sorted(gone.items())]
+    spent = sum(process.seconds for process in used) - sum(cpu for _, _, cpu, _ in gone.values())
+    return IdleCpu(100.0 * spent / seconds, used, ended)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -515,7 +596,7 @@ class Browser:
         self.sink = open(self.log_path, "w", encoding="utf-8")
         self.started_at = time.time()
         self.process = subprocess.Popen(
-            [*launcher, "dbus-run-session", "--", self.executable, url],
+            [*launcher, "dbus-run-session", "--", self.executable, *([url] if url else [])],
             env=environment,
             stdout=subprocess.DEVNULL,
             stderr=self.sink,
@@ -705,8 +786,35 @@ class Workspace:
             return 0
         return sum(1 for entry in os.scandir(spaces) if entry.is_dir())
 
+    def tab_count(self) -> int:
+        """How many tabs the browser has actually made, read from each Space's own database.
+
+        A tab whose keys went elsewhere is a page loaded into a tab that already existed, and a
+        title says nothing about which tab it is in. Opened read-only, because the browser is still
+        writing.
+        """
+        spaces = os.path.join(self.root, "data", "spaces")
+        count = 0
+        for entry in os.scandir(spaces) if os.path.isdir(spaces) else ():
+            path = os.path.join(entry.path, "browser.sqlite")
+            if not os.path.exists(path):
+                continue
+            database = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                count += database.execute("SELECT COUNT(*) FROM tabs").fetchone()[0]
+            finally:
+                database.close()
+        return count
+
     def discard(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+
+def log_messages(browser: Browser) -> None:
+    """Prints the last of what the browser said, for a step that failed waiting on it."""
+    log("  the browser's titles and messages:")
+    for line in browser.messages()[-BROWSER_MESSAGES:]:
+        log(f"    {line}")
 
 
 def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: int,
@@ -732,9 +840,7 @@ def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: in
         keyboard.press("Escape")
     else:
         raise MeasurementFailed(f"the browser would not open Space {expected}")
-    keyboard.press("Primary+L")
-    keyboard.write(url or workspace.page_url)
-    keyboard.press("Return")
+    keyboard.enter_address("Primary+L", url or workspace.page_url)
     time.sleep(LOAD_SETTLE)
 
 
@@ -1437,9 +1543,7 @@ def run_pageload(executable: str, private: bool) -> dict:
             for line in describe_processes(browser.pid):
                 log(f"    {line}")
             browser.stop()
-            log("  the browser's titles and messages:")
-            for line in browser.messages()[-PAGELOAD_MESSAGES:]:
-                log(f"    {line}")
+            log_messages(browser)
             raise
     finally:
         browser.stop()
@@ -1522,12 +1626,314 @@ def measure_pageload(executable: str, require_dns: bool) -> dict:
         raise
 
 
+@dataclasses.dataclass(frozen=True)
+class LiveTab:
+    """One tab the live-tabs step opens, and the Space it opens in."""
+
+    number: int
+    space: int
+
+
+def live_tab_plan() -> list[list[LiveTab]]:
+    """The tabs to open before each reading, each Space's together and in Space order.
+
+    The first stage is each Space's first tab, so the reading the tabs are measured against is a
+    browser with every Space it has at twenty and fifty. Every Space then holds an equal share at
+    every count, so what is read at twenty is the same browser as at fifty with fewer tabs in each
+    Space, not one with more Spaces.
+    """
+    stages = []
+    number = 0
+    held = 0
+    for count in (LIVE_TAB_SPACES, *LIVE_TAB_COUNTS):
+        stage = []
+        for space in range(1, LIVE_TAB_SPACES + 1):
+            for _ in range(held, count // LIVE_TAB_SPACES):
+                number += 1
+                stage.append(LiveTab(number, space))
+        held = count // LIVE_TAB_SPACES
+        stages.append(stage)
+    return stages
+
+
+def live_tab_title(number: int) -> str:
+    """A tab's title, ended so that no tab's title begins another's: tab 1 is not tab 12."""
+    return f"Omaweb live tab {number}: field notes"
+
+
+def live_tab_space(space: int) -> str:
+    """The name of the Space numbered `space`: a fresh profile's first, and those the step made."""
+    return "Personal" if space == 1 else f"space{space}"
+
+
+def live_tab_shown(tab: LiveTab) -> str:
+    """The start of the window's title once `tab` is on show: its page's, then its Space's."""
+    return f"{live_tab_title(tab.number)} — {live_tab_space(tab.space)} — "
+
+
+# What a reader's tab mostly is: an article with a stylesheet, a picture, a table, a form, and a
+# script that builds part of the page once. Nothing on it runs after it has loaded, because the
+# idle reading is the browser's and a page still working would put its own CPU there.
+LIVE_TAB_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@TITLE@</title>
+<link rel="stylesheet" href="/style.css">
+</head><body>
+<header><nav><a href="/">Home</a> <a href="/">Archive</a> <a href="/">About</a></nav></header>
+<main><article>
+<h1>@TITLE@</h1>
+<p class="byline">Notes kept on page @NUMBER@, for a browser with many tabs open.</p>
+<img src="/picture.svg" alt="" width="640" height="240">
+@PARAGRAPHS@
+<table><thead><tr><th>Entry</th><th>Reading</th><th>Remark</th></tr></thead>
+<tbody>@ROWS@</tbody></table>
+<ul id="index"></ul>
+<form><label>Comment <textarea name="comment" rows="3"></textarea></label>
+<label>Name <input name="name"></label> <button type="button">Send</button></form>
+</article></main>
+<footer>Page @NUMBER@.</footer>
+<script>
+const sections = Array.from(document.querySelectorAll("article p"), (paragraph, index) =>
+  ({ id: `part-${index + 1}`, words: paragraph.textContent.split(/\\s+/).length }));
+const index = document.getElementById("index");
+for (const section of sections) {
+  const item = document.createElement("li");
+  item.textContent = `${section.id}: ${section.words} words`;
+  index.append(item);
+}
+</script>
+</body></html>
+"""
+
+LIVE_TAB_STYLE = b"""\
+body { margin: 0; font: 16px/1.6 sans-serif; color: #222; background: #fafaf7; }
+header, footer { padding: 0.5rem 1rem; background: #e8e6df; }
+nav { display: flex; gap: 1rem; }
+main { display: grid; grid-template-columns: minmax(0, 42rem); justify-content: center; }
+article { padding: 1rem; }
+img { max-width: 100%; height: auto; border-radius: 4px; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+th, td { padding: 0.25rem 0.5rem; border-bottom: 1px solid #ccc; text-align: left; }
+form { display: grid; gap: 0.5rem; }
+"""
+
+LIVE_TAB_PICTURE = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240">
+<rect width="640" height="240" fill="#cfd8dc"/>
+<circle cx="120" cy="120" r="80" fill="#90a4ae"/>
+<path d="M0 200 L200 120 L360 180 L520 90 L640 160 L640 240 L0 240 Z" fill="#607d8b"/>
+</svg>
+"""
+
+LIVE_TAB_WORDS = ("browser tab space page memory process renderer engine site reader window "
+                  "frame paint layout script style image table form note field").split()
+
+
+def live_tab_page(number: int) -> bytes:
+    """Tab `number`'s page, whose text differs from every other tab's, as distinct sites' do."""
+    generator = random.Random(number)
+
+    def sentence() -> str:
+        words = [generator.choice(LIVE_TAB_WORDS) for _ in range(generator.randint(8, 16))]
+        return " ".join(words).capitalize() + "."
+
+    paragraphs = "\n".join(f"<p>{' '.join(sentence() for _ in range(5))}</p>" for _ in range(12))
+    rows = "".join(f"<tr><td>{row}</td><td>{generator.randint(1, 999)}</td>"
+                   f"<td>{sentence()}</td></tr>" for row in range(1, 31))
+    page = (LIVE_TAB_PAGE.replace("@TITLE@", live_tab_title(number))
+            .replace("@NUMBER@", str(number))
+            .replace("@PARAGRAPHS@", paragraphs)
+            .replace("@ROWS@", rows))
+    return page.encode()
+
+
+def live_tab_results(first: float, totals: dict[int, float], idle_percent: float) -> dict:
+    """What each tab past its Space's first added at each count, and the tree's idle CPU.
+
+    `first` is the tree with every Space open and one tab in each. Read against a browser with
+    fewer Spaces, a tab would carry a share of what a Space costs, and dividing the whole tree by
+    the tab count would spread the browser's own cost over the tabs.
+    """
+    results = {f"live_tab_at_{count}_mebibytes": (total - first) / (count - LIVE_TAB_SPACES)
+               for count, total in totals.items()}
+    results["live_tabs_idle_cpu_percent"] = idle_percent
+    return results
+
+
+class LiveTabSite:
+    """The live-tabs step's pages, each tab's from a server of its own on a loopback address.
+
+    The engine gives each site its own renderer, and a site is a host, the port left out, so tabs
+    served from one address would share processes that a reader's tabs on different sites do not.
+    Linux routes all of 127.0.0.0/8 to the loopback interface, so every tab gets its own address
+    there and its pages need no network and no name.
+    """
+
+    def __init__(self, tabs: int) -> None:
+        self.servers = [PageLoadServer((f"127.0.0.{number + 1}", 0), self._handler(number))
+                        for number in range(1, tabs + 1)]
+
+    def address(self, number: int) -> str:
+        """What is typed for tab `number`: the Omnibar sends an address literal over plain HTTP."""
+        host, port = self.servers[number - 1].server_address[:2]
+        return f"{host}:{port}/"
+
+    def start(self) -> None:
+        for server in self.servers:
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    def stop(self) -> None:
+        # Together, because each waits out its own half-second poll, and fifty in turn is half a
+        # minute.
+        stopping = [threading.Thread(target=server.shutdown) for server in self.servers]
+        for thread in stopping:
+            thread.start()
+        for thread in stopping:
+            thread.join()
+        for server in self.servers:
+            server.server_close()
+
+    @staticmethod
+    def _handler(number: int) -> type[http.server.BaseHTTPRequestHandler]:
+        resources = {
+            "/": (live_tab_page(number), "text/html; charset=utf-8"),
+            "/style.css": (LIVE_TAB_STYLE, "text/css"),
+            "/picture.svg": (LIVE_TAB_PICTURE, "image/svg+xml"),
+        }
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, format: str, *arguments) -> None:  # noqa: A002
+                pass
+
+            def do_GET(self) -> None:  # noqa: N802
+                resource = resources.get(urllib.parse.urlsplit(self.path).path)
+                if resource is None:
+                    self.send_error(404)
+                    return
+                body, content_type = resource
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        return Handler
+
+
+def open_live_tab(keyboard: Keyboard, workspace: Workspace, browser: Browser, site: LiveTabSite,
+                  tab: LiveTab, shown: int) -> int:
+    """Opens `tab` as a reader would, waits for its page, and returns the Space now on show.
+
+    `shown` is the Space on show before it. A Space's first tab is the empty one it opens with,
+    given its address, and every other is the new-tab key and an address typed into the Omnibar,
+    so each one has its own engine from the moment it is shown. The browser is launched with no
+    address for the same reason: a fresh profile opens with an empty tab, and an address on the
+    command line would be a second tab beside it that the new-tab key then reuses rather than
+    adding one.
+
+    A new tab is counted in its Space's database before its page is waited for. The browser makes
+    the tab when the address is entered, not at the new-tab key, so the count is read then, and
+    keys that went elsewhere are sent again as `open_space` sends its own.
+    """
+    address = site.address(tab.number)
+    if workspace.space_count() < tab.space:
+        open_space(keyboard, workspace, live_tab_space(tab.space), tab.space, f"http://{address}")
+    elif tab.number == 1:
+        keyboard.focus()
+        keyboard.enter_address("Primary+L", address)
+    else:
+        keyboard.focus()
+        if tab.space != shown:
+            keyboard.press(f"Primary+{tab.space}")
+        expected = workspace.tab_count() + 1
+        for _ in range(OPEN_SPACE_ATTEMPTS):
+            keyboard.enter_address("Primary+T", address)
+            if tab_recorded(workspace, expected):
+                break
+            # Whatever took the keys, this closes, so the next attempt starts where the first did.
+            keyboard.press("Escape")
+        else:
+            raise MeasurementFailed(f"the browser would not open tab {tab.number}")
+    browser.await_title(live_tab_shown(tab))
+    return tab.space
+
+
+def tab_recorded(workspace: Workspace, expected: int) -> bool:
+    """Whether the browser has recorded `expected` tabs within `TAB_RECORDED_WAIT`."""
+    deadline = time.monotonic() + TAB_RECORDED_WAIT
+    while workspace.tab_count() != expected:
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True
+
+
+def measure_livetabs(executable: str) -> dict:
+    """What each live tab costs at twenty tabs and at fifty, and what the tree uses left alone.
+
+    A live tab is one with its engine: a tab of a restored Space that was never shown has none, so
+    each tab here is opened and shown. Every tab but the one on show is then frozen, as a reader's
+    are, so the memory is what a reader's open tabs hold and the CPU is what a window of them costs
+    while nobody touches it. Each tab is its own site, served from its own loopback address, so
+    nothing here depends on the network and no two tabs share a renderer that two sites would not.
+    """
+    if not sys.platform.startswith("linux"):
+        raise Unavailable("its tabs' sites are loopback addresses only Linux routes")
+    stages = live_tab_plan()
+    site = LiveTabSite(sum(len(stage) for stage in stages))
+    workspace = Workspace()
+    browser = workspace.browser(executable)
+    try:
+        site.start()
+        browser.start("", keybindings=workspace.keybindings)
+        browser.await_title("New tab")
+        keyboard = Keyboard(browser.window_pid)
+        shown = 1
+        readings = []
+        for stage, count in zip(stages, (LIVE_TAB_SPACES, *LIVE_TAB_COUNTS)):
+            for tab in stage:
+                try:
+                    shown = open_live_tab(keyboard, workspace, browser, site, tab, shown)
+                except MeasurementFailed:
+                    log(f"  {workspace.tab_count()} tabs were made")
+                    log_messages(browser)
+                    raise
+            reading = settled_reading(browser.memory_mib)
+            state = "settled" if reading.settled else "was still moving"
+            log(f"  {count} tabs in {workspace.space_count()} Spaces: {reading.mebibytes:.1f} MiB, "
+                f"which {state} {reading.seconds:.0f} s after the last tab opened")
+            made = workspace.tab_count()
+            if made != count:
+                raise MeasurementFailed(f"asked for {count} tabs and the browser made {made}")
+            readings.append(reading.mebibytes)
+        before = process_states(browser.pid)
+        started = time.monotonic()
+        time.sleep(LIVE_TAB_IDLE_WINDOW)
+        idle = idle_cpu(before, process_states(browser.pid), time.monotonic() - started)
+    finally:
+        browser.stop()
+        site.stop()
+        workspace.discard()
+    log(f"  left alone for {LIVE_TAB_IDLE_WINDOW:.0f} s, the tree used {idle.percent:.2f}% "
+        "of a core")
+    for process in idle.busiest[:LIVE_TAB_IDLE_NAMED]:
+        log(f"    {process.pid} {process.name}: {process.seconds:.2f} CPU s")
+    if idle.ended:
+        log(f"    and these ended in the window, their CPU counted in their parent's: "
+            f"{', '.join(idle.ended)}")
+    first, *totals = readings
+    return live_tab_results(first, dict(zip(LIVE_TAB_COUNTS, totals)), idle.percent)
+
+
 MEASUREMENTS = {
     "startup": lambda arguments: measure_startup(arguments.browser, arguments.repetitions),
     "memory": lambda arguments: measure_memory(arguments.browser),
     "spaces": lambda arguments: measure_spaces(arguments.browser, arguments.spaces),
     "freezing": lambda arguments: measure_freezing(arguments.browser),
     "pageload": lambda arguments: measure_pageload(arguments.browser, arguments.require_dns),
+    "livetabs": lambda arguments: measure_livetabs(arguments.browser),
 }
 
 
@@ -1539,7 +1945,7 @@ def report(results: dict, budget: dict) -> int:
     """
     thresholds = budget["measurements"]
     crossed = 0
-    units = {"_seconds": "s", "_milliseconds": "ms", "_mebibytes": "MiB"}
+    units = {"_seconds": "s", "_milliseconds": "ms", "_mebibytes": "MiB", "_percent": "%"}
     log("")
     taken = budget["recorded_on"]
     log(f"ceilings recorded on: {budget['machine']}, {taken}" if taken else "ceilings: not yet")

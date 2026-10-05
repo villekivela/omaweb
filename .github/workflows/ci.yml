@@ -122,10 +122,8 @@ jobs:
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
     container: archlinux:base-devel
-    # The build, the tests and the runtime budget on one runner take 19 to 29
-    # minutes, and 30 cancelled a run that was only slow. The other jobs carry
-    # less and keep their limits.
-    timeout-minutes: 45
+    # The runtime budget's steps bring the job to 40 minutes, too close to 45.
+    timeout-minutes: 60
     env:
       CC: clang
       CXX: clang++
@@ -215,9 +213,10 @@ jobs:
       # Process start to the window mapping, the proportional set size of the
       # process tree at rest and with Spaces open, whether a frozen Space's
       # pages are still running, what Content blocking adds to a page load,
-      # and how soon that page first paints. There is no GPU here, so the
-      # paint is a software rasteriser's: it is held against this runner's own
-      # recording to catch a regression, not to say what a reader sees.
+      # how soon that page first paints, and what 20 and 50 live tabs hold and
+      # the CPU they use at rest. There is no GPU here, so the paint is a
+      # software rasteriser's: it is held against this runner's own recording
+      # to catch a regression, not to say what a reader sees.
       #
       # Cage runs the script rather than the other way round: started as a
       # sibling it would have to be asked which socket it opened, and started
@@ -236,7 +235,7 @@ jobs:
       # itself as root and points the container's resolver at it for the
       # measurement. The zone answers only the test names, so the resolver is
       # put back before anything else in the job needs the network.
-      - name: Measure startup, memory, page loads and paint against the budget
+      - name: Measure startup, memory, page loads, paint and live tabs against the budget
         run: |
           rm -f /tmp/budget.status
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh

@@ -1349,9 +1349,10 @@ scripts/benchmark_runtime.py
 scripts/benchmark_runtime.py startup --browser build/dev/omaweb
 scripts/benchmark_runtime.py spaces --spaces 4
 scripts/benchmark_runtime.py pageload
+scripts/benchmark_runtime.py livetabs
 ```
 
-Five measurements, one subcommand each, so a developer can run the one they are working on:
+Six measurements, one subcommand each, so a developer can run the one they are working on:
 
 - `startup` is the median of three launches, from the process starting to the first buffer the
   browser attached to its toplevel's surface.
@@ -1374,19 +1375,33 @@ Five measurements, one subcommand each, so a developer can run the one they are 
 - `pageload` is what Content blocking as a whole adds to a page load: the rule check, CNAME
   uncloaking where the engine carries it, the Refusal tally and the refused-request list. From the
   same loads it takes how soon a page first paints. Both are described below.
+- `livetabs` opens five Spaces, then 20 tabs and then 50 across them, and reports what each tab past
+  a Space's first added at each count and how much of a core the process tree uses over 30 seconds
+  left alone. It is described below.
 
 It writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, so unlike the theme repaint and the default browser it needs no opt-in guard. It does take
 the keyboard focus while it runs. Off a Wayland display or without a built browser, it says it
 skipped and succeeds. A measurement that needs something the machine lacks, a way to synthesise a
 key or `pageload`'s DNS server, says it skipped that one and takes the rest. A browser that fails to
-map a window, Spaces that never open and an allocator page that never allocates are not skips: each
-of those fails the run, because each is either a broken browser or a number that would mean nothing.
+map a window, Spaces or tabs that never open and an allocator page that never allocates are not
+skips: each of those fails the run, because each is either a broken browser or a number that would
+mean nothing.
 
 CI runs it inside the `arch-linux` job, against the build that job has already made, under cage on
 the headless backend, with `--require-dns` so that `pageload` fails there rather than skips. What it
 measures there is what needs no hardware, and a page's first paint, which is held against CI's own
 software renderer rather than a reader's GPU. Scrolling is not in it.
+
+To run it on a Hyprland desktop without its keys reaching the desktop, run it as the program of a
+headless cage, as CI does, with `HYPRLAND_INSTANCE_SIGNATURE` unset so that keys go through `wtype`
+to cage:
+
+```sh
+env -u HYPRLAND_INSTANCE_SIGNATURE WLR_BACKENDS=headless WLR_RENDERER=pixman \
+    WLR_LIBINPUT_NO_DEVICES=1 QT_QPA_PLATFORM=wayland cage -- \
+    scripts/benchmark_runtime.py livetabs --browser build/dev/omaweb-browser
+```
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
 compositor, because the compositor CI runs is not the one a reader runs and the protocol is the same
@@ -1513,6 +1528,49 @@ for the known-host one.
 
 CI has no GPU, so the paint is Chromium's software rasteriser under cage's pixman renderer. The
 number is CI's, held against itself to catch a regression, and is not what a reader's GPU takes.
+
+#### The live-tabs measurement
+
+`livetabs` holds what a reader's open tabs cost: the memory each tab adds, at 20 tabs and at 50, and
+the CPU a window of 50 uses while nobody touches it. The run opens five Spaces with one tab each
+first, then spreads the tabs evenly over them, four each at 20 and ten each at 50, so the two counts
+are the same browser with more tabs in each Space rather than one with more Spaces.
+
+A live tab is one with its engine. A tab of a restored Space that was never shown has none, so each
+tab is opened as a reader opens one: a Space's first tab is the empty tab it starts with, given an
+address with the address key, and every other is the new-tab key and an address typed into the
+Omnibar. The browser is launched with no address, because a fresh profile opens an empty tab and the
+new-tab key would reuse it rather than add one. The browser makes a tab when its address is entered,
+not at the new-tab key, so each new tab is counted in its Space's database then, and keys that made
+none are sent again. The run then waits for a window title that names the tab's page and its Space,
+and a run whose count at 20 or 50 is wrong fails.
+
+The pages come from the run itself. Each tab is its own site, served from its own loopback address,
+`127.0.0.2` to `127.0.0.51`, because the engine gives a renderer to a site, a host without its port,
+and tabs on one address would share processes that tabs on different sites do not. Each page is an
+article with a stylesheet, a picture, a table, a form and a script that builds an index once, with
+its own text. Nothing on them runs after they load: no timer, animation or media. Only Linux routes
+the whole of `127.0.0.0/8` to the loopback interface, so the step runs on Linux only.
+
+The memory is the proportional set size of the whole process tree, read once three readings two
+seconds apart agree within a quarter of a mebibyte, as the frozen reading is. What a tab costs is
+read against the browser with all five Spaces open and one tab in each: the tree at 20 tabs less
+that, over 15, and the same over 45 at 50. A Space costs more than a tab, the second most of all, as
+`space_mebibytes` shows, so read against a browser with one Space the tabs would carry four Spaces'
+cost, and more of it per tab at 20 than at 50. Dividing the whole tree by the tab count would spread
+the browser's own cost over the tabs in the same way. Every tab but the one on show is frozen, as a
+reader's are, so the number is what a reader's background tabs hold rather than what running pages
+take.
+
+The idle CPU is the tree's user and system time over 30 seconds with 50 tabs open, as a share of one
+core, read from `/proc` at both ends of the window. Each process's time holds that of the children
+it reaped, so a process that ended in the window is counted through its parent, less what it had
+used before the window began. The window starts as soon as the memory at 50 has settled, without
+waiting for the CPU to fall: work the browser goes on doing after its tabs have opened is what it is
+there to catch. The log names each process that used any, busiest first, and any that ended in the
+window. The browser writes its Wayland protocol log for the whole run, and that costs it a little
+for every frame it presents, so a window that keeps drawing shows here with the logging's cost on
+top.
 
 ### Against Chromium
 
