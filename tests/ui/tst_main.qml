@@ -13961,4 +13961,242 @@ TestCase {
             return window.active;
         });
     }
+
+    // The list follows its engine away when the field is left, and is told
+    // so before its field is: refreshing then must not read the engine that
+    // is gone.
+    function test_leavingAFieldWithItsListOpenRaisesNoError() {
+        const engine = openPage("https://forms-left.example/");
+        submitForm(engine, "left-field", ["left behind"]);
+        engine.simulateFormFieldFocus("left-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        failOnWarning(/TypeError/);
+        engine.simulateFormFieldBlur();
+        tryVerify(function () {
+            return !list.shown;
+        });
+        wait(50);
+    }
+
+    // Addresses (#338). They are the reader's, so every test saves its own
+    // and removes them again: the window's store is shared.
+    function saveAddresses(addresses) {
+        const ids = [];
+        for (const address of addresses) {
+            const id = browser.saveAddress(address);
+            verify(id.length > 0);
+            ids.push(id);
+        }
+        return ids;
+    }
+
+    function removeAddresses(ids) {
+        for (const id of ids)
+            browser.removeAddress(id);
+    }
+
+    readonly property var homeAddress: ({
+                                            "name": "Ville Kivelä",
+                                            "street": "Rantakatu 1",
+                                            "postalCode": "90100",
+                                            "city": "Oulu",
+                                            "country": "Finland",
+                                            "phone": "+358 40 123 4567",
+                                            "email": "ville@home.example"
+                                        })
+    readonly property var workAddress: ({
+                                            "name": "Ville Kivelä",
+                                            "street": "Tehtaankatu 5",
+                                            "city": "Helsinki"
+                                        })
+
+    // A field with an address token offers the saved addresses first, by
+    // name with the street and city under it, then its form history below a
+    // divider. Accepting an address fills the form from it rather than the
+    // field with a value.
+    function test_addressesAreOfferedAboveFormHistoryAndFillTheForm() {
+        const ids = saveAddresses([homeAddress, workAddress]);
+        const engine = openPage("https://addresses.example/");
+        submitForm(engine, "address-city", ["Kempele"]);
+        engine.simulateFormFieldFocus("address-city", "", 100, 200, 240, 30, "address-level2");
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        compare(suggestionTexts(), ["Ville Kivelä", "Ville Kivelä", "Kempele"]);
+        compare(findChild(list, "suggestionRow0").detail, "Rantakatu 1, Oulu");
+        compare(findChild(list, "suggestionRow1").detail, "Tehtaankatu 5, Helsinki");
+        compare(findChild(list, "suggestionRow2").detail, "");
+        verify(!findChild(list, "suggestionRow0").divided);
+        verify(!findChild(list, "suggestionRow1").divided);
+        verify(findChild(list, "suggestionRow2").divided);
+        compare(findChild(list, "suggestionRow1").Accessible.name,
+                "Ville Kivelä, Tehtaankatu 5, Helsinki");
+
+        engine.filledAddress = null;
+        engine.simulateFormKey("down");
+        engine.simulateFormKey("down");
+        verify(engine.simulateFormKey("accept"));
+        compare(engine.filledAddress.street, "Tehtaankatu 5");
+        compare(engine.filledAddress.city, "Helsinki");
+        compare(engine.formField.value, "");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateFormFieldBlur();
+        removeAddresses(ids);
+    }
+
+    // Typing narrows the addresses to those whose value for the field starts
+    // with it, and a field without an address token is offered none.
+    function test_typingNarrowsTheAddressesByTheFieldsOwnValue() {
+        const ids = saveAddresses([homeAddress, workAddress]);
+        const engine = openPage("https://addresses-typed.example/");
+        engine.simulateFormFieldFocus("address-street", "", 100, 200, 240, 30, "street-address");
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.count === 2;
+        });
+        engine.simulateFormFieldInput("teh");
+        tryVerify(function () {
+            return list.count === 1;
+        });
+        compare(findChild(list, "suggestionRow0").detail, "Tehtaankatu 5, Helsinki");
+        engine.simulateFormFieldInput("x");
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateFormFieldFocus("address-street", "", 100, 200, 240, 30, "");
+        wait(50);
+        verify(!list.shown);
+        engine.simulateFormFieldBlur();
+        removeAddresses(ids);
+    }
+
+    // A press on an address fills the form from it.
+    function test_aPressOnAnAddressFillsTheForm() {
+        const ids = saveAddresses([homeAddress]);
+        const engine = openPage("https://addresses-press.example/");
+        engine.simulateFormFieldFocus("", "", 100, 200, 240, 30, "email");
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        engine.filledAddress = null;
+        const row = findChild(list, "suggestionRow0");
+        mousePress(row, row.width / 2, row.height / 2);
+        compare(engine.filledAddress.email, "ville@home.example");
+        mouseRelease(row, row.width / 2, row.height / 2);
+        tryVerify(function () {
+            return !list.shown;
+        });
+        engine.simulateFormFieldBlur();
+        removeAddresses(ids);
+    }
+
+    // A Private window has no addresses to offer, though the reader saved some.
+    function test_aPrivateWindowOffersNoAddress() {
+        const ids = saveAddresses([homeAddress]);
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://addresses-private.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const page = privateEngine.item;
+        page.simulateFormFieldFocus("", "", 100, 200, 240, 30, "address-level2");
+        const list = findChild(privateBrowser.contentItem, "formSuggestions");
+        wait(100);
+        verify(!list.shown);
+        compare(privateBrowser.windowBrowser.addresses(), []);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        removeAddresses(ids);
+    }
+
+    // Settings lists the saved addresses by name, street and city, and adds,
+    // edits and removes them with the fields in place under the list.
+    function test_settingsAddsEditsAndRemovesAnAddress() {
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("addresses");
+        const field = function (name) {
+            return findChild(settings, name);
+        };
+        const rowTitles = function () {
+            const titles = [];
+            const list = field("addressList");
+            for (let index = 0; index < list.count; ++index)
+                titles.push(list.itemAt(index).title);
+            return titles;
+        };
+        let saved = [];
+        try {
+            verify(settings.sections.indexOf("addresses") >= 0);
+            compare(field("addressList").count, 0);
+            verify(field("noAddresses").visible);
+            verify(!field("addressName").visible);
+
+            field("addAddressButton").clicked();
+            verify(field("addressName").visible);
+            verify(!field("saveAddressButton").enabled);
+            field("addressName").text = "Ville Kivelä";
+            field("addressStreet").text = "Rantakatu 1";
+            field("addressPostalCode").text = "90100";
+            field("addressCity").text = "Oulu";
+            field("addressCountry").text = "Finland";
+            field("addressPhone").text = "+358 40 123 4567";
+            field("addressEmail").text = "ville@home.example";
+            verify(field("saveAddressButton").enabled);
+            field("saveAddressButton").clicked();
+            saved = browser.addresses();
+            compare(saved.length, 1);
+            compare(saved[0].postalCode, "90100");
+            compare(saved[0].email, "ville@home.example");
+            compare(rowTitles(), ["Ville Kivelä · Rantakatu 1, Oulu"]);
+            verify(!field("addressName").visible);
+            verify(!field("noAddresses").visible);
+
+            // Edit opens the fields with the address in them.
+            findChild(field("addressList").itemAt(0), "editAddressButton").clicked();
+            compare(field("addressName").text, "Ville Kivelä");
+            compare(field("addressPhone").text, "+358 40 123 4567");
+            field("addressCity").text = "Kempele";
+            field("saveAddressButton").clicked();
+            saved = browser.addresses();
+            compare(saved.length, 1);
+            compare(saved[0].city, "Kempele");
+            compare(rowTitles(), ["Ville Kivelä · Rantakatu 1, Kempele"]);
+
+            // Cancel leaves the address as it was.
+            findChild(field("addressList").itemAt(0), "editAddressButton").clicked();
+            field("addressCity").text = "Turku";
+            field("cancelAddressButton").clicked();
+            verify(!field("addressName").visible);
+            compare(browser.addresses()[0].city, "Kempele");
+
+            // A new address starts from empty fields.
+            field("addAddressButton").clicked();
+            compare(field("addressName").text, "");
+            compare(field("addressCity").text, "");
+            field("cancelAddressButton").clicked();
+
+            findChild(field("addressList").itemAt(0), "removeAddressButton").clicked();
+            compare(browser.addresses(), []);
+            compare(field("addressList").count, 0);
+            saved = [];
+        } finally {
+            removeAddresses(saved.map(address => address.id));
+            window.settingsOpen = false;
+        }
+    }
 }

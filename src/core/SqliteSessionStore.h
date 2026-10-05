@@ -76,6 +76,9 @@ public:
     bool forgetFormEntry(
         const QString &spaceId, const QString &field, const QString &value) override;
     bool clearFormHistorySince(const QString &spaceId, qint64 since) override;
+    QVariantList addresses() const override;
+    bool saveAddress(const QVariantMap &address) override;
+    bool deleteAddress(const QString &id) override;
 
     bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
         const QString &path, const QString &state, qint64 receivedBytes,

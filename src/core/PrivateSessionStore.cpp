@@ -183,6 +183,12 @@ bool PrivateSessionStore::forgetFormEntry(const QString &, const QString &, cons
 
 bool PrivateSessionStore::clearFormHistorySince(const QString &, qint64) { return false; }
 
+QVariantList PrivateSessionStore::addresses() const { return {}; }
+
+bool PrivateSessionStore::saveAddress(const QVariantMap &) { return false; }
+
+bool PrivateSessionStore::deleteAddress(const QString &) { return false; }
+
 bool PrivateSessionStore::recordDownload(const QString &, const QString &, const QUrl &,
     const QString &, const QString &, qint64, qint64)
 {
