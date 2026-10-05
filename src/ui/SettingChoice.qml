@@ -10,10 +10,12 @@ Omarchy.ButtonGroup {
     property var colors
     property string accessibleName: ""
 
-    // The kit sizes each button to its label, which leaves a border between
-    // two pixels, and at the pane's right edge past its clip. Every button
-    // takes the widest one's width instead, rounded up to a whole pixel, so
-    // the choices also read as one control of equal parts.
+    // The kit sizes each button to its label, which can end a border part way
+    // through a pixel, and at the pane's right edge past its clip. Every button
+    // takes the widest one's width instead, rounded up to a whole pixel as
+    // SettingRow rounds its controls, so the choices also read as one control
+    // of equal parts. The kit's buttons are the children that carry
+    // `bordered`; the Repeater beside them does not.
     readonly property real buttonWidth: {
         let widest = 0;
         for (let index = 0; index < root.children.length; ++index) {

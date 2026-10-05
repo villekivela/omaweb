@@ -12429,6 +12429,10 @@ TestCase {
         compare(window.focusedRegionName(), "sidebar");
         window.commands.run("move-focus-left", -1);
         compare(window.focusedRegionName(), "page");
+        window.commands.run("focus-sidebar", -1);
+        compare(window.focusedRegionName(), "sidebar");
+        window.commands.run("focus-page", -1);
+        compare(window.focusedRegionName(), "page");
     }
 
     // A right sidebar hides toward the right edge and comes back from it. In

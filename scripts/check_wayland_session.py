@@ -68,10 +68,10 @@ TARGET_PAGE = """<!doctype html>
 """
 
 
-# The sidebar's width in a store nobody has resized it in. The move regions are
-# measured from the sidebar's own left edge, which a right sidebar puts this far
-# in from the window's right one.
-SIDEBAR_WIDTH = 292
+# The sidebar's width in a store nobody has resized it in, Main.qml's
+# `sidebarDefaultWidth`. The move regions are measured from the sidebar's own
+# left edge, which a right sidebar puts its width in from the window's right one.
+DEFAULT_SIDEBAR_WIDTH = 292
 
 
 # Commands the sweep sends nothing for, each because sending it would end the
@@ -84,7 +84,7 @@ UNSWEPT = {
 
 
 def check_window_moves_by_its_regions(
-    browser: Browser, report: Report, pointer: Pointer, side: str
+    browser: Browser, report: Report, pointer: Pointer, side: str, sidebar_width: float
 ) -> None:
     """The move regions are judged by the request they send, not by the window.
 
@@ -103,7 +103,7 @@ def check_window_moves_by_its_regions(
     # The outline is the same way round on either side, so each region is the
     # same distance in from the sidebar's left edge, and each drag heads for
     # the page.
-    left = at[0] if side == "left" else at[0] + size[0] - SIDEBAR_WIDTH
+    left = at[0] if side == "left" else at[0] + size[0] - sidebar_width
     toward_page = 160 if side == "left" else -160
     for region, grab in (
         # The strip is inset by the outline's own margin and has a button row
@@ -155,7 +155,9 @@ def check_window_resizes_by_its_edges(browser: Browser, report: Report, pointer:
         )
 
 
-def check_frameless_regions(browser: Browser, report: Report, side: str) -> None:
+def check_frameless_regions(
+    browser: Browser, report: Report, side: str, sidebar_width: float
+) -> None:
     try:
         pointer = Pointer()
     except SessionError as error:
@@ -171,7 +173,7 @@ def check_frameless_regions(browser: Browser, report: Report, side: str) -> None
         print("skipped: the window under test could not be floated, and a tiled one cannot move")
         return
     try:
-        check_window_moves_by_its_regions(browser, report, pointer, side)
+        check_window_moves_by_its_regions(browser, report, pointer, side, sidebar_width)
         # The window's edges stay where they are whichever side the sidebar
         # takes, so one run checks them.
         if side != "left":
@@ -201,6 +203,25 @@ def check_fullscreen(browser: Browser, report: Report) -> None:
         "browser fullscreen is taken and handed back",
         f"{before} → {taken} → {given_back}",
     )
+
+
+def stored_sidebar_width(root: str) -> float:
+    """The width the browsers on `root` left the sidebar at.
+
+    The sweep presses the keys that widen, narrow and reset it, and the browser
+    saves the width a moment after each, so the store says where it ended.
+    """
+    store = os.path.join(root, "data", "state.sqlite")
+    if not os.path.exists(store):
+        return DEFAULT_SIDEBAR_WIDTH
+    with sqlite3.connect(store) as database:
+        row = database.execute(
+            "SELECT value FROM preferences WHERE name = 'sidebar-width'"
+        ).fetchone()
+    try:
+        return float(row[0]) if row else DEFAULT_SIDEBAR_WIDTH
+    except ValueError:
+        return DEFAULT_SIDEBAR_WIDTH
 
 
 def choose_sidebar_side(root: str, side: str) -> bool:
@@ -385,7 +406,7 @@ def main() -> int:
             try:
                 regions.start(pages["probe"])
                 regions.focus()
-                check_frameless_regions(regions, report, side)
+                check_frameless_regions(regions, report, side, stored_sidebar_width(root))
             except SessionError as error:
                 print(f"skipped: {error}")
             finally:

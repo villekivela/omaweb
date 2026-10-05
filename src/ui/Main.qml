@@ -3004,6 +3004,9 @@ ApplicationWindow {
                 width: window.sidebarDrawnWidth
                 // Its outer edge against the window's, the shown part of it
                 // inside the row: a hidden sidebar leaves toward its own edge.
+                // The window is a whole number of the display's pixels and the
+                // drawn width is snapped, so a right sidebar at rest starts on
+                // a whole pixel too.
                 readonly property real shown: chromeRow.seam + (window.sidebarCollapsed
                                                                 ? chromeRow.peekRevealed * width :
                                                                   0)
