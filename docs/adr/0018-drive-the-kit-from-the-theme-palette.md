@@ -20,9 +20,9 @@ colours on top. The prop drilling #11 hoped to remove is load-bearing, and only 
 
 Type was the part that was unowned. #10 retired Omaweb's own `Typography`, which left
 `Style.fontFamily` at the kit's default of `"monospace"`, a fontconfig alias that does not exist on
-macOS, the platform `CONTEXT.md` says must stay usable during development. Qt fell back to some mono
-face and logged a missing family on every run. Populating the alias table cost about 140ms: the UI
-lab's `--validate-qml` startup measured 0.58s before this change and 0.44s after, on the macOS
+macOS, the platform `GLOSSARY.md` says must stay usable during development. Qt fell back to some
+mono face and logged a missing family on every run. Populating the alias table cost about 140ms: the
+UI lab's `--validate-qml` startup measured 0.58s before this change and 0.44s after, on the macOS
 development machine. So the palette resolves the family before handing it over: `theme.json` names
 the families it prefers, `ThemeController` picks the first one the host actually has installed, and
 both `Style.fontFamily` and `Style.resolvedFontFamily` get that concrete name. Omaweb never asks Qt

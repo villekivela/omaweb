@@ -390,7 +390,7 @@ class Vocabulary(unittest.TestCase):
 
     def test_an_unreadable_glossary_is_looser_words_not_a_failed_release(self):
         missing = rewrite.GLOSSARY
-        rewrite.GLOSSARY = "/nonexistent/CONTEXT.md"
+        rewrite.GLOSSARY = "/nonexistent/GLOSSARY.md"
         try:
             self.assertEqual(rewrite.vocabulary(), "")
             text = rewrite.prompt("v1.1.0", GENERATED, [
