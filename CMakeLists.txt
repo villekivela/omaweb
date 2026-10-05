@@ -1976,6 +1976,7 @@ if(BUILD_TESTING)
             BrowserChrome::test_aPinnedTabsIconRestsOnWholePixels
             BrowserChrome::test_aSuggestionsTextRestsOnWholePixels
             BrowserChrome::test_thePageAreaRestsOnWholePixelsBesideTheSidebar
+            BrowserChrome::test_aRightSidebarRestsOnWholePixels
             BrowserChrome::test_aSplitsPanesRestOnWholePixelsAtAnOddDivider
             BrowserChrome::test_thePageEndsOnWholePixelsBesideDeveloperTools
         )

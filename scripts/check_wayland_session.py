@@ -68,10 +68,20 @@ TARGET_PAGE = """<!doctype html>
 """
 
 
-# The sidebar's width in a store nobody has resized it in, Main.qml's
-# `sidebarDefaultWidth`. The move regions are measured from the sidebar's own
-# left edge, which a right sidebar puts its width in from the window's right one.
+# The sidebar's width in a store nobody has resized it in, and the clamp the
+# window draws a stored width within: Main.qml's `sidebarDefaultWidth`,
+# `sidebarMinimumWidth` and `sidebarMaximumWidth`. The move regions are
+# measured from the sidebar's own left edge, which a right sidebar puts its
+# drawn width in from the window's right one.
 DEFAULT_SIDEBAR_WIDTH = 292
+MINIMUM_SIDEBAR_WIDTH = 220
+WIDEST_SIDEBAR = 560
+
+
+def drawn_sidebar_width(stored: float, window_width: float) -> float:
+    """The width a window this wide draws a stored sidebar width at."""
+    widest = max(MINIMUM_SIDEBAR_WIDTH, min(WIDEST_SIDEBAR, window_width * 0.5))
+    return max(MINIMUM_SIDEBAR_WIDTH, min(stored, widest))
 
 
 # Commands the sweep sends nothing for, each because sending it would end the
@@ -103,7 +113,11 @@ def check_window_moves_by_its_regions(
     # The outline is the same way round on either side, so each region is the
     # same distance in from the sidebar's left edge, and each drag heads for
     # the page.
-    left = at[0] if side == "left" else at[0] + size[0] - sidebar_width
+    left = (
+        at[0]
+        if side == "left"
+        else at[0] + size[0] - drawn_sidebar_width(sidebar_width, size[0])
+    )
     toward_page = 160 if side == "left" else -160
     for region, grab in (
         # The strip is inset by the outline's own margin and has a button row
@@ -126,19 +140,27 @@ def check_window_moves_by_its_regions(
         )
 
 
-def check_window_resizes_by_its_edges(browser: Browser, report: Report, pointer: Pointer) -> None:
+EDGES = ("right", "bottom", "left", "top")
+
+
+def check_window_resizes_by_its_edges(
+    browser: Browser, report: Report, pointer: Pointer, edges: tuple[str, ...] = EDGES
+) -> None:
     # Each edge is a five-pixel strip, so the grab sits two pixels in: on the
     # edge itself the compositor's own border takes the press first.
     inset = 2
     # Every drag pushes the edge outward, from a window `reshape` has already
     # given room to grow into on all four sides.
     travel = 80
+    label = "" if edges == EDGES else " beside a right sidebar"
     for edge, grab, shift in (
         ("right", lambda a, s: (a[0] + s[0] - 1 - inset, a[1] + s[1] / 2), (travel, 0)),
         ("bottom", lambda a, s: (a[0] + s[0] / 2, a[1] + s[1] - 1 - inset), (0, travel)),
         ("left", lambda a, s: (a[0] + inset, a[1] + s[1] / 2), (-travel, 0)),
         ("top", lambda a, s: (a[0] + s[0] / 2, a[1] + inset), (0, -travel)),
     ):
+        if edge not in edges:
+            continue
         size = browser.settle()
         at = browser.position()
         if not at or not size:
@@ -150,7 +172,7 @@ def check_window_resizes_by_its_edges(browser: Browser, report: Report, pointer:
         axis = 0 if shift[0] else 1
         report.check(
             bool(after) and abs(after[axis] - size[axis] - travel) <= 2,
-            f"the {edge} edge resizes the window",
+            f"the {edge} edge resizes the window{label}",
             f"{size} to {after}",
         )
 
@@ -175,13 +197,13 @@ def check_frameless_regions(
     try:
         check_window_moves_by_its_regions(browser, report, pointer, side, sidebar_width)
         # The window's edges stay where they are whichever side the sidebar
-        # takes, so one run checks them.
-        if side != "left":
-            return
+        # takes. A right sidebar stands against the right one, with its own
+        # move regions beside it, so that edge is checked again there.
+        edges = EDGES if side == "left" else ("right",)
         # Comfortably above Omaweb's own 840x560 minimum and well inside the
         # output, so all four edges have somewhere to travel.
         if browser.reshape(1200, 900):
-            check_window_resizes_by_its_edges(browser, report, pointer)
+            check_window_resizes_by_its_edges(browser, report, pointer, edges)
         else:
             print(f"skipped: the window would not take a known size, and it is {browser.size()}")
     finally:
