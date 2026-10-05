@@ -12,9 +12,9 @@
 # The site is `website/` and the files outside it that `SHARED` in
 # `website/build/site.mjs` serves. A change to any of them builds.
 #
-# Every doubt builds. Production always does: the release pages come from
-# GitHub's releases, so a release changes the site without changing a file in
-# it. A preview is compared with the last commit Vercel built for its branch,
+# Every doubt builds. Only a preview is ever skipped, and production always
+# builds: the release pages come from GitHub's releases, so a release changes
+# the site without changing a file in it. A preview is compared with the last commit Vercel built for its branch,
 # or for a branch's first push with where it left `main`, and a base that
 # cannot be read is a build. Building a preview nobody needed costs seconds;
 # skipping one that was needed leaves a pull request without its preview.
@@ -30,8 +30,8 @@ build() {
     exit 1
 }
 
-if [ "${VERCEL_ENV:-}" = production ]; then
-    build "because production always builds"
+if [ "${VERCEL_ENV:-}" != preview ]; then
+    build "because only a preview is ever skipped"
 fi
 
 # Vercel clones ten commits deep, so the last built commit may be older than the

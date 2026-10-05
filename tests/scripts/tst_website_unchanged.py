@@ -69,9 +69,10 @@ class WebsiteUnchangedTest(unittest.TestCase):
         git(self.clone, "commit", "--quiet", "--allow-empty", "-m", "chore: change")
         return self.head()
 
-    def answer(self, previous: str | None, environment: str = "preview") -> int:
+    def answer(self, previous: str | None, environment: str | None = "preview") -> int:
         env = {k: v for k, v in os.environ.items() if not k.startswith("VERCEL_")}
-        env["VERCEL_ENV"] = environment
+        if environment is not None:
+            env["VERCEL_ENV"] = environment
         if previous is not None:
             env["VERCEL_GIT_PREVIOUS_SHA"] = previous
         result = subprocess.run(
@@ -110,6 +111,12 @@ class WebsiteUnchangedTest(unittest.TestCase):
         self.commit(["src/main.cpp"])
         self.assertEqual(self.answer(self.main, "production"), BUILD)
         self.assertEqual(self.answer(self.head(), "production"), BUILD)
+
+    def test_an_unnamed_environment_builds(self) -> None:
+        # Production's guard must not rest on Vercel naming it: without the
+        # name, the website branch would be compared like any other.
+        self.commit(["src/main.cpp"])
+        self.assertEqual(self.answer(self.head(), None), BUILD)
 
     def test_every_push_since_the_last_build_counts(self) -> None:
         self.commit(["website/styles.css"])
