@@ -7670,6 +7670,27 @@ TestCase {
         SystemMotion.reduced = false;
     }
 
+    // A popup-sized Glance stands in the middle of the page area on whole
+    // pixels, whether the room around it is odd or even: on half a pixel the
+    // page is drawn split along its diagonal (#567).
+    function test_aPopupSizedGlanceRestsOnWholePixels() {
+        openPage("https://popup-room.example");
+        const glance = openGlance("https://popup.example/page");
+        const panel = findChild(glance, "glancePanel");
+        const pageHost = findChild(glance, "glancePageHost");
+        tryCompare(glance, "arrival", 1);
+        for (const size of [Qt.size(400, 600), Qt.size(401, 601)]) {
+            glance.preferredSize = size;
+            const corner = pageHost.mapToItem(null, 0, 0);
+            compare(corner.x, Math.round(corner.x), "the page rests between pixels across");
+            compare(corner.y, Math.round(corner.y), "the page rests between pixels down");
+            fuzzyCompare(panel.x + panel.width / 2, glance.width / 2, 0.5);
+            fuzzyCompare(panel.y + panel.height / 2, glance.height / 2, 0.5);
+        }
+        glance.preferredSize = Qt.size(0, 0);
+        window.closeGlance();
+    }
+
     // The Glance is the reader's to refuse, from Settings, and the refusal
     // survives a restart because it is a preference like the others there.
     function test_theGlanceIsRefusedFromSettings() {

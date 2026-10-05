@@ -82,13 +82,15 @@ FocusScope {
     // A panel the size of the page area sits where the page would. One the
     // size of a popup stands in the middle of it, because a small panel pinned
     // to a corner reads as something that slipped rather than something that
-    // opened.
-    readonly property real restX: root.preferredSize.width > 0 ? Math.max(root.inset, (width
-                                                                                       - root.restWidth)
-                                                                          / 2) : root.inset
-    readonly property real restY: root.preferredSize.height > 0 ? Math.max(root.inset, (height
-                                                                                        - root.restHeight)
-                                                                           / 2) : root.inset
+    // opened. Rounded, because the middle of an odd room is half a pixel: the
+    // page's texture is drawn as two triangles, and at half a pixel each one
+    // rounds the other way, which splits the page along its diagonal.
+    readonly property real restX: root.preferredSize.width > 0 ? root.centred(width,
+                                                                              root.restWidth) :
+                                                                 root.inset
+    readonly property real restY: root.preferredSize.height > 0 ? root.centred(height,
+                                                                               root.restHeight) :
+                                                                  root.inset
 
     // Where the panel starts and ends: the link, or its own place a sheet's
     // lift below.
@@ -96,6 +98,10 @@ FocusScope {
     readonly property real fromY: fromOrigin ? origin.y : inset + 24
     readonly property real fromWidth: fromOrigin ? origin.width : restWidth
     readonly property real fromHeight: fromOrigin ? origin.height : restHeight
+
+    function centred(room, size) {
+        return Math.max(root.inset, Math.round((room - size) / 2));
+    }
 
     function lerp(a, b) {
         return a + (b - a) * arrival;
