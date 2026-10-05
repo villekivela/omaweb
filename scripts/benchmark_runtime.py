@@ -15,7 +15,8 @@ Five measurements, each its own subcommand so a developer can run the one they a
 - `freezing` puts away a Space whose page allocates on a timer and reports how much it went on
   taking, which is the claim ADR 0033 makes and nothing checked.
 - `pageload` loads the same pages with Content blocking on and with the site switched off, and
-  reports what blocking added to each, which is the cost ADR 0050 measured once by hand.
+  reports what blocking added to each, which is the cost ADR 0050 measured once by hand. From the
+  same loads it reports how soon the fresh-host and known-host pages first painted, blocking on.
 
 This writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, which writes the measurements into the budget in this repository and appends them to
@@ -192,6 +193,10 @@ PAGELOAD_SPARES = 6
 # is what the rules cost.
 PAGELOAD_CASES = {"fresh": 40, "known": 4, "procedural": 4}
 
+# The cases whose pages are also held to how soon they first paint, with blocking on. A reader's
+# page is one of these two; the procedural case is there to price its rules, not to be a page.
+FIRST_CONTENTFUL_PAINT_CASES = ("fresh", "known")
+
 # One rule per operator and action the pinned parser reads, with the markup each is written against:
 # the fixture the matcher and the engine are tested with. The rules are rewritten for both page
 # hosts, so the page with the site switched off carries the same markup and the same rules, and only
@@ -245,6 +250,11 @@ PAGELOAD_TIMEOUT = 30.0
 # How often a page that has not gone on to the next one tells the server how far it got. A load
 # that reports goes on in well under a second, so only one that went quiet ever says it.
 PAGELOAD_STALL_MILLISECONDS = 5000
+
+# How long a page waits after its `load` event for the first contentful paint to reach its
+# timeline. The entry is added when the frame is presented, which on a slow runner can be after the
+# load event; a page that has not painted by this long reports none and fails the run.
+PAGELOAD_PAINT_MILLISECONDS = 5000
 
 # How much of the browser's own output a quiet load prints: enough to reach back past the page
 # before it, which is a title and a few messages.
@@ -950,10 +960,18 @@ def summarise_pageload(on: list[float], off: list[float]) -> PageLoadSummary:
 # starts when the load does. `loadEventStart` is when every image had arrived or failed, measured
 # from the navigation starting, and the images that arrived are counted so that a load a rule cut
 # short cannot pass as a fast one. The server answers each report with the next page to go to.
+#
+# Its first contentful paint is on the same clock. The entry reaches the timeline when the frame is
+# presented, which can be after the load event, so the page watches for it rather than reading the
+# timeline once, and reports `null` if it has not come by the time it gives up.
 PAGELOAD_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>Omaweb page-load budget {number}</title>
 <script>
+  const painted = new Promise(resolve => new PerformanceObserver(list => {{
+    const entry = list.getEntriesByName("first-contentful-paint")[0];
+    if (entry) resolve(entry.startTime);
+  }}).observe({{ type: "paint", buffered: true }}));
   const failed = new Set();
   addEventListener("error", event => failed.add(event.target.src), true);
   let reporting = "not yet";
@@ -972,9 +990,14 @@ PAGELOAD_PAGE = """<!doctype html>
   addEventListener("load", () => setTimeout(async () => {{
     const entry = performance.getEntriesByType("navigation")[0];
     const missing = [...document.images].filter(image => image.naturalWidth === 0);
+    reporting = "waiting for its first contentful paint";
+    const firstContentfulPaint = await Promise.race([
+      painted, new Promise(resolve => setTimeout(() => resolve(null), {paint})),
+    ]);
     const report = {{
       number: {number},
       milliseconds: entry.loadEventStart,
+      firstContentfulPaint,
       missing: missing.map(image => image.src),
       failed: missing.filter(image => failed.has(image.src)).length,
     }};
@@ -1091,7 +1114,8 @@ class PageLoadSite:
         markup = procedural_fixture()[1] if load.case == "procedural" else ""
         return PAGELOAD_PAGE.format(number=number, images=images, markup=markup,
                                     settle=PAGELOAD_SETTLE_MILLISECONDS,
-                                    stall=PAGELOAD_STALL_MILLISECONDS).encode()
+                                    stall=PAGELOAD_STALL_MILLISECONDS,
+                                    paint=PAGELOAD_PAINT_MILLISECONDS).encode()
 
     def ready_page(self) -> bytes:
         return PAGELOAD_READY_PAGE.format(probe=PAGELOAD_PROBE_HOST, control=PAGELOAD_CONTROL_HOST,
@@ -1430,6 +1454,11 @@ def run_pageload(executable: str, private: bool) -> dict:
             "the engine cut short, which were not counted:")
         for number in site.repeated:
             log(f"    {site.describe_missing(plan[number])}")
+    return pageload_results(site)
+
+
+def pageload_results(site: PageLoadSite) -> dict:
+    """What blocking added to each case's page, and how soon the fresh and known pages painted."""
     results = {}
     for case, hosts in PAGELOAD_CASES.items():
         timings = {mode: [float(site.reports[load.number]["milliseconds"])
@@ -1439,6 +1468,20 @@ def run_pageload(executable: str, private: bool) -> dict:
             f"{summary.off:.1f} ms off, {summary.added:.1f} ms added "
             f"(medians of {PAGELOAD_LOADS} loads each)")
         results[f"pageload_{case}_hosts_milliseconds"] = summary.added
+    for case in FIRST_CONTENTFUL_PAINT_CASES:
+        paints = []
+        for load in site.counted(case, "on"):
+            paint = site.reports[load.number].get("firstContentfulPaint")
+            if paint is None:
+                raise MeasurementFailed(
+                    f"load {load.number} ({case} hosts, blocking on) has no first contentful "
+                    f"paint in its timeline after {PAGELOAD_PAINT_MILLISECONDS} ms")
+            paints.append(float(paint))
+        median = statistics.median(paints)
+        log(f"  first contentful paint, {PAGELOAD_CASES[case]} {case} hosts, blocking on: "
+            f"{median:.1f} ms (median of {len(paints)} loads, {min(paints):.1f} to "
+            f"{max(paints):.1f} ms)")
+        results[f"first_contentful_paint_{case}_hosts_milliseconds"] = median
     return results
 
 
@@ -1496,16 +1539,14 @@ def report(results: dict, budget: dict) -> int:
     """
     thresholds = budget["measurements"]
     crossed = 0
-    units = {"startup_seconds": "s", "pageload_fresh_hosts_milliseconds": "ms",
-             "pageload_known_hosts_milliseconds": "ms",
-             "pageload_procedural_hosts_milliseconds": "ms"}
+    units = {"_seconds": "s", "_milliseconds": "ms", "_mebibytes": "MiB"}
     log("")
     taken = budget["recorded_on"]
     log(f"ceilings recorded on: {budget['machine']}, {taken}" if taken else "ceilings: not yet")
     log("")
     for name, value in results.items():
         ceiling = thresholds[name]["ceiling"]
-        unit = units.get(name, "MiB")
+        unit = next((unit for suffix, unit in units.items() if name.endswith(suffix)), "MiB")
         over = value > ceiling
         crossed += int(over)
         log(f"{'CROSSED' if over else 'within '}  {name}: {value:.2f} {unit} "

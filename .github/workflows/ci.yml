@@ -212,13 +212,12 @@ jobs:
       # `performance/budget.json`. It measures the build this job has already
       # made, so it costs a few minutes rather than a second build.
       #
-      # Only what is stable without hardware: process start to the window
-      # mapping, the proportional set size of the process tree at rest and
-      # with Spaces open, whether a frozen Space's pages are still running,
-      # and what Content blocking adds to a page load. There is no GPU and no
-      # desktop here, so a paint timing measured in this container would be a
-      # software rasteriser's rather than a reader's, and those stay on the
-      # machines that have both.
+      # Process start to the window mapping, the proportional set size of the
+      # process tree at rest and with Spaces open, whether a frozen Space's
+      # pages are still running, what Content blocking adds to a page load,
+      # and how soon that page first paints. There is no GPU here, so the
+      # paint is a software rasteriser's: it is held against this runner's own
+      # recording to catch a regression, not to say what a reader sees.
       #
       # Cage runs the script rather than the other way round: started as a
       # sibling it would have to be asked which socket it opened, and started
@@ -237,7 +236,7 @@ jobs:
       # itself as root and points the container's resolver at it for the
       # measurement. The zone answers only the test names, so the resolver is
       # put back before anything else in the job needs the network.
-      - name: Measure startup, memory and page loads against the budget
+      - name: Measure startup, memory, page loads and paint against the budget
         run: |
           rm -f /tmp/budget.status
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh

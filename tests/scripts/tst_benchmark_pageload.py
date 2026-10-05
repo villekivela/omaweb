@@ -312,6 +312,61 @@ class ReportTest(unittest.TestCase):
         crossed, _ = self.reported({"pageload_known_hosts_milliseconds": 20.0})
         self.assertEqual(crossed, 0)
 
+    # Against the budget CI holds the browser to, so a first-paint ceiling missing from it, or one
+    # the step does not compare, fails here rather than as a run that never says CROSSED.
+    def test_a_page_that_paints_later_than_its_ceiling_fails_the_run(self):
+        self.budget = runtime.load_budget()
+        for case in runtime.FIRST_CONTENTFUL_PAINT_CASES:
+            name = f"first_contentful_paint_{case}_hosts_milliseconds"
+            ceiling = self.budget["measurements"][name]["ceiling"]
+            crossed, lines = self.reported({name: ceiling + 1.0})
+            self.assertEqual(crossed, 1, name)
+            self.assertIn(f"CROSSED  {name}: {ceiling + 1.0:.2f} ms against {ceiling:.2f} ms "
+                          "(-1.00 ms of headroom)", lines)
+            crossed, _ = self.reported({name: ceiling})
+            self.assertEqual(crossed, 0, name)
+
+
+class FirstPaintTest(unittest.TestCase):
+    """Each page's first contentful paint, from the blocking-on loads of the fresh and known cases."""
+
+    def setUp(self):
+        self.plan = runtime.pageload_plan(loads=3)
+        self.site = runtime.PageLoadSite(self.plan)
+        self.addCleanup(self.site.server.server_close)
+
+    def run_plan(self, paint):
+        """Reports every load as the browser would, each painting at `paint(load)`."""
+        answer = self.site.receive({"ready": True})
+        while answer:
+            load = self.plan[int(answer.rsplit("/", 1)[1])]
+            answer = self.site.receive({"number": load.number, "milliseconds": 100.0,
+                                        "firstContentfulPaint": paint(load), "missing": [],
+                                        "failed": 0})
+        return runtime.pageload_results(self.site)
+
+    def test_the_first_paint_is_the_median_of_each_cases_blocking_on_loads(self):
+        paints = {"fresh": iter([40.0, 90.0, 60.0]), "known": iter([30.0, 20.0, 25.0])}
+
+        def paint(load):
+            # Every other load paints far later, so a median that took one in would show it.
+            counted = load.measured and load.mode == "on" and load.case in paints
+            return next(paints[load.case]) if counted else 1000.0
+
+        results = self.run_plan(paint)
+        self.assertEqual(results["first_contentful_paint_fresh_hosts_milliseconds"], 60.0)
+        self.assertEqual(results["first_contentful_paint_known_hosts_milliseconds"], 25.0)
+        self.assertNotIn("first_contentful_paint_procedural_hosts_milliseconds", results)
+
+    # A page whose timeline never held the entry has no paint to hold to a ceiling, and a run that
+    # dropped it would report the median of the pages that did.
+    def test_a_counted_page_that_never_painted_fails_the_run(self):
+        unpainted = next(load for load in self.plan
+                         if load.case == "known" and load.measured and load.mode == "on")
+        with self.assertRaisesRegex(runtime.MeasurementFailed,
+                                    f"load {unpainted.number} .*no first contentful paint"):
+            self.run_plan(lambda load: None if load is unpainted else 50.0)
+
 
 class RecordTest(unittest.TestCase):
     """`--record` writes the budget back as one machine's measurements, not another's."""
