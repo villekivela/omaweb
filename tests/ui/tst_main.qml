@@ -7928,9 +7928,12 @@ TestCase {
     }
 
     // Qt Quick maps a position through single-precision matrices, so one on a
-    // pixel can read a hair off it: 325.99998 for 326 at a scale of 1.25.
+    // pixel can read a hair off it, and the further from the origin, the more:
+    // 325.99998 for 326 at a scale of 1.25, and 1003.9978 for 1004 in a GCC
+    // build. A hundredth of a pixel allows for that and is still far below the
+    // smallest offset these tests guard, 0.2 pixels at a scale of 1.6.
     function verifyOnDevicePixel(position, message) {
-        verify(Math.abs(position - Math.round(position)) < 0.001, message + ": " + position);
+        verify(Math.abs(position - Math.round(position)) < 0.01, message + ": " + position);
     }
 
     function openGlance(requestedUrl) {
