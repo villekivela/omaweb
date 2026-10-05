@@ -1187,7 +1187,8 @@ about four times it for the two startup probes, seven and ten times for the tab 
 frame, which are under ten milliseconds, where scheduling jitter is a larger share of a sample than
 the machine is, and about twice for memory. The three session writes hold the 2 ms that #214 set as
 the point to take them off the interface thread, which is the bound they were moved for rather than
-a margin over their first measurement. All eight run under `ctest --preset ci`.
+a margin over their first measurement. All eight run under `ctest --preset ci`, as do the
+[frame intervals](#frame-intervals) of the chrome's movements, which are held to a budget instead.
 
 Baseline measured on the initial macOS development machine, an Apple M2 Max on macOS 26.6.2, with
 the `dev` preset on 2026-09-12:
@@ -1260,6 +1261,80 @@ Set `QT_QPA_PLATFORM=offscreen` for the middle two, or `QT_QPA_PLATFORM=cocoa QS
 draw the frame probe through Metal and read what the frames cost the GPU. The Linux numbers are
 still to be taken: re-run on Linux hardware when it is available and record them here beside the
 macOS ones.
+
+### Frame intervals
+
+ADR 0007 lets Omaweb's own animation follow the display without holding the interface thread for
+more than one frame. Four probes in `tst_performance.qml` hold the chrome's movements to that: the
+sidebar leaving and coming back, a Space switch, the Omnibar opening over a Space of a hundred tabs
+and filtering them as a word is typed, and a Glance opening over a page and going. Each surface is
+opened and closed once unwatched, then five more times with every frame watched, over a page that
+redraws every frame, so the last movement is a closing and the next probe starts with nothing open.
+
+What is read is the time from each frame's end to the next one's, not the frame's cost: the cost is
+the scene graph's own, and a movement's script and layout run on the interface thread between
+frames, where the cost bracket does not see them. A frame that waited on one held frame arrives two
+frames after the last, so the ceiling is two frames at the display's refresh rate, 33.3 ms at 60 Hz.
+Each probe holds two numbers against it:
+
+- The 95th percentile of every interval watched, by nearest rank, with the slowest printed beside
+  it.
+- How many of the ten movements had any interval over the ceiling, at most one. A surface that holds
+  the interface thread once each time it opens has one held frame in about twenty, which the pooled
+  percentile lets through and this count does not. One in ten is allowed for a garbage collection or
+  a busy machine.
+
+A movement's intervals run until the next movement begins, so a frame held up by work a movement
+leaves for after it comes to rest is that movement's. Each movement is the pointer's, because after
+a key the chrome steps rather than eases, and each probe fails unless the surface's own position
+changed in at least three frames a movement: the page under it redraws every frame, so frames alone
+do not say the surface moved. The Omnibar's word is set into the field a letter at a time rather
+than sent as keys, because a compositor need not give the test window the keyboard.
+
+No surface holds the budget in CI yet. Each prints both budget lines with the reason it is over, and
+holds a guard instead: the same count of movements, at most one in ten, with a frame slower than the
+surface's guard rather than the ceiling. A guard sits over the slowest movement CI's runner has
+drawn. It catches a change that puts a frame over the guard in more than one movement, such as a
+stall on every opening, and nothing smaller: on CI a stall on each opening goes unnoticed under
+about 50 ms for the sidebar, 300 ms for a Space switch, 60 ms for the Omnibar and 25 ms for the
+Glance. The change that brings a surface inside removes its `overBudget` argument, and the budget is
+held.
+
+- The sidebar. When the seam settles, the page area takes its new width and the closed Shortcut
+  sheet packs its columns and builds them again for it, about 30 ms on the interface thread on the
+  offscreen platform.
+- A Space switch. Showing the arriving Space's page rebuilds the closed Shortcut sheet's sections,
+  about 100 ms before the slide's first frame on the offscreen platform.
+- The Omnibar. Each edit ranks the tabs and the commands up to three times: for the text, then for
+  the history answer and the engine answer as each arrives. On the GPU it is inside the budget.
+- The Glance. Inside the budget on this laptop and on the GPU, but on CI's runner three of its ten
+  movements hold a frame, at 36 to 40 ms.
+
+Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
+2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
+`arch-linux-gcc` jobs' runs of #588. GPU is three runs in the Hyprland session on the laptop's 60 Hz
+display, drawn through radeonsi:
+
+| Surface      | Offscreen p95 | Held, offscreen | CI p95        | CI slowest    | Held, CI | GPU p95     | Held, GPU | Guard  |
+| ------------ | ------------- | --------------- | ------------- | ------------- | -------- | ----------- | --------- | ------ |
+| Sidebar      | 45 to 50 ms   | 10 of 10        | 65 to 69 ms   | 67 to 99 ms   | 10       | 46 to 47 ms | 5 to 9    | 150 ms |
+| Space switch | 112 to 126 ms | 10 of 10        | 134 to 140 ms | 158 to 190 ms | 10       | 68 to 71 ms | 10        | 500 ms |
+| Omnibar      | 25 to 30 ms   | 2 to 5          | 36 to 40 ms   | 52 to 56 ms   | 5        | 20 to 22 ms | 0 to 1    | 120 ms |
+| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms   | 39 to 40 ms   | 3        | 17 ms       | 1         | 67 ms  |
+
+On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to
+35 ms. On the GPU the sidebar and the Space switch are over the budget too, and the Omnibar and the
+Glance are inside it. The software rasteriser draws no blur, so the Omnibar's glass, the Glance's
+backdrop and the sidebar's floating shelf are priced only by the GPU columns. Take those from a
+terminal in the session, where the test window opens over the desktop for about fifteen seconds:
+
+```sh
+QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1 build/ci/omaweb-ui-tests \
+    -input tests/ui/tst_performance.qml
+```
+
+The chromeless probe fails there, at 16.7 ms against 10 ms, because the CPU bracket includes the
+wait for the display, as [the floating strip's cost](#the-floating-strips-cost) describes for Metal.
 
 ### The runtime budget
 
