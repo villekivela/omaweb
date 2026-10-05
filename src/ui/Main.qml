@@ -3048,9 +3048,10 @@ ApplicationWindow {
             SpaceNotice {
                 id: spaceNotice
                 objectName: "spaceNotice"
-                x: chromeRow.settledSeam + (chromeRow.width - chromeRow.settledSeam - (
-                                                developerToolsDock.visible
-                                                ? developerToolsDock.width : 0) - width) / 2
+                x: Math.round(chromeRow.settledSeam + (chromeRow.width - chromeRow.settledSeam - (
+                                                           developerToolsDock.visible
+                                                           ? developerToolsDock.width : 0) - width)
+                              / 2)
                 z: 40
                 colors: window.colors
                 spaceName: window.windowBrowser.activeSpaceName
@@ -3289,8 +3290,8 @@ ApplicationWindow {
                 // One mark per pane: each page reports its own work, over its
                 // own half while a split is on show.
                 PageLoadingIndicator {
-                    x: engineLoader.x + engineLoader.activePaneX + (engineLoader.activePaneWidth
-                                                                    - width) / 2
+                    x: Math.round(engineLoader.x + engineLoader.activePaneX + (
+                                      engineLoader.activePaneWidth - width) / 2)
                     anchors.top: engineLoader.top
                     anchors.topMargin: 8
                     z: 3
@@ -3304,8 +3305,8 @@ ApplicationWindow {
 
                 PageLoadingIndicator {
                     objectName: "besideLoadingIndicator"
-                    x: engineLoader.x + engineLoader.besidePaneX + (engineLoader.besidePaneWidth
-                                                                    - width) / 2
+                    x: Math.round(engineLoader.x + engineLoader.besidePaneX + (
+                                      engineLoader.besidePaneWidth - width) / 2)
                     anchors.top: engineLoader.top
                     anchors.topMargin: 8
                     z: 3

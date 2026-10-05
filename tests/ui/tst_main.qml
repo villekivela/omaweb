@@ -7452,6 +7452,16 @@ TestCase {
 
     // A page's new-tab request, with the Glance on, and the Glance it opens:
     // over the page, with the requested address, adding no tab.
+    // Fails where an item rests between pixels: there its edges and text are
+    // drawn soft, and a page's texture splits along its diagonal (#567).
+    function verifyOnWholePixels(item, name, axes) {
+        const corner = item.mapToItem(null, 0, 0);
+        if (axes !== "y")
+            compare(corner.x, Math.round(corner.x), name + " rests between pixels across");
+        if (axes !== "x")
+            compare(corner.y, Math.round(corner.y), name + " rests between pixels down");
+    }
+
     function openGlance(requestedUrl) {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const glance = findChild(window.contentItem, "glance");
@@ -7671,54 +7681,141 @@ TestCase {
     }
 
     // A popup-sized Glance stands in the middle of the page area on whole
-    // pixels, whether the room around it is odd or even: on half a pixel the
-    // page is drawn split along its diagonal (#567).
+    // pixels, whether the room around it is odd or even, at two page-area
+    // widths: on half a pixel the page is drawn split along its diagonal.
     function test_aPopupSizedGlanceRestsOnWholePixels() {
         openPage("https://popup-room.example");
         const glance = openGlance("https://popup.example/page");
         const panel = findChild(glance, "glancePanel");
         const pageHost = findChild(glance, "glancePageHost");
         tryCompare(glance, "arrival", 1);
-        for (const size of [Qt.size(400, 600), Qt.size(401, 601)]) {
-            glance.preferredSize = size;
-            const corner = pageHost.mapToItem(null, 0, 0);
-            compare(corner.x, Math.round(corner.x), "the page rests between pixels across");
-            compare(corner.y, Math.round(corner.y), "the page rests between pixels down");
-            fuzzyCompare(panel.x + panel.width / 2, glance.width / 2, 0.5);
-            fuzzyCompare(panel.y + panel.height / 2, glance.height / 2, 0.5);
+        for (const oddPageArea of [0, 1]) {
+            window.setSidebarWidth(window.sidebarDefaultWidth + oddPageArea);
+            for (const size of [Qt.size(400, 600), Qt.size(401, 601)]) {
+                glance.preferredSize = size;
+                verifyOnWholePixels(pageHost, "the popup's page");
+                fuzzyCompare(panel.x + panel.width / 2, glance.width / 2, 0.5);
+                fuzzyCompare(panel.y + panel.height / 2, glance.height / 2, 0.5);
+            }
         }
         glance.preferredSize = Qt.size(0, 0);
         window.closeGlance();
     }
 
-    // The Omnibar and the Shortcut sheet stand in the middle of the page area
-    // on whole pixels, whether the page area is odd or even across: on half a
-    // pixel their borders and text are drawn soft (#567).
-    function test_centredPanelsRestOnWholePixels() {
+    // What stands in the middle of the page area rests on whole pixels whether
+    // the page area is odd or even across.
+    function test_centredChromeRestsOnWholePixels() {
         const frame = findChild(window.contentItem, "omnibarFrame");
+        const omnibar = findChild(window.contentItem, "omnibar");
         const sheet = findChild(window.contentItem, "shortcutSheet");
         const column = findChild(sheet, "shortcutSheetColumn");
-        const onWholePixels = function (item, name) {
-            const corner = item.mapToItem(null, 0, 0);
-            compare(corner.x, Math.round(corner.x), name + " rests between pixels across");
-            compare(corner.y, Math.round(corner.y), name + " rests between pixels down");
-        };
-        const width = window.sidebarWidth;
-        openPage("https://centred.example/");
-        for (const step of [0, 1]) {
-            window.sidebarWidth = window.sidebarMinimumWidth + 40 + step;
+        const notice = findChild(window.contentItem, "spaceNotice");
+        const mark = findChild(window.contentItem, "engineViewport").children.filter(function (
+            child) {
+            return child.objectName === "pageLoadingIndicator";
+        })[0];
+        const engine = openPage("https://centred.example/");
+        const homeId = browser.activeSpaceId;
+        const otherId = browser.createSpace("Centred Space");
+        for (const oddPageArea of [0, 1]) {
+            window.setSidebarWidth(window.sidebarDefaultWidth + oddPageArea);
+
             window.openOmnibar(false);
-            tryCompare(frame, "opacity", 1);
-            onWholePixels(frame, "the Omnibar");
+            tryCompare(frame, "y", omnibar.restY);
+            verifyOnWholePixels(frame, "the Omnibar");
             window.closeOmnibar();
-            tryCompare(findChild(window.contentItem, "omnibar"), "visible", false);
+            tryCompare(omnibar, "visible", false);
+
+            // The sheet's height on the page is its lift, which is motion.
             window.requestShortcuts();
-            tryCompare(sheet, "opacity", 1);
-            onWholePixels(column, "the Shortcut sheet");
+            tryCompare(sheet, "visible", true);
+            verifyOnWholePixels(column, "the Shortcut sheet", "x");
             window.shortcutsOpen = false;
             tryCompare(sheet, "visible", false);
+
+            engine.loading = true;
+            tryCompare(mark, "opacity", 1);
+            tryCompare(mark, "scale", 1);
+            verifyOnWholePixels(mark, "the loading mark", "x");
+            engine.loading = false;
+            tryCompare(mark, "opacity", 0);
+
+            // The notice drops in, so only where it stands across is at rest.
+            verify(browser.switchSpace(otherId));
+            tryVerify(function () {
+                return notice.visible;
+            });
+            verifyOnWholePixels(notice, "the Space notice", "x");
+            verify(browser.switchSpace(homeId));
+            tryVerify(function () {
+                return !notice.visible;
+            }, 4000);
         }
-        window.sidebarWidth = width;
+        verify(browser.deleteSpace(otherId, "Centred Space"));
+    }
+
+    // The split's handle is centred on a one-pixel divider, so its middle is
+    // half a pixel in, and it rests on the pixel beside that instead. The
+    // loading mark over the pane beside stands in the middle of that pane.
+    function test_aSplitsHandleAndMarkRestOnWholePixels() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        openPage("https://handle-left.example/");
+        const leftTabId = browser.activeTabId;
+        browser.openInput("https://handle-right.example/", true);
+        const rightTabId = browser.activeTabId;
+        browser.activateTab(leftTabId);
+        verify(browser.addSplit(rightTabId));
+        tryCompare(engineHost, "besideEngine", engineHost.engines[rightTabId]);
+        const resizer = findChild(window.contentItem, "splitResizer");
+        tryCompare(resizer, "visible", true);
+        verifyOnWholePixels(resizer, "the split's handle", "x");
+        const besideMark = findChild(window.contentItem, "besideLoadingIndicator");
+        const beside = engineHost.besideEngine;
+        beside.loading = true;
+        tryCompare(besideMark, "opacity", 1);
+        tryCompare(besideMark, "scale", 1);
+        verifyOnWholePixels(besideMark, "the loading mark beside", "x");
+        beside.loading = false;
+        browser.closeTab(rightTabId);
+        browser.closeTab(leftTabId);
+    }
+
+    // A pinned tab's icon stands in the middle of its tile, at two sidebar
+    // widths a pixel apart.
+    function test_aPinnedTabsIconRestsOnWholePixels() {
+        openPage("https://pinned-pixels.example");
+        const tabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null;
+        });
+        const tile = findChild(findChild(window.contentItem, "pinned-" + tabId), "siteTile-"
+                               + tabId);
+        for (const oddSidebar of [0, 1]) {
+            window.setSidebarWidth(window.sidebarDefaultWidth + oddSidebar);
+            verifyOnWholePixels(tile, "a pinned tab's icon", "x");
+        }
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
+    }
+
+    // A suggestion without a second line stands in the middle of its row,
+    // whichever way the font's height leaves the room around it.
+    function test_aSuggestionsTextRestsOnWholePixels() {
+        const engine = openPage("https://forms-pixels.example/");
+        submitForm(engine, "pixel-field", ["alpha"]);
+        engine.simulateFormFieldFocus("pixel-field", "", 100, 200, 240, 30);
+        const list = formSuggestions();
+        tryVerify(function () {
+            return list.shown;
+        });
+        const text = findChild(findChild(list, "suggestionRow0"), "suggestionText");
+        // A font's line is an odd or an even number of pixels tall.
+        for (const taller of [0, 1]) {
+            text.height = text.implicitHeight + taller;
+            verifyOnWholePixels(text, "a suggestion's text", "y");
+        }
+        engine.simulateFormFieldBlur();
     }
 
     // The Glance is the reader's to refuse, from Settings, and the refusal

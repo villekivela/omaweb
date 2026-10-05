@@ -19,6 +19,9 @@ cached, and archived files keep their upstream or historical formatting.
   `-Wpedantic` for first-party targets.
 - QML uses `.qmlformat.ini`, including semicolons for JavaScript statements. Qt's `qmllint` rejects
   syntax errors and the high-signal warning categories configured in `.qmllint.ini`.
+- A QML position worked out by halving, such as centring by hand, is wrapped in `Math.round`. On
+  half a pixel, borders and text are drawn soft and a page's texture splits along its diagonal
+  (#567). `anchors.centerIn` and the centre anchors round already.
 - JavaScript uses the repository's Prettier configuration and strict equality.
 - Python follows PEP 8 with four-space indentation. Scripts must run with the supported Python 3
   interpreter and use only declared dependencies.
