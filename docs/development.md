@@ -1271,6 +1271,11 @@ and filtering them as a word is typed, and a Glance opening over a page and goin
 opened and closed once unwatched, then five more times with every frame watched, over a page that
 redraws every frame, so the last movement is a closing and the next probe starts with nothing open.
 
+A fifth probe watches the Shortcut sheet's openings one at a time, since each is a different one:
+the window's first, one over the Start page, and one over a page after it, whose commands differ
+from the Start page's. Each opening's slowest interval is held to the ceiling, from the frame before
+the input to the frame the sheet rests in.
+
 What is read is the time from each frame's end to the next one's, not the frame's cost: the cost is
 the scene graph's own, and a movement's script and layout run on the interface thread between
 frames, where the cost bracket does not see them. A frame that waited on one held frame arrives two
@@ -1305,17 +1310,11 @@ the budget is held.
 - The Glance. Inside the budget on this laptop and on the GPU, but on CI's runner three of its ten
   movements hold a frame, at 36 to 40 ms.
 
-The sidebar and a Space switch were over the budget until #594, because what the reader could not
-see kept laying itself out. When the sidebar's seam settled, the page area took its new width, and
-the closed Shortcut sheet packed its columns and built them again for it, about 30 ms on the
-interface thread on the offscreen platform. The closed Settings page laid every row out again at
-that width, and so did every page the window kept for a tab not on show, a cost that grew with what
-the suites before the probe had left behind. Showing the arriving Space's page rebuilt the closed
-sheet's sections, about 100 ms before the slide's first frame, and working that list out asked the
-command registry about every command, which cost another frame. A closed sheet now lists nothing and
-keeps the layout it last drew, closed Settings keeps the width it was last drawn at, and a hidden
-page other than an Agent tab's keeps the width it had when it was hidden. Each one lays out when it
-is shown again.
+What the reader cannot see lays nothing out while the chrome moves. A closed Shortcut sheet lists
+nothing and keeps the rows it laid out when the window started or when it last opened; it works its
+list out and takes the page area's width as it opens. Closed Settings keeps the width it was last
+drawn at. The UI lab's stand-in page follows the page area's width only while it is drawn, since a
+real engine's hidden view costs the interface thread nothing at a new width.
 
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
@@ -1328,7 +1327,7 @@ because the sidebar was still over:
 
 | Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI | GPU p95     | Held, GPU | Guard  |
 | ------------ | ------------- | --------------- | ----------- | ----------- | -------- | ----------- | --------- | ------ |
-| Sidebar      | 19 ms         | 0               | under 33 ms | not printed | 0 to 1   | 17 ms       | 0         | none   |
+| Sidebar      | 19 ms         | 0               | passed      | not printed | passed   | 17 ms       | 0         | none   |
 | Space switch | 17 ms         | 0 to 1          | 17 ms       | 23 to 28 ms | 0        | 17 ms       | 0         | none   |
 | Omnibar      | 25 to 30 ms   | 2 to 5          | 36 to 40 ms | 52 to 56 ms | 5        | 20 to 22 ms | 0 to 1    | 120 ms |
 | Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3        | 17 ms       | 1         | 67 ms  |
