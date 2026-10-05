@@ -2315,6 +2315,10 @@
         <translation>tilat</translation>
     </message>
     <message>
+        <source>addresses</source>
+        <translation>osoitteet</translation>
+    </message>
+    <message>
         <source>agents</source>
         <translation>agentit</translation>
     </message>
@@ -3050,6 +3054,100 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Unsupported preview: engine below the approved baseline</source>
         <translation>Tukematon esiversio: moottori hyväksytyn tason alapuolella</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <comment>an address: its name · street, city</comment>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>Muokkaa</translation>
+    </message>
+    <message>
+        <source>No saved addresses</source>
+        <translation>Ei tallennettuja osoitteita</translation>
+    </message>
+    <message>
+        <source>Addresses are saved in a regular window.</source>
+        <translation>Osoitteet tallennetaan tavallisessa ikkunassa.</translation>
+    </message>
+    <message>
+        <source>Addresses you save here are offered in forms in every Space, never in a Private window.</source>
+        <translation>Tähän tallentamasi osoitteet tarjotaan lomakkeisiin jokaisessa tilassa, ei koskaan yksityisessä ikkunassa.</translation>
+    </message>
+    <message>
+        <source>Add address</source>
+        <translation>Lisää osoite</translation>
+    </message>
+    <message>
+        <source>edit address</source>
+        <translation>muokkaa osoitetta</translation>
+    </message>
+    <message>
+        <source>add an address</source>
+        <translation>lisää osoite</translation>
+    </message>
+    <message>
+        <source>name</source>
+        <comment>placeholder: the name an address is for</comment>
+        <translation>nimi</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Nimi</translation>
+    </message>
+    <message>
+        <source>street</source>
+        <translation>katuosoite</translation>
+    </message>
+    <message>
+        <source>Street</source>
+        <translation>Katuosoite</translation>
+    </message>
+    <message>
+        <source>postal code</source>
+        <translation>postinumero</translation>
+    </message>
+    <message>
+        <source>Postal code</source>
+        <translation>Postinumero</translation>
+    </message>
+    <message>
+        <source>city</source>
+        <translation>kaupunki</translation>
+    </message>
+    <message>
+        <source>City</source>
+        <translation>Kaupunki</translation>
+    </message>
+    <message>
+        <source>country</source>
+        <translation>maa</translation>
+    </message>
+    <message>
+        <source>Country</source>
+        <translation>Maa</translation>
+    </message>
+    <message>
+        <source>phone</source>
+        <translation>puhelin</translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <translation>Puhelin</translation>
+    </message>
+    <message>
+        <source>email</source>
+        <translation>sähköposti</translation>
+    </message>
+    <message>
+        <source>Email</source>
+        <translation>Sähköposti</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation>Tallenna</translation>
     </message>
     <message>
         <source>New Space</source>

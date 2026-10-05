@@ -186,10 +186,11 @@ Rectangle {
     // The keys the rest of the chrome finds a section by, and what the rail
     // calls each one, in the same order.
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "spaces", "agents", "extensions", "sync", "about"]
+        "downloads", "search", "privacy", "addresses", "spaces", "agents", "extensions", "sync",
+        "about"]
     readonly property var sectionTitles: [qsTr("tabs"), qsTr("interface"), qsTr("keyboard"), qsTr("content blocking"),
-        qsTr("network"), qsTr("downloads"), qsTr("search"), qsTr("privacy"), qsTr("spaces"), qsTr(
-            "agents"), qsTr("extensions"), qsTr("sync"), qsTr("about")]
+        qsTr("network"), qsTr("downloads"), qsTr("search"), qsTr("privacy"), qsTr("addresses"), qsTr(
+            "spaces"), qsTr("agents"), qsTr("extensions"), qsTr("sync"), qsTr("about")]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -430,9 +431,16 @@ Rectangle {
             event.accepted = true;
     }
 
+    // The reader's saved addresses, and the one open in the fields under the
+    // list: an id while one is edited, empty while a new one is added.
+    property var savedAddresses: []
+    property bool addressEditing: false
+    property string editingAddressId: ""
+
     function refresh() {
         if (!root.browser)
             return;
+        root.savedAddresses = root.browser.addresses();
         root.engines = root.browser.searchEngines();
         root.enginePresets = root.browser.searchEnginePresets();
         root.subscriptions = root.blocker ? root.blocker.subscriptions : [];
@@ -492,6 +500,49 @@ Rectangle {
     function deleteSearchEngine(id) {
         if (root.browser.deleteSearchEngine(id))
             root.refresh();
+    }
+
+    function addressDetail(address) {
+        return [address.street, address.city].filter(part => part.length > 0).join(", ");
+    }
+
+    // Opens the fields under the list, empty for a new address or holding the
+    // one being edited.
+    function editAddress(address) {
+        root.editingAddressId = address ? address.id : "";
+        addressName.text = address ? address.name : "";
+        addressStreet.text = address ? address.street : "";
+        addressPostalCode.text = address ? address.postalCode : "";
+        addressCity.text = address ? address.city : "";
+        addressCountry.text = address ? address.country : "";
+        addressPhone.text = address ? address.phone : "";
+        addressEmail.text = address ? address.email : "";
+        root.addressEditing = true;
+    }
+
+    function saveAddress() {
+        const saved = root.browser.saveAddress({
+                                                   "id": root.editingAddressId,
+                                                   "name": addressName.text,
+                                                   "street": addressStreet.text,
+                                                   "postalCode": addressPostalCode.text,
+                                                   "city": addressCity.text,
+                                                   "country": addressCountry.text,
+                                                   "phone": addressPhone.text,
+                                                   "email": addressEmail.text
+                                               });
+        if (saved.length === 0)
+            return;
+        root.addressEditing = false;
+        root.refresh();
+    }
+
+    function removeAddress(id) {
+        if (!root.browser.removeAddress(id))
+            return;
+        if (root.editingAddressId === id)
+            root.addressEditing = false;
+        root.refresh();
     }
 
     function searchEngineInstalled(id) {
@@ -2006,11 +2057,185 @@ Rectangle {
                     }
                 }
 
+                // ---- addresses ----------------------------------------------
+
+                // Saved addresses as rows, and the fields of the one being
+                // added or edited in place under them, the way a custom search
+                // engine's sit in their section.
+                Column {
+                    width: pane.width
+                    visible: root.section === 8
+                    spacing: pane.spacing
+
+                    Column {
+                        width: pane.width
+                        spacing: 0
+
+                        Repeater {
+                            id: addressList
+                            objectName: "addressList"
+                            model: root.section === 8 ? root.savedAddresses : []
+
+                            SettingRow {
+                                required property var modelData
+                                readonly property string detail: root.addressDetail(modelData)
+
+                                width: pane.width
+                                colors: root.colors
+                                title: detail.length > 0 ? qsTr("%1 · %2",
+                                                                "an address: its name · street, city").arg(
+                                                               modelData.name).arg(detail) :
+                                                           modelData.name
+
+                                Row {
+                                    spacing: Style.spacing.lg
+
+                                    ActionButton {
+                                        objectName: "editAddressButton"
+                                        colors: root.colors
+                                        label: qsTr("Edit")
+                                        onClicked: root.editAddress(modelData)
+                                    }
+
+                                    ActionButton {
+                                        objectName: "removeAddressButton"
+                                        colors: root.colors
+                                        label: qsTr("Remove")
+                                        destructive: true
+                                        onClicked: root.removeAddress(modelData.id)
+                                    }
+                                }
+                            }
+                        }
+
+                        SettingRow {
+                            objectName: "noAddresses"
+                            width: pane.width
+                            visible: root.savedAddresses.length === 0
+                            colors: root.colors
+                            title: qsTr("No saved addresses")
+                            note: root.browser && root.browser.privateBrowsing ? qsTr(
+                                                                                     "Addresses are saved in a regular window.") :
+                                                                                 qsTr("Addresses you save here are offered in forms in every Space, never in a Private window.")
+                        }
+                    }
+
+                    ActionButton {
+                        objectName: "addAddressButton"
+                        colors: root.colors
+                        label: qsTr("Add address")
+                        visible: !root.addressEditing && (root.browser ?
+                                                              !root.browser.privateBrowsing : false)
+                        onClicked: root.editAddress(null)
+                    }
+
+                    Column {
+                        width: pane.width
+                        visible: root.addressEditing
+                        spacing: pane.spacing
+
+                        SectionLabel {
+                            colors: root.colors
+                            text: root.editingAddressId.length > 0 ? qsTr("edit address") : qsTr(
+                                                                         "add an address")
+                        }
+
+                        SettingField {
+                            id: addressName
+                            objectName: "addressName"
+                            width: pane.width
+                            colors: root.colors
+                            placeholder: qsTr("name", "placeholder: the name an address is for")
+                            accessibleName: qsTr("Name")
+                        }
+
+                        SettingField {
+                            id: addressStreet
+                            objectName: "addressStreet"
+                            width: pane.width
+                            colors: root.colors
+                            placeholder: qsTr("street")
+                            accessibleName: qsTr("Street")
+                        }
+
+                        Row {
+                            id: addressPlaceRow
+                            width: pane.width
+                            spacing: Style.spacing.lg
+
+                            SettingField {
+                                id: addressPostalCode
+                                objectName: "addressPostalCode"
+                                width: (addressPlaceRow.width - addressPlaceRow.spacing) / 3
+                                colors: root.colors
+                                placeholder: qsTr("postal code")
+                                accessibleName: qsTr("Postal code")
+                            }
+
+                            SettingField {
+                                id: addressCity
+                                objectName: "addressCity"
+                                width: addressPlaceRow.width - addressPostalCode.width
+                                       - addressPlaceRow.spacing
+                                colors: root.colors
+                                placeholder: qsTr("city")
+                                accessibleName: qsTr("City")
+                            }
+                        }
+
+                        SettingField {
+                            id: addressCountry
+                            objectName: "addressCountry"
+                            width: pane.width
+                            colors: root.colors
+                            placeholder: qsTr("country")
+                            accessibleName: qsTr("Country")
+                        }
+
+                        SettingField {
+                            id: addressPhone
+                            objectName: "addressPhone"
+                            width: pane.width
+                            colors: root.colors
+                            placeholder: qsTr("phone")
+                            accessibleName: qsTr("Phone")
+                        }
+
+                        SettingField {
+                            id: addressEmail
+                            objectName: "addressEmail"
+                            width: pane.width
+                            colors: root.colors
+                            placeholder: qsTr("email")
+                            accessibleName: qsTr("Email")
+                        }
+
+                        Row {
+                            spacing: Style.spacing.lg
+
+                            ActionButton {
+                                objectName: "saveAddressButton"
+                                colors: root.colors
+                                label: qsTr("Save")
+                                enabled: addressName.text.trim().length > 0
+                                onClicked: root.saveAddress()
+                            }
+
+                            ActionButton {
+                                objectName: "cancelAddressButton"
+                                colors: root.colors
+                                label: qsTr("Cancel")
+                                onClicked: root.addressEditing = false
+                            }
+                        }
+                    }
+                }
+
                 // ---- spaces -------------------------------------------------
 
                 Column {
                     width: pane.width
-                    visible: root.section === 8
+                    visible: root.section === 9
                     spacing: pane.spacing
 
                     ActionButton {
@@ -2218,7 +2443,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 9
+                    visible: root.section === 10
                     spacing: 0
 
                     // It opens the section, so it takes only the sliver a tall
@@ -2332,7 +2557,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 10
+                    visible: root.section === 11
                     spacing: pane.spacing
 
                     Text {
@@ -2397,7 +2622,7 @@ Rectangle {
                         visible: root.knownExtensionsAvailable && !root.privateWindow
 
                         Repeater {
-                            model: root.section === 10 ? root.knownExtensions : []
+                            model: root.section === 11 ? root.knownExtensions : []
 
                             SettingToggle {
                                 required property var modelData
@@ -2433,7 +2658,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 11
+                    visible: root.section === 12
                     spacing: pane.spacing
 
                     Text {
@@ -2757,7 +2982,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 12
+                    visible: root.section === 13
                     spacing: pane.spacing
 
                     Text {

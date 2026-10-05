@@ -978,6 +978,76 @@ bool SqliteSessionStore::clearFormHistorySince(const QString &spaceId, qint64 si
     return query.exec();
 }
 
+namespace {
+
+    // The fields of an address, by the key a map names them with and the
+    // column they are kept in.
+    const QList<std::pair<QString, QString>> &addressColumns()
+    {
+        static const QList<std::pair<QString, QString>> columns {
+            {QStringLiteral("name"), QStringLiteral("name")},
+            {QStringLiteral("street"), QStringLiteral("street")},
+            {QStringLiteral("postalCode"), QStringLiteral("postal_code")},
+            {QStringLiteral("city"), QStringLiteral("city")},
+            {QStringLiteral("country"), QStringLiteral("country")},
+            {QStringLiteral("phone"), QStringLiteral("phone")},
+            {QStringLiteral("email"), QStringLiteral("email")},
+        };
+        return columns;
+    }
+
+} // namespace
+
+QVariantList SqliteSessionStore::addresses() const
+{
+    QSqlQuery query(m_database);
+    QVariantList addresses;
+    if (!query.exec(QStringLiteral("SELECT id, name, street, postal_code, city, country, phone, "
+                                   "email FROM addresses ORDER BY position, rowid"))) {
+        return addresses;
+    }
+    while (query.next()) {
+        QVariantMap address {{QStringLiteral("id"), query.value(0).toString()}};
+        for (qsizetype index = 0; index < addressColumns().size(); ++index) {
+            address.insert(addressColumns().at(index).first,
+                query.value(static_cast<int>(index) + 1).toString());
+        }
+        addresses.append(address);
+    }
+    return addresses;
+}
+
+bool SqliteSessionStore::saveAddress(const QVariantMap &address)
+{
+    const auto id = address.value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) {
+        return false;
+    }
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO addresses(id, name, street, postal_code, city, country, phone, email, "
+        "position) VALUES(?, ?, ?, ?, ?, ?, ?, ?, "
+        "(SELECT COALESCE(MAX(position), 0) + 1 FROM addresses)) "
+        "ON CONFLICT(id) DO UPDATE SET name = excluded.name, street = excluded.street, "
+        "postal_code = excluded.postal_code, city = excluded.city, country = excluded.country, "
+        "phone = excluded.phone, email = excluded.email"));
+    query.addBindValue(id);
+    for (const auto &[key, column] : addressColumns()) {
+        // A field left empty is an empty string: a null one binds as NULL.
+        const auto value = address.value(key).toString();
+        query.addBindValue(value.isNull() ? QStringLiteral("") : value);
+    }
+    return query.exec();
+}
+
+bool SqliteSessionStore::deleteAddress(const QString &id)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM addresses WHERE id = ?"));
+    query.addBindValue(id);
+    return query.exec() && query.numRowsAffected() > 0;
+}
+
 bool SqliteSessionStore::recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
     const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {
@@ -1087,6 +1157,17 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
         CREATE TABLE IF NOT EXISTS preferences (
             name TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS addresses (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            street TEXT NOT NULL DEFAULT '',
+            postal_code TEXT NOT NULL DEFAULT '',
+            city TEXT NOT NULL DEFAULT '',
+            country TEXT NOT NULL DEFAULT '',
+            phone TEXT NOT NULL DEFAULT '',
+            email TEXT NOT NULL DEFAULT '',
+            position INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS downloads (
             id TEXT PRIMARY KEY,

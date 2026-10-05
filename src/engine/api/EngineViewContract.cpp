@@ -116,10 +116,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // come from where the reader pointed.
         {"pressOrigin", QMetaType::QRectF},
         // The focused field, when form history may keep what is typed into
-        // it, or else null: `name`, `value`, a `serial` that changes with each
-        // focus, and its `x`, `y`, `width` and `height` in the view's own
-        // coordinates. The page judges which fields qualify, because only the
-        // page knows how a field is marked; the shell draws the suggestions.
+        // it or an address could fill it, or else null: `name`, empty where
+        // form history keeps nothing, `address`, the field's address token or
+        // empty, `value`, a `serial` that changes with each focus, and its
+        // `x`, `y`, `width` and `height` in the view's own coordinates. The
+        // page judges which fields qualify, because only the page knows how a
+        // field is marked; the shell draws the suggestions.
         {"formField", QMetaType::QVariant},
         // Whether the view takes the keyboard when it is made. The shell makes
         // an Agent tab's page while the reader is looking at another, and an
@@ -208,6 +210,9 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // shown, and Enter and Shift+Delete only while a row is highlighted.
         {"showFormSuggestions", false, 2},
         {"fillFormField", false, 1},
+        // Fills every address field of the focused field's form from a saved
+        // address the reader picked.
+        {"fillAddress", false, 1},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},

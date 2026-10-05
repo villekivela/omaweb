@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "BrowserStateExchange.h"
 #include "EngineSuggestions.h"
 #include "HistoryQuery.h"
 #include "KnownExtensions.h"
@@ -195,6 +196,9 @@ private slots:
     void remembersNothingShapedLikeACardNumber();
     void clearingFormHistoryClearsItForTheSpace();
     void aDeletedSpaceIsGivenNoFormHistoryDatabaseBack();
+    void keepsAddressesForEverySpaceAcrossRestarts();
+    void savesNoAddressWithoutAName();
+    void keepsAddressesOutOfSync();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void remembersOnlyThePermissionsThatMayBeRemembered();
     void listsAndResetsOneSitesPermissionsWithinItsSpace();
@@ -2351,6 +2355,20 @@ void exerciseFormHistory(Window window)
         allowed ? QStringList {QStringLiteral("night radio")} : QStringList {});
 }
 
+void exerciseAddresses(Window window)
+{
+    const bool allowed = window == Window::Main;
+    QTemporaryDir root;
+    PrivateSessionFixture privateSession;
+    auto controller = makeControllerFor(window, root.path(), privateSession);
+
+    const auto id = controller->saveAddress({{QStringLiteral("name"), QStringLiteral("Ville")}});
+
+    QCOMPARE(!id.isEmpty(), allowed);
+    QCOMPARE(controller->addresses().size(), allowed ? 1 : 0);
+    QCOMPARE(controller->removeAddress(id), allowed);
+}
+
 void exerciseEngineSuggestions(Window window)
 {
     const bool allowed = window == Window::Main;
@@ -2394,6 +2412,7 @@ void BrowserControllerTest::allowsEveryWindowCapabilityInAMainWindow()
     exerciseEngineSuggestions(Window::Main);
     exerciseClearBrowsingData(Window::Main);
     exerciseFormHistory(Window::Main);
+    exerciseAddresses(Window::Main);
 }
 
 void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
@@ -2404,6 +2423,7 @@ void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
     exerciseEngineSuggestions(Window::Private);
     exerciseClearBrowsingData(Window::Private);
     exerciseFormHistory(Window::Private);
+    exerciseAddresses(Window::Private);
 }
 
 void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
@@ -2514,6 +2534,122 @@ void BrowserControllerTest::clearingFormHistoryClearsItForTheSpace()
     QCOMPARE(controller.formHistory(workSpaceId, QStringLiteral("email")),
         QStringList {QStringLiteral("me@work.example")});
     QCOMPARE(controller.history({}).size(), 1);
+}
+
+namespace {
+
+QVariantMap homeAddress()
+{
+    return {{QStringLiteral("name"), QStringLiteral(" Ville Kivelä ")},
+        {QStringLiteral("street"), QStringLiteral("Rantakatu 1 A 2")},
+        {QStringLiteral("postalCode"), QStringLiteral("90100")},
+        {QStringLiteral("city"), QStringLiteral("Oulu")},
+        {QStringLiteral("country"), QStringLiteral("Finland")},
+        {QStringLiteral("phone"), QStringLiteral("+358 40 123 4567")},
+        {QStringLiteral("email"), QStringLiteral("ville@home.example")},
+        {QStringLiteral("nickname"), QStringLiteral("not a field of an address")}};
+}
+
+} // namespace
+
+// Addresses are the reader's, not a Space's: one list, offered in every
+// Space, kept across a restart, in the order they were added. What is kept
+// is what was typed, trimmed, and only the fields an address has.
+void BrowserControllerTest::keepsAddressesForEverySpaceAcrossRestarts()
+{
+    QTemporaryDir root;
+    const SpaceStorage storage(root.path(), QStringLiteral("test"));
+    QString homeId;
+    QString workId;
+    {
+        BrowserController controller(storage);
+        homeId = controller.saveAddress(homeAddress());
+        workId = controller.saveAddress({{QStringLiteral("name"), QStringLiteral("Ville")},
+            {QStringLiteral("street"), QStringLiteral("Tehtaankatu 5")},
+            {QStringLiteral("city"), QStringLiteral("Helsinki")}});
+        QVERIFY(!homeId.isEmpty());
+        QVERIFY(!workId.isEmpty());
+        QVERIFY(homeId != workId);
+        const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QCOMPARE(controller.addresses().size(), 2);
+
+        // Saving with an id edits that address in place.
+        auto edited = homeAddress();
+        edited.insert(QStringLiteral("id"), homeId);
+        edited.insert(QStringLiteral("street"), QStringLiteral("Rantakatu 3"));
+        edited.insert(QStringLiteral("phone"), QString());
+        QCOMPARE(controller.saveAddress(edited), homeId);
+        // An id nothing was saved under is not a way to add one.
+        edited.insert(QStringLiteral("id"), QStringLiteral("unknown"));
+        QVERIFY(controller.saveAddress(edited).isEmpty());
+    }
+
+    BrowserController restored(storage);
+    const QVariantList expected {
+        QVariantMap {{QStringLiteral("id"), homeId},
+            {QStringLiteral("name"), QStringLiteral("Ville Kivelä")},
+            {QStringLiteral("street"), QStringLiteral("Rantakatu 3")},
+            {QStringLiteral("postalCode"), QStringLiteral("90100")},
+            {QStringLiteral("city"), QStringLiteral("Oulu")},
+            {QStringLiteral("country"), QStringLiteral("Finland")},
+            {QStringLiteral("phone"), QString()},
+            {QStringLiteral("email"), QStringLiteral("ville@home.example")}},
+        QVariantMap {{QStringLiteral("id"), workId},
+            {QStringLiteral("name"), QStringLiteral("Ville")},
+            {QStringLiteral("street"), QStringLiteral("Tehtaankatu 5")},
+            {QStringLiteral("postalCode"), QString()},
+            {QStringLiteral("city"), QStringLiteral("Helsinki")},
+            {QStringLiteral("country"), QString()}, {QStringLiteral("phone"), QString()},
+            {QStringLiteral("email"), QString()}},
+    };
+    QCOMPARE(restored.addresses(), expected);
+
+    QVERIFY(restored.removeAddress(homeId));
+    QVERIFY(!restored.removeAddress(homeId));
+    QCOMPARE(restored.addresses().size(), 1);
+    QCOMPARE(
+        restored.addresses().constFirst().toMap().value(QStringLiteral("id")).toString(), workId);
+}
+
+// The name is what the suggestion list and Settings show an address by.
+void BrowserControllerTest::savesNoAddressWithoutAName()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    auto nameless = homeAddress();
+    nameless.insert(QStringLiteral("name"), QStringLiteral("  "));
+
+    QVERIFY(controller.saveAddress(nameless).isEmpty());
+    QVERIFY(controller.addresses().isEmpty());
+}
+
+// Sync carries a projection of the browser, and addresses are not in it:
+// saving, editing or removing one is not a change Sync hears of, and what it
+// would upload holds none of it.
+void BrowserControllerTest::keepsAddressesOutOfSync()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    const omaweb::BrowserStateExchangeAdapter exchange(
+        &controller, nullptr, nullptr, root.path(), config.path());
+    QSignalSpy changed(&exchange, &omaweb::BrowserStateExchange::possiblyChanged);
+    const omaweb::BrowserStateSelection everything {
+        {QStringLiteral("address"), QStringLiteral("addresses")}, true, true};
+
+    const auto id = controller.saveAddress(homeAddress());
+    QVERIFY(!id.isEmpty());
+    auto edited = homeAddress();
+    edited.insert(QStringLiteral("id"), id);
+    edited.insert(QStringLiteral("city"), QStringLiteral("Kempele"));
+    QCOMPARE(controller.saveAddress(edited), id);
+
+    QCOMPARE(changed.count(), 0);
+    const auto image = exchange.capture(everything);
+    QVERIFY(image.preferences.isEmpty());
+    QVERIFY(controller.removeAddress(id));
+    QCOMPARE(changed.count(), 0);
 }
 
 // A page of a Space being deleted can still submit, and the list can still

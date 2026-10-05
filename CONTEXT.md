@@ -233,6 +233,12 @@ Password fields, fields the page marks not to be remembered, and card numbers ar
 Private window keeps and offers none, and it is outside the Sync projection. _Avoid_: Autocomplete,
 autofill, saved form data
 
+**Address**: A name, street, postal code, city, country, phone and email the reader saved in
+Settings to fill forms with. Addresses are the reader's rather than a Space's, offered in every
+Space in the suggestion list under a field the page marks as part of an address, and accepting one
+fills the address fields of that form. A Private window offers none, and they are outside the Sync
+projection. _Avoid_: Autofill profile, contact
+
 **Engine suggestion**: A search term a search engine proposes for the text typed into the Omnibar so
 far. Omaweb asks for them only after the reader turns them on, never in a Private window, and only
 from an engine that names where to ask. Choosing one searches for it with the engine that proposed

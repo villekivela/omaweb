@@ -164,6 +164,7 @@ Item {
         root.formField = {
             "serial": Number(report.serial),
             "name": String(report.name),
+            "address": String(report.address || ""),
             "value": String(report.value),
             "x": Number(report.x) * scale,
             "y": Number(report.y) * scale,
@@ -184,6 +185,16 @@ Item {
         webView.runJavaScript(
                     "globalThis.__omawebFormHistory && globalThis.__omawebFormHistory.fill("
                     + JSON.stringify(String(value)) + ")", WebEngineScript.ApplicationWorld);
+    }
+    // Fills the focused field's form from a saved address, the reader having
+    // picked it. Only the fields an address has are sent.
+    function fillAddress(address) {
+        const fields = {};
+        for (const key of ["name", "street", "postalCode", "city", "country", "phone", "email"])
+            fields[key] = address && address[key] !== undefined ? String(address[key]) : "";
+        webView.runJavaScript(
+                    "globalThis.__omawebFormHistory && globalThis.__omawebFormHistory.fillAddress("
+                    + JSON.stringify(fields) + ")", WebEngineScript.ApplicationWorld);
     }
     property var editedStateScript: {
         const script = WebEngine.script();
@@ -2583,6 +2594,48 @@ Item {
                     return false;
                 return true;
             };
+            // The tokens an address fills: a field's last token, after any
+            // section, shipping or billing, and contact word before it.
+            const addressTokens = ['name', 'given-name', 'family-name', 'street-address',
+                'address-line1', 'postal-code', 'address-level2', 'country', 'country-name',
+                'tel', 'tel-national', 'email'];
+            const addressToken = element => {
+                const own = tokens(element).filter(token => token !== 'webauthn');
+                const token = own.length ? own[own.length - 1] : '';
+                return addressTokens.includes(token) ? token : '';
+            };
+            // A field the reader could type an address into, which offers the
+            // saved addresses whether or not form history could keep it.
+            const offersAddress = element => element instanceof HTMLInputElement
+                && textTypes.includes(element.type) && !element.readOnly && !element.disabled
+                && addressToken(element) !== '';
+            const addressValue = (address, token) => {
+                const name = String(address.name || '').trim();
+                const split = name.lastIndexOf(' ');
+                switch (token) {
+                case 'name': return name;
+                case 'given-name': return split < 0 ? name : name.slice(0, split);
+                case 'family-name': return split < 0 ? '' : name.slice(split + 1);
+                case 'street-address': case 'address-line1': return address.street;
+                case 'postal-code': return address.postalCode;
+                case 'address-level2': return address.city;
+                case 'country': case 'country-name': return address.country;
+                case 'tel': case 'tel-national': return address.phone;
+                case 'email': return address.email;
+                }
+                return '';
+            };
+            // A field an address may go into: one the reader could type into
+            // and can see. A page that hides a field must not be handed what
+            // the reader did not see go into it.
+            const fillable = element => {
+                const kind = element instanceof HTMLInputElement
+                    ? textTypes.includes(element.type)
+                    : element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement;
+                return kind && !element.disabled && !element.readOnly
+                    && element.getClientRects().length > 0
+                    && getComputedStyle(element).visibility !== 'hidden';
+            };
             // The fields the reader typed into, or filled from the list. A
             // value the page wrote or sent prefilled is not the reader's.
             const typed = new WeakSet();
@@ -2594,7 +2647,9 @@ Item {
             const send = () => {
                 if (!current) return;
                 const rect = current.getBoundingClientRect();
-                const field = {serial, name: fieldName(current), value: current.value,
+                const field = {serial, name: keeps(current) ? fieldName(current) : '',
+                    address: offersAddress(current) ? addressToken(current) : '',
+                    value: current.value,
                     x: rect.left, y: rect.top, width: rect.width, height: rect.height};
                 const encoded = JSON.stringify(field);
                 if (encoded === last) return;
@@ -2619,7 +2674,7 @@ Item {
                 report('form_field', null);
             };
             document.addEventListener('focusin', event => {
-                if (keeps(event.target)) adopt(event.target);
+                if (keeps(event.target) || offersAddress(event.target)) adopt(event.target);
                 else leave();
             }, true);
             document.addEventListener('focusout', event => {
@@ -2660,6 +2715,27 @@ Item {
                 if (key === 'escape' || key === 'accept') closeList();
                 report('form_key', key);
             }, true);
+            // Through the element's own setter, with the events typing would
+            // raise. A select takes the option whose value or text the
+            // address names, and is left alone when it has none.
+            const write = (element, text) => {
+                let value = text;
+                if (element instanceof HTMLSelectElement) {
+                    const wanted = text.toLowerCase();
+                    const option = [...element.options].find(option =>
+                        option.value.toLowerCase() === wanted
+                        || option.text.trim().toLowerCase() === wanted);
+                    if (!option) return;
+                    value = option.value;
+                }
+                const prototype = element instanceof HTMLSelectElement
+                    ? HTMLSelectElement.prototype
+                    : element instanceof HTMLTextAreaElement
+                        ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
+                element.dispatchEvent(new Event('input', {bubbles: true}));
+                element.dispatchEvent(new Event('change', {bubbles: true}));
+            };
             globalThis.__omawebFormHistory = {
                 show(isShown, isHighlighted) {
                     shown = isShown && current !== null;
@@ -2675,6 +2751,24 @@ Item {
                         .set.call(current, value);
                     current.dispatchEvent(new Event('input', {bubbles: true}));
                     current.dispatchEvent(new Event('change', {bubbles: true}));
+                    send();
+                },
+                // Every address field of the focused field's form, or of the
+                // page outside any form when it has none. What an address
+                // filled is the address's, not typed, so form history does
+                // not keep a second copy of it.
+                fillAddress(address) {
+                    if (!current || !offersAddress(current)) return;
+                    const scope = current.form ? [...current.form.elements]
+                        : [...document.querySelectorAll('input, select, textarea')]
+                            .filter(element => !element.form);
+                    for (const element of scope) {
+                        const token = addressToken(element);
+                        const value = token ? String(addressValue(address, token) || '') : '';
+                        if (!value || !fillable(element)) continue;
+                        typed.delete(element);
+                        write(element, value);
+                    }
                     send();
                 }
             };

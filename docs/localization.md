@@ -31,6 +31,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Shortcuts        | Pikanäppäimet         |                                                                                                 |
 | History          | Historia              |                                                                                                 |
 | Form history     | Lomakehistoria        | What a Space keeps of what was typed into forms.                                                |
+| Address          | Osoite                | A name, street and the rest the reader saved to fill forms with.                                |
 | Downloads        | Lataukset             |                                                                                                 |
 | Settings         | Asetukset             |                                                                                                 |
 | Engine           | Moottori              | The web engine that renders pages.                                                              |

@@ -442,6 +442,15 @@ public:
     Q_INVOKABLE QStringList formHistory(const QString &spaceId, const QString &field) const;
     Q_INVOKABLE bool forgetFormEntry(
         const QString &spaceId, const QString &field, const QString &value);
+    // Addresses: the reader's own, offered in every Space and never in a
+    // Private window, whose store keeps none. Each is a map of `id`, `name`,
+    // `street`, `postalCode`, `city`, `country`, `phone` and `email`, in the
+    // order they were added.
+    Q_INVOKABLE QVariantList addresses() const;
+    // Adds the address, or edits the one its `id` names, and answers its id,
+    // or nothing when it was not kept: an address needs a name.
+    Q_INVOKABLE QString saveAddress(const QVariantMap &address);
+    Q_INVOKABLE bool removeAddress(const QString &id);
     Q_INVOKABLE bool clearBrowsingData(const QStringList &dataTypes, qint64 since,
         bool everySpace = false, const QString &confirmation = {});
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
