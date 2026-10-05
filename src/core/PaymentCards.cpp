@@ -106,7 +106,7 @@ void PaymentCards::read()
 
 void PaymentCards::readAgain()
 {
-    if (m_state != State::Unreadable) {
+    if (m_state != State::Unreachable && m_state != State::Locked && m_state != State::Failed) {
         return;
     }
     setState(State::Reading);
@@ -118,7 +118,8 @@ void PaymentCards::reread()
     auto *keyring = m_keyring.get();
     onWorker([this, keyring, generation = m_generation] {
         const bool available = keyring->available();
-        const auto items = available ? keyring->items() : std::nullopt;
+        const auto items
+            = available ? keyring->items() : std::unexpected(KeyringFailure::Unreachable);
         QMetaObject::invokeMethod(
             this,
             [this, available, items, generation] {
@@ -131,7 +132,17 @@ void PaymentCards::reread()
                     return;
                 }
                 if (!items) {
-                    setState(State::Unreadable);
+                    switch (items.error()) {
+                    case KeyringFailure::Unreachable:
+                        setState(State::Unreachable);
+                        break;
+                    case KeyringFailure::Locked:
+                        setState(State::Locked);
+                        break;
+                    case KeyringFailure::Failed:
+                        setState(State::Failed);
+                        break;
+                    }
                     return;
                 }
                 QList<Card> cards;
@@ -243,12 +254,16 @@ QVariantList PaymentCards::cards() const
 
 // The cards in memory are changed at once, and the keyring after; a keyring
 // that refuses the change is read again, so what is shown is what it holds.
+// A new card for a keyring the reader left locked is the reader asking again:
+// saving it has the desktop ask them to unlock the keyring, and the keyring
+// is read once it has answered.
 QString PaymentCards::save(const QVariantMap &card)
 {
-    if (m_state != State::Ready) {
+    const auto id = card.value(QStringLiteral("id")).toString();
+    const bool unlocking = m_state == State::Locked && id.isEmpty();
+    if (m_state != State::Ready && !unlocking) {
         return {};
     }
-    const auto id = card.value(QStringLiteral("id")).toString();
     const auto saved = std::find_if(
         m_cards.begin(), m_cards.end(), [&id](const Card &kept) { return kept.id == id; });
     if (!id.isEmpty() && saved == m_cards.end()) {
@@ -277,6 +292,13 @@ QString PaymentCards::save(const QVariantMap &card)
         .expiryYear = valid->second,
         .nickname = card.value(QStringLiteral("nickname")).toString().trimmed(),
         .added = saved == m_cards.end() ? QDateTime::currentMSecsSinceEpoch() : saved->added};
+    auto *keyring = m_keyring.get();
+    if (unlocking) {
+        setState(State::Reading);
+        onWorker([keyring, id = kept.id, secret = secretOf(kept)] { keyring->store(id, secret); });
+        reread();
+        return kept.id;
+    }
     if (saved == m_cards.end()) {
         m_cards.append(kept);
     } else {
@@ -284,7 +306,6 @@ QString PaymentCards::save(const QVariantMap &card)
     }
     emit changed();
 
-    auto *keyring = m_keyring.get();
     onWorker([this, keyring, id = kept.id, secret = secretOf(kept)] {
         if (!keyring->store(id, secret)) {
             QMetaObject::invokeMethod(this, [this] { reread(); }, Qt::QueuedConnection);

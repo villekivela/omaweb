@@ -485,6 +485,49 @@ Rectangle {
         }
     }
 
+    // What the section says with no card to list: where the keyring stands.
+    // Until the first read has finished there is no knowing whether it holds
+    // any. A keyring the reader left locked still takes a card, and saving one
+    // asks the desktop to unlock it again.
+    function keyringSays(state) {
+        switch (state) {
+        case "unread":
+        case "reading":
+            return {
+                "title": qsTr("Reading the keyring"),
+                "note": qsTr(
+                            "Omaweb is asking the desktop's keyring for the cards. The desktop may ask you to unlock it.")
+            };
+        case "ready":
+            return {
+                "title": qsTr("No saved cards"),
+                "note": qsTr(
+                            "Cards are kept in the desktop's keyring and offered in forms in every Space, never in a Private window. The security code is never kept.")
+            };
+        case "unreachable":
+            return {
+                "title": qsTr("Omaweb could not reach the keyring"),
+                "note": qsTr(
+                            "The session bus offers a secret store, and nothing answered for it. An Omaweb on a session bus of its own cannot reach the desktop's keyring.")
+            };
+        case "locked":
+            return {
+                "title": qsTr("The keyring is locked"),
+                "note": qsTr("The desktop did not unlock its keyring. Adding a card asks it again.")
+            };
+        case "failed":
+            return {
+                "title": qsTr("The keyring answered with an error"),
+                "note": qsTr(
+                            "Omaweb asked the desktop's keyring for the cards, and it refused. The log has its message.")
+            };
+        }
+        return {
+            "title": qsTr("No secret store"),
+            "note": qsTr("The desktop offers no secret store, so Omaweb keeps no payment cards.")
+        };
+    }
+
     function cardTitle(card) {
         return qsTr("%1 •••• %2", "a saved card: its nickname or brand, its last four digits").arg(
                     card.nickname || card.brand || qsTr("Card", "a payment card with no name")).arg(
@@ -2458,31 +2501,31 @@ Rectangle {
                         }
 
                         SettingRow {
+                            id: noCards
                             objectName: "noCards"
                             readonly property string state: root.browser
                                                             ? root.browser.paymentCardsState :
                                                               "unavailable"
+                            readonly property var said: root.privateWindow ? ({
+                                                                                  "title": qsTr(
+                                                                                               "No saved cards"),
+                                                                                  "note": qsTr(
+                                                                                              "Payment cards are saved in a regular window.")
+                                                                              }) : root.keyringSays(
+                                                                                 state)
                             width: pane.width
                             visible: root.savedCards.length === 0
                             colors: root.colors
-                            title: state === "unavailable" && !root.privateWindow ? qsTr(
-                                                                                        "No secret store") :
-                                                                                    state === "unreadable"
-                                                                                    ? qsTr("The keyring stayed locked") :
-                                                                                      qsTr("No saved cards")
-                            note: root.privateWindow ? qsTr(
-                                                           "Payment cards are saved in a regular window.") :
-                                                       state === "unavailable" ? qsTr(
-                                                                                     "The desktop offers no secret store, so Omaweb keeps no payment cards.") :
-                                                                                 state === "unreadable"
-                                                                                 ? qsTr("Omaweb asked the desktop to unlock its keyring, and it did not.") :
-                                                                                   qsTr("Cards are kept in the desktop's keyring and offered in forms in every Space, never in a Private window. The security code is never kept.")
+                            title: said.title
+                            note: said.note
 
                             ActionButton {
                                 objectName: "readCardsAgainButton"
-                                visible: parent.state === "unreadable"
+                                visible: noCards.state === "unreachable" || noCards.state
+                                         === "locked" || noCards.state === "failed"
                                 colors: root.colors
-                                label: qsTr("Try again", "button: ask to unlock the keyring again")
+                                label: qsTr("Try again",
+                                            "button: ask the keyring for the cards again")
                                 onClicked: root.browser.readPaymentCardsAgain()
                             }
                         }
@@ -2492,8 +2535,9 @@ Rectangle {
                         objectName: "addCardButton"
                         colors: root.colors
                         label: qsTr("Add card")
-                        visible: !root.cardEditing && !!root.browser
-                                 && root.browser.paymentCardsState === "ready"
+                        visible: !root.cardEditing && !!root.browser && (
+                                     root.browser.paymentCardsState === "ready"
+                                     || root.browser.paymentCardsState === "locked")
                         onClicked: root.editCard(null)
                     }
 

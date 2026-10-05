@@ -129,7 +129,9 @@ class BrowserController final : public QObject, public DownloadPermissions {
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
     // Where the payment cards stand: "unavailable" in a Private window and on a
     // desktop with no secret store, "unread" until something needs them,
-    // "reading", "ready", or "unreadable" when the keyring would not give them up.
+    // "reading", "ready", or why the keyring would not give them up:
+    // "unreachable" when nothing answered for it, "locked" when the reader left
+    // it locked, "failed" when it answered with an error.
     Q_PROPERTY(QString paymentCardsState READ paymentCardsState NOTIFY paymentCardsChanged)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)

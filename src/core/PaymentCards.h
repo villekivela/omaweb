@@ -34,8 +34,11 @@ public:
         Ready,
         // The desktop offers no secret store.
         Unavailable,
-        // The keyring would not give the cards up: it stayed locked, or failed.
-        Unreadable,
+        // The keyring would not give the cards up, for the reason
+        // KeyringFailure names.
+        Unreachable,
+        Locked,
+        Failed,
     };
 
     explicit PaymentCards(std::unique_ptr<PaymentCardKeyring> keyring, QObject *parent = nullptr);
@@ -49,8 +52,8 @@ public:
     // or after it stayed locked, does nothing, so a reader who declined the
     // desktop's unlock prompt is not asked again by everything that looks.
     void read();
-    // Asks the keyring again after it stayed locked, which only the reader's
-    // own asking does.
+    // Asks the keyring again after it gave no cards up, which only the
+    // reader's own asking does.
     void readAgain();
 
     // Each card as `id`, `last4`, `brand` (empty when the number's issuer is

@@ -193,6 +193,10 @@ TestCase {
         function paymentCards() {
             return [];
         }
+        property int readCardsAgainCount: 0
+        function readPaymentCardsAgain() {
+            readCardsAgainCount += 1;
+        }
 
         function forgetSpaceProject(spaceId) {
             const projects = Object.assign({}, spaceProjects);
@@ -339,6 +343,8 @@ TestCase {
     // page and the singleton it moved are put back here instead, where one
     // test's failure cannot leave the next one reading a shell it did not set.
     function cleanup() {
+        browserStub.paymentCardsState = "ready";
+        browserStub.readCardsAgainCount = 0;
         settingsClosedSpy.target = null;
         settingsClosedSpy.clear();
         syncCodeCopiedSpy.target = null;
@@ -716,6 +722,74 @@ TestCase {
         verify(row.visible);
         compare(row.title, "Suomi (fi_FI)");
         compare(row.note, "Follows the system locale (LANG). Shipped: English, Suomi.");
+    }
+
+    // With no cards to list, the section says where the keyring stands: still
+    // being read, which is not yet "No saved cards", or why it gave none up.
+    // A keyring the reader left locked still takes a card, which asks the
+    // desktop to unlock it again.
+    function test_theCardsSectionSaysWhereTheKeyringStands_data() {
+        return [
+                    {
+                        "tag": "unread",
+                        "title": "Reading the keyring",
+                        "add": false,
+                        "again": false
+                    },
+                    {
+                        "tag": "reading",
+                        "title": "Reading the keyring",
+                        "add": false,
+                        "again": false
+                    },
+                    {
+                        "tag": "ready",
+                        "title": "No saved cards",
+                        "add": true,
+                        "again": false
+                    },
+                    {
+                        "tag": "unreachable",
+                        "title": "Omaweb could not reach the keyring",
+                        "add": false,
+                        "again": true
+                    },
+                    {
+                        "tag": "locked",
+                        "title": "The keyring is locked",
+                        "add": true,
+                        "again": true
+                    },
+                    {
+                        "tag": "failed",
+                        "title": "The keyring answered with an error",
+                        "add": false,
+                        "again": true
+                    },
+                    {
+                        "tag": "unavailable",
+                        "title": "No secret store",
+                        "add": false,
+                        "again": false
+                    }
+                ];
+    }
+
+    function test_theCardsSectionSaysWhereTheKeyringStands(data) {
+        browserStub.paymentCardsState = data.tag;
+        const page = makePage();
+        page.browser = browserStub;
+        page.section = page.sections.indexOf("payment cards");
+        const row = findChild(page, "noCards");
+        verify(row.visible);
+        compare(row.title, data.title);
+        compare(findChild(page, "addCardButton").visible, data.add);
+        const again = findChild(page, "readCardsAgainButton");
+        compare(again.visible, data.again);
+        if (data.again) {
+            again.clicked();
+            compare(browserStub.readCardsAgainCount, 1);
+        }
     }
 
     function test_theAgentsSectionListsGrantsToRevoke() {

@@ -338,6 +338,13 @@ taken hands its address to the owner over `org.freedesktop.Application` and exit
 an engine, a session store or a filter set. Omaweb is one window with its tabs down the side, so a
 handed-over address arrives as a tab.
 
+A development build run beside the installed browser therefore needs a session bus of its own,
+`dbus-run-session -- ./build/dev/omaweb`, with `OMAWEB_DATA_ROOT`, `OMAWEB_CONFIG_ROOT` and
+`OMAWEB_CONTROL_SOCKET` pointing at a scratch directory. A build on a private bus cannot reach the
+desktop's keyring: the bus starts the keyring daemon, which finds the desktop's already running and
+exits. Payment cards there say that Omaweb could not reach the keyring. Check them with the
+installed browser quit and the build on the desktop's own bus.
+
 The same command runs the Agent verbs against the browser already running. They start nothing of
 their own and exit with 0 when the browser answered, 1 when it refused, 2 for a malformed command
 and 3 when no browser is running:
