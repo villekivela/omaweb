@@ -341,16 +341,21 @@ TestCase {
     //
     // A surface that was over the budget when it was first measured passes
     // `overBudget`. Both budget lines are printed beside the `reason` it is
-    // over, and not held. What is held is its `guard` on the 95th percentile,
-    // about twice the highest measured on a loaded machine: it catches a
-    // change that doubles what the surface costs, not a smaller one. The
-    // change that brings the surface inside takes `overBudget` away.
+    // over, and not held. What is held is the count again with its `guard` in
+    // place of the ceiling: at most one movement in ten with a frame slower
+    // than the guard, set over the slowest movement measured on CI. It
+    // catches a change that puts a frame over the guard on every opening,
+    // not one that stays under it. The change that brings the surface inside
+    // takes `overBudget` away.
     function probeIntervals(name, report, overBudget) {
         const frames = report.frames;
         const ceiling = frameIntervalCeiling();
-        const held = report.slowestByMovement.filter(function (slowest) {
-            return slowest > ceiling;
-        }).length;
+        const movementsOver = function (limit) {
+            return report.slowestByMovement.filter(function (slowest) {
+                return slowest > limit;
+            }).length;
+        };
+        const held = movementsOver(ceiling);
         const backend = GraphicsInfo.api === GraphicsInfo.Software ? "software rasteriser" : "GPU";
         const gpu = frames.meanGpuMilliseconds > 0 ? ", " + frames.meanGpuMilliseconds.toFixed(2)
                                                      + " ms of it on the GPU" : "";
@@ -381,7 +386,8 @@ TestCase {
         if (frames.p95IntervalMilliseconds > ceiling || held > heldMovementAllowance)
             console.warn("over budget, not held: " + percentileLine + "; " + heldLine + ": "
                          + overBudget.reason);
-        probe(name + "-guard", frames.p95IntervalMilliseconds, "ms", overBudget.guard);
+        probe(name + "-movements-over-" + overBudget.guard.toFixed(0) + "-ms", movementsOver(
+                  overBudget.guard), "movements", heldMovementAllowance);
     }
 
     // Puts a page that redraws every frame on show, so the window draws at its
@@ -522,7 +528,13 @@ TestCase {
         });
         verify(!glance.visible);
         engine.motionReview = false;
-        probeIntervals("glance-frame-interval", report);
+        // Four frames: over the slowest movement CI's runner has drawn, and
+        // under a stall of 60 ms on each opening.
+        probeIntervals("glance-frame-interval", report, {
+                           "guard": 1000 / 60 * 4,
+                           "reason": "on CI's runner some openings and closings hold a frame, "
+                                     + "36 to 40 ms"
+                       });
     }
 
     // What a frame of the Start page costs while its road drives: the Scene's
