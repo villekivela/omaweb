@@ -617,11 +617,11 @@ What the assembled browser costs on a Wayland session is held separately, to
 `performance/budget.json` by `scripts/benchmark_runtime.py`: process start to the window mapping,
 the proportional set size of the whole process tree at rest, what each Space adds to it, whether a
 frozen Space's pages are still running, what Content blocking adds to a page load whose hosts
-resolve through a real DNS server, and how soon such a page first paints. CI runs it against the
-build it has already made and fails when a ceiling is crossed. `scripts/benchmark_chromium.py` runs
-Speedometer, JetStream and MotionMark in Omaweb and in two Chromiums, the latest stable one and the
-one the engine is based on, and only reports. Both append their recorded runs to
-`performance/history.jsonl`.
+resolve through a real DNS server, how soon such a page first paints, and what 20 and 50 live tabs
+hold and the CPU they use at rest. CI runs it against the build it has already made and fails when a
+ceiling is crossed. `scripts/benchmark_chromium.py` runs Speedometer, JetStream and MotionMark in
+Omaweb and in two Chromiums, the latest stable one and the one the engine is based on, and only
+reports. Both append their recorded runs to `performance/history.jsonl`.
 
 Scrolling is in neither. CI has no GPU and no compositor of the kind a reader runs, so the first
 paint the runtime budget holds is a software rasteriser's, which catches the browser drawing later

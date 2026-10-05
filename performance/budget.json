@@ -46,6 +46,21 @@
       "ceiling": 240.0,
       "recorded": 60.0,
       "note": "The same for the page of 40 images from 4 hosts resolved on the warm-up loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. Two runs on CI's runner: a median of 46.0 ms (44.0 to 80.0 ms) and of 60.0 ms (44.0 to 104.0 ms). The ceiling is four times the slower median."
+    },
+    "live_tab_at_20_mebibytes": {
+      "ceiling": 50.0,
+      "recorded": 23.16,
+      "note": "Provisional until CI has measured it: one run on a developer machine, under a headless cage with the pixman renderer, against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, measured 499.7 MiB with one tab and 939.8 MiB with 20 in five Spaces. The ceiling is about twice the measurement."
+    },
+    "live_tab_at_50_mebibytes": {
+      "ceiling": 50.0,
+      "recorded": 20.46,
+      "note": "Provisional until CI has measured it: one run on a developer machine, under a headless cage with the pixman renderer, against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, measured 1502.1 MiB with 50. The ceiling is about twice the 20-tab measurement."
+    },
+    "live_tabs_idle_cpu_percent": {
+      "ceiling": 2.0,
+      "recorded": 0.2,
+      "note": "Provisional until CI has measured it: one run on a developer machine, under a headless cage with the pixman renderer, against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, measured 0.06 CPU seconds over 30 s, no process above 0.02 s."
     }
   }
 }
