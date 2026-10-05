@@ -23,6 +23,15 @@ namespace {
                               : std::accumulate(values.begin(), values.end(), 0.0) / values.size();
     }
 
+    // By nearest rank: the smallest value at least `fraction` of them do not
+    // exceed. `sorted` is in ascending order.
+    template <typename Value> double percentile(const std::vector<Value> &sorted, double fraction)
+    {
+        return sorted.empty()
+            ? 0.0
+            : sorted[static_cast<std::size_t>(std::ceil(fraction * sorted.size())) - 1];
+    }
+
 } // namespace
 
 ProbeClock::ProbeClock(QObject *parent)
@@ -116,9 +125,6 @@ QVariantMap ProbeClock::frameReport()
         intervals.erase(intervals.begin());
     }
     std::ranges::sort(intervals);
-    const auto p95 = intervals.empty()
-        ? 0.0
-        : intervals[static_cast<std::size_t>(std::ceil(0.95 * intervals.size())) - 1] / 1e6;
     return {
         {QStringLiteral("frames"), static_cast<int>(frames.size())},
         {QStringLiteral("meanFrameMilliseconds"), mean(frames) / 1e6},
@@ -127,7 +133,7 @@ QVariantMap ProbeClock::frameReport()
         {QStringLiteral("intervals"), static_cast<int>(intervals.size())},
         {QStringLiteral("maxIntervalMilliseconds"),
             intervals.empty() ? 0.0 : intervals.back() / 1e6},
-        {QStringLiteral("p95IntervalMilliseconds"), p95},
+        {QStringLiteral("p95IntervalMilliseconds"), percentile(intervals, 0.95) / 1e6},
     };
 }
 

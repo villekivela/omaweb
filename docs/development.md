@@ -1279,8 +1279,8 @@ does not see them. Each movement is the pointer's, because after a key the chrom
 eases and a step has no frames between its ends.
 
 Three surfaces were over the budget when the probes were first taken. Each holds a guard of about
-twice the slowest of those measurements instead, so it cannot get worse unnoticed, and prints the
-budget line with the reason it is over:
+twice the slowest of those measurements on a loaded machine instead, so it cannot get worse
+unnoticed, and prints the budget line with the reason it is over:
 
 - The sidebar. When the seam settles, the page area takes its new width and the closed Shortcut
   sheet packs its columns and builds them again for it, about 50 ms on the interface thread at each
@@ -1294,20 +1294,21 @@ budget line with the reason it is over:
 The change that brings a surface inside removes its `overBudget` argument, so the budget is held.
 
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
-2026-10-05. The offscreen rows are six runs, three at a time; the GPU rows are three runs in a
-headless cage drawing through radeonsi, because the laptop's own display was off and draws no frames
-then:
+2026-10-05. The offscreen rows are fifteen runs, some three at a time; the GPU rows are three runs
+in a headless `cage` drawing through radeonsi, because the laptop's own display was off and draws no
+frames then:
 
 | Surface      | Offscreen, 95th percentile | GPU, 95th percentile | GPU, slowest    | Held to         |
 | ------------ | -------------------------- | -------------------- | --------------- | --------------- |
-| Sidebar      | 44 to 47 ms                | 30.4 to 32.4 ms      | 35.8 to 50.7 ms | guard, 150 ms   |
-| Space switch | 128 to 150 ms              | 61 to 74 ms          | 78 to 95 ms     | guard, 500 ms   |
-| Omnibar      | 27 to 29 ms                | 16.4 to 17.8 ms      | 25 to 28 ms     | guard, 120 ms   |
-| Glance       | 21 to 23 ms                | 16.3 to 16.4 ms      | 17 to 21 ms     | budget, 33.3 ms |
+| Sidebar      | 37 to 61 ms                | 30.4 to 32.4 ms      | 35.8 to 50.7 ms | guard, 150 ms   |
+| Space switch | 113 to 150 ms              | 61 to 74 ms          | 78 to 95 ms     | guard, 500 ms   |
+| Omnibar      | 22 to 30 ms                | 16.4 to 17.8 ms      | 25 to 28 ms     | guard, 120 ms   |
+| Glance       | 19 to 25 ms                | 16.3 to 16.4 ms      | 17 to 21 ms     | budget, 33.3 ms |
 
-On the offscreen platform under a parallel build, the Omnibar's 95th percentile reached 59 ms and
-the Space switch's 222 ms. The software rasteriser draws no blur, so the Omnibar's glass, the
-Glance's backdrop and the sidebar's floating shelf are priced only by the GPU rows. Take those with:
+On the offscreen platform under a parallel build, the sidebar's 95th percentile reached 74 ms, the
+Space switch's 222 ms, the Omnibar's 59 ms and the Glance's 30 ms. The guards are about twice those.
+The software rasteriser draws no blur, so the Omnibar's glass, the Glance's backdrop and the
+sidebar's floating shelf are priced only by the GPU rows. Take those with:
 
 ```sh
 WLR_BACKENDS=headless WLR_RENDERER=gles2 WLR_RENDER_DRM_DEVICE=/dev/dri/renderD128 cage -- \

@@ -7,9 +7,9 @@ import "../../src/ui" as Omaweb
 // switch costs before the destination is on screen, what a frame of the
 // chromeless chrome costs over a page that never sits still, and how far apart
 // the frames of the sidebar, a Space switch, the Omnibar and a Glance fall
-// while they move. Startup and
-// restore are measured on the lab as a process in tst_startup.cpp, and a
-// frozen tab's memory needs a renderer and is measured in the engine suite.
+// while they move. Startup and restore are measured on the lab as a process in
+// tst_startup.cpp, and a frozen tab's memory needs a renderer and is measured
+// in the engine suite.
 //
 // Each probe prints the line the development guide's performance section
 // records and fails naming the value and the threshold it crossed. Thresholds
@@ -213,14 +213,16 @@ TestCase {
     }
     // How many times each movement is taken. One movement is about ten
     // frames, too few for a 95th percentile to differ from the slowest.
-    readonly property int movements: 10
+    readonly property int movementCount: 10
 
     // Runs `act` and waits, frame by frame, until `rested` says the movement
-    // it started is over, `movements` times, with every frame watched. Each
+    // it started is over, `movementCount` times, with every frame watched. Each
     // movement is the pointer's, on a desktop that has not asked for reduced
     // motion: after a key the chrome steps rather than eases, and a step has
     // no frames between its ends to measure.
     function watchMovements(act, rested) {
+        const reducedMotion = SystemMotion.reduced;
+        const pointer = InputOrigin.pointer;
         SystemMotion.reduced = false;
         // The first movement builds what each later one only draws, which a
         // reader pays once; it is not watched.
@@ -228,12 +230,15 @@ TestCase {
         act(0);
         waitForRest(rested);
         probeClock.watchFrames(window);
-        for (let movement = 1; movement <= movements; ++movement) {
+        for (let movement = 1; movement <= movementCount; ++movement) {
             InputOrigin.pointer = true;
             act(movement);
             waitForRest(rested);
         }
-        return probeClock.frameReport();
+        const report = probeClock.frameReport();
+        SystemMotion.reduced = reducedMotion;
+        InputOrigin.pointer = pointer;
+        return report;
     }
 
     function waitForRest(rested) {
@@ -252,7 +257,7 @@ TestCase {
     //
     // A surface that was over the budget when it was first measured passes
     // `overBudget`: its `guard`, about twice the slowest of those
-    // measurements, is held so it cannot get worse unnoticed, and the budget
+    // measurements on a loaded machine, is held so it cannot get worse unnoticed, and the budget
     // is printed beside the `reason` it is over but not held. The change that
     // brings the surface inside takes `overBudget` away. An expected failure
     // would force that, but a surface near the line passes it on a quiet
@@ -266,18 +271,19 @@ TestCase {
                      + report.maxIntervalMilliseconds.toFixed(1) + " ms, mean frame cost "
                      + report.meanFrameMilliseconds.toFixed(2) + " ms" + gpu + ", drawn by the "
                      + backend);
-        // A stepped movement draws one frame at each end. Three a movement is
-        // below what a slow eased one draws and above what a step does.
-        verify(report.intervals >= movements * 3, "only " + report.intervals
+        // A movement that steps rather than eases is at rest in the frame
+        // after it starts, so ten of them watch about twenty frames. Three a
+        // movement is below what a slow eased one draws and above that.
+        verify(report.intervals >= movementCount * 3, "only " + report.intervals
                + " frame intervals were seen, so nothing was moving");
+        const ceiling = frameIntervalCeiling();
         if (!overBudget) {
-            probe(name, report.p95IntervalMilliseconds, "ms", frameIntervalCeiling());
+            probe(name, report.p95IntervalMilliseconds, "ms", ceiling);
             return;
         }
-        const budget = probeClock.report(name, report.p95IntervalMilliseconds, "ms",
-                                         frameIntervalCeiling());
-        if (report.p95IntervalMilliseconds > frameIntervalCeiling())
-            console.warn("over budget, not held: " + budget + ": " + overBudget.reason);
+        const budgetLine = probeClock.report(name, report.p95IntervalMilliseconds, "ms", ceiling);
+        if (report.p95IntervalMilliseconds > ceiling)
+            console.warn("over budget, not held: " + budgetLine + ": " + overBudget.reason);
         probe(name + "-guard", report.p95IntervalMilliseconds, "ms", overBudget.guard);
     }
 
