@@ -469,6 +469,11 @@ Rectangle {
     property string editingCardId: ""
     property string editingCardLast4: ""
     property bool cardRefused: false
+    // A card saved into a locked keyring, waiting in its fields until the
+    // reader answers the desktop's prompt to unlock it, and whether the keyring
+    // stayed locked and the card was not kept.
+    property string unlockingCardId: ""
+    property bool cardNotKept: false
 
     function refreshCards() {
         root.savedCards = root.browser && root.section === root.cardsSection
@@ -482,7 +487,51 @@ Rectangle {
         ignoreUnknownSignals: true
         function onPaymentCardsChanged() {
             root.refreshCards();
+            root.settleUnlockingCard();
         }
+    }
+
+    // What the section says with no card to list: where the keyring stands.
+    // Until the first read has finished there is no knowing whether it holds
+    // any. A keyring the reader left locked still takes a card, and saving one
+    // asks the desktop to unlock it again.
+    function keyringSays(state) {
+        switch (state) {
+        case "unread":
+        case "reading":
+            return {
+                "title": qsTr("Reading the keyring"),
+                "note": qsTr(
+                            "Omaweb is asking the desktop's keyring for the cards. The desktop may ask you to unlock it.")
+            };
+        case "ready":
+            return {
+                "title": qsTr("No saved cards"),
+                "note": qsTr(
+                            "Cards are kept in the desktop's keyring and offered in forms in every Space, never in a Private window. The security code is never kept.")
+            };
+        case "unreachable":
+            return {
+                "title": qsTr("Omaweb could not reach the keyring"),
+                "note": qsTr(
+                            "The session bus offers a secret store, and nothing answered for it. An Omaweb on a session bus of its own cannot reach the desktop's keyring.")
+            };
+        case "locked":
+            return {
+                "title": qsTr("The keyring is locked"),
+                "note": qsTr("The desktop did not unlock its keyring. Adding a card asks it again.")
+            };
+        case "failed":
+            return {
+                "title": qsTr("The keyring answered with an error"),
+                "note": qsTr(
+                            "Omaweb asked the desktop's keyring for the cards, and it refused. The log has its message.")
+            };
+        }
+        return {
+            "title": qsTr("No secret store"),
+            "note": qsTr("The desktop offers no secret store, so Omaweb keeps no payment cards.")
+        };
     }
 
     function cardTitle(card) {
@@ -514,10 +563,30 @@ Rectangle {
         cardExpiry.text = card ? root.cardExpiry(card) : "";
         cardNickname.text = card ? card.nickname : "";
         root.cardRefused = false;
+        root.cardNotKept = false;
+        root.unlockingCardId = "";
         root.cardEditing = true;
     }
 
+    function settleUnlockingCard() {
+        const state = root.browser ? root.browser.paymentCardsState : "unavailable";
+        if (root.unlockingCardId.length === 0 || state === "unread" || state === "reading")
+            return;
+        // Asked of the browser, because the list is emptied while another
+        // section is on show.
+        const kept = root.browser.paymentCards().some(card => card.id === root.unlockingCardId);
+        root.unlockingCardId = "";
+        if (!kept) {
+            root.cardNotKept = true;
+            return;
+        }
+        cardNumber.text = "";
+        root.cardEditing = false;
+    }
+
     function saveCard() {
+        const unlocking = root.browser.paymentCardsState === "locked";
+        root.cardNotKept = false;
         const saved = root.browser.savePaymentCard({
                                                        "id": root.editingCardId,
                                                        "number": cardNumber.text,
@@ -527,6 +596,11 @@ Rectangle {
                                                    });
         if (saved.length === 0) {
             root.cardRefused = true;
+            return;
+        }
+        root.cardRefused = false;
+        if (unlocking) {
+            root.unlockingCardId = saved;
             return;
         }
         cardNumber.text = "";
@@ -2458,31 +2532,31 @@ Rectangle {
                         }
 
                         SettingRow {
+                            id: noCards
                             objectName: "noCards"
                             readonly property string state: root.browser
                                                             ? root.browser.paymentCardsState :
                                                               "unavailable"
+                            readonly property var said: root.privateWindow ? ({
+                                                                                  "title": qsTr(
+                                                                                               "No saved cards"),
+                                                                                  "note": qsTr(
+                                                                                              "Payment cards are saved in a regular window.")
+                                                                              }) : root.keyringSays(
+                                                                                 state)
                             width: pane.width
                             visible: root.savedCards.length === 0
                             colors: root.colors
-                            title: state === "unavailable" && !root.privateWindow ? qsTr(
-                                                                                        "No secret store") :
-                                                                                    state === "unreadable"
-                                                                                    ? qsTr("The keyring stayed locked") :
-                                                                                      qsTr("No saved cards")
-                            note: root.privateWindow ? qsTr(
-                                                           "Payment cards are saved in a regular window.") :
-                                                       state === "unavailable" ? qsTr(
-                                                                                     "The desktop offers no secret store, so Omaweb keeps no payment cards.") :
-                                                                                 state === "unreadable"
-                                                                                 ? qsTr("Omaweb asked the desktop to unlock its keyring, and it did not.") :
-                                                                                   qsTr("Cards are kept in the desktop's keyring and offered in forms in every Space, never in a Private window. The security code is never kept.")
+                            title: said.title
+                            note: said.note
 
                             ActionButton {
                                 objectName: "readCardsAgainButton"
-                                visible: parent.state === "unreadable"
+                                visible: noCards.state === "unreachable" || noCards.state
+                                         === "locked" || noCards.state === "failed"
                                 colors: root.colors
-                                label: qsTr("Try again", "button: ask to unlock the keyring again")
+                                label: qsTr("Try again",
+                                            "button: ask the keyring for the cards again")
                                 onClicked: root.browser.readPaymentCardsAgain()
                             }
                         }
@@ -2492,8 +2566,9 @@ Rectangle {
                         objectName: "addCardButton"
                         colors: root.colors
                         label: qsTr("Add card")
-                        visible: !root.cardEditing && !!root.browser
-                                 && root.browser.paymentCardsState === "ready"
+                        visible: !root.cardEditing && !!root.browser && (
+                                     root.browser.paymentCardsState === "ready"
+                                     || root.browser.paymentCardsState === "locked")
                         onClicked: root.editCard(null)
                     }
 
@@ -2570,6 +2645,18 @@ Rectangle {
                             wrapMode: Text.Wrap
                         }
 
+                        Text {
+                            objectName: "cardNotKept"
+                            width: pane.width
+                            visible: root.cardNotKept
+                            text: qsTr(
+                                      "The keyring stayed locked, so the card was not saved. Saving it again asks the desktop to unlock it.")
+                            color: root.colors.urgent
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.bodySmall
+                            wrapMode: Text.Wrap
+                        }
+
                         Row {
                             spacing: Style.spacing.lg
 
@@ -2577,8 +2664,10 @@ Rectangle {
                                 objectName: "saveCardButton"
                                 colors: root.colors
                                 label: qsTr("Save")
-                                enabled: cardNumber.text.trim().length > 0
-                                         || root.editingCardId.length > 0
+                                enabled: root.unlockingCardId.length === 0 && (cardNumber.text.trim(
+                                                                                   ).length > 0
+                                                                               || root.editingCardId.length
+                                                                               > 0)
                                 onClicked: root.saveCard()
                             }
 
@@ -2588,6 +2677,8 @@ Rectangle {
                                 label: qsTr("Cancel")
                                 onClicked: {
                                     cardNumber.text = "";
+                                    root.unlockingCardId = "";
+                                    root.cardNotKept = false;
                                     root.cardEditing = false;
                                 }
                             }

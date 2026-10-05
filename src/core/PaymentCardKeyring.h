@@ -5,6 +5,7 @@
 #include <QMutex>
 #include <QString>
 
+#include <expected>
 #include <memory>
 #include <optional>
 
@@ -16,6 +17,17 @@ namespace omaweb {
 struct KeyringItem {
     QString id;
     QByteArray secret;
+};
+
+// Why a keyring gave no cards up.
+enum class KeyringFailure {
+    // The bus offered a Secret Service and nothing answered for it, as on a
+    // session bus of its own that cannot start the desktop's keyring.
+    Unreachable,
+    // The reader did not unlock it.
+    Locked,
+    // It answered with an error.
+    Failed,
 };
 
 // Where payment cards are kept: the desktop's Secret Service (ADR 0053).
@@ -30,9 +42,9 @@ public:
 
     // Whether the desktop offers a secret store at all.
     virtual bool available() = 0;
-    // Every saved card, unlocking the keyring if it is locked, or nothing when
-    // the keyring could not be read.
-    virtual std::optional<QList<KeyringItem>> items() = 0;
+    // Every saved card, unlocking the keyring if it is locked, or why the
+    // keyring could not be read.
+    virtual std::expected<QList<KeyringItem>, KeyringFailure> items() = 0;
     // Saves the secret under the id, replacing whatever was saved under it.
     virtual bool store(const QString &id, const QByteArray &secret) = 0;
     virtual bool remove(const QString &id) = 0;
@@ -54,8 +66,13 @@ public:
         mutable QMutex mutex;
         QList<KeyringItem> items;
         bool available = true;
-        // A keyring the reader did not unlock gives no cards up.
+        // A keyring the reader did not unlock gives no cards up, until saving a
+        // card asks again and the reader unlocks it, unless the reader
+        // dismisses every prompt.
         bool locked = false;
+        bool dismisses = false;
+        // A keyring that did not answer, or answered with an error.
+        std::optional<KeyringFailure> failure;
         // How many times the cards were read, which is when a real keyring
         // would ask to be unlocked.
         int reads = 0;
@@ -69,7 +86,7 @@ public:
         std::shared_ptr<Contents> contents = std::make_shared<Contents>());
 
     bool available() override;
-    std::optional<QList<KeyringItem>> items() override;
+    std::expected<QList<KeyringItem>, KeyringFailure> items() override;
     bool store(const QString &id, const QByteArray &secret) override;
     bool remove(const QString &id) override;
 

@@ -1607,15 +1607,18 @@ ApplicationWindow {
     // without a Secret Service and never for a card already saved; the
     // keyring is read to know that, and the offer waits for it. A tab not on
     // show is not where the reader is typing, a payment frame whose check was
-    // waived is no more secure than a page whose was, and a keyring that
-    // stayed locked is not asked again at a moment a page chose.
+    // waived is no more secure than a page whose was, and a keyring that gave
+    // no cards up, locked or not, is not asked again at a moment a page chose.
+    function cardKeyringAnswers(state) {
+        return state === "unread" || state === "reading" || state === "ready";
+    }
+
     function offerToSaveCard(engine, card, tabId) {
         const browser = window.windowBrowser;
-        const state = browser.paymentCardsState;
         if (window.privateWindow || tabId !== browser.activeTabId || !window.cardSecure(engine)
-                || browser.certificateExceptionInEffect(String(card.origin || "")) || state
-                === "unavailable" || state === "unreadable" || !browser.isPaymentCardNumber(
-                    card.number))
+                || browser.certificateExceptionInEffect(String(card.origin || "")) ||
+                !window.cardKeyringAnswers(browser.paymentCardsState) ||
+                !browser.isPaymentCardNumber(card.number))
             return;
         browser.paymentCards();
         if (browser.paymentCardSaved(card.number))
@@ -3862,8 +3865,7 @@ ApplicationWindow {
                         // whether the card is saved, and the offer goes, as
                         // it does once the keyring is read and holds it.
                         function onPaymentCardsChanged() {
-                            const state = window.windowBrowser.paymentCardsState;
-                            if (state === "unavailable" || state === "unreadable"
+                            if (!window.cardKeyringAnswers(window.windowBrowser.paymentCardsState)
                                     || window.windowBrowser.paymentCardSaved(
                                         window.cardOffer.card.number))
                                 window.answerCardOffer(false);

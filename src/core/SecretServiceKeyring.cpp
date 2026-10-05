@@ -1,5 +1,7 @@
 #include "PaymentCardKeyring.h"
 
+#include <QtGlobal>
+
 #pragma push_macro("signals")
 #undef signals
 #include <libsecret/secret.h>
@@ -28,15 +30,60 @@ namespace {
     constexpr auto label = "Omaweb payment card";
     constexpr auto serviceName = "org.freedesktop.secrets";
 
-    // Errors are dropped rather than logged: a keyring's message may quote
-    // what it was given.
+    // Logs the keyring's own message, which names a D-Bus error and may quote
+    // an item's path or attributes. Those are the schema name and a card's
+    // random identifier, never anything about the card: libsecret is never
+    // given a secret it could quote back.
+    void report(GError *error)
+    {
+        qWarning("The keyring answered: %s", error->message);
+        g_error_free(error);
+    }
+
     bool succeeded(GError *error)
     {
         if (!error) {
             return true;
         }
-        g_error_free(error);
+        report(error);
         return false;
+    }
+
+    // A Secret Service the bus offered that nothing answered for: it could not
+    // be started, took no name, or did not reply in time.
+    bool unanswered(const GError *error)
+    {
+        if (error->domain == G_IO_ERROR) {
+            return error->code == G_IO_ERROR_TIMED_OUT || error->code == G_IO_ERROR_CLOSED
+                || error->code == G_IO_ERROR_NOT_CONNECTED;
+        }
+        if (error->domain != G_DBUS_ERROR) {
+            return false;
+        }
+        switch (error->code) {
+        case G_DBUS_ERROR_SERVICE_UNKNOWN:
+        case G_DBUS_ERROR_NAME_HAS_NO_OWNER:
+        case G_DBUS_ERROR_NO_REPLY:
+        case G_DBUS_ERROR_TIMEOUT:
+        case G_DBUS_ERROR_TIMED_OUT:
+        case G_DBUS_ERROR_DISCONNECTED:
+        case G_DBUS_ERROR_NO_SERVER:
+        case G_DBUS_ERROR_SPAWN_EXEC_FAILED:
+        case G_DBUS_ERROR_SPAWN_FORK_FAILED:
+        case G_DBUS_ERROR_SPAWN_CHILD_EXITED:
+        case G_DBUS_ERROR_SPAWN_CHILD_SIGNALED:
+        case G_DBUS_ERROR_SPAWN_FAILED:
+        case G_DBUS_ERROR_SPAWN_SETUP_FAILED:
+        case G_DBUS_ERROR_SPAWN_CONFIG_INVALID:
+        case G_DBUS_ERROR_SPAWN_SERVICE_INVALID:
+        case G_DBUS_ERROR_SPAWN_SERVICE_NOT_FOUND:
+        case G_DBUS_ERROR_SPAWN_PERMISSIONS_INVALID:
+        case G_DBUS_ERROR_SPAWN_FILE_INVALID:
+        case G_DBUS_ERROR_SPAWN_NO_MEMORY:
+            return true;
+        default:
+            return false;
+        }
     }
 
     // Whether the session bus has a Secret Service on it or can start one. A
@@ -85,10 +132,10 @@ namespace {
 
         // Every item of the schema, unlocking the keyring if it is locked:
         // the desktop asks the reader through its own prompt.
-        std::optional<QList<KeyringItem>> items() override
+        std::expected<QList<KeyringItem>, KeyringFailure> items() override
         {
             if (!available()) {
-                return std::nullopt;
+                return std::unexpected(KeyringFailure::Unreachable);
             }
             GError *error = nullptr;
             auto *attributes = g_hash_table_new(g_str_hash, g_str_equal);
@@ -97,8 +144,23 @@ namespace {
                     SECRET_SEARCH_ALL | SECRET_SEARCH_UNLOCK | SECRET_SEARCH_LOAD_SECRETS),
                 nullptr, &error);
             g_hash_table_unref(attributes);
-            if (!succeeded(error)) {
-                return std::nullopt;
+            if (error) {
+                const auto failure
+                    = unanswered(error) ? KeyringFailure::Unreachable : KeyringFailure::Failed;
+                report(error);
+                return std::unexpected(failure);
+            }
+            // An item the reader left locked, by dismissing the desktop's
+            // prompt, comes back without its secret: the keyring stayed locked,
+            // and is not an empty one.
+            bool locked = false;
+            for (auto *entry = found; entry && !locked; entry = entry->next) {
+                locked = SECRET_IS_ITEM(entry->data)
+                    && secret_item_get_locked(SECRET_ITEM(entry->data));
+            }
+            if (locked) {
+                g_list_free_full(found, g_object_unref);
+                return std::unexpected(KeyringFailure::Locked);
             }
             QList<KeyringItem> items;
             for (auto *entry = found; entry; entry = entry->next) {

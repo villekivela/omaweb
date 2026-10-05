@@ -97,9 +97,12 @@ the lab's stand-in view draws a sample page in the page palette where it would o
 engine is running. `--spaces` seeds a Work Space with pages of its own beside Personal, before the
 interface loads, so a Space switch has somewhere to go. `--sample-lists` writes EasyList and
 EasyPrivacy into the lab's content-blocking settings as current, so Content Blocking shows the lists
-a first run has without fetching them. `--agents` has an Agent at work under the real Agent rules:
-an Agent Space it made is on show with the tab it is driving, which it has just clicked in, and a
-second Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
+a first run has without fetching them. `--keyring <state>` has the lab's keyring in memory stand
+where Payment cards is to be reviewed, with `--show settings:payment-cards`: `unavailable`,
+`unreachable`, `locked`, `failed`, or `reading`, which answers after 20 seconds and holds the lab
+open that long when it closes. `--agents` has an Agent at work under the real Agent rules: an Agent
+Space it made is on show with the tab it is driving, which it has just clicked in, and a second
+Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
 `--agents-window` has the Agent's page open an Auxiliary window and captures that window.
 `--agents-grant` has the Agent ask for the reader's page on show, so the grant prompt stands over
 it. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` six more Agent
@@ -337,6 +340,13 @@ Opening a link runs the browser again, and the second process does not become a 
 taken hands its address to the owner over `org.freedesktop.Application` and exits without building
 an engine, a session store or a filter set. Omaweb is one window with its tabs down the side, so a
 handed-over address arrives as a tab.
+
+A development build run beside the installed browser therefore needs a session bus of its own,
+`dbus-run-session -- ./build/dev/omaweb`, with `OMAWEB_DATA_ROOT`, `OMAWEB_CONFIG_ROOT` and
+`OMAWEB_CONTROL_SOCKET` pointing at a scratch directory. A build on a private bus cannot reach the
+desktop's keyring: the bus starts the keyring daemon, which finds the desktop's already running and
+exits. Payment cards there say that Omaweb could not reach the keyring. Check them with the
+installed browser quit and the build on the desktop's own bus.
 
 The same command runs the Agent verbs against the browser already running. They start nothing of
 their own and exit with 0 when the browser answered, 1 when it refused, 2 for a malformed command

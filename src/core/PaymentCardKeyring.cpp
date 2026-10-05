@@ -42,15 +42,18 @@ bool MemoryPaymentCardKeyring::available()
     return m_contents->available;
 }
 
-std::optional<QList<KeyringItem>> MemoryPaymentCardKeyring::items()
+std::expected<QList<KeyringItem>, KeyringFailure> MemoryPaymentCardKeyring::items()
 {
     const QMutexLocker locker(&m_contents->mutex);
     if (!m_contents->available) {
-        return std::nullopt;
+        return std::unexpected(KeyringFailure::Unreachable);
     }
     ++m_contents->reads;
+    if (m_contents->failure) {
+        return std::unexpected(*m_contents->failure);
+    }
     if (m_contents->locked) {
-        return std::nullopt;
+        return std::unexpected(KeyringFailure::Locked);
     }
     return m_contents->items;
 }
@@ -58,9 +61,15 @@ std::optional<QList<KeyringItem>> MemoryPaymentCardKeyring::items()
 bool MemoryPaymentCardKeyring::store(const QString &id, const QByteArray &secret)
 {
     const QMutexLocker locker(&m_contents->mutex);
-    if (!m_contents->available) {
+    if (!m_contents->available || m_contents->failure) {
         return false;
     }
+    // Saving into a locked keyring asks the reader to unlock it, as a desktop's
+    // does.
+    if (m_contents->locked && m_contents->dismisses) {
+        return false;
+    }
+    m_contents->locked = false;
     auto &items = m_contents->items;
     const auto found = std::find_if(
         items.begin(), items.end(), [&id](const KeyringItem &item) { return item.id == id; });
@@ -85,7 +94,10 @@ namespace {
     class NoKeyring final : public PaymentCardKeyring {
     public:
         bool available() override { return false; }
-        std::optional<QList<KeyringItem>> items() override { return std::nullopt; }
+        std::expected<QList<KeyringItem>, KeyringFailure> items() override
+        {
+            return std::unexpected(KeyringFailure::Unreachable);
+        }
         bool store(const QString &, const QByteArray &) override { return false; }
         bool remove(const QString &) override { return false; }
     };

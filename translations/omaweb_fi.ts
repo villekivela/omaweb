@@ -2597,6 +2597,38 @@
         <translation>Tekstitiedostot (*.txt)</translation>
     </message>
     <message>
+        <source>Reading the keyring</source>
+        <translation>Avainnippua luetaan</translation>
+    </message>
+    <message>
+        <source>Omaweb is asking the desktop&apos;s keyring for the cards. The desktop may ask you to unlock it.</source>
+        <translation>Omaweb pyytää kortteja työpöydän avainnipusta. Työpöytä voi pyytää sinua avaamaan sen.</translation>
+    </message>
+    <message>
+        <source>Omaweb could not reach the keyring</source>
+        <translation>Omaweb ei tavoittanut avainnippua</translation>
+    </message>
+    <message>
+        <source>The session bus offers a secret store, and nothing answered for it. An Omaweb on a session bus of its own cannot reach the desktop&apos;s keyring.</source>
+        <translation>Istuntoväylä tarjoaa salaisuusvaraston, mutta mikään ei vastannut sen puolesta. Omaweb omalla istuntoväylällään ei tavoita työpöydän avainnippua.</translation>
+    </message>
+    <message>
+        <source>The keyring is locked</source>
+        <translation>Avainnippu on lukittu</translation>
+    </message>
+    <message>
+        <source>The desktop did not unlock its keyring. Adding a card asks it again.</source>
+        <translation>Työpöytä ei avannut avainnippuaan. Kortin lisääminen pyytää avaamaan sen uudelleen.</translation>
+    </message>
+    <message>
+        <source>The keyring answered with an error</source>
+        <translation>Avainnippu vastasi virheellä</translation>
+    </message>
+    <message>
+        <source>Omaweb asked the desktop&apos;s keyring for the cards, and it refused. The log has its message.</source>
+        <translation>Omaweb pyysi kortteja työpöydän avainnipusta, ja se kieltäytyi. Sen viesti on lokissa.</translation>
+    </message>
+    <message>
         <source>%1 •••• %2</source>
         <comment>a saved card: its nickname or brand, its last four digits</comment>
         <translation>%1 •••• %2</translation>
@@ -3339,6 +3371,11 @@ Päivitykset osoitteesta %3</translation>
         <translation>Osoitteen sähköposti</translation>
     </message>
     <message>
+        <source>Try again</source>
+        <comment>button: ask the keyring for the cards again</comment>
+        <translation>Yritä uudelleen</translation>
+    </message>
+    <message>
         <source>No saved addresses</source>
         <translation>Ei tallennettuja osoitteita</translation>
     </message>
@@ -3405,10 +3442,6 @@ Päivitykset osoitteesta %3</translation>
         <translation>Ei salaisuusvarastoa</translation>
     </message>
     <message>
-        <source>The keyring stayed locked</source>
-        <translation>Avainnippu pysyi lukittuna</translation>
-    </message>
-    <message>
         <source>No saved cards</source>
         <translation>Ei tallennettuja kortteja</translation>
     </message>
@@ -3421,17 +3454,8 @@ Päivitykset osoitteesta %3</translation>
         <translation>Työpöytä ei tarjoa salaisuusvarastoa, joten Omaweb ei säilytä maksukortteja.</translation>
     </message>
     <message>
-        <source>Omaweb asked the desktop to unlock its keyring, and it did not.</source>
-        <translation>Omaweb pyysi työpöytää avaamaan avainnipun, mutta sitä ei avattu.</translation>
-    </message>
-    <message>
         <source>Cards are kept in the desktop&apos;s keyring and offered in forms in every Space, never in a Private window. The security code is never kept.</source>
         <translation>Kortit säilytetään työpöydän avainnipussa, ja niitä tarjotaan lomakkeissa jokaisessa tilassa, ei koskaan yksityisessä ikkunassa. Turvakoodia ei koskaan säilytetä.</translation>
-    </message>
-    <message>
-        <source>Try again</source>
-        <comment>button: ask to unlock the keyring again</comment>
-        <translation>Yritä uudelleen</translation>
     </message>
     <message>
         <source>Add card</source>
@@ -3485,6 +3509,10 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>That is not a card number, or the expiry is not a month and year.</source>
         <translation>Tämä ei ole kortin numero, tai voimassaolo ei ole kuukausi ja vuosi.</translation>
+    </message>
+    <message>
+        <source>The keyring stayed locked, so the card was not saved. Saving it again asks the desktop to unlock it.</source>
+        <translation>Avainnippu pysyi lukittuna, joten korttia ei tallennettu. Uusi tallennus pyytää työpöytää avaamaan sen.</translation>
     </message>
     <message>
         <source>New Space</source>

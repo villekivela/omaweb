@@ -190,8 +190,17 @@ TestCase {
         Component.onCompleted: resetProjects()
 
         property string paymentCardsState: "ready"
+        property var cardsFixture: []
+        signal paymentCardsChanged
         function paymentCards() {
-            return [];
+            return cardsFixture;
+        }
+        function savePaymentCard(card) {
+            return "typed-card";
+        }
+        property int readCardsAgainCount: 0
+        function readPaymentCardsAgain() {
+            readCardsAgainCount += 1;
         }
 
         function forgetSpaceProject(spaceId) {
@@ -339,6 +348,9 @@ TestCase {
     // page and the singleton it moved are put back here instead, where one
     // test's failure cannot leave the next one reading a shell it did not set.
     function cleanup() {
+        browserStub.paymentCardsState = "ready";
+        browserStub.cardsFixture = [];
+        browserStub.readCardsAgainCount = 0;
         settingsClosedSpy.target = null;
         settingsClosedSpy.clear();
         syncCodeCopiedSpy.target = null;
@@ -716,6 +728,139 @@ TestCase {
         verify(row.visible);
         compare(row.title, "Suomi (fi_FI)");
         compare(row.note, "Follows the system locale (LANG). Shipped: English, Suomi.");
+    }
+
+    // With no cards to list, the section says where the keyring stands: still
+    // being read, which is not yet "No saved cards", or why it gave none up.
+    // A keyring the reader left locked still takes a card, which asks the
+    // desktop to unlock it again.
+    function test_theCardsSectionSaysWhereTheKeyringStands_data() {
+        return [
+                    {
+                        "tag": "unread",
+                        "title": "Reading the keyring",
+                        "add": false,
+                        "again": false
+                    },
+                    {
+                        "tag": "reading",
+                        "title": "Reading the keyring",
+                        "add": false,
+                        "again": false
+                    },
+                    {
+                        "tag": "ready",
+                        "title": "No saved cards",
+                        "add": true,
+                        "again": false
+                    },
+                    {
+                        "tag": "unreachable",
+                        "title": "Omaweb could not reach the keyring",
+                        "add": false,
+                        "again": true
+                    },
+                    {
+                        "tag": "locked",
+                        "title": "The keyring is locked",
+                        "add": true,
+                        "again": true
+                    },
+                    {
+                        "tag": "failed",
+                        "title": "The keyring answered with an error",
+                        "add": false,
+                        "again": true
+                    },
+                    {
+                        "tag": "unavailable",
+                        "title": "No secret store",
+                        "add": false,
+                        "again": false
+                    }
+                ];
+    }
+
+    function test_theCardsSectionSaysWhereTheKeyringStands(data) {
+        browserStub.paymentCardsState = data.tag;
+        const page = makePage();
+        page.browser = browserStub;
+        page.section = page.sections.indexOf("payment cards");
+        const row = findChild(page, "noCards");
+        verify(row.visible);
+        compare(row.title, data.title);
+        compare(findChild(page, "addCardButton").visible, data.add);
+        const again = findChild(page, "readCardsAgainButton");
+        compare(again.visible, data.again);
+        if (data.again) {
+            again.clicked();
+            compare(browserStub.readCardsAgainCount, 1);
+        }
+    }
+
+    // A card saved into a locked keyring waits in its fields while the desktop
+    // asks the reader to unlock it. Unlocked, the card is listed and the fields
+    // close; left locked, the card stays typed in them and the section says it
+    // was not saved, rather than closing on a card that went nowhere.
+    function test_aCardSavedIntoALockedKeyringWaitsForTheReader_data() {
+        return [
+                    {
+                        "tag": "unlocked",
+                        "answer": "ready",
+                        "kept": true
+                    },
+                    {
+                        "tag": "unlocked while another section is on show",
+                        "answer": "ready",
+                        "kept": true,
+                        "away": true
+                    },
+                    {
+                        "tag": "left locked",
+                        "answer": "locked",
+                        "kept": false
+                    }
+                ];
+    }
+
+    function test_aCardSavedIntoALockedKeyringWaitsForTheReader(data) {
+        browserStub.paymentCardsState = "locked";
+        const page = makePage();
+        page.browser = browserStub;
+        page.section = page.sections.indexOf("payment cards");
+        findChild(page, "addCardButton").clicked();
+        findChild(page, "cardNumber").text = "4242 4242 4242 4242";
+        findChild(page, "cardExpiry").text = "08/29";
+        findChild(page, "saveCardButton").clicked();
+
+        browserStub.paymentCardsState = "reading";
+        browserStub.paymentCardsChanged();
+        verify(findChild(page, "cardNumber").visible);
+        compare(findChild(page, "noCards").title, "Reading the keyring");
+
+        if (data.away)
+            page.section = page.sections.indexOf("addresses");
+        browserStub.paymentCardsState = data.answer;
+        if (data.kept)
+            browserStub.cardsFixture = [
+                        {
+                            "id": "typed-card",
+                            "last4": "4242",
+                            "brand": "Visa",
+                            "name": "",
+                            "expiryMonth": 8,
+                            "expiryYear": 2029,
+                            "nickname": ""
+                        }
+                    ];
+        browserStub.paymentCardsChanged();
+        if (data.away)
+            page.section = page.sections.indexOf("payment cards");
+        compare(findChild(page, "cardNumber").visible, !data.kept);
+        compare(findChild(page, "cardNotKept").visible, !data.kept);
+        compare(findChild(page, "cardList").count, data.kept ? 1 : 0);
+        if (!data.kept)
+            compare(findChild(page, "cardNumber").text, "4242 4242 4242 4242");
     }
 
     function test_theAgentsSectionListsGrantsToRevoke() {

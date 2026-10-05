@@ -15,6 +15,7 @@
 #include <QUuid>
 
 #include <memory>
+#include <optional>
 
 using omaweb::BrowserController;
 using omaweb::MemoryPaymentCardKeyring;
@@ -46,6 +47,8 @@ QVariantMap shown(const QString &id, const QString &last4, const QString &brand,
 
 } // namespace
 
+Q_DECLARE_METATYPE(std::optional<omaweb::KeyringFailure>)
+
 class PaymentCardsTest : public QObject {
     Q_OBJECT
 
@@ -59,6 +62,10 @@ private slots:
     void knowsASavedCardByItsNumber();
     void clearsCardsOnlyWhenAsked();
     void asksALockedKeyringAgainOnlyWhenTheReaderDoes();
+    void namesWhyTheKeyringGaveNoCards_data();
+    void namesWhyTheKeyringGaveNoCards();
+    void addingACardAsksALockedKeyringAgain();
+    void aCardALockedKeyringRefusedIsNotListed();
     void clearingWhileTheKeyringIsReadKeepsNoCard();
 };
 
@@ -319,12 +326,12 @@ void PaymentCardsTest::asksALockedKeyringAgainOnlyWhenTheReaderDoes()
     BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
     controller.setPaymentCards(&cards);
     controller.paymentCards();
-    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("unreadable"));
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("locked"));
     for (int asked = 0; asked < 3; ++asked) {
         QVERIFY(controller.paymentCards().isEmpty());
     }
     QTest::qWait(100);
-    QCOMPARE(controller.paymentCardsState(), QStringLiteral("unreadable"));
+    QCOMPARE(controller.paymentCardsState(), QStringLiteral("locked"));
     QCOMPARE(keyring->reads, 1);
 
     {
@@ -334,6 +341,91 @@ void PaymentCardsTest::asksALockedKeyringAgainOnlyWhenTheReaderDoes()
     controller.readPaymentCardsAgain();
     QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("ready"));
     QCOMPARE(keyring->reads, 2);
+}
+
+// Settings says why the keyring gave no cards: nothing answered for it, the
+// reader left it locked, or it answered with an error. Each can be asked again.
+void PaymentCardsTest::namesWhyTheKeyringGaveNoCards_data()
+{
+    QTest::addColumn<std::optional<omaweb::KeyringFailure>>("failure");
+    QTest::addColumn<bool>("locked");
+    QTest::addColumn<QString>("state");
+    QTest::newRow("unreachable") << std::optional(omaweb::KeyringFailure::Unreachable) << false
+                                 << "unreachable";
+    QTest::newRow("locked") << std::optional<omaweb::KeyringFailure>() << true << "locked";
+    QTest::newRow("failed") << std::optional(omaweb::KeyringFailure::Failed) << false << "failed";
+}
+
+void PaymentCardsTest::namesWhyTheKeyringGaveNoCards()
+{
+    QFETCH(std::optional<omaweb::KeyringFailure>, failure);
+    QFETCH(bool, locked);
+    QFETCH(QString, state);
+    QTemporaryDir root;
+    auto keyring = std::make_shared<MemoryPaymentCardKeyring::Contents>();
+    keyring->failure = failure;
+    keyring->locked = locked;
+    PaymentCards cards(std::make_unique<MemoryPaymentCardKeyring>(keyring));
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.setPaymentCards(&cards);
+    controller.paymentCards();
+    QTRY_COMPARE(controller.paymentCardsState(), state);
+
+    {
+        const QMutexLocker locker(&keyring->mutex);
+        keyring->failure.reset();
+        keyring->locked = false;
+    }
+    controller.readPaymentCardsAgain();
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("ready"));
+}
+
+// A keyring the reader left locked takes a new card: saving it asks the
+// desktop to unlock the keyring again, and once the reader does, the cards it
+// held are read with the new one.
+void PaymentCardsTest::addingACardAsksALockedKeyringAgain()
+{
+    QTemporaryDir root;
+    auto keyring = std::make_shared<MemoryPaymentCardKeyring::Contents>();
+    keyring->items.append({.id = QStringLiteral("saved"),
+        .secret = QByteArrayLiteral(R"({"number":"5555555555554444","added":1})")});
+    keyring->locked = true;
+    PaymentCards cards(std::make_unique<MemoryPaymentCardKeyring>(keyring));
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.setPaymentCards(&cards);
+    controller.paymentCards();
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("locked"));
+
+    const auto id = controller.savePaymentCard(visa());
+    QVERIFY(!id.isEmpty());
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("ready"));
+    const auto shownCards = controller.paymentCards();
+    QCOMPARE(shownCards.size(), 2);
+    QCOMPARE(shownCards.at(0).toMap().value(QStringLiteral("id")), QStringLiteral("saved"));
+    QCOMPARE(shownCards.at(1).toMap().value(QStringLiteral("id")), id);
+    QCOMPARE(keyring->size(), 2);
+}
+
+// A card saved while the reader dismisses the desktop's prompt again is not
+// listed as if it were kept: the keyring is still locked, and holds nothing new.
+void PaymentCardsTest::aCardALockedKeyringRefusedIsNotListed()
+{
+    QTemporaryDir root;
+    auto keyring = std::make_shared<MemoryPaymentCardKeyring::Contents>();
+    keyring->locked = true;
+    keyring->dismisses = true;
+    PaymentCards cards(std::make_unique<MemoryPaymentCardKeyring>(keyring));
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.setPaymentCards(&cards);
+    controller.paymentCards();
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("locked"));
+
+    QVERIFY(!controller.savePaymentCard(visa()).isEmpty());
+    QCOMPARE(controller.paymentCardsState(), QStringLiteral("reading"));
+    QVERIFY(controller.paymentCards().isEmpty());
+    QTRY_COMPARE(controller.paymentCardsState(), QStringLiteral("locked"));
+    QVERIFY(controller.paymentCards().isEmpty());
+    QCOMPARE(keyring->size(), 0);
 }
 
 // Clearing the cards while the keyring is still being read does not let the

@@ -3486,8 +3486,12 @@ QString BrowserController::paymentCardsState() const
         return QStringLiteral("ready");
     case PaymentCards::State::Unavailable:
         return QStringLiteral("unavailable");
-    case PaymentCards::State::Unreadable:
-        return QStringLiteral("unreadable");
+    case PaymentCards::State::Unreachable:
+        return QStringLiteral("unreachable");
+    case PaymentCards::State::Locked:
+        return QStringLiteral("locked");
+    case PaymentCards::State::Failed:
+        return QStringLiteral("failed");
     }
     return QStringLiteral("unavailable");
 }
