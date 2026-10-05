@@ -140,6 +140,32 @@ Omaweb opens your terminal through `xdg-terminal-exec`, running the agent comman
 first time it reaches one of your Spaces, Omaweb asks you once whether it may. Omaweb holds no model
 and sends nothing to an AI service: the agent is your own program.
 
+## Projects
+
+Omaweb is the browser you and your coding agent share while you build. Start your dev server as you
+always do, then run `omaweb dev` in the project's folder with the address it serves:
+
+```sh
+cd ~/code/shop
+omaweb dev localhost:5173
+```
+
+The first time, Omaweb makes a Space named after the folder, remembers the folder and the address,
+and shows the app there. Later, a bare `omaweb dev` in that folder or any folder below it brings the
+Space forward and selects the app's tab. While the server is not answering yet, the Start page's
+road drives, and the app loads once it answers. Omaweb never starts or stops your server.
+
+`:ask` in a project's Space starts your agent in the project's folder, so it reads that project's
+`CLAUDE.md`. To run the agent somewhere else, such as in a container or on another machine, record a
+command for the project. `{dir}` stands for the project's folder:
+
+```sh
+omaweb dev localhost:5173 --agent 'incus exec dev --cwd {dir} -- claude'
+```
+
+Settings lists each project under spaces, with Forget project to clear it. `omaweb dev` grants
+agents nothing: the first time your agent reaches the Space, Omaweb asks you as it does anywhere.
+
 ## Configuration
 
 User configuration lives in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that variable is

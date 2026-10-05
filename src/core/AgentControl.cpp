@@ -3,6 +3,7 @@
 #include "AgentActivityLog.h"
 #include "BrowserController.h"
 #include "PrivacyFile.h"
+#include "SpaceProject.h"
 
 #include <QAbstractItemModel>
 #include <QDateTime>
@@ -167,6 +168,10 @@ namespace {
     }
 
     QString quoted(const QString &text) { return QStringLiteral("\"%1\"").arg(text); }
+
+    // What an address keeps of itself as an origin: its scheme, host and port.
+    constexpr auto appOrigin
+        = QUrl::RemoveUserInfo | QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment;
 
     // One step of a `do`, as the reader is told it was done: what the page
     // named the element it reached, and the label only where it named none.
@@ -355,13 +360,21 @@ QVariantMap AgentControl::askAgent(const QString &tabId, const QString &words)
     if (!m_browser || m_browser->privateBrowsing()) {
         return failed(QStringLiteral("private"));
     }
-    if (!m_browser->findTab(tabId)) {
+    const auto tab = m_browser->findTab(tabId);
+    if (!tab) {
         return failed(QStringLiteral("no-tab"));
     }
-    auto arguments = QProcess::splitCommand(m_agentCommand);
+    // A project's Space runs the project's own agent command, or the global
+    // one, with `{dir}` naming the project directory. Anywhere else the
+    // command is the reader's as they wrote it.
+    const auto project = m_browser->spaceProject(tab->spaceId);
+    const auto command
+        = project && !project->agentCommand.isEmpty() ? project->agentCommand : m_agentCommand;
+    auto arguments = project ? projectAgentArguments(command, project->directory)
+                             : QProcess::splitCommand(command);
     if (arguments.isEmpty() || runnableProgram(arguments.constFirst()).isEmpty()) {
-        return failed(QStringLiteral("no-agent"),
-            arguments.isEmpty() ? m_agentCommand : arguments.constFirst());
+        return failed(
+            QStringLiteral("no-agent"), arguments.isEmpty() ? command : arguments.constFirst());
     }
     const auto terminal = runnableProgram(m_terminalProgram);
     if (terminal.isEmpty()) {
@@ -369,8 +382,15 @@ QVariantMap AgentControl::askAgent(const QString &tabId, const QString &words)
     }
     arguments.append(agentPrompt(tabId, words));
     // The agent works for the reader, so it starts where their terminal
-    // would, not wherever the browser was started from.
-    if (!QProcess::startDetached(terminal, arguments, QDir::homePath())) {
+    // would, not wherever the browser was started from: in the project
+    // directory, which is where an agent finds the project's CLAUDE.md, or
+    // else at home. A folder recorded inside a container may not be here.
+    auto directory = QDir::homePath();
+    if (project && QFileInfo(project->directory).isDir()) {
+        directory = project->directory;
+        arguments.prepend(QStringLiteral("--dir=") + directory);
+    }
+    if (!QProcess::startDetached(terminal, arguments, directory)) {
         return failed(QStringLiteral("not-started"), m_terminalProgram);
     }
     return {{QStringLiteral("ok"), true}};
@@ -972,7 +992,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
         QStringLiteral("space delete"), QStringLiteral("look"), QStringLiteral("read"),
         QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval"),
         QStringLiteral("console"), QStringLiteral("commands"), QStringLiteral("run"),
-        QStringLiteral("space"), QStringLiteral("focus")};
+        QStringLiteral("space"), QStringLiteral("focus"), QStringLiteral("dev")};
     if (!verbs.contains(verb)) {
         return refusal(
             QStringLiteral("bad-request"), QStringLiteral("Omaweb has no verb \"%1\".").arg(verb));
@@ -1310,6 +1330,9 @@ QJsonObject AgentControl::answerBrowserCommand(const QString &verb, const QStrin
     if (verb == u"focus") {
         return focusTab(request);
     }
+    if (verb == u"dev") {
+        return openProject(request);
+    }
     return askWindow(verb, request);
 }
 
@@ -1445,6 +1468,91 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
         emit windowRequested();
     }
     return success({{QStringLiteral("tab"), tab->id}, {QStringLiteral("space"), tab->spaceId}});
+}
+
+// `omaweb dev`, from the folder the CLI ran in. Any process can send it, so it
+// is a browser command and reaches no page: it makes or finds the reader's own
+// Space, records where its project is, and brings it forward. It never grants
+// the Space and never makes its tabs an Agent's.
+QJsonObject AgentControl::openProject(const QJsonObject &request)
+{
+    const auto sentDirectory = request.value(QStringLiteral("directory")).toString();
+    if (sentDirectory.isEmpty() || QDir::isRelativePath(sentDirectory)) {
+        return refusal(QStringLiteral("bad-request"),
+            QStringLiteral("`dev` names the folder it was run in by its whole path."));
+    }
+    const auto directory = QDir::cleanPath(sentDirectory);
+    const auto typedAddress = request.value(QStringLiteral("address")).toString().trimmed();
+    QString spaceId;
+    SpaceProject project {.directory = directory, .address = {}, .agentCommand = {}};
+    if (!typedAddress.isEmpty()) {
+        // Given an address, the folder is the project, even below another
+        // project's: a monorepo's apps are a Space each.
+        const auto url = m_browser->resolveAddress(typedAddress);
+        const auto web = url.scheme() == u"http" || url.scheme() == u"https";
+        // Words become a search, which is no project's address.
+        if (!openable(typedAddress, url) || !web
+            || !typedAddress.contains(url.host(), Qt::CaseInsensitive)) {
+            return refusal(QStringLiteral("bad-request"),
+                QStringLiteral("\"%1\" is not the address of a web app, such as localhost:5173.")
+                    .arg(typedAddress));
+        }
+        const auto nearest = m_browser->projectSpaceFor(directory);
+        if (const auto existing = m_browser->spaceProject(nearest);
+            existing && QDir::cleanPath(existing->directory) == directory) {
+            spaceId = nearest;
+            project = *existing;
+        }
+        project.address = url.toString();
+    } else {
+        spaceId = m_browser->projectSpaceFor(directory);
+        const auto existing = m_browser->spaceProject(spaceId);
+        if (!existing || existing->address.isEmpty()) {
+            return refusal(QStringLiteral("no-address"),
+                QStringLiteral("No project in %1 or a folder above it has an address to open. "
+                               "Give it once, such as `omaweb dev localhost:5173`.")
+                    .arg(directory));
+        }
+        project = *existing;
+    }
+    if (const auto agent = request.value(QStringLiteral("agent")); agent.isString()) {
+        project.agentCommand = agent.toString().trimmed();
+    }
+    if (spaceId.isEmpty()) {
+        spaceId = m_browser->createProjectSpace(project);
+    } else if (!m_browser->setSpaceProject(spaceId, project)) {
+        spaceId.clear();
+    }
+    if (spaceId.isEmpty()) {
+        return refusal(
+            QStringLiteral("failed"), QStringLiteral("Omaweb could not keep the project's Space."));
+    }
+    if (!m_browser->switchSpace(spaceId)) {
+        return refusal(
+            QStringLiteral("failed"), QStringLiteral("Omaweb could not switch to the Space."));
+    }
+    // The reader ran it to see the app, as `focus --raise` brings a tab
+    // forward.
+    emit windowRequested();
+    QJsonObject answer {{QStringLiteral("space"), spaceId},
+        {QStringLiteral("spaceName"), spaceName(spaceId)},
+        {QStringLiteral("directory"), project.directory},
+        {QStringLiteral("address"), project.address}};
+    // A tab already on the app is the app, at whatever page the reader left it.
+    const auto origin = QUrl(project.address).adjusted(appOrigin);
+    for (const auto &tab : m_browser->spaceTabs(spaceId)) {
+        if (tab.url.adjusted(appOrigin) == origin
+            && m_browser->activateTabInSpace(spaceId, tab.id)) {
+            // A wait an earlier `dev` began would open the app a second time.
+            m_browser->stopAwaitingAddress(spaceId);
+            answer.insert(QStringLiteral("tab"), tab.id);
+            return success(answer);
+        }
+    }
+    // The CLI returns now. The road drives until the server answers, which
+    // may be long after: Omaweb does not start it.
+    m_browser->awaitAddress(spaceId, QUrl(project.address));
+    return success(answer);
 }
 
 QString AgentControl::targetId(const Connection &connection, const QJsonObject &request) const

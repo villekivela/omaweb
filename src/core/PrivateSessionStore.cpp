@@ -46,6 +46,12 @@ bool PrivateSessionStore::saveSpaceGrant(const QString &) { return false; }
 
 bool PrivateSessionStore::forgetSpaceGrant(const QString &) { return false; }
 
+QHash<QString, SpaceProject> PrivateSessionStore::spaceProjects() const { return {}; }
+
+bool PrivateSessionStore::saveSpaceProject(const QString &, const SpaceProject &) { return false; }
+
+bool PrivateSessionStore::forgetSpaceProject(const QString &) { return false; }
+
 QVector<TabState> PrivateSessionStore::loadTabs(const QString &) const { return {}; }
 
 QVector<TabState> PrivateSessionStore::loadClosedTabs(const QString &) const { return {}; }

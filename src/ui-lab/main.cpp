@@ -582,6 +582,19 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--spaces"))) {
         seedSampleSpaces(browser, mockFavicons);
     }
+    // `--projects` makes two Spaces projects' (`omaweb dev`), so their rows in
+    // Settings can be reviewed: one whose folder is here, with an agent command
+    // of its own, and one recorded inside a container, whose folder is not.
+    if (arguments.contains(QStringLiteral("--projects"))) {
+        const auto shop = dataRoot.filePath(QStringLiteral("code/shop"));
+        QDir().mkpath(shop);
+        browser.createProjectSpace({.directory = shop,
+            .address = QStringLiteral("http://localhost:5173"),
+            .agentCommand = QStringLiteral("incus exec dev --cwd {dir} -- claude")});
+        browser.createProjectSpace({.directory = QStringLiteral("/workspace/blog"),
+            .address = QStringLiteral("http://localhost:4321"),
+            .agentCommand = {}});
+    }
     // `--agents` has an Agent at work, so its marks can be reviewed: an Agent
     // Space it made with a tab it is driving, on show, and a second Agent Space
     // no Agent is using. `--agents-away` leaves the reader's first Space on

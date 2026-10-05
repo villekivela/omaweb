@@ -330,6 +330,19 @@ Rectangle {
         }
     }
 
+    function projectNote(project) {
+        if (!project)
+            return "";
+        const lines = [qsTr("Project folder: %1").arg(project.directory)];
+        if (!project.present)
+            lines.push(qsTr("This folder is not on this computer."));
+        lines.push(qsTr("Address: %1").arg(project.address));
+        lines.push(project.agentCommand.length > 0 ? qsTr("Agent command: %1").arg(
+                                                         project.agentCommand) : qsTr(
+                                                         "Agent command from the agents section"));
+        return lines.join("\n");
+    }
+
     // What a Space's colour is called to a screen reader.
     function colourName(colour) {
         switch (colour) {
@@ -2050,11 +2063,20 @@ Rectangle {
                                     const beside = spaceList.itemAt(index + offset);
                                     return beside !== null && beside.agentMade === agentMade;
                                 }
+                                // The Space's project (`omaweb dev`), shown
+                                // here and never edited here.
+                                readonly property var project: root.browser
+                                                               && root.browser.spaceProjects
+                                                               ? root.browser.spaceProjects[spaceId]
+                                                                 || null : null
                                 objectName: "settingsSpace-" + spaceId
                                 width: pane.width
                                 colors: root.colors
                                 title: spaceName
-                                note: active ? qsTr("Current Space") : ""
+                                note: [active ? qsTr("Current Space") : "", root.projectNote(
+                                        project)].filter(function (line) {
+                                            return line.length > 0;
+                                        }).join("\n")
                                 height: Math.max(implicitHeight, spaceActions.implicitHeight
                                                  + verticalPadding * 2)
 
@@ -2063,7 +2085,10 @@ Rectangle {
                                     width: Math.min(pane.width * 0.7, spaceSwatches.width
                                                     + renameSpace.implicitWidth
                                                     + deleteSpace.implicitWidth + moveSpaceUp.width
-                                                    + moveSpaceDown.width + spacing * 4)
+                                                    + moveSpaceDown.width + spacing * 4 + (
+                                                        forgetProject.visible
+                                                        ? forgetProject.implicitWidth + spacing :
+                                                          0))
                                     spacing: Style.spacing.sm
 
                                     // The six colours a Space may be drawn in,
@@ -2162,6 +2187,17 @@ Rectangle {
                                         onClicked: root.spaceActionRequested("delete",
                                                                              spaceRow.spaceId,
                                                                              spaceRow.spaceName)
+                                    }
+
+                                    ActionButton {
+                                        id: forgetProject
+                                        objectName: "forgetProject-" + spaceRow.spaceId
+                                        colors: root.colors
+                                        visible: spaceRow.project !== null
+                                        label: qsTr("Forget project")
+                                        accessibleName: qsTr("Forget the project of %1").arg(
+                                                            spaceRow.spaceName)
+                                        onClicked: root.browser.forgetSpaceProject(spaceRow.spaceId)
                                     }
 
                                     // Where the Space sits in the list, at the end of the row:

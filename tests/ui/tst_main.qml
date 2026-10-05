@@ -10793,6 +10793,66 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting still");
     }
 
+    // `omaweb dev` before the dev server is up: the project's Space shows the
+    // road driving and loads nothing, and Escape stops waiting. Once the
+    // address answers, the road drives on into the page.
+    function test_theRoadDrivesUntilTheProjectsAddressAnswers() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const road = findChild(window.contentItem, "nightRoad");
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const homeSpaceId = browser.activeSpaceId;
+        const project = "/home/reader/omaweb-ui-dev-shop";
+        const waited = agentSocket.ask({
+                                           verb: "dev",
+                                           name: "zsh",
+                                           directory: project,
+                                           address: "127.0.0.1:1"
+                                       });
+        verify(waited.ok, waited.error);
+        const spaceId = waited.space;
+        compare(browser.activeSpaceId, spaceId);
+        verify(browser.activeSpaceAwaitsAddress);
+        tryVerify(function () {
+            return startPage.open;
+        });
+        compare(road.navigating, 1);
+        wait(300);
+        compare(road.navigating, 1);
+        verify(browser.activeTabBlank);
+        compare(engineLoader.item, null);
+
+        activateWindow();
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !browser.activeSpaceAwaitsAddress;
+        });
+        compare(road.navigating, 0);
+        verify(browser.activeTabBlank);
+
+        const served = String(suggestServer.suggestUrl()).match(/^http:\/\/([^/]+)/);
+        const answered = agentSocket.ask({
+                                             verb: "dev",
+                                             name: "zsh",
+                                             directory: project,
+                                             address: served[1]
+                                         });
+        verify(answered.ok, answered.error);
+        compare(answered.space, spaceId);
+        tryVerify(function () {
+            return String(browser.activeUrl).indexOf(served[0]) === 0;
+        });
+        verify(window.startPageDriving);
+        compare(road.navigating, 1);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving;
+        });
+        leaveSpace(homeSpaceId, spaceId, waited.spaceName);
+    }
+
     // After a commit the road drives until the page first paints, for two
     // seconds at most, and a failure ends it at once.
     function test_theRoadDrivesUntilFirstPaintAndStopsOnAnError() {

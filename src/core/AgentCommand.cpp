@@ -3,6 +3,7 @@
 #include "AgentConsole.h"
 #include "AgentPick.h"
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -158,6 +159,13 @@ namespace {
                 .minimumPositionals = 1,
                 .maximumPositionals = 1,
                 .positionalField = QStringLiteral("target")};
+        }
+        if (verb == u"dev") {
+            return {.valued = {QStringLiteral("agent")},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 1,
+                .positionalField = QStringLiteral("address")};
         }
         if (verb == u"space new") {
             return {.valued = {},
@@ -528,7 +536,8 @@ bool isAgentCommand(const QStringList &arguments)
         QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space"),
         QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("do"),
         QStringLiteral("shot"), QStringLiteral("eval"), QStringLiteral("console"),
-        QStringLiteral("commands"), QStringLiteral("run"), QStringLiteral("focus")};
+        QStringLiteral("commands"), QStringLiteral("run"), QStringLiteral("focus"),
+        QStringLiteral("dev")};
     return arguments.size() > 1 && verbs.contains(arguments.at(1));
 }
 
@@ -674,12 +683,18 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             ? QStringLiteral("Use `space <space>`, `space new [name]` or `space delete <space>`.")
             : verb == u"focus"
             ? QStringLiteral("`focus` takes a tab's id or a part of its address.")
+            : verb == u"dev"
+            ? QStringLiteral("`dev` takes one address, such as localhost:5173.")
             : QStringLiteral("`%1` takes no argument %2.")
                   .arg(verb, positionals.value(std::max<qsizetype>(grammar.maximumPositionals, 0)));
         return command;
     }
     if (!positionals.isEmpty()) {
         request.insert(grammar.positionalField, positionals.constFirst());
+    }
+    // The folder is the project, and only the CLI knows where it ran.
+    if (verb == u"dev") {
+        request.insert(QStringLiteral("directory"), QDir::currentPath());
     }
     request.insert(QStringLiteral("name"), agentConnectionName(name));
     command.request = request;
@@ -789,6 +804,10 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
     }
     if (verb == u"focus") {
         return line({answer.value(QStringLiteral("tab")).toString()});
+    }
+    if (verb == u"dev") {
+        return line({answer.value(QStringLiteral("spaceName")).toString(),
+            answer.value(QStringLiteral("address")).toString()});
     }
     if (verb == u"look") {
         return formatLook(answer.value(QStringLiteral("look")).toObject());

@@ -2498,6 +2498,26 @@
         <translation>peruttu</translation>
     </message>
     <message>
+        <source>Project folder: %1</source>
+        <translation>Projektikansio: %1</translation>
+    </message>
+    <message>
+        <source>This folder is not on this computer.</source>
+        <translation>Tätä kansiota ei ole tällä tietokoneella.</translation>
+    </message>
+    <message>
+        <source>Address: %1</source>
+        <translation>Osoite: %1</translation>
+    </message>
+    <message>
+        <source>Agent command: %1</source>
+        <translation>Agentin komento: %1</translation>
+    </message>
+    <message>
+        <source>Agent command from the agents section</source>
+        <translation>Agentin komento agentit-osiosta</translation>
+    </message>
+    <message>
         <source>Green</source>
         <translation>Vihreä</translation>
     </message>
@@ -3205,6 +3225,14 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Delete %1</source>
         <translation>Poista %1</translation>
+    </message>
+    <message>
+        <source>Forget project</source>
+        <translation>Unohda projekti</translation>
+    </message>
+    <message>
+        <source>Forget the project of %1</source>
+        <translation>Unohda tilan %1 projekti</translation>
     </message>
     <message>
         <source>Move %1 up</source>
