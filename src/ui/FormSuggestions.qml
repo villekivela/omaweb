@@ -116,10 +116,11 @@ Item {
         };
     }
 
-    // The saved cards under an empty card field, or on a page that is not
-    // secure, a row that says why there are none.
+    // The saved cards under a card field, which refreshCards() reads only
+    // while it is empty, or on a page that is not secure, a row that says why
+    // there are none.
     function offeredCards(cards, field, secure) {
-        if (!field || !field.card || !field.empty || cards.length === 0)
+        if (!field || !field.card || cards.length === 0)
             return [];
         if (!secure)
             return [root.secureNoteRow()];
