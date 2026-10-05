@@ -242,6 +242,10 @@
         <translation>Kopioi osoite</translation>
     </message>
     <message>
+        <source>Site information</source>
+        <translation>Sivuston tiedot</translation>
+    </message>
+    <message>
         <source>Find in page</source>
         <translation>Etsi sivulta</translation>
     </message>
@@ -378,7 +382,7 @@
     </message>
 </context>
 <context>
-    <name>CertificateDialog</name>
+    <name>CertificateDetail</name>
     <message>
         <source>Subject</source>
         <translation>Kohde</translation>
@@ -402,18 +406,6 @@
     <message>
         <source>Names</source>
         <translation>Nimet</translation>
-    </message>
-    <message>
-        <source>certificate</source>
-        <translation>varmenne</translation>
-    </message>
-    <message>
-        <source>esc close</source>
-        <translation>esc sulkee</translation>
-    </message>
-    <message>
-        <source>←→ chain · ↑↓ field · ⏎ copy</source>
-        <translation>←→ ketju · ↑↓ kenttä · ⏎ kopioi</translation>
     </message>
     <message>
         <source>none</source>
@@ -466,6 +458,10 @@
     <message>
         <source>Copy %1</source>
         <translation>Kopioi: %1</translation>
+    </message>
+    <message>
+        <source>←→ chain · ↑↓ field · ⏎ copy</source>
+        <translation>←→ ketju · ↑↓ kenttä · ⏎ kopioi</translation>
     </message>
 </context>
 <context>
@@ -1534,26 +1530,6 @@
         <translation>kirjautumista varten · kunnes istunto päättyy · lataa sivu uudelleen käyttääksesi</translation>
     </message>
     <message>
-        <source>Cookies and site storage stayed: this engine has no way to remove them</source>
-        <translation>Evästeet ja sivustojen tallennustila säilyivät: tällä moottorilla niitä ei voi poistaa</translation>
-    </message>
-    <message>
-        <source>Cookies stayed: this engine has no way to remove them</source>
-        <translation>Evästeet säilyivät: tällä moottorilla niitä ei voi poistaa</translation>
-    </message>
-    <message>
-        <source>Site storage stayed: this engine has no way to remove them</source>
-        <translation>Sivustojen tallennustila säilyi: tällä moottorilla sitä ei voi poistaa</translation>
-    </message>
-    <message>
-        <source>Cleared this Space&apos;s cookies and cache</source>
-        <translation>Tämän tilan evästeet ja välimuisti tyhjennettiin</translation>
-    </message>
-    <message>
-        <source>Could not clear this Space&apos;s site data</source>
-        <translation>Tämän tilan sivustotietoja ei voitu tyhjentää</translation>
-    </message>
-    <message>
         <source>Reset every decision for this site</source>
         <translation>Tämän sivuston kaikki päätökset nollattiin</translation>
     </message>
@@ -1809,10 +1785,6 @@
         <translation>tyhjennä tämän sivuston tallennustila</translation>
     </message>
     <message>
-        <source>clear this Space&apos;s site data</source>
-        <translation>tyhjennä tämän tilan sivustotiedot</translation>
-    </message>
-    <message>
         <source>reset this site&apos;s permissions</source>
         <translation>nollaa tämän sivuston käyttöoikeudet</translation>
     </message>
@@ -1839,10 +1811,6 @@
     <message>
         <source>%1 loses the local storage, databases, caches and service workers it kept in this Space. Its cookies are not included: the engine can only take those for every site at once. The page may misbehave until it is reloaded, and this cannot be undone.</source>
         <translation>Sivusto %1 menettää tässä tilassa säilyttämänsä paikallisen tallennustilan, tietokannat, välimuistit ja service workerit. Evästeitä ei lasketa mukaan: moottori voi poistaa ne vain kaikilta sivustoilta kerralla. Sivu voi toimia virheellisesti, kunnes se ladataan uudelleen, eikä tätä voi peruuttaa.</translation>
-    </message>
-    <message>
-        <source>Every site in %1 loses its cookies and cached files, so open sessions there are signed out. Storage and databases stay: this engine can only take those one site at a time. This cannot be undone.</source>
-        <translation>Kaikki tilan %1 sivustot menettävät evästeensä ja välimuistitiedostonsa, joten avoimet istunnot kirjataan ulos. Tallennustila ja tietokannat säilyvät: tämä moottori voi poistaa ne vain yksi sivusto kerrallaan. Tätä ei voi peruuttaa.</translation>
     </message>
     <message>
         <source>%1 loses every decision made for it in this Space, and is asked again the next time it wants one. A page already holding a capability keeps it until the site is opened again — reloading is not enough.</source>
@@ -1879,10 +1847,6 @@
     <message>
         <source>⏎ clear %1&apos;s storage</source>
         <translation>⏎ tyhjennä sivuston %1 tallennustila</translation>
-    </message>
-    <message>
-        <source>⏎ clear every site&apos;s cookies and cache</source>
-        <translation>⏎ tyhjennä kaikkien sivustojen evästeet ja välimuisti</translation>
     </message>
     <message>
         <source>⏎ reset %1&apos;s permissions</source>
@@ -2159,6 +2123,24 @@
     <message>
         <source>Arrow keys resize the %1</source>
         <translation>Nuolinäppäimet muuttavat kohteen %1 kokoa</translation>
+    </message>
+</context>
+<context>
+    <name>PermissionDropdown</name>
+    <message>
+        <source>Allow</source>
+        <comment>a site permission</comment>
+        <translation>Salli</translation>
+    </message>
+    <message>
+        <source>Ask</source>
+        <comment>a site permission</comment>
+        <translation>Kysy</translation>
+    </message>
+    <message>
+        <source>Block</source>
+        <comment>a site permission</comment>
+        <translation>Estä</translation>
     </message>
 </context>
 <context>
@@ -3183,6 +3165,50 @@ Päivitykset osoitteesta %3</translation>
         <translation>Omaweb on käännetty eri Qt-versiota vasten kuin se, jolla se ajetaan, joten puhelua käynnistävälle sivulle tarjotaan jokainen tämän koneen osoite, moottorin oma oletus. Uudelleenkäännös tätä Qt:tä vasten palauttaa asetuksen.</translation>
     </message>
     <message>
+        <source>what this engine cannot do</source>
+        <translation>mitä tämä moottori ei osaa</translation>
+    </message>
+    <message>
+        <source>This engine cannot report a certificate failure</source>
+        <translation>Tämä moottori ei osaa ilmoittaa varmennevirheestä</translation>
+    </message>
+    <message>
+        <source>A page whose certificate fails is not stopped for a question, and Site information cannot say it failed.</source>
+        <translation>Sivua, jonka varmenne ei kelpaa, ei pysäytetä kysymystä varten, eivätkä sivuston tiedot voi kertoa virheestä.</translation>
+    </message>
+    <message>
+        <source>This engine cannot show the certificate a page arrived over</source>
+        <translation>Tämä moottori ei voi näyttää varmennetta, jolla sivu saapui</translation>
+    </message>
+    <message>
+        <source>Site information shows only the certificate a failure was raised for.</source>
+        <translation>Sivuston tiedot näyttävät vain varmenteen, josta virhe ilmoitettiin.</translation>
+    </message>
+    <message>
+        <source>This engine cannot refuse a third party</source>
+        <translation>Tämä moottori ei voi evätä kolmatta osapuolta</translation>
+    </message>
+    <message>
+        <source>Sites embedded in a page keep their cookies and storage there.</source>
+        <translation>Sivulle upotetut sivustot säilyttävät siellä evästeensä ja tallennustilansa.</translation>
+    </message>
+    <message>
+        <source>This engine keeps no site data on disk</source>
+        <translation>Tämä moottori ei säilytä sivustotietoja levyllä</translation>
+    </message>
+    <message>
+        <source>Cookies and storage last until Omaweb closes, so there is no size for Site information to give.</source>
+        <translation>Evästeet ja tallennustila säilyvät, kunnes Omaweb suljetaan, joten sivuston tiedoilla ei ole kokoa kerrottavana.</translation>
+    </message>
+    <message>
+        <source>This engine is not blocking insecure content</source>
+        <translation>Tämä moottori ei estä suojaamatonta sisältöä</translation>
+    </message>
+    <message>
+        <source>A secure page can load scripts and frames over plain HTTP.</source>
+        <translation>Suojattu sivu voi ladata skriptejä ja kehyksiä salaamattoman HTTP:n kautta.</translation>
+    </message>
+    <message>
         <source>process isolation</source>
         <translation>prosessien eristys</translation>
     </message>
@@ -3613,123 +3639,172 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     </message>
 </context>
 <context>
-    <name>SiteInformationPanel</name>
+    <name>SiteInformationCard</name>
     <message>
-        <source>connection is encrypted</source>
-        <translation>yhteys on salattu</translation>
+        <source>Start page</source>
+        <translation>Aloitussivu</translation>
     </message>
     <message>
-        <source>certificate could not be verified</source>
-        <translation>varmennetta ei voitu todentaa</translation>
+        <source>Connection is secure</source>
+        <translation>Yhteys on suojattu</translation>
     </message>
     <message>
-        <source>connection is not encrypted</source>
-        <translation>yhteys ei ole salattu</translation>
+        <source>Certificate could not be verified</source>
+        <translation>Varmennetta ei voitu todentaa</translation>
     </message>
     <message>
-        <source>no page is loaded</source>
-        <translation>mitään sivua ei ole ladattu</translation>
+        <source>Not secure</source>
+        <translation>Ei suojattu</translation>
+    </message>
+    <message>
+        <source>Omaweb&apos;s own page</source>
+        <translation>Omawebin oma sivu</translation>
     </message>
     <message>
         <source>%1 could not find this site, over Secure DNS</source>
         <translation>%1 ei löytänyt tätä sivustoa suojatun DNS:n kautta</translation>
     </message>
     <message>
-        <source>waived for this session</source>
-        <translation>ohitettu tämän istunnon ajaksi</translation>
+        <source>Encrypted · upgraded from HTTP by HTTPS-only mode</source>
+        <translation>Salattu · Vain HTTPS -tila vaihtoi HTTP:n HTTPS:ään</translation>
     </message>
     <message>
-        <source>upgraded from HTTP by HTTPS-only mode</source>
-        <translation>päivitetty HTTP:stä Vain HTTPS -tilan toimesta</translation>
+        <source>Waived for this session</source>
+        <translation>Ohitettu tämän istunnon ajaksi</translation>
     </message>
     <message>
-        <source>camera</source>
-        <translation>kamera</translation>
+        <source>Anything sent here can be read on the way</source>
+        <translation>Kaiken tänne lähetetyn voi lukea matkalla</translation>
     </message>
     <message>
-        <source>microphone</source>
-        <translation>mikrofoni</translation>
+        <source>Nothing was loaded from the network</source>
+        <translation>Verkosta ei ladattu mitään</translation>
     </message>
     <message>
-        <source>camera and microphone</source>
-        <translation>kamera ja mikrofoni</translation>
+        <source>Self-signed</source>
+        <translation>Itse allekirjoitettu</translation>
     </message>
     <message>
-        <source>location</source>
-        <translation>sijainti</translation>
+        <source>Certificate</source>
+        <translation>Varmenne</translation>
     </message>
     <message>
-        <source>notifications</source>
-        <translation>ilmoitukset</translation>
+        <source>Blocked</source>
+        <comment>requests Content blocking refused</comment>
+        <translation>Estetyt</translation>
     </message>
     <message>
-        <source>automatic downloads</source>
-        <translation>automaattiset lataukset</translation>
+        <source>1 request</source>
+        <translation>1 pyyntö</translation>
     </message>
     <message>
-        <source>authentication</source>
-        <translation>tunnistautuminen</translation>
+        <source>%1 requests</source>
+        <translation>%1 pyyntöä</translation>
     </message>
     <message>
-        <source>payment</source>
-        <translation>maksaminen</translation>
+        <source>Cookies and site data</source>
+        <translation>Evästeet ja sivustotiedot</translation>
     </message>
     <message>
-        <source>allowed once</source>
-        <translation>sallittu kerran</translation>
+        <source>No cookies</source>
+        <translation>Ei evästeitä</translation>
     </message>
     <message>
-        <source>always allowed</source>
-        <translation>aina sallittu</translation>
+        <source>1 cookie</source>
+        <translation>1 eväste</translation>
     </message>
     <message>
-        <source>blocked</source>
-        <comment>a permission decision</comment>
-        <translation>estetty</translation>
+        <source>%1 cookies</source>
+        <translation>%1 evästettä</translation>
     </message>
     <message>
-        <source>asked each time</source>
-        <translation>kysytään joka kerta</translation>
+        <source>Third parties</source>
+        <translation>Kolmannet osapuolet</translation>
     </message>
     <message>
-        <source>this engine keeps no site data on disk</source>
-        <translation>tämä moottori ei säilytä sivustotietoja levyllä</translation>
+        <source>1 allowed</source>
+        <translation>1 sallittu</translation>
     </message>
     <message>
-        <source>the site data in this Space could not be measured</source>
-        <translation>tämän Tilan sivustotietoja ei voitu mitata</translation>
+        <source>%1 allowed</source>
+        <translation>%1 sallittua</translation>
     </message>
     <message>
-        <source>%1 of cookies and cache in this Space</source>
-        <translation>%1 evästeitä ja välimuistia tässä Tilassa</translation>
+        <source>Camera</source>
+        <translation>Kamera</translation>
     </message>
     <message>
-        <source>site information</source>
-        <translation>sivuston tiedot</translation>
+        <source>Microphone</source>
+        <translation>Mikrofoni</translation>
     </message>
     <message>
-        <source>no site</source>
-        <translation>ei sivustoa</translation>
+        <source>Camera and microphone</source>
+        <translation>Kamera ja mikrofoni</translation>
     </message>
     <message>
-        <source>this engine cannot report a certificate failure</source>
-        <translation>tämä moottori ei osaa ilmoittaa varmennevirheestä</translation>
+        <source>Location</source>
+        <translation>Sijainti</translation>
     </message>
     <message>
-        <source>the engine has not reported this page&apos;s certificate</source>
-        <translation>moottori ei ole ilmoittanut tämän sivun varmennetta</translation>
+        <source>Notifications</source>
+        <translation>Ilmoitukset</translation>
     </message>
     <message>
-        <source>this engine cannot show the certificate a page arrived over</source>
-        <translation>tämä moottori ei voi näyttää varmennetta, jolla sivu saapui</translation>
+        <source>Automatic downloads</source>
+        <translation>Automaattiset lataukset</translation>
     </message>
     <message>
-        <source>this engine is not blocking insecure content</source>
-        <translation>tämä moottori ei estä suojaamatonta sisältöä</translation>
+        <source>Blocked requests</source>
+        <translation>Estetyt pyynnöt</translation>
+    </message>
+    <message>
+        <source>Site information</source>
+        <translation>Sivuston tiedot</translation>
+    </message>
+    <message>
+        <source>Encrypted</source>
+        <comment>the connection</comment>
+        <translation>Salattu</translation>
+    </message>
+    <message>
+        <source>Not reported</source>
+        <comment>a certificate the engine has not reported</comment>
+        <translation>Ei ilmoitettu</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>no requests were blocked</comment>
+        <translation>Ei yhtään</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>Omaweb&apos;s own page holds no site data</comment>
+        <translation>Ei yhtään</translation>
+    </message>
+    <message>
+        <source>None allowed</source>
+        <comment>third parties</comment>
+        <translation>Ei sallittuja</translation>
+    </message>
+    <message>
+        <source>Back to %1</source>
+        <translation>Takaisin: %1</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Clear site data</source>
+        <translation>Tyhjennä sivustotiedot</translation>
+    </message>
+    <message>
+        <source>Reset permissions</source>
+        <translation>Nollaa käyttöoikeudet</translation>
     </message>
     <message>
         <source>through %1</source>
-        <translation>kautta %1</translation>
+        <translation>nimen %1 kautta</translation>
     </message>
     <message numerus="yes">
         <source>and %n more</source>
@@ -3739,67 +3814,38 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         </translation>
     </message>
     <message>
-        <source>%1 of storage and databases</source>
-        <translation>%1 tallennustilaa ja tietokantoja</translation>
+        <source>Cookies this site set</source>
+        <translation>Tämän sivuston asettamat evästeet</translation>
     </message>
     <message>
-        <source>third-party cookies and storage are blocked</source>
-        <translation>kolmannen osapuolen evästeet ja tallennustila on estetty</translation>
+        <source>None</source>
+        <comment>no cookies</comment>
+        <translation>Ei yhtään</translation>
     </message>
     <message>
-        <source>this engine cannot refuse a third party</source>
-        <translation>tämä moottori ei voi evätä kolmatta osapuolta</translation>
+        <source>Cookies and cache in this Space</source>
+        <translation>Evästeet ja välimuisti tässä Tilassa</translation>
     </message>
     <message>
-        <source>%1 — refused</source>
-        <translation>%1 — evätty</translation>
-    </message>
-    <message numerus="yes">
-        <source>and %n more, listed under third parties</source>
-        <translation>
-            <numerusform>ja vielä %n, lueteltu kolmansien osapuolten alla</numerusform>
-            <numerusform>ja vielä %n, lueteltu kolmansien osapuolten alla</numerusform>
-        </translation>
+        <source>Storage and databases in this Space</source>
+        <translation>Tallennustila ja tietokannat tässä Tilassa</translation>
     </message>
     <message>
-        <source>%1 — allowed for %2</source>
-        <translation>%1 — sallittu käyttötarkoitukseen: %2</translation>
+        <source>Allowed for a payment</source>
+        <translation>Sallittu maksua varten</translation>
     </message>
     <message>
-        <source>permissions in this space</source>
-        <translation>luvat tässä tilassa</translation>
+        <source>Allowed for a sign-in</source>
+        <translation>Sallittu kirjautumista varten</translation>
     </message>
     <message>
-        <source>nothing decided in this private session</source>
-        <translation>mitään ei ole päätetty tässä yksityisessä istunnossa</translation>
+        <source>Refused</source>
+        <comment>a third party refused cookies and storage</comment>
+        <translation>Evätty</translation>
     </message>
     <message>
-        <source>nothing decided for this site</source>
-        <translation>mitään ei ole päätetty tälle sivustolle</translation>
-    </message>
-    <message>
-        <source>%1 — %2</source>
-        <translation>%1 — %2</translation>
-    </message>
-    <message>
-        <source>view certificate</source>
-        <translation>näytä varmenne</translation>
-    </message>
-    <message>
-        <source>clear this site</source>
-        <translation>tyhjennä tämä sivusto</translation>
-    </message>
-    <message>
-        <source>clear Space data</source>
-        <translation>tyhjennä Tilan tiedot</translation>
-    </message>
-    <message>
-        <source>reset permissions</source>
-        <translation>nollaa luvat</translation>
-    </message>
-    <message>
-        <source>third parties</source>
-        <translation>kolmannet osapuolet</translation>
+        <source>Allow or stop allowing…</source>
+        <translation>Salli tai lopeta salliminen…</translation>
     </message>
 </context>
 <context>

@@ -348,6 +348,7 @@ private slots:
     void qtDefersACertificateFailureWithTheEnginesOwnFacts();
     void qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed();
     void qtCookiePolicyJudgesAnArrivalByItsOwnSite();
+    void qtCookiePolicyCountsTheCookiesASiteHolds();
     void qtKeepsADocumentsOwnCookiesAcrossARedirect();
     void qtNamesEveryPermissionTheShellHasAPolicyFor();
     void qtAsksTheShellAboutEveryPermissionRequest();
@@ -7786,6 +7787,70 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("blocked"), 20000);
+}
+
+// Site information says how many cookies the site on show holds in its
+// Space: the ones a request to its host carries, kept as the store adds and
+// removes them. A Space knows only its own store.
+void QtEngineContractTest::qtCookiePolicyCountsTheCookiesASiteHolds()
+{
+    PageServer pageServer(R"HTML(<!doctype html><html><body><title>waiting</title><script>
+        document.cookie = 'first=1; path=/';
+        document.cookie = 'second=1; path=/';
+        document.title = 'set';
+    </script></body></html>)HTML");
+    QVERIFY(pageServer.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://localhost:%1/page.html").arg(pageServer.serverPort()));
+
+    QTemporaryDir dataRoot;
+    QVERIFY(dataRoot.isValid());
+    BrowserController browser(SpaceStorage(dataRoot.path(), QStringLiteral("qt")));
+    QVERIFY(browser.ready());
+    const auto spaceId = browser.activeSpaceId();
+    omaweb::QtCookiePolicy policy;
+
+    QTemporaryDir profileRoot;
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy)},
+        {QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser)},
+        {QStringLiteral("spaceId"), spaceId},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QCOMPARE(policy.siteCookieCount(spaceId, page), 0);
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("set"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(policy.siteCookieCount(spaceId, page), 2, 10000);
+    // Another host, and another Space, hold none of them.
+    QCOMPARE(policy.siteCookieCount(spaceId,
+                 QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(pageServer.serverPort()))),
+        0);
+    QCOMPARE(policy.siteCookieCount(QStringLiteral("another-space"), page), 0);
+    QCOMPARE(policy.siteCookieCount(spaceId, QUrl(QStringLiteral("omaweb://start"))), 0);
+
+    // What the store takes away is taken off the count.
+    QVERIFY(policy.deleteAllCookies(host->property("profile").value<QObject *>()));
+    QTRY_COMPARE_WITH_TIMEOUT(policy.siteCookieCount(spaceId, page), 0, 10000);
 }
 
 // The engine names a document's first party by the address its load set out

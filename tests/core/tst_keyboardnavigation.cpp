@@ -19,6 +19,7 @@ private slots:
     void dropsBindingsThisBuildDoesNotKnowAndKeepsTheRest();
     void readsTheCommandPanelIdAsTheCommandScope();
     void bindsTheScreenshotCommands();
+    void bindsSiteInformation();
     void persistsTheEnabledSetting();
     void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
     void replacesRetiredDefaultWithoutChangingCustomBindings();
@@ -202,6 +203,27 @@ void KeyboardNavigationTest::bindsTheScreenshotCommands()
         QStringLiteral("screenshot-full-page"));
     QCOMPARE(browser.value(QStringLiteral("Primary+Alt+C")).toString(),
         QStringLiteral("copy-full-page-screenshot"));
+}
+
+// Site information opens from the keyboard as well as from the address, on a
+// key the reader can move like any other.
+void KeyboardNavigationTest::bindsSiteInformation()
+{
+    QTemporaryDir root;
+    const auto path = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "j": "scroll-down" },
+        "browser": { "Primary+Shift+L": "site-information", "Alt+I": "site-information" }
+    })JSON");
+    KeyboardNavigation navigation(path);
+
+    QVERIFY(navigation.valid());
+    QVERIFY2(navigation.errorMessage().isEmpty(), qPrintable(navigation.errorMessage()));
+    const auto browser = navigation.browserBindings();
+    QCOMPARE(browser.value(QStringLiteral("Primary+Shift+L")).toString(),
+        QStringLiteral("site-information"));
+    QCOMPARE(browser.value(QStringLiteral("Alt+I")).toString(), QStringLiteral("site-information"));
 }
 
 void KeyboardNavigationTest::persistsTheEnabledSetting()
