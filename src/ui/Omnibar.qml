@@ -107,9 +107,12 @@ Item {
     // each Space switch rather than for each keystroke, since the read asks
     // the store for every Space.
     property var awayTabs: []
-    // The open tabs, the Spaces and the commands the text is ranked against,
-    // read when the other Spaces' tabs are.
+    // The open tabs, the Spaces and the commands the text is ranked against.
+    // The commands are read when the other Spaces' tabs are; the tabs and
+    // the Spaces again at the next edit after either list changes.
     property var destinations: []
+    property var commandRows: []
+    property bool destinationsStale: true
     // The Spaces an Agent made, and what the Agents are attached to, so a
     // Space is named in the colour the footer draws it in.
     property var agentSpaceIds: []
@@ -251,15 +254,72 @@ Item {
         refresh();
     }
 
-    // The tabs, the Spaces, the commands and the tabs' icons hold still while
-    // the reader types, so they are read with the other Spaces' tabs rather
-    // than for each keystroke, which a hundred tabs leave no room in a frame
-    // for.
+    // A hundred tabs read for each keystroke leave no room in a frame, so
+    // they are read for an opening and a Space switch, and again only once a
+    // tab or a Space a row shows has changed.
     function readDestinations() {
         awayTabs = browser === null ? [] : browser.awaySpaceTabs();
-        destinations = browser === null ? [] : commands.destinations(awayTabs).concat(commands.actions(
-                                                                                          ).map(asCommand));
+        commandRows = browser === null ? [] : commands.actions().map(asCommand);
+        destinationsStale = true;
+    }
+
+    function readOpenTabs() {
+        if (!destinationsStale)
+            return;
+        destinationsStale = false;
+        destinations = browser === null ? [] : commands.destinations(awayTabs).concat(commandRows);
         siteIcons = browser === null ? ({}) : commands.siteIcons();
+    }
+
+    // What a tab's row shows or hangs on: its id, address, title, whether it
+    // is on show, its icon and whether it sits beside the one on show. Its
+    // loading, sound and zoom change often and none of them.
+    readonly property var destinationRoles: [Qt.UserRole + 1, Qt.UserRole + 3, Qt.UserRole + 4,
+        Qt.UserRole + 6, Qt.UserRole + 8, Qt.UserRole + 15]
+
+    Connections {
+        target: root.browser === null ? null : root.browser.tabs
+        enabled: root.open
+
+        function onDataChanged(topLeft, bottomRight, roles) {
+            if (roles.length === 0 || roles.some(function (role) {
+                return root.destinationRoles.indexOf(role) >= 0;
+            }))
+                root.destinationsStale = true;
+        }
+        function onRowsInserted() {
+            root.destinationsStale = true;
+        }
+        function onRowsRemoved() {
+            root.destinationsStale = true;
+        }
+        function onRowsMoved() {
+            root.destinationsStale = true;
+        }
+        function onModelReset() {
+            root.destinationsStale = true;
+        }
+    }
+
+    Connections {
+        target: root.browser === null ? null : root.browser.spaces
+        enabled: root.open
+
+        function onDataChanged() {
+            root.destinationsStale = true;
+        }
+        function onRowsInserted() {
+            root.destinationsStale = true;
+        }
+        function onRowsRemoved() {
+            root.destinationsStale = true;
+        }
+        function onRowsMoved() {
+            root.destinationsStale = true;
+        }
+        function onModelReset() {
+            root.destinationsStale = true;
+        }
     }
 
     Connections {
@@ -312,6 +372,8 @@ Item {
             return;
         }
         ownRanked = [];
+        if (!listsNothing())
+            readOpenTabs();
         if (widened())
             ownRanked = ranked(destinations);
         list();

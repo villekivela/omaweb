@@ -8581,6 +8581,50 @@ TestCase {
         verify(browser.deleteHistoryOrigin("https://omega-omni.example/two"));
     }
 
+    // The tabs are read for an opening rather than for each keystroke, but a
+    // tab opened or closed while the Omnibar is open is listed, or gone, from
+    // the next edit.
+    function test_omnibarListsTabsThatChangeWhileItIsOpen() {
+        const startTabId = browser.activeTabId;
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const tabHosts = function () {
+            return omnibarRowsOf(panel, "tab").map(function (row) {
+                return window.commands.host(row.url);
+            });
+        };
+        const tabIdAt = function (url) {
+            for (let row = 0; row < browser.tabs.rowCount(); ++row) {
+                const index = browser.tabs.index(row, 0);
+                if (String(browser.tabs.data(index, Qt.UserRole + 3)) === url)
+                    return browser.tabs.data(index, Qt.UserRole + 1);
+            }
+            return "";
+        };
+        let lateTabId = "";
+        try {
+            window.openOmnibar(false);
+            input.text = "glow";
+            compare(tabHosts(), []);
+
+            browser.openInputInBackground("https://glow-late.example/");
+            lateTabId = tabIdAt("https://glow-late.example/");
+            verify(lateTabId !== "");
+            input.text = "glow-";
+            compare(tabHosts(), ["glow-late.example"]);
+
+            browser.closeTab(lateTabId);
+            lateTabId = "";
+            input.text = "glow";
+            compare(tabHosts(), []);
+        } finally {
+            window.closeOmnibar();
+            if (lateTabId !== "")
+                browser.closeTab(lateTabId);
+            browser.activateTab(startTabId);
+        }
+    }
+
     // The tabs and the commands are ranked once for the text, and each answer
     // that arrives after it is merged into that ranking, so the rows for a
     // text are the same whichever answer lands first.
