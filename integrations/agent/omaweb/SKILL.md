@@ -42,7 +42,8 @@ asked again for that Space, so work in an Agent Space instead.
 
 When the reader hands you a tab from the browser with `:ask`, your prompt names its id. Work in that
 tab with `--tab <id>` on every page command and make no Agent Space: the reader chose the tab and is
-watching it.
+watching it. In a project's Space, one the reader opened with `omaweb dev`, you start in the project
+directory and the tab is usually the app that project serves.
 
 ## Commands
 
@@ -57,6 +58,7 @@ omaweb commands
 omaweb run <command> [position]
 omaweb space new [name] [--temporary]
 omaweb space delete <id|name>
+omaweb dev [address] [--agent <command>]
 omaweb look [--all]
 omaweb read [selector]
 omaweb do <step>... [--settle <ms>] [--timeout <ms>]
@@ -87,6 +89,9 @@ omaweb console [--level error|warning|all] [--since <cursor>]
   command such as `toggle-sidebar`. Use them only when the reader asks for that. `commands` lists
   what `run` can run now. `focus --raise` also pulls the window in front of whatever the reader is
   doing, so leave `--raise` to the reader.
+- `dev` is the reader's command for their own project: it opens the Space for the folder it runs in
+  and brings the window forward. Run it only when the reader asks. It grants you nothing, so a page
+  command in that Space still asks the reader once.
 - `space new --temporary` keeps running after it prints the Space's id, and the Space is deleted
   when the process stops. Start it in the background and stop it when the task is done.
 - Commands with the same `--name` share the current tab. The name defaults to that of the process

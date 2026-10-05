@@ -191,6 +191,10 @@ private slots:
     void allowsEveryWindowCapabilityInAMainWindow();
     void refusesEveryWindowCapabilityInAPrivateWindow();
     void clearsSelectedBrowsingDataWithinConfirmedScope();
+    void remembersASubmittedFieldForItsNameInItsSpace();
+    void remembersNothingShapedLikeACardNumber();
+    void clearingFormHistoryClearsItForTheSpace();
+    void aDeletedSpaceIsGivenNoFormHistoryDatabaseBack();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void remembersOnlyThePermissionsThatMayBeRemembered();
     void listsAndResetsOneSitesPermissionsWithinItsSpace();
@@ -2332,6 +2336,22 @@ void exerciseClearBrowsingData(Window window)
     QCOMPARE(controller->history({}).size(), 0);
 }
 
+void exerciseFormHistory(Window window)
+{
+    const bool allowed = window == Window::Main;
+    QTemporaryDir root;
+    PrivateSessionFixture privateSession;
+    auto controller = makeControllerFor(window, root.path(), privateSession);
+    const auto spaceId = controller->activeSpaceId();
+
+    controller->rememberFormFields(spaceId,
+        {QVariantMap {{QStringLiteral("name"), QStringLiteral("q")},
+            {QStringLiteral("value"), QStringLiteral("night radio")}}});
+
+    QCOMPARE(controller->formHistory(spaceId, QStringLiteral("q")),
+        allowed ? QStringList {QStringLiteral("night radio")} : QStringList {});
+}
+
 void exerciseEngineSuggestions(Window window)
 {
     const bool allowed = window == Window::Main;
@@ -2374,6 +2394,7 @@ void BrowserControllerTest::allowsEveryWindowCapabilityInAMainWindow()
     exerciseHistorySearch(Window::Main);
     exerciseEngineSuggestions(Window::Main);
     exerciseClearBrowsingData(Window::Main);
+    exerciseFormHistory(Window::Main);
 }
 
 void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
@@ -2383,6 +2404,7 @@ void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
     exerciseHistorySearch(Window::Private);
     exerciseEngineSuggestions(Window::Private);
     exerciseClearBrowsingData(Window::Private);
+    exerciseFormHistory(Window::Private);
 }
 
 void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
@@ -2418,6 +2440,103 @@ void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
     QCOMPARE(controller.permissionDecision(
                  QUrl(QStringLiteral("https://personal-clear.example")), QStringLiteral("camera")),
         BrowserController::Ask);
+}
+
+namespace {
+
+QVariantMap formField(const QString &name, const QString &value)
+{
+    return {{QStringLiteral("name"), name}, {QStringLiteral("value"), value}};
+}
+
+} // namespace
+
+void BrowserControllerTest::remembersASubmittedFieldForItsNameInItsSpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalSpaceId = controller.activeSpaceId();
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+
+    controller.rememberFormFields(personalSpaceId,
+        {formField(QStringLiteral("email"), QStringLiteral("me@home.example")),
+            formField(QStringLiteral("city"), QStringLiteral("  ")),
+            formField(QString(), QStringLiteral("nameless"))});
+
+    QCOMPARE(controller.formHistory(personalSpaceId, QStringLiteral("email")),
+        QStringList {QStringLiteral("me@home.example")});
+    QVERIFY(controller.formHistory(personalSpaceId, QStringLiteral("city")).isEmpty());
+    QVERIFY(controller.formHistory(personalSpaceId, QString()).isEmpty());
+    QVERIFY(controller.formHistory(workSpaceId, QStringLiteral("email")).isEmpty());
+
+    QVERIFY(controller.forgetFormEntry(
+        personalSpaceId, QStringLiteral("email"), QStringLiteral("me@home.example")));
+    QVERIFY(controller.formHistory(personalSpaceId, QStringLiteral("email")).isEmpty());
+}
+
+// A card number typed into a field the page did not mark as one is still a
+// card number. Thirteen to nineteen digits that pass the Luhn check are kept
+// out whatever the field is called; a phone number or an order number is not.
+void BrowserControllerTest::remembersNothingShapedLikeACardNumber()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto spaceId = controller.activeSpaceId();
+
+    controller.rememberFormFields(spaceId,
+        {formField(QStringLiteral("number"), QStringLiteral("4111 1111 1111 1111")),
+            formField(QStringLiteral("number"), QStringLiteral("4111-1111-1111-1111")),
+            formField(QStringLiteral("number"), QStringLiteral("5555555555554444")),
+            formField(QStringLiteral("number"), QStringLiteral("378282246310005")),
+            formField(QStringLiteral("number"), QStringLiteral("+358 40 123 4567")),
+            formField(QStringLiteral("number"), QStringLiteral("4111111111111112"))});
+
+    QCOMPARE(controller.formHistory(spaceId, QStringLiteral("number")),
+        (QStringList {QStringLiteral("4111111111111112"), QStringLiteral("+358 40 123 4567")}));
+}
+
+void BrowserControllerTest::clearingFormHistoryClearsItForTheSpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalSpaceId = controller.activeSpaceId();
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    controller.rememberFormFields(personalSpaceId,
+        {formField(QStringLiteral("email"), QStringLiteral("me@home.example")),
+            formField(QStringLiteral("city"), QStringLiteral("Oulu"))});
+    controller.rememberFormFields(
+        workSpaceId, {formField(QStringLiteral("email"), QStringLiteral("me@work.example"))});
+    controller.recordVisit(QUrl(QStringLiteral("https://kept.example")), QStringLiteral("Kept"));
+
+    QVERIFY(controller.clearBrowsingData({QStringLiteral("forms")}, 0, false, {}));
+
+    QVERIFY(controller.formHistory(personalSpaceId, QStringLiteral("email")).isEmpty());
+    QVERIFY(controller.formHistory(personalSpaceId, QStringLiteral("city")).isEmpty());
+    QCOMPARE(controller.formHistory(workSpaceId, QStringLiteral("email")),
+        QStringList {QStringLiteral("me@work.example")});
+    QCOMPARE(controller.history({}).size(), 1);
+}
+
+// A page of a Space being deleted can still submit, and the list can still
+// ask, while the deletion lands. Neither gives the Space a database back.
+void BrowserControllerTest::aDeletedSpaceIsGivenNoFormHistoryDatabaseBack()
+{
+    QTemporaryDir root;
+    const SpaceStorage storage(root.path(), QStringLiteral("test"));
+    BrowserController controller(storage);
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    controller.rememberFormFields(
+        workSpaceId, {formField(QStringLiteral("email"), QStringLiteral("me@work.example"))});
+    QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
+    QTRY_VERIFY(!QFileInfo::exists(storage.databasePathFor(workSpaceId)));
+
+    controller.rememberFormFields(
+        workSpaceId, {formField(QStringLiteral("email"), QStringLiteral("late@work.example"))});
+    QVERIFY(controller.formHistory(workSpaceId, QStringLiteral("email")).isEmpty());
+    QVERIFY(!controller.forgetFormEntry(
+        workSpaceId, QStringLiteral("email"), QStringLiteral("late@work.example")));
+    QTest::qWait(100);
+    QVERIFY(!QFileInfo::exists(storage.databasePathFor(workSpaceId)));
 }
 
 void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()

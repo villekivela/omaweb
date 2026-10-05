@@ -145,6 +145,38 @@ QString lastTabId(QAbstractItemModel *tabs)
     return tabs->data(tabs->index(tabs->rowCount() - 1, 0), role).toString();
 }
 
+// A security key request's step as the engine reports it, for `--show
+// security-key:<step>`.
+QVariantMap securityKeyStep(const QString &step)
+{
+    const auto pin = [](const QString &error, int attemptsLeft) {
+        return QVariantMap {{QStringLiteral("state"), QStringLiteral("pin")},
+            {QStringLiteral("pin"),
+                QVariantMap {{QStringLiteral("purpose"), QStringLiteral("unlock")},
+                    {QStringLiteral("error"), error},
+                    {QStringLiteral("attemptsLeft"), attemptsLeft},
+                    {QStringLiteral("minimumLength"), 4}}}};
+    };
+    if (step == QLatin1String("pin")) {
+        return pin(QString(), 8);
+    }
+    if (step == QLatin1String("pin-wrong")) {
+        return pin(QStringLiteral("wrong"), 7);
+    }
+    if (step == QLatin1String("accounts")) {
+        return {{QStringLiteral("state"), QStringLiteral("accounts")},
+            {QStringLiteral("accounts"),
+                QVariantList {
+                    QVariantMap {{QStringLiteral("name"), QStringLiteral("reader@example.org")}},
+                    QVariantMap {{QStringLiteral("name"), QStringLiteral("work@example.org")}}}}};
+    }
+    if (step == QLatin1String("failed")) {
+        return {{QStringLiteral("state"), QStringLiteral("failed")},
+            {QStringLiteral("failure"), QStringLiteral("no-key")}};
+    }
+    return {{QStringLiteral("state"), QStringLiteral("touch")}};
+}
+
 // Seeds the Space the lab came up on. The blank tab it came up with is left
 // active and taken back at the end, so the viewport still draws the Start page
 // with a populated sidebar beside it: a reader opening a new tab on a working
@@ -551,6 +583,19 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--spaces"))) {
         seedSampleSpaces(browser, mockFavicons);
     }
+    // `--projects` makes two Spaces projects' (`omaweb dev`), so their rows in
+    // Settings can be reviewed: one whose folder is here, with an agent command
+    // of its own, and one recorded inside a container, whose folder is not.
+    if (arguments.contains(QStringLiteral("--projects"))) {
+        const auto shop = dataRoot.filePath(QStringLiteral("code/shop"));
+        QDir().mkpath(shop);
+        browser.createProjectSpace({.directory = shop,
+            .address = QStringLiteral("http://localhost:5173"),
+            .agentCommand = QStringLiteral("incus exec dev --cwd {dir} -- claude")});
+        browser.createProjectSpace({.directory = QStringLiteral("/workspace/blog"),
+            .address = QStringLiteral("http://localhost:4321"),
+            .agentCommand = {}});
+    }
     // `--agents` has an Agent at work, so its marks can be reviewed: an Agent
     // Space it made with a tab it is driving, on show, and a second Agent Space
     // no Agent is using. `--agents-away` leaves the reader's first Space on
@@ -935,6 +980,19 @@ int main(int argc, char *argv[])
             // The same page asks a JavaScript question, so the prompt bar
             // stands over it.
             {QStringLiteral("prompt"), {}},
+            // The same page asks for a security key, at each step the prompt
+            // has: the touch, the PIN and a wrong one, the account chooser and
+            // a failure. `--private` shows the Private window's wording.
+            {QStringLiteral("security-key:touch"), {}},
+            {QStringLiteral("security-key:pin"), {}},
+            {QStringLiteral("security-key:pin-wrong"), {}},
+            {QStringLiteral("security-key:accounts"), {}},
+            {QStringLiteral("security-key:failed"), {}},
+            // The last seeded tab's page has an email field focused with "me"
+            // typed into it, over values the Space remembers for that field,
+            // so form history's suggestion list stands under it with its
+            // first row highlighted.
+            {QStringLiteral("form-suggestions"), {}},
             // `:ask` with Allow agents off: the question that offers to turn
             // it on stands over the last seeded tab's page.
             {QStringLiteral("ask"), {{"", "agentQuestionOpen", true}}},
@@ -963,8 +1021,10 @@ int main(int argc, char *argv[])
             }
         }
         // Both are asked by the page on show rather than set on the window.
-        const auto pageAsks
-            = requested == QLatin1String("permission") || requested == QLatin1String("prompt");
+        const auto securityKey = requested.startsWith(QLatin1String("security-key:"));
+        const auto pageAsks = requested == QLatin1String("permission")
+            || requested == QLatin1String("prompt")
+            || requested == QLatin1String("form-suggestions") || securityKey;
         if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
@@ -974,7 +1034,7 @@ int main(int argc, char *argv[])
             browser.activateTab(tabId);
             // The page's engine is built once the tab is on show, so the
             // question waits for it.
-            QTimer::singleShot(300, root, [root, requested] {
+            QTimer::singleShot(300, root, [root, requested, securityKey, &browser] {
                 auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
                 auto *view = host ? host->property("item").value<QObject *>() : nullptr;
                 if (view == nullptr) {
@@ -985,6 +1045,31 @@ int main(int argc, char *argv[])
                     = view->property("currentUrl")
                           .toUrl()
                           .adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+                if (securityKey) {
+                    QMetaObject::invokeMethod(view, "simulateSecurityKey",
+                        Q_ARG(QVariant, securityKeyStep(requested.section(QLatin1Char(':'), 1))));
+                    return;
+                }
+                if (requested == QLatin1String("form-suggestions")) {
+                    const auto spaceId = view->property("spaceId").toString();
+                    for (const auto &value :
+                        {QStringLiteral("someone@elsewhere.example"),
+                            QStringLiteral("meri@kotisivu.example"),
+                            QStringLiteral("me@work.example"), QStringLiteral("me@home.example")}) {
+                        browser.rememberFormFields(spaceId,
+                            {QVariantMap {{QStringLiteral("name"), QStringLiteral("email")},
+                                {QStringLiteral("value"), value}}});
+                    }
+                    QMetaObject::invokeMethod(view, "simulateFormFieldFocus",
+                        Q_ARG(QVariant, QStringLiteral("email")),
+                        Q_ARG(QVariant, QStringLiteral("me")), Q_ARG(QVariant, 240),
+                        Q_ARG(QVariant, 180), Q_ARG(QVariant, 320), Q_ARG(QVariant, 34));
+                    QTimer::singleShot(100, view, [view] {
+                        QMetaObject::invokeMethod(
+                            view, "simulateFormKey", Q_ARG(QVariant, QStringLiteral("down")));
+                    });
+                    return;
+                }
                 if (requested == QLatin1String("prompt")) {
                     QMetaObject::invokeMethod(view, "simulateJavaScriptPrompt",
                         Q_ARG(QVariant, QStringLiteral("confirm")),

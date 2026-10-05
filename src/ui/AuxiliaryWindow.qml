@@ -19,6 +19,12 @@ ApplicationWindow {
     // so it is exactly where a certificate failure must not be waved through.
     // It asks the same question of the same rule as an ordinary tab.
     signal certificateErrorRaised(var responder, string requestId, var failure)
+    // Where a sign-in finishes is where a security key is often asked for. The
+    // opener's bar asks, as it does for a permission.
+    signal securityKeyRequested(var responder, string requestId, var step)
+    // The window's page, so the opener can drop what it asked when the window
+    // closes.
+    readonly property var pageEngine: engineLoader.item
     // The core's Agent rules and the id this window has there, when an Agent
     // tab's page opened it (ADR 0051). The Agent drives it by that id as it
     // drives the tab, and it is the Agent's for as long as the core lists it.
@@ -143,6 +149,10 @@ ApplicationWindow {
 
         function onCertificateErrorRaised(requestId, failure) {
             auxiliary.certificateErrorRaised(engineLoader.item, requestId, failure);
+        }
+
+        function onSecurityKeyRequested(requestId, step) {
+            auxiliary.securityKeyRequested(engineLoader.item, requestId, step);
         }
 
         function onAgentVerbAnswered(requestId, answer) {

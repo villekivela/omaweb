@@ -196,6 +196,11 @@ ApplicationWindow {
     property bool startPageDriving: false
     property string startPageDriveTabId: ""
     readonly property int startPageDriveLimit: 2000
+    // The Space on show waits for its project's address to answer (`omaweb
+    // dev` before the dev server is up). The road drives for as long as it
+    // does, with no limit, since nothing is loading yet.
+    readonly property bool projectAddressAwaited: window.windowBrowser.activeSpaceAwaitsAddress
+                                                  === true
     // Whether the Start page draws its road. Local to this installation, like
     // the Glance: Sync carries neither.
     property bool startPageRoad: true
@@ -210,8 +215,9 @@ ApplicationWindow {
                                                                                        window.pagelessViewport
                                                                                        ? null : engineLoader
     readonly property bool startPageShown: (window.pagelessViewport || window.startPageSummoned
-                                            || window.startPageDriving) && !window.settingsOpen &&
-                                           !window.historyOpen
+                                            || window.startPageDriving
+                                            || window.projectAddressAwaited) &&
+                                           !window.settingsOpen && !window.historyOpen
     readonly property bool omnibarShown: window.omnibarOpen || window.startPageShown
     // The application's release watch, named apart from the context property it
     // holds: a binding written `releaseWatch: releaseWatch` inside a component
@@ -412,6 +418,15 @@ ApplicationWindow {
     property string pendingBrowserPromptTabId: ""
     property bool browserPromptOpen: false
     property var browserPromptsByTab: ({})
+    // A security key's request in progress: the page that made it and the step
+    // the engine is on. A page makes one at a time, and only the page in front
+    // of the reader may make one, so the window holds one.
+    property var securityKeyResponder: null
+    property string securityKeyRequestId: ""
+    property var securityKeyStep: ({})
+    // The tab whose page asked, or empty for an Auxiliary window's page, which
+    // a tab switch in this window does not move.
+    property string securityKeyTabId: ""
     property var pendingFileSelection: ({})
     property var pendingFileSelectionResponder: null
     property string pendingFileSelectionId: ""
@@ -991,6 +1006,8 @@ ApplicationWindow {
     function refuseRequestsFrom(engine) {
         if (window.pendingBrowserPromptResponder === engine)
             window.respondToBrowserPrompt(false, "", "", "", false, false);
+        if (window.securityKeyResponder === engine)
+            window.declineSecurityKey();
         if (window.pendingFileSelectionResponder === engine)
             window.respondToFileSelection([]);
         if (window.pendingPermissionResponder === engine) {
@@ -2147,6 +2164,15 @@ ApplicationWindow {
 
     // The page the reader is looking at: the tab on show, or the Glance over
     // it. A question from any other page is one they cannot answer.
+    // The engine in front whose page has a field form history may keep
+    // focused: the Glance's, or else the tab's beneath it.
+    function formFieldEngine() {
+        if (window.glanceEngine && window.glanceEngine.formField)
+            return window.glanceEngine;
+        const tab = engineLoader.item;
+        return tab && tab.formField ? tab : null;
+    }
+
     function inFront(engine) {
         return engine !== null && (engine === engineLoader.item || engine === window.glanceEngine);
     }
@@ -2212,6 +2238,59 @@ ApplicationWindow {
         delete prompts[tabId];
         window.browserPromptsByTab = prompts;
         window.presentBrowserPromptForActiveTab();
+    }
+
+    // Each step of a request comes under the request's id. The first one opens
+    // the bar, the later ones change it in place, and a closed one puts it
+    // away. A request from a page the reader is not looking at, or made while
+    // another stands, is declined: the reader could not see what a touch of
+    // their key would answer.
+    function showSecurityKey(engine, requestId, step, inFront) {
+        const current = window.securityKeyResponder === engine && window.securityKeyRequestId
+              === requestId;
+        if (step.state === "closed") {
+            if (current)
+                window.clearSecurityKey();
+            return;
+        }
+        const visible = inFront === true || window.inFront(engine);
+        if (!current && (window.securityKeyResponder !== null || !visible)) {
+            engine.respondToSecurityKey(requestId, {
+                                            "action": "cancel"
+                                        });
+            return;
+        }
+        if (!current) {
+            window.securityKeyResponder = engine;
+            window.securityKeyRequestId = requestId;
+            window.securityKeyTabId = inFront === true ? "" : window.windowBrowser.activeTabId;
+        }
+        window.securityKeyStep = step;
+    }
+
+    function clearSecurityKey() {
+        window.securityKeyResponder = null;
+        window.securityKeyRequestId = "";
+        window.securityKeyTabId = "";
+        window.securityKeyStep = ({});
+    }
+
+    // A decline puts the bar away at once. The engine reports the request
+    // closed afterwards, and that finds nothing left to put away.
+    function answerSecurityKey(answer) {
+        const responder = window.securityKeyResponder;
+        const requestId = window.securityKeyRequestId;
+        if (!responder)
+            return;
+        if (answer.action === "cancel")
+            window.clearSecurityKey();
+        responder.respondToSecurityKey(requestId, answer);
+    }
+
+    function declineSecurityKey() {
+        window.answerSecurityKey({
+                                     "action": "cancel"
+                                 });
     }
 
     function openLocalFile(fileUrl) {
@@ -2577,6 +2656,11 @@ ApplicationWindow {
     // summoned over a page gives the page back; a Space at rest has nothing
     // behind its Start page, so there it does nothing.
     function dismissStartPage() {
+        // Waiting for a project's address is the reader's to give up on.
+        if (window.projectAddressAwaited) {
+            window.windowBrowser.stopAwaitingAddress(window.windowBrowser.activeSpaceId);
+            return;
+        }
         if (window.startPageDriving)
             return;
         if (omnibar.commandScope) {
@@ -2635,6 +2719,9 @@ ApplicationWindow {
     // now, and not before; a Start page standing in for a page loads it in
     // place. The road runs until the tab's page first paints.
     function commitFromStartPage(text) {
+        // The reader went somewhere else, so the Space no longer waits.
+        if (window.projectAddressAwaited)
+            window.windowBrowser.stopAwaitingAddress(window.windowBrowser.activeSpaceId);
         const newTab = window.startPageSummoned;
         window.windowBrowser.cancelHistorySuggestions();
         if (!window.startPageRoad) {
@@ -2649,7 +2736,14 @@ ApplicationWindow {
         window.startPageDriving = true;
         window.windowBrowser.openInput(text, newTab);
         window.startPageSummoned = false;
-        window.startPageDriveTabId = window.windowBrowser.activeTabId;
+        window.startStartPageDrive(window.windowBrowser.activeTabId);
+    }
+
+    // The road drives until this tab's page first paints, for up to
+    // `startPageDriveLimit` milliseconds.
+    function startStartPageDrive(tabId) {
+        window.startPageDriving = true;
+        window.startPageDriveTabId = tabId;
         startPageDriveLimitTimer.restart();
     }
 
@@ -2664,6 +2758,18 @@ ApplicationWindow {
         return engine.documentPainted === true || engine.lastLoadFailed === true || Object.keys(
                     engine.httpsUpgradeFailure || {}).length > 0 || String(
                     engine.certificateErrorOrigin || "").length > 0;
+    }
+
+    // The project's address answered and its tab is loading: the road that
+    // drove while the Space waited drives on until the page first paints, as
+    // after a commit.
+    Connections {
+        target: window.windowBrowser
+        function onAwaitedAddressLoaded(spaceId, tabId) {
+            if (spaceId !== window.windowBrowser.activeSpaceId || !window.startPageRoad)
+                return;
+            window.startStartPageDrive(tabId);
+        }
     }
 
     function endStartPageDrive() {
@@ -2730,12 +2836,13 @@ ApplicationWindow {
 
     // A Glance closes with Escape whatever its page does with the key, for the
     // same reason: the reader must not have to know their keymap to get back to
-    // the page they were on.
+    // the page they were on. The one exception is a suggestion list Omaweb
+    // drew under a field of the Glance, which that Escape closes first.
     Shortcut {
         sequence: "Esc"
-        enabled: window.glanceOpen && !engineLoader.siteFullscreenActive && !window.omnibarOpen &&
-                 !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen &&
-                 !window.permissionOpen && !window.certificateQuestionOpen
+        enabled: window.glanceOpen && !formSuggestions.shown && !engineLoader.siteFullscreenActive
+                 && !window.omnibarOpen && !window.settingsOpen && !window.historyOpen &&
+                 !window.pageMenuOpen && !window.permissionOpen && !window.certificateQuestionOpen
                  && window.dialogMode.length === 0 && !window.siteInformationOpen
         context: Qt.WindowShortcut
         onActivated: window.closeGlance()
@@ -3142,6 +3249,10 @@ ApplicationWindow {
                         window.showBrowserPrompt(engine, requestId, prompt);
                     }
 
+                    onSecurityKeyRequested: function (engine, requestId, step) {
+                        window.showSecurityKey(engine, requestId, step);
+                    }
+
                     onFileSelectionRequested: function (engine, requestId, selection) {
                         window.showFileSelection(engine, requestId, selection);
                     }
@@ -3270,6 +3381,7 @@ ApplicationWindow {
                     openAsTabAllowed: !window.glanceIsExtension
                     pageSource: window.pagelessViewport ? null : engineLoader
                     engine: window.glanceEngine
+                    escapeTaken: formSuggestions.shown
 
                     onClosed: window.closeGlance()
                     onOpenAsTabRequested: window.openGlanceAsTab()
@@ -3314,6 +3426,11 @@ ApplicationWindow {
                         window.showPageTooltip(window.glanceEngine, tooltip);
                     }
 
+                    function onFormSubmitted(fields) {
+                        window.windowBrowser.rememberFormFields(window.glanceEngine.spaceId,
+                                                                fields);
+                    }
+
                     function onSitePermissionRequested(requestId, origin, permission) {
                         window.pendingPermissionRequest = requestId;
                         window.pendingPermissionResponder = window.glanceEngine;
@@ -3328,6 +3445,10 @@ ApplicationWindow {
 
                     function onBrowserPromptRequested(requestId, prompt) {
                         window.showBrowserPrompt(window.glanceEngine, requestId, prompt);
+                    }
+
+                    function onSecurityKeyRequested(requestId, step) {
+                        window.showSecurityKey(window.glanceEngine, requestId, step);
                     }
 
                     function onFileSelectionRequested(requestId, selection) {
@@ -3386,7 +3507,7 @@ ApplicationWindow {
                     reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
-                    driving: window.startPageDriving
+                    driving: window.startPageDriving || window.projectAddressAwaited
                     pageSource: window.pagelessViewport ? null : engineLoader
                 }
 
@@ -3798,6 +3919,37 @@ ApplicationWindow {
                     onActionTriggered: function (index) {
                         const action = downloadQuestionBar.actions[index];
                         window.downloads.answer(action.keep, "", action.decision);
+                    }
+                }
+
+                SecurityKeyBar {
+                    objectName: "securityKeyBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 43
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    backdropSource: window.pageBarBackdropSource
+                    open: window.securityKeyResponder !== null
+                    step: window.securityKeyStep
+                    transports: window.securityKeyResponder
+                                ? window.securityKeyResponder.securityKeyTransports : []
+                    place: window.privateWindow ? qsTr("Private window") :
+                                                  window.windowBrowser.activeSpaceName
+
+                    onAnswered: function (answer) {
+                        window.answerSecurityKey(answer);
+                    }
+
+                    // The reader left the page the key would have answered for.
+                    Connections {
+                        target: window.windowBrowser
+                        enabled: window.securityKeyTabId.length > 0
+                        function onActiveTabChanged() {
+                            if (window.windowBrowser.activeTabId !== window.securityKeyTabId)
+                                window.declineSecurityKey();
+                        }
                     }
                 }
 
@@ -4232,6 +4384,12 @@ ApplicationWindow {
             onCertificateErrorRaised: function (responder, requestId, failure) {
                 window.showCertificateError(responder, requestId, failure, true);
             }
+
+            onSecurityKeyRequested: function (responder, requestId, step) {
+                window.showSecurityKey(responder, requestId, step, true);
+            }
+
+            onClosing: window.refuseRequestsFrom(pageEngine)
         }
     }
 
@@ -4470,6 +4628,17 @@ ApplicationWindow {
         text: window.pageTooltipText
         anchorX: window.pageTooltipX
         anchorY: window.pageTooltipY
+    }
+
+    // Form history's suggestions for the field that has the keyboard, in the
+    // tab on show or the Glance over it. Under the menus and the page's own
+    // tooltip, which are drawn over a page and not over a field.
+    FormSuggestions {
+        id: formSuggestions
+        anchors.fill: parent
+        z: 54
+        browser: window.windowBrowser
+        engine: window.formFieldEngine()
     }
 
     ChromeMenu {

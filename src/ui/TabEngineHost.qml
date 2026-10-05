@@ -261,6 +261,7 @@ Item {
     signal pageContextRequested(var engine, var context)
     signal pageTooltipRequested(var engine, var tooltip)
     signal browserPromptRequested(var engine, string requestId, var prompt)
+    signal securityKeyRequested(var engine, string requestId, var step)
     signal fileSelectionRequested(var engine, string requestId, var selection)
 
     function keyboardConfiguration(url) {
@@ -1482,6 +1483,14 @@ Item {
                     root.pageTooltipRequested(tabSlot.engine, tooltip);
                 }
 
+                // Kept in the Space of the tab the form was in, which is not
+                // always the Space on show. What an Agent typed is not the
+                // reader's, so an Agent tab's forms are not kept at all.
+                function onFormSubmitted(fields) {
+                    if (!root.agentAttached(tabSlot.tabId))
+                        root.browserController.rememberFormFields(tabSlot.engine.spaceId, fields);
+                }
+
                 function onPrintFinished(destination, succeeded) {
                     root.printFinished(destination, succeeded);
                 }
@@ -1513,6 +1522,10 @@ Item {
 
                 function onBrowserPromptRequested(requestId, prompt) {
                     root.browserPromptRequested(tabSlot.engine, requestId, prompt);
+                }
+
+                function onSecurityKeyRequested(requestId, step) {
+                    root.securityKeyRequested(tabSlot.engine, requestId, step);
                 }
 
                 function onFileSelectionRequested(requestId, selection) {

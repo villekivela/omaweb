@@ -8,9 +8,10 @@
 namespace omaweb {
 
 // The `omaweb` CLI's Agent verbs (ADR 0051): the browser commands `spaces`,
-// `tabs`, `open`, `close`, `space`, `focus`, `commands` and `run`, and the
-// verbs behind Allow agents, each sent to the running browser over the Agent
-// socket as one request.
+// `tabs`, `open`, `close`, `space`, `focus`, `commands`, `run` and `dev` (ADR
+// 0059), and the verbs behind Allow agents, each sent to the running browser
+// over the Agent socket as one request. `dev` carries the folder the CLI ran
+// in.
 //
 // A process run with one of them is a client and never a browser. It builds no
 // engine, claims no desktop name and exits once it has its answer.

@@ -423,6 +423,26 @@ reports the gap and remains experimental rather than imitating behavior it canno
   button, `document.pictureInPictureEnabled` is false, and a page's `requestPictureInPicture()` is
   rejected with a `NotSupportedError` the page can catch. The floating window waits for an engine
   that surfaces the request.
+- Form history remembers what the reader typed into an ordinary text field when its form is
+  submitted, under the field's name or else its id, within the Space of the page. Only a value the
+  reader typed or picked from the list counts, never one the page wrote or sent prefilled, and an
+  Agent tab's forms are not kept. The field is a text, search, email, telephone or URL input in the
+  page's main frame. It never remembers a password field, a field or form the page marks
+  `autocomplete=off`, a field marked as a card, password or one-time code, a field whose name reads
+  as a card number or security code, or a value of thirteen to nineteen digits that passes the Luhn
+  check, whatever the field is called. Submitting a value again makes it the most recently used. A
+  Private window neither offers nor remembers anything, and form history stays out of Sync.
+- Focusing a field with history opens a suggestion list Omaweb draws on the component kit's popup
+  surface, at least as wide as the field, under it, or above it when the page has no room below, and
+  none while the field is scrolled out of the page. It lists the field's values most recently used
+  first, at most six, each with the typed prefix in regular weight and the rest in bold, and leaves
+  out a value equal to what the field holds. Typing narrows it to the values that start with what
+  was typed. The field keeps the keyboard: the page gives up `Down`, `Up` and `Escape` only while
+  the list is shown, and `Enter` and `Shift+Delete` only while the keyboard has highlighted a row; a
+  pointer over a row only shows it. `Enter` or a press on a row fills the field and closes the list,
+  `Shift+Delete` forgets the highlighted value, and `Escape` closes the list until the field is
+  focused again; a Glance closes on the next `Escape`. No value reaches the page until the reader
+  accepts it.
 - Video decodes on the GPU where the host has a working VA-API driver, and in software where it has
   none. A missing driver is not a refusal to start, and the driver packages are `optdepends` rather
   than dependencies because which one a host needs depends on its GPU.
@@ -436,9 +456,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   deletes one visit, one origin, a time range, or the entire Space history. Deleting history also
   deletes the stored favicons of the pages it names, except one a tab in that Space's sidebar still
   shows and one whose page is still in History. Private windows record none.
-- Settings clears selected cookies, storage, cache, permissions, and history for one Space and time
-  range by default. Clearing every Space is a separate explicit choice. Deleting a Space removes all
-  of its browser-managed data after confirmation.
+- Settings clears selected cookies, storage, cache, permissions, history, and form history for one
+  Space and time range by default. Clearing every Space is a separate explicit choice. Deleting a
+  Space removes all of its browser-managed data after confirmation.
 - A configurable local search-engine list stores a name, query URL, optional suggest URL, and
   optional keyword. Omaweb ships DuckDuckGo (`d`), Google (`g`), Bing (`b`), Brave Search (`br`),
   Kagi (`k`), Ecosia (`e`) and Startpage (`sp`) configured, with DuckDuckGo as the default. A list
@@ -560,6 +580,22 @@ The default page commands include:
   tab with Keep active enabled can generate a notification while its Space is inactive. A Private
   window raises none: a desktop notification records the origin in a list that outlives the private
   session and is read by whoever is at the machine.
+- A site that asks for a security key or a passkey is answered through Omaweb's own prompt, a bar in
+  the place the Site-permission question takes, naming the site the key would sign in to and the
+  Space, or the Private window. The engine moves one request through its steps and the prompt
+  changes in place: touch the key, enter or choose its PIN with the attempts left where the engine
+  reports them, choose one of the accounts the key holds, or a failure that names its cause in one
+  line. `Escape`, Cancel and Close decline in every step, which the site sees as the reader
+  declining, and so does leaving the tab or closing the page. Only the page in front of the reader
+  may ask; any other is declined without a prompt. An Auxiliary window asks in the window that
+  opened it.
+- Security keys reach the Qt engine over USB HID only. The Arch package's QtWebEngine is built
+  without Bluetooth, so a phone cannot answer over hybrid transport, and Chromium has no platform
+  authenticator on Linux, so a passkey stored on the computer cannot either. The touch prompt and
+  every failure say which of these the engine cannot reach. QtWebEngine raises a request only once
+  it has something to ask, so a key that needs no PIN and holds one account for the site is touched
+  without a prompt, and a request no key answers shows nothing until it times out. The engine names
+  an account only by the name the site stored on the key, so that is what the account chooser shows.
 - Third-party cookies are blocked by default. Authentication and payment flows may receive a
   temporary origin-specific allowance listed in Site information's third-party detail and revocable
   from it.

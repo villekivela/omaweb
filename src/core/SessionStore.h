@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PutAwayTab.h"
+#include "SpaceProject.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 
@@ -82,6 +83,13 @@ public:
     virtual QStringList spaceGrants() const = 0;
     virtual bool saveSpaceGrant(const QString &spaceId) = 0;
     virtual bool forgetSpaceGrant(const QString &spaceId) = 0;
+    // The projects of the Spaces (`omaweb dev`), by Space. Kept beside the
+    // Space records for the same reason as a grant: a folder on this machine
+    // means nothing on another, so it never reaches Sync, and deleting a Space
+    // takes its project with it.
+    virtual QHash<QString, SpaceProject> spaceProjects() const = 0;
+    virtual bool saveSpaceProject(const QString &spaceId, const SpaceProject &project) = 0;
+    virtual bool forgetSpaceProject(const QString &spaceId) = 0;
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
     virtual QVector<TabState> loadClosedTabs(const QString &spaceId) const = 0;
@@ -135,6 +143,18 @@ public:
         = 0;
     virtual bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) = 0;
     virtual bool clearPermissionsSince(const QString &spaceId, qint64 since) = 0;
+
+    // Form history: what the reader typed into a field and submitted, kept
+    // by the field's name within the Space. A value submitted again is the
+    // same entry, used more recently. Which fields and values may be kept is
+    // the caller's rule; this only keeps what it is given.
+    virtual bool recordFormEntry(const QString &spaceId, const QString &field, const QString &value)
+        = 0;
+    // The values kept for a field's name, the one used last first.
+    virtual QStringList formEntries(const QString &spaceId, const QString &field) const = 0;
+    virtual bool forgetFormEntry(const QString &spaceId, const QString &field, const QString &value)
+        = 0;
+    virtual bool clearFormHistorySince(const QString &spaceId, qint64 since) = 0;
 
     // `spaceId` is the Space the download came from, or nothing for a file
     // Omaweb wrote itself, so a temporary Space's records can go with it.

@@ -115,6 +115,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // reads it when a page asks for a window, so what the ask opens can
         // come from where the reader pointed.
         {"pressOrigin", QMetaType::QRectF},
+        // The focused field, when form history may keep what is typed into
+        // it, or else null: `name`, `value`, a `serial` that changes with each
+        // focus, and its `x`, `y`, `width` and `height` in the view's own
+        // coordinates. The page judges which fields qualify, because only the
+        // page knows how a field is marked; the shell draws the suggestions.
+        {"formField", QMetaType::QVariant},
         // Whether the view takes the keyboard when it is made. The shell makes
         // an Agent tab's page while the reader is looking at another, and an
         // Agent tab never takes the reader's keyboard.
@@ -129,6 +135,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // `agentDownloadDirectory`, the connection's own.
         {"agentOwned", QMetaType::Bool},
         {"agentDownloadDirectory", QMetaType::QString},
+        // The authenticators a security key request can reach: "usb", "hybrid"
+        // (a phone) and "platform" (a passkey stored on the computer). The
+        // prompt names the ones missing (ADR 0030) rather than leave a reader
+        // waiting on one that cannot answer.
+        {"securityKeyTransports", QMetaType::QVariant},
     };
     static constexpr Method requiredMethods[] = {
         {"goBack", false, 0},
@@ -183,6 +194,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // answer says what it managed to empty.
         {"clearPageSiteData", false, 0},
         {"respondToFileSelection", false, 2},
+        // A security key request's answer: `{action: "cancel"}`, which the
+        // site hears as the reader declining, `{action: "pin", pin}` or
+        // `{action: "account", name}`.
+        {"respondToSecurityKey", false, 2},
         {"performPageContextAction", false, 2},
         {"developerToolsClosed", true, 0},
         {"printFinished", true, 2, QMetaType::QString},
@@ -192,10 +207,27 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // reader one tooltip in one style, so an adapter that lets its engine
         // draw its own puts a second one in the window.
         {"pageTooltipRequested", true, 1},
+        // A submitted form's fields that form history may keep and the reader
+        // typed into, each a map of `name` and `value`.
+        {"formSubmitted", true, 1},
+        // A key the suggestion list answers, which the page did not get:
+        // "down", "up", "escape", "accept" or "forget".
+        {"formKeyPressed", true, 1, QMetaType::QString},
+        // Which of those keys the page gives up: the list's while it is
+        // shown, and Enter and Shift+Delete only while a row is highlighted.
+        {"showFormSuggestions", false, 2},
+        {"fillFormField", false, 1},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},
         {"fileSelectionRequested", true, 2},
+        // Each step of a security key request, under one id until a step whose
+        // state is "closed" ends it, naming the `site` the key would sign in
+        // to: "touch", "pin" with the PIN's purpose,
+        // error and attempts left, "accounts" with each account's name, and
+        // "failed" with its cause, in Omaweb's words rather than the
+        // engine's.
+        {"securityKeyRequested", true, 2},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},
         {"auxiliaryWindowRequested", true, 2},

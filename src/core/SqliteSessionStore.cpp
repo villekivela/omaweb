@@ -405,6 +405,46 @@ bool SqliteSessionStore::forgetSpaceGrant(const QString &spaceId)
     return query.exec();
 }
 
+QHash<QString, SpaceProject> SqliteSessionStore::spaceProjects() const
+{
+    QHash<QString, SpaceProject> projects;
+    QSqlQuery query(m_database);
+    query.exec(
+        QStringLiteral("SELECT space_id, directory, address, agent_command FROM space_projects"));
+    while (query.next()) {
+        projects.insert(query.value(0).toString(),
+            {.directory = query.value(1).toString(),
+                .address = query.value(2).toString(),
+                .agentCommand = query.value(3).toString()});
+    }
+    return projects;
+}
+
+bool SqliteSessionStore::saveSpaceProject(const QString &spaceId, const SpaceProject &project)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO space_projects(space_id, directory, address, agent_command) "
+        "VALUES(?, ?, ?, ?) ON CONFLICT(space_id) DO UPDATE SET directory = excluded.directory, "
+        "address = excluded.address, agent_command = excluded.agent_command"));
+    // A null string is bound as NULL, which the columns refuse.
+    const auto notNull
+        = [](const QString &value) { return value.isNull() ? QStringLiteral("") : value; };
+    query.addBindValue(spaceId);
+    query.addBindValue(notNull(project.directory));
+    query.addBindValue(notNull(project.address));
+    query.addBindValue(notNull(project.agentCommand));
+    return query.exec();
+}
+
+bool SqliteSessionStore::forgetSpaceProject(const QString &spaceId)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM space_projects WHERE space_id = ?"));
+    query.addBindValue(spaceId);
+    return query.exec();
+}
+
 bool SqliteSessionStore::setActiveSpace(const QString &spaceId)
 {
     if (!m_database.transaction()) {
@@ -928,6 +968,56 @@ bool SqliteSessionStore::clearPermissionsForOrigin(const QString &spaceId, const
     return query.exec();
 }
 
+bool SqliteSessionStore::recordFormEntry(
+    const QString &spaceId, const QString &field, const QString &value)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(
+        QStringLiteral("INSERT INTO form_history(field, value, used_at) VALUES(?, ?, ?) "
+                       "ON CONFLICT(field, value) DO UPDATE SET used_at = excluded.used_at"));
+    query.addBindValue(field);
+    query.addBindValue(value);
+    query.addBindValue(QDateTime::currentMSecsSinceEpoch());
+    return query.exec();
+}
+
+QStringList SqliteSessionStore::formEntries(const QString &spaceId, const QString &field) const
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral(
+        "SELECT value FROM form_history WHERE field = ? ORDER BY used_at DESC, rowid DESC"));
+    query.addBindValue(field);
+    QStringList values;
+    if (!query.exec()) {
+        return values;
+    }
+    while (query.next()) {
+        values.append(query.value(0).toString());
+    }
+    return values;
+}
+
+bool SqliteSessionStore::forgetFormEntry(
+    const QString &spaceId, const QString &field, const QString &value)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral("DELETE FROM form_history WHERE field = ? AND value = ?"));
+    query.addBindValue(field);
+    query.addBindValue(value);
+    return query.exec();
+}
+
+bool SqliteSessionStore::clearFormHistorySince(const QString &spaceId, qint64 since)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(since > 0 ? QStringLiteral("DELETE FROM form_history WHERE used_at >= ?")
+                            : QStringLiteral("DELETE FROM form_history"));
+    if (since > 0) {
+        query.addBindValue(since);
+    }
+    return query.exec();
+}
+
 bool SqliteSessionStore::recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
     const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {
@@ -1026,6 +1116,12 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
         CREATE TABLE IF NOT EXISTS space_grants (
             space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
             granted_at INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS space_projects (
+            space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+            directory TEXT NOT NULL,
+            address TEXT NOT NULL DEFAULT '',
+            agent_command TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS pending_space_deletions (
             space_id TEXT PRIMARY KEY
@@ -1315,6 +1411,11 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
                                "PRIMARY KEY(origin, permission))"));
     schema.exec(QStringLiteral(
         "ALTER TABLE site_permissions ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0"));
+    schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS form_history ("
+                               "field TEXT NOT NULL, "
+                               "value TEXT NOT NULL, "
+                               "used_at INTEGER NOT NULL, "
+                               "PRIMARY KEY(field, value))"));
     m_spaceConnectionNames.insert(spaceId, connectionName);
     m_spaceDatabases.insert(spaceId, database);
     return database;

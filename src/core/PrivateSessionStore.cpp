@@ -46,6 +46,12 @@ bool PrivateSessionStore::saveSpaceGrant(const QString &) { return false; }
 
 bool PrivateSessionStore::forgetSpaceGrant(const QString &) { return false; }
 
+QHash<QString, SpaceProject> PrivateSessionStore::spaceProjects() const { return {}; }
+
+bool PrivateSessionStore::saveSpaceProject(const QString &, const SpaceProject &) { return false; }
+
+bool PrivateSessionStore::forgetSpaceProject(const QString &) { return false; }
+
 QVector<TabState> PrivateSessionStore::loadTabs(const QString &) const { return {}; }
 
 QVector<TabState> PrivateSessionStore::loadClosedTabs(const QString &) const { return {}; }
@@ -162,6 +168,20 @@ bool PrivateSessionStore::clearPermissionsForOrigin(const QString &, const QStri
 }
 
 bool PrivateSessionStore::clearPermissionsSince(const QString &, qint64) { return false; }
+
+bool PrivateSessionStore::recordFormEntry(const QString &, const QString &, const QString &)
+{
+    return false;
+}
+
+QStringList PrivateSessionStore::formEntries(const QString &, const QString &) const { return {}; }
+
+bool PrivateSessionStore::forgetFormEntry(const QString &, const QString &, const QString &)
+{
+    return false;
+}
+
+bool PrivateSessionStore::clearFormHistorySince(const QString &, qint64) { return false; }
 
 bool PrivateSessionStore::recordDownload(const QString &, const QString &, const QUrl &,
     const QString &, const QString &, qint64, qint64)

@@ -37,6 +37,9 @@ public:
     QStringList spaceGrants() const override;
     bool saveSpaceGrant(const QString &spaceId) override;
     bool forgetSpaceGrant(const QString &spaceId) override;
+    QHash<QString, SpaceProject> spaceProjects() const override;
+    bool saveSpaceProject(const QString &spaceId, const SpaceProject &project) override;
+    bool forgetSpaceProject(const QString &spaceId) override;
 
     QVector<TabState> loadTabs(const QString &spaceId) const override;
     QVector<TabState> loadClosedTabs(const QString &spaceId) const override;
@@ -72,6 +75,13 @@ public:
     QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const override;
     bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) override;
     bool clearPermissionsSince(const QString &spaceId, qint64 since) override;
+
+    bool recordFormEntry(
+        const QString &spaceId, const QString &field, const QString &value) override;
+    QStringList formEntries(const QString &spaceId, const QString &field) const override;
+    bool forgetFormEntry(
+        const QString &spaceId, const QString &field, const QString &value) override;
+    bool clearFormHistorySince(const QString &spaceId, qint64 since) override;
 
     bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
         const QString &path, const QString &state, qint64 receivedBytes,
