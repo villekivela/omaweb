@@ -1413,17 +1413,23 @@ presented, which on a slow runner can come after the `load` event, so the page w
 to five seconds. A counted load with no entry by then fails the run rather than leaving the median
 to the loads that had one.
 
-The log prints, for each case, the median of its ten loads and the fastest and slowest of them:
+The log prints, for each case, the median of its ten loads and the fastest and slowest of them. CI's
+run on 2026-10-05 printed:
 
 ```text
-  first contentful paint, 40 fresh hosts, blocking on: 61.2 ms (median of 10 loads, 52.0 to 75.4 ms)
+  first contentful paint, 40 fresh hosts, blocking on: 62.0 ms (median of 10 loads, 44.0 to 96.0 ms)
+  first contentful paint, 4 known hosts, blocking on: 46.0 ms (median of 10 loads, 44.0 to 80.0 ms)
 ```
 
-What the budget holds is that median. The fresh-host page pays a lookup for every image host before
-it can draw any of them; the known-host page has resolved its four, so the gap between the two is
-mostly lookups. A rise in both is the engine drawing later; a rise in the fresh-host page alone is
-the network path, which is also where `pageload_fresh_hosts_milliseconds` would move. A wide spread
-with a steady median is the runner, not the browser.
+What the budget holds is that median. The first contentful paint waits on one image, not on all 40,
+so the fresh-host page pays one host's lookups before it and the known-host page none. The fastest
+load was 44.0 ms on both pages, so on CI one lookup is small next to drawing the frame. A rise in
+both medians is the engine drawing later. A rise in the fresh-host page's alone is the lookup in
+front of the first image, and `pageload_fresh_hosts_milliseconds` is where to look next. A wide
+spread with a steady median is the runner, not the browser.
+
+Each ceiling is twice the slowest of the ten loads CI recorded, rounded up to ten milliseconds, so a
+median past it is every load slower than the slowest one recorded rather than one slow load.
 
 CI has no GPU, so the paint is Chromium's software rasteriser under cage's pixman renderer. The
 number is CI's, held against itself to catch a regression, and is not what a reader's GPU takes.

@@ -195,7 +195,7 @@ PAGELOAD_CASES = {"fresh": 40, "known": 4, "procedural": 4}
 
 # The cases whose pages are also held to how soon they first paint, with blocking on. A reader's
 # page is one of these two; the procedural case is there to price its rules, not to be a page.
-FIRST_PAINT_CASES = ("fresh", "known")
+FIRST_CONTENTFUL_PAINT_CASES = ("fresh", "known")
 
 # One rule per operator and action the pinned parser reads, with the markup each is written against:
 # the fixture the matcher and the engine are tested with. The rules are rewritten for both page
@@ -990,6 +990,7 @@ PAGELOAD_PAGE = """<!doctype html>
   addEventListener("load", () => setTimeout(async () => {{
     const entry = performance.getEntriesByType("navigation")[0];
     const missing = [...document.images].filter(image => image.naturalWidth === 0);
+    reporting = "waiting for its first contentful paint";
     const firstContentfulPaint = await Promise.race([
       painted, new Promise(resolve => setTimeout(() => resolve(null), {paint})),
     ]);
@@ -1467,7 +1468,7 @@ def pageload_results(site: PageLoadSite) -> dict:
             f"{summary.off:.1f} ms off, {summary.added:.1f} ms added "
             f"(medians of {PAGELOAD_LOADS} loads each)")
         results[f"pageload_{case}_hosts_milliseconds"] = summary.added
-    for case in FIRST_PAINT_CASES:
+    for case in FIRST_CONTENTFUL_PAINT_CASES:
         paints = []
         for load in site.counted(case, "on"):
             paint = site.reports[load.number].get("firstContentfulPaint")
@@ -1480,7 +1481,7 @@ def pageload_results(site: PageLoadSite) -> dict:
         log(f"  first contentful paint, {PAGELOAD_CASES[case]} {case} hosts, blocking on: "
             f"{median:.1f} ms (median of {len(paints)} loads, {min(paints):.1f} to "
             f"{max(paints):.1f} ms)")
-        results[f"first_paint_{case}_hosts_milliseconds"] = median
+        results[f"first_contentful_paint_{case}_hosts_milliseconds"] = median
     return results
 
 
@@ -1545,7 +1546,7 @@ def report(results: dict, budget: dict) -> int:
     log("")
     for name, value in results.items():
         ceiling = thresholds[name]["ceiling"]
-        unit = next(unit for suffix, unit in units.items() if name.endswith(suffix))
+        unit = next((unit for suffix, unit in units.items() if name.endswith(suffix)), "MiB")
         over = value > ceiling
         crossed += int(over)
         log(f"{'CROSSED' if over else 'within '}  {name}: {value:.2f} {unit} "

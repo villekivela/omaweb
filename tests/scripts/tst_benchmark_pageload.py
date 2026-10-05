@@ -316,8 +316,8 @@ class ReportTest(unittest.TestCase):
     # the step does not compare, fails here rather than as a run that never says CROSSED.
     def test_a_page_that_paints_later_than_its_ceiling_fails_the_run(self):
         self.budget = runtime.load_budget()
-        for case in runtime.FIRST_PAINT_CASES:
-            name = f"first_paint_{case}_hosts_milliseconds"
+        for case in runtime.FIRST_CONTENTFUL_PAINT_CASES:
+            name = f"first_contentful_paint_{case}_hosts_milliseconds"
             ceiling = self.budget["measurements"][name]["ceiling"]
             crossed, lines = self.reported({name: ceiling + 1.0})
             self.assertEqual(crossed, 1, name)
@@ -347,12 +347,16 @@ class FirstPaintTest(unittest.TestCase):
 
     def test_the_first_paint_is_the_median_of_each_cases_blocking_on_loads(self):
         paints = {"fresh": iter([40.0, 90.0, 60.0]), "known": iter([30.0, 20.0, 25.0])}
-        results = self.run_plan(lambda load: next(paints[load.case])
-                                if load.measured and load.mode == "on"
-                                and load.case in paints else 1000.0)
-        self.assertEqual(results["first_paint_fresh_hosts_milliseconds"], 60.0)
-        self.assertEqual(results["first_paint_known_hosts_milliseconds"], 25.0)
-        self.assertNotIn("first_paint_procedural_hosts_milliseconds", results)
+
+        def paint(load):
+            # Every other load paints far later, so a median that took one in would show it.
+            counted = load.measured and load.mode == "on" and load.case in paints
+            return next(paints[load.case]) if counted else 1000.0
+
+        results = self.run_plan(paint)
+        self.assertEqual(results["first_contentful_paint_fresh_hosts_milliseconds"], 60.0)
+        self.assertEqual(results["first_contentful_paint_known_hosts_milliseconds"], 25.0)
+        self.assertNotIn("first_contentful_paint_procedural_hosts_milliseconds", results)
 
     # A page whose timeline never held the entry has no paint to hold to a ceiling, and a run that
     # dropped it would report the median of the pages that did.
