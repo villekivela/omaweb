@@ -133,7 +133,9 @@ OmarchyTemplateOutcome followOmarchyTheme(
         // Skipping the background, because `theme set` otherwise advances the
         // reader's wallpaper to the theme's next one.
         QProcess::startDetached(QStringLiteral("/bin/sh"),
-            {QStringLiteral("-c"), QStringLiteral(R"SH(OMARCHY_THEME_SKIP_BACKGROUND=1 "$1" theme set "$("$1" theme current)")SH"),
+            {QStringLiteral("-c"),
+                QStringLiteral(
+                    R"SH(OMARCHY_THEME_SKIP_BACKGROUND=1 "$1" theme set "$("$1" theme current)")SH"),
                 QStringLiteral("sh"), omarchy});
     }
     return outcome;
