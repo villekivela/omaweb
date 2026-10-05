@@ -36,6 +36,16 @@
       "ceiling": 20.0,
       "recorded": 2.0,
       "note": "The common case with a page that procedural cosmetic rules are written against (ADR 0052): the markup and rules of tests/content-blocking/procedural-rules.json, one rule per operator and action, for both page hosts: 146.6 ms against 144.6 ms. The common case in the same run added 4.0 ms, so what the rules add over it is below what the runner can tell apart. Measured on 2026-09-28 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, so this holds CNAME uncloaking's lookups as well as the rule check, the Refusal tally and the refused-request list. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Four times the difference is 8 ms, under the 20 ms floor."
+    },
+    "first_paint_fresh_hosts_milliseconds": {
+      "ceiling": 1000.0,
+      "recorded": 0.0,
+      "note": "Provisional, until CI has measured it."
+    },
+    "first_paint_known_hosts_milliseconds": {
+      "ceiling": 1000.0,
+      "recorded": 0.0,
+      "note": "Provisional, until CI has measured it."
     }
   }
 }

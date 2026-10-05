@@ -1296,8 +1296,8 @@ Five measurements, one subcommand each, so a developer can run the one they are 
   Space was on show is printed beside it as the control, and a page that did not grow there fails
   the run rather than passing it, because a flat line means nothing without one.
 - `pageload` is what Content blocking as a whole adds to a page load: the rule check, CNAME
-  uncloaking where the engine carries it, the Refusal tally and the refused-request list. It is
-  described below.
+  uncloaking where the engine carries it, the Refusal tally and the refused-request list. From the
+  same loads it takes how soon a page first paints. Both are described below.
 
 It writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, so unlike the theme repaint and the default browser it needs no opt-in guard. It does take
@@ -1309,9 +1309,8 @@ of those fails the run, because each is either a broken browser or a number that
 
 CI runs it inside the `arch-linux` job, against the build that job has already made, under cage on
 the headless backend, with `--require-dns` so that `pageload` fails there rather than skips. What it
-measures there is what needs no hardware. Time to first paint and scrolling are not in it: the
-container has no GPU, so a paint timing taken there would be a software rasteriser's rather than a
-reader's.
+measures there is what needs no hardware, and a page's first paint, which is held against CI's own
+software renderer rather than a reader's GPU. Scrolling is not in it.
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
 compositor, because the compositor CI runs is not the one a reader runs and the protocol is the same
@@ -1398,6 +1397,36 @@ Content blocking's cost. They were recorded there on 2026-09-28
 
 Each ceiling is four times the difference recorded on CI's runner, and never under 20 ms. The
 differences are a few milliseconds, and a shared runner's noise is bigger than that multiplied.
+
+#### The first-paint measurement
+
+`pageload` also holds the fresh-host and known-host pages to how soon they first paint, with
+blocking on. It takes no loads of its own: the counted blocking-on loads of those two cases each
+report their `first-contentful-paint` entry beside their load time, so the spares, the warm-up loads
+and the DNS server are the page-load measurement's. The procedural case is left out, because it is
+there to price its rules rather than to be a page a reader opens.
+
+The entry is the page's own, from its performance timeline, on the clock its load time uses: from
+the navigation starting to the first frame that drew an image. The pages have no text, so that frame
+is the first of the 40 images arriving, decoded and presented. The entry is added when the frame is
+presented, which on a slow runner can come after the `load` event, so the page watches for it for up
+to five seconds. A counted load with no entry by then fails the run rather than leaving the median
+to the loads that had one.
+
+The log prints, for each case, the median of its ten loads and the fastest and slowest of them:
+
+```text
+  first contentful paint, 40 fresh hosts, blocking on: 61.2 ms (median of 10 loads, 52.0 to 75.4 ms)
+```
+
+What the budget holds is that median. The fresh-host page pays a lookup for every image host before
+it can draw any of them; the known-host page has resolved its four, so the gap between the two is
+mostly lookups. A rise in both is the engine drawing later; a rise in the fresh-host page alone is
+the network path, which is also where `pageload_fresh_hosts_milliseconds` would move. A wide spread
+with a steady median is the runner, not the browser.
+
+CI has no GPU, so the paint is Chromium's software rasteriser under cage's pixman renderer. The
+number is CI's, held against itself to catch a regression, and is not what a reader's GPU takes.
 
 ### Against Chromium
 

@@ -616,13 +616,14 @@ Those probes measure the browser's parts, on the offscreen platform and mostly w
 What the assembled browser costs on a Wayland session is held separately, to
 `performance/budget.json` by `scripts/benchmark_runtime.py`: process start to the window mapping,
 the proportional set size of the whole process tree at rest, what each Space adds to it, whether a
-frozen Space's pages are still running, and what Content blocking adds to a page load whose hosts
-resolve through a real DNS server. CI runs it against the build it has already made and fails when a
-ceiling is crossed. `scripts/benchmark_chromium.py` runs Speedometer, JetStream and MotionMark in
-Omaweb and in two Chromiums, the latest stable one and the one the engine is based on, and only
-reports. Both append their recorded runs to `performance/history.jsonl`.
+frozen Space's pages are still running, what Content blocking adds to a page load whose hosts
+resolve through a real DNS server, and how soon such a page first paints. CI runs it against the
+build it has already made and fails when a ceiling is crossed. `scripts/benchmark_chromium.py` runs
+Speedometer, JetStream and MotionMark in Omaweb and in two Chromiums, the latest stable one and the
+one the engine is based on, and only reports. Both append their recorded runs to
+`performance/history.jsonl`.
 
-Time to first paint and scrolling are in neither. CI has no GPU and no compositor of the kind a
-reader runs, so a paint timing taken there is a software rasteriser's rather than a reader's. Those
-stay on real hardware, in the family of `scripts/check_theme_repaint.py` and
-`scripts/check_wayland_session.py`.
+Scrolling is in neither. CI has no GPU and no compositor of the kind a reader runs, so the first
+paint the runtime budget holds is a software rasteriser's, which catches the browser drawing later
+than it did but is not what a reader sees. Scrolling and a reader's paint timings stay on real
+hardware, in the family of `scripts/check_theme_repaint.py` and `scripts/check_wayland_session.py`.
