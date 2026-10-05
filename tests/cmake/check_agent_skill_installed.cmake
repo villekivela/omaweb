@@ -8,11 +8,11 @@ set(prefix "${OMAWEB_BINARY_DIR}/agent-skill-install")
 file(REMOVE_RECURSE "${prefix}")
 execute_process(
     COMMAND "${CMAKE_COMMAND}" --install "${OMAWEB_BINARY_DIR}"
-        --component agent-skill --prefix "${prefix}"
+        --component cli --prefix "${prefix}"
     RESULT_VARIABLE result
     OUTPUT_QUIET)
 if(NOT result EQUAL 0)
-    message(FATAL_ERROR "Installing the agent-skill component failed: ${result}")
+    message(FATAL_ERROR "Installing the cli component failed: ${result}")
 endif()
 
 set(installed "${prefix}/share/omaweb/skills/omaweb/SKILL.md")

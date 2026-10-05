@@ -70,6 +70,15 @@
       }
     },
     {
+      "name": "cli",
+      "inherits": "base",
+      "displayName": "The small omaweb client alone, on Qt's base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OMAWEB_CLIENT_ONLY": true
+      }
+    },
+    {
       "name": "ladybird",
       "inherits": "base",
       "displayName": "Ladybird adapter placeholder",
@@ -88,6 +97,7 @@
     { "name": "asan", "configurePreset": "asan" },
     { "name": "release", "configurePreset": "release" },
     { "name": "ci", "configurePreset": "ci" },
+    { "name": "cli", "configurePreset": "cli" },
     { "name": "ladybird", "configurePreset": "ladybird" }
   ],
   "testPresets": [
@@ -109,6 +119,11 @@
     {
       "name": "release",
       "configurePreset": "release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "cli",
+      "configurePreset": "cli",
       "output": { "outputOnFailure": true }
     }
   ]

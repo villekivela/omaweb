@@ -40,6 +40,29 @@ verbs and Agent Spaces are behind the **Allow agents** setting, off by default, 
 below. Turning the setting off detaches every connection from the pages it was driving; the socket
 stays up for browser commands.
 
+## The client and a sandbox
+
+`omaweb` on the PATH is a small client, built from the same code as the browser's verbs and linked
+only to Qt's Core and Network. Given a verb or `mcp` it talks to the socket; given anything else, a
+launch or an address from `xdg-open`, it replaces itself with the browser, which is installed at
+`/usr/lib/omaweb/omaweb-browser`. It is its own package, `omaweb-cli`, which carries the skill and
+which the browser's package depends on, so an Agent in a container, a Distrobox, a VM or on another
+host has the same command and the same skill as one on the desktop. Where no browser is installed, a
+launch says so, and `omaweb mcp` says it has nothing to start and exits.
+
+A sandbox often has no login session and so no runtime directory, so the client reads
+`OMAWEB_CONTROL_SOCKET` before the default path. The client and the browser may come from different
+releases, so the client opens each connection with `hello`, naming the protocol it speaks, and the
+browser answers with its own. On a mismatch the client warns once, naming both versions, and carries
+on. A browser refuses a verb it does not know as unknown rather than reading it as another.
+
+Forwarding the socket extends the user boundary to whatever receives it. The socket is the user, as
+above, so a container, a VM or a host given the socket acts as the reader in the browser, exactly as
+a process of theirs on the desktop does. No authentication is added for it: browser commands are
+open to it, and the page verbs and Agent Spaces still need Allow agents and a Space grant.
+Forwarding the socket is the reader's decision about the sandbox, and the README says what it hands
+over.
+
 ## What the page verbs may reach
 
 An Agent may create Agent Spaces and has full use of them. `--temporary` makes one that is deleted,

@@ -29,10 +29,7 @@ public:
     explicit ControlSocket(AgentControl *control, QObject *parent = nullptr);
     ~ControlSocket() override;
 
-    // `$XDG_RUNTIME_DIR/omaweb/control.sock` on Linux, and the same name under
-    // the per-user temporary directory on macOS, which has no runtime
-    // directory. `OMAWEB_CONTROL_SOCKET` names another, so a scratch browser
-    // can run beside the everyday one.
+    // Where clients look for it: `agentSocketPath()`.
     static QString defaultPath();
 
     // Listens at `path` with mode 0600, in a directory only this user can

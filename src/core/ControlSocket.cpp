@@ -1,6 +1,7 @@
 #include "ControlSocket.h"
 
 #include "AgentControl.h"
+#include "AgentProtocol.h"
 #include "BrowserController.h"
 
 #include <QDir>
@@ -11,7 +12,6 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QPointer>
-#include <QStandardPaths>
 
 #include <memory>
 
@@ -72,21 +72,7 @@ ControlSocket::~ControlSocket()
     }
 }
 
-QString ControlSocket::defaultPath()
-{
-    const auto override = qEnvironmentVariable("OMAWEB_CONTROL_SOCKET");
-    if (!override.isEmpty()) {
-        return override;
-    }
-#if defined(Q_OS_MACOS)
-    const auto base = QDir::tempPath();
-#else
-    // Qt reads XDG_RUNTIME_DIR, and falls back to a directory of its own that
-    // it has checked belongs to this user when the session did not set one.
-    const auto base = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
-#endif
-    return QDir(base).filePath(QStringLiteral("omaweb/control.sock"));
-}
+QString ControlSocket::defaultPath() { return agentSocketPath(); }
 
 bool ControlSocket::listen(const QString &path)
 {

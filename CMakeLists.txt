@@ -31,6 +31,145 @@ set(OMAWEB_GITHUB_APP_CLIENT_ID "Iv23liYr7TPLsmgsxLfl" CACHE STRING
     "Public client ID of the Omaweb GitHub App")
 set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync" CACHE STRING
     "Public slug of the Omaweb GitHub App")
+# The small client alone, for a machine that reaches a browser over its Agent
+# socket and has no browser of its own: a sandbox, a container, another host.
+# It needs Qt's Core and Network and nothing else, so this stops before
+# anything that asks for more.
+option(OMAWEB_CLIENT_ONLY "Build only the small omaweb client" OFF)
+if(OMAWEB_CLIENT_ONLY)
+    set(OMAWEB_BUILD_BROWSER OFF)
+    set(OMAWEB_BUILD_UI_LAB OFF)
+    set(OMAWEB_BUILD_SYNC OFF)
+endif()
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+function(omaweb_strict_target target)
+    target_compile_options(${target} PRIVATE
+        $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-Wpedantic>
+    )
+endfunction()
+
+set(omaweb_client_qt_components Core Network)
+if(BUILD_TESTING)
+    list(APPEND omaweb_client_qt_components Test)
+endif()
+find_package(Qt6 6.11 REQUIRED COMPONENTS ${omaweb_client_qt_components})
+qt_standard_project_setup(REQUIRES 6.11)
+
+# What the `omaweb` command does with a verb (ADR 0051): the CLI, the MCP
+# server and the protocol both speak on the Agent socket. The browser links it
+# too, so a verb reads the same whichever binary runs it.
+add_library(omaweb-agent-client STATIC
+    src/core/AgentClient.cpp
+    src/core/AgentClient.h
+    src/core/AgentCommand.cpp
+    src/core/AgentCommand.h
+    src/core/AgentConsole.cpp
+    src/core/AgentConsole.h
+    src/core/AgentMcp.cpp
+    src/core/AgentMcp.h
+    src/core/AgentPick.cpp
+    src/core/AgentPick.h
+    src/core/AgentProtocol.cpp
+    src/core/AgentProtocol.h
+    src/core/LaunchRequest.cpp
+    src/core/LaunchRequest.h
+)
+set_target_properties(omaweb-agent-client PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(omaweb-agent-client PUBLIC src/core)
+target_link_libraries(omaweb-agent-client PUBLIC Qt6::Core Qt6::Network)
+omaweb_strict_target(omaweb-agent-client)
+
+# The browser is installed beside its own libraries rather than on the PATH,
+# where this client stands in for it. Relative to the client, for the same
+# reason the browser's runpath is relative: a package sets its own prefix.
+file(RELATIVE_PATH omaweb_browser_from_client "${CMAKE_INSTALL_FULL_BINDIR}"
+    "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb/omaweb-browser")
+qt_add_executable(omaweb src/cli/main.cpp)
+target_link_libraries(omaweb PRIVATE omaweb-agent-client)
+target_compile_definitions(omaweb PRIVATE
+    OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
+    OMAWEB_BROWSER_FROM_CLIENT="${omaweb_browser_from_client}"
+)
+omaweb_strict_target(omaweb)
+
+if(UNIX AND NOT APPLE)
+    install(TARGETS omaweb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT cli)
+    # An Agent skill is a directory named for the skill, which the reader
+    # links into their agent's skills directory. It teaches the client, so it
+    # comes with the client.
+    install(DIRECTORY integrations/agent/omaweb
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/skills"
+        COMPONENT cli)
+    install(FILES LICENSE
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb-cli"
+        COMPONENT cli)
+endif()
+
+if(BUILD_TESTING)
+    qt_add_executable(omaweb-agent-command-tests tests/core/tst_agentcommand.cpp)
+    target_link_libraries(omaweb-agent-command-tests PRIVATE omaweb-agent-client Qt6::Test)
+    omaweb_strict_target(omaweb-agent-command-tests)
+    add_test(NAME omaweb-agent-command COMMAND omaweb-agent-command-tests)
+
+    qt_add_executable(omaweb-agent-pick-tests tests/core/tst_agentpick.cpp)
+    target_link_libraries(omaweb-agent-pick-tests PRIVATE omaweb-agent-client Qt6::Test)
+    omaweb_strict_target(omaweb-agent-pick-tests)
+    add_test(NAME omaweb-agent-pick COMMAND omaweb-agent-pick-tests)
+
+    qt_add_executable(omaweb-agent-mcp-tests tests/core/tst_agentmcp.cpp)
+    target_link_libraries(omaweb-agent-mcp-tests PRIVATE omaweb-agent-client Qt6::Test)
+    # The skill is checked against the verbs it teaches.
+    target_compile_definitions(omaweb-agent-mcp-tests PRIVATE
+        OMAWEB_AGENT_SKILL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/agent/omaweb/SKILL.md"
+    )
+    omaweb_strict_target(omaweb-agent-mcp-tests)
+    add_test(NAME omaweb-agent-mcp COMMAND omaweb-agent-mcp-tests)
+
+    # The client as a reader runs it, and the browser where one is built: every
+    # verb has to reach the socket the same through both.
+    qt_add_executable(omaweb-agent-client-tests tests/cli/tst_agentclient.cpp)
+    target_link_libraries(omaweb-agent-client-tests PRIVATE omaweb-agent-client Qt6::Test)
+    target_compile_definitions(omaweb-agent-client-tests PRIVATE
+        OMAWEB_CLIENT_PATH="$<TARGET_FILE:omaweb>"
+        OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
+    )
+    if(OMAWEB_BUILD_BROWSER)
+        target_compile_definitions(omaweb-agent-client-tests PRIVATE
+            OMAWEB_BROWSER_PATH="$<TARGET_FILE:omaweb-browser>")
+    endif()
+    add_dependencies(omaweb-agent-client-tests omaweb)
+    omaweb_strict_target(omaweb-agent-client-tests)
+    add_test(NAME omaweb-agent-client COMMAND omaweb-agent-client-tests)
+
+    # A sandbox has Qt's base and no more, so the client must not need more.
+    add_test(NAME omaweb-client-links
+        COMMAND ${CMAKE_COMMAND}
+            -DOMAWEB_CLIENT=$<TARGET_FILE:omaweb>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_client_links.cmake
+    )
+
+    # The package installs the Agent skill, and the reader links the
+    # directory it lands in, so where it lands is checked as installed.
+    if(UNIX AND NOT APPLE)
+        add_test(NAME omaweb-agent-skill-installed
+            COMMAND ${CMAKE_COMMAND}
+                -DOMAWEB_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+                -DOMAWEB_SKILL=${CMAKE_CURRENT_SOURCE_DIR}/integrations/agent/omaweb/SKILL.md
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_agent_skill_installed.cmake
+        )
+    endif()
+endif()
+
+if(OMAWEB_CLIENT_ONLY)
+    return()
+endif()
+# Everything from here on is the browser's package rather than the client's.
+set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME browser)
 
 set(OMAWEB_CONTENT_BLOCKER_CACHE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/content-blocker/release"
     CACHE PATH "Directory containing the bootstrapped content-blocker shared library")
@@ -75,11 +214,6 @@ string(JSON omaweb_approved_chromium_security_patch
 message(STATUS "Omaweb approved engine baseline: QtWebEngine "
     "${omaweb_approved_qtwebengine} / Chromium ${omaweb_approved_chromium_security_patch}")
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 # `CorePrivate` is one header in `ExtensionPackage.cpp`: `QZipReader`, which
 # Qt ships privately and which is what reads a store package's archive. Writing
 # a ZIP reader by hand, or taking a dependency for one, would both be worse
@@ -123,7 +257,6 @@ endif()
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 6.11 REQUIRED COMPONENTS ${omaweb_qt_components})
 set(QT_NO_PRIVATE_MODULE_WARNING OFF)
-qt_standard_project_setup(REQUIRES 6.11)
 
 # CNAME uncloaking needs the engine patch that lets a request interceptor ask
 # for the host's DNS aliases (ADR 0050). Unlike a Known extension, the patch is
@@ -194,12 +327,6 @@ target_link_libraries(omaweb-content-blocking PUBLIC
     PRIVATE Qt6::Concurrent omaweb-adblock-rust
 )
 
-function(omaweb_strict_target target)
-    target_compile_options(${target} PRIVATE
-        $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-Wpedantic>
-    )
-endfunction()
-
 function(omaweb_declarative_fixture_target target)
     # Fixture declarations intentionally omit fields whose domain defaults are under test.
     target_compile_options(${target} PRIVATE
@@ -216,16 +343,8 @@ add_library(omaweb-core STATIC
     src/core/AddressWatch.h
     src/core/AgentActivityLog.cpp
     src/core/AgentActivityLog.h
-    src/core/AgentCommand.cpp
-    src/core/AgentCommand.h
-    src/core/AgentConsole.cpp
-    src/core/AgentConsole.h
     src/core/AgentControl.cpp
     src/core/AgentControl.h
-    src/core/AgentMcp.cpp
-    src/core/AgentMcp.h
-    src/core/AgentPick.cpp
-    src/core/AgentPick.h
     src/core/BrowserStateExchange.cpp
     src/core/BrowserStateExchange.h
     src/core/BrowserController.cpp
@@ -264,8 +383,6 @@ add_library(omaweb-core STATIC
     src/core/HistorySearch.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
-    src/core/LaunchRequest.cpp
-    src/core/LaunchRequest.h
     src/core/LocaleReport.cpp
     src/core/LocaleReport.h
     src/core/RetainedTab.h
@@ -314,7 +431,8 @@ target_include_directories(omaweb-core PUBLIC src/core src/content-blocking)
 # needs to check the signature itself rather than trust the transport.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto)
-target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
+target_link_libraries(omaweb-core
+    PUBLIC omaweb-agent-client Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
     PRIVATE Qt6::Concurrent Qt6::CorePrivate PkgConfig::LIBCRYPTO omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
 # The page-side half of procedural cosmetic filtering (ADR 0052): Brave's
@@ -874,8 +992,8 @@ function(omaweb_configure_qml target engine_view engine_profile engine_module)
 endfunction()
 
 if(OMAWEB_BUILD_BROWSER)
-    qt_add_executable(omaweb MACOSX_BUNDLE src/main.cpp)
-    target_link_libraries(omaweb PRIVATE
+    qt_add_executable(omaweb-browser MACOSX_BUNDLE src/main.cpp)
+    target_link_libraries(omaweb-browser PRIVATE
         omaweb-core
         omaweb-ui
         omaweb-quickshell-shim
@@ -885,25 +1003,25 @@ if(OMAWEB_BUILD_BROWSER)
         Qt6::Qml
         Qt6::Quick
     )
-    omaweb_configure_qml(omaweb "src/engine/qt/EngineView.qml"
+    omaweb_configure_qml(omaweb-browser "src/engine/qt/EngineView.qml"
         "src/engine/qt/EngineProfile.qml" "Omaweb.Engine.Qt")
-    omaweb_strict_target(omaweb)
+    omaweb_strict_target(omaweb-browser)
     if(TARGET omaweb-sync-plugin)
         set(omaweb_sync_installed_module
             "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb/modules/$<TARGET_FILE_NAME:omaweb-sync-plugin>")
-        add_dependencies(omaweb omaweb-sync-plugin)
-        target_compile_definitions(omaweb PRIVATE
+        add_dependencies(omaweb-browser omaweb-sync-plugin)
+        target_compile_definitions(omaweb-browser PRIVATE
             OMAWEB_SYNC_MODULE_PATH="$<TARGET_FILE:omaweb-sync-plugin>"
             OMAWEB_SYNC_INSTALLED_MODULE_PATH="${omaweb_sync_installed_module}"
         )
     else()
-        target_compile_definitions(omaweb PRIVATE
+        target_compile_definitions(omaweb-browser PRIVATE
             OMAWEB_SYNC_MODULE_PATH=""
             OMAWEB_SYNC_INSTALLED_MODULE_PATH=""
         )
     endif()
 
-    set_target_properties(omaweb PROPERTIES
+    set_target_properties(omaweb-browser PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "Omaweb"
         MACOSX_BUNDLE_GUI_IDENTIFIER "dev.omaweb.browser"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
@@ -926,10 +1044,11 @@ if(OMAWEB_BUILD_BROWSER)
         # The engine's QML plugin needs no path of its own: Omaweb links
         # WebEngineQuick directly, so the patched library is loaded first and
         # the plugin's request for that SONAME is already answered.
-        set_target_properties(omaweb PROPERTIES
-            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb/lib")
+        set_target_properties(omaweb-browser PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/lib")
 
-        install(TARGETS omaweb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        # Off the PATH: `omaweb` there is the small client, which hands
+        # everything that is not a verb to this.
+        install(TARGETS omaweb-browser RUNTIME DESTINATION "${CMAKE_INSTALL_LIBDIR}/omaweb")
         install(FILES "${omaweb_content_blocker_library}"
             DESTINATION "${CMAKE_INSTALL_LIBDIR}/omaweb")
         install(FILES ${omaweb_qm_files}
@@ -944,11 +1063,6 @@ if(OMAWEB_BUILD_BROWSER)
             DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
         install(FILES LICENSE THIRD_PARTY_NOTICES.md
             DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb")
-        # An Agent skill is a directory named for the skill, which the reader
-        # links into their agent's skills directory.
-        install(DIRECTORY integrations/agent/omaweb
-            DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/skills"
-            COMPONENT agent-skill)
     endif()
 endif()
 
@@ -1027,17 +1141,6 @@ if(BUILD_TESTING)
             -DOMAWEB_EXPECTED=${omaweb_expected_qml_build}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_qml_aot.cmake
     )
-
-    # The package installs the Agent skill, and the reader links the
-    # directory it lands in, so where it lands is checked as installed.
-    if(OMAWEB_BUILD_BROWSER AND UNIX AND NOT APPLE)
-        add_test(NAME omaweb-agent-skill-installed
-            COMMAND ${CMAKE_COMMAND}
-                -DOMAWEB_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
-                -DOMAWEB_SKILL=${CMAKE_CURRENT_SOURCE_DIR}/integrations/agent/omaweb/SKILL.md
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_agent_skill_installed.cmake
-        )
-    endif()
 
     add_test(NAME omaweb-vendored-omarchy-ui
         COMMAND ${CMAKE_COMMAND}
@@ -1292,25 +1395,6 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-agent-activity-log-tests)
     omaweb_declarative_fixture_target(omaweb-agent-activity-log-tests)
     add_test(NAME omaweb-agent-activity-log COMMAND omaweb-agent-activity-log-tests)
-
-    qt_add_executable(omaweb-agent-command-tests tests/core/tst_agentcommand.cpp)
-    target_link_libraries(omaweb-agent-command-tests PRIVATE omaweb-core Qt6::Test)
-    omaweb_strict_target(omaweb-agent-command-tests)
-    add_test(NAME omaweb-agent-command COMMAND omaweb-agent-command-tests)
-
-    qt_add_executable(omaweb-agent-pick-tests tests/core/tst_agentpick.cpp)
-    target_link_libraries(omaweb-agent-pick-tests PRIVATE omaweb-core Qt6::Test)
-    omaweb_strict_target(omaweb-agent-pick-tests)
-    add_test(NAME omaweb-agent-pick COMMAND omaweb-agent-pick-tests)
-
-    qt_add_executable(omaweb-agent-mcp-tests tests/core/tst_agentmcp.cpp)
-    target_link_libraries(omaweb-agent-mcp-tests PRIVATE omaweb-core Qt6::Test)
-    # The skill is checked against the verbs it teaches.
-    target_compile_definitions(omaweb-agent-mcp-tests PRIVATE
-        OMAWEB_AGENT_SKILL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/agent/omaweb/SKILL.md"
-    )
-    omaweb_strict_target(omaweb-agent-mcp-tests)
-    add_test(NAME omaweb-agent-mcp COMMAND omaweb-agent-mcp-tests)
 
     qt_add_executable(omaweb-session-store-tests tests/core/tst_sessionstore.cpp)
     target_link_libraries(omaweb-session-store-tests PRIVATE omaweb-core Qt6::Test)

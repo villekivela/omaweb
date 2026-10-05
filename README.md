@@ -166,6 +166,101 @@ omaweb dev localhost:5173 --agent 'incus exec dev --cwd {dir} -- claude'
 Settings lists each project under spaces, with Forget project to clear it. `omaweb dev` grants
 agents nothing: the first time your agent reaches the Space, Omaweb asks you as it does anywhere.
 
+## Agent in a container
+
+Your agent can run in a sandbox while Omaweb runs on your desktop. The agent drives the browser with
+the same `omaweb` command and skill. The sandbox needs three things from the desktop:
+
+- **The `omaweb` command.** The `omaweb-cli` package holds it and the skill, and needs only Qt's
+  base. On Arch, add the [repository](#install) and run `sudo pacman -S omaweb-cli`. Elsewhere,
+  build it from a checkout with `cmake --preset cli && cmake --build --preset cli`, which needs Qt 6
+  base, CMake and Ninja.
+- **The Agent socket**, `$XDG_RUNTIME_DIR/omaweb/control.sock` on the desktop. Inside the sandbox,
+  set `OMAWEB_CONTROL_SOCKET` to wherever you put it.
+- **Your project at the same path**, so `{dir}` in the agent command names the same folder on both
+  sides, and **the dev server's port**, so the browser reaches it as `localhost`.
+
+Anything that can open the socket acts as you in the browser. Forwarding it into a sandbox gives the
+sandbox that power: browser commands work from it at once, and pages and Spaces still need Allow
+agents and your answer to the Space prompt.
+
+The recipes below use a project in `~/code/shop` whose dev server listens on port 5173. Run the
+agent command once in the project's folder on the desktop, then `:ask` in the project's Space starts
+the agent in the sandbox.
+
+### Incus
+
+Forward the port out of the container, mount the project at its own path, and forward the socket in.
+The socket device listens inside the container and connects to the desktop's socket as you:
+
+```sh
+incus config device add dev shop-port proxy \
+    listen=tcp:127.0.0.1:5173 connect=tcp:127.0.0.1:5173
+incus config device add dev shop disk source="$HOME/code/shop" path="$HOME/code/shop" shift=true
+incus config device add dev omaweb proxy bind=instance \
+    listen=unix:/run/omaweb.sock connect=unix:"$XDG_RUNTIME_DIR/omaweb/control.sock" \
+    uid=1000 gid=1000 mode=0600 security.uid="$(id -u)" security.gid="$(id -g)"
+incus config set dev environment.OMAWEB_CONTROL_SOCKET=/run/omaweb.sock
+omaweb dev localhost:5173 --agent 'incus exec dev --cwd {dir} -- claude'
+```
+
+`uid` and `gid` are your user inside the container. The dev server in the container listens on
+`127.0.0.1:5173`.
+
+### Docker or Podman
+
+Bind-mount the socket's directory rather than the socket, so the mount survives the browser
+restarting, and run as your own user, so the socket's mode lets you in:
+
+```sh
+docker run -d --name dev --user "$(id -u):$(id -g)" \
+    -p 127.0.0.1:5173:5173 \
+    -v "$HOME/code/shop:$HOME/code/shop" \
+    -v "$XDG_RUNTIME_DIR/omaweb:/run/omaweb" -e OMAWEB_CONTROL_SOCKET=/run/omaweb/control.sock \
+    your-dev-image sleep infinity
+omaweb dev localhost:5173 --agent 'docker exec -it -w {dir} dev claude'
+```
+
+The dev server in the container listens on `0.0.0.0:5173`. With rootless Podman, use `podman` for
+`docker` and add `--userns=keep-id`.
+
+### Distrobox
+
+Nothing to forward: a Distrobox shares your home, your runtime directory and the network with the
+desktop, so the default socket path and `localhost` already work inside it. Install `omaweb-cli` in
+the box, then:
+
+```sh
+omaweb dev localhost:5173 --agent 'distrobox enter dev -- claude'
+```
+
+### Another host over SSH
+
+Open one session that forwards the socket to the host and the port back, and keep it open while you
+work. Run the dev server in it:
+
+```sh
+ssh -R /tmp/omaweb.sock:"$XDG_RUNTIME_DIR/omaweb/control.sock" -L 5173:localhost:5173 devbox
+```
+
+Set `StreamLocalBindUnlink yes` in the host's `sshd_config`, or remove `/tmp/omaweb.sock` before
+reconnecting, because sshd will not replace a socket a previous session left. The project has to be
+at the same path on the host.
+
+`:ask` adds its prompt as the command's last argument, and SSH hands its command to the host's
+shell, which would split the prompt again. A small script on the desktop quotes it for a Bash login
+shell on the host. Save it as `~/.local/bin/devbox-claude` and make it executable:
+
+```bash
+#!/bin/bash
+# devbox-claude <folder> <prompt>
+exec ssh -t devbox "cd ${1@Q} && OMAWEB_CONTROL_SOCKET=/tmp/omaweb.sock exec claude ${2@Q}"
+```
+
+```sh
+omaweb dev localhost:5173 --agent 'devbox-claude {dir}'
+```
+
 ## Configuration
 
 User configuration lives in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that variable is

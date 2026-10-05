@@ -598,14 +598,15 @@ class Browser:
         a browser that did nothing it was asked. Breadth first, so the browser is found before the
         engine's children, which carry the same name.
         """
-        name = os.path.basename(self.executable)[:15]
+        # `omaweb` is the small client, which becomes the browser under the browser's own name.
+        names = {os.path.basename(self.executable)[:15], "omaweb-browser"}
         tree = children_by_parent()
         pending = list(tree.get(self.pid, []))
         while pending:
             candidate = pending.pop(0)
             try:
                 with open(f"/proc/{candidate}/comm", encoding="utf-8") as handle:
-                    if handle.read().strip() == name:
+                    if handle.read().strip() in names:
                         return candidate
             except OSError:
                 pass

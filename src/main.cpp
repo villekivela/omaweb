@@ -173,10 +173,12 @@ int main(int argc, char *argv[])
     if (omaweb::isAgentMcpCommand(arguments)) {
         QCoreApplication client(argc, argv);
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
-        return omaweb::runAgentMcp(arguments, omaweb::ControlSocket::defaultPath());
+        return omaweb::runAgentMcp(arguments, omaweb::ControlSocket::defaultPath(),
+            [] { return omaweb::startAgentBrowser(QCoreApplication::applicationFilePath()); });
     }
     if (omaweb::isAgentCommand(arguments)) {
         QCoreApplication client(argc, argv);
+        QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
         return omaweb::runAgentCommand(arguments, omaweb::ControlSocket::defaultPath());
     }
     if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX")) {

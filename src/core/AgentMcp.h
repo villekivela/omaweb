@@ -47,9 +47,9 @@ std::optional<QJsonObject> answerAgentMcp(
     const QJsonObject &message, const QString &name, const AgentMcpSend &send);
 
 // Answers each line of `input` on `output`, one JSON-RPC message a line, until
-// `input` ends.
-void serveAgentMcp(
-    std::istream &input, std::ostream &output, const QString &name, const AgentMcpSend &send);
+// `input` ends or `finished`, asked after each answer, says to stop.
+void serveAgentMcp(std::istream &input, std::ostream &output, const QString &name,
+    const AgentMcpSend &send, const std::function<bool()> &finished = {});
 
 // The connection's name from `omaweb mcp [--name <name>]`, uncleaned, or
 // nothing when the command line is malformed.
@@ -60,28 +60,46 @@ std::optional<QString> readAgentMcpName(const QStringList &arguments, const QStr
 // for the socket. A browser that was started and never answered is not
 // started again: a browser that is running with its socket closed would be
 // brought forward by every call instead.
+//
+// An empty `start` is a machine with no browser installed, such as a sandbox
+// that reaches one over a forwarded socket. A call there that finds nothing
+// answering strands the link.
 class AgentMcpLink {
 public:
     AgentMcpLink(QString path, std::function<bool()> start, int startTimeoutMs);
 
     std::optional<QJsonObject> send(const QJsonObject &request, QString &error);
 
+    // Why the link has no browser to reach and none to start, or nothing.
+    QString stranded() const { return m_stranded; }
+
 private:
     bool connect(QString &error);
     bool tryConnect();
+    // Says which protocol this speaks on a new connection, and warns once a
+    // session when the browser speaks another.
+    void greet();
 
     QString m_path;
     std::function<bool()> m_start;
     int m_startTimeoutMs;
     bool m_startFailed = false;
+    bool m_warned = false;
+    QString m_stranded;
     QLocalSocket m_socket;
     // Answers to requests that timed out, which the browser still sends, in
     // order, ahead of the next.
     int m_owed = 0;
 };
 
-// Serves MCP on standard input and output until input ends. Answers 0, or 2
-// for a malformed command line.
-int runAgentMcp(const QStringList &arguments, const QString &socketPath);
+// Starts the browser at `path` apart from this process, which it outlives.
+bool startAgentBrowser(const QString &path);
+
+// Serves MCP on standard input and output until input ends, starting the
+// browser with `start` when none answers on `socketPath`. Answers 0, 2 for a
+// malformed command line, or 1 when `start` is empty and no browser answered:
+// the server says so and leaves.
+int runAgentMcp(
+    const QStringList &arguments, const QString &socketPath, const std::function<bool()> &start);
 
 } // namespace omaweb

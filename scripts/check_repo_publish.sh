@@ -89,8 +89,12 @@ srcinfo=$(makepkg_in "$work/pkgbuild" --printsrcinfo)
 required_lines=$(printf '%s\n' \
     "pkgbase = omaweb" \
     "	pkgver = 0.0.0" \
+    "pkgname = omaweb" \
     "	conflicts = omaweb-git" \
-    "	install = omaweb.install")
+    "	depends = omaweb-cli=0.0.0" \
+    "	install = omaweb.install" \
+    "pkgname = omaweb-cli" \
+    "	conflicts = omaweb-cli-git")
 while IFS= read -r required; do
     if ! printf '%s\n' "$srcinfo" | grep -qxF "$required"; then
         echo "The derived PKGBUILD does not say '$required'" >&2
@@ -144,7 +148,7 @@ build_standin() {
     # here is checking the only path a reader takes.
     local depends=""
     if [ "$name" = "omaweb" ]; then
-        depends="depends=('omaweb-qtwebengine')"
+        depends="depends=('omaweb-qtwebengine' 'omaweb-cli')"
     fi
     cat > "$dir/PKGBUILD" <<PKGBUILD
 # A stand-in. Only its name, its version and the fact that it installs a file
@@ -181,11 +185,16 @@ PKGBUILD
 }
 
 first=$(build_standin omaweb 0.0.0)
+client=$(build_standin omaweb-cli 0.0.0)
 engine=$(build_standin omaweb-qtwebengine 0.0.0)
 second=$(build_standin omaweb 0.0.1)
 
 echo "==> Publishing"
 "$repo_root/scripts/publish_repo.sh" --package "$first" \
+    --repo-dir "$work/repo" --key "$fingerprint"
+
+echo "==> Publishing the client, which the same release builds"
+"$repo_root/scripts/publish_repo.sh" --package "$client" \
     --repo-dir "$work/repo" --key "$fingerprint"
 
 echo "==> Publishing the engine, which is released on its own schedule"
@@ -198,9 +207,10 @@ echo "==> Publishing the next version, as a second release would"
 
 held=$(find "$work/repo/$arch" -maxdepth 1 -name '*.pkg.tar.*' ! -name '*.sig' \
     -printf '%f\n' | sort)
-expected=$(printf '%s\n%s\n' "$(basename -- "$second")" "$(basename -- "$engine")" | sort)
+expected=$(printf '%s\n%s\n%s\n' "$(basename -- "$second")" "$(basename -- "$client")" \
+    "$(basename -- "$engine")" | sort)
 if [ "$held" != "$expected" ]; then
-    echo "The repository should hold the second browser and the engine, and holds:" >&2
+    echo "The repository should hold the second browser, the client and the engine, and holds:" >&2
     printf '%s\n' "$held" >&2
     exit 1
 fi
@@ -264,4 +274,10 @@ if [ ! -f "$root/root/usr/share/omaweb-qtwebengine/published-by-the-check" ]; th
     exit 1
 fi
 
-echo "==> A client that trusts only the signing key installed both packages"
+# And the client, whose `omaweb` command is the one that starts the browser.
+if [ ! -f "$root/root/usr/share/omaweb-cli/published-by-the-check" ]; then
+    echo "pacman installed the browser without the client it depends on" >&2
+    exit 1
+fi
+
+echo "==> A client that trusts only the signing key installed all three packages"

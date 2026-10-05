@@ -1,11 +1,13 @@
 #include "AgentControl.h"
 
 #include "AgentActivityLog.h"
+#include "AgentProtocol.h"
 #include "BrowserController.h"
 #include "PrivacyFile.h"
 #include "SpaceProject.h"
 
 #include <QAbstractItemModel>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -995,7 +997,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
         QStringLiteral("space"), QStringLiteral("focus"), QStringLiteral("dev")};
     if (!verbs.contains(verb)) {
         return refusal(
-            QStringLiteral("bad-request"), QStringLiteral("Omaweb has no verb \"%1\".").arg(verb));
+            QStringLiteral("unknown-verb"), QStringLiteral("Omaweb has no verb \"%1\".").arg(verb));
     }
     if (!m_browser || m_browser->privateBrowsing()) {
         return refusal(
@@ -1037,11 +1039,17 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
 {
     const auto verb = request.value(QStringLiteral("verb")).toString();
     const auto name = request.value(QStringLiteral("name")).toString();
+    // Which protocol this speaks reaches no page and no Space, so it is
+    // answered before anything is gated, and is not activity.
+    if (verb == u"hello") {
+        reply(agentHelloAnswer(QCoreApplication::applicationVersion()));
+        return;
+    }
     if (const auto refused = gate(verb); !refused.isEmpty()) {
         // What is not a verb, and anything asked of a Private window, did
         // nothing to write down.
         const auto code = refused.value(QStringLiteral("code")).toString();
-        if (code != u"bad-request" && code != u"private") {
+        if (code != u"bad-request" && code != u"unknown-verb" && code != u"private") {
             logActivity(verb, name, request, refused, {});
         }
         reply(refused);

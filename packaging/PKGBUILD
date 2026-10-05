@@ -9,8 +9,14 @@
 # engine does not carry (ADR 0049, which supersedes ADR 0013 on this point).
 # That engine is its own package installed under /usr/lib/omaweb, so Omaweb
 # builds and runs against it rather than against qt6-webengine.
+#
+# One build makes two packages. `omaweb-cli-git` is the small `omaweb` command,
+# which needs only Qt's base and reaches a browser over its Agent socket, so a
+# sandbox can have it alone (ADR 0051). `omaweb-git` is the browser, which
+# depends on it: the command that starts the browser is the client's.
 
-pkgname=omaweb-git
+pkgbase=omaweb-git
+pkgname=('omaweb-git' 'omaweb-cli-git')
 _pkgname=omaweb
 pkgver=0.2.1.r1.g77f0e26
 pkgrel=1
@@ -37,7 +43,9 @@ depends=(
 )
 # `qt6-shadertools` compiles the Start page's CRT glass to the shader packs Qt
 # Quick loads; nothing of it runs with the browser. `qt6-tools` brings Qt
-# Linguist, which compiles the translation catalogues.
+# Linguist, which compiles the translation catalogues. The browser's
+# dependencies are this file's too, because building it needs them; the
+# client's package names its own.
 makedepends=('cmake' 'ninja' 'clang' 'rust' 'python' 'qt6-shadertools' 'qt6-tools')
 optdepends=(
     # Qt is pointed at an input-method plugin by the desktop environment, and
@@ -57,11 +65,6 @@ optdepends=(
     'libva-nvidia-driver: hardware video decode on NVIDIA GPUs, over NVDEC'
     'libva-utils: `vainfo`, which reports which driver answers on this host'
 )
-provides=("$_pkgname=$pkgver")
-conflicts=("$_pkgname")
-# Prints the Hyprland window rule an Omarchy reader has to add by hand. Omarchy
-# owns its own rule directory, so the package cannot install the rule itself.
-install="$pkgname.install"
 # The repository this file sits in, rather than a fresh clone of the remote.
 # `makepkg` run from a checkout should package the tree the reader has in front
 # of them, including commits they have not pushed, which is what the README's
@@ -127,8 +130,27 @@ build() {
     scripts/generate_sbom.py --output build/release/sbom.json
 }
 
-package() {
+package_omaweb-git() {
+    depends+=("omaweb-cli=$pkgver")
+    provides=("$_pkgname=$pkgver")
+    conflicts=("$_pkgname")
+    # Prints the Hyprland window rule an Omarchy reader has to add by hand.
+    # Omarchy owns its own rule directory, so the package cannot install the
+    # rule itself.
+    install=omaweb-git.install
+
     cd "$_pkgname"
-    DESTDIR="$pkgdir" cmake --install build/release
+    DESTDIR="$pkgdir" cmake --install build/release --component browser
     install -Dm644 build/release/sbom.json "$pkgdir/usr/share/omaweb/sbom.json"
+}
+
+package_omaweb-cli-git() {
+    pkgdesc="The omaweb command, which drives an Omaweb browser over its Agent socket"
+    depends=('qt6-base')
+    optdepends=()
+    provides=("omaweb-cli=$pkgver")
+    conflicts=('omaweb-cli')
+
+    cd "$_pkgname"
+    DESTDIR="$pkgdir" cmake --install build/release --component cli
 }

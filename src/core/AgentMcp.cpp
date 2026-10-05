@@ -1,6 +1,7 @@
 #include "AgentMcp.h"
 
 #include "AgentCommand.h"
+#include "AgentProtocol.h"
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -328,18 +329,6 @@ namespace {
                     {QStringLiteral("code"), code}, {QStringLiteral("message"), message}}}};
     }
 
-    // The browser outlives this server, and standard output is the MCP
-    // channel, so it gets none of this process's streams.
-    bool startBrowser()
-    {
-        QProcess browser;
-        browser.setProgram(QCoreApplication::applicationFilePath());
-        browser.setStandardInputFile(QProcess::nullDevice());
-        browser.setStandardOutputFile(QProcess::nullDevice());
-        browser.setStandardErrorFile(QProcess::nullDevice());
-        return browser.startDetached();
-    }
-
 } // namespace
 
 bool isAgentMcpCommand(const QStringList &arguments) { return arguments.value(1) == u"mcp"; }
@@ -451,8 +440,8 @@ std::optional<QJsonObject> answerAgentMcp(
     return rpcResult(id, resultFor(call.request.value(QStringLiteral("verb")).toString(), *answer));
 }
 
-void serveAgentMcp(
-    std::istream &input, std::ostream &output, const QString &name, const AgentMcpSend &send)
+void serveAgentMcp(std::istream &input, std::ostream &output, const QString &name,
+    const AgentMcpSend &send, const std::function<bool()> &finished)
 {
     std::string line;
     while (std::getline(input, line)) {
@@ -477,6 +466,9 @@ void serveAgentMcp(
         if (reply) {
             output << QJsonDocument(*reply).toJson(QJsonDocument::Compact).toStdString() << '\n';
             output.flush();
+        }
+        if (finished && finished()) {
+            return;
         }
     }
 }
@@ -554,6 +546,14 @@ bool AgentMcpLink::connect(QString &error)
         error = QStringLiteral("Omaweb is not answering on its Agent socket.");
         return false;
     }
+    if (!m_start) {
+        m_stranded = QStringLiteral("No Omaweb is answering on %1, and there is no browser "
+                                    "installed here to start. This machine reaches a browser only "
+                                    "over its Agent socket.")
+                         .arg(m_path);
+        error = m_stranded;
+        return false;
+    }
     if (!m_start()) {
         error = QStringLiteral("No Omaweb is running, and one could not be started.");
         return false;
@@ -575,23 +575,65 @@ bool AgentMcpLink::tryConnect()
 {
     m_socket.connectToServer(m_path);
     if (m_socket.waitForConnected(connectTimeoutMs)) {
+        greet();
         return true;
     }
     m_socket.abort();
     return false;
 }
 
-int runAgentMcp(const QStringList &arguments, const QString &socketPath)
+void AgentMcpLink::greet()
+{
+    const auto version = QCoreApplication::applicationVersion();
+    m_socket.write(QJsonDocument(agentHello(version)).toJson(QJsonDocument::Compact) + '\n');
+    m_socket.waitForBytesWritten(connectTimeoutMs);
+    QDeadlineTimer deadline(connectTimeoutMs);
+    while (!m_socket.canReadLine()) {
+        if (!m_socket.waitForReadyRead(static_cast<int>(deadline.remainingTime()))
+            && deadline.hasExpired()) {
+            // A browser busy past this still answers, ahead of the next call.
+            ++m_owed;
+            return;
+        }
+    }
+    const auto answer = QJsonDocument::fromJson(m_socket.readLine()).object();
+    const auto mismatch = agentProtocolMismatch(answer, version);
+    if (!mismatch.isEmpty() && !m_warned) {
+        m_warned = true;
+        std::fprintf(stderr, "%s\n", qPrintable(mismatch));
+    }
+}
+
+// The browser outlives this server, and standard output is the MCP channel,
+// so it gets none of this process's streams.
+bool startAgentBrowser(const QString &path)
+{
+    QProcess browser;
+    browser.setProgram(path);
+    browser.setStandardInputFile(QProcess::nullDevice());
+    browser.setStandardOutputFile(QProcess::nullDevice());
+    browser.setStandardErrorFile(QProcess::nullDevice());
+    return browser.startDetached();
+}
+
+int runAgentMcp(
+    const QStringList &arguments, const QString &socketPath, const std::function<bool()> &start)
 {
     const auto name = readAgentMcpName(arguments, parentProcessName());
     if (!name) {
         std::fputs("omaweb: use `omaweb mcp [--name <name>]`.\n", stderr);
         return 2;
     }
-    AgentMcpLink browser(socketPath, startBrowser, startTimeoutMs);
-    serveAgentMcp(std::cin, std::cout, agentConnectionName(*name),
+    AgentMcpLink browser(socketPath, start, startTimeoutMs);
+    serveAgentMcp(
+        std::cin, std::cout, agentConnectionName(*name),
         [&browser](
-            const QJsonObject &request, QString &error) { return browser.send(request, error); });
+            const QJsonObject &request, QString &error) { return browser.send(request, error); },
+        [&browser] { return !browser.stranded().isEmpty(); });
+    if (const auto stranded = browser.stranded(); !stranded.isEmpty()) {
+        std::fprintf(stderr, "omaweb: %s\n", qPrintable(stranded));
+        return 1;
+    }
     return 0;
 }
 
