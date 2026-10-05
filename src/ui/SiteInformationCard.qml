@@ -758,7 +758,6 @@ Omarchy.BorderSurface {
 
                         Text {
                             id: cardGlyph
-                            anchors.verticalCenter: parent.verticalCenter
                             text: "credit_card"
                             color: root.colors.mutedText
                             font.family: root.iconFontFamily
@@ -768,14 +767,13 @@ Omarchy.BorderSurface {
 
                         Text {
                             objectName: "siteCardFill" + cardFill.index
-                            anchors.verticalCenter: parent.verticalCenter
                             width: root.width - root.borderLeft - root.borderRight - 2 * root.gutter
                                    - cardFill.spacing - cardGlyph.width
                             text: root.cardFillText(cardFill.modelData)
                             color: root.colors.text
                             font.family: Style.font.family
                             font.pixelSize: Style.font.bodySmall
-                            elide: Text.ElideRight
+                            wrapMode: Text.Wrap
                         }
                     }
                 }
