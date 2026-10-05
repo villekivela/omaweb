@@ -255,7 +255,7 @@ Item {
         // — the title beside it already names the site.
         visible: !root.showsAudio || root.pinned
         anchors.left: parent.left
-        anchors.leftMargin: root.pinned ? (parent.width - width) / 2 : root.chipInset
+        anchors.leftMargin: root.pinned ? Math.round((parent.width - width) / 2) : root.chipInset
         anchors.verticalCenter: parent.verticalCenter
         colors: root.colors
         siteUrl: root.tabUrl

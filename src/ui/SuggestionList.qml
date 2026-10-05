@@ -137,8 +137,8 @@ Omarchy.BorderSurface {
                     anchors.right: parent.right
                     anchors.leftMargin: Style.spacing.controlPaddingX
                     anchors.rightMargin: Style.spacing.controlPaddingX
-                    y: row.detail.length > 0 ? body.y + Style.spacing.controlPaddingY : body.y + (
-                                                   body.height - height) / 2
+                    y: row.detail.length > 0 ? body.y + Style.spacing.controlPaddingY : Math.round(
+                                                   body.y + (body.height - height) / 2)
                     textFormat: Text.StyledText
                     text: root.markup(row.modelData)
                     color: row.current ? Style.hoverStateColor(Color.popups.text, Color.accent) :

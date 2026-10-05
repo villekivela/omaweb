@@ -1575,7 +1575,7 @@ Item {
         visible: root.splitOnShow && !root.siteFullscreenActive
         enabled: visible
         height: parent.height
-        x: root.leftPaneWidth + root.dividerWidth / 2 - width / 2
+        x: Math.round(root.leftPaneWidth + root.dividerWidth / 2 - width / 2)
         z: 6
         colors: root.colors
         panelName: qsTr("Left pane")
