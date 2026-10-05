@@ -1307,23 +1307,26 @@ that brings a surface inside removes its `overBudget` argument, and the budget i
 - The Glance. Inside the budget on this laptop and on the GPU, but on CI's runner three of its ten
   movements hold a frame, at 36 to 40 ms.
 
-The Omnibar ranks the tabs, the Spaces and the commands once for each edit. When History's answer or
-the engine's arrives, only History's rows, the put-away tabs and the keywords are ranked again, and
-they are merged into the edit's ranking, with the engine's proposals listed after as before. Ranking
-all of them again for each answer held two to five of the ten movements over the budget offscreen
-and five on CI.
+The Omnibar reads the tabs, the Spaces and the commands when it opens and when the Space changes,
+and ranks them once for each edit. When History's answer or the engine's arrives, only History's
+rows, the put-away tabs and the keywords are ranked again, and they are merged into the edit's
+ranking, with the engine's proposals listed after as before. A list of the very rows already shown
+leaves them standing rather than building them again. Reading and ranking all of them again for each
+edit and each answer held two to five of the ten movements over the budget offscreen and five on CI.
+Ranking once for each edit alone still held two on CI's `arch-linux` job, at 35 to 42 ms.
 
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
 `arch-linux-gcc` jobs' runs of #588. GPU is three runs in the Hyprland session on the laptop's 60 Hz
-display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eleven runs one at a
-time, CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, and GPU is three runs:
+display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight runs one at a time,
+CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which print a probe's numbers only
+when it fails, and GPU is three runs:
 
 | Surface      | Offscreen p95 | Held, offscreen | CI p95        | CI slowest    | Held, CI | GPU p95     | Held, GPU | Guard  |
 | ------------ | ------------- | --------------- | ------------- | ------------- | -------- | ----------- | --------- | ------ |
 | Sidebar      | 45 to 50 ms   | 10 of 10        | 65 to 69 ms   | 67 to 99 ms   | 10       | 46 to 47 ms | 5 to 9    | 150 ms |
 | Space switch | 112 to 126 ms | 10 of 10        | 134 to 140 ms | 158 to 190 ms | 10       | 68 to 71 ms | 10        | 500 ms |
-| Omnibar      | 16 to 20 ms   | 0 to 1          | CI_P95        | CI_SLOW       | CI_HELD  | 17 ms       | 0         | none   |
+| Omnibar      | 14 to 15 ms   | 0 of 10         | held          | held          | 0 to 1   | 17 ms       | 0         | none   |
 | Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms   | 39 to 40 ms   | 3        | 17 ms       | 1         | 67 ms  |
 
 On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to

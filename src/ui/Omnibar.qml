@@ -98,7 +98,7 @@ Item {
     // command scope that is the commands alone.
     property var rows: []
     property int selected: 0
-    // The open tabs' icons by host, read when the rows are ranked.
+    // The open tabs' icons by host, read with the destinations.
     property var siteIcons: ({})
     // The tabs, Spaces and commands that hold the text, strongest first, as
     // the text last ranked them. The answers are merged into them.
@@ -107,6 +107,9 @@ Item {
     // each Space switch rather than for each keystroke, since the read asks
     // the store for every Space.
     property var awayTabs: []
+    // The open tabs, the Spaces and the commands the text is ranked against,
+    // read when the other Spaces' tabs are.
+    property var destinations: []
     // The Spaces an Agent made, and what the Agents are attached to, so a
     // Space is named in the colour the footer draws it in.
     property var agentSpaceIds: []
@@ -242,14 +245,21 @@ Item {
 
     // The field as a fresh opening leaves it, wherever the keyboard is.
     function clearField() {
-        readAwayTabs();
+        readDestinations();
         engine = null;
         input.text = commandScope ? "" : presetText;
         refresh();
     }
 
-    function readAwayTabs() {
+    // The tabs, the Spaces, the commands and the tabs' icons hold still while
+    // the reader types, so they are read with the other Spaces' tabs rather
+    // than for each keystroke, which a hundred tabs leave no room in a frame
+    // for.
+    function readDestinations() {
         awayTabs = browser === null ? [] : browser.awaySpaceTabs();
+        destinations = browser === null ? [] : commands.destinations(awayTabs).concat(commands.actions(
+                                                                                          ).map(asCommand));
+        siteIcons = browser === null ? ({}) : commands.siteIcons();
     }
 
     Connections {
@@ -257,7 +267,7 @@ Item {
         enabled: root.open
 
         function onActiveSpaceChanged() {
-            root.readAwayTabs();
+            root.readDestinations();
             if (!root.commandScope)
                 root.rank();
         }
@@ -302,12 +312,8 @@ Item {
             return;
         }
         ownRanked = [];
-        if (!listsNothing()) {
-            siteIcons = commands.siteIcons();
-            if (widened())
-                ownRanked = ranked(commands.destinations(awayTabs).concat(commands.actions().map(
-                                                                              asCommand)));
-        }
+        if (widened())
+            ownRanked = ranked(destinations);
         list();
     }
 
@@ -404,8 +410,23 @@ Item {
                 continue;
             next.push(all[index].row);
         }
-        rows = next.concat(proposedRows());
+        // Each new list builds the rows on show again, so an answer that
+        // lists the very rows already listed, as an empty one does, leaves
+        // them standing.
+        const shown = next.concat(proposedRows());
+        if (!sameRows(shown, rows))
+            rows = shown;
         selected = named === null ? -1 : next.indexOf(named);
+    }
+
+    function sameRows(next, shown) {
+        if (next.length !== shown.length)
+            return false;
+        for (let index = 0; index < next.length; ++index) {
+            if (next[index] !== shown[index])
+                return false;
+        }
+        return true;
     }
 
     // The Space's put-away tabs that hold the typed text in their title or
