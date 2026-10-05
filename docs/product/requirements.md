@@ -455,16 +455,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   first, each its name with the street and city muted under it, then the field's form history below
   a divider, six rows in all. Typing narrows them to those whose value for the field starts with
   what was typed.
-- Accepting an address fills every field with one of those tokens in the focused field's form, or
-  outside any form when the field has none, and only for the focus the list was drawn for: a page
-  that moved the keyboard since gets nothing. A `given-name` takes the name but its last word, a
-  `family-name` its last word, and a select marked `country` or `country-name` the option whose
-  value or text matches the country; a text field marked `country` asks for a code an address does
-  not hold and is left alone. It fills only a field the reader could type into and see: one that is
-  drawn, not transparent, at least four pixels each way and not before the page's start. A field
-  clipped away or covered by another element is not caught. It overwrites what a field held, leaves
-  a field the address has no value for as it was, and form history does not keep what it filled.
-  `Shift+Delete` forgets no address; Settings removes one.
+- Accepting an address fills the focused field and every empty field with one of those tokens in its
+  form, or outside any form when the field has none. A field that already holds a value keeps it.
+  The fill is only for the focus the list was drawn for: a page that moved the keyboard since gets
+  nothing. A `given-name` takes the name but its last word, a `family-name` its last word, and a
+  select marked `country` or `country-name` the option whose value or text matches the country; a
+  text field marked `country` asks for a code an address does not hold and is left alone. It fills
+  only a field the reader could type into and see: one that is drawn, not transparent, at least four
+  pixels each way and not before the page's start. A field clipped away or covered by another
+  element is not caught. It leaves a field the address has no value for as it was, and form history
+  does not keep what it filled. `Shift+Delete` forgets no address; Settings removes one.
 - Video decodes on the GPU where the host has a working VA-API driver, and in software where it has
   none. A missing driver is not a refusal to start, and the driver packages are `optdepends` rather
   than dependencies because which one a host needs depends on its GPU.

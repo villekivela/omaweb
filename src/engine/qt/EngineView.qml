@@ -2946,8 +2946,9 @@ Item {
                     writeValue(current, value);
                     send();
                 },
-                // Every address field of the focused field's form, or of the
-                // page outside any form when it has none. What an address
+                // The focused field, and every empty address field of its
+                // form, or of the page outside any form when it has none. A
+                // field that already holds a value keeps it. What an address
                 // filled is the address's, not typed, so form history does
                 // not keep a second copy of it.
                 // Only for the focus of the field the list was drawn for: a
@@ -2962,6 +2963,7 @@ Item {
                         const token = addressToken(element);
                         const value = token ? String(addressValue(address, token) || '') : '';
                         if (!value || !fillable(element, token)) continue;
+                        if (element !== current && element.value !== '') continue;
                         typed.delete(element);
                         writeValue(element, value);
                     }

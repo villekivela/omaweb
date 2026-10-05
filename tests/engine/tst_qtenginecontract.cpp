@@ -4209,10 +4209,11 @@ void QtEngineContractTest::qtFillsEveryAddressFieldOfTheFocusedForm()
     QCOMPARE(form.values(QStringLiteral("input, select, textarea")), expected);
 }
 
-// A form with only some address fields gets those: a name split into the
-// given and family names, and an email over the one the page put there. The
-// fill is for the focus the list was drawn for, and a page that has moved
-// the keyboard since gets nothing.
+// A form with only some address fields gets those: the focused field, and
+// every other one that is empty, with a name split into the given and family
+// names. A field that already holds a value keeps it, whether the reader typed
+// it or the page put it there. The fill is for the focus the list was drawn
+// for, and a page that has moved the keyboard since gets nothing.
 void QtEngineContractTest::qtFillsTheAddressFieldsAPartialFormHas()
 {
     FormHistoryView form;
@@ -4241,12 +4242,16 @@ void QtEngineContractTest::qtFillsTheAddressFieldsAPartialFormHas()
     QVERIFY(fillAddress(form, fieldSerial(form)));
     QTRY_COMPARE(form.field().value(QStringLiteral("value")).toString(), QStringLiteral("Kivelä"));
     const QVariantMap expected {
-        {QStringLiteral("given"), QStringLiteral("Ville Antero")},
+        {QStringLiteral("given"), QStringLiteral("V")},
         {QStringLiteral("family"), QStringLiteral("Kivelä")},
-        {QStringLiteral("partialEmail"), QStringLiteral("ville@home.example")},
+        {QStringLiteral("partialEmail"), QStringLiteral("old@example.com")},
         {QStringLiteral("note"), QString()},
     };
     QCOMPARE(form.values(QStringLiteral("#partial input")), expected);
+    QCOMPARE(form.values(QStringLiteral("#partial textarea"))
+                 .value(QStringLiteral("partialStreet"))
+                 .toString(),
+        QStringLiteral("Rantakatu 1 A 2"));
     QCOMPARE(form.values(QStringLiteral("#full input")).value(QStringLiteral("email")).toString(),
         QString());
 }
