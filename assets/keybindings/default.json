@@ -31,6 +31,7 @@
     "Alt+L": "move-focus-right",
     "Primary+Shift+I": "developer-tools",
     "Primary+Shift+C": "copy-address",
+    "Primary+Shift+L": "site-information",
     "Primary+F": "find",
     "Primary+G": "find-next",
     "Primary+Shift+G": "find-previous",

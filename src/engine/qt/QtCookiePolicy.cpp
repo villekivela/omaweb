@@ -4,6 +4,7 @@
 
 #include <QMetaObject>
 #include <QMutexLocker>
+#include <QNetworkCookie>
 #include <QWebEngineCookieStore>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
@@ -91,6 +92,26 @@ bool QtCookiePolicy::attachToProfile(QObject *profile, QObject *controller, cons
         &QtCookiePolicy::refreshAllowances, Qt::UniqueConnection);
     refreshAllowances();
 
+    // Counted as the store reports them, so Site information reads a number
+    // rather than waiting on a load of the whole jar each time it opens.
+    const auto cookieKey = [](const QNetworkCookie &cookie) {
+        return cookie.domain() + QChar(0x1f) + cookie.path() + QChar(0x1f)
+            + QString::fromUtf8(cookie.name());
+    };
+    connect(store, &QWebEngineCookieStore::cookieAdded, this,
+        [this, spaceId, cookieKey](const QNetworkCookie &cookie) {
+            auto domain = cookie.domain().toLower();
+            if (domain.startsWith(u'.')) {
+                domain.remove(0, 1);
+            }
+            m_cookies[spaceId].insert(cookieKey(cookie), domain);
+        });
+    connect(store, &QWebEngineCookieStore::cookieRemoved, this,
+        [this, spaceId, cookieKey](
+            const QNetworkCookie &cookie) { m_cookies[spaceId].remove(cookieKey(cookie)); });
+    connect(store, &QObject::destroyed, this, [this, spaceId] { m_cookies.remove(spaceId); });
+    store->loadAllCookies();
+
     store->setCookieFilter([this, spaceId](const QWebEngineCookieStore::FilterRequest &request) {
         // A site's own state is its own business. Only a third party is asked
         // about, and the answer for one it has not been given is no.
@@ -116,6 +137,18 @@ bool QtCookiePolicy::deleteAllCookies(QObject *profile)
     }
     engineProfile->cookieStore()->deleteAllCookies();
     return true;
+}
+
+int QtCookiePolicy::siteCookieCount(const QString &spaceId, const QUrl &site) const
+{
+    const auto host = site.host().toLower();
+    const auto scheme = site.scheme().toLower();
+    if (host.isEmpty() || (scheme != QStringLiteral("http") && scheme != QStringLiteral("https"))) {
+        return 0;
+    }
+    const auto cookies = m_cookies.value(spaceId);
+    return static_cast<int>(std::count_if(cookies.cbegin(), cookies.cend(),
+        [&host](const QString &domain) { return host == domain || host.endsWith(u'.' + domain); }));
 }
 
 int QtCookiePolicy::refusedCount() const { return m_refused.loadRelaxed(); }

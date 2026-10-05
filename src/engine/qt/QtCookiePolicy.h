@@ -50,6 +50,11 @@ public:
     // for this and the request comes through here — the one object that
     // already holds the store.
     Q_INVOKABLE bool deleteAllCookies(QObject *profile);
+    // How many cookies one Space holds for a site: those set for its host and
+    // for the domains above it, which are the ones a request to it carries.
+    // Site information states this; the engine names no size for one site,
+    // only for the whole profile.
+    Q_INVOKABLE int siteCookieCount(const QString &spaceId, const QUrl &site) const;
     // The origin a cookie access belongs to, in the shape the core's
     // allowances are keyed by.
     static QString cookieOrigin(const QUrl &url);
@@ -86,6 +91,9 @@ private:
     // Keyed by Space, so nothing here has to know how the core spells a key.
     QHash<QString, QSet<QString>> m_allowed;
     QHash<QString, QStringList> m_refusedOrigins;
+    // Each Space's cookies, by domain, path and name, each to the host it is
+    // for. Read and written on the interface's thread only.
+    QHash<QString, QHash<QString, QString>> m_cookies;
     // The document each view is showing, and the arrivals among them keyed by
     // the address the load set out from, which is how the engine names the
     // first party. Two views can arrive at one host from one address, so the

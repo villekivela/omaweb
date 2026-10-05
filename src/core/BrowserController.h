@@ -470,6 +470,10 @@ public:
     // decisions inside the Space on show, and nothing beyond it.
     Q_INVOKABLE QVariantList sitePermissions(const QUrl &url) const;
     Q_INVOKABLE bool resetSitePermissions(const QUrl &url);
+    // Site information's own answer for one of those decisions: Ask, a standing
+    // Allow, or Block, kept for the Space on show. Only a permission Omaweb
+    // remembers has one.
+    Q_INVOKABLE bool decideSitePermission(const QUrl &url, const QString &permission, int decision);
     // A certificate failure blocks. Whether Omaweb will even offer the reader
     // an exception is this: the engine's own facts about the failure, and
     // whether the address is a Local-development site's own main frame.
