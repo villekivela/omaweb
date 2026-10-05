@@ -12,7 +12,8 @@ repository's `scripts/engine-toolchain.sh` names it, every build reads that one 
 ## What was measured
 
 Each architecture was measured with the same Omaweb binary and harness, against Chromium 140, three
-runs of each suite, on 6.11.2 with V8's write barriers on (patch 0018).
+runs of each suite, on 6.11.2 with V8's write barriers on: patch 0018, or in #356's rows the same
+two changes as a local backport.
 
 | Architecture | Engine                      | Speedometer 3.1 ÷ Chromium 140 | JetStream 2.2 ÷ Chromium 140 |
 | ------------ | --------------------------- | ------------------------------ | ---------------------------- |
@@ -34,24 +35,24 @@ with GCC and 24.10 and 24.77 with clang, and its JetStream score 368.2 with GCC 
 with clang. Both differences are within the run-to-run spread of 1% to 3%, so aarch64 keeps GCC. It
 is measured again when Chrome publishes an aarch64 profile or the series moves to a new Chromium.
 
-## How the profile follows the Chromium
+## How the PGO profile follows the Chromium
 
 Chrome's PGO profile is only good for the Chromium it was taken from, so it is never chosen by hand.
-The build reads the Chromium version from the tree's `chrome/VERSION`, reads the profile's name from
-`chrome/build/linux.pgo.txt` at that Chromium tag, and takes that object from Chrome's profile
+The build reads the Chromium version from the tree's `chrome/VERSION`, reads the PGO profile's name
+from `chrome/build/linux.pgo.txt` at that Chromium tag, and takes that object from Chrome's profile
 bucket, held to the MD5 the bucket publishes. Qt's copy of Chromium leaves the name file out, so it
 is read from Chromium's own tag and put back where Chromium's build expects it. V8's builtins
 profile is taken the same way for the V8 version in `v8/include/v8-version.h`, and V8 applies its
 x64 profile on arm64. A Chromium bump therefore brings its own profile with no change to the recipe.
 
 A function Qt or the series changed has no profile that fits and is compiled without one. V8 rejects
-its profile for some builtins for the same reason, because Qt's V8 is not built quite as Chrome's,
-and the patch that turns PGO on makes V8 build those without the profile rather than stop. So the
-engine gets less from PGO than Chrome does.
+its PGO profile for some builtins for the same reason, because Qt's V8 is not built quite as
+Chrome's, and the patch that turns PGO on makes V8 build those without the PGO profile rather than
+stop. So the engine gets less from PGO than Chrome does.
 
 ## What it costs
 
-A clang build needs a work space of its own, because a build directory configured for one compiler
+A clang build needs a build volume of its own, because a build directory configured for one compiler
 refuses the other, and a patch outside the series, because Qt turns ThinLTO on only when Qt itself
 was built for LLD and turns PGO on never. That patch changes how the engine is compiled, not what
 its code does, and the package's `MODIFICATIONS.md` says so.
@@ -61,7 +62,8 @@ ThinLTO link of `libQt6WebEngineCore.so` peaked at about 5 GB with sixteen threa
 GB with six on aarch64, page cache included, against 13 GB for the compile at six jobs. The local
 build's `OMAWEB_ENGINE_MEMORY` caps the container and sizes the compile's jobs, so a machine with
 less memory sets it lower. Whether Hetzner's builders fit is checked when the engine is next
-published, since both builds here ran locally.
+published, at [#576](https://github.com/villekivela/omaweb/issues/576), since both builds here ran
+locally.
 
-Moving the series to 6.140.0 is measured again on both architectures, because the profiles and the
-toolchain's gain move with the Chromium.
+Moving the series to 6.140.0 is measured again on both architectures, because the PGO profiles and
+the toolchain's gain move with the Chromium.

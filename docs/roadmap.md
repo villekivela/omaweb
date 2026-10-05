@@ -20,10 +20,10 @@ container or another host, Site information as a card from the address, and the 
 whole pixels. v0.12.0 is the release in progress. Two milestones carry what remains, in this order:
 
 1. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), performance and the chrome. The
-   6.11.2 engine is rebuilt for speed, with V8's write barriers on and, on x86_64, built with clang,
-   LLD, ThinLTO and Chrome's PGO profile, which there measured about 28% more on JetStream and 7%
-   more on Speedometer ([#356](https://github.com/villekivela/omaweb/issues/356)). aarch64 keeps
-   GCC, where clang without a profile measured no faster
+   6.11.2 engine is rebuilt for speed. V8's write barriers on measured about 28% more on JetStream
+   and 7% more on Speedometer on x86_64 ([#356](https://github.com/villekivela/omaweb/issues/356)),
+   and building with clang, LLD, ThinLTO and Chrome's PGO profile about 6% more on Speedometer
+   again. aarch64 keeps GCC, where clang without a PGO profile measured no faster
    ([ADR 0060](adr/0060-build-the-engine-with-clang-and-thinlto.md)). The browser gains the
    measurements it lacks: Linux baselines for its probes, a page's first paint, many live tabs, and
    the chrome's frame times, and what comes in over budget is fixed in the same release. The chrome:
