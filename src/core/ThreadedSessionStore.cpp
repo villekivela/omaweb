@@ -355,6 +355,21 @@ bool ThreadedSessionStore::clearFormHistorySince(const QString &spaceId, qint64 
     return ask([this, &spaceId, since] { return m_store->clearFormHistorySince(spaceId, since); });
 }
 
+QVariantList ThreadedSessionStore::addresses() const
+{
+    return ask([this] { return m_store->addresses(); });
+}
+
+bool ThreadedSessionStore::saveAddress(const QVariantMap &address)
+{
+    return ask([this, &address] { return m_store->saveAddress(address); });
+}
+
+bool ThreadedSessionStore::deleteAddress(const QString &id)
+{
+    return ask([this, &id] { return m_store->deleteAddress(id); });
+}
+
 bool ThreadedSessionStore::recordDownload(const QString &id, const QString &spaceId,
     const QUrl &url, const QString &path, const QString &state, qint64 receivedBytes,
     qint64 totalBytes)

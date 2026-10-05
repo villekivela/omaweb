@@ -280,6 +280,8 @@ private slots:
     void qtReportsOnlyAFieldFormHistoryMayKeep();
     void qtTakesTheSuggestionKeysOnlyWhileTheListIsShown();
     void qtTakesNoSuggestionKeyThePageDispatches();
+    void qtFillsEveryAddressFieldOfTheFocusedForm();
+    void qtFillsTheAddressFieldsAPartialFormHas();
     void qtKeepsItsPageReportsOutOfThePagesReach();
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
@@ -3734,11 +3736,10 @@ struct FormHistoryView {
     QQuickWindow window;
     QObject *webView = nullptr;
 
-    bool load(const QVariantMap &extra = {})
+    bool load(const QVariantMap &extra = {}, const QByteArray &html = formHistoryPage)
     {
         QFile page(root.filePath(QStringLiteral("form.html")));
-        if (!page.open(QIODevice::WriteOnly)
-            || page.write(formHistoryPage) != formHistoryPage.size())
+        if (!page.open(QIODevice::WriteOnly) || page.write(html) != html.size())
             return false;
         page.close();
         QQmlComponent component(
@@ -3782,6 +3783,30 @@ struct FormHistoryView {
     }
 
     QVariantMap field() const { return adapter->property("formField").toMap(); }
+
+    int reads = 0;
+
+    // What the page holds in each field, by id, read back through its title.
+    QVariantMap values(const QString &selector)
+    {
+        // The title holds whatever was last written there until the script
+        // runs, so each read is numbered.
+        ++reads;
+        run(QStringLiteral("document.title = JSON.stringify({read: %2, values: Object.fromEntries("
+                           "[...document.querySelectorAll('%1')]"
+                           ".map(e => [e.id || e.dataset.field, e.value]))});")
+                .arg(selector)
+                .arg(reads));
+        QJsonObject read;
+        static_cast<void>(QTest::qWaitFor(
+            [&] {
+                read = QJsonDocument::fromJson(adapter->property("pageTitle").toString().toUtf8())
+                           .object();
+                return read.value(QStringLiteral("read")).toInt() == reads;
+            },
+            5000));
+        return read.value(QStringLiteral("values")).toObject().toVariantMap();
+    }
 };
 
 } // namespace
@@ -4017,6 +4042,218 @@ void QtEngineContractTest::qtTakesNoSuggestionKeyThePageDispatches()
     QTest::keyClick(&form.window, Qt::Key_Down);
     QTRY_COMPARE(keys.count(), 1);
     QCOMPARE(keys.at(0).first().toString(), QStringLiteral("down"));
+}
+
+namespace {
+
+// Two forms of address fields. The first has every token an address fills,
+// spelled the ways pages spell them, beside fields an address has nothing
+// for; the second has only some of them, and one already holds a value.
+const QByteArray addressPage = R"HTML(<!doctype html><html><head><title>ready</title></head>
+    <body style="margin:0">
+    <form id="full" onsubmit="event.preventDefault()">
+        <input data-field="fullName" autocomplete="name">
+        <input id="street" name="street" autocomplete="section-home shipping street-address">
+        <input id="line1" name="line1" autocomplete="address-line1">
+        <input id="line2" name="line2" autocomplete="address-line2">
+        <input id="postal" name="postal" autocomplete="postal-code">
+        <input id="city" name="city" autocomplete="Address-Level2">
+        <select id="country" name="country" autocomplete="country">
+            <option value="">Choose</option><option value="SE">Sweden</option>
+            <option value="FI">Finland</option>
+        </select>
+        <input id="countryCode" name="countryCode" autocomplete="country">
+        <input id="countryName" name="countryName" autocomplete="country-name">
+        <input id="tel" type="tel" name="tel" autocomplete="shipping tel">
+        <input id="telNational" type="tel" name="telNational" autocomplete="tel-national">
+        <input id="email" type="email" name="email" autocomplete="email">
+        <input id="unseen" name="unseen" autocomplete="email" style="display:none">
+        <input id="faded" name="faded" autocomplete="email" style="opacity:0">
+        <input id="away" name="away" autocomplete="email" style="position:absolute;left:-9999px">
+        <input id="tiny" name="tiny" autocomplete="email" style="width:1px;height:1px;padding:0;border:0">
+        <input id="locked" name="locked" autocomplete="tel" readonly>
+        <input id="q" name="q">
+    </form>
+    <form id="partial" onsubmit="event.preventDefault()">
+        <input id="given" name="given" autocomplete="given-name">
+        <input id="family" name="family" autocomplete="family-name">
+        <input id="partialEmail" type="email" name="mail" autocomplete="email"
+               value="old@example.com">
+        <input id="note" name="note">
+        <textarea id="partialStreet" name="partialStreet" autocomplete="street-address"></textarea>
+    </form>
+    </body></html>)HTML";
+
+QVariantMap homeAddress()
+{
+    return {{QStringLiteral("id"), QStringLiteral("home")},
+        {QStringLiteral("name"), QStringLiteral("Ville Antero Kivelä")},
+        {QStringLiteral("street"), QStringLiteral("Rantakatu 1 A 2")},
+        {QStringLiteral("postalCode"), QStringLiteral("90100")},
+        {QStringLiteral("city"), QStringLiteral("Oulu")},
+        {QStringLiteral("country"), QStringLiteral("finland")},
+        {QStringLiteral("phone"), QStringLiteral("+358 40 123 4567")},
+        {QStringLiteral("email"), QStringLiteral("ville@home.example")}};
+}
+
+void focusFirstAddressField(FormHistoryView &form, const QString &id)
+{
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (form.field().isEmpty()) {
+            form.focus(id);
+        }
+        return !form.field().isEmpty();
+    }()),
+        15000);
+}
+
+// Presses a field as the reader's pointer would, which focuses it.
+void press(FormHistoryView &form, const QString &id)
+{
+    // A block of its own: each run shares the page's top level with the last.
+    form.run(
+        QStringLiteral("{ const pressed = document.querySelector('#%1, [data-field=%1]');"
+                       "pressed.scrollIntoView({block: 'center'});"
+                       "const box = pressed.getBoundingClientRect();"
+                       "document.title = JSON.stringify("
+                       "{id: '%1', x: box.left + box.width / 2, y: box.top + box.height / 2}); }")
+            .arg(id));
+    // The title still holds the last press's point until the script runs.
+    QJsonObject point;
+    QTRY_VERIFY(([&] {
+        point = QJsonDocument::fromJson(form.adapter->property("pageTitle").toString().toUtf8())
+                    .object();
+        return point.value(QStringLiteral("id")).toString() == id;
+    }()));
+    QTest::mouseClick(&form.window, Qt::LeftButton, Qt::NoModifier,
+        QPoint(qRound(point.value(QStringLiteral("x")).toDouble()),
+            qRound(point.value(QStringLiteral("y")).toDouble())));
+}
+
+bool fillAddress(FormHistoryView &form, int serial)
+{
+    return QMetaObject::invokeMethod(
+        form.adapter.get(), "fillAddress", Q_ARG(QVariant, homeAddress()), Q_ARG(QVariant, serial));
+}
+
+int fieldSerial(FormHistoryView &form)
+{
+    return form.field().value(QStringLiteral("serial")).toInt();
+}
+
+} // namespace
+
+// A field with an address token is reported with it once the reader has
+// pressed or typed into it, whether or not form history could keep it, and
+// accepting an address fills every address field of the focused field's form
+// that the reader could see and type into: inputs, and a select by its
+// option's value or text. A field the address has nothing for is left as it
+// was, and so is the other form.
+void QtEngineContractTest::qtFillsEveryAddressFieldOfTheFocusedForm()
+{
+    FormHistoryView form;
+    QVERIFY(form.load({}, addressPage));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+
+    // The page focusing a field itself offers no address.
+    focusFirstAddressField(form, QStringLiteral("fullName"));
+    QCOMPARE(form.field().value(QStringLiteral("address")).toString(), QString());
+    QCOMPARE(form.field().value(QStringLiteral("name")).toString(), QString());
+    press(form, QStringLiteral("fullName"));
+    QTRY_COMPARE(form.field().value(QStringLiteral("address")).toString(), QStringLiteral("name"));
+    press(form, QStringLiteral("street"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("address")).toString(), QStringLiteral("street-address"));
+    QCOMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("street"));
+    press(form, QStringLiteral("q"));
+    QTRY_COMPARE(form.field().value(QStringLiteral("name")).toString(), QStringLiteral("q"));
+    QCOMPARE(form.field().value(QStringLiteral("address")).toString(), QString());
+    // A country code is not what an address holds.
+    press(form, QStringLiteral("countryCode"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("name")).toString(), QStringLiteral("countryCode"));
+    QCOMPARE(form.field().value(QStringLiteral("address")).toString(), QString());
+    press(form, QStringLiteral("city"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("address")).toString(), QStringLiteral("address-level2"));
+
+    QVERIFY(fillAddress(form, fieldSerial(form)));
+    QTRY_COMPARE(form.field().value(QStringLiteral("value")).toString(), QStringLiteral("Oulu"));
+    const QVariantMap expected {
+        {QStringLiteral("fullName"), QStringLiteral("Ville Antero Kivelä")},
+        {QStringLiteral("street"), QStringLiteral("Rantakatu 1 A 2")},
+        {QStringLiteral("line1"), QStringLiteral("Rantakatu 1 A 2")},
+        {QStringLiteral("line2"), QString()},
+        {QStringLiteral("postal"), QStringLiteral("90100")},
+        {QStringLiteral("city"), QStringLiteral("Oulu")},
+        {QStringLiteral("country"), QStringLiteral("FI")},
+        {QStringLiteral("countryCode"), QString()},
+        {QStringLiteral("countryName"), QStringLiteral("finland")},
+        {QStringLiteral("tel"), QStringLiteral("+358 40 123 4567")},
+        {QStringLiteral("telNational"), QString()},
+        {QStringLiteral("email"), QStringLiteral("ville@home.example")},
+        {QStringLiteral("unseen"), QString()},
+        {QStringLiteral("faded"), QString()},
+        {QStringLiteral("away"), QString()},
+        {QStringLiteral("tiny"), QString()},
+        {QStringLiteral("locked"), QString()},
+        {QStringLiteral("q"), QString()},
+        {QStringLiteral("given"), QString()},
+        {QStringLiteral("family"), QString()},
+        {QStringLiteral("partialEmail"), QStringLiteral("old@example.com")},
+        {QStringLiteral("note"), QString()},
+        {QStringLiteral("partialStreet"), QString()},
+    };
+    QCOMPARE(form.values(QStringLiteral("input, select, textarea")), expected);
+}
+
+// A form with only some address fields gets those: the focused field, and
+// every other one that is empty, with a name split into the given and family
+// names. A field that already holds a value keeps it, whether the reader typed
+// it or the page put it there. The fill is for the focus the list was drawn
+// for, and a page that has moved the keyboard since gets nothing.
+void QtEngineContractTest::qtFillsTheAddressFieldsAPartialFormHas()
+{
+    FormHistoryView form;
+    QVERIFY(form.load({}, addressPage));
+    QVERIFY(QMetaObject::invokeMethod(form.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        form.adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+
+    // Typing into a field the page focused takes it up as a press would.
+    focusFirstAddressField(form, QStringLiteral("given"));
+    QCOMPARE(form.field().value(QStringLiteral("address")).toString(), QString());
+    form.type(QStringLiteral("V"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("address")).toString(), QStringLiteral("given-name"));
+    press(form, QStringLiteral("partialStreet"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("address")).toString(), QStringLiteral("street-address"));
+
+    press(form, QStringLiteral("family"));
+    QTRY_COMPARE(
+        form.field().value(QStringLiteral("address")).toString(), QStringLiteral("family-name"));
+    QVERIFY(fillAddress(form, fieldSerial(form) - 1));
+    QTest::qWait(300);
+    QCOMPARE(form.values(QStringLiteral("#partial input")).value(QStringLiteral("family")),
+        QVariant(QString()));
+    QVERIFY(fillAddress(form, fieldSerial(form)));
+    QTRY_COMPARE(form.field().value(QStringLiteral("value")).toString(), QStringLiteral("Kivelä"));
+    const QVariantMap expected {
+        {QStringLiteral("given"), QStringLiteral("V")},
+        {QStringLiteral("family"), QStringLiteral("Kivelä")},
+        {QStringLiteral("partialEmail"), QStringLiteral("old@example.com")},
+        {QStringLiteral("note"), QString()},
+    };
+    QCOMPARE(form.values(QStringLiteral("#partial input")), expected);
+    QCOMPARE(form.values(QStringLiteral("#partial textarea"))
+                 .value(QStringLiteral("partialStreet"))
+                 .toString(),
+        QStringLiteral("Rantakatu 1 A 2"));
+    QCOMPARE(form.values(QStringLiteral("#full input")).value(QStringLiteral("email")).toString(),
+        QString());
 }
 
 // The page reports scroll, media and presses to the shell over its console,
