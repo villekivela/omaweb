@@ -27,7 +27,9 @@ change. _Avoid_: Space hex, accent
 
 **Project directory**: The folder on this machine a Space is for, with the address its app is served
 at. `omaweb dev` sets it from the folder it runs in, and finds the Space again from that folder or
-any folder below it. It stays on this machine and outside the Sync projection. _Avoid_: workspace
+any folder below it. It may carry the agent command `:ask` runs in that Space instead of the global
+one, with `{dir}` standing for the folder, and `:ask` starts the agent there. It stays on this
+machine and outside the Sync projection, and a Private window never has one. _Avoid_: workspace
 (Hyprland's), repo, Project Space
 
 **Engine profile**: The directory where one web engine keeps its own state for one Space: cookies,

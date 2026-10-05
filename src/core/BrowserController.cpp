@@ -2,6 +2,7 @@
 
 #include "KnownExtensions.h"
 
+#include "AddressWatch.h"
 #include "DownloadPolicy.h"
 #include "EngineSuggestions.h"
 #include "ExtensionPackage.h"
@@ -227,6 +228,9 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     m_unpinnedTabs.setSourceModel(&m_tabs);
     m_unpinnedTabs.setFilterRole(TabListModel::PinnedRole);
     m_unpinnedTabs.setFilterRegularExpression(QRegularExpression(QStringLiteral("^false$")));
+    // Whether the Space on show waits for its address changes with the Space.
+    connect(this, &BrowserController::activeSpaceChanged, this,
+        &BrowserController::addressAwaitChanged);
     m_persistTabsTimer.setSingleShot(true);
     m_persistTabsTimer.setInterval(persistTabsDelayMilliseconds);
     connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { recordTabs(); });
@@ -963,6 +967,152 @@ bool BrowserController::revokeSpaceGrant(const QString &spaceId)
     return true;
 }
 
+std::optional<SpaceProject> BrowserController::spaceProject(const QString &spaceId) const
+{
+    const auto found = m_spaceProjects.constFind(spaceId);
+    if (found == m_spaceProjects.cend()) {
+        return std::nullopt;
+    }
+    return *found;
+}
+
+void BrowserController::awaitAddress(const QString &spaceId, const QUrl &url)
+{
+    if (m_privateBrowsing || m_spaces.rowOf(spaceId) < 0 || !url.isValid()) {
+        return;
+    }
+    if (auto *previous = m_addressWatches.take(spaceId)) {
+        previous->deleteLater();
+    }
+    auto *watch = new AddressWatch(url, m_addressRetryMs, this);
+    m_addressWatches.insert(spaceId, watch);
+    connect(watch, &AddressWatch::answered, this, [this, spaceId, watch] {
+        if (m_addressWatches.value(spaceId) != watch) {
+            return;
+        }
+        // The tab loads before the wait ends, so the window drives on into
+        // the page rather than stopping in between.
+        const auto tabId = loadAnsweredAddress(spaceId, watch->url());
+        m_addressWatches.remove(spaceId);
+        watch->deleteLater();
+        if (!tabId.isEmpty()) {
+            emit awaitedAddressLoaded(spaceId, tabId);
+        }
+        emit addressAwaitChanged();
+    });
+    emit addressAwaitChanged();
+}
+
+// The Space's blank tab is the one waiting for the app, so the app takes it
+// rather than opening beside it.
+QString BrowserController::loadAnsweredAddress(const QString &spaceId, const QUrl &url)
+{
+    const auto tabs = spaceTabs(spaceId);
+    const auto active = spaceId == m_activeSpaceId ? m_activeTabId : QString {};
+    QString tabId;
+    for (const auto &tab : tabs) {
+        if (!tab.pinned && isBlank(tab.url) && (tabId.isEmpty() || tab.id == active)) {
+            tabId = tab.id;
+        }
+    }
+    if (tabId.isEmpty() || !navigateTab(tabId, url, spaceId)) {
+        tabId = openTabInSpace(spaceId, url);
+    }
+    if (!tabId.isEmpty() && spaceId == m_activeSpaceId) {
+        activateTab(tabId);
+    }
+    return tabId;
+}
+
+bool BrowserController::awaitsAddress(const QString &spaceId) const
+{
+    return m_addressWatches.contains(spaceId);
+}
+
+bool BrowserController::activeSpaceAwaitsAddress() const { return awaitsAddress(m_activeSpaceId); }
+
+void BrowserController::stopAwaitingAddress(const QString &spaceId)
+{
+    auto *watch = m_addressWatches.take(spaceId);
+    if (!watch) {
+        return;
+    }
+    // It may be the watch whose answer is being heard.
+    watch->deleteLater();
+    emit addressAwaitChanged();
+}
+
+void BrowserController::setAddressRetryMs(int milliseconds) { m_addressRetryMs = milliseconds; }
+
+QVariantMap BrowserController::spaceProjectRows() const
+{
+    QVariantMap rows;
+    for (auto it = m_spaceProjects.cbegin(); it != m_spaceProjects.cend(); ++it) {
+        rows.insert(it.key(),
+            QVariantMap {{QStringLiteral("directory"), it->directory},
+                {QStringLiteral("address"), it->address},
+                {QStringLiteral("agentCommand"), it->agentCommand},
+                {QStringLiteral("present"), QFileInfo(it->directory).isDir()}});
+    }
+    return rows;
+}
+
+QString BrowserController::projectSpaceFor(const QString &directory) const
+{
+    return nearestProjectSpace(directory, m_spaceProjects);
+}
+
+QString BrowserController::createProjectSpace(const SpaceProject &project)
+{
+    if (m_privateBrowsing) {
+        return {};
+    }
+    QStringList names;
+    for (const auto &space : m_spaces.items()) {
+        names.append(space.name);
+    }
+    const auto name = projectSpaceName(project.directory, names);
+    const auto spaceId = createSpace(name);
+    if (spaceId.isEmpty()) {
+        return {};
+    }
+    // A project's Space that forgot its folder would be a Space `omaweb dev`
+    // makes again every time, so one the store would not label is taken back.
+    if (!setSpaceProject(spaceId, project)) {
+        deleteSpace(spaceId, name);
+        return {};
+    }
+    return spaceId;
+}
+
+bool BrowserController::setSpaceProject(const QString &spaceId, const SpaceProject &project)
+{
+    if (m_privateBrowsing || m_spaces.rowOf(spaceId) < 0 || project.directory.isEmpty()) {
+        return false;
+    }
+    if (const auto kept = m_spaceProjects.constFind(spaceId);
+        kept != m_spaceProjects.cend() && *kept == project) {
+        return true;
+    }
+    if (!m_store->saveSpaceProject(spaceId, project)) {
+        return false;
+    }
+    m_spaceProjects.insert(spaceId, project);
+    emit spaceProjectsChanged();
+    return true;
+}
+
+bool BrowserController::forgetSpaceProject(const QString &spaceId)
+{
+    if (!m_spaceProjects.contains(spaceId) || !m_store->forgetSpaceProject(spaceId)) {
+        return false;
+    }
+    m_spaceProjects.remove(spaceId);
+    stopAwaitingAddress(spaceId);
+    emit spaceProjectsChanged();
+    return true;
+}
+
 QVector<TabState> BrowserController::spaceTabs(const QString &spaceId) const
 {
     if (m_privateBrowsing || m_spaces.rowOf(spaceId) < 0) {
@@ -1685,6 +1835,10 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
     if (m_spaceGrants.removeAll(spaceId) > 0) {
         emit spaceGrantsChanged();
     }
+    if (m_spaceProjects.remove(spaceId)) {
+        emit spaceProjectsChanged();
+    }
+    stopAwaitingAddress(spaceId);
     cancelHistorySuggestions();
     emit historySearchSpaceForgotten(spaceId);
     // Nothing belonging to a deleted Space should outlive it, including the
@@ -3864,13 +4018,15 @@ void BrowserController::reloadSyncedState()
         space.active = space.id == m_activeSpaceId;
     }
     m_spaces.reset(std::move(spaces));
-    // Sync may have deleted an Agent Space or a granted one, and the store took
-    // its label or its grant too.
+    // Sync may have deleted an Agent Space, a granted one or a project's, and
+    // the store took its label, its grant or its project too.
     loadAgentSpaces();
     settleSpaces();
     m_spaceGrants = m_store->spaceGrants();
+    m_spaceProjects = m_store->spaceProjects();
     emit agentSpacesChanged();
     emit spaceGrantsChanged();
+    emit spaceProjectsChanged();
     auto tabs = m_store->loadTabs(m_activeSpaceId);
     auto active = std::ranges::find(tabs, previousTab, &TabState::id);
     if (active == tabs.end() && !tabs.isEmpty()) {
@@ -3920,6 +4076,7 @@ void BrowserController::initialize()
     loadAgentSpaces();
     settleSpaces();
     m_spaceGrants = m_store->spaceGrants();
+    m_spaceProjects = m_store->spaceProjects();
     ensureActiveTab();
     loadClosedTabs();
     loadPutAwayTabs();

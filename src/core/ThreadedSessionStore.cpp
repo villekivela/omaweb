@@ -139,6 +139,21 @@ bool ThreadedSessionStore::forgetSpaceGrant(const QString &spaceId)
     return ask([this, &spaceId] { return m_store->forgetSpaceGrant(spaceId); });
 }
 
+QHash<QString, SpaceProject> ThreadedSessionStore::spaceProjects() const
+{
+    return ask([this] { return m_store->spaceProjects(); });
+}
+
+bool ThreadedSessionStore::saveSpaceProject(const QString &spaceId, const SpaceProject &project)
+{
+    return ask([this, &spaceId, &project] { return m_store->saveSpaceProject(spaceId, project); });
+}
+
+bool ThreadedSessionStore::forgetSpaceProject(const QString &spaceId)
+{
+    return ask([this, &spaceId] { return m_store->forgetSpaceProject(spaceId); });
+}
+
 bool ThreadedSessionStore::setActiveSpace(const QString &spaceId)
 {
     return ask([this, &spaceId] { return m_store->setActiveSpace(spaceId); });

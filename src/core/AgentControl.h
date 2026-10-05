@@ -29,8 +29,9 @@ class BrowserController;
 // a request may do depends on what its verb reaches and never on who asks.
 // Browser commands (listing Spaces and tabs, opening an address, closing a tab
 // an Agent opened) are always open, because they are what a keybind or a
-// script needs and none of them reads a page. Switching Space, selecting a tab
-// and running a public command of the command scope are browser commands too.
+// script needs and none of them reads a page. Switching Space, selecting a tab,
+// running a public command of the command scope and opening a project's Space
+// with `dev` are browser commands too.
 // Agent Spaces and the page verbs (`look`, `read`, `do`, `shot` and `eval`)
 // wait for Allow agents, which is off until the reader turns it on.
 //
@@ -202,6 +203,12 @@ public:
     // split it, with one more argument that names the tab and carries the
     // reader's words unchanged. No shell reads the tab or the words.
     //
+    // In a project's Space (ADR 0059) the project's own agent command runs in
+    // place of the global one when it has one, `{dir}` in either is replaced
+    // with the project directory after the split, and the terminal opens in
+    // that directory. Elsewhere, or when the folder is not on this machine, it
+    // opens at home.
+    //
     // Answers `{"ok": true}`, or `{"ok": false, "code": ..., "program": ...}`
     // where the code is `allow-agents` while Allow agents is off, `private`
     // when handed a Private window, `no-tab` for a tab it does not hold,
@@ -324,6 +331,7 @@ private:
     QJsonObject askWindow(const QString &verb, const QJsonObject &request);
     QJsonObject switchToSpace(const QJsonObject &request);
     QJsonObject focusTab(const QJsonObject &request);
+    QJsonObject openProject(const QJsonObject &request);
     void askPage(const QString &verb, const QString &name, Connection &connection,
         const QJsonObject &request, const Reply &reply);
     // The verb's own arguments as the page is to get them, or a refusal.

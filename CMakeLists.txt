@@ -212,6 +212,8 @@ omaweb_strict_target(omaweb-content-blocking)
 add_library(omaweb-core STATIC
     src/content-blocking/ContentBlocker.cpp
     src/content-blocking/ContentBlocker.h
+    src/core/AddressWatch.cpp
+    src/core/AddressWatch.h
     src/core/AgentActivityLog.cpp
     src/core/AgentActivityLog.h
     src/core/AgentCommand.cpp
@@ -290,6 +292,8 @@ add_library(omaweb-core STATIC
     src/core/SoundingTabs.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
+    src/core/SpaceProject.cpp
+    src/core/SpaceProject.h
     src/core/SpaceStorage.cpp
     src/core/SpaceStorage.h
     src/core/SyncFeature.h
@@ -1111,6 +1115,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_publish_website.py
         )
+        # Which pushes Vercel builds a website preview for: those that change
+        # what the site serves, and every production build.
+        add_test(NAME omaweb-website-unchanged
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_website_unchanged.py
+        )
         # The website's policy check, on a site it is pointed at: markup and
         # loads the policy blocks, from the pages and from the scripts that
         # build them.
@@ -1237,6 +1247,21 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-temporary-agent-spaces-tests)
     omaweb_declarative_fixture_target(omaweb-temporary-agent-spaces-tests)
     add_test(NAME omaweb-temporary-agent-spaces COMMAND omaweb-temporary-agent-spaces-tests)
+
+    qt_add_executable(omaweb-dev-projects-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_devprojects.cpp"
+    )
+    target_link_libraries(omaweb-dev-projects-tests PRIVATE omaweb-core Qt6::Network Qt6::Test)
+    # An HTTPS dev server's own certificate is what the wait hears from it.
+    target_compile_definitions(omaweb-dev-projects-tests PRIVATE
+        OMAWEB_UNTRUSTED_CERTIFICATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.crt"
+        OMAWEB_UNTRUSTED_KEY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.key"
+    )
+    omaweb_strict_target(omaweb-dev-projects-tests)
+    omaweb_declarative_fixture_target(omaweb-dev-projects-tests)
+    add_test(NAME omaweb-dev-projects COMMAND omaweb-dev-projects-tests)
 
     qt_add_executable(omaweb-space-colours-tests
         "tests/core/SessionFixture.cpp"

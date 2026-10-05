@@ -199,6 +199,11 @@ ApplicationWindow {
     property bool startPageDriving: false
     property string startPageDriveTabId: ""
     readonly property int startPageDriveLimit: 2000
+    // The Space on show waits for its project's address to answer (`omaweb
+    // dev` before the dev server is up). The road drives for as long as it
+    // does, with no limit, since nothing is loading yet.
+    readonly property bool projectAddressAwaited: window.windowBrowser.activeSpaceAwaitsAddress
+                                                  === true
     // Whether the Start page draws its road. Local to this installation, like
     // the Glance: Sync carries neither.
     property bool startPageRoad: true
@@ -213,8 +218,9 @@ ApplicationWindow {
                                                                                        window.pagelessViewport
                                                                                        ? null : engineLoader
     readonly property bool startPageShown: (window.pagelessViewport || window.startPageSummoned
-                                            || window.startPageDriving) && !window.settingsOpen &&
-                                           !window.historyOpen
+                                            || window.startPageDriving
+                                            || window.projectAddressAwaited) &&
+                                           !window.settingsOpen && !window.historyOpen
     readonly property bool omnibarShown: window.omnibarOpen || window.startPageShown
     // The application's release watch, named apart from the context property it
     // holds: a binding written `releaseWatch: releaseWatch` inside a component
@@ -2654,6 +2660,11 @@ ApplicationWindow {
     // summoned over a page gives the page back; a Space at rest has nothing
     // behind its Start page, so there it does nothing.
     function dismissStartPage() {
+        // Waiting for a project's address is the reader's to give up on.
+        if (window.projectAddressAwaited) {
+            window.windowBrowser.stopAwaitingAddress(window.windowBrowser.activeSpaceId);
+            return;
+        }
         if (window.startPageDriving)
             return;
         if (omnibar.commandScope) {
@@ -2712,6 +2723,9 @@ ApplicationWindow {
     // now, and not before; a Start page standing in for a page loads it in
     // place. The road runs until the tab's page first paints.
     function commitFromStartPage(text) {
+        // The reader went somewhere else, so the Space no longer waits.
+        if (window.projectAddressAwaited)
+            window.windowBrowser.stopAwaitingAddress(window.windowBrowser.activeSpaceId);
         const newTab = window.startPageSummoned;
         window.windowBrowser.cancelHistorySuggestions();
         if (!window.startPageRoad) {
@@ -2726,7 +2740,14 @@ ApplicationWindow {
         window.startPageDriving = true;
         window.windowBrowser.openInput(text, newTab);
         window.startPageSummoned = false;
-        window.startPageDriveTabId = window.windowBrowser.activeTabId;
+        window.startStartPageDrive(window.windowBrowser.activeTabId);
+    }
+
+    // The road drives until this tab's page first paints, for up to
+    // `startPageDriveLimit` milliseconds.
+    function startStartPageDrive(tabId) {
+        window.startPageDriving = true;
+        window.startPageDriveTabId = tabId;
         startPageDriveLimitTimer.restart();
     }
 
@@ -2741,6 +2762,18 @@ ApplicationWindow {
         return engine.documentPainted === true || engine.lastLoadFailed === true || Object.keys(
                     engine.httpsUpgradeFailure || {}).length > 0 || String(
                     engine.certificateErrorOrigin || "").length > 0;
+    }
+
+    // The project's address answered and its tab is loading: the road that
+    // drove while the Space waited drives on until the page first paints, as
+    // after a commit.
+    Connections {
+        target: window.windowBrowser
+        function onAwaitedAddressLoaded(spaceId, tabId) {
+            if (spaceId !== window.windowBrowser.activeSpaceId || !window.startPageRoad)
+                return;
+            window.startStartPageDrive(tabId);
+        }
     }
 
     function endStartPageDrive() {
@@ -3502,7 +3535,7 @@ ApplicationWindow {
                     reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
-                    driving: window.startPageDriving
+                    driving: window.startPageDriving || window.projectAddressAwaited
                     pageSource: window.pagelessViewport ? null : engineLoader
                 }
 

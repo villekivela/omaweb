@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PutAwayTab.h"
+#include "SpaceProject.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 
@@ -83,6 +84,13 @@ public:
     virtual QStringList spaceGrants() const = 0;
     virtual bool saveSpaceGrant(const QString &spaceId) = 0;
     virtual bool forgetSpaceGrant(const QString &spaceId) = 0;
+    // The projects of the Spaces (`omaweb dev`), by Space. Kept beside the
+    // Space records for the same reason as a grant: a folder on this machine
+    // means nothing on another, so it never reaches Sync, and deleting a Space
+    // takes its project with it.
+    virtual QHash<QString, SpaceProject> spaceProjects() const = 0;
+    virtual bool saveSpaceProject(const QString &spaceId, const SpaceProject &project) = 0;
+    virtual bool forgetSpaceProject(const QString &spaceId) = 0;
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
     virtual QVector<TabState> loadClosedTabs(const QString &spaceId) const = 0;

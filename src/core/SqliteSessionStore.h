@@ -38,6 +38,9 @@ public:
     QStringList spaceGrants() const override;
     bool saveSpaceGrant(const QString &spaceId) override;
     bool forgetSpaceGrant(const QString &spaceId) override;
+    QHash<QString, SpaceProject> spaceProjects() const override;
+    bool saveSpaceProject(const QString &spaceId, const SpaceProject &project) override;
+    bool forgetSpaceProject(const QString &spaceId) override;
     bool saveTab(const TabState &tab, int position) override;
     bool saveTabs(
         const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) override;

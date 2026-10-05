@@ -405,6 +405,46 @@ bool SqliteSessionStore::forgetSpaceGrant(const QString &spaceId)
     return query.exec();
 }
 
+QHash<QString, SpaceProject> SqliteSessionStore::spaceProjects() const
+{
+    QHash<QString, SpaceProject> projects;
+    QSqlQuery query(m_database);
+    query.exec(
+        QStringLiteral("SELECT space_id, directory, address, agent_command FROM space_projects"));
+    while (query.next()) {
+        projects.insert(query.value(0).toString(),
+            {.directory = query.value(1).toString(),
+                .address = query.value(2).toString(),
+                .agentCommand = query.value(3).toString()});
+    }
+    return projects;
+}
+
+bool SqliteSessionStore::saveSpaceProject(const QString &spaceId, const SpaceProject &project)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO space_projects(space_id, directory, address, agent_command) "
+        "VALUES(?, ?, ?, ?) ON CONFLICT(space_id) DO UPDATE SET directory = excluded.directory, "
+        "address = excluded.address, agent_command = excluded.agent_command"));
+    // A null string is bound as NULL, which the columns refuse.
+    const auto notNull
+        = [](const QString &value) { return value.isNull() ? QStringLiteral("") : value; };
+    query.addBindValue(spaceId);
+    query.addBindValue(notNull(project.directory));
+    query.addBindValue(notNull(project.address));
+    query.addBindValue(notNull(project.agentCommand));
+    return query.exec();
+}
+
+bool SqliteSessionStore::forgetSpaceProject(const QString &spaceId)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM space_projects WHERE space_id = ?"));
+    query.addBindValue(spaceId);
+    return query.exec();
+}
+
 bool SqliteSessionStore::setActiveSpace(const QString &spaceId)
 {
     if (!m_database.transaction()) {
@@ -1146,6 +1186,12 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
         CREATE TABLE IF NOT EXISTS space_grants (
             space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
             granted_at INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS space_projects (
+            space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+            directory TEXT NOT NULL,
+            address TEXT NOT NULL DEFAULT '',
+            agent_command TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS pending_space_deletions (
             space_id TEXT PRIMARY KEY
