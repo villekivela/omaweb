@@ -73,6 +73,11 @@ source of truth for the routine; this skill runs it and reports.
    here: the gate reads `Totals: N passed, 0 failed` precisely because a gate naming a number
    refuses the day the suite grows, which happened once already.
 
+   Before the tests, it reads V8's ninja file in the tree and fails the gate if V8 was compiled with
+   `-DV8_DISABLE_WRITE_BARRIERS`, which gives it a single generation and cost JetStream a fifth of
+   its score (#574). On 6.11.2 patch 0018 is what passes it. From 6.140.0, Qt's own setting does. It
+   names the file it read, and a tree where it finds none fails, so a moved build layout shows.
+
    The second pass runs four cases against a _stock_ engine, where each must fail or crash:
    `serviceWorkerLocalization`, `enableAfterStoragePathChange`, `tabsWindowsAndScripting`,
    `nativeMessaging`. A test that stopped failing on stock Qt has stopped proving anything, and that
