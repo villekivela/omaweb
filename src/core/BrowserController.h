@@ -247,6 +247,11 @@ public:
     // The next or previous stop in the tab list, wrapping at either end. A
     // split is one stop, entered on the half the reader was last in.
     Q_INVOKABLE void stepTab(int delta);
+    // One entry back or forward in the Space's Tab jump list, selecting the
+    // tab there. Answers whether it moved: at either end there is nowhere to
+    // go. A Space at rest still jumps between its Pinned tabs.
+    Q_INVOKABLE bool jumpBack();
+    Q_INVOKABLE bool jumpForward();
     // Pairs the named tab with the active tab, or pairs a new blank tab with
     // it when none is named: the blank one is on the right and focused, so the
     // next address opened lands in it. Both must be ordinary tabs of the Space
@@ -811,6 +816,21 @@ private:
     // The tab a split is entered on: its focused half, or the tab itself when
     // it is in no split.
     QString splitEntryTab(const QString &tabId) const;
+    // A Space's tabs in the order they became active, without repeats, and
+    // the entry the reader is at.
+    struct TabJumpList {
+        QStringList entries;
+        qsizetype position = -1;
+    };
+    // Brings the Space's Tab jump list up to the active tab. The list hears of
+    // a new active tab only this way, so every change of it must emit
+    // activeTabChanged or go through ensureActiveTab, or the list misses it.
+    void noteTabJump();
+    bool jumpBy(int delta);
+    // The list of the Space on show, made if it has none, without the tabs
+    // that Space no longer holds, however they left it: closed, moved, put
+    // away or taken by sync.
+    TabJumpList &settledTabJumpList();
     static double steppedZoom(double zoom, int direction);
     static bool isBlank(const QUrl &url);
     bool restingOnBlankTab() const;
@@ -888,6 +908,8 @@ private:
     QString m_activeSpaceId;
     QString m_activeSpaceName;
     QString m_activeTabId;
+    // Per Space id. In memory only: it is never written down.
+    QHash<QString, TabJumpList> m_tabJumpLists;
     QString m_developerToolsTabId;
     // The Space the inspected tab belongs to, so deleting that Space takes the
     // attachment with it: the tab is gone from the store, and while another

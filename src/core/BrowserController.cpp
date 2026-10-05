@@ -46,6 +46,8 @@ namespace {
     // of tabs can walk all of them back, bounded so the store does not grow into a
     // second history of everywhere they have been.
     constexpr qsizetype retainedClosedTabs = 25;
+    // How many entries a Space's Tab jump list keeps, the oldest dropped first.
+    constexpr qsizetype tabJumpListLength = 32;
     // How long a Space keeps a tab Omaweb put away: long enough to come back
     // for after a holiday, bounded so the list is not a second history.
     constexpr qint64 putAwayKeptMilliseconds = 30LL * 24 * 60 * 60 * 1000;
@@ -253,6 +255,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     // route to a new answer.
     connect(this, &BrowserController::activeTabChanged, this, [this] { refreshSplit(); });
     connect(this, &BrowserController::activeTabChanged, this, &BrowserController::noteTabsOnShow);
+    connect(this, &BrowserController::activeTabChanged, this, &BrowserController::noteTabJump);
     connect(this, &BrowserController::splitChanged, this, &BrowserController::noteTabsOnShow);
     connect(this, &BrowserController::activeSpaceChanged, this,
         &BrowserController::rememberReadersSpace);
@@ -1367,6 +1370,68 @@ void BrowserController::stepTab(int delta)
     activateTab(splitEntryTab(stops.at(next)));
 }
 
+bool BrowserController::jumpBack() { return jumpBy(-1); }
+
+bool BrowserController::jumpForward() { return jumpBy(1); }
+
+bool BrowserController::jumpBy(int delta)
+{
+    auto &list = settledTabJumpList();
+    const auto next = list.position + delta;
+    if (list.position < 0 || next < 0 || next >= list.entries.size()) {
+        return false;
+    }
+    // The position moves before the tab is selected, so the list finds the
+    // tab already at its position and changes nothing.
+    list.position = next;
+    setActiveTab(list.entries.at(next));
+    return true;
+}
+
+// The position stays on its entry: when an entry behind it goes, it moves
+// back one with it. When the entry at the position goes, it moves back one
+// to the entry before, so the tab selected in its place comes after that
+// entry and a jump back from it lands there.
+BrowserController::TabJumpList &BrowserController::settledTabJumpList()
+{
+    auto &list = m_tabJumpLists[m_activeSpaceId];
+    for (auto index = list.entries.size() - 1; index >= 0; --index) {
+        if (m_tabs.find(list.entries.at(index))) {
+            continue;
+        }
+        list.entries.removeAt(index);
+        if (index <= list.position) {
+            --list.position;
+        }
+    }
+    return list;
+}
+
+// Every route to a new active tab announces it, so the list hears of a tab
+// opened, reopened, duplicated or split as much as one selected. A tab listed
+// earlier moves to the end rather than appearing twice. So does the tab being
+// left, as Vim's jump list does: after jumping back, the entries ahead are
+// kept, and the next jump back returns to the tab the reader was reading.
+void BrowserController::noteTabJump()
+{
+    if (m_activeTabId.isEmpty()) {
+        return;
+    }
+    auto &list = settledTabJumpList();
+    if (list.position >= 0 && list.entries.at(list.position) == m_activeTabId) {
+        return;
+    }
+    if (list.position >= 0) {
+        list.entries.move(list.position, list.entries.size() - 1);
+    }
+    list.entries.removeAll(m_activeTabId);
+    list.entries.append(m_activeTabId);
+    while (list.entries.size() > tabJumpListLength) {
+        list.entries.removeFirst();
+    }
+    list.position = list.entries.size() - 1;
+}
+
 QString BrowserController::splitEntryTab(const QString &tabId) const
 {
     const auto *tab = m_tabs.find(tabId);
@@ -1830,6 +1895,7 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
     }
     m_spaces.reset(m_store->loadSpaces());
     m_temporarySpaceIds.remove(spaceId);
+    m_tabJumpLists.remove(spaceId);
     if (m_agentSpaces.remove(spaceId) > 0) {
         emit agentSpacesChanged();
     }
@@ -4169,6 +4235,7 @@ void BrowserController::initialize()
         auto tab = makeBlankTab({});
         m_activeTabId = tab.id;
         m_tabs.reset({tab});
+        noteTabJump();
         loadSearchEngines();
         m_ready = true;
         return;
@@ -4244,6 +4311,10 @@ void BrowserController::ensureActiveTab()
     refreshSoundSuppression();
     persistTabs();
     refreshSplit();
+    // A session restored at launch announces no active tab, so its tab is
+    // recorded here as the first entry of the Space's list. A Space switch
+    // announces its tab after this, which then changes nothing.
+    noteTabJump();
 }
 
 bool BrowserController::persistTabs()

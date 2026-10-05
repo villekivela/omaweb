@@ -72,32 +72,44 @@ TARGET_PAGE = """<!doctype html>
 UNSWEPT = {
     "print": "opens a portal dialog only a person can answer",
     "minimize-window": "unmaps the window every later check reads",
-    "open-file": "opens a file chooser only a person can answer",
     "private-window": "opens a second window, and has a check of its own",
 }
 
 
-def check_window_moves_by_its_region(browser: Browser, report: Report, pointer: Pointer) -> None:
-    """The move region is judged by the request it sends, not by the window.
+def check_window_moves_by_its_regions(browser: Browser, report: Report, pointer: Pointer) -> None:
+    """The move regions are judged by the request they send, not by the window.
 
     Hyprland's interactive move follows relative pointer motion, and a cursor
     put on a coordinate is a warp with no deltas behind it, so the window sits
-    still however faithfully the region fires. Its resize grab reads the
+    still however faithfully a region fires. Its resize grab reads the
     cursor's absolute position instead, which is why the edges below can be
     judged by the size and this cannot be judged by the position. What belongs
     to Omaweb either way is the request, so that is what this reads.
     """
-    # The strip is inset by the outline's own margin and has a button row
-    # anchored at each end. The gap between those rows is what a reader grabs.
     at = browser.position()
-    before = browser.requests("move")
-    pointer.drag((at[0] + 130, at[1] + 26), (at[0] + 290, at[1] + 146))
-    sent = browser.requests("move") - before
-    report.check(
-        sent > 0,
-        "a drag on the sidebar's navigation strip asks the compositor to move the window",
-        f"xdg_toplevel.move sent {sent}x" if sent else "no xdg_toplevel.move was sent",
-    )
+    size = browser.size()
+    if not at or not size:
+        report.check(False, "the sidebar's regions move the window", "the window went away")
+        return
+    for region, grab in (
+        # The strip is inset by the outline's own margin and has a button row
+        # anchored at each end. The gap between those rows is what a reader
+        # grabs.
+        ("navigation strip", (at[0] + 130, at[1] + 26)),
+        # The browser under test has one tab, so the outline is empty from
+        # below its row down to the Space switcher. The switcher and its
+        # margins take the bottom 46 pixels and the list's own margin 12 more,
+        # so 80 up is inside the list, below the row (#179).
+        ("empty space", (at[0] + 130, at[1] + size[1] - 80)),
+    ):
+        before = browser.requests("move")
+        pointer.drag(grab, (grab[0] + 160, grab[1] - 120))
+        sent = browser.requests("move") - before
+        report.check(
+            sent > 0,
+            f"a drag on the sidebar's {region} asks the compositor to move the window",
+            f"xdg_toplevel.move sent {sent}x" if sent else "no xdg_toplevel.move was sent",
+        )
 
 
 def check_window_resizes_by_its_edges(browser: Browser, report: Report, pointer: Pointer) -> None:
@@ -145,7 +157,7 @@ def check_frameless_regions(browser: Browser, report: Report) -> None:
         print("skipped: the window under test could not be floated, and a tiled one cannot move")
         return
     try:
-        check_window_moves_by_its_region(browser, report, pointer)
+        check_window_moves_by_its_regions(browser, report, pointer)
         # Comfortably above Omaweb's own 840x560 minimum and well inside the
         # output, so all four edges have somewhere to travel.
         if browser.reshape(1200, 900):
@@ -322,7 +334,7 @@ def main() -> int:
         if not arguments.keep:
             browser.stop()
 
-    # A browser of its own, because the move region is judged by the protocol
+    # A browser of its own, because the move regions are judged by the protocol
     # and WAYLAND_DEBUG over the sweep above would be a log nobody can read.
     regions = Browser(arguments.browser, root, protocol_log=os.path.join(root, "protocol.log"))
     try:

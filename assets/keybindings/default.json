@@ -13,7 +13,8 @@
   },
   "browser": {
     "Primary+L": "open-address",
-    "Primary+O": "open-file",
+    "Primary+O": "jump-back",
+    "Primary+I": "jump-forward",
     "Primary+K": "command-scope",
     "Primary+T": "new-tab",
     "Primary+W": "close-tab",

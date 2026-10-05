@@ -47,6 +47,12 @@ TestCase {
         signalName: "pageFrozenChanged"
     }
 
+    // What the sidebar asks of the window when a press on it becomes a drag.
+    SignalSpy {
+        id: moveSpy
+        signalName: "windowMoveRequested"
+    }
+
     // Whether the Space on show changed, even for a moment, while the other
     // Spaces' tabs were only being listed.
     SignalSpy {
@@ -5357,6 +5363,73 @@ TestCase {
         tryCompare(browser, "activeTabId", start);
     }
 
+    // Ctrl+O and Ctrl+I walk the Tab jump list from anywhere in the window.
+    // Ctrl+I is the byte a terminal reads as Tab, and the window keeps the two
+    // apart: a plain Tab moves focus and jumps nowhere, and Ctrl+I with nowhere
+    // to jump leaves focus where it was.
+    function test_jumpsBetweenTabsWithControlOAndControlI() {
+        openPage("https://jump-first.example/");
+        const firstTabId = browser.activeTabId;
+        browser.openInput("https://jump-second.example/", true);
+        const secondTabId = browser.activeTabId;
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        keyClick(Qt.Key_O, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", firstTabId);
+        keyClick(Qt.Key_I, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", secondTabId);
+        keyClick(Qt.Key_O, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", firstTabId);
+
+        const addressButton = findChild(window.contentItem, "addressButton");
+        addressButton.forceActiveFocus();
+        keyClick(Qt.Key_Tab);
+        verify(window.activeFocusItem !== addressButton);
+        wait(50);
+        compare(browser.activeTabId, firstTabId);
+
+        keyClick(Qt.Key_I, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", secondTabId);
+        addressButton.forceActiveFocus();
+        keyClick(Qt.Key_I, Qt.ControlModifier);
+        compare(window.activeFocusItem, addressButton);
+        compare(browser.activeTabId, secondTabId);
+
+        browser.closeTab(secondTabId);
+    }
+
+    // The shipped keymap is what the command panel and the shortcut sheet show
+    // for the jumps, and opening a file is left in the panel without a key.
+    function test_theJumpKeysReadTheSameInThePanelAndOnTheSheet() {
+        const bindings = keyboardNavigation.browserBindings;
+        compare(bindings["Primary+O"], "jump-back");
+        compare(bindings["Primary+I"], "jump-forward");
+
+        const listed = {};
+        const actions = window.commands.actions();
+        for (let index = 0; index < actions.length; ++index)
+            listed[actions[index].command] = actions[index];
+        compare(listed["jump-back"].group, "tabs");
+        compare(listed["jump-back"].keys, "Ctrl+O");
+        compare(listed["jump-forward"].group, "tabs");
+        compare(listed["jump-forward"].keys, "Ctrl+I");
+        verify(listed["open-file"] !== undefined);
+        compare(listed["open-file"].keys, "");
+
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const keysByTitle = {};
+        const tabs = sheet.sections.filter(function (section) {
+            return section.group === "tabs";
+        })[0];
+        for (let index = 0; index < tabs.entries.length; ++index)
+            keysByTitle[tabs.entries[index].title] = tabs.entries[index].keys;
+        compare(keysByTitle[listed["jump-back"].title], "Ctrl+O");
+        compare(keysByTitle[listed["jump-forward"].title], "Ctrl+I");
+    }
+
     // Only the Space on show keeps live pages. Putting one away takes its
     // renderers with it: coming back reloads its tabs from their addresses
     // rather than finding the very pages that were left. That is the memory
@@ -7516,6 +7589,68 @@ TestCase {
         compare(browser.tabSectionIndex(thirdTabId), 0);
 
         browser.closeTab(thirdTabId);
+        browser.closeTab(secondTabId);
+        browser.closeTab(firstTabId);
+    }
+
+    // The outline's empty space below the rows is the largest surface the
+    // chrome has, and a reader looking for somewhere to grab the window reaches
+    // for it first (#179).
+    function test_theOutlinesEmptySpaceMovesTheWindow() {
+        openPage("https://empty-space.example/one");
+        const tabId = browser.activeTabId;
+        const outline = findChild(window.contentItem, "sidebar");
+        const list = findChild(window.contentItem, "ordinaryList");
+        const tabScroll = findChild(window.contentItem, "tabScroll");
+        verify(outline !== null && list !== null && tabScroll !== null);
+        settleRow(findChild(window.contentItem, "tab-" + tabId));
+
+        // Halfway between the last row and the bottom of the list, which a
+        // test sharing the window with others still leaves room for.
+        const listBottom = list.mapToItem(window.contentItem, 0, list.height).y;
+        const scrollBottom = tabScroll.mapToItem(window.contentItem, 0, tabScroll.height).y;
+        verify(scrollBottom - listBottom > 40, "the rows leave no empty space to grab");
+        const at = tabScroll.mapToItem(window.contentItem, tabScroll.width / 2, 0);
+        at.y = (listBottom + scrollBottom) / 2;
+
+        moveSpy.target = outline;
+        moveSpy.clear();
+        // A press that does not travel is not a move.
+        mouseClick(window.contentItem, at.x, at.y);
+        compare(moveSpy.count, 0);
+
+        mousePress(window.contentItem, at.x, at.y);
+        dragRowBy(at, 60);
+        mouseRelease(window.contentItem, at.x, at.y + 60);
+        compare(moveSpy.count, 1);
+
+        browser.closeTab(tabId);
+    }
+
+    // The space around the rows moves the window, and the rows keep the drag
+    // that reorders them: the handler under them cannot take it.
+    function test_draggingARowLeavesTheWindowWhereItIs() {
+        openPage("https://row-stays.example/one");
+        const firstTabId = browser.activeTabId;
+        browser.openInput("https://row-stays.example/two", true);
+        const secondTabId = browser.activeTabId;
+        const outline = findChild(window.contentItem, "sidebar");
+        verify(outline !== null);
+        const row = findChild(window.contentItem, "tab-" + secondTabId);
+        settleRow(row);
+        const place = browser.tabSectionIndex(secondTabId);
+        verify(place >= 1);
+
+        moveSpy.target = outline;
+        moveSpy.clear();
+        const grabbed = row.mapToItem(window.contentItem, row.width / 2, row.height / 2);
+        mousePress(row, row.width / 2, row.height / 2);
+        dragRowBy(grabbed, -row.height);
+        verify(row.lifted);
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y - row.height);
+        compare(browser.tabSectionIndex(secondTabId), place - 1);
+        compare(moveSpy.count, 0);
+
         browser.closeTab(secondTabId);
         browser.closeTab(firstTabId);
     }

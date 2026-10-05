@@ -1078,6 +1078,15 @@ Rectangle {
         anchors.top: outline.bottom
         anchors.bottom: footer.top
 
+        // The space the rows leave empty moves the window, as the navigation
+        // strip does (#179). A row holds its press for a reorder, which this
+        // cannot take from it.
+        DragHandler {
+            target: null
+            onActiveChanged: if (active)
+                                 root.windowMoveRequested()
+        }
+
         Flow {
             id: pinnedSection
             objectName: "pinnedList"
