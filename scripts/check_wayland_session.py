@@ -195,14 +195,19 @@ def check_frameless_regions(
         print("skipped: the window under test could not be floated, and a tiled one cannot move")
         return
     try:
+        # Comfortably above Omaweb's own 840x560 minimum and well inside the
+        # output, so all four edges have somewhere to travel. Centred, too,
+        # before the move regions: the desktop's notifications stand over the
+        # output's top right and take the pointer before any window under
+        # them, and a floated window can arrive against that corner with a
+        # right sidebar's strip beneath them.
+        shaped = browser.reshape(1200, 900)
         check_window_moves_by_its_regions(browser, report, pointer, side, sidebar_width)
         # The window's edges stay where they are whichever side the sidebar
         # takes. A right sidebar stands against the right one, with its own
         # move regions beside it, so that edge is checked again there.
         edges = EDGES if side == "left" else ("right",)
-        # Comfortably above Omaweb's own 840x560 minimum and well inside the
-        # output, so all four edges have somewhere to travel.
-        if browser.reshape(1200, 900):
+        if shaped:
             check_window_resizes_by_its_edges(browser, report, pointer, edges)
         else:
             print(f"skipped: the window would not take a known size, and it is {browser.size()}")
