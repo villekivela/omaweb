@@ -164,6 +164,7 @@ private slots:
     void warnsOnceWhenTheBrowserSpeaksAnother();
     void warnsOnceForAWholeMcpSession();
     void leavesAnMcpSessionItCannotStartABrowserFor();
+    void saysWhereItLookedWhenNothingAnswers();
 };
 
 void AgentClientTest::handsALaunchToTheBrowserBesideIt_data()
@@ -436,7 +437,39 @@ void AgentClientTest::leavesAnMcpSessionItCannotStartABrowserFor()
                           .value(QStringLiteral("text"))
                           .toString();
     QVERIFY2(said.contains(QStringLiteral("no browser installed")), qPrintable(said));
+    QVERIFY2(said.contains(directory.filePath(QStringLiteral("control.sock"))), qPrintable(said));
+    QVERIFY2(said.contains(QStringLiteral("Agent in a container")), qPrintable(said));
     QVERIFY2(ran.err.contains(said), qPrintable(ran.err));
+}
+
+// From a sandbox the likeliest reason is a socket nobody forwarded, so the
+// failure says which path was tried, where that path came from, and what to
+// forward, rather than that no browser runs.
+void AgentClientTest::saysWhereItLookedWhenNothingAnswers()
+{
+    QTemporaryDir directory;
+    auto environment = environmentFor(directory);
+
+    const auto named
+        = run(QStringLiteral(OMAWEB_CLIENT_PATH), {QStringLiteral("spaces")}, environment);
+    QCOMPARE(named.code, 3);
+    QVERIFY2(named.err.contains(directory.filePath(QStringLiteral("control.sock"))),
+        qPrintable(named.err));
+    QVERIFY2(
+        named.err.contains(QStringLiteral("OMAWEB_CONTROL_SOCKET names")), qPrintable(named.err));
+    QVERIFY2(named.err.contains(QStringLiteral("forwarded from the host")), qPrintable(named.err));
+    QVERIFY2(named.err.contains(QStringLiteral("#agent-in-a-container")), qPrintable(named.err));
+
+    QTemporaryDir session(QDir::tempPath() + QStringLiteral("/ow-XXXXXX"));
+    environment.remove(QStringLiteral("OMAWEB_CONTROL_SOCKET"));
+    environment.insert(QStringLiteral("XDG_RUNTIME_DIR"), session.path());
+    environment.insert(QStringLiteral("TMPDIR"), session.path());
+    const auto fallen
+        = run(QStringLiteral(OMAWEB_CLIENT_PATH), {QStringLiteral("spaces")}, environment);
+    QCOMPARE(fallen.code, 3);
+    QVERIFY2(fallen.err.contains(QStringLiteral("omaweb/control.sock")), qPrintable(fallen.err));
+    QVERIFY2(fallen.err.contains(QStringLiteral("the default")), qPrintable(fallen.err));
+    QVERIFY2(fallen.err.contains(QStringLiteral("OMAWEB_CONTROL_SOCKET")), qPrintable(fallen.err));
 }
 
 QTEST_GUILESS_MAIN(AgentClientTest)

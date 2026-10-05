@@ -25,6 +25,18 @@ QString agentSocketPath()
     return QDir(base).filePath(QStringLiteral("omaweb/control.sock"));
 }
 
+QString agentSocketUnreachable(const QString &socketPath)
+{
+    const auto source = qEnvironmentVariableIsEmpty("OMAWEB_CONTROL_SOCKET")
+        ? QStringLiteral("the default, since OMAWEB_CONTROL_SOCKET is not set")
+        : QStringLiteral("the path OMAWEB_CONTROL_SOCKET names");
+    return QStringLiteral("No Omaweb is answering on %1, which is %2. From a container or over "
+                          "SSH, the socket has to be forwarded from the host, as \"Agent in a "
+                          "container\" in Omaweb's README shows: "
+                          "https://github.com/villekivela/omaweb#agent-in-a-container")
+        .arg(socketPath, source);
+}
+
 QJsonObject agentHello(const QString &version)
 {
     return {{QStringLiteral("verb"), QStringLiteral("hello")},

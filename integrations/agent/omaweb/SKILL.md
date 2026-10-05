@@ -9,7 +9,7 @@ description:
 # Omaweb
 
 `omaweb` talks to the browser the reader already runs. Each command prints plain text and exits: 0
-done, 1 refused (the reason is on stderr), 2 a malformed command, 3 no browser running. Only the
+done, 1 refused (the reason is on stderr), 2 a malformed command, 3 no browser answering. Only the
 reader can start the browser or turn on Allow agents; ask them when a command says either is
 missing.
 
@@ -45,6 +45,14 @@ tab with `--tab <id>` on every page command and make no Agent Space: the reader 
 watching it. In a project's Space, one the reader opened with `omaweb dev`, you start in the project
 directory and the tab is usually the app that project serves.
 
+## Can't reach the browser
+
+Exit 3 names the socket path it tried. If `omaweb --version` says the client is alone here, you are
+in a sandbox, a container, a VM or another host, and the socket has to be forwarded from the host:
+tell the reader that path and that step rather than retrying. On the host, "Agent in a container" in
+Omaweb's README (https://github.com/villekivela/omaweb#agent-in-a-container) has the recipe for each
+setup, which you can apply for the reader.
+
 ## Commands
 
 ```sh
@@ -77,6 +85,10 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 - A download lands in a directory of your own, and `look` prints its path. A High-risk download
   waits for the reader to confirm it.
 - `upload` works only in an Agent Space, and gives the page only the files you name.
+- A sign-in that asks for a security key or passkey can't be completed by you: an Agent tab's
+  request is declined and the site reports a failure. Hand that step to the reader.
+- No command fills the reader's saved addresses, cards or form history, which are theirs. Type
+  values from the task, or ask the reader.
 - A window the page opens prints as `Opened window-1`. Pass `--tab window-1` to use it.
 - `look --all` includes targets outside the viewport.
 - `read` prints the page, or what a CSS selector matches, as Markdown. Use it for text; use `look`

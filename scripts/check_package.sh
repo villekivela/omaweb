@@ -243,10 +243,11 @@ pacman -U --noconfirm $pacman_dep_flags "$release" "$release_client"
 pacman -Qi omaweb | grep -q '^Depends On .*omaweb-cli=' \
     || fail "The browser's package does not depend on the client's"
 
-# The client runs on Qt's base, and says so when no browser answers.
+# The client runs on Qt's base, and says where it looked when no browser
+# answers.
 answered=$(OMAWEB_CONTROL_SOCKET="$work/nobody.sock" omaweb spaces 2>&1) && status=0 || status=$?
 [ "$status" -eq 3 ] || fail "omaweb spaces answered $status: $answered"
-printf '%s\n' "$answered" | grep -q 'no Omaweb is running' \
+printf '%s\n' "$answered" | grep -qF "No Omaweb is answering on $work/nobody.sock" \
     || fail "omaweb spaces said: $answered"
 # Anything not a verb is the browser's. Its version names the engine, which
 # the client alone cannot, so this is the installed browser answering. The

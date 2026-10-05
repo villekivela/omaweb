@@ -970,7 +970,7 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
     QLocalSocket socket;
     socket.connectToServer(socketPath);
     if (!socket.waitForConnected(answerTimeoutMs)) {
-        print(stderr, QStringLiteral("omaweb: no Omaweb is running for this user.\n"));
+        print(stderr, QStringLiteral("omaweb: %1\n").arg(agentSocketUnreachable(socketPath)));
         return 3;
     }
     const auto mismatch = greetAgentBrowser(socket, answerTimeoutMs);

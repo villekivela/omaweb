@@ -546,10 +546,8 @@ bool AgentMcpLink::connect(QString &error)
         return false;
     }
     if (!m_start) {
-        m_stranded = QStringLiteral("No Omaweb is answering on %1, and there is no browser "
-                                    "installed here to start. This machine reaches a browser only "
-                                    "over its Agent socket.")
-                         .arg(m_path);
+        m_stranded = QStringLiteral("There is no browser installed here to start. ")
+            + agentSocketUnreachable(m_path);
         error = m_stranded;
         return false;
     }

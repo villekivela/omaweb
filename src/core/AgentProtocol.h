@@ -26,6 +26,12 @@ inline constexpr int agentProtocolVersion = 1;
 // no runtime directory to look in.
 QString agentSocketPath();
 
+// Why a client found nothing answering on `socketPath`: the path it tried,
+// whether `OMAWEB_CONTROL_SOCKET` named it or it is the default, and that a
+// container or another host reaches the browser only through a socket
+// forwarded from the desktop, which the README's recipes do.
+QString agentSocketUnreachable(const QString &socketPath);
+
 // The first request on a client's connection, naming the protocol it speaks
 // and `version`, the release it came from.
 QJsonObject agentHello(const QString &version);
