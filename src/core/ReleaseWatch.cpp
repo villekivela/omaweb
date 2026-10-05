@@ -161,7 +161,7 @@ void ReleaseWatch::findOrigin()
             settleOrigin(ReleaseCheck::originOf(false, false, {}));
             return;
         }
-        // "/usr/bin/omaweb is owned by omaweb 0.5.0-1", whose second-to-last
+        // "/usr/lib/omaweb/omaweb-browser is owned by omaweb 0.11.0-1", whose second-to-last
         // word is the name the next question needs.
         const auto answer = QString::fromUtf8(owner->readAllStandardOutput()).trimmed();
         const auto words = answer.split(QLatin1Char(' '), Qt::SkipEmptyParts);

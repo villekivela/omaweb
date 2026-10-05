@@ -413,6 +413,11 @@ jobs:
       # loop's: a leg that failed fails `needs`, and the release this job waits
       # on never runs. What is checked here is the case the matrix cannot rule
       # out, a directory of packages with none in it.
+      #
+      # The client before the browser, because each package is served as soon
+      # as it is published: the other way round, for the time between the two,
+      # the database lists a browser whose client it does not have, and a
+      # reader's `pacman -Syu` then fails on the dependency.
       - name: Publish the packages to the repository
         if: steps.key.outputs.signed == 'true'
         env:
@@ -420,7 +425,7 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           published=0
-          for package in artifacts/*.pkg.tar.*; do
+          for package in artifacts/omaweb-cli-*.pkg.tar.* artifacts/omaweb-[0-9]*.pkg.tar.*; do
             [ -e "$package" ] || continue
             case "$package" in *.sig) continue ;; esac
             arch=$(basename "$package")
