@@ -533,4 +533,21 @@ TestCase {
         compare(keys.length, Object.keys(shortened).length);
         verify(keys.indexOf(testCase.longestKeys) === -1);
     }
+
+    // Opening works the list out again, and a list that came out the same
+    // is the one already drawn: opening the sheet again builds nothing.
+    function test_reopeningAnUnchangedSheetKeepsItsRows() {
+        const sheet = makeSheet();
+        const columns = sheet.layoutColumns;
+        const rows = descendants(sheet, "keycaps");
+        verify(drawnKeys(sheet).length > 0);
+
+        sheet.open = false;
+        sheet.open = true;
+        verify(sheet.layoutColumns === columns, "the reopened sheet packed its columns again");
+        const kept = descendants(sheet, "keycaps");
+        compare(kept.length, rows.length);
+        for (let index = 0; index < rows.length; ++index)
+            verify(kept[index] === rows[index], "the reopened sheet built its rows again");
+    }
 }

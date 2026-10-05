@@ -44,10 +44,16 @@ Rectangle {
     readonly property var privateExclusions: ["pin-tab", "move-tab", "next-space", "select-space",
         "new-space"]
 
-    // Rebuilt whenever the keymap is: reading `browserBindings` here is what
-    // makes an edited keyboard configuration reach the sheet, since the keys
-    // themselves come from a function call QML cannot watch.
+    // Worked out again whenever the keymap changes while the sheet is open:
+    // reading `browserBindings` here is what makes an edited keyboard
+    // configuration reach the sheet, since the keys themselves come from a
+    // function call QML cannot watch. A closed sheet lists nothing and
+    // depends on `open` alone. Asking the registry about every command costs
+    // a Space switch about a frame, because the registry's answers change
+    // with the page on show (#594); opening works the list out again.
     readonly property var sections: {
+        if (!root.open)
+            return [];
         // Read for the dependency alone: the keys come from keysFor(), and a
         // function call is not something QML can watch for changes.
         void (root.keymap ? root.keymap.browserBindings : null);
@@ -87,12 +93,12 @@ Rectangle {
 
     // What the sheet lays out, and the width it lays it out at: `sections`
     // and `width` as they were when the sheet last opened, or since while it
-    // stays open. A closed sheet that followed them would measure, pack and
-    // build its columns whenever the page area settled at a new width or a
-    // Space switch changed what the registry offers, and the sidebar or the
-    // Space sliding at that moment would wait on it (#594). Opening takes
-    // both before the sheet's first frame. Closing keeps them, so the sheet
-    // drops away as it was drawn.
+    // stays open. A closed sheet that followed `width` would measure, pack
+    // and build its columns whenever the page area settled at a new width,
+    // and the sidebar sliding at that moment would wait on it (#594).
+    // Opening works `sections` out again, which takes both before the
+    // sheet's first frame. Closing keeps them, so the sheet drops away as it
+    // was drawn.
     property var laidOutSections: []
     property real layoutWidth: 0
 
@@ -322,12 +328,8 @@ Rectangle {
     color: "transparent"
     focus: open
 
-    onOpenChanged: {
-        if (!open)
-            return;
-        takeLayout();
-        forceActiveFocus();
-    }
+    onOpenChanged: if (open)
+                       forceActiveFocus()
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {

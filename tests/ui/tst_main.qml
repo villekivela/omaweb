@@ -294,6 +294,21 @@ TestCase {
         }
     }
 
+    // What the Shortcut sheet lists, read with it open: a closed sheet lists
+    // nothing, so asking the registry costs nothing while it is away (#594).
+    // It is closed again, and its drop let finish, before the test goes on.
+    function shortcutSheetSections() {
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        verify(sheet !== null);
+        window.shortcutsOpen = true;
+        verify(sheet.open, "the Shortcut sheet did not open");
+        const sections = sheet.sections;
+        verify(sections.length > 0);
+        window.shortcutsOpen = false;
+        tryCompare(sheet, "visible", false);
+        return sections;
+    }
+
     // A Download record outlives the test that made it, and every test here
     // shares one window, so a test about the list starts from an empty one.
     function clearDownloads() {
@@ -1597,8 +1612,7 @@ TestCase {
         compare(browser.developerToolsTabId, "");
         compare(engine.inspectedElementCount, 0);
         verify(!dock.visible);
-        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
-        compare(shortcutSheet.sections.filter(function (section) {
+        compare(shortcutSheetSections().filter(function (section) {
             return section.group === "developer";
         }).length, 0);
 
@@ -1635,9 +1649,7 @@ TestCase {
 
         // The sheet of keys promises nothing it cannot carry out either, so the
         // registry is the only place that decides.
-        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
-        verify(shortcutSheet !== null);
-        const developerSections = shortcutSheet.sections.filter(function (section) {
+        const developerSections = shortcutSheetSections().filter(function (section) {
             return section.group === "developer";
         });
         compare(developerSections.length, 0);
@@ -3742,10 +3754,10 @@ TestCase {
         const keys = window.commands.keymap.keysFor("site-information");
         compare(keys, window.commands.keymap.displayFor("Primary+Shift+L"));
 
-        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const sections = shortcutSheetSections();
         let sheetKeys = "";
-        for (let group = 0; group < sheet.sections.length; ++group) {
-            const entries = sheet.sections[group].entries;
+        for (let group = 0; group < sections.length; ++group) {
+            const entries = sections[group].entries;
             for (let index = 0; index < entries.length; ++index) {
                 if (entries[index].title === "Site information")
                     sheetKeys = entries[index].keys;
@@ -5431,9 +5443,8 @@ TestCase {
         verify(listed["open-file"] !== undefined);
         compare(listed["open-file"].keys, "");
 
-        const sheet = findChild(window.contentItem, "shortcutSheet");
         const keysByTitle = {};
-        const tabs = sheet.sections.filter(function (section) {
+        const tabs = shortcutSheetSections().filter(function (section) {
             return section.group === "tabs";
         })[0];
         for (let index = 0; index < tabs.entries.length; ++index)
