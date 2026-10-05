@@ -1,5 +1,6 @@
 import QtQuick
 import Omaweb
+import "DevicePixels.mjs" as DevicePixels
 
 Item {
     id: root
@@ -178,7 +179,13 @@ Item {
     readonly property var dividerFractions: ({})
     readonly property real paneMinimumWidth: 120
     readonly property real leftPaneWidth: Math.round(root.width * root.dividerFraction)
-    readonly property real dividerWidth: 1
+    // What the panes and the divider are drawn at: the left pane's width on
+    // the display's pixel grid, and a divider one logical pixel wide rounded
+    // to whole pixels of the display, so the pane right of it starts on one.
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
+    readonly property real leftPaneDrawnWidth: DevicePixels.snap(root.leftPaneWidth,
+                                                                 root.pixelRatio)
+    readonly property real dividerWidth: DevicePixels.snap(1, root.pixelRatio)
     onSplitLeftTabIdChanged: root.restoreDivider()
     onSplitRightTabIdChanged: root.restoreDivider()
     function splitKey() {
@@ -204,36 +211,36 @@ Item {
     function paneX(tabId, engine) {
         if (!root.splitOnShow || engine.siteFullscreenActive || tabId !== root.splitRightTabId)
             return 0;
-        return root.leftPaneWidth + root.dividerWidth;
+        return root.leftPaneDrawnWidth + root.dividerWidth;
     }
     function paneWidth(tabId, engine) {
         if (!root.splitOnShow || engine.siteFullscreenActive)
             return root.width;
         if (tabId === root.splitLeftTabId)
-            return root.leftPaneWidth;
+            return root.leftPaneDrawnWidth;
         if (tabId === root.splitRightTabId)
-            return root.width - root.leftPaneWidth - root.dividerWidth;
+            return root.width - root.leftPaneDrawnWidth - root.dividerWidth;
         return root.width;
     }
     readonly property real activePaneX: root.splitOnShow && root.tabBesideId
-                                        === root.splitLeftTabId ? root.leftPaneWidth
+                                        === root.splitLeftTabId ? root.leftPaneDrawnWidth
                                                                   + root.dividerWidth : 0
     readonly property real activePaneWidth: !root.splitOnShow ? root.width : (root.tabBesideId
                                                                               === root.splitLeftTabId
                                                                               ? root.width
-                                                                                - root.leftPaneWidth
+                                                                                - root.leftPaneDrawnWidth
                                                                                 - root.dividerWidth :
-                                                                                root.leftPaneWidth)
+                                                                                root.leftPaneDrawnWidth)
     readonly property real besidePaneX: root.tabBesideId === root.splitLeftTabId ? 0 :
-                                                                                   root.leftPaneWidth
+                                                                                   root.leftPaneDrawnWidth
                                                                                    + root.dividerWidth
     readonly property real besidePaneWidth: !root.splitOnShow ? 0 : root.width
                                                                 - root.activePaneWidth
                                                                 - root.dividerWidth
     // The same two panes as they stand, left and right rather than focused and
     // beside, which is how the keyboard crosses them.
-    readonly property real rightPaneX: root.leftPaneWidth + root.dividerWidth
-    readonly property real rightPaneWidth: root.width - root.leftPaneWidth - root.dividerWidth
+    readonly property real rightPaneX: root.leftPaneDrawnWidth + root.dividerWidth
+    readonly property real rightPaneWidth: root.width - root.leftPaneDrawnWidth - root.dividerWidth
 
     // What the page the reader is looking at is doing with the whole screen,
     // read off the engine that draws it rather than kept beside it. Either
@@ -1560,7 +1567,7 @@ Item {
     Rectangle {
         objectName: "splitDivider"
         visible: root.splitOnShow && !root.siteFullscreenActive
-        x: root.leftPaneWidth
+        x: root.leftPaneDrawnWidth
         width: root.dividerWidth
         height: root.height
         z: 5
@@ -1575,7 +1582,8 @@ Item {
         visible: root.splitOnShow && !root.siteFullscreenActive
         enabled: visible
         height: parent.height
-        x: Math.round(root.leftPaneWidth + root.dividerWidth / 2 - width / 2)
+        x: DevicePixels.snap(root.leftPaneDrawnWidth + root.dividerWidth / 2 - width / 2,
+                             root.pixelRatio)
         z: 6
         colors: root.colors
         panelName: qsTr("Left pane")

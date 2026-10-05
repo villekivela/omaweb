@@ -765,6 +765,7 @@ set(omaweb_ui_files
     src/ui/ChromeScrollBar.qml
     src/ui/Omnibar.qml
     src/ui/DeveloperToolsDock.qml
+    src/ui/DevicePixels.mjs
     src/ui/DownloadMark.qml
     src/ui/ExtensionMark.qml
     src/ui/FindBar.qml
@@ -1921,6 +1922,29 @@ if(BUILD_TESTING)
                 "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
             ENVIRONMENT_MODIFICATION "HOME=set:${omaweb_ui_themed_home}"
         )
+        # The chrome rests on whole pixels of the display, which at a scale
+        # Omarchy offers is not always a whole logical pixel (#571). The runs
+        # above are at one, so the whole-pixel tests run again at the
+        # fractional scales and at two. Only those: the rest of the suite
+        # measures in logical pixels and was not written for another scale.
+        set(omaweb_ui_whole_pixel_tests
+            BrowserChrome::test_aPopupSizedGlanceRestsOnWholePixels
+            BrowserChrome::test_centredChromeRestsOnWholePixels
+            BrowserChrome::test_aSplitsHandleAndMarkRestOnWholePixels
+            BrowserChrome::test_aPinnedTabsIconRestsOnWholePixels
+            BrowserChrome::test_aSuggestionsTextRestsOnWholePixels
+            BrowserChrome::test_thePageAreaRestsOnWholePixelsBesideTheSidebar
+            BrowserChrome::test_aSplitsPanesRestOnWholePixelsAtAnOddDivider
+            BrowserChrome::test_thePageEndsOnWholePixelsBesideDeveloperTools
+        )
+        foreach(scale IN ITEMS 1.25 1.6 2)
+            add_test(NAME omaweb-ui-whole-pixels-at-${scale}
+                COMMAND omaweb-ui-tests ${omaweb_ui_whole_pixel_tests})
+            set_tests_properties(omaweb-ui-whole-pixels-at-${scale} PROPERTIES
+                ENVIRONMENT
+                    "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=${scale};DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
+            )
+        endforeach()
     endif()
 
     if(OMAWEB_BUILD_BROWSER)

@@ -19,9 +19,14 @@ cached, and archived files keep their upstream or historical formatting.
   `-Wpedantic` for first-party targets.
 - QML uses `.qmlformat.ini`, including semicolons for JavaScript statements. Qt's `qmllint` rejects
   syntax errors and the high-signal warning categories configured in `.qmllint.ini`.
-- A QML position worked out by halving, such as centring by hand, is wrapped in `Math.round`. On
-  half a pixel, borders and text are drawn soft and a page's texture splits along its diagonal
-  (#567). `anchors.centerIn` and the centre anchors round already.
+- A QML position worked out by halving, such as centring by hand, is snapped to the display's pixels
+  with `DevicePixels.snap(value, ratio)` from `src/ui/DevicePixels.mjs`, where `ratio` is the
+  window's `devicePixelRatio`. Between two pixels, borders and text are drawn soft and a page's
+  texture splits along its diagonal (#567). At a fractional scale such as 1.25 or 1.6, a whole
+  logical pixel is not always a whole pixel of the display, so `Math.round` is not enough (#571).
+  Snap only the drawn value, and snap every offset on the way to the window, since a position on
+  screen is their sum. A width the reader sets is stored in whole logical pixels. `anchors.centerIn`
+  and the centre anchors round to whole logical pixels only.
 - JavaScript uses the repository's Prettier configuration and strict equality.
 - Python follows PEP 8 with four-space indentation. Scripts must run with the supported Python 3
   interpreter and use only declared dependencies.

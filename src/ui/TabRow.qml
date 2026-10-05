@@ -2,10 +2,13 @@ import QtQuick
 import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
+import "DevicePixels.mjs" as DevicePixels
 
 Item {
     id: root
     objectName: (pinned ? "pinned-" : "tab-") + tabId
+    // The display's pixels per logical pixel, for resting on whole ones.
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
 
     required property string tabId
     required property string tabTitle
@@ -255,7 +258,8 @@ Item {
         // — the title beside it already names the site.
         visible: !root.showsAudio || root.pinned
         anchors.left: parent.left
-        anchors.leftMargin: root.pinned ? Math.round((parent.width - width) / 2) : root.chipInset
+        anchors.leftMargin: root.pinned ? DevicePixels.snap((parent.width - width) / 2, root.pixelRatio) :
+                                          root.chipInset
         anchors.verticalCenter: parent.verticalCenter
         colors: root.colors
         siteUrl: root.tabUrl

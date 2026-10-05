@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "DevicePixels.mjs" as DevicePixels
 
 // A page opened by a link that asked for a new tab, shown over the tab it came
 // from instead of as a tab of its own. The reader came for a look, and most
@@ -20,6 +21,8 @@ import qs.Commons
 FocusScope {
     id: root
     objectName: "glance"
+    // The display's pixels per logical pixel, for resting on whole ones.
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
 
     property var colors
     property string iconFontFamily
@@ -100,7 +103,7 @@ FocusScope {
     readonly property real fromHeight: fromOrigin ? origin.height : restHeight
 
     function centred(room, size) {
-        return Math.max(root.inset, Math.round((room - size) / 2));
+        return Math.max(root.inset, DevicePixels.snap((room - size) / 2, root.pixelRatio));
     }
 
     function lerp(a, b) {
@@ -205,7 +208,9 @@ FocusScope {
         opacity: root.fromOrigin ? 1 : root.arrival
         radius: 3
         color: root.colors.overlay
-        border.width: 1
+        // One logical pixel, rounded to whole pixels of the display, so the
+        // page inside it starts on one.
+        border.width: DevicePixels.snap(1, root.pixelRatio)
         border.color: root.colors.accent
         clip: true
 
@@ -314,7 +319,7 @@ FocusScope {
             id: pageHost
             objectName: "glancePageHost"
             x: panel.border.width
-            y: head.y + head.height
+            y: DevicePixels.snap(head.y + head.height, root.pixelRatio)
             width: head.width
             height: root.restHeight - y - panel.border.width
             color: root.colors.windowOpaque

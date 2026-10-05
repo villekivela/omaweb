@@ -5,6 +5,7 @@ import QtQuick.Window
 import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
+import "DevicePixels.mjs" as DevicePixels
 
 ApplicationWindow {
     id: window
@@ -62,6 +63,9 @@ ApplicationWindow {
                                                                                        * 0.5))
     readonly property real sidebarDefaultWidth: 292
     property real sidebarWidth: sidebarDefaultWidth
+    // The width the sidebar is drawn at, on the display's pixel grid, so the
+    // page area beside it starts on a whole pixel at any scale.
+    readonly property real sidebarDrawnWidth: DevicePixels.snap(sidebarWidth, devicePixelRatio)
     // Developer tools are docked to the right of the page they inspect, and the
     // reader owns that seam as they own the sidebar's. The floor is what the
     // inspector's own toolbar needs before its panels start collapsing.
@@ -1070,7 +1074,7 @@ ApplicationWindow {
         if (!window.settingsOpen && !window.historyOpen) {
             if (engineLoader.splitOnShow) {
                 regions.push(window.measureRegion("split-left", engineLoader, 0,
-                                                  engineLoader.leftPaneWidth));
+                                                  engineLoader.leftPaneDrawnWidth));
                 regions.push(window.measureRegion("split-right", engineLoader,
                                                   engineLoader.rightPaneX,
                                                   engineLoader.rightPaneWidth));
@@ -2866,8 +2870,9 @@ ApplicationWindow {
             // it, so they are what eases: a resize changes the width the reader
             // owns, and the seam follows that at once as it always has.
             property real revealed: window.sidebarCollapsed ? 0 : 1
-            readonly property real seam: chromeRow.revealed * window.sidebarWidth
-            readonly property real settledSeam: window.sidebarCollapsed ? 0 : window.sidebarWidth
+            readonly property real seam: chromeRow.revealed * window.sidebarDrawnWidth
+            readonly property real settledSeam: window.sidebarCollapsed ? 0 :
+                                                                          window.sidebarDrawnWidth
             property real peekRevealed: window.sidebarPeeked ? 1 : 0
             // The page is a webpage's viewport, so every width it is handed is
             // a layout of that page. It takes the wider of the two widths the
@@ -2916,7 +2921,7 @@ ApplicationWindow {
                 height: chromeRow.height
                 // The sidebar's own width does not change as it leaves or
                 // arrives, so the rows in it are not laid out again on the way.
-                width: window.sidebarWidth
+                width: window.sidebarDrawnWidth
                 x: chromeRow.seam - width + (window.sidebarCollapsed ? chromeRow.peekRevealed
                                                                        * width : 0)
                 visible: chromeRow.seam > 0 || (chromeRow.peekRevealed > 0 &&
@@ -3020,10 +3025,11 @@ ApplicationWindow {
             SpaceNotice {
                 id: spaceNotice
                 objectName: "spaceNotice"
-                x: Math.round(chromeRow.settledSeam + (chromeRow.width - chromeRow.settledSeam - (
-                                                           developerToolsDock.visible
-                                                           ? developerToolsDock.width : 0) - width)
-                              / 2)
+                x: DevicePixels.snap(chromeRow.settledSeam + (chromeRow.width
+                                                              - chromeRow.settledSeam - (
+                                                                  developerToolsDock.visible
+                                                                  ? developerToolsDock.width : 0)
+                                                              - width) / 2, window.devicePixelRatio)
                 z: 40
                 colors: window.colors
                 spaceName: window.windowBrowser.activeSpaceName
@@ -3262,8 +3268,9 @@ ApplicationWindow {
                 // One mark per pane: each page reports its own work, over its
                 // own half while a split is on show.
                 PageLoadingIndicator {
-                    x: Math.round(engineLoader.x + engineLoader.activePaneX + (
-                                      engineLoader.activePaneWidth - width) / 2)
+                    x: DevicePixels.snap(engineLoader.x + engineLoader.activePaneX + (
+                                             engineLoader.activePaneWidth - width) / 2,
+                                         window.devicePixelRatio)
                     anchors.top: engineLoader.top
                     anchors.topMargin: 8
                     z: 3
@@ -3277,8 +3284,9 @@ ApplicationWindow {
 
                 PageLoadingIndicator {
                     objectName: "besideLoadingIndicator"
-                    x: Math.round(engineLoader.x + engineLoader.besidePaneX + (
-                                      engineLoader.besidePaneWidth - width) / 2)
+                    x: DevicePixels.snap(engineLoader.x + engineLoader.besidePaneX + (
+                                             engineLoader.besidePaneWidth - width) / 2,
+                                         window.devicePixelRatio)
                     anchors.top: engineLoader.top
                     anchors.topMargin: 8
                     z: 3
@@ -3330,10 +3338,13 @@ ApplicationWindow {
                 DeveloperToolsDock {
                     id: developerToolsDock
                     objectName: "developerToolsDock"
-                    anchors.right: parent.right
+                    // Against the right edge, starting on a whole pixel of the
+                    // display, so the page beside it ends on one.
+                    x: DevicePixels.snap(parent.width - window.developerToolsWidth,
+                                         window.devicePixelRatio)
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: window.developerToolsWidth
+                    width: parent.width - x
                     visible: window.developerToolsOpen && !window.settingsOpen &&
                              !window.historyOpen
                     z: 4

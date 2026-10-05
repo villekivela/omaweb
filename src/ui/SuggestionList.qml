@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui as Omarchy
+import "DevicePixels.mjs" as DevicePixels
 
 // The list Omaweb draws under a focused page field to offer what could go in
 // it. The field keeps the keyboard, so nothing here takes focus: the page
@@ -13,6 +14,8 @@ import qs.Ui as Omarchy
 // it, or above it where the page has no room below.
 Omarchy.BorderSurface {
     id: root
+    // The display's pixels per logical pixel, for resting on whole ones.
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
 
     // Each row is `{value, typed}`: the value offered and the part of it the
     // reader has already typed, which is drawn regular with the rest bold, as
@@ -61,8 +64,13 @@ Omarchy.BorderSurface {
     width: Math.max(0, Math.min(Math.max(anchorRect.width, Math.min(rowsColumn.implicitWidth + contentLeftInset
                                                                     + contentRightInset, maxWidth)),
                                 boundsRect.width - 2 * edgeMargin))
-    x: Math.max(boundsRect.x + edgeMargin, Math.min(anchorRect.x, boundsRight - width - edgeMargin))
-    y: above ? anchorRect.y - height : anchorRect.y + anchorRect.height
+    // On whole pixels of the display, as the rows inside are: the field it
+    // hangs from is wherever the page put it.
+    x: DevicePixels.snap(Math.max(boundsRect.x + edgeMargin, Math.min(anchorRect.x, boundsRight
+                                                                      - width - edgeMargin)),
+                         root.pixelRatio)
+    y: DevicePixels.snap(above ? anchorRect.y - height : anchorRect.y + anchorRect.height,
+                         root.pixelRatio)
     implicitHeight: contentTopInset + rowsColumn.implicitHeight + contentBottomInset
     height: implicitHeight
     padding: Style.spacing.hairline
@@ -74,8 +82,10 @@ Omarchy.BorderSurface {
 
     Column {
         id: rowsColumn
-        x: root.contentLeftInset
-        y: root.contentTopInset
+        // The border and padding are two logical pixels, which a fractional
+        // scale puts between two of the display's.
+        x: DevicePixels.snap(root.contentLeftInset, root.pixelRatio)
+        y: DevicePixels.snap(root.contentTopInset, root.pixelRatio)
         width: root.width - root.contentLeftInset - root.contentRightInset
 
         Repeater {
@@ -137,8 +147,9 @@ Omarchy.BorderSurface {
                     anchors.right: parent.right
                     anchors.leftMargin: Style.spacing.controlPaddingX
                     anchors.rightMargin: Style.spacing.controlPaddingX
-                    y: row.detail.length > 0 ? body.y + Style.spacing.controlPaddingY : Math.round(
-                                                   body.y + (body.height - height) / 2)
+                    y: row.detail.length > 0 ? body.y + Style.spacing.controlPaddingY :
+                                               DevicePixels.snap(body.y + (body.height - height) / 2,
+                                                                 root.pixelRatio)
                     textFormat: Text.StyledText
                     text: root.markup(row.modelData)
                     color: row.current ? Style.hoverStateColor(Color.popups.text, Color.accent) :

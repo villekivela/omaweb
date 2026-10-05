@@ -3,10 +3,13 @@ import QtQuick.Controls
 import QtQuick.Shapes
 import Omaweb
 import qs.Commons
+import "DevicePixels.mjs" as DevicePixels
 
 Item {
     id: root
     objectName: "omnibar"
+    // The display's pixels per logical pixel, for resting on whole ones.
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
 
     property var colors
     property var commands
@@ -162,8 +165,10 @@ Item {
     // pixel, where the border and the text are drawn soft.
     readonly property real horizonBelowTop: 50
     readonly property real restWidth: Math.min(720, restArea.width - 32)
-    readonly property real restX: Math.round(restArea.x + (restArea.width - restWidth) / 2)
-    readonly property real restY: Math.round(restArea.y + horizonY - horizonBelowTop)
+    readonly property real restX: DevicePixels.snap(restArea.x + (restArea.width - restWidth) / 2,
+                                                    root.pixelRatio)
+    readonly property real restY: DevicePixels.snap(restArea.y + horizonY - horizonBelowTop,
+                                                    root.pixelRatio)
     // What the page area leaves under the field for the rows, keeping a
     // margin off its bottom edge.
     readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height - 2
