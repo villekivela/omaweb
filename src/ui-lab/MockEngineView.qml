@@ -555,6 +555,36 @@ Rectangle {
                                         "detail": String(realm)
                                     });
     }
+    // One request at a time, as an engine runs one for a page: each step is
+    // sent under the same id until a `closed` step ends it. A decline ends
+    // it on the next turn of the event loop, as the Qt engine does.
+    property var securityKeyTransports: ["usb"]
+    property string securityKeyRequestId: ""
+    property int nextSecurityKeyId: 0
+    property var lastSecurityKeyAnswer: ({})
+    signal securityKeyRequested(string requestId, var step)
+    function simulateSecurityKey(step) {
+        if (root.securityKeyRequestId.length === 0)
+            root.securityKeyRequestId = String(++root.nextSecurityKeyId);
+        const requestId = root.securityKeyRequestId;
+        if (step.state === "closed")
+            root.securityKeyRequestId = "";
+        const page = String(root.currentUrl);
+        const match = page.match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i);
+        root.securityKeyRequested(requestId, Object.assign({
+                                                               "site": match ? match[1] : page
+                                                           }, step));
+        return requestId;
+    }
+    function respondToSecurityKey(requestId, answer) {
+        if (requestId !== root.securityKeyRequestId)
+            return;
+        root.lastSecurityKeyAnswer = answer;
+        if (answer.action === "cancel")
+            Qt.callLater(root.simulateSecurityKey, {
+                             "state": "closed"
+                         });
+    }
     function simulateExternalProtocol(application, destination) {
         const address = String(destination);
         const scheme = address.substring(0, address.indexOf(":"));

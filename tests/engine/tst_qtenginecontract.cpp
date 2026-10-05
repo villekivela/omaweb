@@ -81,6 +81,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QtWebEngineCore/QWebEnginePage>
 #include <QtWebEngineCore/QWebEngineProfile>
 #include <QtWebEngineCore/QWebEngineScript>
+#include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
 #include <memory>
@@ -92,6 +93,33 @@ using omaweb::SpaceStorage;
 using omaweb::validateChromeBlockerContract;
 using omaweb::validateEngineBlockerContract;
 using omaweb::validateEngineViewContract;
+
+// A stand-in for QtWebEngine's WebAuth UX request, whose constructor only the
+// engine may call. It carries the properties the adapter reads and counts the
+// answers it is given, so the adapter's translation can be checked step by
+// step.
+class FakeSecurityKeyRequest final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(int state MEMBER state CONSTANT)
+    Q_PROPERTY(QStringList userNames MEMBER userNames CONSTANT)
+    Q_PROPERTY(QString relyingPartyId MEMBER relyingPartyId CONSTANT)
+    Q_PROPERTY(QVariantMap pinRequest MEMBER pinRequest CONSTANT)
+    Q_PROPERTY(int requestFailureReason MEMBER requestFailureReason CONSTANT)
+
+public:
+    int state = 0;
+    QStringList userNames;
+    QString relyingPartyId;
+    QVariantMap pinRequest;
+    int requestFailureReason = 0;
+    int cancels = 0;
+    QString pin;
+    QString account;
+
+    Q_INVOKABLE void cancel() { ++cancels; }
+    Q_INVOKABLE void setPin(const QString &value) { pin = value; }
+    Q_INVOKABLE void setSelectedAccount(const QString &value) { account = value; }
+};
 
 // A blocker that answers everything a view asks and counts the cosmetic
 // questions, so a test can tell a survey that ran from one that was skipped.
@@ -209,6 +237,9 @@ private slots:
     void qtSpaceProfilesKeepSiteStorageOnDisk();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
+    void qtTranslatesEachSecurityKeyStep_data();
+    void qtTranslatesEachSecurityKeyStep();
+    void qtAnswersASecurityKeyOutsideTheEnginesOwnCall();
     void qtKeyboardNavigationHonorsInputContracts_data();
     void qtKeyboardNavigationHonorsInputContracts();
     void qtLinkHintsOwnSingleKeyShortcuts();
@@ -1011,6 +1042,157 @@ void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()
     QVERIFY(!routesToAuxiliary(QWebEngineNewWindowRequest::InNewTab));
     QVERIFY(routesToAuxiliary(QWebEngineNewWindowRequest::InNewDialog));
     QVERIFY(!routesToAuxiliary(QWebEngineNewWindowRequest::InNewBackgroundTab));
+}
+
+using WebAuth = QWebEngineWebAuthUxRequest;
+
+void QtEngineContractTest::qtTranslatesEachSecurityKeyStep_data()
+{
+    QTest::addColumn<int>("state");
+    QTest::addColumn<QVariantMap>("pinRequest");
+    QTest::addColumn<int>("failure");
+    QTest::addColumn<QVariantMap>("expected");
+
+    const auto pin = [](WebAuth::PinEntryReason reason, WebAuth::PinEntryError error,
+                         int attempts) {
+        return QVariantMap {{QStringLiteral("reason"), static_cast<int>(reason)},
+            {QStringLiteral("error"), static_cast<int>(error)},
+            {QStringLiteral("remainingAttempts"), attempts}, {QStringLiteral("minPinLength"), 6}};
+    };
+    const auto pinStep = [](const QString &purpose, const QString &error, int attemptsLeft) {
+        return QVariantMap {{QStringLiteral("state"), QStringLiteral("pin")},
+            {QStringLiteral("pin"),
+                QVariantMap {{QStringLiteral("purpose"), purpose}, {QStringLiteral("error"), error},
+                    {QStringLiteral("attemptsLeft"), attemptsLeft},
+                    {QStringLiteral("minimumLength"), 6}}}};
+    };
+    const auto failed = [](const QString &failure) {
+        return QVariantMap {{QStringLiteral("state"), QStringLiteral("failed")},
+            {QStringLiteral("failure"), failure}};
+    };
+    const auto state = [](WebAuth::WebAuthUxState value) { return static_cast<int>(value); };
+    const auto reason = [](WebAuth::RequestFailureReason value) { return static_cast<int>(value); };
+
+    QTest::newRow("accounts") << state(WebAuth::WebAuthUxState::SelectAccount) << QVariantMap {}
+                              << 0
+                              << QVariantMap {{QStringLiteral("state"), QStringLiteral("accounts")},
+                                     {QStringLiteral("accounts"),
+                                         QVariantList {QVariantMap {{QStringLiteral("name"),
+                                             QStringLiteral("reader@key.example")}}}}};
+    QTest::newRow("a wrong PIN with attempts left")
+        << state(WebAuth::WebAuthUxState::CollectPin)
+        << pin(WebAuth::PinEntryReason::Challenge, WebAuth::PinEntryError::WrongPin, 5) << 0
+        << pinStep(QStringLiteral("unlock"), QStringLiteral("wrong"), 5);
+    QTest::newRow("a PIN to choose counts no attempts")
+        << state(WebAuth::WebAuthUxState::CollectPin)
+        << pin(WebAuth::PinEntryReason::Set, WebAuth::PinEntryError::NoError, 0) << 0
+        << pinStep(QStringLiteral("set"), QString(), -1);
+    QTest::newRow("a new PIN too short")
+        << state(WebAuth::WebAuthUxState::CollectPin)
+        << pin(WebAuth::PinEntryReason::Change, WebAuth::PinEntryError::TooShort, 0) << 0
+        << pinStep(QStringLiteral("change"), QStringLiteral("too-short"), -1);
+    QTest::newRow("touch") << state(WebAuth::WebAuthUxState::FinishTokenCollection)
+                           << QVariantMap {} << 0
+                           << QVariantMap {{QStringLiteral("state"), QStringLiteral("touch")}};
+    QTest::newRow("timed out") << state(WebAuth::WebAuthUxState::RequestFailed) << QVariantMap {}
+                               << reason(WebAuth::RequestFailureReason::Timeout)
+                               << failed(QStringLiteral("timed-out"));
+    QTest::newRow("no sign-in on the key")
+        << state(WebAuth::WebAuthUxState::RequestFailed) << QVariantMap {}
+        << reason(WebAuth::RequestFailureReason::KeyNotRegistered)
+        << failed(QStringLiteral("no-key"));
+    QTest::newRow("locked") << state(WebAuth::WebAuthUxState::RequestFailed) << QVariantMap {}
+                            << reason(WebAuth::RequestFailureReason::HardPinBlock)
+                            << failed(QStringLiteral("locked"));
+    QTest::newRow("not supported")
+        << state(WebAuth::WebAuthUxState::RequestFailed) << QVariantMap {}
+        << reason(WebAuth::RequestFailureReason::NoCommonAlgorithms)
+        << failed(QStringLiteral("not-supported"));
+    QTest::newRow("completed") << state(WebAuth::WebAuthUxState::Completed) << QVariantMap {} << 0
+                               << QVariantMap {{QStringLiteral("state"), QStringLiteral("closed")}};
+}
+
+// Each step Qt reports reaches the shell in the contract's words, naming the
+// site the key would sign in to rather than the page around it.
+void QtEngineContractTest::qtTranslatesEachSecurityKeyStep()
+{
+    QFETCH(int, state);
+    QFETCH(QVariantMap, pinRequest);
+    QFETCH(int, failure);
+    QFETCH(QVariantMap, expected);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QCOMPARE(adapter->property("securityKeyTransports").toStringList(),
+        QStringList {QStringLiteral("usb")});
+
+    FakeSecurityKeyRequest request;
+    request.state = state;
+    request.userNames = {QStringLiteral("reader@key.example")};
+    request.relyingPartyId = QStringLiteral("key.example");
+    request.pinRequest = pinRequest;
+    request.requestFailureReason = failure;
+    adapter->setProperty("pendingSecurityKeys",
+        QVariantMap {{QStringLiteral("1"), QVariant::fromValue<QObject *>(&request)}});
+
+    QSignalSpy steps(adapter.get(), SIGNAL(securityKeyRequested(QString, QVariant)));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "presentSecurityKey", Q_ARG(QVariant, QStringLiteral("1"))));
+    QCOMPARE(steps.count(), 1);
+    QCOMPARE(steps.at(0).at(0).toString(), QStringLiteral("1"));
+    auto step = steps.at(0).at(1).toMap();
+    QCOMPARE(step.take(QStringLiteral("site")).toString(), QStringLiteral("key.example"));
+    QCOMPARE(QJsonDocument::fromVariant(step), QJsonDocument::fromVariant(expected));
+}
+
+// Qt marks a request's prompt as shown only after the signal that hands it
+// over returns, so a cancel made inside it would start a second prompt for
+// the same request. A decline reaches the engine on the next turn of the
+// event loop instead, and so does the reader's own refusal on the key.
+void QtEngineContractTest::qtAnswersASecurityKeyOutsideTheEnginesOwnCall()
+{
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    FakeSecurityKeyRequest request;
+    request.state = static_cast<int>(WebAuth::WebAuthUxState::CollectPin);
+    const auto present = [&adapter, &request] {
+        adapter->setProperty("pendingSecurityKeys",
+            QVariantMap {{QStringLiteral("1"), QVariant::fromValue<QObject *>(&request)}});
+    };
+    const auto answer = [&adapter](const QVariantMap &response) {
+        return QMetaObject::invokeMethod(adapter.get(), "respondToSecurityKey",
+            Q_ARG(QVariant, QStringLiteral("1")), Q_ARG(QVariant, response));
+    };
+
+    present();
+    QVERIFY(answer({{QStringLiteral("action"), QStringLiteral("pin")},
+        {QStringLiteral("pin"), QStringLiteral("1234")}}));
+    QCOMPARE(request.pin, QStringLiteral("1234"));
+    QVERIFY(answer({{QStringLiteral("action"), QStringLiteral("account")},
+        {QStringLiteral("name"), QStringLiteral("reader@key.example")}}));
+    QCOMPARE(request.account, QStringLiteral("reader@key.example"));
+
+    QVERIFY(answer({{QStringLiteral("action"), QStringLiteral("cancel")}}));
+    QCOMPARE(request.cancels, 0);
+    QTRY_COMPARE(request.cancels, 1);
+
+    request.state = static_cast<int>(WebAuth::WebAuthUxState::RequestFailed);
+    request.requestFailureReason
+        = static_cast<int>(WebAuth::RequestFailureReason::UserConsentDenied);
+    present();
+    QSignalSpy steps(adapter.get(), SIGNAL(securityKeyRequested(QString, QVariant)));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "presentSecurityKey", Q_ARG(QVariant, QStringLiteral("1"))));
+    QCOMPARE(steps.count(), 0);
+    QCOMPARE(request.cancels, 1);
+    QTRY_COMPARE(request.cancels, 2);
 }
 
 void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
