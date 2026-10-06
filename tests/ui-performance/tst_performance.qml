@@ -62,6 +62,25 @@ TestCase {
         verify(window !== null);
         window.show();
         wait(50);
+        refreshTheContentBlocker();
+    }
+
+    // The content blocker checks its lists five seconds after it starts, and a
+    // list it fetches is compiled and swapped in on the interface thread. In a
+    // process of their own the probes start within those five seconds, and the
+    // swap held a frame in the middle of the Space switch's movements (#604).
+    // They measure the chrome at rest, so they run the check themselves and
+    // wait for every list it fetched to be in force or to have failed. A list
+    // it brought up to date is not fetched again when the timer comes. The
+    // statuses are the English ones: the harness installs no translation.
+    function refreshTheContentBlocker() {
+        const inFlight = ["updating", "validating", "compiling"];
+        contentBlocker.updateStaleSubscriptions();
+        tryVerify(function () {
+            return !contentBlocker.compiling && contentBlocker.subscriptions.every(function (list) {
+                return inFlight.indexOf(list.updateStatus) < 0;
+            });
+        }, 60000, "the content blocker's lists were still refreshing");
     }
 
     function cleanupTestCase() {

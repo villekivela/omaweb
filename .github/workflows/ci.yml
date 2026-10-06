@@ -80,7 +80,7 @@ jobs:
       - name: Check commit messages
         run: scripts/check_commit_messages.sh
 
-  # The four Arch jobs below cost between two and ten minutes each, and a change
+  # The Arch jobs below cost between one and fifteen minutes each, and a change
   # confined to prose or the website cannot break a build, so they are asked
   # rather than assumed. `scripts/source_changed.sh` is the answer and the
   # reasoning both: it prints the files it decided on, so a pull request whose
@@ -117,19 +117,38 @@ jobs:
             echo "source=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # The required check, standing for the clang build's tests, the runtime budget
+  # and the release build, which run as jobs of their own side by side. It runs
+  # whatever they did and reads their results, because GitHub skips a job whose
+  # dependency failed and a skipped required check lets a pull request merge
+  # (docs/development.md). `changes` is among them so that a gate which could
+  # not decide fails rather than skipping the build.
   arch-linux:
+    needs: [changes, arch-linux-clang, arch-linux-budget, arch-linux-release]
+    # Not `!cancelled()`: in a cancelled run that would skip the gate, which
+    # passes, where this runs it and the cancelled jobs fail it.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check every job it stands for passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: printf '%s' "$NEEDS" | scripts/check_job_results.py
+
+  # The tree under clang, against Omaweb's engine, and the test suite. ctest runs
+  # a test per processor; the tests that measure time are `RUN_SERIAL`, so each
+  # has the runner to itself while it measures (docs/development.md).
+  arch-linux-clang:
     needs: changes
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
-    # Room in /dev/shm for the page-load budget's response bodies, which
-    # Docker's 64 MiB ran out of (#600, docs/development.md). Not
-    # `--disable-dev-shm-usage`: that moves the engine's shared memory to /tmp,
-    # which is a configuration no reader runs.
+    # The engine contract's pages write their response bodies to /dev/shm, and
+    # with the suites in parallel more than one engine is running at a time.
     container:
       image: archlinux:base-devel
       options: --shm-size=2g
-    # The runtime budget's steps bring the job to 40 minutes, too close to 45.
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       CC: clang
       CXX: clang++
@@ -138,19 +157,6 @@ jobs:
         # `rust` carries cargo, which the content-blocker bootstrap needs. This
         # container ships nothing it is not told to.
         #
-        # `cage`, `wtype` and `qt6-wayland` belong to the runtime budget below:
-        # a compositor for the browser to map a window on, a key synthesiser
-        # for a compositor that has no dispatcher of its own, and the Wayland
-        # platform plugin the browser needs to talk to either. `dnsmasq` is the
-        # page-load budget's DNS server, which the test names and their CNAME
-        # chains resolve through.
-        #
-        # Cage rather than sway. Arch ships sway with `cap_sys_nice` file
-        # capabilities, and execing a file with capabilities the container
-        # cannot grant fails with EPERM before sway prints anything. Cage also
-        # is the smaller thing to ask for: one program under one compositor,
-        # which is exactly the shape of this step.
-        #
         # No `qt6-webengine`: the engine is installed from Omaweb's repository
         # below, and a stock one beside it would be the one the build found.
         # Its dependencies were also what brought a font into this image, and
@@ -158,8 +164,7 @@ jobs:
         # same font asked for by name.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-shadertools qt6-tools qt6-wayland libsecret libsodium cage wtype dnsmasq
-          gnu-free-fonts
+          qt6-shadertools qt6-tools libsecret libsodium gnu-free-fonts
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The engine Omaweb ships (ADR 0049) rather than the distribution's, so
       # that what the patch series adds is built and tested here: CNAME
@@ -169,6 +174,24 @@ jobs:
         run: |
           scripts/trust_omaweb_repository.sh
           pacman -Syu --noconfirm omaweb-qtwebengine
+      # The objects the last run on this branch or on `main` compiled, which a
+      # pull request starts from. ccache checks each against its compiler and
+      # sources, so a stale or missing cache costs time and nothing else: a new
+      # toolchain misses and builds cold.
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-clang-ci-
+      # The runner's processor beside the cache's count: GitHub's runners are
+      # several models, and a build or a measurement is read against which.
+      - name: Count this build's cache hits from zero and name the processor
+        run: |
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
+          ccache --max-size=500M
+          ccache --zero-stats
+          grep -m1 'model name' /proc/cpuinfo
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
         # unless its sandbox is turned off. Omaweb does not build or test with
@@ -195,16 +218,29 @@ jobs:
         run: scripts/check_omaweb_engine.sh build/ci
       - name: Build
         run: su builder -c 'cmake --build --preset ci'
+      - name: Report the compiler cache
+        if: ${{ !cancelled() }}
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
+      # Saved once the build is done, whether or not it passed, so a failing
+      # test still leaves the next push its objects.
+      - name: Save the compiler cache
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Test
-        run: su builder -c 'ctest --preset ci'
-      # ctest prints only failing output, so the frame-interval probes' lines
-      # are read from its log: how far inside the budget each surface runs on
-      # this runner is what a change near the ceiling is weighed against.
-      - name: Print the frame intervals
+        run: su builder -c 'ctest --preset ci --parallel "$(nproc)"'
+      # ctest prints only failing output, so the probes' lines are read from
+      # its log: the runtime probes and the frame intervals, how far inside the
+      # budget each surface runs on this runner, which is what a change near
+      # the ceiling is weighed against.
+      - name: Print the probes' numbers
+        if: ${{ !cancelled() }}
         run: |
-          grep -E 'frame-interval: |shortcut-sheet-opening: |probe [a-z-]+-(frame-interval|held-openings)' \
+          grep -E 'frame-interval: |shortcut-sheet-opening: |probe ' \
             build/ci/Testing/Temporary/LastTest.log \
-            | sed -E 's/^[A-Z!]+ +: omaweb_ui::[A-Za-z]+::[A-Za-z_]+\(\) (qml: )?//' || true
+            | sed -E 's/^[A-Z!]+ +: [A-Za-z_:]+\(\) (qml: )?//' || true
       # The engine contract skips CNAME uncloaking's test on an engine without
       # the DNS alias API, and a skip passes. ctest prints only failing
       # output, so the result is read from its log. Every result it holds for
@@ -220,10 +256,89 @@ jobs:
             echo "::error::$name did not pass" >&2
             exit 1
           fi
-      # What the browser costs at runtime, against the ceilings in
-      # `performance/budget.json`. It measures the build this job has already
-      # made, so it costs a few minutes rather than a second build.
-      #
+      - name: Publish content-blocking compatibility
+        run: |
+          echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat build/ci/content-blocking-compatibility.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  # What the browser costs at runtime, against the ceilings in
+  # `performance/budget.json`, on a runner of its own: nothing else runs in
+  # this job while it measures. It builds the browser alone from the `ci`
+  # preset, from `arch-linux-clang`'s compiler cache, which is the same
+  # compiler and flags, so the binary it measures is the one that job tests.
+  arch-linux-budget:
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    # Room in /dev/shm for the page-load budget's response bodies, which
+    # Docker's 64 MiB ran out of (#600, docs/development.md). Not
+    # `--disable-dev-shm-usage`: that moves the engine's shared memory to /tmp,
+    # which is a configuration no reader runs.
+    container:
+      image: archlinux:base-devel
+      options: --shm-size=2g
+    timeout-minutes: 30
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - name: Install toolchain
+        # As `arch-linux-clang`'s, and what the measurement needs besides.
+        # `cage`, `wtype` and `qt6-wayland` are a compositor for the browser to
+        # map a window on, a key synthesiser for a compositor that has no
+        # dispatcher of its own, and the Wayland platform plugin the browser
+        # needs to talk to either. `dnsmasq` is the page-load budget's DNS
+        # server, which the test names and their CNAME chains resolve through.
+        #
+        # Cage rather than sway. Arch ships sway with `cap_sys_nice` file
+        # capabilities, and execing a file with capabilities the container
+        # cannot grant fails with EPERM before sway prints anything. Cage also
+        # is the smaller thing to ask for: one program under one compositor,
+        # which is exactly the shape of this step.
+        run:
+          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
+          qt6-shadertools qt6-tools qt6-wayland libsecret libsodium cage wtype dnsmasq
+          gnu-free-fonts
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Omaweb's engine
+        run: |
+          scripts/trust_omaweb_repository.sh
+          pacman -Syu --noconfirm omaweb-qtwebengine
+      # Read only: `arch-linux-clang` saves the cache this restores.
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-clang-ci-
+      - name: Count this build's cache hits from zero and name the processor
+        run: |
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
+          ccache --max-size=500M
+          ccache --zero-stats
+          grep -m1 'model name' /proc/cpuinfo
+      - name: Take the build off root
+        # As in `arch-linux-clang`: Chromium refuses to start as root with its
+        # sandbox on, and Omaweb does not turn it off (ADR 0013).
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          chown -R builder "$GITHUB_WORKSPACE"
+      - name: Bootstrap content blocker
+        run: su builder -c 'scripts/bootstrap_content_blocker.sh'
+      - name: Configure
+        run:
+          su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
+          -DOMAWEB_KNOWN_EXTENSIONS=ON'
+      - name: Check the build found the patched engine
+        run: scripts/check_omaweb_engine.sh build/ci
+      # The browser and the catalogues it reads, without the test binaries.
+      - name: Build the browser
+        run: su builder -c 'cmake --build --preset ci --target omaweb-browser omaweb-translations'
+      - name: Report the compiler cache
+        if: ${{ !cancelled() }}
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
       # Process start to the window mapping, the proportional set size of the
       # process tree at rest and with Spaces open, whether a frozen Space's
       # pages are still running, what Content blocking adds to a page load,
@@ -281,12 +396,49 @@ jobs:
           # a failed job rather than a budget nobody measured.
           exit "$(cat /tmp/budget.status 2>/dev/null || echo 1)"
 
-      - name: Publish content-blocking compatibility
+  # The `release` preset, which compiles the QML into the binary rather than
+  # reading it from source, and the tests that load that form. Nothing in it
+  # depends on the `ci` build, so it runs beside it.
+  arch-linux-release:
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 30
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - name: Install toolchain
+        # As `arch-linux-clang`'s.
+        run:
+          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
+          qt6-shadertools qt6-tools libsecret libsodium gnu-free-fonts
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Omaweb's engine
         run: |
-          echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
-          echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          cat build/ci/content-blocking-compatibility.json >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          scripts/trust_omaweb_repository.sh
+          pacman -Syu --noconfirm omaweb-qtwebengine
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-clang-release-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-clang-release-
+      - name: Count this build's cache hits from zero and name the processor
+        run: |
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
+          ccache --max-size=500M
+          ccache --zero-stats
+          grep -m1 'model name' /proc/cpuinfo
+      - name: Take the build off root
+        # As in `arch-linux-clang`: Chromium refuses to start as root with its
+        # sandbox on, and Omaweb does not turn it off (ADR 0013).
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          chown -R builder "$GITHUB_WORKSPACE"
+      - name: Bootstrap content blocker
+        run: su builder -c 'scripts/bootstrap_content_blocker.sh'
       - name: Configure release resources
         run:
           su builder -c 'cmake --preset release -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
@@ -295,6 +447,15 @@ jobs:
         run: scripts/check_omaweb_engine.sh build/release
       - name: Build release
         run: su builder -c 'cmake --build --preset release'
+      - name: Report the compiler cache
+        if: ${{ !cancelled() }}
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
+      - name: Save the compiler cache
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-clang-release-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Verify compiled QML
         # The release preset compiles QML into the binary instead of loading it
         # from source, so these guard the packaged form. All are
@@ -305,7 +466,7 @@ jobs:
           su builder -c "ctest --preset release -R
           '^(omaweb-shared-qml-boundary|omaweb-qml-build-graph|omaweb-qml-load)$'"
 
-  # The same tree under the other compiler. `arch-linux` pins clang, and no
+  # The same tree under the other compiler. `arch-linux-clang` pins clang, and no
   # preset names a compiler, so the gate `docs/agents/code-style.md` asks for
   # builds with whatever the host has — which on Arch is GCC. Without this,
   # each compiler's own warnings are only ever found by whoever happens to run
@@ -316,13 +477,16 @@ jobs:
   # nothing the first does not.
   #
   # And on the distribution's `qt6-webengine` rather than Omaweb's engine, which
-  # `arch-linux` has. A build against a stock engine compiles CNAME uncloaking
+  # `arch-linux-clang` has. A build against a stock engine compiles CNAME uncloaking
   # out, and this is the job that keeps that configuration building.
   arch-linux-gcc:
     needs: changes
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
+    # As `arch-linux-clang`: the suites run in parallel, engines among them.
+    container:
+      image: archlinux:base-devel
+      options: --shm-size=2g
     timeout-minutes: 30
     env:
       CC: gcc
@@ -333,8 +497,20 @@ jobs:
           pacman -Syu --noconfirm git cmake ninja gcc ccache rust qt6-base qt6-declarative
           qt6-shadertools qt6-tools qt6-webengine libsecret libsodium
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-gcc-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-gcc-ci-
+      - name: Count this build's cache hits from zero and name the processor
+        run: |
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
+          ccache --max-size=500M
+          ccache --zero-stats
+          grep -m1 'model name' /proc/cpuinfo
       - name: Take the build off root
-        # Same reason as `arch-linux`: Chromium refuses to start as root with
+        # Same reason as `arch-linux-clang`: Chromium refuses to start as root with
         # its sandbox on, and Omaweb does not turn it off (ADR 0013).
         run: |
           useradd --create-home --shell /bin/bash builder
@@ -345,16 +521,27 @@ jobs:
         run: su builder -c 'cmake --preset ci'
       - name: Build
         run: su builder -c 'cmake --build --preset ci'
+      - name: Report the compiler cache
+        if: ${{ !cancelled() }}
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
+      - name: Save the compiler cache
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-gcc-ci-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Test
-        run: su builder -c 'ctest --preset ci'
-      # ctest prints only failing output, so the frame-interval probes' lines
-      # are read from its log: how far inside the budget each surface runs on
-      # this runner is what a change near the ceiling is weighed against.
-      - name: Print the frame intervals
+        run: su builder -c 'ctest --preset ci --parallel "$(nproc)"'
+      # ctest prints only failing output, so the probes' lines are read from
+      # its log: the runtime probes and the frame intervals, how far inside the
+      # budget each surface runs on this runner, which is what a change near
+      # the ceiling is weighed against.
+      - name: Print the probes' numbers
+        if: ${{ !cancelled() }}
         run: |
-          grep -E 'frame-interval: |shortcut-sheet-opening: |probe [a-z-]+-(frame-interval|held-openings)' \
+          grep -E 'frame-interval: |shortcut-sheet-opening: |probe ' \
             build/ci/Testing/Temporary/LastTest.log \
-            | sed -E 's/^[A-Z!]+ +: omaweb_ui::[A-Za-z]+::[A-Za-z_]+\(\) (qml: )?//' || true
+            | sed -E 's/^[A-Z!]+ +: [A-Za-z_:]+\(\) (qml: )?//' || true
 
   # The small client on its own, where a sandbox has it: Qt's base and nothing
   # else installed, so a dependency the client must not have fails the build

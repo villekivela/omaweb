@@ -28,7 +28,8 @@ fi
 
 # Inside the container, as root.
 #
-# The build is CI's `arch-linux` job, against Omaweb's own engine from the [omaweb] repository.
+# The build is CI's `arch-linux-budget` job, against Omaweb's own engine from the [omaweb]
+# repository.
 # `cage`, `wtype` and `qt6-wayland` are the runtime budget's compositor, keyboard and platform
 # plugin; `wf-recorder` and `grim` record its output and sample it; `wlr-randr` sizes it; `mesa`
 # is the GL the browser draws with; `ffmpeg` cuts and encodes the film. The fonts are the ones the

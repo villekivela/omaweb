@@ -359,9 +359,19 @@ TestCase {
         const outline = findChild(window.contentItem, "sidebar");
         wait(0);
         tryCompare(outline, "arriving", false);
-        tryCompare(engineHost, "tabNudgeX", 0);
-        tryCompare(engineHost, "tabNudgeY", 0);
+        waitForTheNudgeToRest();
         tryCompare(findChild(window.contentItem, "startPage"), "visible", false);
+    }
+
+    // The page nudge where its ease ends, at exactly nothing. `tryCompare`
+    // takes a number within 0.00001 as equal, which the ease reaches a step
+    // before its end, and a page still arriving then snaps the rest of the way
+    // under a test that has started watching it (#604).
+    function waitForTheNudgeToRest() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        tryVerify(function () {
+            return engineHost.tabNudgeX === 0 && engineHost.tabNudgeY === 0;
+        });
     }
 
     // Where the keyboard is, asked of the chrome rather than of the window's
@@ -7032,7 +7042,7 @@ TestCase {
     // Once the nudge has settled: the pane moved by no more than the nudge,
     // and the page already on show did not move at all.
     function checkThePaneArrived(arrival) {
-        tryCompare(findChild(window.contentItem, "engineLoader"), "tabNudgeX", 0);
+        waitForTheNudgeToRest();
         stopWatching(arrival.pane);
         stopWatching(arrival.pageX);
         stopWatching(arrival.pageY);
@@ -8476,7 +8486,7 @@ TestCase {
         tryCompare(engineHost, "besideEngine", engineHost.engines[rightTabId]);
         // The right pane arrives with a nudge, and in the middle of it the
         // pane stands wherever the easing has it.
-        tryCompare(engineHost, "tabNudgeX", 0);
+        waitForTheNudgeToRest();
         engineHost.setLeftPaneWidth(401);
         verifyOnWholePixels(findChild(engineHost, "splitDivider"), "the split's divider", "x");
         verifyOnWholePixels(findChild(engineHost, "splitResizer"), "the split's handle", "x");
