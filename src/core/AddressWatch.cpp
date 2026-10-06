@@ -58,4 +58,3 @@ void AddressWatch::heard(QNetworkReply *reply)
 }
 
 } // namespace omaweb
-// [DEBUG-604] A change to C++ under src/ for CI to build from its cache.
