@@ -3,7 +3,6 @@
 #include "ContentMatcher.h"
 
 #include <QDateTime>
-#include <QElapsedTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -35,26 +34,6 @@ struct KnownList {
 };
 
 namespace {
-
-// [DEBUG-623] How long the interface thread spends in each step of a refresh.
-struct DebugTimer623 {
-    explicit DebugTimer623(const char *step)
-        : what(step)
-    {
-        timer.start();
-    }
-    ~DebugTimer623()
-    {
-        const auto ms = static_cast<double>(timer.nsecsElapsed()) / 1e6;
-        if (ms >= 1.0) {
-            qInfo("[DEBUG-623] %s %.1f ms", what, ms);
-        }
-    }
-    DebugTimer623(const DebugTimer623 &) = delete;
-    DebugTimer623 &operator=(const DebugTimer623 &) = delete;
-    const char *what;
-    QElapsedTimer timer;
-};
 
     constexpr int startupUpdateDelayMilliseconds = 5000;
     // A busy page refuses hundreds of requests. Crediting each one separately
@@ -538,7 +517,6 @@ void ContentBlocker::updateSubscription(const QString &id)
 void ContentBlocker::takeFetchedList(
     const QString &id, bool failed, const QString &error, const QByteArray &list)
 {
-    const DebugTimer623 debugTimer("fetched, whole");
     auto *subscription = findSubscription(id);
     if (!subscription) {
         return;
@@ -556,7 +534,6 @@ void ContentBlocker::takeFetchedList(
     emit compilingChanged();
     auto *watcher = new QFutureWatcher<bool>(this);
     connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, id, list] {
-        const DebugTimer623 debugTimer("validated, whole");
         const auto usable = watcher->result();
         watcher->deleteLater();
         if (!usable) {
@@ -908,7 +885,6 @@ void ContentBlocker::reloadSyncedConfiguration()
 
 void ContentBlocker::save() const
 {
-    const DebugTimer623 debugTimer("save");
     QJsonArray subscriptions;
     for (const auto &subscription : m_subscriptions) {
         subscriptions.append(QJsonObject {
@@ -962,7 +938,6 @@ void ContentBlocker::recompileOn(QThreadPool &lane)
     auto *watcher = new QFutureWatcher<MatcherCompilation>(this);
     connect(
         watcher, &QFutureWatcher<MatcherCompilation>::finished, this, [this, watcher, generation] {
-            const DebugTimer623 debugTimer("compiled, whole");
             auto compilation = watcher->future().takeResult();
             watcher->deleteLater();
             --m_activeCompilations;
