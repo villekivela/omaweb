@@ -221,7 +221,7 @@ jobs:
         run: su builder -c 'cmake --build --preset ci'
       - name: Report the compiler cache
         if: ${{ !cancelled() }}
-        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
       # Saved once the build is done, whether or not it passed, so a failing
       # test still leaves the next push its objects.
       - name: Save the compiler cache
@@ -337,7 +337,7 @@ jobs:
         run: su builder -c 'cmake --build --preset ci --target omaweb-browser omaweb-translations'
       - name: Report the compiler cache
         if: ${{ !cancelled() }}
-        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
       # Process start to the window mapping, the proportional set size of the
       # process tree at rest and with Spaces open, whether a frozen Space's
       # pages are still running, what Content blocking adds to a page load,
@@ -445,7 +445,7 @@ jobs:
         run: su builder -c 'cmake --build --preset release'
       - name: Report the compiler cache
         if: ${{ !cancelled() }}
-        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
       - name: Save the compiler cache
         if: ${{ !cancelled() }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -519,7 +519,7 @@ jobs:
         run: su builder -c 'cmake --build --preset ci'
       - name: Report the compiler cache
         if: ${{ !cancelled() }}
-        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats
+        run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
       - name: Save the compiler cache
         if: ${{ !cancelled() }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
