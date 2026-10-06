@@ -1295,6 +1295,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_source_changed.py
         )
+        # The verdict CI's required `arch-linux` check gives over the jobs it
+        # stands for: a skipped job passes, a failed or cancelled one does not.
+        add_test(NAME omaweb-check-job-results
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_job_results.py
+        )
         # The engine the package depends on and the capability its build
         # reports, which v0.7.1 shipped apart (#365).
         add_test(NAME omaweb-release-pkgbuild
