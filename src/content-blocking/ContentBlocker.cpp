@@ -550,8 +550,8 @@ void ContentBlocker::takeFetchedList(
             storing->deleteLater();
             settleFetchedList(id, true, stored);
         });
-        storing->setFuture(QtConcurrent::run(&m_writer,
-            [beforeWrite = m_beforeWrite, path = listPath(id), list] {
+        storing->setFuture(
+            QtConcurrent::run(&m_writer, [beforeWrite = m_beforeWrite, path = listPath(id), list] {
                 return writeFile(beforeWrite, path, list);
             }));
     });
