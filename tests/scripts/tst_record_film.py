@@ -150,6 +150,14 @@ class FixtureServerTest(unittest.TestCase):
             self.assertIn("javascript", kind)
             self.assertIn('fetch("/beacon"', script)
 
+    def test_every_site_serves_the_end_card_with_the_install_line(self):
+        for host in ("fernwood.test", "quillstack.test"):
+            status, kind, page = self.ask(host, film.END_CARD_PATH)
+            self.assertEqual(status, 200)
+            self.assertIn("text/html", kind)
+            self.assertIn("curl -fsSL https://omaweb.app/install | sh", page)
+            self.assertIn('src="/film/report.js"', page)
+
     def test_a_sent_invoice_is_kept_and_shown_back(self):
         body = "customer=Kiln+Coffee&amount=640.00&due=31+Oct+2026&note=%3Ci%3Ethanks"
         status, _, page = self.ask("tallyhaus.test", "/invoices", body, form=True)
@@ -279,6 +287,25 @@ class BeatChecks(unittest.TestCase):
         retro, tokyo = (3, 18, 34), (19, 20, 28)
         self.assertMissed("Theme", film.expect_repainted, (200, 200, 200), (19, 21, 29),
                           retro, tokyo)
+
+    def test_link_hints_are_a_page_that_reported_its_hints_on_show(self):
+        reports = [{"host": "quillstack.test", "path": "/docs/tracing/", "hints": 0},
+                   {"host": "quillstack.test", "path": "/docs/tracing/", "hints": 14}]
+        film.expect_hints("Hints", reports, "quillstack.test")
+
+    def test_a_page_that_never_showed_its_hints_misses_the_hints_beat(self):
+        reports = [{"host": "quillstack.test", "path": "/docs/tracing/", "hints": 0},
+                   {"host": "halyard.test", "path": "/", "hints": 9}]
+        self.assertMissed("Hints", film.expect_hints, reports, "quillstack.test")
+
+    def test_a_held_space_is_pointed_at_the_middle_of_its_square(self):
+        held = {"ok": True, "x": 40, "y": 860, "width": 18, "height": 28,
+                "windowWidth": 1600, "windowHeight": 900}
+        self.assertEqual(film.hover_point("Space switch", held), (49 / 1600, 874 / 900))
+
+    def test_a_space_the_window_could_not_hold_misses_the_beat(self):
+        self.assertMissed("Space switch", film.hover_point,
+                          {"ok": False, "code": "not-found", "error": "no Space"})
 
     def test_a_frame_is_read_a_pixel_at_a_time(self):
         # Two by two, the second row blue then white.
@@ -413,6 +440,38 @@ class FilmFiles(unittest.TestCase):
                                              capture_output=True, text=True, check=True)
                     self.assertEqual(tracked.stdout, "")
 
+    def test_a_beat_with_commands_shows_its_caption_and_then_each_command(self):
+        marks = [
+            {"beat": "Theme", "start": 0.0, "end": 5.0},
+            {"beat": "Agent", "start": 5.0, "end": 13.0,
+             "lines": [{"at": 1.8, "text": "$ omaweb space new Invoices"},
+                       {"at": 3.2, "text": "$ omaweb look"}]},
+            {"beat": "End", "start": 13.0, "end": 15.5},
+        ]
+        cues = film.cues(marks)
+        position = 5.0 - film.FADE
+
+        def at(seconds):
+            return round(seconds, 3)
+
+        self.assertEqual(
+            [(cue.start, cue.end, cue.text, cue.mono) for cue in cues],
+            [(0.3, at(5.0 - film.FADE), "Your Omarchy theme reaches the whole browser", False),
+             (at(position + 0.3), at(position + 1.8), "An Agent works in a Space of its own",
+              False),
+             (at(position + 1.8), at(position + 3.2), "$ omaweb space new Invoices", True),
+             (at(position + 3.2), at(position + 8.0 - film.FADE), "$ omaweb look", True)],
+        )
+
+    def test_the_pointer_glides_between_the_places_it_was_held(self):
+        entry = {"beat": "Space switch", "start": 10.0, "end": 16.0,
+                 "pointer": [{"at": 1.5, "x": 0.5, "y": 0.5}, {"at": 2.6, "x": 0.25, "y": 1.0}]}
+        overlay = film.pointer(entry)
+        self.assertIn("enable='between(t,1.500,6.000)'", overlay)
+        self.assertIn(f"{0.5 * film.OUTPUT_MODE[0]:.5f}", overlay)
+        self.assertIn(f"{film.OUTPUT_MODE[1]:.5f}", overlay)
+        self.assertIsNone(film.pointer({"beat": "Theme", "start": 0.0, "end": 5.0}))
+
     @unittest.skipUnless(ffmpeg_can_cut_the_film(), "this ffmpeg cannot cut the film")
     def test_a_recording_is_cut_into_the_film_its_poster_and_its_captions(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -421,7 +480,7 @@ class FilmFiles(unittest.TestCase):
             # the film so that its flash check passes, cut into every beat, the Omnibar long
             # enough to hold the poster's frame.
             subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
-                            "color=c=0x202020:size={}x{}:rate={}:duration=12".format(
+                            "color=c=0x202020:size={}x{}:rate={}:duration=16".format(
                                 *film.OUTPUT_MODE, film.FPS),
                             "-c:v", "libx264", "-preset", "ultrafast", str(out / "raw.mkv")],
                            check=True)
@@ -430,6 +489,11 @@ class FilmFiles(unittest.TestCase):
                 length = 4.2 if beat.name == film.POSTER[0] else 1.4
                 marks.append({"beat": beat.name, "start": start, "end": start + length})
                 start += length
+            # The pointer the Space switch draws, and a command the Agent runs, quotes and all.
+            drawn = {entry["beat"]: entry for entry in marks}
+            drawn["Space switch"]["pointer"] = [{"at": 0.2, "x": 0.3, "y": 0.8},
+                                                {"at": 0.3, "x": 0.02, "y": 0.97}]
+            drawn["Agent"]["lines"] = [{"at": 0.8, "text": """$ omaweb do 'fill 3 "A: 50%"'"""}]
             (out / "marks.json").write_text(json.dumps(marks), encoding="utf-8")
             film.compose(out)
             for name, limit in film.BUDGET.items():
@@ -439,9 +503,10 @@ class FilmFiles(unittest.TestCase):
             self.assertEqual((out / "poster.webp").read_bytes()[8:12], b"WEBP")
             captions = (out / "captions.vtt").read_text(encoding="utf-8")
             self.assertTrue(captions.startswith("WEBVTT"))
-            self.assertEqual([line for line in captions.splitlines()
-                              if line in {beat.caption for beat in film.BEATS}],
-                             [beat.caption for beat in film.BEATS])
+            captioned = [beat.caption for beat in film.BEATS if beat.caption]
+            self.assertEqual([line for line in captions.splitlines() if line in captioned],
+                             captioned)
+            self.assertIn("""$ omaweb do 'fill 3 "A: 50%"'""", captions)
             duration = float(subprocess.run(
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                  str(out / "omaweb.mp4")], capture_output=True, text=True, check=True).stdout)

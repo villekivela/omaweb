@@ -59,6 +59,10 @@ Rectangle {
     // not taken over.
     property var agentActivity: ({})
     property var agentSpaceIds: []
+    // The Space whose name is held on show as if a pointer rested on its
+    // square. Only the introductory film's recording sets it, since the film
+    // has no pointer (Main.qml's holdSpaceNote).
+    property string heldSpaceId: ""
 
     // How wide a Space is in the footer, and the count of those left out.
     readonly property int spaceSlot: 18
@@ -340,6 +344,16 @@ Rectangle {
     readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl)
                                   === "about:blank"
+
+    // The footer's button for a Space, or null when the Space has none.
+    function spaceButton(spaceId) {
+        for (let index = 0; index < spaceRepeater.count; ++index) {
+            const button = spaceRepeater.itemAt(index);
+            if (button && button.spaceId === spaceId)
+                return button;
+        }
+        return null;
+    }
 
     signal addressRequested
     signal downloadsRequested
@@ -1352,6 +1366,7 @@ Rectangle {
                     foreground: active ? root.colors.text : root.colors.mutedText
                     accent: root.colors.accent
                     background: "transparent"
+                    hasCursor: root.heldSpaceId === spaceId
                     onClicked: root.spaceActivated(spaceId)
 
                     Rectangle {

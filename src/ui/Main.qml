@@ -1733,12 +1733,51 @@ ApplicationWindow {
         window.handAgent(tabId, words);
     }
 
+    // The introductory film has no pointer, so its recording holds a Space's
+    // name on show through the footer button's own hover state, and draws a
+    // cursor where this answers the button is. An empty id lets the name go.
+    // Only a browser built with OMAWEB_FILM_HOOKS passes the request on
+    // (scripts/record_film.py).
+    function holdSpaceNote(spaceId) {
+        const id = String(spaceId || "");
+        if (id.length === 0) {
+            sidebar.heldSpaceId = "";
+            return {
+                ok: true
+            };
+        }
+        const button = sidebar.spaceButton(id);
+        if (!button || !button.visible) {
+            return {
+                ok: false,
+                code: "not-found",
+                error: "The footer shows no Space " + id + "."
+            };
+        }
+        sidebar.heldSpaceId = id;
+        const corner = button.mapToItem(window.contentItem, 0, 0);
+        return {
+            ok: true,
+            x: corner.x,
+            y: corner.y,
+            width: button.width,
+            height: button.height,
+            windowWidth: window.contentItem.width,
+            windowHeight: window.contentItem.height
+        };
+    }
+
     // `omaweb commands` and `omaweb run` reach this window's command registry,
     // and only the ordinary window's.
     Connections {
         target: window.agentControlSource
 
         function onCommandRequested(requestId, request) {
+            if (request.verb === "film-hover") {
+                window.agentControlSource.answerCommand(requestId, window.holdSpaceNote(
+                                                            request.spaceId));
+                return;
+            }
             window.agentControlSource.answerCommand(requestId, browserCommands.answerAgent(
                                                         request));
         }

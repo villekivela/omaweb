@@ -992,12 +992,28 @@ void AgentControl::detachIdle()
 
 QJsonObject AgentControl::gate(const QString &verb) const
 {
-    static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
-        QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space new"),
-        QStringLiteral("space delete"), QStringLiteral("look"), QStringLiteral("read"),
-        QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval"),
-        QStringLiteral("console"), QStringLiteral("commands"), QStringLiteral("run"),
-        QStringLiteral("space"), QStringLiteral("focus"), QStringLiteral("dev")};
+    static const QSet<QString> verbs {
+        QStringLiteral("spaces"),
+        QStringLiteral("tabs"),
+        QStringLiteral("open"),
+        QStringLiteral("close"),
+        QStringLiteral("space new"),
+        QStringLiteral("space delete"),
+        QStringLiteral("look"),
+        QStringLiteral("read"),
+        QStringLiteral("do"),
+        QStringLiteral("shot"),
+        QStringLiteral("eval"),
+        QStringLiteral("console"),
+        QStringLiteral("commands"),
+        QStringLiteral("run"),
+        QStringLiteral("space"),
+        QStringLiteral("focus"),
+        QStringLiteral("dev"),
+#ifdef OMAWEB_FILM_HOOKS
+        QStringLiteral("film-hover"),
+#endif
+    };
     if (!verbs.contains(verb)) {
         return refusal(
             QStringLiteral("unknown-verb"), QStringLiteral("Omaweb has no verb \"%1\".").arg(verb));
@@ -1383,6 +1399,18 @@ QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &requ
         asked.insert(QStringLiteral("command"), command);
         asked.insert(QStringLiteral("argument"), position);
     }
+#ifdef OMAWEB_FILM_HOOKS
+    // The introductory film's: the window holds this Space's name on show in
+    // the footer, as a pointer resting on it would. No Space lets it go.
+    if (verb == u"film-hover") {
+        const auto named = request.value(QStringLiteral("space")).toString();
+        const auto spaceId = named.isEmpty() ? QString() : findSpace(named);
+        if (!named.isEmpty() && spaceId.isEmpty()) {
+            return noSpace(named);
+        }
+        asked.insert(QStringLiteral("spaceId"), spaceId);
+    }
+#endif
     if (!isSignalConnected(QMetaMethod::fromSignal(&AgentControl::commandRequested))) {
         return refusal(QStringLiteral("unavailable"),
             QStringLiteral("This browser has no window to run the command in."));

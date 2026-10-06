@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Records the website's introductory film from the real browser.
 
-The website opens on a film of Omaweb in use: the Omnibar, a Space switch, the sidebar hidden,
-blocking, a theme change and an Agent at work. It has to show the real browser on its real engine
-and stay true to each release, so it is recorded by this script rather than by hand.
+The website opens on a film of Omaweb in use: the Omnibar, a Space switch, split view with the
+sidebar hidden, link hints, blocking, a theme change, an Agent at work and the install line. It
+has to show the real browser on its real engine and stay true to each release, so it is recorded
+by this script rather than by hand.
 """
 
 from __future__ import annotations
@@ -48,9 +49,13 @@ SITES = (
     "pixelmint.test",  # the magazine's tracker, likewise
 )
 
+# The film's last page, which every site serves: the logo and the install line.
+END_CARD_PATH = "/film/end/"
+
 # Paths the server answers itself on every site rather than from a file: what a page reports, the
-# search engine's two endpoints, the invoice form's target and the script that does the reporting.
-SERVED_PATHS = {"/beacon", "/search", "/suggest", "/invoices", "/film/report.js"}
+# search engine's two endpoints, the invoice form's target, the script that does the reporting and
+# the end card.
+SERVED_PATHS = {"/beacon", "/search", "/suggest", "/invoices", "/film/report.js", END_CARD_PATH}
 
 
 def site_directory(host: str) -> Path:
@@ -152,6 +157,8 @@ class FixtureServer:
                 query = urllib.parse.parse_qs(address.query).get("q", [""])[0]
                 if address.path == "/film/report.js":
                     self.file(SITE_ROOT / "_film" / "report.js")
+                elif address.path == END_CARD_PATH:
+                    self.file(SITE_ROOT / "_film" / "end.html")
                 elif host == "kestrel.test" and address.path == "/suggest":
                     self.answer(200, json.dumps(suggestions(query)).encode(),
                                 "application/x-suggestions+json")
@@ -258,6 +265,24 @@ def expect_blocked(beat: str, server: FixtureServer, reports: list[dict], page_h
         raise BeatMissed(beat, f"{page_host} still drew {last.get('adsShown')} ad slots")
 
 
+def expect_hints(beat: str, reports: list[dict], host: str) -> None:
+    """A page of `host` reported link hints on show: `report.js` counts them as they come up."""
+    if not any(report.get("hints") for report in reports if report["host"] == host):
+        raise BeatMissed(beat, f"no page of {host} showed its link hints")
+
+
+def hover_point(beat: str, held: dict) -> tuple[float, float]:
+    """Where a pointer resting on the Space the window held would be, as a fraction of the window.
+
+    `held` is the window's answer to `film-hover`: the footer button's rectangle and the window's
+    size, in the same logical pixels.
+    """
+    if not held.get("ok"):
+        raise BeatMissed(beat, f"the window held no Space's name: {held.get('error', held)}")
+    return ((held["x"] + held["width"] / 2) / held["windowWidth"],
+            (held["y"] + held["height"] / 2) / held["windowHeight"])
+
+
 def expect_repainted(beat: str, before: tuple[int, int, int], after: tuple[int, int, int],
                      old: tuple[int, int, int], new: tuple[int, int, int]) -> None:
     """A sample of the chrome was nearer the old theme's colour and is now nearer the new one's.
@@ -348,10 +373,13 @@ def suggestions(query: str) -> list:
 CAPTION_LEAD = 1.5
 # The Theme beat holds the old theme longer, so the change it names is the thing watched.
 THEME_HOLD = 2.5
+# How long a command the Agent runs stays on screen before the next one is run, at the least.
+COMMAND_READ = 0.9
 
-# The film's beats, in the order they play: what the caption says and, for each moment the camera
-# moves, where it looks. A place is a fraction of the window, (left, top, width, height), so it
-# holds at any output size; `None` is the whole window. Times are seconds into the beat.
+# The film's beats, in the order they play: what the caption says, empty for none, and, for each
+# moment the camera moves, where it looks. A place is a fraction of the window, (left, top, width,
+# height), so it holds at any output size; `None` is the whole window. Times are seconds into the
+# beat.
 @dataclasses.dataclass
 class Beat:
     name: str
@@ -360,25 +388,28 @@ class Beat:
 
 
 # Where the parts the camera follows sit in the window, with the sidebar at its default width: the
-# Omnibar a little below the middle of the page, the Space dots at the foot of the sidebar, the
-# address and its blocked count at its head, and the Agent's form under the Space's notice.
+# Omnibar a little below the middle of the page, the Space squares at the foot of the sidebar with
+# the page beside them, the blocked count at the end of the address, and the Agent's form.
 OMNIBAR = (0.29, 0.28, 0.6, 0.6)
-FOOTER = (0.0, 0.62, 0.38, 0.38)
-ADDRESS = (0.0, 0.0, 0.3, 0.3)
-AGENT_TAB = (0.0, 0.0, 0.42, 0.42)
+SPACES = (0.0, 0.4, 0.6, 0.6)
+SHIELD = (0.0, 0.0, 0.22, 0.22)
 FORM = (0.32, 0.03, 0.66, 0.66)
 
 BEATS = [
     Beat("Omnibar", "One Omnibar for tabs, Spaces and search",
-         [(0.0, None), (CAPTION_LEAD + 0.2, OMNIBAR), (CAPTION_LEAD + 4.4, None)]),
-    Beat("Space switch", "Each Space keeps its own logins and tabs",
-         [(0.0, FOOTER), (CAPTION_LEAD + 1.6, None)]),
-    Beat("Sidebar", "Hide the sidebar and the page takes the window", [(0.0, None)]),
+         [(0.0, None), (CAPTION_LEAD + 0.2, OMNIBAR), (CAPTION_LEAD + 4.0, None)]),
+    # The footer stays on camera through the switch, so the Space's colour is seen to change.
+    Beat("Space switch", "Each Space keeps its own logins and tabs", [(0.0, SPACES)]),
+    Beat("Sidebar", "Split view, sidebar out of the way", [(0.0, None)]),
+    Beat("Hints", "Keyboard first: f puts a label on every link", [(0.0, None)]),
+    # Close on the count before the reload, so it is seen counting what it stops.
     Beat("Blocking", "Ads and trackers stopped before they load",
-         [(0.0, None), (CAPTION_LEAD + 2.0, ADDRESS)]),
+         [(0.0, None), (CAPTION_LEAD, SHIELD)]),
     Beat("Theme", "Your Omarchy theme reaches the whole browser", [(0.0, None)]),
+    # Each command the Agent runs takes the caption's place as it runs.
     Beat("Agent", "An Agent works in a Space of its own",
-         [(0.0, AGENT_TAB), (CAPTION_LEAD + 3.0, FORM), (CAPTION_LEAD + 11.0, None)]),
+         [(0.0, None), (CAPTION_LEAD + 1.4, FORM)]),
+    Beat("End", "", [(0.0, None)]),
 ]
 
 # The frame the page shows before the film plays: the Omnibar with its rows open.
@@ -401,6 +432,7 @@ SUGGESTION_ROW = 2
 # The tab's address as the browser reports it, which is decoded.
 SEARCH = "http://kestrel.test/search?q=" + SUGGESTION
 MAGAZINE = "http://halyard.test/2026/the-last-lighthouse-keepers/"
+END_CARD = "http://fernwood.test" + END_CARD_PATH
 INVOICE_PAGE = "http://tallyhaus.test/invoices/new/"
 INVOICE = {"customer": "Kiln Coffee", "amount": "640.00", "due": "31 Oct 2026",
            "note": "Thanks for the beans"}
@@ -596,9 +628,10 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     marks: list[dict] = []
 
     # A beat ends where its last moment on camera does, and its checks run after that, so a slow
-    # answer is cut out of the film rather than held on screen.
-    def mark(beat: Beat, start: float, end: float) -> None:
-        marks.append({"beat": beat.name, "start": start, "end": end})
+    # answer is cut out of the film rather than held on screen. What the edit draws over a beat,
+    # the pointer and the Agent's commands, comes with it.
+    def mark(beat: Beat, start: float, end: float, **drawn) -> None:
+        marks.append({"beat": beat.name, "start": start, "end": end, **drawn})
         log(f"{beat.name}: {start:.1f}s to {end:.1f}s")
 
     beats = {beat.name: beat for beat in BEATS}
@@ -651,31 +684,74 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     time.sleep(CAPTION_LEAD)
     keys("Primary+l", settle=0.6)
     type_text(TYPED)
-    time.sleep(2.2)
+    time.sleep(1.8)
     keys(*["Down"] * SUGGESTION_ROW, settle=0.5)
     # The results, a moment on screen before the cut.
-    keys("Return", settle=LOAD_SETTLE + 1.4)
+    keys("Return", settle=LOAD_SETTLE + 0.4)
     end = recorder.now()
     expect_asked(beat.name, server, "kestrel.test", f"/suggest?q={TYPED}")
     expect_current_tab(beat.name, answer(beat.name, browser, "tabs", "--space", "Personal"),
                        SEARCH)
     mark(beat, start, end)
 
+    # The pointer rests on each Space's square in turn, and the square names its Space, then the
+    # reader switches to the one it rests on. The recording has no pointer, so the window holds
+    # each name on show and the edit draws the pointer where the window says the square is.
     beat = beats["Space switch"]
+
+    def hold(space: str = "") -> tuple[float, float] | None:
+        if not space:
+            expect_ran(beat.name, omaweb(browser, "film-hover"))
+            return None
+        return hover_point(beat.name, answer(beat.name, browser, "film-hover", space))
+
+    # Off camera: where each square is. The squares do not move while the reader stays.
+    personal, work = hold("Personal"), hold("Work")
+    hold()
+    moves = []
+
+    def glide(to: tuple[float, float]) -> None:
+        moves.append({"at": round(recorder.now() - start, 3), "x": to[0], "y": to[1]})
+
     start = recorder.now()
     time.sleep(CAPTION_LEAD)
-    keys("Primary+2", settle=3.4)
+    # In from the page above Personal's square, then onto it.
+    glide((personal[0] + 0.06, personal[1] - 0.14))
+    glide(personal)
+    time.sleep(MOVE)
+    hold("Personal")
+    time.sleep(1.0)
+    hold()
+    glide(work)
+    time.sleep(MOVE)
+    hold("Work")
+    time.sleep(0.9)
+    keys("Primary+2", settle=1.8)
+    hold()
     end = recorder.now()
     expect_space_on_show(beat.name, answer(beat.name, browser, "spaces"), "Work")
-    mark(beat, start, end)
+    mark(beat, start, end, pointer=moves)
 
     beat = beats["Sidebar"]
     before = server.reports()
     start = recorder.now()
     time.sleep(CAPTION_LEAD)
-    keys("Primary+b", settle=3.8)
+    keys("Primary+b", settle=3.0)
     end = recorder.now()
     expect_wider(beat.name, before, server.reports(), "quillstack.test")
+    mark(beat, start, end)
+
+    # Off camera: the keyboard put in the page, which is where `f` is a page's key.
+    keys("Primary+Shift+e", settle=0.4)
+
+    beat = beats["Hints"]
+    since = len(server.reports())
+    start = recorder.now()
+    time.sleep(CAPTION_LEAD)
+    keys("f", settle=2.2)
+    end = recorder.now()
+    keys("Escape")
+    expect_hints(beat.name, server.reports()[since:], "quillstack.test")
     mark(beat, start, end)
 
     # Off camera: the sidebar back, and the magazine on show in Personal.
@@ -683,14 +759,16 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     expect_ran("Stage", omaweb(browser, "focus", MAGAZINE))
     time.sleep(LOAD_SETTLE)
 
+    # The magazine as it stands, its ad slots empty, then the camera on the blocked count, and the
+    # page loaded again under it so the count is seen to climb.
     beat = beats["Blocking"]
     since = len(server.reports())
     start = recorder.now()
-    time.sleep(CAPTION_LEAD)
+    time.sleep(CAPTION_LEAD + MOVE + 0.2)
     expect_ran(beat.name, omaweb(browser, "run", "reload"))
     path = urllib.parse.urlsplit(MAGAZINE).path
     wait_for(beat.name, "the magazine to load", reported(server, "halyard.test", path, since))
-    time.sleep(5.0)
+    time.sleep(2.4)
     end = recorder.now()
     expect_blocked(beat.name, server, server.reports()[since:], "halyard.test", AD_HOSTS)
     mark(beat, start, end)
@@ -703,10 +781,11 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     sample = (int(OUTPUT_MODE[0] * 0.01), int(OUTPUT_MODE[1] * 0.5))
     was = pixel(frame(), *sample)
     start = recorder.now()
-    # Long enough to read the caption over the old theme, so the change it names comes after it.
+    # Long enough to read the caption over the old theme, so the change it names comes after it,
+    # on the same frame.
     time.sleep(THEME_HOLD)
     write_theme("tokyo-night", config)
-    time.sleep(4.6)
+    time.sleep(3.0)
     end = recorder.now()
     expect_repainted(beat.name, was, pixel(frame(), *sample),
                      theme_colour("retro-82", "dark_background"),
@@ -716,27 +795,39 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     # Off camera: the new tab put away unopened.
     keys("Escape")
 
+    # Each command the Agent runs is put on screen as it runs it, in place of the caption.
     beat = beats["Agent"]
+    lines = []
+
+    def runs(*command: str) -> None:
+        lines.append({"at": round(recorder.now() - start, 3), "text": "$ " + " ".join(command)})
+
     start = recorder.now()
     time.sleep(CAPTION_LEAD)
+    runs("omaweb", "space", "new", "Invoices")
     created = omaweb(browser, "space", "new", "Invoices", name=AGENT)
     expect_ran(beat.name, created)
     space = created.stdout.strip()
     expect_ran(beat.name, omaweb(browser, "space", space))
     expect_space_on_show(beat.name, answer(beat.name, browser, "spaces"), "Invoices")
+    time.sleep(COMMAND_READ)
+    runs("omaweb", "open", INVOICE_PAGE)
     opened = omaweb(browser, "open", INVOICE_PAGE, "--space", space, name=AGENT)
     expect_ran(beat.name, opened)
     tab = opened.stdout.strip()
     # An Agent's tab never takes the reader's focus, so the reader selects it to watch, and rests
     # the keyboard in the sidebar: an Agent waits while the reader's keyboard is in its page.
     expect_ran(beat.name, omaweb(browser, "focus", tab))
-    keys("Primary+e")
+    keys("Primary+e", settle=0)
     wait_for(beat.name, "the invoice form to load",
              reported(server, "tallyhaus.test", urllib.parse.urlsplit(INVOICE_PAGE).path))
-    time.sleep(1.0)
+    time.sleep(COMMAND_READ)
+    runs("omaweb", "look")
     look = answer(beat.name, browser, "look", "--tab", tab, name=AGENT)["look"]
-    # Sent with Enter from the last field, as a person would: a click waits while the reader is
-    # in Omaweb's own controls, and here the reader is in the sidebar.
+    time.sleep(COMMAND_READ)
+    # One batch, as the skill teaches, sent with Enter from the last field as a person would: a
+    # click waits while the reader is in Omaweb's own controls, and here the reader is in the
+    # sidebar.
     steps = [
         f'select {target(beat.name, look, "Customer")} "{INVOICE["customer"]}"',
         f'fill {target(beat.name, look, "Amount")} {INVOICE["amount"]}',
@@ -744,12 +835,25 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
         f'fill {target(beat.name, look, "Due date")} "{INVOICE["due"]}"',
         "press Enter",
     ]
-    for step in steps:
-        expect_ran(beat.name, omaweb(browser, "do", step, "--tab", tab, name=AGENT))
-        time.sleep(1.4)
-    time.sleep(2.6)
+    runs("omaweb", "do", *(f"'{step}'" for step in steps[:2]), "…")
+    expect_ran(beat.name, omaweb(browser, "do", *steps, "--tab", tab, name=AGENT))
+    time.sleep(1.4)
     end = recorder.now()
     expect_invoice(beat.name, server, INVOICE)
+    mark(beat, start, end, lines=lines)
+
+    # Off camera: the end card in a tab of the reader's own, with the sidebar out of the way.
+    expect_ran("Stage", omaweb(browser, "open", END_CARD, "--space", "Personal", "--new"))
+    expect_ran("Stage", omaweb(browser, "space", "Personal"))
+    expect_ran("Stage", omaweb(browser, "focus", END_CARD))
+    keys("Primary+b")
+    wait_for("Stage", "the end card to load", reported(server, "fernwood.test", END_CARD_PATH))
+    time.sleep(LOAD_SETTLE)
+
+    beat = beats["End"]
+    start = recorder.now()
+    time.sleep(2.6)
+    end = recorder.now()
     mark(beat, start, end)
     return marks
 
@@ -837,6 +941,67 @@ def camera(beat: Beat) -> str:
             f":s={FILM_SIZE[0]}x{FILM_SIZE[1]}")
 
 
+# The pointer drawn over the Space switch, whose tip is its top left corner. The recording has no
+# pointer of its own, so the window holds a Space's name on show and this is drawn where the
+# window says the Space's square is. It is sized for the recording's pixels, before the camera.
+POINTER = ROOT / "film" / "pointer.png"
+
+
+def pointer(entry: dict) -> str | None:
+    """The overlay filter that draws the pointer over a beat, or `None` for a beat without one.
+
+    `entry["pointer"]` lists where it moves, each a time into the beat and a fraction of the
+    window. It comes in at the first and glides to each next one, and stays to the beat's end.
+    """
+    moves = entry.get("pointer")
+    if not moves:
+        return None
+    x = eased([(move["at"], move["x"] * OUTPUT_MODE[0]) for move in moves], "t")
+    y = eased([(move["at"], move["y"] * OUTPUT_MODE[1]) for move in moves], "t")
+    length = entry["end"] - entry["start"]
+    return (f"overlay=x='{x}':y='{y}'"
+            f":enable='between(t,{moves[0]['at']:.3f},{length:.3f})'")
+
+
+@dataclasses.dataclass
+class Cue:
+    """A line of text burned into the film: a beat's caption, or a command an Agent ran."""
+    start: float
+    end: float
+    text: str
+    mono: bool
+
+
+def positions(marks: list[dict]) -> list[float]:
+    """Where each beat starts in the film. Each overlaps the one before it by the fade."""
+    starts, position = [], 0.0
+    for entry in marks:
+        starts.append(position)
+        position += entry["end"] - entry["start"] - FADE
+    return starts
+
+
+def cues(marks: list[dict]) -> list[Cue]:
+    """Every line the film shows, in order, timed in the film.
+
+    A beat's caption comes in 0.3 s after the beat does. A command the beat lists under `lines`
+    takes the caption's place at the time it was run, and the last line stays until the beat
+    fades. A beat without a caption shows nothing.
+    """
+    beats = {beat.name: beat for beat in BEATS}
+    shown = []
+    for entry, position in zip(marks, positions(marks)):
+        caption = beats[entry["beat"]].caption
+        if not caption:
+            continue
+        end = position + entry["end"] - entry["start"] - FADE
+        lines = [(position + 0.3, caption, False)] + [
+            (position + line["at"], line["text"], True) for line in entry.get("lines", [])]
+        for (start, text, mono), following in zip(lines, lines[1:] + [(end, "", False)]):
+            shown.append(Cue(round(start, 3), round(following[0], 3), text, mono))
+    return shown
+
+
 def timestamp(seconds: float) -> str:
     minutes, seconds = divmod(seconds, 60)
     return f"{int(minutes):02d}:{seconds:06.3f}"
@@ -846,47 +1011,63 @@ def compose(out: Path) -> None:
     """Cuts the raw recording to its beats, follows each beat's focus, and captions it."""
     marks = json.loads((out / "marks.json").read_text(encoding="utf-8"))
     beats = {beat.name: beat for beat in BEATS}
-    font = ROOT / "website" / "assets" / "fonts" / "Tomorrow-SemiBold.woff2"
-    chains, cues = [], []
-    position = 0.0
+    fonts = ROOT / "website" / "assets" / "fonts"
+    font = {False: fonts / "Tomorrow-SemiBold.woff2", True: fonts / "IoskeleyMono-Medium.woff2"}
+    starts = positions(marks)
+    pointed = [entry for entry in marks if pointer(entry)]
+    chains = []
+    # One pointer image, split for each beat that draws it.
+    if pointed:
+        chains.append(f"[1:v]split={len(pointed)}"
+                      + "".join(f"[p{index}]" for index in range(len(pointed))))
     for index, entry in enumerate(marks):
         beat = beats[entry["beat"]]
-        length = entry["end"] - entry["start"]
-        chains.append(
-            f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},setpts=PTS-STARTPTS,"
-            f"{camera(beat)},setsar=1,format=yuv420p[b{index}]")
-        cues.append((position + 0.3, position + length - FADE, beat.caption, beat.name, position))
-        position += length - FADE
+        trimmed = (f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},"
+                   "setpts=PTS-STARTPTS")
+        drawn = pointer(entry)
+        if drawn:
+            chains.append(f"{trimmed}[r{index}]")
+            trimmed = f"[r{index}][p{pointed.index(entry)}]{drawn}"
+        chains.append(f"{trimmed},{camera(beat)},setsar=1,format=yuv420p[b{index}]")
     joined = "[b0]"
     for index in range(1, len(marks)):
-        offset = cues[index][4]
         chains.append(f"{joined}[b{index}]xfade=transition=fade:duration={FADE}"
-                      f":offset={offset:.3f}[j{index}]")
+                      f":offset={starts[index]:.3f}[j{index}]")
         joined = f"[j{index}]"
-    captions = []
-    for start, end, text, _, _ in cues:
-        alpha = (f"if(lt(t,{start + 0.3:.3f}),(t-{start:.3f})/0.3,"
-                 f"if(gt(t,{end - 0.3:.3f}),({end:.3f}-t)/0.3,1))")
-        captions.append(
-            f"drawtext=fontfile='{font}':text='{text}':fontsize=46:fontcolor=white"
+    # Each line is read from a file, so a command's quotes and colons reach the film as typed.
+    lines = out / "lines"
+    shutil.rmtree(lines, ignore_errors=True)
+    lines.mkdir()
+    shown = cues(marks)
+    drawn = []
+    for index, cue in enumerate(shown):
+        (lines / f"{index}.txt").write_text(cue.text, encoding="utf-8")
+        alpha = (f"if(lt(t,{cue.start + 0.3:.3f}),(t-{cue.start:.3f})/0.3,"
+                 f"if(gt(t,{cue.end - 0.3:.3f}),({cue.end:.3f}-t)/0.3,1))")
+        size = 40 if cue.mono else 46
+        drawn.append(
+            f"drawtext=fontfile='{font[cue.mono]}':textfile='{lines / f'{index}.txt'}'"
+            f":expansion=none:fontsize={size}:fontcolor=white"
             f":box=1:boxcolor=0x05182e@0.82:boxborderw=22|34:x=(w-text_w)/2:y=h-text_h-84"
-            f":alpha='{alpha}':enable='between(t,{start:.3f},{end:.3f})'")
-    chains.append(f"{joined}{','.join(captions)}[film]")
+            f":alpha='{alpha}':enable='between(t,{cue.start:.3f},{cue.end:.3f})'")
+    chains.append(f"{joined}{','.join(drawn) or 'null'}[film]")
     master = out / "master.mkv"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out / "raw.mkv"),
+    pointer_input = ["-i", str(POINTER)] if pointed else []
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out / "raw.mkv"), *pointer_input,
                     "-filter_complex", ";".join(chains), "-map", "[film]", "-an",
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", str(master)],
                    check=True)
     encode(out, master)
     expect_no_flash("Film", out / "omaweb.mp4")
     poster_beat, poster_at = POSTER
-    poster = next(cue for cue in cues if cue[3] == poster_beat)[4] + poster_at
+    poster = next(start for entry, start in zip(marks, starts)
+                  if entry["beat"] == poster_beat) + poster_at
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{poster:.3f}", "-i", str(master),
                     "-frames:v", "1", "-c:v", "libwebp", "-quality", "80",
                     str(out / "poster.webp")], check=True)
     vtt = ["WEBVTT", ""]
-    for start, end, text, _, _ in cues:
-        vtt += [f"{timestamp(start)} --> {timestamp(end)}", text, ""]
+    for cue in shown:
+        vtt += [f"{timestamp(cue.start)} --> {timestamp(cue.end)}", cue.text, ""]
     (out / "captions.vtt").write_text("\n".join(vtt), encoding="utf-8")
     expect_within("Film", [out / name for name in BUDGET], sum(BUDGET.values()))
     for name, limit in BUDGET.items():

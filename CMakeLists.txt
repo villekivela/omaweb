@@ -27,6 +27,14 @@ option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sy
 # engine, turns this on; every other build leaves the capability unreported, so
 # the surfaces are absent rather than dead.
 option(OMAWEB_KNOWN_EXTENSIONS "Report that the engine can host a Known extension" OFF)
+# The introductory film is recorded without a pointer, so its build takes one
+# more verb, `film-hover`, which holds a Space's name on show in the footer as
+# a pointer resting on it would (scripts/record_film.py). Only
+# scripts/record_film.sh turns it on; a browser built to ship has no such verb.
+option(OMAWEB_FILM_HOOKS "Take the verb the introductory film's recording needs" OFF)
+if(OMAWEB_FILM_HOOKS)
+    add_compile_definitions(OMAWEB_FILM_HOOKS)
+endif()
 set(OMAWEB_GITHUB_APP_CLIENT_ID "Iv23liYr7TPLsmgsxLfl" CACHE STRING
     "Public client ID of the Omaweb GitHub App")
 set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync" CACHE STRING

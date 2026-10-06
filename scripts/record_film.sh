@@ -52,7 +52,9 @@ useradd --create-home --shell /bin/bash builder
 chown -R builder /src
 chmod 0777 /film
 su builder -c 'scripts/bootstrap_content_blocker.sh'
-su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb'
+# The film's build takes the one verb its recording needs, `film-hover`, which no shipped build has.
+su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb \
+    -DOMAWEB_FILM_HOOKS=ON'
 scripts/check_omaweb_engine.sh build/ci
 su builder -c 'cmake --build --preset ci --target omaweb'
 

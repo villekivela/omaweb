@@ -175,6 +175,17 @@ namespace {
                 .maximumPositionals = 1,
                 .positionalField = space};
         }
+#ifdef OMAWEB_FILM_HOOKS
+        // The introductory film's: the Space whose name to hold on show, or
+        // none to let it go (CMakeLists.txt's OMAWEB_FILM_HOOKS).
+        if (verb == u"film-hover") {
+            return {.valued = {},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 1,
+                .positionalField = space};
+        }
+#endif
         return {.valued = {},
             .flags = {},
             .minimumPositionals = 1,
@@ -533,12 +544,26 @@ int agentAnswerTimeoutMs(const QJsonObject &request) { return answerTimeoutFor(r
 
 bool isAgentCommand(const QStringList &arguments)
 {
-    static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
-        QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space"),
-        QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("do"),
-        QStringLiteral("shot"), QStringLiteral("eval"), QStringLiteral("console"),
-        QStringLiteral("commands"), QStringLiteral("run"), QStringLiteral("focus"),
-        QStringLiteral("dev")};
+    static const QSet<QString> verbs {
+        QStringLiteral("spaces"),
+        QStringLiteral("tabs"),
+        QStringLiteral("open"),
+        QStringLiteral("close"),
+        QStringLiteral("space"),
+        QStringLiteral("look"),
+        QStringLiteral("read"),
+        QStringLiteral("do"),
+        QStringLiteral("shot"),
+        QStringLiteral("eval"),
+        QStringLiteral("console"),
+        QStringLiteral("commands"),
+        QStringLiteral("run"),
+        QStringLiteral("focus"),
+        QStringLiteral("dev"),
+#ifdef OMAWEB_FILM_HOOKS
+        QStringLiteral("film-hover"),
+#endif
+    };
     return arguments.size() > 1 && verbs.contains(arguments.at(1));
 }
 
