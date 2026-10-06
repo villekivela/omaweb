@@ -415,36 +415,48 @@ class RequireDnsTest(unittest.TestCase):
 
 
 class SharedMemoryTest(unittest.TestCase):
-    """A /dev/shm too small for the page's response bodies fails the run before a browser starts.
+    """A /dev/shm without room for the page's response bodies fails the run before a browser starts.
 
-    Each response body is written into a data pipe of 2 MiB in /dev/shm, and Docker gives a
-    container 64 MiB of it. On CI's runner the worst case's forty images then ran it out, and the
-    engine cancelled the last of them as their answers arrived (#600).
+    Docker's default of 64 MiB is what cut CI's loads short (#600).
     """
 
-    def measure(self, mebibytes):
-        filesystem = os.statvfs_result((4096, 4096, mebibytes * 256, mebibytes * 256,
-                                        mebibytes * 256, 0, 0, 0, 0, 255))
-        with mock.patch.object(runtime.os, "statvfs", return_value=filesystem) as statvfs, \
-                mock.patch.object(runtime, "machine_serves_zone", return_value=True), \
+    @staticmethod
+    def shared_memory(size, free):
+        """A statvfs answer for a /dev/shm of `size` MiB with `free` MiB of it available."""
+        pages = 256
+        return os.statvfs_result((4096, 4096, size * pages, free * pages, free * pages,
+                                  0, 0, 0, 0, 255))
+
+    def measure(self, statvfs, private=False):
+        with mock.patch.object(runtime.os, "statvfs", **statvfs) as read, \
+                mock.patch.object(runtime, "machine_serves_zone", return_value=not private), \
+                mock.patch.object(runtime.shutil, "which", return_value="/usr/bin/tool"), \
+                mock.patch.object(runtime, "in_child", return_value={}) as child, \
                 mock.patch.object(runtime, "run_pageload", return_value={}) as run:
             runtime.measure_pageload("build/dev/omaweb", require_dns=True)
-        statvfs.assert_called_with("/dev/shm")
-        return run
+        if "return_value" in statvfs:
+            read.assert_called_with("/dev/shm")
+        return child if private else run
 
     def test_dockers_default_fails_the_run_and_names_the_option(self):
-        with self.assertRaisesRegex(runtime.MeasurementFailed, "64 MiB.*--shm-size"):
-            self.measure(64)
+        with self.assertRaisesRegex(runtime.MeasurementFailed, "64 MiB free.*--shm-size"):
+            self.measure({"return_value": self.shared_memory(64, 64)})
+
+    def test_a_large_dev_shm_that_is_mostly_taken_fails_the_run(self):
+        with self.assertRaisesRegex(runtime.MeasurementFailed, "40 MiB free"):
+            self.measure({"return_value": self.shared_memory(2048, 40)})
+
+    def test_the_private_network_checks_before_it_starts_its_child(self):
+        with self.assertRaises(runtime.MeasurementFailed):
+            self.measure({"return_value": self.shared_memory(64, 64)}, private=True)
 
     def test_a_desktops_share_of_its_memory_measures(self):
-        self.measure(8192).assert_called_once()
+        self.measure({"return_value": self.shared_memory(8192, 8000)}).assert_called_once()
+        self.measure({"return_value": self.shared_memory(8192, 8000)},
+                     private=True).assert_called_once()
 
     def test_a_machine_without_dev_shm_measures(self):
-        with mock.patch.object(runtime.os, "statvfs", side_effect=FileNotFoundError), \
-                mock.patch.object(runtime, "machine_serves_zone", return_value=True), \
-                mock.patch.object(runtime, "run_pageload", return_value={}) as run:
-            runtime.measure_pageload("build/dev/omaweb", require_dns=True)
-        run.assert_called_once()
+        self.measure({"side_effect": FileNotFoundError}).assert_called_once()
 
 
 if __name__ == "__main__":

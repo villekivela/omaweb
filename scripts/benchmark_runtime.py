@@ -293,11 +293,12 @@ PAGELOAD_TOOLS = {
     "unshare": "running the browser as its own user rather than as root",
 }
 
-# The least /dev/shm a run may have. The engine writes each response body into a data pipe of
-# 2 MiB there, and the worst case's forty images can all be in flight at once: a run with room to
-# spare peaked at 74 MiB. Docker gives a container 64 MiB, and there the engine cancelled the last
-# images of a load as their answers arrived, because no pipe could be made for them (#600). A
-# desktop's /dev/shm is half its memory.
+# The least free /dev/shm a run may start with. The engine writes each response body into a data
+# pipe of 2 MiB there, and the worst case's forty images can all be in flight at once: a run with
+# room to spare peaked at 74 MiB. Docker gives a container 64 MiB, and there the engine cancelled
+# the last images of a load as their answers arrived, because no pipe could be made for them
+# (#600). The floor is about three times that peak, so a slower renderer that holds its pipes a
+# little longer still has room; a desktop's /dev/shm is half its memory.
 PAGELOAD_SHARED_MEMORY_MEBIBYTES = 256
 
 
@@ -1218,10 +1219,11 @@ class PageLoadSite:
 
     def page(self, number: int) -> bytes:
         load = self.plan[number]
-        # CORS mode rather than no-cors, which the ceilings were recorded with. On CI's runner the
-        # engine cancelled no-cors image requests as their answers arrived, some forty a run in
-        # both modes, and CORS-mode requests about three. The CORS-mode ones were /dev/shm too
-        # small for their response bodies (#600); no-cors has not been measured since.
+        # CORS mode rather than no-cors: the ceilings were recorded in CORS mode. On CI's runner
+        # the engine cancelled no-cors image requests as their answers arrived, some forty a run
+        # in both modes, and CORS-mode requests about three. The CORS-mode ones were cancelled
+        # because /dev/shm had no room for their response bodies (#600); no-cors has not been
+        # measured since.
         images = "\n".join(
             f'<img src="{with_port(image, self.port)}" crossorigin="anonymous" width="16" '
             'height="16" alt="">'
@@ -1613,21 +1615,21 @@ def machine_serves_zone() -> bool:
 
 
 def check_shared_memory() -> None:
-    """Fails a run whose /dev/shm is too small for the page's response bodies to be in flight.
+    """Fails a run that starts without room in /dev/shm for the page's response bodies.
 
-    A load short of images there is the machine's limit rather than the engine's behaviour, and the
-    spares would hide it until they ran out. A machine with no /dev/shm keeps its shared memory
-    elsewhere and is measured.
+    A failure rather than a skip: the measurement would run, and the loads it cut short are the
+    machine's limit rather than the engine's behaviour, which the spares would hide until they ran
+    out. A machine with no /dev/shm keeps its shared memory elsewhere and is measured.
     """
     try:
-        filesystem = os.statvfs("/dev/shm")
+        shared = os.statvfs("/dev/shm")
     except OSError:
         return
-    mebibytes = filesystem.f_blocks * filesystem.f_frsize // (1024 * 1024)
-    if mebibytes < PAGELOAD_SHARED_MEMORY_MEBIBYTES:
+    free = shared.f_bavail * shared.f_frsize / 1024 / KIB_PER_MIB
+    if free < PAGELOAD_SHARED_MEMORY_MEBIBYTES:
         raise MeasurementFailed(
-            f"/dev/shm is {mebibytes} MiB, and the page's response bodies need "
-            f"{PAGELOAD_SHARED_MEMORY_MEBIBYTES} MiB of it: give the container more with "
+            f"/dev/shm has {free:.0f} MiB free, and a run wants {PAGELOAD_SHARED_MEMORY_MEBIBYTES} "
+            "MiB for the response bodies it has in flight: give the container more with "
             "--shm-size")
 
 

@@ -121,11 +121,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
-    # A desktop's /dev/shm rather than Docker's 64 MiB. The engine writes each
-    # response body into a 2 MiB data pipe there, and the page-load budget's
-    # forty images in flight at once ran 64 MiB out: the engine cancelled the
-    # last of them as their answers arrived (#600). `--disable-dev-shm-usage`
-    # would move the pipes to /tmp, which is a different engine to measure.
+    # Room in /dev/shm for the page-load budget's response bodies, which
+    # Docker's 64 MiB ran out of (#600, docs/development.md). Not
+    # `--disable-dev-shm-usage`: that moves the engine's shared memory to /tmp,
+    # which is a configuration no reader runs.
     container:
       image: archlinux:base-devel
       options: --shm-size=2g
