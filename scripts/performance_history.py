@@ -24,6 +24,7 @@ import platform
 import re
 import shutil
 import statistics
+import struct
 import subprocess
 from pathlib import Path
 
@@ -138,6 +139,53 @@ def linked_engine(executable: str) -> str:
     return ""
 
 
+def elf_comments(path: str) -> list[str]:
+    """The strings in an ELF file's `.comment` section, where each compiler and linker that made
+    it signs its name, or none for a file that is not a 64-bit little-endian ELF.
+
+    Read by seeking rather than whole, because the engine library is hundreds of megabytes.
+    """
+    try:
+        with open(path, "rb") as handle:
+            header = handle.read(64)
+            if header[:6] != b"\x7fELF\x02\x01":
+                return []
+            table, = struct.unpack_from("<Q", header, 0x28)
+            entry_size, count, names_index = struct.unpack_from("<HHH", header, 0x3A)
+
+            def section(index: int) -> tuple:
+                handle.seek(table + index * entry_size)
+                name, _, _, _, offset, size = struct.unpack("<IIQQQQ", handle.read(40))
+                return name, offset, size
+
+            _, names_offset, names_size = section(names_index)
+            handle.seek(names_offset)
+            names = handle.read(names_size)
+            for index in range(count):
+                name, offset, size = section(index)
+                if names[name:names.find(b"\0", name)] == b".comment":
+                    handle.seek(offset)
+                    return [text.decode(errors="replace")
+                            for text in handle.read(size).split(b"\0") if text]
+    except (OSError, struct.error):
+        pass
+    return []
+
+
+def engine_toolchain(library: str) -> str:
+    """The compiler the engine library was built with, `clang` or `gcc`, read off the library.
+
+    The same package version has been built with both (#575), so its version cannot say. A clang
+    build carries GCC's signature too, from the C runtime objects it links, so clang's decides.
+    """
+    comments = elf_comments(library)
+    if any(text.startswith("clang version") for text in comments):
+        return "clang"
+    if any(text.startswith("GCC:") for text in comments):
+        return "gcc"
+    return ""
+
+
 def describe_engine(executable: str, library: str = "") -> dict:
     """The engine a browser runs on: its library, the package that owns it, and its versions.
 
@@ -153,6 +201,7 @@ def describe_engine(executable: str, library: str = "") -> dict:
         "version": package_version,
         "qtwebengine": versions.get("qtwebengine", ""),
         "chromium": versions.get("chromium", ""),
+        "toolchain": engine_toolchain(library),
     }
 
 

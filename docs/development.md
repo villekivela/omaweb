@@ -1675,7 +1675,10 @@ carries:
   checkout, or the release tag for an installed package.
 - `machine`: set with `--machine` or described from the hardware. Runs from different machines share
   the file and are told apart by this field.
-- `engine`: the engine library, its package and version, and its Qt WebEngine and Chromium versions
+- `engine`: the engine library, its package and version, its Qt WebEngine and Chromium versions, and
+  its `toolchain`, `clang` or `gcc`, read from the library's ELF `.comment` section. One package
+  version has been built with both (#575), so the version alone cannot say which was measured. A
+  library that is not ELF, such as a macOS framework, records it blank.
 - for a budget run, `measurements`: each value beside the ceiling it was held to at the time
 - for a comparison, `browsers` with each browser's version, flags and GPU status and the matched
   Chromium's `sha256` and the file it is of (`sha256_of`), `suites` with the pinned commits,
