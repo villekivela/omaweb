@@ -145,15 +145,46 @@ the Rust wrapper, its manifest, or its lockfile.
 
 ### What CI runs
 
-`.github/workflows/ci.yml` runs eight jobs, on a pull request and on a push to `main`. `style` runs
-the formatters, `qmllint`, the website's own policy check and the release-page tests;
-`commit-messages` checks every non-merge subject in the range; and five Arch containers build and
-publish the tree: `arch-linux` under clang against Omaweb's engine, which goes on to build the
-`release` preset and load the compiled QML, `arch-linux-gcc` under GCC against Arch's
-`qt6-webengine`, `arch-linux-cli` the `cli` preset with only `qt6-base` installed, `arch-package`
-through `scripts/check_package.sh`, and `pacman-repo` through `scripts/check_repo_publish.sh`.
+`.github/workflows/ci.yml` runs on a pull request and on a push to `main`. Each job has a runner of
+its own, and they run side by side:
 
-Those five cost between two and ten minutes each, and a change confined to `docs/`, `website/` or
+| Job                  | What it is for                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `style`              | The formatters, `qmllint`, the website's own policy check and the website's tests                          |
+| `commit-messages`    | Every non-merge subject in the range                                                                       |
+| `changes`            | Whether the range holds anything the Arch jobs below could break                                           |
+| `arch-linux-clang`   | The `ci` preset under clang against Omaweb's engine, and `ctest --preset ci`                               |
+| `arch-linux-budget`  | The browser from the `ci` preset under clang, held to [the runtime budget](#the-runtime-budget)            |
+| `arch-linux-release` | The `release` preset under clang against Omaweb's engine, and the tests that load its compiled QML         |
+| `arch-linux`         | The required check: passes when `changes` and the three above passed or were skipped                       |
+| `arch-linux-gcc`     | The `ci` preset under GCC against Arch's `qt6-webengine`, and `ctest --preset ci`                          |
+| `arch-linux-cli`     | The `cli` preset with only `qt6-base` installed                                                            |
+| `arch-package`       | `scripts/check_package.sh`: the Arch packages built, installed, upgraded from the last release and removed |
+| `pacman-repo`        | `scripts/check_repo_publish.sh`: a release published to a scratch repository and installed from it         |
+
+The clang build's tests, the runtime budget and the release build are jobs of their own rather than
+one job's steps, so a pull request waits for the slowest of them rather than for their sum.
+`arch-linux` is the one check branch protection requires: it runs after the three whatever they did,
+and `scripts/check_job_results.py` reads their results. It does not leave the verdict to GitHub,
+because a job whose dependency failed is skipped rather than failed, and a skipped required check
+lets a pull request merge.
+
+The two jobs that run the suite run `ctest --parallel "$(nproc)"`. A test that measures time is
+`RUN_SERIAL`, so ctest starts nothing beside it: the startup probes, the session store's threaded
+writes, and the frame-interval probes of `tests/ui-performance/tst_performance.qml`, which run as
+`omaweb-ui-performance` and `omaweb-ui-themed-performance` rather than inside the UI suites.
+`omaweb-probes-run-alone` holds that list. The runtime budget has its job's runner to itself. Run
+the suite the same way locally with `ctest --preset ci --parallel <n>`, a share of the machine's
+processors on a machine others build on too.
+
+Each build restores a ccache directory from the last run and saves it once it has built, under a key
+per job and preset. A pull request starts from the cache of its own last run, or from `main`'s on
+its first. ccache checks each object against its compiler and sources, so a stale cache costs time
+and nothing else. A new toolchain misses, and a missing cache builds cold, slower but the same.
+`arch-linux-budget` reads `arch-linux-clang`'s cache and saves none, because it compiles the same
+objects. `arch-package` builds through `makepkg` without the launcher, as a reader's build does.
+
+The Arch jobs cost between one and ten minutes each, and a change confined to `docs/`, `website/` or
 Markdown cannot break a compile, so a `changes` job decides whether they run at all. It prints the
 files it decided on, and the same question can be asked of any range:
 
@@ -168,9 +199,9 @@ source, and a range with no base to compare against builds.
 
 It is a gate job rather than a `paths-ignore:` on the workflow, and the two are not interchangeable.
 `arch-linux` is a required check on `main`. A job skipped by a job-level `if:` reports as skipped
-and the pull request still merges; a workflow skipped by path filtering leaves its required checks
-pending indefinitely, with no job to re-run. Path filtering would also take `style` with it, and
-that has to run on prose.
+and the pull request still merges, which is how a prose change passes `arch-linux`; a workflow
+skipped by path filtering leaves its required checks pending indefinitely, with no job to re-run.
+Path filtering would also take `style` with it, and that has to run on prose.
 
 ### Platform gaps on Linux
 
@@ -535,9 +566,9 @@ second engine and is not affected. To build against the patched engine on such a
 `Qt6WebEngine*_DIR` to the prefix's `lib/cmake` and put the prefix's include directory before
 `/usr/include/qt6`. Homebrew on macOS has the same shape, under `/opt/homebrew/include`.
 `scripts/check_omaweb_engine.sh <build-directory>` reads both from CMake's cache and fails unless
-each engine package came from `/usr/lib/omaweb` and the probe found the DNS alias API. CI's
-`arch-linux` image installs no `qt6-webengine`, and the job runs the check after each configure in
-case a dependency ever brings one in.
+each engine package came from `/usr/lib/omaweb` and the probe found the DNS alias API. CI's clang
+jobs install no `qt6-webengine`, and each runs the check after its configure in case a dependency
+ever brings one in.
 
 `qt6-wayland` is a dependency in its own right because native Wayland is the primary display
 platform. The content-blocking library is the one thing that rides along, under `lib/omaweb`,
@@ -930,11 +961,11 @@ release publishes, and readers install it by hand.
 A release installs from that repository as well as publishing to it: the `package` job runs
 `scripts/trust_omaweb_repository.sh`, which adds the `[omaweb]` block to the container's
 `pacman.conf`, and installs `omaweb-qtwebengine`, because the release has to be compiled against the
-engine it will run on. CI's `arch-linux` job does the same to test against that engine. The public
-half of the signing key is `security/repo-signing-key.asc` in this repository rather than fetched
-from a keyserver, so a keyserver that does not answer cannot fail a build for a reason that has
-nothing to do with the build. The script holds the key file's fingerprint against the published one
-before trusting it.
+engine it will run on. CI's clang jobs do the same to test against that engine. The public half of
+the signing key is `security/repo-signing-key.asc` in this repository rather than fetched from a
+keyserver, so a keyserver that does not answer cannot fail a build for a reason that has nothing to
+do with the build. The script holds the key file's fingerprint against the published one before
+trusting it.
 
 The README and the website both carry the `[omaweb]` block and the signing key's fingerprint,
 because a reader installs from whichever of the two they opened.
@@ -1195,16 +1226,16 @@ a margin over their first measurement. All eight run under `ctest --preset ci`, 
 Baseline measured on the initial macOS development machine, an Apple M2 Max on macOS 26.6.2, with
 the `dev` preset on 2026-09-12:
 
-| Probe                                             | Measured       | Threshold | Test                               |
-| ------------------------------------------------- | -------------- | --------- | ---------------------------------- |
-| Startup to first window drawn                     | 470 to 550 ms  | 2200 ms   | `omaweb-startup-probes`            |
-| Session restore to the visible Space's page drawn | 560 to 620 ms  | 2500 ms   | `omaweb-startup-probes`            |
-| Tab switch to the destination page's frame        | 7 ms           | 50 ms     | `omaweb-ui`, `tst_performance.qml` |
-| Chromeless frame time over an animated page       | 0.8 to 1.0 ms  | 10 ms     | `omaweb-ui`, `tst_performance.qml` |
-| Resident memory per frozen tab                    | 103 to 104 MiB | 200 MiB   | `omaweb-qt-engine-contract`        |
-| Visit record, on the interface thread             | 2 to 15 us     | 2000 us   | `omaweb-session-store`             |
-| Coalesced tab write, on the interface thread      | 1 to 2 us      | 2000 us   | `omaweb-session-store`             |
-| Closed-tab write, on the interface thread         | 1 to 2 us      | 2000 us   | `omaweb-session-store`             |
+| Probe                                             | Measured       | Threshold | Test                        |
+| ------------------------------------------------- | -------------- | --------- | --------------------------- |
+| Startup to first window drawn                     | 470 to 550 ms  | 2200 ms   | `omaweb-startup-probes`     |
+| Session restore to the visible Space's page drawn | 560 to 620 ms  | 2500 ms   | `omaweb-startup-probes`     |
+| Tab switch to the destination page's frame        | 7 ms           | 50 ms     | `omaweb-ui-performance`     |
+| Chromeless frame time over an animated page       | 0.8 to 1.0 ms  | 10 ms     | `omaweb-ui-performance`     |
+| Resident memory per frozen tab                    | 103 to 104 MiB | 200 MiB   | `omaweb-qt-engine-contract` |
+| Visit record, on the interface thread             | 2 to 15 us     | 2000 us   | `omaweb-session-store`      |
+| Coalesced tab write, on the interface thread      | 1 to 2 us      | 2000 us   | `omaweb-session-store`      |
+| Closed-tab write, on the interface thread         | 1 to 2 us      | 2000 us   | `omaweb-session-store`      |
 
 What each one measures:
 
@@ -1254,7 +1285,7 @@ Re-run the probes on their own with:
 
 ```sh
 ctest --preset dev -R omaweb-startup-probes -V
-build/dev/omaweb-ui-tests -input tests/ui/tst_performance.qml
+build/dev/omaweb-ui-tests -input tests/ui-performance/tst_performance.qml
 build/dev/omaweb-qt-engine-contract-tests qtKeepsAFrozenTabInsideItsMemoryBudget
 build/dev/omaweb-session-store-tests aThreadedStoreTakesTheSessionsRunningWritesInsideTheirBudget
 ```
@@ -1341,7 +1372,7 @@ terminal in the session, where the test window opens over the desktop for about 
 
 ```sh
 QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1 build/ci/omaweb-ui-tests \
-    -input tests/ui/tst_performance.qml
+    -input tests/ui-performance/tst_performance.qml
 ```
 
 The chromeless probe fails there, at 16.7 ms against 10 ms, because the CPU bracket includes the
@@ -1399,10 +1430,10 @@ map a window, Spaces or tabs that never open and an allocator page that never al
 skips: each of those fails the run, because each is either a broken browser or a number that would
 mean nothing.
 
-CI runs it inside the `arch-linux` job, against the build that job has already made, under cage on
-the headless backend, with `--require-dns` so that `pageload` fails there rather than skips. What it
-measures there is what needs no hardware, and a page's first paint, which is held against CI's own
-software renderer rather than a reader's GPU. Scrolling is not in it.
+CI runs it in the `arch-linux-budget` job, which builds the browser from the `ci` preset and runs
+nothing else, under cage on the headless backend, with `--require-dns` so that `pageload` fails
+there rather than skips. What it measures there is what needs no hardware, and a page's first paint,
+which is held against CI's own software renderer rather than a reader's GPU. Scrolling is not in it.
 
 To run it on a Hyprland desktop without its keys reaching the desktop, run it as the program of a
 headless cage, as CI does, with `HYPRLAND_INSTANCE_SIGNATURE` unset so that keys go through `wtype`
@@ -1469,7 +1500,7 @@ The engine writes each response body into a 2 MiB data pipe in `/dev/shm`, and t
 images can all be in flight at once. Docker gives a container 64 MiB of `/dev/shm`, which a run
 outgrows: the engine then cancels the last images of a load as their answers arrive, because no pipe
 can be made for them. So `pageload` fails when `/dev/shm` has less than 256 MiB free, and CI's
-`arch-linux` job starts its container with `--shm-size=2g`.
+`arch-linux-budget` job starts its container with `--shm-size=2g`.
 
 The rules are EasyList and EasyPrivacy from `third_party/filter-lists`, snapshots pinned by digest
 so a run next month measures the same rules. `ctest` checks them against their manifest
