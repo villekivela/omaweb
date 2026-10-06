@@ -1251,21 +1251,25 @@ the `dev` preset on 2026-09-12, and on CI's runners on 2026-10-06:
 | Closed-tab write, on the interface thread         | 1 to 2 us      | 2.0 to 5.0 us  | 2.2 us        | 2000 us   | `omaweb-session-store`      |
 
 The CI columns are the `arch-linux-clang` and `arch-linux-gcc` jobs of `main` at `d4561d3` and
-`9a39d1c`, read from the step that prints the probes' numbers from ctest's log, which needs no
-failure to speak. The engine is 6.11.2-5. GitHub hands a job one of several runners, and the job
-names its processor in the step before the build: three of the four jobs ran on an AMD EPYC 7763,
-one on an EPYC 9V45, which is about a third faster at startup and restore. Each range is those jobs'
-runs, and the 9V45 column is one job. The clang and gcc builds agree except in memory, where the
-clang job measured 108.5 MiB and the two gcc jobs 114.0 and 117.3. Every CI probe is inside its
-threshold with at least a third of it to spare, and none is outside its macOS ceiling: startup is
-1.2 to 1.4 times the M2 Max's and the restore 1.6 times, on a runner with no display and the
-software rasteriser.
+`9a39d1c`, on 2026-10-06 with QtWebEngine 6.11.2-5, read from the step that prints the probes'
+numbers from ctest's log. That step prints them on a passing run.
 
-Nothing here is Linux-only or missing on Linux. On CI the window probes run on
-`QT_QPA_PLATFORM=offscreen` through the software rasteriser, as do the engine contract's memory
-probe and the session writes' test, which open no window. So the two frame numbers are comparative
-there, as the frame time below explains, and say nothing of a GPU. The Omarchy numbers from real
-hardware are below.
+The two commits ran four jobs. Each job names its processor in the step before the build: three ran
+on an AMD EPYC 7763, which fills the first CI column, and one, the clang job at `9a39d1c`, on an
+EPYC 9V45, which fills the second. The 9V45 starts and restores about a third faster. The clang jobs
+measured 108 MiB per frozen tab and the gcc jobs 114 to 117 MiB; the other probes agree between
+compilers.
+
+Every CI number is inside its threshold with at least 40% of it to spare. Against the M2 Max,
+startup takes 1.2 to 1.4 times as long on the 7763 and the restore 1.5 to 1.8 times. Memory is 5 to
+13% higher. The three session writes take two to three times as long, a few microseconds
+against 2000. The tab switch and the frame time are lower on CI, and the frame time comes from the
+software rasteriser rather than a GPU.
+
+CI runs every probe on `QT_QPA_PLATFORM=offscreen`, so the two frame numbers are comparative there,
+as the frame time below explains. The memory probe and the session writes open no window.
+
+The baseline from Omarchy on real hardware, with the GPU drawing, is still to be taken (#577).
 
 What each one measures:
 
@@ -1321,8 +1325,9 @@ build/dev/omaweb-session-store-tests aThreadedStoreTakesTheSessionsRunningWrites
 ```
 
 Set `QT_QPA_PLATFORM=offscreen` for the middle two, or `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1` to
-draw the frame probe through Metal and read what the frames cost the GPU. On Linux with a display,
-`QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1` does the same through the desktop's GPU.
+draw the frame probe through Metal and read what the frames cost the GPU. On a Linux desktop,
+`QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1` draws through its GPU, as the
+[frame intervals](#frame-intervals) section's command does.
 
 ### Frame intervals
 
