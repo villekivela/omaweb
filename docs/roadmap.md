@@ -30,8 +30,9 @@ whole pixels. v0.12.0 is the release in progress. Two milestones carry what rema
    faster: a pull request's checks finish within 15 minutes, and the page-load step stops running
    out of spares. The chrome: jumping between tabs with `Ctrl+O` and `Ctrl+I`, the sidebar on the
    right, and the sidebar's empty space moving the window. The Omarchy kit is synced with `quattro`.
-   The Start page gains a second Scene, a night sky after Netscape Navigator's, chosen in Settings'
-   Interface section.
+   The Start page gains Scenes beyond the night road, chosen in Settings' Interface section: a night
+   sky after Netscape Navigator's, Conway's Game of Life, a vector terrain, a radar sweep and a
+   hyperspace jump.
 2. [v0.13.0](https://github.com/villekivela/omaweb/milestone/9), configuration as files: the
    reader's settings in a file they can keep in their dotfiles, and links from outside opening in
    the Space a rule names. Each starts with a prototype.
