@@ -84,6 +84,13 @@ export function chrome(landing, root, meta) {
       /(<meta\s+name="description"\s+content=")[^"]*(")/,
       `$1${escapeHtml(meta.description)}$2`,
     )
+    .replace(/(<meta\s+property="og:title"\s+content=")[^"]*(")/, `$1${escapeHtml(meta.title)}$2`)
+    .replace(
+      /(<meta\s+property="og:description"\s+content=")[^"]*(")/,
+      `$1${escapeHtml(meta.description)}$2`,
+    )
+    // The landing page's address is the landing page's: a release page has its own.
+    .replace(/\n\s*<meta\s+property="og:url"[^>]*>/, "")
     .replace(/(<a href="[^"]*\/releases\/")>/, '$1 aria-current="true">')
     // A release page wears the landing page's theme, and asks Omaweb for the reader's own palette:
     // Omaweb hands a page that asks it as `--omaweb-*`, which themes.css prefers over every theme.
@@ -138,6 +145,23 @@ export function kinds(releases, current) {
         `<button type="button" data-kind-choice="${kind}" aria-pressed="${kind === current}">${label}</button>`,
     )
     .join("");
+}
+
+// The place index.html keeps for the newest browser release, beside the Start page's install
+// link. It is hidden there, so a build that could not read the releases leaves no empty line.
+const LATEST = '<p class="start__release" data-latest-release hidden></p>';
+
+/** The landing page with the newest browser release written into its place. */
+export function latestRelease(landing, releases) {
+  if (!landing.includes(LATEST)) throw new Error("index.html has no place for the latest release");
+  const release = releases.find((candidate) => kindOf(candidate).kind === "browser");
+  if (!release) throw new Error("GitHub listed no browser release");
+  const date = dateOf(release.published_at);
+  const line =
+    `<p class="start__release">Latest: ${escapeHtml(release.tag_name)} · ` +
+    `<time datetime="${date.machine}">${date.brief}</time> · ` +
+    `<a href="releases/${releasePath(release.tag_name)}/">release notes</a></p>`;
+  return landing.replace(LATEST, line);
 }
 
 /**

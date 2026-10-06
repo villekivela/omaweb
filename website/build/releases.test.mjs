@@ -5,7 +5,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { chrome, fallbackPage, kindOf, releasePages, versions } from "./releases.mjs";
+import {
+  chrome,
+  fallbackPage,
+  kindOf,
+  latestRelease,
+  releasePages,
+  versions,
+} from "./releases.mjs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const LANDING = read("../index.html");
@@ -102,4 +109,36 @@ test("fallback: a build that could not read the releases still says where they a
 
 test("pages: a list with no browser release is an error, not an empty page", () => {
   assert.throws(() => releasePages(RELEASES.slice(1, 3), LANDING, TEMPLATE), /no browser release/);
+});
+
+// The landing page names the newest browser release beside its install link, written in when the
+// site is built, so the page asks GitHub for nothing when it loads.
+test("latest: the landing page names the newest browser release, with its date and notes", () => {
+  const html = latestRelease(LANDING, RELEASES);
+  assert.match(
+    html,
+    /<p class="start__release">Latest: v0\.7\.3 · <time datetime="2026-09-25">25 Sept 2026<\/time> · <a href="releases\/v0\.7\.3\/">release notes<\/a><\/p>/,
+  );
+  assert.doesNotMatch(html, /data-latest-release/);
+});
+
+test("latest: the line stays hidden in the source, for a build that could not read the releases", () => {
+  assert.match(LANDING, /<p class="start__release" data-latest-release hidden><\/p>/);
+});
+
+test("latest: a landing page without the line's place is an error", () => {
+  assert.throws(() => latestRelease("<main></main>", RELEASES), /no place for the latest release/);
+});
+
+// A release page shared elsewhere describes itself, not the landing page, and leaves its own
+// address as its address.
+test("chrome: a release page's Open Graph tags are its own", () => {
+  const html = chrome(LANDING, "../..", { title: "v0.7.3 · Omaweb", description: "Notes" })("");
+  assert.match(html, /<meta property="og:title" content="v0\.7\.3 · Omaweb" \/>/);
+  assert.match(html, /property="og:description"\s+content="Notes"/);
+  assert.doesNotMatch(html, /og:url/);
+  assert.match(
+    html,
+    /<meta property="og:image" content="https:\/\/omaweb\.app\/assets\/og\.png" \/>/,
+  );
 });

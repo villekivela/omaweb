@@ -722,6 +722,7 @@ body:has(.drive) > .top {
    to its right edge, the two one bar's height. */
 .start__below {
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: 12px;
   width: min(100% - 32px, 720px);
@@ -747,6 +748,23 @@ body:has(.drive) > .top {
   background: color-mix(in srgb, var(--plate) 80%, transparent);
   backdrop-filter: blur(14px);
   font-size: 13px;
+}
+
+/* The newest release, under the install link and the lede. The build writes it in. */
+.start__release {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.start__release a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+.start__release a:hover {
+  color: var(--accent);
 }
 
 /* The theme picker, in the Omnibar's hints: each swatch is a small square of its own theme's

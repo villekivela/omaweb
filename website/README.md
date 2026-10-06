@@ -35,6 +35,9 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 - `assets/film/` is where the introduction film and its poster are served from. The build copies
   them there from the `film` release (`build/film.mjs`), and `film/README.md` at the repository root
   has how the film is recorded and uploaded.
+- `assets/og.png` is the picture a link to the site shows where it is shared: the film's poster
+  frame, cut to 1200×630. Make it again from a new poster with
+  `magick poster.webp -resize 1200x675 -gravity center -extent 1200x630 -strip assets/og.png`.
 - `assets/art/` holds the textures and `assets/fonts/` the self-hosted faces, each beside its SIL
   Open Font License: Tomorrow for headlines, Ioskeley Mono for text.
 - `assets/shots/` holds the captures of the real interface, one directory per Omarchy theme, and
