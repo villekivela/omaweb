@@ -173,9 +173,11 @@ The two jobs that run the suite run `ctest --parallel "$(nproc)"`. A test that m
 `RUN_SERIAL`, so ctest starts nothing beside it: the startup probes, the session store's threaded
 writes, and the frame-interval probes of `tests/ui-performance/tst_performance.qml`, which run as
 `omaweb-ui-performance` and `omaweb-ui-themed-performance` rather than inside the UI suites.
-`omaweb-probes-run-alone` holds that list. The runtime budget has its job's runner to itself. Run
-the suite the same way locally with `ctest --preset ci --parallel <n>`, a share of the machine's
-processors on a machine others build on too.
+`omaweb-probes-run-alone` holds that list. A process of their own starts the frame-interval probes
+within the content blocker's first five seconds, when it checks its lists and swaps in what it
+fetched, so they run that check themselves and wait for it to end. The runtime budget has its job's
+runner to itself. Run the suite the same way locally with `ctest --preset ci --parallel <n>`, a
+share of the machine's processors on a machine others build on too.
 
 The clang and GCC jobs each restore a ccache directory from the last run and save it once they have
 built, under a key per compiler and preset, capped at 500 MB. A pull request starts from the cache
