@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -10,6 +11,7 @@
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QTest>
 
 #include <atomic>
@@ -47,6 +49,8 @@ private slots:
     void aListWhoseCompileProducesNothingFailsWithTheOldRulesInForce();
     void aListFetchedAfterItWasSwitchedOffIsStoredWithoutACompile();
     void aListKeepsTheRulesThisContractParses();
+    void theInterfaceThreadDoesNotWaitForTheDisk();
+    void theNewestSettingsAreTheOnesStored();
     void aRefusedWindowCountsAsABlockedRequest();
     void aNewPageLoadStartsTheTallyAgain();
     void aReloadStartsTheTallyBothTabsReadAgain();
@@ -583,6 +587,65 @@ void ContentBlockerTest::aListFetchedAfterItWasSwitchedOffIsStoredWithoutACompil
     QVERIFY(!blocks(blocker, QStringLiteral("first.example")));
 }
 
+// A write waits for the disk, and on CI's runners one took up to 211 ms, holding a Space switch's
+// frames while a list was refreshed. The interface thread hands the settings and the lists to the
+// writer and goes on, and a list is compiled once it is stored (#623).
+void ContentBlockerTest::theInterfaceThreadDoesNotWaitForTheDisk()
+{
+    QTemporaryDir root;
+    const auto source = listFile(root, QStringLiteral("list.txt"), "||stored.example^\n");
+    auto *const interfaceThread = QThread::currentThread();
+    std::atomic<bool> holding = true;
+    std::atomic<int> writes = 0;
+    std::atomic<int> onTheInterfaceThread = 0;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    // Let go of before the blocker, whose destructor waits for the writes.
+    const auto letGo = qScopeGuard([&holding] { holding = false; });
+    blocker.setBeforeWriteForTests([&](const QString &) {
+        if (QThread::currentThread() == interfaceThread) {
+            ++onTheInterfaceThread;
+        }
+        // Held for two seconds at most, so a write the interface thread waits for ends.
+        for (auto waited = 0; holding && waited < 2000; ++waited) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        ++writes;
+    });
+
+    QElapsedTimer handedOver;
+    handedOver.start();
+    blocker.setUserRules(QStringLiteral("||user.example^"));
+    const auto id = addTestList(blocker, source);
+    QVERIFY2(handedOver.elapsed() < 1000, "the interface thread waited for a write");
+    QTRY_VERIFY_WITH_TIMEOUT(blocks(blocker, QStringLiteral("user.example")), 5000);
+    // The list cannot be compiled before it is stored.
+    QTest::qWait(200);
+    QVERIFY(statusOf(blocker, id) != QStringLiteral("current"));
+    QVERIFY(!blocks(blocker, QStringLiteral("stored.example")));
+
+    holding = false;
+    QTRY_COMPARE_WITH_TIMEOUT(statusOf(blocker, id), QStringLiteral("current"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(blocks(blocker, QStringLiteral("stored.example")), 5000);
+    blocker.waitForWritesForTests();
+    QVERIFY(writes >= 2);
+    QCOMPARE(onTheInterfaceThread.load(), 0);
+}
+
+// The writer takes the settings one save at a time, in the order they were made, and skips a save
+// a newer one has replaced: what is on disk once it has caught up is the newest.
+void ContentBlockerTest::theNewestSettingsAreTheOnesStored()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    for (auto rule = 0; rule < 50; ++rule) {
+        blocker.setUserRules(QStringLiteral("||rule-%1.example^").arg(rule));
+    }
+    blocker.waitForWritesForTests();
+    QCOMPARE(storedSettings(root).value(QStringLiteral("userRules")).toString(),
+        QStringLiteral("||rule-49.example^"));
+}
+
 // A published list always carries rules outside this contract, and a list that
 // fails as a whole over them ships blocking that never works.
 void ContentBlockerTest::aListKeepsTheRulesThisContractParses()
@@ -871,6 +934,7 @@ void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()
         QVERIFY(!subscription.value(QStringLiteral("license")).toString().isEmpty());
     }
     QCOMPARE(titles, QStringList({QStringLiteral("EasyList"), QStringLiteral("EasyPrivacy")}));
+    blocker.waitForWritesForTests();
     QVERIFY(QFile::exists(settingsPath(root)));
     // Recorded, so the next run reads a decision rather than inferring one.
     QVERIFY(storedSettings(root).value(QStringLiteral("seeded")).toBool());
@@ -895,6 +959,7 @@ void ContentBlockerTest::aSettingsFileWithNoMarkerSeedsOnceMore()
     QCOMPARE(blocker.subscriptions().size(), 2);
     // Seeding is a repair, not a reset: what the file did say is still said.
     QCOMPARE(blocker.userRules(), QStringLiteral("||kept.example^"));
+    blocker.waitForWritesForTests();
     QVERIFY(storedSettings(root).value(QStringLiteral("seeded")).toBool());
 }
 
@@ -982,6 +1047,7 @@ void ContentBlockerTest::subscribingTheCookieListTakesItOffTheOffer()
     blocker.subscribeKnownList(QStringLiteral("fanboy-annoyances"));
     QCOMPARE(blocker.subscriptions().size(), 3);
 
+    blocker.waitForWritesForTests();
     ContentBlocker resumed(root.path());
     QCOMPARE(resumed.subscriptions().size(), 3);
     QCOMPARE(resumed.knownLists().size(), 0);

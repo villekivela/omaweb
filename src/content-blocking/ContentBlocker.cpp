@@ -115,11 +115,16 @@ namespace {
         return validation.matcher && accepted > 0 && invalid <= accepted;
     }
 
-    bool storeList(const QByteArray &list, const QString &path)
+    // On the writer's thread: QSaveFile syncs the file before it takes the old one's place.
+    bool writeFile(const ContentBlocker::BeforeWrite &beforeWrite, const QString &path,
+        const QByteArray &contents)
     {
+        if (beforeWrite) {
+            beforeWrite(path);
+        }
         QDir().mkpath(QFileInfo(path).absolutePath());
         QSaveFile file(path);
-        return file.open(QIODevice::WriteOnly) && file.write(list) >= 0 && file.commit();
+        return file.open(QIODevice::WriteOnly) && file.write(contents) >= 0 && file.commit();
     }
 
     // The reader's rules and every enabled list, joined and compiled. The lists are megabytes
@@ -147,6 +152,7 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
     storeSnapshot(&m_runtime, std::make_shared<const Runtime>());
     m_compiler.setMaxThreadCount(1);
     m_refresher.setMaxThreadCount(1);
+    m_writer.setMaxThreadCount(1);
     m_network->moveToThread(&m_networkThread);
     connect(&m_networkThread, &QThread::finished, m_network, &QObject::deleteLater);
     m_networkThread.setObjectName(QStringLiteral("filter-list-fetch"));
@@ -164,7 +170,8 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
 }
 
 // A fetch still under way is abandoned with the thread, and a compile not yet started is dropped.
-// Neither would have anything to go to. A compile under way runs to its end.
+// Neither would have anything to go to. A compile under way runs to its end. The writes handed to
+// the writer are kept: m_writer's destruction waits for them.
 ContentBlocker::~ContentBlocker()
 {
     m_compiler.clear();
@@ -174,6 +181,13 @@ ContentBlocker::~ContentBlocker()
 }
 
 void ContentBlocker::setCompileForTests(Compile compile) { m_compile = std::move(compile); }
+
+void ContentBlocker::setBeforeWriteForTests(BeforeWrite beforeWrite)
+{
+    m_beforeWrite = std::move(beforeWrite);
+}
+
+void ContentBlocker::waitForWritesForTests() { m_writer.waitForDone(); }
 
 int ContentBlocker::refusalTallyGeneration() const { return m_refusalTallyGeneration; }
 
@@ -522,39 +536,58 @@ void ContentBlocker::takeFetchedList(
     connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, id, list] {
         const auto usable = watcher->result();
         watcher->deleteLater();
-        --m_activeCompilations;
-        emit compilingChanged();
-        auto *subscription = findSubscription(id);
-        if (!subscription) {
+        if (!usable) {
+            settleFetchedList(id, false, false);
             return;
         }
-        // Stored here rather than on the refresh thread. Both this and save() sync the disk, and
-        // on CI's runner settings.json's sync waited 42 to 324 ms behind a list's sync made on
-        // the refresh thread at the same time. One after the other, each took 0.3 to 8 ms (#613).
-        const auto stored = usable && storeList(list, listPath(id));
-        // A list switched off while it was fetched is stored for when it is switched on again,
-        // and is current as stored: none of it is in force, so there is nothing to compile.
-        const auto compiles = stored && subscription->enabled;
-        if (!usable) {
-            subscription->updateStatus = QStringLiteral("failed: list has no usable rules");
-        } else if (!stored) {
-            subscription->updateStatus = QStringLiteral("failed: could not store list");
-        } else {
-            subscription->updateStatus
-                = compiles ? QStringLiteral("compiling") : QStringLiteral("current");
-            subscription->lastUpdated = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-        }
-        if (compiles) {
-            m_pendingCurrent.append(id);
-        }
-        save();
-        emit subscriptionsChanged();
-        if (compiles) {
-            recompileOn(m_refresher);
-        }
+        // Stored on the writer, where the settings are saved too, so the two syncs never wait on
+        // each other: on the refresh thread a list's sync held settings.json's for 42 to 324 ms
+        // (#613), and on the interface thread it held the frames (#623). The list is compiled
+        // once it is on disk, since the compile reads it from there.
+        auto *storing = new QFutureWatcher<bool>(this);
+        connect(storing, &QFutureWatcher<bool>::finished, this, [this, storing, id] {
+            const auto stored = storing->result();
+            storing->deleteLater();
+            settleFetchedList(id, true, stored);
+        });
+        storing->setFuture(
+            QtConcurrent::run(&m_writer, [beforeWrite = m_beforeWrite, path = listPath(id), list] {
+                return writeFile(beforeWrite, path, list);
+            }));
     });
     watcher->setFuture(QtConcurrent::run(
         &m_refresher, [compile = m_compile, list] { return hasUsableRules(compile, list); }));
+}
+
+// A fetched list's check and storing are over: it ends compiling, current or failed.
+void ContentBlocker::settleFetchedList(const QString &id, bool usable, bool stored)
+{
+    --m_activeCompilations;
+    emit compilingChanged();
+    auto *subscription = findSubscription(id);
+    if (!subscription) {
+        return;
+    }
+    // A list switched off while it was fetched is stored for when it is switched on again,
+    // and is current as stored: none of it is in force, so there is nothing to compile.
+    const auto compiles = stored && subscription->enabled;
+    if (!usable) {
+        subscription->updateStatus = QStringLiteral("failed: list has no usable rules");
+    } else if (!stored) {
+        subscription->updateStatus = QStringLiteral("failed: could not store list");
+    } else {
+        subscription->updateStatus
+            = compiles ? QStringLiteral("compiling") : QStringLiteral("current");
+        subscription->lastUpdated = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    }
+    if (compiles) {
+        m_pendingCurrent.append(id);
+    }
+    save();
+    emit subscriptionsChanged();
+    if (compiles) {
+        recompileOn(m_refresher);
+    }
 }
 
 void ContentBlocker::updateAllSubscriptions()
@@ -869,20 +902,22 @@ void ContentBlocker::save() const
     for (const auto &site : m_disabledSites) {
         disabledSites.append(site);
     }
-    QDir().mkpath(QFileInfo(settingsPath()).absolutePath());
-    QSaveFile file(settingsPath());
-    if (!file.open(QIODevice::WriteOnly)) {
-        return;
-    }
-    file.write(QJsonDocument(QJsonObject {
-                                 {QStringLiteral("version"), 1},
-                                 {QStringLiteral("seeded"), m_seeded},
-                                 {QStringLiteral("userRules"), m_userRules},
-                                 {QStringLiteral("disabledSites"), disabledSites},
-                                 {QStringLiteral("subscriptions"), subscriptions},
-                             })
-            .toJson(QJsonDocument::Indented));
-    file.commit();
+    auto contents = QJsonDocument(QJsonObject {
+                                      {QStringLiteral("version"), 1},
+                                      {QStringLiteral("seeded"), m_seeded},
+                                      {QStringLiteral("userRules"), m_userRules},
+                                      {QStringLiteral("disabledSites"), disabledSites},
+                                      {QStringLiteral("subscriptions"), subscriptions},
+                                  })
+                        .toJson(QJsonDocument::Indented);
+    const auto generation = ++m_saveGeneration;
+    m_writer.start([this, generation, beforeWrite = m_beforeWrite, path = settingsPath(),
+                       contents = std::move(contents)] {
+        // A newer save carries everything this one does.
+        if (generation == m_saveGeneration) {
+            writeFile(beforeWrite, path, contents);
+        }
+    });
 }
 
 // Only the exchange of the pointer to the rules in force happens on the interface thread. Until
