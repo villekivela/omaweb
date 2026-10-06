@@ -2,7 +2,12 @@
 
 #include "PerformanceProbe.h"
 
+#include <QDebug>
 #include <QEventLoop>
+
+#include <chrono>
+#include <sys/resource.h>
+#include <time.h>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QTimer>
@@ -40,7 +45,13 @@ ProbeClock::ProbeClock(QObject *parent)
     m_clock.start();
 }
 
-double ProbeClock::milliseconds() const { return m_clock.nsecsElapsed() / 1e6; }
+// Temporarily on the steady clock, so frames line up with the content blocker's spans (#613).
+double ProbeClock::milliseconds() const
+{
+    return std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
 
 QString ProbeClock::report(
     const QString &name, double measured, const QString &unit, double threshold) const
@@ -82,16 +93,31 @@ void ProbeClock::watchFrames(QQuickWindow *window)
     // rather than after a queued hop back to the GUI thread.
     connect(
         window, &QQuickWindow::beforeFrameBegin, this,
-        [this] { m_frameStart = m_clock.nsecsElapsed(); }, Qt::DirectConnection);
+        [this] {
+            m_frameStart
+                = static_cast<qint64>(std::chrono::steady_clock::now().time_since_epoch().count());
+        },
+        Qt::DirectConnection);
     connect(
         window, &QQuickWindow::afterFrameEnd, this,
         [this] {
             if (m_frameStart <= 0) {
                 return;
             }
-            const auto end = m_clock.nsecsElapsed();
+            const auto end
+                = static_cast<qint64>(std::chrono::steady_clock::now().time_since_epoch().count());
             m_frameNanoseconds.push_back(end - m_frameStart);
             m_frameEnds.push_back(end);
+            {
+                rusage usage {};
+                getrusage(RUSAGE_THREAD, &usage);
+                timespec cpu {};
+                clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu);
+                qInfo().noquote() << "DIAG frame" << QString::number(end / 1e6, 'f', 2)
+                                  << QString::number(cpu.tv_sec * 1e3 + cpu.tv_nsec / 1e6, 'f', 3)
+                                  << usage.ru_nvcsw << usage.ru_nivcsw << usage.ru_minflt
+                                  << usage.ru_majflt;
+            }
             // What the GPU spent on a frame, which the CPU bracket above never
             // sees: it records commands and moves on. Read off the swapchain's
             // command buffer, which is the one the frames are submitted on,

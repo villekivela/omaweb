@@ -643,6 +643,15 @@ TestCase {
             verify(browser.deleteSpace(spaceIds[0], "Refreshing left"));
             verify(browser.deleteSpace(spaceIds[1], "Refreshing right"));
         }
+        // Temporary diagnosis for #613 on CI.
+        const ends = report.frames.frameEnds;
+        console.info("SLOWFRAME watch " + ends[0].toFixed(2) + " " + ends[ends.length - 1].toFixed(
+                         2));
+        for (let frame = 1; frame < ends.length; ++frame) {
+            if (ends[frame] - ends[frame - 1] > 30)
+                console.info("SLOWFRAME " + ends[frame - 1].toFixed(2) + " " + ends[frame].toFixed(
+                                 2));
+        }
         console.info("lists put in force during the movements: " + listsPutInForce);
         // A movement that began with no refresh under way, or a watch in which
         // no refresh was put in force, would measure the Space switch alone.

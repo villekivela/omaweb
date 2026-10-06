@@ -3,6 +3,29 @@
 #include "ContentMatcher.h"
 
 #include <QDateTime>
+#include <QDebug>
+
+#include <chrono>
+#include <sys/resource.h>
+
+// Temporary diagnosis for #613 on CI: when each step of a refresh ran, on the probe clock.
+namespace {
+double diagnosisMilliseconds()
+{
+    return std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+struct DiagnosisSpan {
+    const char *name;
+    double started = diagnosisMilliseconds();
+    ~DiagnosisSpan()
+    {
+        qInfo().noquote() << "DIAG span" << name << QString::number(started, 'f', 2)
+                          << QString::number(diagnosisMilliseconds(), 'f', 2);
+    }
+};
+}
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -119,6 +142,7 @@ namespace {
         if (!validation.matcher || accepted == 0 || invalid > accepted) {
             return ListValidation::NoUsableRules;
         }
+        DiagnosisSpan span {"refresher-write-list"};
         QDir().mkpath(QFileInfo(path).absolutePath());
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly) || file.write(candidate) < 0 || !file.commit()) {
@@ -132,6 +156,7 @@ namespace {
     MatcherCompilation compileLists(const ContentBlocker::Compile &compile,
         const QString &userRules, const QStringList &listPaths)
     {
+        DiagnosisSpan span {"lane-compile-lists"};
         QString rules = userRules;
         for (const auto &path : listPaths) {
             QFile file(path);
@@ -853,6 +878,7 @@ void ContentBlocker::reloadSyncedConfiguration()
 
 void ContentBlocker::save() const
 {
+    DiagnosisSpan span {"interface-save"};
     QJsonArray subscriptions;
     for (const auto &subscription : m_subscriptions) {
         subscriptions.append(QJsonObject {
@@ -959,7 +985,10 @@ void ContentBlocker::recompileOn(QThreadPool &lane)
 void ContentBlocker::releaseOffTheInterfaceThread(std::shared_ptr<const void> retired)
 {
     if (retired) {
-        m_refresher.start([retired = std::move(retired)]() mutable { retired.reset(); });
+        m_refresher.start([retired = std::move(retired)]() mutable {
+            DiagnosisSpan span {"refresher-release"};
+            retired.reset();
+        });
     }
 }
 
