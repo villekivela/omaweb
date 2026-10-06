@@ -378,10 +378,12 @@ def suggestions(query: str) -> list:
 # How long each beat holds still under its caption before its action starts, so the caption is read
 # first and the eye then goes to what it names. The caption comes in 0.3 s into a beat.
 CAPTION_LEAD = 1.5
+# How long the camera takes to move from one place to the next.
+MOVE = 0.7
 # The Theme beat holds the old theme longer, so the change it names is the thing watched.
 THEME_HOLD = 2.5
 # How long a command the Agent runs stays on screen before the next one is run, at the least.
-COMMAND_READ = 0.9
+COMMAND_READ = 0.7
 
 # The film's beats, in the order they play: what the caption says, empty for none, and, for each
 # moment the camera moves, where it looks. A place is a fraction of the window, (left, top, width,
@@ -395,9 +397,11 @@ class Beat:
 
 
 # Where the parts the camera follows sit in the window, with the sidebar at its default width: the
-# Omnibar a little below the middle of the page, the Space squares at the foot of the sidebar with
-# the page beside them, the blocked count at the end of the address, and the Agent's form.
+# Omnibar a little below the middle of the page, the search results at the top left of the page,
+# the Space squares at the foot of the sidebar with the page beside them, the blocked count at the
+# end of the address, and the Agent's form.
 OMNIBAR = (0.29, 0.28, 0.6, 0.6)
+RESULTS = (0.2, 0.17, 0.4, 0.4)
 SPACES = (0.0, 0.4, 0.6, 0.6)
 SHIELD = (0.0, 0.0, 0.22, 0.22)
 FORM = (0.32, 0.03, 0.66, 0.66)
@@ -405,10 +409,13 @@ FORM = (0.32, 0.03, 0.66, 0.66)
 BEATS = [
     Beat("Omnibar", "One Omnibar for tabs, Spaces and search",
          [(0.0, None), (CAPTION_LEAD + 0.2, OMNIBAR), (CAPTION_LEAD + 4.0, None)]),
+    # On the search results, which are links at full width: a split's narrow docs fold their links
+    # away. The camera closes in, since a hint is a small label.
+    Beat("Hints", "Keyboard first: f puts a label on every link",
+         [(0.0, None), (CAPTION_LEAD - MOVE, RESULTS)]),
     # The footer stays on camera through the switch, so the Space's colour is seen to change.
     Beat("Space switch", "Each Space keeps its own logins and tabs", [(0.0, SPACES)]),
     Beat("Sidebar", "Split view, sidebar out of the way", [(0.0, None)]),
-    Beat("Hints", "Keyboard first: f puts a label on every link", [(0.0, None)]),
     # Close on the count before the reload, so it is seen counting what it stops.
     Beat("Blocking", "Ads and trackers stopped before they load",
          [(0.0, None), (CAPTION_LEAD, SHIELD)]),
@@ -704,12 +711,24 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     type_text(TYPED)
     time.sleep(1.8)
     keys(*["Down"] * SUGGESTION_ROW, settle=0.5)
-    # The results, a moment on screen before the cut.
-    keys("Return", settle=LOAD_SETTLE + 0.4)
+    # The results, on screen for the hints that follow.
+    keys("Return", settle=LOAD_SETTLE)
     end = recorder.now()
     expect_asked(beat.name, server, "kestrel.test", f"/suggest?q={TYPED}")
     expect_current_tab(beat.name, answer(beat.name, browser, "tabs", "--space", "Personal"),
                        SEARCH)
+    mark(beat, start, end)
+
+    # The keyboard is in the results page the Omnibar left on show, which is where `f` is a key.
+    beat = beats["Hints"]
+    since = len(server.reports())
+    start = recorder.now()
+    time.sleep(CAPTION_LEAD)
+    keys("f", settle=2.6)
+    end = recorder.now()
+    shown = server.reports()[since:]
+    keys("Escape")
+    expect_hints(beat.name, shown, "kestrel.test")
     mark(beat, start, end)
 
     # The pointer rests on each Space's square in turn, and the square names its Space, then the
@@ -738,14 +757,15 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     glide((personal[0] + 0.06, personal[1] - 0.14))
     glide(personal)
     time.sleep(MOVE)
+    # Long enough for the name to come up, after its 400 ms delay, and be read.
     hold("Personal")
-    time.sleep(1.0)
+    time.sleep(1.3)
     let_go()
     glide(work)
     time.sleep(MOVE)
     hold("Work")
     time.sleep(0.9)
-    keys("Primary+2", settle=1.8)
+    keys("Primary+2", settle=1.5)
     let_go()
     end = recorder.now()
     expect_space_on_show(beat.name, answer(beat.name, browser, "spaces"), "Work")
@@ -758,20 +778,6 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     keys("Primary+b", settle=3.0)
     end = recorder.now()
     expect_wider(beat.name, before, server.reports(), "quillstack.test")
-    mark(beat, start, end)
-
-    # Off camera: the keyboard put in the page, which is where `f` is a page's key.
-    keys("Primary+Shift+e", settle=0.4)
-
-    beat = beats["Hints"]
-    since = len(server.reports())
-    start = recorder.now()
-    time.sleep(CAPTION_LEAD)
-    keys("f", settle=2.2)
-    end = recorder.now()
-    shown = server.reports()[since:]
-    keys("Escape")
-    expect_hints(beat.name, shown, "quillstack.test")
     mark(beat, start, end)
 
     # Off camera: the sidebar back, and the magazine on show in Personal.
@@ -857,7 +863,8 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     ]
     show_command("omaweb", "do", *(f"'{step}'" for step in steps[:2]), "…")
     expect_ran(beat.name, omaweb(browser, "do", *steps, "--tab", tab, name=AGENT))
-    time.sleep(1.4)
+    # The invoice it sent, long enough to read before the end card.
+    time.sleep(1.7)
     end = recorder.now()
     expect_invoice(beat.name, server, INVOICE)
     mark(beat, start, end, lines=lines)
@@ -925,8 +932,6 @@ def record(browser: Path, out: Path) -> None:
         shutil.rmtree(root, ignore_errors=True)
 
 
-# How long the camera takes to move from one place to the next.
-MOVE = 0.7
 
 
 def eased(keyframes: list[tuple[float, float]], variable: str) -> str:
