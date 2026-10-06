@@ -5,9 +5,9 @@ import qs.Commons
 // What Omaweb shows where a page would be when there is none to show: a Space
 // at rest, `about:blank`, or a new-tab request that has not been given a
 // destination yet. It is the Omnibar at rest over the Scene the reader chose:
-// the night road or the night sky. The Omnibar itself is the window's own,
-// drawn resting on the Scene's horizon, and its hint row names the Shortcut
-// sheet; the page is the Scene under it.
+// the night road, the night sky or the Game of Life. The Omnibar itself is
+// the window's own, drawn resting on the Scene's horizon, and its hint row
+// names the Shortcut sheet; the page is the Scene under it.
 //
 // It costs no engine. The Scene moves only while the page is on show and the
 // window is the reader's. It fills the page area, or the one pane of a split
@@ -23,9 +23,15 @@ Item {
     property var colors
     property bool privateWindow: false
     property bool open: false
-    // The Settings interface section's Scene: "crt-road", "night-sky", or
-    // "none", where the backdrop below takes its place.
+    // The Settings interface section's Scene: "crt-road", "night-sky",
+    // "game-of-life", or "none", where the backdrop below takes its place.
     property string sceneId: "crt-road"
+    // Each Scene's drawing, by its id.
+    readonly property var scenes: ({
+                                       "crt-road": nightRoad,
+                                       "night-sky": sky,
+                                       "game-of-life": life
+                                   })
     readonly property bool sceneShown: root.sceneId !== "none"
     // How far the resting Omnibar reaches below the horizon, which the night
     // sky keeps clear.
@@ -116,7 +122,7 @@ Item {
         reducedMotion: root.reducedMotion
         running: root.visible && root.sceneShown && root.windowActive
         navigating: root.driving ? 1 : 0
-        scene: root.sceneId === "night-sky" ? sky : nightRoad
+        scene: root.scenes[root.sceneId] || nightRoad
     }
 
     Binding {
@@ -136,5 +142,11 @@ Item {
         id: sky
 
         NightSky {}
+    }
+
+    Component {
+        id: life
+
+        GameOfLife {}
     }
 }

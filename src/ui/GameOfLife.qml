@@ -212,6 +212,7 @@ Item {
 
     LifeBoard {
         id: board
+        objectName: "lifeBoard"
 
         anchors.fill: parent
         columns: root.columns
@@ -220,10 +221,9 @@ Item {
         ground: root.roles.ground
         live: root.roles.live
         trailColours: root.roles.trail
-        // A board first given a size is seeded for it; a still one is laid
-        // out again for its new size, and a moving one keeps what the old and
-        // new boards share.
-        onSizeChanged: if (!root.seeded || root.reducedMotion)
-                           root.seed()
+        // A board given a new size is seeded for it. SceneHost holds the
+        // width while a dragged seam moves, so this is once a resize, not
+        // once a frame of it.
+        onSizeChanged: root.seed()
     }
 }

@@ -2,15 +2,16 @@ import QtQuick
 import qs.Commons
 import qs.Ui as Omarchy
 
-// The Start page's Scenes as a row of small thumbnails, each a still of its
-// Scene drawn by the Scene itself, without the CRT glass, which does not read
-// at this size, and None as the sidebar's plain fill. Each is named under it,
-// and the one in force is marked in the accent.
+// The Start page's Scenes as a grid of small thumbnails, four to a row, each a
+// still of its Scene drawn by the Scene itself, without the CRT glass, which
+// does not read at this size, and None last as the sidebar's plain fill. Each
+// is named under it, and the one in force is marked in the accent.
 //
-// A click chooses. As the kit's ButtonGroup, the row is one Tab stop: Left and
-// Right, or h and l, walk between the thumbnails from the one in force, and
-// Return or Space chooses the one walked to.
-Row {
+// A click chooses. As the kit's ButtonGroup, the grid is one Tab stop: Left
+// and Right, or h and l, walk between the thumbnails from the one in force, in
+// reading order across the rows, and Return or Space chooses the one walked
+// to.
+Grid {
     id: root
 
     property var colors
@@ -38,6 +39,11 @@ Row {
             scene: skyScene
         },
         {
+            value: "game-of-life",
+            label: qsTr("Game of Life", "Start page Scene"),
+            scene: lifeScene
+        },
+        {
             value: "none",
             label: qsTr("None", "Start page Scene: the sidebar's fill"),
             scene: null
@@ -53,6 +59,7 @@ Row {
         return 0;
     }
 
+    columns: 4
     spacing: Style.spacing.lg
     activeFocusOnTab: true
 
@@ -86,6 +93,12 @@ Row {
         id: skyScene
 
         NightSky {}
+    }
+
+    Component {
+        id: lifeScene
+
+        GameOfLife {}
     }
 
     Repeater {

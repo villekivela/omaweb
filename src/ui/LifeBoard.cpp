@@ -9,6 +9,14 @@
 
 namespace omaweb {
 
+namespace {
+
+    // FNV-1a over the indices of the live cells.
+    constexpr quint32 firstHash = 2166136261U;
+    constexpr quint32 hashPrime = 16777619U;
+
+} // namespace
+
 LifeBoard::LifeBoard(QQuickItem *parent)
     : QQuickItem(parent)
 {
@@ -72,19 +80,11 @@ void LifeBoard::resize(int columns, int rows)
     if (columns == m_columns && rows == m_rows) {
         return;
     }
-    std::vector<quint8> cells(static_cast<size_t>(columns) * rows);
-    std::vector<quint8> faded(cells.size());
-    for (int y = 0; y < std::min(rows, m_rows); ++y) {
-        for (int x = 0; x < std::min(columns, m_columns); ++x) {
-            cells[static_cast<size_t>(y) * columns + x] = m_cells[index(x, y)];
-            faded[static_cast<size_t>(y) * columns + x] = m_faded[index(x, y)];
-        }
-    }
     m_columns = columns;
     m_rows = rows;
-    m_cells = std::move(cells);
-    m_faded = std::move(faded);
+    m_cells.assign(static_cast<size_t>(columns) * rows, 0);
     m_next.assign(m_cells.size(), 0);
+    m_faded.assign(m_cells.size(), 0);
     emit sizeChanged();
     count();
 }
@@ -145,13 +145,18 @@ void LifeBoard::soup(int x, int y, int size, double density, int seed)
 void LifeBoard::count()
 {
     int population = 0;
-    quint32 hash = 2166136261U;
+    quint32 hash = firstHash;
     for (size_t cell = 0; cell < m_cells.size(); ++cell) {
         if (m_cells[cell]) {
             ++population;
-            hash = (hash ^ static_cast<quint32>(cell)) * 16777619U;
+            hash = (hash ^ static_cast<quint32>(cell)) * hashPrime;
         }
     }
+    counted(population, hash);
+}
+
+void LifeBoard::counted(int population, quint32 hash)
+{
     m_population = population;
     m_hash = hash;
     emit cellsChanged();
@@ -169,6 +174,10 @@ void LifeBoard::step()
     const quint8 *cells = m_cells.data();
     quint8 *next = m_next.data();
     quint8 *faded = m_faded.data();
+    // Counted as the board is moved on, rather than in a second pass, since
+    // the Scene settles a new board for thirty generations at once.
+    int population = 0;
+    quint32 hash = firstHash;
     for (int y = 0; y < rows; ++y) {
         const int above = ((y + rows - 1) % rows) * columns;
         const int here = y * columns;
@@ -185,6 +194,8 @@ void LifeBoard::step()
             quint8 &since = faded[here + x];
             if (lives) {
                 since = 0;
+                ++population;
+                hash = (hash ^ static_cast<quint32>(here + x)) * hashPrime;
             } else if (alive) {
                 since = trail > 0 ? 1 : 0;
             } else if (since > 0) {
@@ -193,7 +204,7 @@ void LifeBoard::step()
         }
     }
     m_cells.swap(m_next);
-    count();
+    counted(population, hash);
 }
 
 QStringList LifeBoard::picture() const

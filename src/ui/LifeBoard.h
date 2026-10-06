@@ -11,16 +11,15 @@ namespace omaweb {
 
 // The board the Game of Life Scene (GameOfLife.qml) evolves and draws: a
 // cell to each of the Scene's pixels, `columns` by `rows`, wrapping at its
-// edges. A generation is Conway's: a live cell with two or three live
-// neighbours lives on, a dead cell with three comes alive, and every other
-// cell is dead.
+// edges, and all dead when it is given a new size. A generation is Conway's:
+// a live cell with two or three live neighbours lives on, a dead cell with
+// three comes alive, and every other cell is dead.
 //
 // The Scene decides when the board moves and what goes on it. The board
 // keeps the rules, which run in C++ because a page area's board, some 70,000
 // cells, moves thirty generations a second on commit.
 class LifeBoard : public QQuickItem {
     Q_OBJECT
-    // Resizing keeps the cells the old and new boards share.
     Q_PROPERTY(int columns READ columns WRITE setColumns NOTIFY sizeChanged)
     Q_PROPERTY(int rows READ rows WRITE setRows NOTIFY sizeChanged)
     // How many generations a cell that has died is drawn as a trail.
@@ -85,6 +84,7 @@ private:
     void resize(int columns, int rows);
     int index(int x, int y) const;
     void count();
+    void counted(int population, quint32 hash);
 
     int m_columns = 0;
     int m_rows = 0;

@@ -1010,7 +1010,8 @@ int main(int argc, char *argv[])
         engine.rootObjects().constFirst()->setProperty("sidebarSide", QStringLiteral("right"));
     }
     // `--scene <id>` stands the Start page on that Scene, as Settings'
-    // interface section does: `crt-road`, `night-sky` or `none`.
+    // interface section does: `crt-road`, `night-sky`, `game-of-life` or
+    // `none`.
     const auto sceneIndex = arguments.indexOf(QStringLiteral("--scene"));
     if (sceneIndex >= 0 && sceneIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
         engine.rootObjects().constFirst()->setProperty(
