@@ -704,12 +704,13 @@ and pinned by `MANIFEST.json`. Both projects are QML on Qt 6, so the kit is used
 reimplemented.
 
 Vendored files are byte-for-byte copies and are never edited. `ctest` fails on any local change.
-Omaweb meets the kit from three sides: `src/ui/quickshell-shim` registers the `Quickshell` and
-`Quickshell.Io` types the kit's singletons import, the QML in `src/ui` adapts components to Omaweb's
-call sites, keeping Omaweb's property names and its accessibility annotations, and
-`src/ui/KitTheme.cpp` drives the kit's `qs.Commons` colour and type singletons from the theme
-palette so they follow `ThemeController` rather than an Omarchy theme on disk. The vendor root is on
-the QML import path in source builds and lands under `qrc:/qt/qml` in resource builds.
+Omaweb meets the kit from three sides: `src/ui/quickshell-shim` registers the `Quickshell`,
+`Quickshell.Hyprland` and `Quickshell.Io` types the kit's singletons import, the QML in `src/ui`
+adapts components to Omaweb's call sites, keeping Omaweb's property names and its accessibility
+annotations, and `src/ui/KitTheme.cpp` drives the kit's `qs.Commons` colour and type singletons from
+the theme palette so they follow `ThemeController` rather than an Omarchy theme on disk, and the
+kit's `Style.reduceMotion` from `SystemMotion`. The vendor root is on the QML import path in source
+builds and lands under `qrc:/qt/qml` in resource builds.
 
 Running on Omarchy itself means the real Quickshell is already installed in Qt's qml directory,
 where a module on the import path beats the shim's C++ registration. The shim ships a qmldir for
