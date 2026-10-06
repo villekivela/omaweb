@@ -1275,7 +1275,9 @@ redraws every frame, so the last movement is a closing and the next probe starts
 A fifth probe watches the Shortcut sheet's openings one at a time, since each is a different one:
 the window's first, one over the Start page, and one over a page after it, whose commands differ
 from the Start page's. Each opening's slowest interval is held to the ceiling, from the frame before
-the input to the frame the sheet rests in.
+the input to the frame the sheet rests in. Over five runs of the whole file offscreen on the laptop
+below, the first opening's slowest was 18 to 24 ms, over the Start page 15 to 18 ms and over a page
+20 to 23 ms; on its GPU, 19 to 23 ms, 17 ms and 17 ms.
 
 What is read is the time from each frame's end to the next one's, not the frame's cost: the cost is
 the scene graph's own, and a movement's script and layout run on the interface thread between
@@ -1330,13 +1332,13 @@ Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, wit
 display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight runs one at a time,
 CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which print a probe's numbers only
 when it fails, and GPU is three runs. The sidebar and Space switch rows are #594's, on 2026-10-06:
-offscreen is SIX_RUNS, CI is #597's two jobs, whose passing runs print nothing, and GPU is three
-runs:
+offscreen is three runs of the whole `tst_performance.qml`, CI is #597's two jobs, whose passing
+runs print nothing, and GPU is three runs:
 
 | Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI    | GPU p95 | Held, GPU | Guard |
 | ------------ | ------------- | --------------- | ----------- | ----------- | ----------- | ------- | --------- | ----- |
-| Sidebar      | SB_OFF        | SB_OFF_H        | passed      | not printed | not printed | SB_GPU  | SB_GPU_H  | none  |
-| Space switch | SS_OFF        | SS_OFF_H        | passed      | not printed | not printed | SS_GPU  | SS_GPU_H  | none  |
+| Sidebar      | 17 to 18 ms   | 0               | passed      | not printed | not printed | 17 ms   | 0         | none  |
+| Space switch | 17 to 18 ms   | 0 to 1          | passed      | not printed | not printed | 17 ms   | 0         | none  |
 | Omnibar      | 14 to 15 ms   | 0 of 10         | not printed | not printed | 0 to 1      | 17 ms   | 0         | none  |
 | Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3           | 17 ms   | 1         | 67 ms |
 
