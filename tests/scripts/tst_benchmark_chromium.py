@@ -346,6 +346,17 @@ class EngineTest(unittest.TestCase):
         for library in (str(framework), str(self.directory / "missing.so"), ""):
             self.assertEqual(self.engine(library)["toolchain"], "", library)
 
+    def test_a_damaged_engine_names_no_toolchain(self):
+        # The library is read after every suite has run, so what it says must not cost the run.
+        library = Path(elf_with_comment(self.directory / "libQt6WebEngineCore.so.6",
+                                        "GCC: (GNU) 16.1.1 20260430"))
+        data = bytearray(library.read_bytes())
+        sections, = struct.unpack_from("<Q", data, 0x28)
+        for size in (2**63, 2**40):
+            struct.pack_into("<Q", data, sections + 2 * 64 + 32, size)
+            library.write_bytes(data)
+            self.assertEqual(self.engine(str(library))["toolchain"], "", size)
+
 
 class PlotDataTest(unittest.TestCase):
 

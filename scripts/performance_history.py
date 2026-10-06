@@ -143,31 +143,38 @@ def elf_comments(path: str) -> list[str]:
     """The strings in an ELF file's `.comment` section, where each compiler and linker that made
     it signs its name, or none for a file that is not a 64-bit little-endian ELF.
 
-    Read by seeking rather than whole, because the engine library is hundreds of megabytes.
+    Read by seeking rather than whole, because the engine library is hundreds of megabytes. Every
+    offset and size the file states is held to its length first, because it is read after the
+    suites have run and a damaged library must not cost the run its scores.
     """
     try:
         with open(path, "rb") as handle:
+            length = os.fstat(handle.fileno()).st_size
             header = handle.read(64)
             if header[:6] != b"\x7fELF\x02\x01":
                 return []
-            table, = struct.unpack_from("<Q", header, 0x28)
-            entry_size, count, names_index = struct.unpack_from("<HHH", header, 0x3A)
+            headers_at, = struct.unpack_from("<Q", header, 0x28)
+            entry_size, section_count, names_index = struct.unpack_from("<HHH", header, 0x3A)
 
-            def section(index: int) -> tuple:
-                handle.seek(table + index * entry_size)
-                name, _, _, _, offset, size = struct.unpack("<IIQQQQ", handle.read(40))
+            def read(offset: int, size: int) -> bytes:
+                if offset + size > length:
+                    raise ValueError("past the end of the file")
+                handle.seek(offset)
+                return handle.read(size)
+
+            def section(index: int) -> tuple[int, int, int]:
+                name, _, _, _, offset, size = struct.unpack(
+                    "<IIQQQQ", read(headers_at + index * entry_size, 40))
                 return name, offset, size
 
             _, names_offset, names_size = section(names_index)
-            handle.seek(names_offset)
-            names = handle.read(names_size)
-            for index in range(count):
+            names = read(names_offset, names_size)
+            for index in range(section_count):
                 name, offset, size = section(index)
-                if names[name:names.find(b"\0", name)] == b".comment":
-                    handle.seek(offset)
+                if names[name:].split(b"\0", 1)[0] == b".comment":
                     return [text.decode(errors="replace")
-                            for text in handle.read(size).split(b"\0") if text]
-    except (OSError, struct.error):
+                            for text in read(offset, size).split(b"\0") if text]
+    except (OSError, ValueError, struct.error):
         pass
     return []
 
@@ -187,7 +194,8 @@ def engine_toolchain(library: str) -> str:
 
 
 def describe_engine(executable: str, library: str = "") -> dict:
-    """The engine a browser runs on: its library, the package that owns it, and its versions.
+    """The engine a browser runs on: its library, the package that owns it, its versions and the
+    toolchain it was built with.
 
     `library` is what a running browser was seen to have loaded, when the caller has one; otherwise
     it is read off the executable.
