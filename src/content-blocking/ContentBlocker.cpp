@@ -165,9 +165,11 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
         startupUpdateDelayMilliseconds, this, &ContentBlocker::updateStaleSubscriptions);
 }
 
-// A fetch still under way is abandoned with the thread. Its list would have nothing to go to.
+// A fetch still under way is abandoned with the thread, and a compile not yet started is dropped.
+// Neither would have anything to go to. The compile under way runs to its end.
 ContentBlocker::~ContentBlocker()
 {
+    m_compiler.clear();
     m_networkThread.quit();
     m_networkThread.wait();
 }
@@ -888,7 +890,7 @@ void ContentBlocker::recompile()
             --m_activeCompilations;
             emit compilingChanged();
             if (generation != m_compileGeneration || !compilation.matcher) {
-                release(std::move(compilation.matcher));
+                releaseOnTheCompiler(std::move(compilation.matcher));
                 return;
             }
             auto runtime = std::make_shared<Runtime>();
@@ -896,7 +898,7 @@ void ContentBlocker::recompile()
             runtime->disabledSites = m_disabledSites;
             auto retired = loadSnapshot(&m_runtime);
             storeSnapshot(&m_runtime, std::shared_ptr<const Runtime>(std::move(runtime)));
-            release(std::move(retired));
+            releaseOnTheCompiler(std::move(retired));
             m_compilationReport = compilation.report.toVariantMap();
             for (const auto &id : std::as_const(m_pendingCurrent)) {
                 if (auto *subscription = findSubscription(id)) {
@@ -921,7 +923,7 @@ void ContentBlocker::recompile()
 // A rule set going out of force is let go of on the compiler's thread, so its destruction is not
 // the interface thread's. A request under way on another thread may still hold it, in which case
 // that thread lets go of it last.
-void ContentBlocker::release(std::shared_ptr<const void> retired)
+void ContentBlocker::releaseOnTheCompiler(std::shared_ptr<const void> retired)
 {
     if (retired) {
         m_compiler.start([retired = std::move(retired)]() mutable { retired.reset(); });

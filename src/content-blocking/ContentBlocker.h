@@ -215,7 +215,7 @@ private:
         const QString &id, bool failed, const QString &error, const QByteArray &list);
     void save() const;
     void recompile();
-    void release(std::shared_ptr<const void> retired);
+    void releaseOnTheCompiler(std::shared_ptr<const void> retired);
     void replaceDisabledSites();
     Subscription *findSubscription(const QString &id);
     QString updateStatusText(const QString &status) const;

@@ -7,14 +7,14 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
 #include <atomic>
-#include <thread>
-
 #include <memory>
+#include <thread>
 
 using omaweb::ContentBlocker;
 
@@ -400,14 +400,22 @@ void ContentBlockerTest::aRefreshedListTakesOverWithNoGapInBlocking()
             }
         }
     });
+    // A failed check returns from the test, and a thread still running then would end the
+    // whole binary rather than this one test.
+    const auto stopTheEngine = [&] {
+        if (engine.joinable()) {
+            stop = true;
+            engine.join();
+        }
+    };
+    const auto stopOnReturn = qScopeGuard(stopTheEngine);
     blocker.updateSubscription(id);
     QTRY_COMPARE_WITH_TIMEOUT(
         blocker.subscriptions().first().toMap().value(QStringLiteral("updateStatus")).toString(),
         QStringLiteral("current"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(byTheNewList > 0, 5000);
-    stop = true;
-    engine.join();
+    stopTheEngine();
 
     QVERIFY(byTheOldList > 0);
     QCOMPARE(byNoList.load(), 0);
