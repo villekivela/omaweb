@@ -8612,6 +8612,126 @@ TestCase {
         verify(browser.deleteHistoryOrigin("https://omega-omni.example/two"));
     }
 
+    // The tabs are read for an opening rather than for each keystroke, but a
+    // tab opened or closed while the Omnibar is open is listed, or gone, from
+    // the next edit.
+    function test_omnibarListsTabsThatChangeWhileItIsOpen() {
+        const startTabId = browser.activeTabId;
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const tabHosts = function () {
+            return omnibarRowsOf(panel, "tab").map(function (row) {
+                return window.commands.host(row.url);
+            });
+        };
+        const tabIdAt = function (url) {
+            for (let row = 0; row < browser.tabs.rowCount(); ++row) {
+                const index = browser.tabs.index(row, 0);
+                if (String(browser.tabs.data(index, Qt.UserRole + 3)) === url)
+                    return browser.tabs.data(index, Qt.UserRole + 1);
+            }
+            return "";
+        };
+        let lateTabId = "";
+        try {
+            window.openOmnibar(false);
+            input.text = "glow";
+            compare(tabHosts(), []);
+
+            browser.openInputInBackground("https://glow-late.example/");
+            lateTabId = tabIdAt("https://glow-late.example/");
+            verify(lateTabId !== "");
+            input.text = "glow-";
+            compare(tabHosts(), ["glow-late.example"]);
+
+            browser.closeTab(lateTabId);
+            lateTabId = "";
+            input.text = "glow";
+            compare(tabHosts(), []);
+        } finally {
+            window.closeOmnibar();
+            if (lateTabId !== "")
+                browser.closeTab(lateTabId);
+            browser.activateTab(startTabId);
+        }
+    }
+
+    // The tabs and the commands are ranked once for the text, and each answer
+    // that arrives after it is merged into that ranking, so the rows for a
+    // text are the same whichever answer lands first.
+    function test_omnibarRowsDoNotDependOnWhichAnswerArrivesFirst() {
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://old-glimmer.example/");
+        const weakTabId = browser.activeTabId;
+        openPageInNewTab("https://glimmer-tab.example/");
+        const strongTabId = browser.activeTabId;
+        browser.activateTab(startTabId);
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const history = [
+                  {
+                      "title": "Notes on glimmer",
+                      "url": "https://notes.example/kept"
+                  },
+                  {
+                      "title": "Glimmer log",
+                      "url": "https://log.example/kept"
+                  }
+              ];
+        const expected = ["tab glimmer-tab.example", "history Glimmer log",
+                          "tab old-glimmer.example", "history Notes on glimmer",
+                          "suggestion glimmering", "suggestion glimmer stone"];
+        const shown = function () {
+            return panel.rows.map(function (row) {
+                return row.kind + " " + (row.kind === "tab" ? window.commands.host(row.url) :
+                                                              row.title);
+            });
+        };
+        try {
+            window.openOmnibar(false);
+            // The text's own answers are empty: wait for history's, which the
+            // search thread sends, so none lands among the ones given below.
+            window.omnibarSuggestions = [history[0]];
+            input.text = "glimmer";
+            tryVerify(function () {
+                return window.omnibarSuggestions.length === 0;
+            });
+            const engine = {
+                "engineId": panel.intent.engineId,
+                "engineName": "Stub",
+                "terms": "glim",
+                "siteUrl": "https://stub.example/",
+                "suggestions": ["glimmer", "glimmering", "glimmer stone"]
+            };
+
+            window.omnibarEngineSuggestions = engine;
+            window.omnibarSuggestions = history;
+            compare(shown(), expected);
+            compare(panel.selected, 0);
+
+            window.omnibarSuggestions = [];
+            window.omnibarEngineSuggestions = ({});
+            window.omnibarSuggestions = history;
+            window.omnibarEngineSuggestions = engine;
+            compare(shown(), expected);
+            compare(panel.selected, 0);
+
+            // A text edited after both answers ranks the tabs again and keeps
+            // History's answer until the next one arrives, however weakly the
+            // new text reads in it. Engine suggestions are off in this test,
+            // so the browser answers the edit at once with no proposals.
+            input.text = "glimmer-";
+            compare(shown(), ["tab glimmer-tab.example", "history Notes on glimmer",
+                              "history Glimmer log"]);
+            compare(panel.selected, 0);
+        } finally {
+            window.closeOmnibar();
+            browser.closeTab(strongTabId);
+            browser.closeTab(weakTabId);
+            browser.activateTab(startTabId);
+        }
+    }
+
     // The engine a keyword selects is named while it is typed, so where the
     // search goes is read off the panel rather than off the page that loads.
     function test_omnibarNamesTheEngineAKeywordSelects() {

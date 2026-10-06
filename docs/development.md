@@ -1292,35 +1292,44 @@ changed in at least three frames a movement: the page under it redraws every fra
 do not say the surface moved. The Omnibar's word is set into the field a letter at a time rather
 than sent as keys, because a compositor need not give the test window the keyboard.
 
-No surface holds the budget in CI yet. Each prints both budget lines with the reason it is over, and
-holds a guard instead: the same count of movements, at most one in ten, with a frame slower than the
-surface's guard rather than the ceiling. A guard sits over the slowest movement CI's runner has
-drawn. It catches a change that puts a frame over the guard in more than one movement, such as a
-stall on every opening, and nothing smaller: on CI a stall on each opening goes unnoticed under
-about 50 ms for the sidebar, 300 ms for a Space switch, 60 ms for the Omnibar and 25 ms for the
-Glance. The change that brings a surface inside removes its `overBudget` argument, and the budget is
-held.
+The Omnibar holds the budget. Each other surface prints both budget lines with the reason it is
+over, and holds a guard instead: the same count of movements, at most one in ten, with a frame
+slower than the surface's guard rather than the ceiling. A guard sits over the slowest movement CI's
+runner has drawn. It catches a change that puts a frame over the guard in more than one movement,
+such as a stall on every opening, and nothing smaller: on CI a stall on each opening goes unnoticed
+under about 50 ms for the sidebar, 300 ms for a Space switch and 25 ms for the Glance. The change
+that brings a surface inside removes its `overBudget` argument, and the budget is held.
 
 - The sidebar. When the seam settles, the page area takes its new width and the closed Shortcut
   sheet packs its columns and builds them again for it, about 30 ms on the interface thread on the
   offscreen platform.
 - A Space switch. Showing the arriving Space's page rebuilds the closed Shortcut sheet's sections,
   about 100 ms before the slide's first frame on the offscreen platform.
-- The Omnibar. Each edit ranks the tabs and the commands up to three times: for the text, then for
-  the history answer and the engine answer as each arrives. On the GPU it is inside the budget.
 - The Glance. Inside the budget on this laptop and on the GPU, but on CI's runner three of its ten
   movements hold a frame, at 36 to 40 ms.
+
+The Omnibar reads the commands when it opens and when the Space changes, and the tabs and the Spaces
+then and again after one of them changes, rather than for each keystroke. It ranks them once for
+each edit. When History's answer or the engine's arrives, only History's rows, the put-away tabs and
+the keywords are ranked again, and they are merged into the edit's ranking, with the engine's
+proposals listed after as before. An answer that lists the very rows already shown, as an empty one
+does, leaves them standing rather than building them again. Reading and ranking all of them again
+for each edit and each answer held two to five of the ten movements over the budget offscreen and
+five on CI. Ranking once for each edit alone still held two on CI's `arch-linux` job, at 35 to 42
+ms.
 
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
 `arch-linux-gcc` jobs' runs of #588. GPU is three runs in the Hyprland session on the laptop's 60 Hz
-display, drawn through radeonsi:
+display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight runs one at a time,
+CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which print a probe's numbers only
+when it fails, and GPU is three runs:
 
 | Surface      | Offscreen p95 | Held, offscreen | CI p95        | CI slowest    | Held, CI | GPU p95     | Held, GPU | Guard  |
 | ------------ | ------------- | --------------- | ------------- | ------------- | -------- | ----------- | --------- | ------ |
 | Sidebar      | 45 to 50 ms   | 10 of 10        | 65 to 69 ms   | 67 to 99 ms   | 10       | 46 to 47 ms | 5 to 9    | 150 ms |
 | Space switch | 112 to 126 ms | 10 of 10        | 134 to 140 ms | 158 to 190 ms | 10       | 68 to 71 ms | 10        | 500 ms |
-| Omnibar      | 25 to 30 ms   | 2 to 5          | 36 to 40 ms   | 52 to 56 ms   | 5        | 20 to 22 ms | 0 to 1    | 120 ms |
+| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed   | not printed   | 0 to 1   | 17 ms       | 0         | none   |
 | Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms   | 39 to 40 ms   | 3        | 17 ms       | 1         | 67 ms  |
 
 On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to

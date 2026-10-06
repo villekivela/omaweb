@@ -98,12 +98,21 @@ Item {
     // command scope that is the commands alone.
     property var rows: []
     property int selected: 0
-    // The open tabs' icons by host, read when the rows are ranked.
+    // The open tabs' icons by host, read with the destinations.
     property var siteIcons: ({})
+    // The tabs, Spaces and commands that hold the text, strongest first, as
+    // the text last ranked them. The answers are merged into them.
+    property var ownRanked: []
     // Every other Space's tabs, read from the session for each opening and
     // each Space switch rather than for each keystroke, since the read asks
     // the store for every Space.
     property var awayTabs: []
+    // The open tabs, the Spaces and the commands the text is ranked against.
+    // The commands are read when the other Spaces' tabs are; the tabs and
+    // the Spaces again at the next edit after either list changes.
+    property var destinations: []
+    property var commandRows: []
+    property bool destinationsStale: true
     // The Spaces an Agent made, and what the Agents are attached to, so a
     // Space is named in the colour the footer draws it in.
     property var agentSpaceIds: []
@@ -239,14 +248,78 @@ Item {
 
     // The field as a fresh opening leaves it, wherever the keyboard is.
     function clearField() {
-        readAwayTabs();
+        readDestinations();
         engine = null;
         input.text = commandScope ? "" : presetText;
         refresh();
     }
 
-    function readAwayTabs() {
+    // A hundred tabs read for each keystroke leave no room in a frame, so
+    // they are read for an opening and a Space switch, and again only once a
+    // tab or a Space a row shows has changed.
+    function readDestinations() {
         awayTabs = browser === null ? [] : browser.awaySpaceTabs();
+        commandRows = browser === null ? [] : commands.actions().map(asCommand);
+        destinationsStale = true;
+    }
+
+    function readOpenTabs() {
+        if (!destinationsStale)
+            return;
+        destinationsStale = false;
+        destinations = browser === null ? [] : commands.destinations(awayTabs).concat(commandRows);
+        siteIcons = browser === null ? ({}) : commands.siteIcons();
+    }
+
+    // What a tab's row shows or hangs on: its id, address, title, whether it
+    // is on show, its icon and whether it sits beside the one on show. Its
+    // loading, sound and zoom change often and none of them.
+    readonly property var destinationRoles: [Qt.UserRole + 1, Qt.UserRole + 3, Qt.UserRole + 4,
+        Qt.UserRole + 6, Qt.UserRole + 8, Qt.UserRole + 15]
+
+    Connections {
+        target: root.browser === null ? null : root.browser.tabs
+        enabled: root.open
+
+        function onDataChanged(topLeft, bottomRight, roles) {
+            if (roles.length === 0 || roles.some(function (role) {
+                return root.destinationRoles.indexOf(role) >= 0;
+            }))
+                root.destinationsStale = true;
+        }
+        function onRowsInserted() {
+            root.destinationsStale = true;
+        }
+        function onRowsRemoved() {
+            root.destinationsStale = true;
+        }
+        function onRowsMoved() {
+            root.destinationsStale = true;
+        }
+        function onModelReset() {
+            root.destinationsStale = true;
+        }
+    }
+
+    Connections {
+        target: root.browser === null ? null : root.browser.spaces
+        enabled: root.open
+
+        function onDataChanged() {
+            root.destinationsStale = true;
+        }
+        function onRowsInserted() {
+            root.destinationsStale = true;
+        }
+        function onRowsRemoved() {
+            root.destinationsStale = true;
+        }
+        function onRowsMoved() {
+            root.destinationsStale = true;
+        }
+        function onModelReset() {
+            root.destinationsStale = true;
+        }
     }
 
     Connections {
@@ -254,7 +327,7 @@ Item {
         enabled: root.open
 
         function onActiveSpaceChanged() {
-            root.readAwayTabs();
+            root.readDestinations();
             if (!root.commandScope)
                 root.rank();
         }
@@ -268,14 +341,17 @@ Item {
     // Suggestions arrive after the keystroke that asked for them, so a row the
     // reader had stepped onto is a different destination once the answer
     // lands, or gone. The selection goes back to where the text puts it
-    // rather than to whatever now sits at that index.
+    // rather than to whatever now sits at that index. An answer is merged
+    // into the tabs and commands as the text ranked them, not ranked again
+    // with them: a hundred tabs ranked once a keystroke is all a frame has
+    // room for.
     onSuggestionsChanged: {
         if (!commandScope)
-            rank();
+            list();
     }
     onEngineSuggestionsChanged: {
         if (!commandScope)
-            rank();
+            list();
     }
 
     function refresh() {
@@ -295,16 +371,72 @@ Item {
             selected = 0;
             return;
         }
+        ownRanked = [];
+        if (!listsNothing())
+            readOpenTabs();
+        if (widened())
+            ownRanked = ranked(destinations);
+        list();
+    }
+
+    // At rest on the Start page an empty field lists nothing: the open tabs
+    // are in the sidebar beside it, and the road is the page.
+    function listsNothing() {
+        return resting && input.text.trim().length === 0 && engine === null;
+    }
+
+    // An unedited preset is the page on show, and terms after a keyword are a
+    // search, so neither is asked of the tabs or the commands.
+    function widened() {
+        return engine === null && input.text.trim().length > 0 && input.text !== presetText;
+    }
+
+    // The candidates that hold the text, strongest first. Rows of one kind
+    // keep the order they came in.
+    function ranked(candidates) {
         const query = input.text.trim();
-        // At rest on the Start page an empty field lists nothing: the open tabs
-        // are in the sidebar beside it, and the road is the page.
-        if (resting && query.length === 0 && engine === null) {
+        const found = [];
+        for (let index = 0; index < candidates.length; ++index) {
+            const strength = strengthOf(candidates[index], query);
+            if (strength > 0)
+                found.push({
+                               "row": candidates[index],
+                               "strength": strength,
+                               "order": index
+                           });
+        }
+        return found.sort(rankedBefore);
+    }
+
+    function rankedBefore(left, right) {
+        return right.strength - left.strength || kindOrder.indexOf(left.row.kind)
+                - kindOrder.indexOf(right.row.kind) || left.order - right.order;
+    }
+
+    // Two rankings as one. History, put-away tabs and keywords are never of
+    // a tab's, a Space's or a command's kind, so no row of one ranking ties
+    // with a row of the other, and the merge is the order ranking them
+    // together would give.
+    function merged(first, second) {
+        const both = [];
+        let fromFirst = 0;
+        let fromSecond = 0;
+        while (fromFirst < first.length && fromSecond < second.length)
+            both.push(rankedBefore(second[fromSecond], first[fromFirst]) < 0 ? second[fromSecond++] :
+                                                                               first[fromFirst++]);
+        return both.concat(first.slice(fromFirst), second.slice(fromSecond));
+    }
+
+    // The rows on show: the answers and the text's own ranking together, then
+    // the engine's proposals.
+    function list() {
+        if (listsNothing()) {
             rows = [];
             selected = -1;
             return;
         }
-        siteIcons = commands.siteIcons();
-        let candidates = suggestions.map(function (suggestion) {
+        const query = input.text.trim();
+        const answered = ranked(suggestions.map(function (suggestion) {
             return {
                 "kind": "history",
                 "title": suggestion.title,
@@ -320,48 +452,43 @@ Item {
                 "keyword": offer.keyword,
                 "siteUrl": offer.siteUrl
             };
-        }));
-        // An unedited preset is the page on show, and terms after a keyword
-        // are a search, so neither is asked of the tabs or the commands.
-        const widened = engine === null && query.length > 0 && input.text !== presetText;
-        if (widened) {
-            candidates = candidates.concat(commands.destinations(awayTabs), commands.actions().map(
-                                               asCommand));
-        }
-        const ranked = [];
-        for (let index = 0; index < candidates.length; ++index) {
-            const strength = strengthOf(candidates[index], query);
-            if (strength > 0)
-                ranked.push({
-                                "row": candidates[index],
-                                "strength": strength,
-                                "order": index
-                            });
-        }
-        ranked.sort(function (left, right) {
-            return right.strength - left.strength || kindOrder.indexOf(left.row.kind)
-                    - kindOrder.indexOf(right.row.kind) || left.order - right.order;
-        });
+        })));
+        const all = merged(answered, ownRanked);
         // The typed text is the selection, except where it starts an open
         // tab's title or host: the reader is naming that tab, and Return goes
         // to it rather than opening it a second time. Another Space's tab is
         // named only where no tab of the Space on show holds the text.
-        let named = widened && ranked.length > 0 && ranked[0].row.kind === "tab"
-            && ranked[0].strength === 3 ? ranked[0].row : null;
-        if (named !== null && named.spaceId && ranked.some(function (entry) {
+        let named = widened() && all.length > 0 && all[0].row.kind === "tab" && all[0].strength
+            === 3 ? all[0].row : null;
+        if (named !== null && named.spaceId && all.some(function (entry) {
             return entry.row.kind === "tab" && !entry.row.spaceId;
         }))
             named = null;
-        keepSpaceOnShowTabsFirst(ranked);
+        keepSpaceOnShowTabsFirst(all);
         const next = [];
         let listedCommands = 0;
-        for (let index = 0; index < ranked.length; ++index) {
-            if (ranked[index].row.kind === "command" && ++listedCommands > commandsBesideTheRest)
+        for (let index = 0; index < all.length; ++index) {
+            if (all[index].row.kind === "command" && ++listedCommands > commandsBesideTheRest)
                 continue;
-            next.push(ranked[index].row);
+            next.push(all[index].row);
         }
-        rows = next.concat(proposedRows());
+        // Each new list builds the rows on show again, so an answer that
+        // lists the very rows already listed, as an empty one does, leaves
+        // them standing.
+        const shown = next.concat(proposedRows());
+        if (!sameRows(shown, rows))
+            rows = shown;
         selected = named === null ? -1 : next.indexOf(named);
+    }
+
+    function sameRows(next, shown) {
+        if (next.length !== shown.length)
+            return false;
+        for (let index = 0; index < next.length; ++index) {
+            if (next[index] !== shown[index])
+                return false;
+        }
+        return true;
     }
 
     // The Space's put-away tabs that hold the typed text in their title or
