@@ -58,11 +58,9 @@ def loaded_from(test: dict) -> Path:
     return Path(command[command.index("-input") + 1])
 
 
-def probes_under(path: Path) -> list[Path]:
-    """Every copy of the performance probes that a run from `path` would load."""
-    if path.is_file():
-        return [path] if path.name == PERFORMANCE_PROBES else []
-    return sorted(path.rglob(PERFORMANCE_PROBES))
+def probes_under(directory: Path) -> list[Path]:
+    """Every copy of the performance probes a run from `directory` would load."""
+    return sorted(directory.rglob(PERFORMANCE_PROBES))
 
 
 class ProbesRunAloneTest(unittest.TestCase):

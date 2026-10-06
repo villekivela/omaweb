@@ -80,7 +80,7 @@ jobs:
       - name: Check commit messages
         run: scripts/check_commit_messages.sh
 
-  # The Arch jobs below cost between one and ten minutes each, and a change
+  # The Arch jobs below cost between one and fifteen minutes each, and a change
   # confined to prose or the website cannot break a build, so they are asked
   # rather than assumed. `scripts/source_changed.sh` is the answer and the
   # reasoning both: it prints the files it decided on, so a pull request whose
@@ -117,20 +117,17 @@ jobs:
             echo "source=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # The required check. The clang build's tests, the runtime budget and the
-  # release build used to be one job's steps, about half an hour end to end, and
-  # run as three jobs on runners of their own; this is the check that stands for
-  # all three, so branch protection still names one job (#604).
-  #
-  # It runs whatever they did, and reads their results rather than depending on
-  # GitHub to fail it: a job whose dependency failed is skipped, and a skipped
-  # required check lets a pull request merge. A skipped job passes, because the
-  # three are skipped on a change that is prose alone, and that merges as it
-  # did. `changes` is among them so that a gate which could not decide fails
-  # rather than skipping the build.
+  # The required check, standing for the clang build's tests, the runtime budget
+  # and the release build, which run as jobs of their own side by side. It runs
+  # whatever they did and reads their results, because GitHub skips a job whose
+  # dependency failed and a skipped required check lets a pull request merge
+  # (docs/development.md). `changes` is among them so that a gate which could
+  # not decide fails rather than skipping the build.
   arch-linux:
     needs: [changes, arch-linux-clang, arch-linux-budget, arch-linux-release]
-    if: ${{ !cancelled() }}
+    # Not `!cancelled()`: in a cancelled run that would skip the gate, which
+    # passes, where this runs it and the cancelled jobs fail it.
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -187,10 +184,12 @@ jobs:
           path: .cache/ccache
           key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ccache-clang-ci-
-      - name: Count this build's cache hits from zero
+      # The runner's processor beside the cache's count: GitHub's runners are
+      # several models, and a build or a measurement is read against which.
+      - name: Count this build's cache hits from zero and name the processor
         run: |
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
-          ccache --max-size=2G
+          ccache --max-size=500M
           ccache --zero-stats
           grep -m1 'model name' /proc/cpuinfo
       - name: Take the build off root
@@ -312,10 +311,10 @@ jobs:
           path: .cache/ccache
           key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ccache-clang-ci-
-      - name: Count this build's cache hits from zero
+      - name: Count this build's cache hits from zero and name the processor
         run: |
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
-          ccache --max-size=2G
+          ccache --max-size=500M
           ccache --zero-stats
           grep -m1 'model name' /proc/cpuinfo
       - name: Take the build off root
@@ -409,6 +408,7 @@ jobs:
       CXX: clang++
     steps:
       - name: Install toolchain
+        # As `arch-linux-clang`'s.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
           qt6-shadertools qt6-tools libsecret libsodium gnu-free-fonts
@@ -423,13 +423,15 @@ jobs:
           path: .cache/ccache
           key: ccache-clang-release-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ccache-clang-release-
-      - name: Count this build's cache hits from zero
+      - name: Count this build's cache hits from zero and name the processor
         run: |
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
-          ccache --max-size=2G
+          ccache --max-size=500M
           ccache --zero-stats
           grep -m1 'model name' /proc/cpuinfo
       - name: Take the build off root
+        # As in `arch-linux-clang`: Chromium refuses to start as root with its
+        # sandbox on, and Omaweb does not turn it off (ADR 0013).
         run: |
           useradd --create-home --shell /bin/bash builder
           chown -R builder "$GITHUB_WORKSPACE"
@@ -499,10 +501,10 @@ jobs:
           path: .cache/ccache
           key: ccache-gcc-ci-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ccache-gcc-ci-
-      - name: Count this build's cache hits from zero
+      - name: Count this build's cache hits from zero and name the processor
         run: |
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
-          ccache --max-size=2G
+          ccache --max-size=500M
           ccache --zero-stats
           grep -m1 'model name' /proc/cpuinfo
       - name: Take the build off root

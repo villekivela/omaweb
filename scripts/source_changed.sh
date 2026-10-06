@@ -2,7 +2,7 @@
 #
 # Whether a commit range touches anything a compiler reads.
 #
-# The Arch jobs in CI cost between two and ten minutes each, and a change
+# The Arch jobs in CI cost between one and fifteen minutes each, and a change
 # confined to prose or the website cannot break a build. This is what CI asks
 # before spending them, and what anyone can run to find out why a build did or
 # did not happen on a pull request.

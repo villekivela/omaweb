@@ -165,9 +165,9 @@ its own, and they run side by side:
 The clang build's tests, the runtime budget and the release build are jobs of their own rather than
 one job's steps, so a pull request waits for the slowest of them rather than for their sum.
 `arch-linux` is the one check branch protection requires: it runs after the three whatever they did,
-and `scripts/check_job_results.py` reads their results. It does not leave the verdict to GitHub,
-because a job whose dependency failed is skipped rather than failed, and a skipped required check
-lets a pull request merge.
+cancelled included, and `scripts/check_job_results.py` reads their results. It does not leave the
+verdict to GitHub, because a job whose dependency failed is skipped rather than failed, and a
+skipped required check lets a pull request merge.
 
 The two jobs that run the suite run `ctest --parallel "$(nproc)"`. A test that measures time is
 `RUN_SERIAL`, so ctest starts nothing beside it: the startup probes, the session store's threaded
@@ -177,16 +177,17 @@ writes, and the frame-interval probes of `tests/ui-performance/tst_performance.q
 the suite the same way locally with `ctest --preset ci --parallel <n>`, a share of the machine's
 processors on a machine others build on too.
 
-Each build restores a ccache directory from the last run and saves it once it has built, under a key
-per job and preset. A pull request starts from the cache of its own last run, or from `main`'s on
-its first. ccache checks each object against its compiler and sources, so a stale cache costs time
-and nothing else. A new toolchain misses, and a missing cache builds cold, slower but the same.
-`arch-linux-budget` reads `arch-linux-clang`'s cache and saves none, because it compiles the same
-objects. `arch-package` builds through `makepkg` without the launcher, as a reader's build does.
+The clang and GCC jobs each restore a ccache directory from the last run and save it once they have
+built, under a key per compiler and preset, capped at 500 MB. A pull request starts from the cache
+of its own last run, or from `main`'s on its first. ccache checks each object against its compiler
+and sources, so a stale cache costs time and nothing else. A new toolchain misses, and a missing
+cache builds cold, slower but the same. `arch-linux-budget` reads `arch-linux-clang`'s cache and
+saves none, because it compiles the same objects. `arch-package` builds through `makepkg` without
+the launcher, as a reader's build does.
 
-The Arch jobs cost between one and ten minutes each, and a change confined to `docs/`, `website/` or
-Markdown cannot break a compile, so a `changes` job decides whether they run at all. It prints the
-files it decided on, and the same question can be asked of any range:
+The Arch jobs cost between one and fifteen minutes each, and a change confined to `docs/`,
+`website/` or Markdown cannot break a compile, so a `changes` job decides whether they run at all.
+It prints the files it decided on, and the same question can be asked of any range:
 
 ```sh
 scripts/source_changed.sh origin/main

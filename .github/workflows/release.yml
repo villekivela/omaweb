@@ -88,8 +88,8 @@ jobs:
 
       # The engine is Omaweb's own package (ADR 0049) and Omaweb's repository is
       # the only place it is published, so a release has to install from there
-      # to build against the engine it will run on. CI's `arch-linux` job adds
-      # the repository with the same script.
+      # to build against the engine it will run on. CI's clang jobs add the
+      # repository with the same script.
       - name: Trust the repository that serves the engine
         run: scripts/trust_omaweb_repository.sh
 

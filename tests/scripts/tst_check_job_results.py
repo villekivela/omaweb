@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""The verdict CI's `arch-linux` check gives over the jobs it stands for.
+"""The verdict CI's required `arch-linux` check gives over the jobs it stands for.
 
-`arch-linux` is the required check, and the clang build, the runtime budget and
-the release build run as jobs of their own under it. A job that depends on a
-failed one is skipped rather than failed by default, and a skipped required
-check lets a pull request merge, so the verdict is read from the results
-instead. A skipped job passes, because the build jobs are skipped on a change
-that is prose alone.
+A failed or cancelled job fails it. A skipped one passes, because the build jobs
+are skipped on a change that is prose alone (docs/development.md).
 """
 
 from __future__ import annotations
@@ -34,23 +30,23 @@ def verdict(results: dict[str, str]) -> subprocess.CompletedProcess[str]:
 
 class CheckJobResultsTest(unittest.TestCase):
     def test_jobs_that_all_passed_pass(self) -> None:
-        answer = verdict({"arch-linux-test": "success", "arch-linux-budget": "success"})
+        answer = verdict({"arch-linux-clang": "success", "arch-linux-budget": "success"})
         self.assertEqual(answer.returncode, 0, answer.stderr)
 
     def test_jobs_skipped_for_a_change_of_prose_pass(self) -> None:
-        answer = verdict({"arch-linux-test": "skipped", "arch-linux-budget": "skipped"})
+        answer = verdict({"arch-linux-clang": "skipped", "arch-linux-budget": "skipped"})
         self.assertEqual(answer.returncode, 0, answer.stderr)
 
     def test_one_failed_job_fails_and_is_named(self) -> None:
-        answer = verdict({"arch-linux-test": "success", "arch-linux-budget": "failure"})
+        answer = verdict({"arch-linux-clang": "success", "arch-linux-budget": "failure"})
         self.assertEqual(answer.returncode, 1)
         self.assertIn("arch-linux-budget", answer.stderr)
-        self.assertNotIn("arch-linux-test", answer.stderr)
+        self.assertNotIn("arch-linux-clang", answer.stderr)
 
     def test_a_cancelled_job_fails(self) -> None:
-        answer = verdict({"arch-linux-test": "cancelled", "arch-linux-release": "success"})
+        answer = verdict({"arch-linux-clang": "cancelled", "arch-linux-release": "success"})
         self.assertEqual(answer.returncode, 1)
-        self.assertIn("arch-linux-test", answer.stderr)
+        self.assertIn("arch-linux-clang", answer.stderr)
 
     def test_no_jobs_at_all_fails(self) -> None:
         # A gate that stands for nothing would pass whatever broke.

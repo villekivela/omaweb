@@ -1999,7 +1999,7 @@ if(BUILD_TESTING)
             ENVIRONMENT_MODIFICATION "HOME=set:${omaweb_ui_themed_home}"
         )
         # The runtime probes and frame intervals of `tst_performance.qml`, on
-        # both desktops as before, with the machine to themselves.
+        # both desktops, with the machine to themselves.
         add_test(NAME omaweb-ui-performance
             COMMAND omaweb-ui-tests -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui-performance")
         set_tests_properties(omaweb-ui-performance PROPERTIES

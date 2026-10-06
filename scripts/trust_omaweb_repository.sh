@@ -6,7 +6,7 @@
 #
 # For the disposable containers that build against that engine: the release
 # workflow, which has to compile against the engine it ships on, and CI's
-# `arch-linux` job, which tests against it (ADR 0049). Both run it as root.
+# clang jobs, which test against it (ADR 0049). Both run it as root.
 #
 # The public half of the key is `security/repo-signing-key.asc` in the checkout
 # rather than fetched, because a keyserver that does not answer would fail a
