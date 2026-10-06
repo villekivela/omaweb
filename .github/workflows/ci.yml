@@ -261,8 +261,6 @@ jobs:
           grep -E 'frame-interval: |shortcut-sheet-opening: |probe ' \
             build/ci/Testing/Temporary/LastTest.log \
             | sed -E 's/^[A-Z!]+ +: [A-Za-z_:]+\(\) (qml: )?//' || true
-          grep -E 'DIAG |Test command|ListIsRefreshed\(\) qml: SLOWFRAME' build/ci/Testing/Temporary/LastTest.log \
-            | sed -E 's/^[A-Z!]+ +: [A-Za-z_:]+\(\) (qml: )?//' || true
       # The engine contract skips CNAME uncloaking's test on an engine without
       # the DNS alias API, and a skip passes. ctest prints only failing
       # output, so the result is read from its log. Every result it holds for
@@ -563,8 +561,6 @@ jobs:
         run: |
           grep -E 'frame-interval: |shortcut-sheet-opening: |probe ' \
             build/ci/Testing/Temporary/LastTest.log \
-            | sed -E 's/^[A-Z!]+ +: [A-Za-z_:]+\(\) (qml: )?//' || true
-          grep -E 'DIAG |Test command|ListIsRefreshed\(\) qml: SLOWFRAME' build/ci/Testing/Temporary/LastTest.log \
             | sed -E 's/^[A-Z!]+ +: [A-Za-z_:]+\(\) (qml: )?//' || true
 
   # The small client on its own, where a sandbox has it: Qt's base and nothing
