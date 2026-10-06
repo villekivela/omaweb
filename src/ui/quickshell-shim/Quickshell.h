@@ -7,9 +7,10 @@
 //
 // The scope is the subset `qs.Commons` and the Quickshell-free components in
 // `qs.Ui` actually touch: an environment lookup, a watched config file, a
-// short-lived command run for its output, and the `Singleton` and `IpcHandler`
-// types the kit's IPC registry declares. Layer-shell and Hyprland surfaces
-// are out of scope, and so are the kit components that need them.
+// short-lived command run for its output, the `Singleton` and `IpcHandler`
+// types the kit's IPC registry declares, and the `Hyprland` event signal
+// `Style` connects to. Layer-shell and Hyprland surfaces are out of scope, and
+// so are the kit components that need them.
 
 #include <QObject>
 #include <QQmlListProperty>
@@ -20,10 +21,11 @@ class QQmlEngine;
 
 namespace omaweb::quickshell {
 
-// Registers the shim's types under the `Quickshell` and `Quickshell.Io` module
-// URIs, puts the qmldir files that claim those URIs on the engine's import
-// path, and picks the Qt Quick Controls style the kit needs. Call once per QML
-// engine, before loading anything that imports the vendored kit.
+// Registers the shim's types under the `Quickshell`, `Quickshell.Hyprland` and
+// `Quickshell.Io` module URIs, puts the qmldir files that claim those URIs on
+// the engine's import path, and picks the Qt Quick Controls style the kit
+// needs. Call once per QML engine, before loading anything that imports the
+// vendored kit.
 void installShim(QQmlEngine &engine);
 
 // The `Quickshell` singleton: `import Quickshell` then `Quickshell.env(...)`.

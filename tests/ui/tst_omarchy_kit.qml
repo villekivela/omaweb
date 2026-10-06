@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
+import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui as Omarchy
 import "../../src/ui" as Omaweb
@@ -151,6 +152,16 @@ TestCase {
         compare(answer.output, "pong a");
         compare(IpcRegistry.call("omaweb-test", "ping", []).ran, false);
         compare(IpcRegistry.call("omaweb-test", "destroy", []).ran, false);
+    }
+
+    // `Style` imports `Quickshell.Hyprland` and connects to `Hyprland.rawEvent`, so the module has
+    // to exist for any token to load, and the signal has to exist or the `Connections` warns on
+    // every load.
+    function test_styleFindsTheHyprlandEventItConnectsTo() {
+        const spy = createTemporaryQmlObject("import QtTest; SignalSpy {}", testCase);
+        spy.target = Hyprland;
+        spy.signalName = "rawEvent";
+        verify(spy.valid);
     }
 
     // Omaweb's own Typography object is gone: the kit's scale is the only type
