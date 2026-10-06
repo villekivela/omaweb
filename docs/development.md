@@ -1241,8 +1241,8 @@ the `dev` preset on 2026-09-12, and on CI's runners and on an Omarchy laptop on 
 
 | Probe                                             | M2 Max         | CI, EPYC 7763  | CI, EPYC 9V45 | Omarchy, GPU    | Threshold | Test                        |
 | ------------------------------------------------- | -------------- | -------------- | ------------- | --------------- | --------- | --------------------------- |
-| Startup to first window drawn                     | 470 to 550 ms  | 640 to 660 ms  | 429 ms        | 669 to 686 ms   | 2200 ms   | `omaweb-startup-probes`     |
-| Session restore to the visible Space's page drawn | 560 to 620 ms  | 960 to 980 ms  | 618 ms        | 910 to 922 ms   | 2500 ms   | `omaweb-startup-probes`     |
+| Startup to first window drawn                     | 470 to 550 ms  | 640 to 660 ms  | 429 ms        | 394 to 400 ms   | 2200 ms   | `omaweb-startup-probes`     |
+| Session restore to the visible Space's page drawn | 560 to 620 ms  | 960 to 980 ms  | 618 ms        | 648 to 669 ms   | 2500 ms   | `omaweb-startup-probes`     |
 | Tab switch to the destination page's frame        | 7 ms           | 5.5 to 6.1 ms  | 5.4 to 5.6 ms | 16.5 to 16.7 ms | 50 ms     | `omaweb-ui-performance`     |
 | Chromeless frame time over an animated page       | 0.8 to 1.0 ms  | 0.4 to 0.6 ms  | 0.3 ms        | 16.7 ms         | 10 ms     | `omaweb-ui-performance`     |
 | Resident memory per frozen tab                    | 103 to 104 MiB | 108 to 117 MiB | 108 MiB       | 113 to 116 MiB  | 200 MiB   | `omaweb-qt-engine-contract` |
@@ -1271,11 +1271,13 @@ as the frame time below explains. The memory probe and the session writes open n
 
 The Omarchy column is a Lenovo laptop with an AMD Ryzen 7 PRO 7840HS and Radeon 780M graphics,
 running Hyprland 0.56.2 on its 60 Hz display, with the `ci` preset at `4d9dff9` and three runs each.
-The tests run in the Hyprland session with `QT_QPA_PLATFORM=wayland`, so the window is drawn through
-the GPU's radeonsi driver. The engine there is the installed 6.11.2-3, not 6.11.2-5, which only the
-memory probe reads. The memory probe and the session writes open no window, so their numbers are the
-same offscreen. The laptop's offscreen numbers for the others are startup 582 to 593 ms, restore 824
-to 834 ms, tab switch 5.4 to 5.6 ms and frame time 0.2 ms.
+The two startup rows were taken again after #618, which builds Settings after the first frame, with
+`HYPRLAND_INSTANCE_SIGNATURE` set as it is in any Hyprland session. The tests run in the Hyprland
+session with `QT_QPA_PLATFORM=wayland`, so the window is drawn through the GPU's radeonsi driver.
+The engine there is the installed 6.11.2-3, not 6.11.2-5, which only the memory probe reads. The
+memory probe and the session writes open no window, so their numbers are the same offscreen. The
+laptop's offscreen numbers for the others are startup 305 ms, restore 560 to 565 ms, tab switch 5.4
+to 5.6 ms and frame time 0.2 ms.
 
 On the GPU, the tab switch and the frame time read one refresh, 16.7 ms, because the scene graph's
 bracket includes the wait for the display, as the frame time below says for Metal. The chromeless
@@ -1283,16 +1285,9 @@ frame probe therefore fails its 10 ms threshold on Wayland, as it does on Metal,
 page's frame probe does not finish: it stops at its wait for the Start page's scene to run, before
 it times anything. Both run only offscreen until they hold on a real display.
 
-The Omarchy column was taken with `HYPRLAND_INSTANCE_SIGNATURE` unset. Set, as it is in any Hyprland
-session, the startup and restore probes then read 5.6 s and 5.9 s. Once Hyprland accepts a
-connection to its request socket, it stops the whole compositor for up to five seconds while it
-waits for the request. `LinuxSystemMotion.cpp` connected while QML was loading and left the request
-for its event loop to send, then created the window, which waits on the compositor. Each waited on
-the other until Hyprland gave up (#618). The request now goes out as the connection is made, and
-`omaweb-system-motion` fails if it does not. Measured afterwards on the same laptop, the variable
-makes no difference: startup reads 905 to 918 ms and the restore 1139 to 1152 ms either way. The
-whole laptop read slower than the column that day: offscreen startup took 833 ms against 582 to 593
-ms, and the build before the change read the same, so the change does not cause it.
+Before #618 the startup and restore probes read 5.6 s and 5.9 s with `HYPRLAND_INSTANCE_SIGNATURE`
+set: the browser held Hyprland's request socket open while its window waited on the compositor. The
+[startup phases](#startup-phases) say how that was found and what else moved.
 
 What each one measures:
 
@@ -1457,15 +1452,19 @@ budget that speaks only when it breaks hides the drift that is about to break it
 ```sh
 scripts/benchmark_runtime.py
 scripts/benchmark_runtime.py startup --browser build/dev/omaweb
+scripts/benchmark_runtime.py startup livedin --cache cold
 scripts/benchmark_runtime.py spaces --spaces 4
 scripts/benchmark_runtime.py pageload
 scripts/benchmark_runtime.py livetabs
 ```
 
-Six measurements, one subcommand each, so a developer can run the one they are working on:
+Seven measurements, one subcommand each, so a developer can run the one they are working on:
 
 - `startup` is the median of three launches, from the process starting to the first buffer the
   browser attached to its toplevel's surface.
+- `livedin` is the same on a profile a reader has used for months, with the browser's files dropped
+  from the page cache before each launch. It and `startup` both print each launch's
+  [startup phases](#startup-phases).
 - `memory` is the proportional set size of the whole process tree, with one Space and one page.
 - `spaces` opens Spaces one at a time, each with the same page loaded, and reports what each one
   after the first added. That is the price of the engine profile per Space that
@@ -1537,6 +1536,86 @@ than a number a slow machine can move. The budget keeps only that last recording
 appends the run to [the performance history](#the-performance-history), where a number drifting
 towards its ceiling shows. Give the line a machine name with `--machine`; without it, the machine is
 described from its hardware.
+
+#### Startup phases
+
+With `QT_LOGGING_RULES=omaweb.startup.info=true`, the browser logs each point it reaches on the way
+to its first frame as `omaweb.startup: phase <name> at <milliseconds since the epoch>`
+(`src/core/StartupPhases.h`). Qt sends that to the journal unless stderr is a terminal or
+`QT_FORCE_STDERR_LOGGING=1` is set. `startup` and `livedin` set both and read the marks from the log
+the window's mapping comes from, against the moment they started the process:
+
+| Phase                     | Reached when                                                           |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `main`                    | `main` starts. Before it is the client starting the browser's process. |
+| `qt-started`              | the `QGuiApplication` exists, connected to the display                 |
+| `session-read`            | the session store has given back every Space and the tabs on show      |
+| `content-blocker-started` | the filter lists are read and their compile has started on a thread    |
+| `qml-load-started`        | the window's QML starts to load                                        |
+| `engine-started`          | the first Space's profile exists, which is what starts Chromium        |
+| `qml-loaded`              | the window's QML has loaded                                            |
+| `window-mapped`           | the window's first buffer is on its surface, from the protocol log     |
+| `first-frame`             | the window has swapped its first frame                                 |
+| `rules-compiled`          | the filter lists are in force                                          |
+| `first-request`           | the restored page's first request reaches content blocking             |
+| `extension-loaded`        | the profile's first extension has loaded                               |
+
+The last three follow the window rather than hold it. A restored page waits for the last two before
+it is pointed at its address, so its first request is checked against the reader's rules and runs
+their password manager.
+
+`--cache cold` drops every file the browser's processes map, its binary and the profile from the
+page cache before each launch, with `posix_fadvise`, and learns what they map from one launch that
+is not counted. That needs no privilege, so it cannot drop a page another process maps: the
+desktop's own Qt and Mesa are as warm as the machine leaves them. A launch after it is cold for what
+the browser alone reads, not the first launch after a boot. `livedin` is cold by default, as its
+budget is, and `startup` warm.
+
+The lived-in profile is the shape of the one #618 was reported from, at about its size: two Spaces
+with three tabs open, four closed and nine put away, 106 visits, both committed filter lists, an 83
+MiB extension where Bitwarden's package goes, and 230 MiB of HTTP cache, 70 MiB of Cache Storage and
+14 MiB of IndexedDB, 403 MiB in all. `omaweb-lived-in-session`, built with the tests, writes the
+session through the store. The engine's storage is written by the browser itself: a warm-up launch
+restores a tab whose page fills it, so what a measured launch reads back is in the engine's own
+formats. A build without Known extensions leaves the package on disk unloaded.
+
+Taken on the Lenovo the Omarchy probe column names, from the `release` preset built against
+`omaweb-qtwebengine` 6.11.2-3 with Known extensions, as the package is, on 2026-10-06. Medians of
+three launches, in milliseconds from the process starting:
+
+| Phase            | Fresh, warm | Fresh, cold | Lived-in, warm | Lived-in, cold |
+| ---------------- | ----------- | ----------- | -------------- | -------------- |
+| main             | 35          | 98          | 36             | 98             |
+| qt-started       | 93          | 179         | 94             | 177            |
+| session-read     | 96          | 182         | 98             | 183            |
+| qml-load-started | 145         | 237         | 132            | 220            |
+| engine-started   | 441         | 581         | 441            | 579            |
+| qml-loaded       | 442         | 583         | 455            | 594            |
+| window-mapped    | 493         | 641         | 574            | 720            |
+| first-frame      | 580         | 733         | 583            | 729            |
+| rules-compiled   | 492         | 636         | 524            | 657            |
+| extension-loaded |             |             | 529            | 666            |
+| first-request    |             |             | 795            | 946            |
+
+Before #618 the same launches mapped their window in 6.03 to 6.22 s, all four ways. Two things held
+it, both between `qml-load-started` and `engine-started`:
+
+- **Hyprland's request socket, about five seconds.** Once Hyprland accepts a connection there, it
+  stops the whole compositor for up to five seconds waiting for the request. `LinuxSystemMotion.cpp`
+  connected while the window's QML loaded and left the request for its event loop to send, then
+  created the window, whose EGL set-up waits on the compositor. Each waited on the other until
+  Hyprland gave up, and the browser's own question went unanswered. With
+  `HYPRLAND_INSTANCE_SIGNATURE` unset the window came up five seconds sooner, which is how it was
+  found; a stack taken during the wait showed the UI lab's interface thread in
+  `wl_display_roundtrip`, under the EGL set-up of the window being created. The request now goes out
+  as the connection is made, and `omaweb-system-motion` fails if it does not.
+- **Settings, about half a second.** The window built Settings, every section's controls, before its
+  first frame, though none of it is on show then. Deferring it took the package-like build from 1.10
+  s to 0.58 s, fresh and warm. It is now built after the first frame.
+
+The profile's size is not on the path to the window: lived-in maps it 80 ms after fresh, warm or
+cold, which is the session and the page it restores. A cold launch costs about 150 ms over a warm
+one: 60 ms of it before `main`, 30 more before the QML starts to load, and the rest in loading it.
 
 #### The page-load measurement
 
