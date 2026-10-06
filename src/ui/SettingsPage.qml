@@ -435,6 +435,9 @@ Rectangle {
     }
 
     visible: open
+    // Settings can be drawn after it closes, for the length of its drop, and
+    // by then the page is back beneath it. A click in that time is the page's.
+    enabled: open
     // Settings is a place over the page rather than instead of it, so the page
     // stays visible through it: blurred, under the same translucency the
     // sidebar beside it has.

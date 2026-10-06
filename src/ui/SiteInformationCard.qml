@@ -456,6 +456,9 @@ Omarchy.BorderSurface {
     }
 
     objectName: "siteInformationCard"
+    // The card can be drawn after it closes, for the length of its drop, and
+    // by then what it stood over is back. A click in that time is theirs.
+    enabled: open
     width: 400
     height: root.borderTop + band.height + body.height + root.borderBottom
     radius: Style.cornerRadius

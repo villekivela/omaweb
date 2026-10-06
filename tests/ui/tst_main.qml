@@ -284,6 +284,33 @@ TestCase {
         tryVerify(function () {
             return sidebar.visible && Math.round(sidebar.x) === 0;
         });
+        // So does the drop of a sheet or card the last test left open, and
+        // until it ends the sheet can take a click that lands on it: Settings
+        // and the site information card do. A test that clicked the page or
+        // the outline straight away hit the one still dropping whenever
+        // nothing else held the interface thread for the length of the drop.
+        for (const name of ["settingsSurface", "historySurface", "siteInformationCard",
+                            "shortcutSheet"]) {
+            const surface = findChild(window.contentItem, name);
+            tryVerify(function () {
+                return !surface.visible;
+            }, 5000, name + " was still dropping");
+        }
+    }
+
+    // What the Shortcut sheet lists, read with it open: a closed sheet lists
+    // nothing, so asking the registry costs nothing while it is away (#594).
+    // It is closed again, and its drop let finish, before the test goes on.
+    function shortcutSheetSections() {
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        verify(sheet !== null);
+        window.shortcutsOpen = true;
+        verify(sheet.open, "the Shortcut sheet did not open");
+        const sections = sheet.sections;
+        verify(sections.length > 0);
+        window.shortcutsOpen = false;
+        tryCompare(sheet, "visible", false);
+        return sections;
     }
 
     // A Download record outlives the test that made it, and every test here
@@ -1589,8 +1616,7 @@ TestCase {
         compare(browser.developerToolsTabId, "");
         compare(engine.inspectedElementCount, 0);
         verify(!dock.visible);
-        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
-        compare(shortcutSheet.sections.filter(function (section) {
+        compare(shortcutSheetSections().filter(function (section) {
             return section.group === "developer";
         }).length, 0);
 
@@ -1627,9 +1653,7 @@ TestCase {
 
         // The sheet of keys promises nothing it cannot carry out either, so the
         // registry is the only place that decides.
-        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
-        verify(shortcutSheet !== null);
-        const developerSections = shortcutSheet.sections.filter(function (section) {
+        const developerSections = shortcutSheetSections().filter(function (section) {
             return section.group === "developer";
         });
         compare(developerSections.length, 0);
@@ -3734,10 +3758,10 @@ TestCase {
         const keys = window.commands.keymap.keysFor("site-information");
         compare(keys, window.commands.keymap.displayFor("Primary+Shift+L"));
 
-        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const sections = shortcutSheetSections();
         let sheetKeys = "";
-        for (let group = 0; group < sheet.sections.length; ++group) {
-            const entries = sheet.sections[group].entries;
+        for (let group = 0; group < sections.length; ++group) {
+            const entries = sections[group].entries;
             for (let index = 0; index < entries.length; ++index) {
                 if (entries[index].title === "Site information")
                     sheetKeys = entries[index].keys;
@@ -5423,9 +5447,8 @@ TestCase {
         verify(listed["open-file"] !== undefined);
         compare(listed["open-file"].keys, "");
 
-        const sheet = findChild(window.contentItem, "shortcutSheet");
         const keysByTitle = {};
-        const tabs = sheet.sections.filter(function (section) {
+        const tabs = shortcutSheetSections().filter(function (section) {
             return section.group === "tabs";
         })[0];
         for (let index = 0; index < tabs.entries.length; ++index)
@@ -8451,6 +8474,9 @@ TestCase {
         browser.activateTab(leftTabId);
         verify(browser.addSplit(rightTabId));
         tryCompare(engineHost, "besideEngine", engineHost.engines[rightTabId]);
+        // The right pane arrives with a nudge, and in the middle of it the
+        // pane stands wherever the easing has it.
+        tryCompare(engineHost, "tabNudgeX", 0);
         engineHost.setLeftPaneWidth(401);
         verifyOnWholePixels(findChild(engineHost, "splitDivider"), "the split's divider", "x");
         verifyOnWholePixels(findChild(engineHost, "splitResizer"), "the split's handle", "x");
@@ -10675,6 +10701,9 @@ TestCase {
         // the `checked` binding. Drive it from the keyboard, since that is how
         // this browser is meant to be reached, and on both of the kit's
         // activation keys.
+        // Settings is open to be used: a closed one takes neither the
+        // pointer nor the keyboard.
+        window.settingsOpen = true;
         window.requestActivate();
         tryVerify(function () {
             return window.active;
@@ -10687,6 +10716,7 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(keyboardNavigation.enabled, true);
         compare(keyboardNavigationEnabled.checked, true);
+        window.settingsOpen = false;
     }
 
     function activateWindow() {
@@ -11387,26 +11417,103 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
-    // The Shortcut sheet holds a row for every command whether it is open or
-    // not. A closed sheet draws none of their key caps, which kept the rest of
-    // the window slow enough to miss clicks, and an open one draws them.
-    function test_aClosedShortcutSheetDrawsNoKeyCaps() {
+    // Settings and the site information card are drawn for the length of
+    // their drop, and by then the page is back beneath them, so a click in
+    // that time is the page's, as it is under the Shortcut sheet.
+    function test_aClickDuringADropIsThePages() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const card = findChild(window.contentItem, "siteInformationCard");
+        const engine = openPage("https://under-the-drop.example/");
+        settleMotion();
+        const page = createTemporaryObject(pageCursorComponent, engine);
+        verify(page !== null);
+
+        window.settingsOpen = true;
+        tryCompare(settings, "visible", true);
+        window.settingsOpen = false;
+        verify(settings.visible, "Settings was gone before the click");
+        mouseClick(page, page.width / 2, page.height / 2);
+        verify(settings.visible, "Settings was gone before the click");
+        compare(page.presses, 1, "Settings took a click while it dropped");
+        tryCompare(settings, "visible", false);
+
+        // The card is wider than the sidebar, so its far side stands over the
+        // page.
+        window.openSiteInformation("");
+        tryCompare(card, "visible", true);
+        const over = card.mapToItem(page, card.width - 20, card.height / 2);
+        verify(over.x > 0 && over.x < page.width, "the card does not reach over the page");
+        window.closeSiteInformation();
+        verify(card.visible, "the card was gone before the click");
+        mouseClick(page, over.x, over.y);
+        verify(card.visible, "the card was gone before the click");
+        compare(page.presses, 2, "the card took a click while it dropped");
+        tryCompare(card, "visible", false);
+    }
+
+    // Settings is as wide as the page area while it is on show. Closed, it
+    // keeps the width it was last drawn at, so the page area settling at a new
+    // width beside the sidebar does not lay every row of it out again, which
+    // held the sidebar's slide over its frame budget (#594). Opening it takes
+    // the page area's width before its first frame.
+    function test_aClosedSettingsPageKeepsItsWidth() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        verify(!settings.visible);
+        const width = settings.width;
+        const pageArea = settings.parent.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
+        tryVerify(function () {
+            return settings.parent.width !== pageArea;
+        });
+        compare(settings.width, width, "the closed Settings page took the page area's new width");
+
+        window.settingsOpen = true;
+        verify(settings.visible);
+        compare(settings.width, settings.parent.width);
+        window.settingsOpen = false;
+        tryCompare(settings, "visible", false);
+    }
+
+    // A closed Shortcut sheet keeps the rows and key caps it last laid out,
+    // ready for its next opening, and builds none of them again while it is
+    // closed: not when the page area takes a new width beside the sidebar,
+    // and not when a Space switch changes what the registry offers. A closed
+    // sheet that rebuilt them kept the rest of the window slow enough to miss
+    // clicks, and one that built them as it opened held its first frame over
+    // the budget (#594).
+    function test_aClosedShortcutSheetBuildsNoKeyCaps() {
         const sheet = findChild(window.contentItem, "shortcutSheet");
-        const capsIn = function () {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const caps = function () {
             return childrenNamed(sheet, "keycap").filter(function (cap) {
                 return cap.text.length > 0;
-            }).length;
+            });
         };
-        verify(!window.shortcutsOpen);
-        compare(capsIn(), 0);
         window.requestShortcuts();
         tryVerify(function () {
-            return window.shortcutsOpen && capsIn() > 0;
+            return window.shortcutsOpen && caps().length > 0;
         });
         window.shortcutsOpen = false;
+        tryCompare(sheet, "visible", false);
+        const before = caps();
+        verify(before.length > 0, "the closed sheet dropped its key caps");
+
+        const homeId = browser.activeSpaceId;
+        const otherId = browser.createSpace("Caps kept");
+        verify(browser.switchSpace(otherId));
+        openPage("https://caps-kept.example/");
+        const pageArea = engineHost.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
         tryVerify(function () {
-            return capsIn() === 0;
+            return engineHost.width !== pageArea;
         });
+        const after = caps();
+        compare(after.length, before.length);
+        for (let index = 0; index < before.length; ++index)
+            verify(after[index] === before[index], "the closed sheet built its key caps again");
+
+        verify(browser.switchSpace(homeId));
+        verify(browser.deleteSpace(otherId, "Caps kept"));
     }
 
     // A Space with nothing open in it has no page to show and no ordinary tab

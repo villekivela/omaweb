@@ -1043,11 +1043,19 @@ Rectangle {
     }
 
     Row {
-        anchors.fill: parent
+        id: blurPattern
+        height: parent.height
         visible: root.blurReviewPattern
+        // As wide as the view only while it is drawn, like the sample page.
+        Component.onCompleted: width = root.width
+        Binding on width {
+            when: root.visible && root.blurReviewPattern
+            value: root.width
+            restoreMode: Binding.RestoreNone
+        }
 
         Repeater {
-            model: Math.ceil(root.width / 96)
+            model: Math.ceil(blurPattern.width / 96)
 
             Rectangle {
                 required property int index
@@ -1134,9 +1142,20 @@ Rectangle {
     // page is the one a site that follows the reader's theme would draw.
     Rectangle {
         id: samplePage
-        anchors.fill: parent
+        height: parent.height
         visible: root.samplePage
         clip: true
+        // As wide as the view only while it is drawn. A page the lab keeps
+        // for a tab not on show, or one with no sample to draw, would
+        // otherwise wrap its text and paint its pictures again at every width
+        // the page area settles at, which a real engine's hidden view does
+        // not do on the interface thread (#594).
+        Component.onCompleted: width = root.width
+        Binding on width {
+            when: root.visible && root.samplePage
+            value: root.width
+            restoreMode: Binding.RestoreNone
+        }
 
         readonly property var colors: root.pagePalette
         readonly property color ground: colors ? colors.bg : root.pageBackgroundColor
@@ -1527,10 +1546,16 @@ Rectangle {
             return value - Math.floor(value);
         }
 
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        onGroundChanged: requestPaint()
-        onAccentChanged: requestPaint()
+        // Painted while it is drawn, and once more when it is drawn again.
+        function repaint() {
+            if (scene.visible)
+                scene.requestPaint();
+        }
+        onWidthChanged: repaint()
+        onHeightChanged: repaint()
+        onGroundChanged: repaint()
+        onAccentChanged: repaint()
+        onVisibleChanged: repaint()
 
         onPaint: {
             const context = getContext("2d");

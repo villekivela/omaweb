@@ -415,11 +415,100 @@ TestCase {
             return sidebar.x;
         });
         engine.motionReview = false;
-        probeIntervals("sidebar-frame-interval", report, {
-                           "guard": 150,
-                           "reason": "the closed Shortcut sheet lays out its columns again when "
-                                     + "the page area settles at its new width"
-                       });
+        probeIntervals("sidebar-frame-interval", report);
+    }
+
+    // One movement watched on its own, from the frame before the input to
+    // the frame it rests in, for a surface whose every movement is a
+    // different one. Returns the slowest interval between frames. The frames
+    // after it rests are not watched: over the Start page they come at the
+    // road's thirty a second, which is no measure of the movement.
+    function watchOneMovement(act, rested) {
+        const reducedMotion = SystemMotion.reduced;
+        const pointer = InputOrigin.pointer;
+        let watching = false;
+        try {
+            SystemMotion.reduced = false;
+            InputOrigin.pointer = true;
+            probeClock.watchFrames(window);
+            watching = true;
+            probeClock.waitForFrame(window, 100);
+            const from = probeClock.milliseconds();
+            act();
+            waitForRest(rested, 0);
+            const span = {
+                "from": from,
+                "to": probeClock.milliseconds()
+            };
+            const frames = probeClock.frameReport();
+            watching = false;
+            return slowestIntervalIn(frames.frameEnds, span);
+        } finally {
+            if (watching)
+                probeClock.frameReport();
+            SystemMotion.reduced = reducedMotion;
+            InputOrigin.pointer = pointer;
+        }
+    }
+
+    // The Shortcut sheet opening, which takes its list and its width as it
+    // opens (#594): the window's first opening over a moving page, then
+    // openings over the Start page and over the page in turn, whose commands
+    // differ, so each builds or removes the rows the other did not have.
+    // Each opening is a movement of its own, held as the others are: at most
+    // one in the eleven with a frame over the ceiling.
+    readonly property int sheetOpeningPairs: 5
+
+    function test_theShortcutSheetOpensInsideTheFrameBudget() {
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const startPage = findChild(window.contentItem, "startPage");
+        const ceiling = frameIntervalCeiling();
+        const opened = function () {
+            return sheet.visible && sheet.opacity === 1;
+        };
+        const slowest = [];
+        const names = [];
+        const openSheet = function (name) {
+            slowest.push(watchOneMovement(function () {
+                window.shortcutsOpen = true;
+            }, opened));
+            names.push(name);
+            window.shortcutsOpen = false;
+            tryCompare(sheet, "visible", false);
+        };
+
+        const engine = openAnimatedPage("https://sheet-motion.example/");
+        const pageTabId = browser.activeTabId;
+        openSheet("first");
+        browser.openInput("about:blank", true);
+        const blankTabId = browser.activeTabId;
+        for (let pair = 0; pair < sheetOpeningPairs; ++pair) {
+            browser.activateTab(blankTabId);
+            tryVerify(function () {
+                return startPage.visible && startPage.open;
+            });
+            wait(150);
+            openSheet("start page");
+            browser.activateTab(pageTabId);
+            tryVerify(function () {
+                return !startPage.visible;
+            });
+            wait(150);
+            openSheet("page");
+        }
+        browser.activateTab(blankTabId);
+        browser.closeActiveTab();
+        browser.activateTab(pageTabId);
+        engine.motionReview = false;
+
+        const over = slowest.filter(function (interval) {
+            return interval > ceiling;
+        }).length;
+        console.info("shortcut-sheet-opening: slowest by opening " + slowest.map(function (interval,
+                                                                                           index) {
+            return names[index] + " " + interval.toFixed(0);
+        }).join(", ") + " ms");
+        probe("shortcut-sheet-held-openings", over, "openings", heldMovementAllowance);
     }
 
     // A Space switch between two Spaces with a moving page each: the list
@@ -448,11 +537,7 @@ TestCase {
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(spaceIds[0], "Sliding left"));
         verify(browser.deleteSpace(spaceIds[1], "Sliding right"));
-        probeIntervals("space-switch-frame-interval", report, {
-                           "guard": 500,
-                           "reason": "showing the arriving Space's page rebuilds the closed "
-                                     + "Shortcut sheet's sections before the slide's first frame"
-                       });
+        probeIntervals("space-switch-frame-interval", report);
     }
 
     // The Omnibar opening over a page in a Space of a hundred tabs, the
