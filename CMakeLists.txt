@@ -554,7 +554,9 @@ omaweb_strict_target(omaweb-ui)
 qt_add_resources(omaweb-ui "omaweb_scenes"
     PREFIX "/omaweb/scenes"
     BASE "share/scenes"
-    FILES "share/scenes/crt-road.json"
+    FILES
+        "share/scenes/crt-road.json"
+        "share/scenes/night-sky.json"
 )
 qt_add_shaders(omaweb-ui "omaweb_shaders"
     PREFIX "/omaweb/shaders"
@@ -785,6 +787,7 @@ set(omaweb_ui_files
     src/ui/Omnibar.qml
     src/ui/DeveloperToolsDock.qml
     src/ui/DevicePixels.mjs
+    src/ui/SceneColour.mjs
     src/ui/DownloadMark.qml
     src/ui/ExtensionMark.qml
     src/ui/FindBar.qml
@@ -838,8 +841,11 @@ set(omaweb_ui_files
     src/ui/SpaceProfiles.qml
     src/ui/HttpsOnlyPage.qml
     src/ui/NightRoad.qml
+    src/ui/NightSky.qml
     src/ui/RimLight.qml
     src/ui/SceneHost.qml
+    src/ui/SceneLayer.qml
+    src/ui/ScenePicker.qml
     src/ui/SecurityKeyBar.qml
     src/ui/ShortcutSheet.qml
     src/ui/StartPage.qml

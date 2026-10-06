@@ -2282,6 +2282,24 @@
     </message>
 </context>
 <context>
+    <name>ScenePicker</name>
+    <message>
+        <source>Night road</source>
+        <comment>Start page Scene</comment>
+        <translation>Yötie</translation>
+    </message>
+    <message>
+        <source>Night sky</source>
+        <comment>Start page Scene</comment>
+        <translation>Yötaivas</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>Start page Scene: the sidebar&apos;s fill</comment>
+        <translation>Ei mitään</translation>
+    </message>
+</context>
+<context>
     <name>SecurityKeyBar</name>
     <message>
         <source>Only a USB security key works here. A phone, or a passkey stored on this computer, cannot be used.</source>
@@ -2736,22 +2754,6 @@
     <message>
         <source>A link that asks for a new tab opens over the page instead, for a look. Escape closes it; one command keeps it as a tab. When off, the link opens a tab.</source>
         <translation>Linkki, joka pyytää uutta välilehteä, avautuu sen sijaan sivun päälle katsottavaksi. Escape sulkee sen; yksi komento pitää sen välilehtenä. Kun pois päältä, linkki avaa välilehden.</translation>
-    </message>
-    <message>
-        <source>Night road on the Start page</source>
-        <translation>Yötie aloitussivulla</translation>
-    </message>
-    <message>
-        <source>Draw a road under the Start page&apos;s Omnibar, moving while the window is in use and speeding up until the page you asked for paints. When off, the Omnibar rests on the sidebar&apos;s colour.</source>
-        <translation>Piirtää tien aloitussivun Omnibarin alle. Tie liikkuu ikkunan ollessa käytössä ja kiihtyy, kunnes pyytämäsi sivu piirtyy. Kun pois päältä, Omnibar lepää sivupalkin värillä.</translation>
-    </message>
-    <message>
-        <source>CRT glass over the road</source>
-        <translation>Kuvaputkilasi tien päällä</translation>
-    </message>
-    <message>
-        <source>Show the night road through an old screen&apos;s glass: scanlines, a soft bloom and a faint flicker. When off, the road is its plain pixels.</source>
-        <translation>Näytä yötie vanhan kuvaruudun lasin läpi: viivoja, pehmeä hehku ja heikko välke. Kun pois päältä, tie on pelkkiä pikseleitä.</translation>
     </message>
     <message>
         <source>Put away unused tabs</source>
@@ -3483,6 +3485,22 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>With the sidebar hidden, keep the navigation controls over the page. Pause at the sidebar&apos;s edge of the window to peek at it; it hides when the pointer leaves.</source>
         <translation>Kun sivupalkki on piilotettu, pidä siirtymisohjaimet sivun päällä. Viivähdä ikkunan sivupalkin puoleisessa reunassa, niin näet sivupalkin; se piiloutuu, kun osoitin poistuu.</translation>
+    </message>
+    <message>
+        <source>Scene on the Start page</source>
+        <translation>Aloitussivun maisema</translation>
+    </message>
+    <message>
+        <source>What the Start page&apos;s Omnibar rests on. A Scene moves while the window is in use and quickens until the page you asked for paints. With None, the Omnibar rests on the sidebar&apos;s colour.</source>
+        <translation>Mitä aloitussivun Omnibarin alla on. Maisema liikkuu ikkunan ollessa käytössä ja kiihtyy, kunnes pyytämäsi sivu piirtyy. Kun valintana on Ei mitään, Omnibar lepää sivupalkin värillä.</translation>
+    </message>
+    <message>
+        <source>CRT glass over the Scene</source>
+        <translation>Kuvaputkilasi maiseman päällä</translation>
+    </message>
+    <message>
+        <source>Show the Start page&apos;s Scene through an old screen&apos;s glass: scanlines, a soft bloom and a faint flicker. When off, the Scene is its plain pixels.</source>
+        <translation>Näytä aloitussivun maisema vanhan kuvaruudun lasin läpi: viivoja, pehmeä hehku ja heikko välke. Kun pois päältä, maisema on pelkkiä pikseleitä.</translation>
     </message>
     <message>
         <source>Add card</source>
