@@ -1,0 +1,96 @@
+{
+  "description": "The night sky: a still star field behind the Start page, after Netscape Navigator's throbber, over a dark planet whose limb crests just below the Omnibar, with a comet or a shooting star now and then on a slow diagonal going out behind the limb, and streaks falling thick and fast from a commit until the page paints (#590). The browser draws it (src/ui/NightSky.qml); the website does not. Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. `crt` is the CRT glass the sky declares, which the host draws, with the road's amounts. `rest` is where the Omnibar rests, as a share of the height. `planet` is the dark planet rising from the bottom, after Navigator's globe: its limb crests `crest` CSS pixels below where the Omnibar rests, just under its hint row at the default type size, its `radius` a share of the width, its face the ground darkened by `face`, its limb a line `width` CSS pixels wide (at `unlit` alpha of the light in a Private window, where it has no glow) and the glow along it `reach` CSS pixels out. `glint` is the light a passing comet casts on the Omnibar's rim, as the road's `light` is the sun's: an ellipse centred on the comet's head, `across` of the Omnibar's width and `reach` CSS pixels down, and the bloom over it.",
+  "id": "night-sky",
+  "name": "Night sky",
+  "pitch": 4,
+  "fps": 30,
+  "glass": "crt",
+  "crt": {
+    "bloom": { "scale": 3, "opacity": 0.22 },
+    "scanlines": { "every": 3, "shade": 0.38 },
+    "vignette": { "clear": 0.55, "shade": 0.55 },
+    "band": {
+      "every": 7,
+      "from": -0.2,
+      "travel": 1.4,
+      "reach": 0.07,
+      "reachAtLeast": 4,
+      "strength": 0.05
+    },
+    "flicker": { "least": 0.02, "range": 0.025, "frequencies": [37.1, 11.3] }
+  },
+  "options": {},
+  "rest": 0.5,
+  "night": {
+    "lightThemeGround": 0.45,
+    "deep": 0.45,
+    "deepLightTheme": 0.72,
+    "skyLow": 0.22
+  },
+  "scatter": [91.345, 7.13, 47453.5453],
+  "sky": [
+    [0, "skyTop"],
+    [0.6, { "mix": ["skyTop", "skyLow", 0.35] }],
+    [1, "skyLow"]
+  ],
+  "stars": {
+    "count": 220,
+    "across": [12.9898, 43758.5453],
+    "height": [78.233, 12543.123],
+    "brightness": [39.425, 9321.77],
+    "brightAbove": 0.94,
+    "mediumAbove": 0.78,
+    "sizes": { "bright": 8, "medium": 4, "dim": 4 },
+    "alpha": { "base": 0.15, "range": 0.55, "lowFade": 0.5 }
+  },
+  "planet": {
+    "radius": 0.9,
+    "crest": 52,
+    "face": 0.5,
+    "limb": { "width": 4, "colour": { "mix": ["glow", "white", 0.35] }, "unlit": 0.25 },
+    "glow": {
+      "reach": 28,
+      "stops": [
+        [0, "glow", 0.55],
+        [1, "glow", 0]
+      ]
+    }
+  },
+  "comets": {
+    "every": 12,
+    "chance": 0.5,
+    "across": [-0.05, 0.6],
+    "height": [0.02, 0.4],
+    "slope": 0.5,
+    "head": { "mix": ["light", "white", 0.5] },
+    "tail": "glow",
+    "kinds": [
+      { "share": 0.4, "lasts": 7, "travel": 0.3, "length": 0.2, "width": 6, "head": 8 },
+      { "share": 1, "lasts": 1.6, "travel": 0.25, "length": 0.1, "width": 4, "head": 0 }
+    ],
+    "still": { "kind": 0, "across": 0.22, "height": 0.16, "run": 0.5 }
+  },
+  "glint": {
+    "across": 0.22,
+    "reach": 70,
+    "stops": [
+      [0, { "mix": ["light", "white", 0.6] }],
+      [0.35, "glow", 0.8],
+      [1, "glow", 0]
+    ],
+    "bloom": { "opacity": 0.85, "width": 8, "blur": 4 }
+  },
+  "streaks": {
+    "count": 36,
+    "from": 0.02,
+    "ease": 2.5,
+    "longestStep": 0.1,
+    "lasts": [0.45, 0.5],
+    "across": [-0.4, 1.3],
+    "height": [-0.3, 0.85],
+    "travel": 0.5,
+    "length": [0.06, 0.12],
+    "width": 4,
+    "colour": { "mix": ["light", "white", 0.3] }
+  }
+}

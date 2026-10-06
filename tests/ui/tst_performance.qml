@@ -548,7 +548,7 @@ TestCase {
         window.requestActivate();
         const startPage = findChild(window.contentItem, "startPage");
         tryVerify(function () {
-            return startPage.visible && startPage.roadRunning;
+            return startPage.visible && startPage.sceneRunning;
         });
         wait(300);
 
