@@ -228,6 +228,11 @@ TestCase {
         verify(window !== null);
         window.show();
         wait(50);
+        // Settings is built after the window's first frame, and every test
+        // starts from a window that has it.
+        tryVerify(function () {
+            return findChild(window.contentItem, "settingsSurface") !== null;
+        }, 10000, "Settings was never built");
     }
 
     function cleanupTestCase() {
@@ -7890,6 +7895,9 @@ TestCase {
 
         const spaceSwitcher = findChild(privateBrowser.contentItem, "spaceSwitcher");
         const pinnedList = findChild(privateBrowser.contentItem, "pinnedList");
+        // Settings, which holds the button, is built after the window's
+        // first frame.
+        privateBrowser.buildSettings();
         const newSpaceButton = findChild(privateBrowser.contentItem, "newSpaceButton");
         const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
         const privateBadge = findChild(privateBrowser.contentItem, "privateBadge");
@@ -11468,18 +11476,19 @@ TestCase {
     // the page area's width before its first frame.
     function test_aClosedSettingsPageKeepsItsWidth() {
         const settings = findChild(window.contentItem, "settingsSurface");
+        const viewport = findChild(window.contentItem, "engineViewport");
         verify(!settings.visible);
         const width = settings.width;
-        const pageArea = settings.parent.width;
+        const pageArea = viewport.width;
         window.setSidebarWidth(window.sidebarWidth + 40);
         tryVerify(function () {
-            return settings.parent.width !== pageArea;
+            return viewport.width !== pageArea;
         });
         compare(settings.width, width, "the closed Settings page took the page area's new width");
 
         window.settingsOpen = true;
         verify(settings.visible);
-        compare(settings.width, settings.parent.width);
+        compare(settings.width, viewport.width);
         window.settingsOpen = false;
         tryCompare(settings, "visible", false);
     }
@@ -12813,6 +12822,142 @@ TestCase {
         verify(matches.length > 0);
         compare(matches[0].command, "shortcuts");
         verify(matches[0].keys.length > 0);
+    }
+
+    // Content blocking while the rules the browser started with are still
+    // compiling: everything the mock engine asks of it is a no-op.
+    Component {
+        id: pendingRulesBlockerComponent
+
+        QtObject {
+            property bool rulesPending: true
+
+            function showPage() {
+            }
+        }
+    }
+
+    // A page asked for while the browser's rules are still compiling starts
+    // blank and is pointed at its address once they are in force, so its
+    // first request is checked against them rather than let through (#618).
+    function test_aPageWaitsForTheRulesTheBrowserStartedWith() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        verify(engineHost !== null);
+        const blocker = engineHost.blocker;
+        const pending = createTemporaryObject(pendingRulesBlockerComponent, testCase);
+        engineHost.blocker = pending;
+        try {
+            const url = "https://held-for-rules.example/";
+            const before = engineHost.item;
+            browser.openInput(url, true);
+            tryVerify(function () {
+                return engineHost.item !== null && engineHost.item !== before;
+            });
+            const engine = engineHost.item;
+            compare(engine.currentUrl.toString(), "");
+            pending.rulesPending = false;
+            tryVerify(function () {
+                return engine.currentUrl.toString() === url;
+            });
+        } finally {
+            engineHost.blocker = blocker;
+        }
+    }
+
+    // A profile still loading its extensions, for the hold a page shares with
+    // the rules.
+    Component {
+        id: loadingExtensionsHostComponent
+
+        QtObject {
+            property int extensionLoadsPending: 1
+        }
+    }
+
+    Component {
+        id: heldEngineComponent
+
+        QtObject {
+            property url currentUrl: ""
+        }
+    }
+
+    // A page that waits on both its profile's extensions and the rules goes
+    // to its address only when neither is pending, whichever ends first.
+    function test_aPageWaitsForItsExtensionsAndTheRulesTogether() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const blocker = engineHost.blocker;
+        const url = "https://held-for-both.example/";
+        for (const last of ["rules", "extensions"]) {
+            const rules = createTemporaryObject(pendingRulesBlockerComponent, testCase);
+            const host = createTemporaryObject(loadingExtensionsHostComponent, testCase);
+            // Gone before what it waited on, as a page is before the browser's
+            // content blocking.
+            const engine = heldEngineComponent.createObject(testCase);
+            engineHost.blocker = rules;
+            try {
+                verify(engineHost.pageWaits(host));
+                engineHost.releaseWhenReady(engine, host, url);
+                if (last === "rules")
+                    host.extensionLoadsPending = 0;
+                else
+                    rules.rulesPending = false;
+                compare(engine.currentUrl.toString(), "", "released with " + last + " pending");
+                if (last === "rules")
+                    rules.rulesPending = false;
+                else
+                    host.extensionLoadsPending = 0;
+                compare(engine.currentUrl.toString(), url);
+            } finally {
+                engineHost.blocker = blocker;
+                engine.destroy();
+                wait(0);
+            }
+        }
+    }
+
+    // Settings is the heaviest page in the window and none of it is on show
+    // when the window comes up, so it is built after the first frame rather
+    // than before it (#618).
+    function test_settingsIsBuiltAfterTheWindowsFirstFrame() {
+        const fresh = windowComponent.createObject(null);
+        verify(fresh !== null);
+        try {
+            compare(findChild(fresh.contentItem, "settingsSurface"), null);
+            fresh.show();
+            tryVerify(function () {
+                return findChild(fresh.contentItem, "settingsSurface") !== null;
+            }, 10000, "Settings was never built");
+        } finally {
+            fresh.destroy();
+            // The fresh window took the keyboard, and the suite's goes on.
+            window.requestActivate();
+            tryVerify(function () {
+                return window.active;
+            });
+        }
+    }
+
+    // A reader who asks for Settings before it has been built gets it at once,
+    // on the section they asked for.
+    function test_settingsAskedForBeforeItIsBuiltIsBuiltAtOnce() {
+        const fresh = windowComponent.createObject(null);
+        verify(fresh !== null);
+        try {
+            compare(findChild(fresh.contentItem, "settingsSurface"), null);
+            fresh.requestDownloads();
+            const settings = findChild(fresh.contentItem, "settingsSurface");
+            verify(settings !== null);
+            compare(settings.sections[settings.section], "downloads");
+            verify(settings.open);
+        } finally {
+            fresh.destroy();
+            // The fresh window took the keyboard, and the suite's goes on.
+            window.requestActivate();
+            tryVerify(function () {
+                return window.active;
+            });
+        }
     }
 
     // A binding this build cannot honour is dropped rather than taking the

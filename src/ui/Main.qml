@@ -6,6 +6,7 @@ import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
 import "DevicePixels.mjs" as DevicePixels
+import "SettingsAttention.mjs" as SettingsAttention
 
 ApplicationWindow {
     id: window
@@ -372,6 +373,11 @@ ApplicationWindow {
                                                  && window.downloadQuestion.disposition
                                                  !== BrowserController.SaveDownloadAs
     property bool settingsOpen: false
+    // What Settings' button is marked for, read here because the mark is on
+    // show before the page is built.
+    readonly property bool settingsNeedAttention: SettingsAttention.needed(keyboardNavigation
+                                                                           ? keyboardNavigation.errorMessage :
+                                                                             "", InputMethodReport.available)
     property bool historyOpen: false
     property bool shortcutsOpen: false
     // A page's new-tab request opens a Glance over the page, unless the reader
@@ -794,28 +800,43 @@ ApplicationWindow {
         window.settingsOpen = true;
     }
 
-    function requestDownloads() {
+    // Settings follows the window's first frame rather than holding it back.
+    Connections {
+        target: window
+        enabled: !settingsLoader.active
+
+        function onFrameSwapped() {
+            settingsLoader.active = true;
+        }
+    }
+
+    // Builds the Settings page now if it has not been built yet, rather than
+    // a piece at a time, and gives it back.
+    function buildSettings() {
+        settingsLoader.asynchronous = false;
+        settingsLoader.active = true;
+        return settingsLoader.item;
+    }
+
+    function requestSettingsSection(name) {
         window.historyOpen = false;
-        const downloads = settingsSurface.sections.indexOf("downloads");
-        if (downloads >= 0)
-            settingsSurface.section = downloads;
+        const settings = window.buildSettings();
+        const section = settings.sections.indexOf(name);
+        if (section >= 0)
+            settings.section = section;
         window.settingsOpen = true;
+    }
+
+    function requestDownloads() {
+        window.requestSettingsSection("downloads");
     }
 
     function requestPutAwaySetting() {
-        window.historyOpen = false;
-        const interfaceSection = settingsSurface.sections.indexOf("interface");
-        if (interfaceSection >= 0)
-            settingsSurface.section = interfaceSection;
-        window.settingsOpen = true;
+        window.requestSettingsSection("interface");
     }
 
     function requestSync() {
-        window.historyOpen = false;
-        const syncSection = settingsSurface.sections.indexOf("sync");
-        if (syncSection >= 0)
-            settingsSurface.section = syncSection;
-        window.settingsOpen = true;
+        window.requestSettingsSection("sync");
     }
 
     function requestHistory() {
@@ -1051,8 +1072,10 @@ ApplicationWindow {
 
     // A Glance stands over one tab and ends with it: a switch to another tab or
     // Space, the tab closing, or a sheet taking the page area.
-    onSettingsOpenChanged: if (settingsOpen)
-                               window.closeGlance()
+    onSettingsOpenChanged: if (settingsOpen) {
+                               window.buildSettings();
+                               window.closeGlance();
+                           }
     onHistoryOpenChanged: if (historyOpen)
                               window.closeGlance()
 
@@ -3062,7 +3085,7 @@ ApplicationWindow {
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
-                settingsAttention: settingsSurface.needsAttention
+                settingsAttention: window.settingsNeedAttention
                 sync: window.syncLauncherService ? window.syncLauncherService.controller : null
                 downloads: window.downloads
                 // The mark stays until the saved-file notice goes, which is
@@ -3084,7 +3107,7 @@ ApplicationWindow {
                 onTabActivated: function (tabId) {
                     window.windowBrowser.activateTab(tabId);
                     if (window.settingsOpen)
-                        settingsSurface.forceActiveFocus();
+                        window.buildSettings().forceActiveFocus();
                 }
                 onTabCloseRequested: function (tabId) {
                     window.windowBrowser.closeTab(tabId);
@@ -4186,134 +4209,152 @@ ApplicationWindow {
                     }
                 }
 
-                SettingsPage {
-                    id: settingsSurface
-                    objectName: "settingsSurface"
-                    // As wide as the page area while it is drawn. Closed, it
-                    // keeps the width it was last drawn at: following the
-                    // page area would lay every row out again each time the
-                    // sidebar's slide settles, and the slide would wait on it
-                    // (#594). Opening takes the width before the first frame.
-                    height: parent.height
-                    Component.onCompleted: width = parent.width
-                    Binding on width {
-                        when: settingsLift.showing
-                        value: settingsSurface.parent.width
-                        restoreMode: Binding.RestoreNone
-                    }
+                // Settings is the heaviest page in the window, and none of it is on show
+                // when the window comes up: built before the first frame, it held the
+                // window back by half a second (#618). It is built after that frame, a
+                // piece at a time between the frames that follow, and at once when a
+                // reader asks for it first. Left unsized, so the page keeps the width it
+                // was last drawn at rather than taking the Loader's (#594).
+                Loader {
+                    id: settingsLoader
                     z: 45
-                    releaseWatch: window.releases
-                    globalPrivacyControl: window.privacyControl
-                    httpsOnly: window.httpsOnlyPolicy
-                    engineSuggestions: window.engineSuggestionSetting
-                    webRtcPolicy: window.webRtcAddressPolicy
-                    secureDns: window.dnsResolver
-                    engineSecureDns: window.engineDnsResolver
-                    engineWebRtcPolicy: window.engineWebRtcAddressPolicy
-                    fontSettings: window.readerFonts
-                    pageFonts: window.enginePageFonts
-                    knownExtensions: window.knownExtensions
-                    knownExtensionsAvailable: window.knownExtensionsAvailable
-                    cnameUncloakingAvailable: window.cnameUncloakingAvailable
-                    certificateDecisionsAvailable: window.certificateDecisionsAvailable
-                    pageCertificatesAvailable: window.pageCertificatesAvailable
-                    thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
-                    siteDataOnDisk: window.siteDataOnDisk
-                    insecureContentBlocked: window.insecureContentBlocked
-                    proceduralCosmeticFilteringAvailable:
-                        window.proceduralCosmeticFilteringAvailable
-                    privateWindow: window.privateWindow
-                    extensionFailure: window.extensionFailure
-                    SheetLift {
-                        id: settingsLift
-                        shown: settingsSurface.open
-                        ease: window.chromeEase
-                    }
-                    lift: settingsLift.y
-                    opacity: settingsLift.progress
-                    // Drawn for the length of the drop.
-                    visible: settingsLift.showing
-                    colors: window.colors
-                    iconFontFamily: materialSymbols.name
-                    browser: window.windowBrowser
-                    blocker: contentBlocker
-                    keyboard: keyboardNavigation
-                    syncLauncher: window.privateWindow ? null : window.syncLauncherService
-                    agentControl: window.agentControlSource
-                    open: window.settingsOpen
-                    // As the sheet does: the page itself, never the viewport
-                    // that owns both.
-                    pageSource: window.pagelessViewport ? null : engineLoader
-                    useFavicons: window.useFavicons
-                    tintFavicons: window.tintFavicons
-                    floatingControls: window.floatingControls
-                    sidebarSide: window.sidebarSide
-                    glanceEnabled: window.glanceEnabled
-                    startPageScene: window.sceneSettingsWindow.startPageScene
-                    startPageGlass: window.sceneSettingsWindow.startPageGlass
-                    retainedTabs: window.visibleRetainedTabs
+                    // A Loader is a focus scope, and the page takes the
+                    // keyboard while it is open.
+                    focus: window.settingsOpen
+                    active: false
+                    asynchronous: true
+                    sourceComponent: Component {
+                        SettingsPage {
+                            id: settingsSurface
+                            objectName: "settingsSurface"
+                            // As wide as the page area while it is drawn. Closed, it
+                            // keeps the width it was last drawn at: following the
+                            // page area would lay every row out again each time the
+                            // sidebar's slide settles, and the slide would wait on it
+                            // (#594). Opening takes the width before the first frame.
+                            height: settingsLoader.parent.height
+                            Component.onCompleted: width = settingsLoader.parent.width
+                            Binding on width {
+                                when: settingsLift.showing
+                                value: settingsLoader.parent.width
+                                restoreMode: Binding.RestoreNone
+                            }
+                            releaseWatch: window.releases
+                            globalPrivacyControl: window.privacyControl
+                            httpsOnly: window.httpsOnlyPolicy
+                            engineSuggestions: window.engineSuggestionSetting
+                            webRtcPolicy: window.webRtcAddressPolicy
+                            secureDns: window.dnsResolver
+                            engineSecureDns: window.engineDnsResolver
+                            engineWebRtcPolicy: window.engineWebRtcAddressPolicy
+                            fontSettings: window.readerFonts
+                            pageFonts: window.enginePageFonts
+                            knownExtensions: window.knownExtensions
+                            knownExtensionsAvailable: window.knownExtensionsAvailable
+                            cnameUncloakingAvailable: window.cnameUncloakingAvailable
+                            certificateDecisionsAvailable: window.certificateDecisionsAvailable
+                            pageCertificatesAvailable: window.pageCertificatesAvailable
+                            thirdPartyCookieControlAvailable:
+                                window.thirdPartyCookieControlAvailable
+                            siteDataOnDisk: window.siteDataOnDisk
+                            insecureContentBlocked: window.insecureContentBlocked
+                            proceduralCosmeticFilteringAvailable:
+                                window.proceduralCosmeticFilteringAvailable
+                            privateWindow: window.privateWindow
+                            extensionFailure: window.extensionFailure
+                            SheetLift {
+                                id: settingsLift
+                                shown: settingsSurface.open
+                                ease: window.chromeEase
+                            }
+                            lift: settingsLift.y
+                            opacity: settingsLift.progress
+                            // Drawn for the length of the drop.
+                            visible: settingsLift.showing
+                            colors: window.colors
+                            iconFontFamily: materialSymbols.name
+                            browser: window.windowBrowser
+                            blocker: contentBlocker
+                            keyboard: keyboardNavigation
+                            syncLauncher: window.privateWindow ? null : window.syncLauncherService
+                            agentControl: window.agentControlSource
+                            open: window.settingsOpen
+                            // As the sheet does: the page itself, never the viewport
+                            // that owns both.
+                            pageSource: window.pagelessViewport ? null : engineLoader
+                            useFavicons: window.useFavicons
+                            tintFavicons: window.tintFavicons
+                            floatingControls: window.floatingControls
+                            sidebarSide: window.sidebarSide
+                            glanceEnabled: window.glanceEnabled
+                            startPageScene: window.sceneSettingsWindow.startPageScene
+                            startPageGlass: window.sceneSettingsWindow.startPageGlass
+                            retainedTabs: window.visibleRetainedTabs
 
-                    downloads: window.downloads
+                            downloads: window.downloads
 
-                    onNewSpaceRequested: window.requestNewSpace()
-                    onSpaceActionRequested: function (action, spaceId, spaceName) {
-                        window.dialogSpaceId = spaceId;
-                        window.dialogSpaceName = spaceName;
-                        window.dialogMode = action;
-                    }
-                    onClosed: window.settingsOpen = false
-                    onKnownExtensionToggled: function (key, enabled) {
-                        if (enabled)
-                            window.extensionFailure = "";
-                        if (window.windowBrowser.setKnownExtensionEnabled(key, enabled))
-                            window.readKnownExtensions();
-                    }
-                    onSyncCodeCopied: function (notice) {
-                        window.showNotice("content_copy", notice, qsTr(
-                                              "Paste it into the authorization page"), 3000);
-                    }
-                    onSyncConsentRequested: function (url) {
-                        window.windowBrowser.openInput(String(url), true);
-                    }
-                    onSyncConnectionFailed: function (title, detail) {
-                        window.showNotice("sync_problem", title, detail, 8000);
-                    }
-                    onRetainedTabReleased: function (tabId) {
-                        window.releaseRetainedTab(tabId);
-                    }
-                    onDownloadDirectoryRequested: downloadDirectoryDialog.open()
-                    onDownloadCancelled: function (row) {
-                        window.downloads.cancel(row);
-                    }
-                    onDownloadRetried: function (row) {
-                        window.downloads.retry(row);
-                    }
-                    onDownloadRevealed: function (path) {
-                        window.revealDownload(path);
-                    }
-                    onDownloadForgotten: function (row) {
-                        window.downloads.forget(row);
-                    }
-                    onUseFaviconsToggled: function (enabled) {
-                        window.setUseFavicons(enabled);
-                    }
-                    onGlanceToggled: function (enabled) {
-                        window.setGlanceEnabled(enabled);
-                    }
-                    onStartPageSceneChosen: function (scene) {
-                        window.sceneSettingsWindow.setStartPageScene(scene);
-                    }
-                    onStartPageGlassToggled: function (enabled) {
-                        window.sceneSettingsWindow.setStartPageGlass(enabled);
-                    }
-                    onTintFaviconsToggled: function (enabled) {
-                        window.setTintFavicons(enabled);
-                    }
-                    onFloatingControlsToggled: function (enabled) {
-                        window.setFloatingControls(enabled);
-                    }
-                    onSidebarSideChosen: function (side) {
-                        window.setSidebarSide(side);
+                            onNewSpaceRequested: window.requestNewSpace()
+                            onSpaceActionRequested: function (action, spaceId, spaceName) {
+                                window.dialogSpaceId = spaceId;
+                                window.dialogSpaceName = spaceName;
+                                window.dialogMode = action;
+                            }
+                            onClosed: window.settingsOpen = false
+                            onKnownExtensionToggled: function (key, enabled) {
+                                if (enabled)
+                                    window.extensionFailure = "";
+                                if (window.windowBrowser.setKnownExtensionEnabled(key, enabled))
+                                    window.readKnownExtensions();
+                            }
+                            onSyncCodeCopied: function (notice) {
+                                window.showNotice("content_copy", notice, qsTr(
+                                                      "Paste it into the authorization page"),
+                                                  3000);
+                            }
+                            onSyncConsentRequested: function (url) {
+                                window.windowBrowser.openInput(String(url), true);
+                            }
+                            onSyncConnectionFailed: function (title, detail) {
+                                window.showNotice("sync_problem", title, detail, 8000);
+                            }
+                            onRetainedTabReleased: function (tabId) {
+                                window.releaseRetainedTab(tabId);
+                            }
+                            onDownloadDirectoryRequested: downloadDirectoryDialog.open()
+                            onDownloadCancelled: function (row) {
+                                window.downloads.cancel(row);
+                            }
+                            onDownloadRetried: function (row) {
+                                window.downloads.retry(row);
+                            }
+                            onDownloadRevealed: function (path) {
+                                window.revealDownload(path);
+                            }
+                            onDownloadForgotten: function (row) {
+                                window.downloads.forget(row);
+                            }
+                            onUseFaviconsToggled: function (enabled) {
+                                window.setUseFavicons(enabled);
+                            }
+                            onGlanceToggled: function (enabled) {
+                                window.setGlanceEnabled(enabled);
+                            }
+                            onStartPageSceneChosen: function (scene) {
+                                window.sceneSettingsWindow.setStartPageScene(scene);
+                            }
+                            onStartPageGlassToggled: function (enabled) {
+                                window.sceneSettingsWindow.setStartPageGlass(enabled);
+                            }
+                            onTintFaviconsToggled: function (enabled) {
+                                window.setTintFavicons(enabled);
+                            }
+                            onFloatingControlsToggled: function (enabled) {
+                                window.setFloatingControls(enabled);
+                            }
+                            onSidebarSideChosen: function (side) {
+                                window.setSidebarSide(side);
+                            }
+                        }
                     }
                 }
 

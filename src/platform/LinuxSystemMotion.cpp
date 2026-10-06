@@ -112,8 +112,14 @@ SystemMotion::SystemMotion(QObject *parent)
     }
     const auto askHyprland = [this, requests] {
         auto *socket = new QLocalSocket(this);
-        connect(socket, &QLocalSocket::connected, socket,
-            [socket] { socket->write("j/getoption animations:enabled"); });
+        // Once it accepts, Hyprland stops the whole compositor for up to five
+        // seconds waiting for the request, and a window being created waits
+        // on the compositor. A write left for the event loop to send would
+        // hold both until Hyprland gives up, so it is sent at once.
+        connect(socket, &QLocalSocket::connected, socket, [socket] {
+            socket->write("j/getoption animations:enabled");
+            socket->flush();
+        });
         // Hyprland answers and closes, so the whole answer is in hand once
         // the socket is.
         connect(socket, &QLocalSocket::disconnected, this, [this, socket] {

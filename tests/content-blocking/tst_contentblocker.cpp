@@ -34,6 +34,7 @@ class ContentBlockerTest final : public QObject {
     Q_OBJECT
 
 private slots:
+    void rulesThePagesWaitForArePendingUntilTheirFirstCompile();
     void cosmeticsFollowRuleReplacementAndSiteToggles();
     void userRulesCompileOffTheCallerPath();
     void disablingASiteBypassesMatchingAndCosmetics();
@@ -137,6 +138,25 @@ QJsonObject storedSettings(const QTemporaryDir &root)
 }
 
 } // namespace
+
+// A page asked for while the browser is starting waits for the rules it started with, so its first
+// request is checked against them rather than let through. Once they are in force, a later
+// compile replaces them and holds nothing up: the rules in force go on answering until it lands.
+void ContentBlockerTest::rulesThePagesWaitForArePendingUntilTheirFirstCompile()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    QSignalSpy changed(&blocker, &ContentBlocker::rulesPendingChanged);
+    QVERIFY(blocker.rulesPending());
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.rulesPending(), 5000);
+    QCOMPARE(changed.count(), 1);
+
+    blocker.setUserRules(QStringLiteral("||ads.example^"));
+    QVERIFY(blocker.compiling());
+    QVERIFY(!blocker.rulesPending());
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    QCOMPARE(changed.count(), 1);
+}
 
 void ContentBlockerTest::cosmeticsFollowRuleReplacementAndSiteToggles()
 {

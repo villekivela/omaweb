@@ -13,6 +13,7 @@
 #include <QNetworkReply>
 #include <QPointer>
 #include <QSaveFile>
+#include <QScopeGuard>
 #include <QUuid>
 #include <QtConcurrentRun>
 
@@ -429,6 +430,8 @@ QVariantList ContentBlocker::knownLists() const
 }
 
 bool ContentBlocker::compiling() const { return m_activeCompilations > 0; }
+
+bool ContentBlocker::rulesPending() const { return m_rulesPending; }
 
 QVariantMap ContentBlocker::compilationReport() const { return m_compilationReport; }
 
@@ -908,6 +911,13 @@ void ContentBlocker::recompileOn(QThreadPool &lane)
                 releaseOffTheInterfaceThread(std::move(compilation.matcher));
                 return;
             }
+            // Released whatever the compile produced: a page that waited on
+            // rules that will not come would wait for good.
+            const auto settled = qScopeGuard([this] {
+                if (std::exchange(m_rulesPending, false)) {
+                    emit rulesPendingChanged();
+                }
+            });
             // The newest compile decides what the lists waiting on it end as. One that produced
             // nothing leaves the rules in force as they were.
             if (!compilation.matcher) {

@@ -33,6 +33,12 @@ bool portalAsksToReduceMotion(const QVariant &reducedMotion)
 bool hyprlandAsksToReduceMotion(QByteArrayView getoptionJson)
 {
     const auto answer = QJsonDocument::fromJson(getoptionJson.toByteArray()).object();
+    // Hyprland 0.56 answers a boolean option as `bool`, and an older release
+    // as `int`.
+    const auto enabled = answer.value(QStringLiteral("bool"));
+    if (enabled.isBool()) {
+        return !enabled.toBool();
+    }
     const auto value = answer.value(QStringLiteral("int"));
     return value.isDouble() && value.toInt() == 0;
 }

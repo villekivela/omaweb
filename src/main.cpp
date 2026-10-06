@@ -47,6 +47,7 @@
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
 #include "SoundingTabs.h"
+#include "StartupPhases.h"
 #include "StoredFaviconProvider.h"
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
@@ -71,8 +72,11 @@
 #include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickWebEngineProfile>
+#include <QQuickWindow>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QWebEngineExtensionManager>
 #include <QtWebEngineCore/qtwebenginecoreglobal.h>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
@@ -155,6 +159,7 @@ QString keybindingsPath()
 
 int main(int argc, char *argv[])
 {
+    omaweb::markStartupPhase("main");
     QStringList arguments;
     for (int index = 0; index < argc; ++index) {
         arguments.append(QString::fromLocal8Bit(argv[index]));
@@ -251,6 +256,7 @@ int main(int argc, char *argv[])
     omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
+    omaweb::markStartupPhase("qt-started");
     omaweb::installWindowChrome(&application);
     const auto catalogueDirectories
         = omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY));
@@ -294,6 +300,7 @@ int main(int argc, char *argv[])
     omaweb::PaymentCards paymentCards(omaweb::makeDesktopKeyring());
     omaweb::BrowserController browser(
         omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")), configRoot());
+    omaweb::markStartupPhase("session-read");
     browser.setEngineSuggestions(&engineSuggestions);
     browser.setPaymentCards(&paymentCards);
     // The Agent socket is always open for browser commands, and Allow agents
@@ -319,6 +326,10 @@ int main(int argc, char *argv[])
             [&browser] { browser.deleteTemporarySpaces(); });
     }
     omaweb::ContentBlocker contentBlocker(dataRoot());
+    omaweb::markStartupPhase("content-blocker-started");
+    QObject::connect(
+        &contentBlocker, &omaweb::ContentBlocker::rulesChanged, &contentBlocker,
+        [] { omaweb::markStartupPhase("rules-compiled"); }, Qt::SingleShotConnection);
     omaweb::KeyboardNavigation keyboardNavigation(
         keybindingsPath(), QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     // One answer for the whole browser: every Space's profile and the Private
@@ -338,6 +349,21 @@ int main(int argc, char *argv[])
     });
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &globalPrivacyControl);
     engineContentBlocker.setHttpsOnly(&httpsOnly);
+    // The first Space's profile is what starts Chromium, and the first
+    // extension it loads is the one a held page waits for.
+    QObject::connect(
+        &engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &engineContentBlocker,
+        [](QObject *profile) {
+            omaweb::markStartupPhase("engine-started");
+            auto *quickProfile = qobject_cast<QQuickWebEngineProfile *>(profile);
+            auto *extensions = quickProfile ? quickProfile->extensionManager() : nullptr;
+            if (extensions != nullptr) {
+                QObject::connect(
+                    extensions, &QWebEngineExtensionManager::loadFinished, extensions,
+                    [] { omaweb::markStartupPhase("extension-loaded"); }, Qt::SingleShotConnection);
+            }
+        },
+        Qt::SingleShotConnection);
     // One filter for the process, attached to every Space's profile as it is
     // built. Third-party cookies are blocked by it; whether an origin has been
     // given an allowance is the core's answer, read per Space.
@@ -490,7 +516,16 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+    omaweb::markStartupPhase("qml-load-started");
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
+    omaweb::markStartupPhase("qml-loaded");
+    if (auto *window = engine.rootObjects().isEmpty()
+            ? nullptr
+            : qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst())) {
+        QObject::connect(
+            window, &QQuickWindow::frameSwapped, window,
+            [] { omaweb::markStartupPhase("first-frame"); }, Qt::SingleShotConnection);
+    }
 
     // The desktop asked for an address, so it goes on screen once the shell
     // exists to put it on. Queued rather than called here: the shell restores

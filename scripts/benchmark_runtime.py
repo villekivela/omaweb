@@ -6,9 +6,13 @@ match costs by `tests/benchmarks/`. How long the browser takes to appear, and wh
 Spaces open, were held to nothing, so this measures them and fails when a recorded ceiling is
 crossed.
 
-Six measurements, each its own subcommand so a developer can run the one they are working on:
+Seven measurements, each its own subcommand so a developer can run the one they are working on:
 
 - `startup` launches the browser and times process start to the window mapping.
+- `livedin` does the same on a profile shaped like one a reader has used for months, its pages,
+  history, filter lists, password manager and engine storage at about the size #618 was reported
+  from, with the browser's files dropped from the page cache before each launch. Both print each
+  launch taken apart into the phases the browser marks on its way to its first frame.
 - `memory` reads the resident memory of the process tree with one Space and one page.
 - `spaces` opens Spaces one at a time and reports what each adds, which is the price of the engine
   profile per Space that ADR 0008 buys.
@@ -23,9 +27,10 @@ Six measurements, each its own subcommand so a developer can run the one they ar
 
 This writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, which writes the measurements into the budget in this repository and appends them to
-`performance/history.jsonl`. It launches that browser on a private session bus, so unlike the
-theme and default-browser checks it needs no opt-in guard: it puts nothing back because it put
-nothing anywhere. It does take the keyboard focus while it runs.
+`performance/history.jsonl`. `livedin`'s directory is under `build/` rather than the temporary
+directory, so a cold launch reads its profile from a disk. It launches that browser on a private
+session bus, so unlike the theme and default-browser checks it needs no opt-in guard: it puts
+nothing back because it put nothing anywhere. It does take the keyboard focus while it runs.
 `pageload` runs its browser in a network namespace of its own, with its own resolver files bound
 over the machine's, so the DNS server it starts answers that browser and nothing else. `livetabs`
 serves its pages from the loopback addresses it binds, for as long as it runs.
@@ -50,6 +55,7 @@ Usage:
 
     scripts/benchmark_runtime.py
     scripts/benchmark_runtime.py startup --browser build/dev/omaweb
+    scripts/benchmark_runtime.py startup livedin --cache cold
     scripts/benchmark_runtime.py spaces --spaces 4
     scripts/benchmark_runtime.py pageload --require-dns
     scripts/benchmark_runtime.py livetabs
@@ -62,6 +68,7 @@ import argparse
 import base64
 import dataclasses
 import datetime
+import html
 import http.server
 import json
 import os
@@ -78,6 +85,7 @@ import tempfile
 import threading
 import time
 import urllib.parse
+from collections.abc import Iterable
 from pathlib import Path
 
 import performance_history as history
@@ -177,6 +185,20 @@ SHIFTED = {":": "semicolon"}
 TOPLEVEL_SURFACE = re.compile(r"-> xdg_wm_base#\d+\.get_xdg_surface\(new id xdg_surface#\d+, "
                               r"wl_surface#(\d+)\)")
 
+# A mark the browser logs on its way to the first frame, `src/core/StartupPhases.h`: the phase and
+# the wall clock in milliseconds, behind the category Qt's default message pattern names.
+STARTUP_PHASE = re.compile(r"^omaweb\.startup: phase (\S+) at (\d+)$")
+
+# The phases a launch is taken apart into, in the order a launch reaches them, with the window's
+# mapping read from the protocol log among them. The last three follow the window rather than hold
+# it: the filter lists compiled, the restored page's first request, and the first extension loaded.
+STARTUP_PHASES = ("main", "qt-started", "session-read", "content-blocker-started",
+                  "qml-load-started", "engine-started", "qml-loaded", "window-mapped",
+                  "first-frame", "rules-compiled", "first-request", "extension-loaded")
+
+# How long a launch is watched after its window maps, for the phases that follow it.
+PHASES_AFTER_MAPPING = 5.0
+
 # A line of `WAYLAND_DEBUG` output, which opens on a timestamp: milliseconds in older libwayland,
 # the time of day in newer. Chromium's own lines open on a bracketed process id and a colon.
 WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
@@ -211,6 +233,23 @@ FIRST_CONTENTFUL_PAINT_CASES = ("fresh", "known")
 # blocking being on runs them.
 PROCEDURAL_RULES = ROOT / "tests" / "content-blocking" / "procedural-rules.json"
 
+
+# The lived-in profile: the shape of the one #618 was reported from, at about its size. The session
+# is `tests/benchmarks/lived_in_session.cpp`'s; the engine's storage is filled by a launch, in
+# mebibytes of each kind, and the extension is a package of a password manager's size.
+LIVED_IN_ENGINE_MIB = {"cache": 230, "service worker": 70, "IndexedDB": 14}
+LIVED_IN_EXTENSION_MIB = 83
+# The tab the Space on show at start restores, which the warm-up launch fills the profile from.
+LIVED_IN_WARMING_PATH = "/lived-in-personal/0"
+LIVED_IN_WARMED = "Omaweb lived-in profile warmed"
+LIVED_IN_CACHED = "public, max-age=31536000"
+LIVED_IN_WARM_UP_TIMEOUT = 300.0
+# On disk rather than in the temporary directory, which is memory on Arch: a cold launch has to
+# read the profile from the disk a reader's is on.
+LIVED_IN_PARENT = ROOT / "build"
+# The phases a lived-in launch waits for before it is stopped: the restored page's first request
+# and the rules it is checked against come after the window.
+LIVED_IN_AWAITED = ("first-frame", "rules-compiled", "first-request")
 
 # How many live tabs the live-tabs step reads the memory at, and over how many Spaces. Five Spaces
 # hold the fifty evenly, and a reader's tabs are spread over a few rather than kept in one.
@@ -601,6 +640,13 @@ class Browser:
         environment["OMAWEB_DATA_ROOT"] = os.path.join(self.root, "data")
         environment["OMAWEB_CONFIG_ROOT"] = os.path.join(self.root, "config")
         environment["WAYLAND_DEBUG"] = "1"
+        # The phase marks, written to the same log. Qt sends its logging to the journal when stderr
+        # is not a terminal, and this one is a file.
+        environment["QT_FORCE_STDERR_LOGGING"] = "1"
+        environment.pop("QT_MESSAGE_PATTERN", None)
+        environment["QT_LOGGING_RULES"] = ";".join(
+            rule for rule in (os.environ.get("QT_LOGGING_RULES", ""), "omaweb.startup.info=true")
+            if rule)
         if keybindings:
             environment["OMAWEB_KEYBINDINGS_FILE"] = keybindings
         self.sink = open(self.log_path, "w", encoding="utf-8")
@@ -648,7 +694,7 @@ class Browser:
             time.sleep(0.002)
         raise MeasurementFailed("the browser under test never mapped a window")
 
-    def await_title(self, fragment: str) -> None:
+    def await_title(self, fragment: str, timeout: float = READY_TIMEOUT) -> None:
         """Waits for the browser to name the page in its window title.
 
         A mapped window is not yet a browser that answers a command: the shell is still loading and
@@ -656,7 +702,7 @@ class Browser:
         silently. The title the engine hands the compositor is the first thing that says the page
         is up, and it is in the same protocol log the mapping is, so it needs no compositor either.
         """
-        deadline = time.time() + READY_TIMEOUT
+        deadline = time.time() + timeout
         wanted = f'set_title("{fragment}'
         position = 0
         while time.time() < deadline:
@@ -683,6 +729,23 @@ class Browser:
     @property
     def startup_seconds(self) -> float:
         return self.mapped_at - self.started_at
+
+    def phases(self) -> dict[str, float]:
+        """Seconds from the launch to each phase the browser has reached so far."""
+        with open(self.log_path, encoding="utf-8", errors="replace") as handle:
+            phases = startup_phases(handle, self.started_at)
+        phases["window-mapped"] = self.startup_seconds
+        return phases
+
+    def await_phases(self, wanted: tuple[str, ...],
+                     timeout: float = PHASES_AFTER_MAPPING) -> dict[str, float]:
+        """The phases once every one of `wanted` is in, or once `timeout` has passed."""
+        deadline = time.time() + timeout
+        while True:
+            phases = self.phases()
+            if all(name in phases for name in wanted) or time.time() >= deadline:
+                return phases
+            time.sleep(0.05)
 
     @property
     def pid(self) -> int:
@@ -758,12 +821,12 @@ class Browser:
 class Workspace:
     """The throwaway root a run browses in, and the files it needs there."""
 
-    def __init__(self) -> None:
+    def __init__(self, parent: str | None = None) -> None:
         # Not `mkdtemp`, whose suffix carries uppercase letters and underscores. The probe page's
         # address is typed a key at a time, and every shifted character in it is a keysym this has
         # to know; a lowercase directory leaves the colon as the only one.
         self.root = os.path.join(
-            tempfile.gettempdir(),
+            parent or tempfile.gettempdir(),
             "omaweb-budget-" + "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=8)))
         os.mkdir(self.root, 0o700)
         self.page_url = self._write("probe.html", PROBE_PAGE)
@@ -854,26 +917,301 @@ def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: in
     time.sleep(LOAD_SETTLE)
 
 
-def measure_startup(executable: str, repetitions: int) -> dict:
-    """The median of several launches, because one launch is a cold cache and a coin toss."""
-    workspace = Workspace()
-    timings = []
-    try:
-        for index in range(repetitions):
-            browser = workspace.browser(executable)
+def startup_phases(lines: Iterable[str], started_at: float) -> dict[str, float]:
+    """Seconds from `started_at`, on the wall clock, to the first mark of each phase in `lines`."""
+    phases: dict[str, float] = {}
+    for line in lines:
+        match = STARTUP_PHASE.search(line.rstrip())
+        if match and match.group(1) not in phases:
+            phases[match.group(1)] = int(match.group(2)) / 1000.0 - started_at
+    return phases
+
+
+def phase_table(launches: list[dict[str, float]]) -> list[str]:
+    """One line per phase: its median over the launches, and its spread."""
+    rows = []
+    for name in STARTUP_PHASES:
+        values = sorted(phases[name] for phases in launches if name in phases)
+        if not values:
+            rows.append(f"    {name:24} not reached")
+            continue
+        rows.append(f"    {name:24} {statistics.median(values) * 1000:7.0f} ms"
+                    f"  ({values[0] * 1000:.0f} to {values[-1] * 1000:.0f})")
+    return rows
+
+
+def evict(paths: Iterable[str]) -> None:
+    """Drops each file under `paths` from the page cache, as far as an unprivileged process can.
+
+    Dirty pages are written first, since the kernel drops only clean ones. A page another process
+    has mapped stays: the desktop's own Qt and Mesa, and anything a running browser maps, are as
+    warm after this as the machine leaves them. A launch after this is cold for what the browser
+    alone reads, which is its binary, the engine's own files and the reader's profile.
+    """
+    for path in paths:
+        files = ([os.path.join(directory, name) for directory, _, names in os.walk(path)
+                  for name in names] if os.path.isdir(path) else [path])
+        for name in files:
             try:
-                browser.start(workspace.page_url)
-                timings.append(browser.startup_seconds)
-                log(f"  launch {index + 1}: {browser.startup_seconds:.3f} s")
+                descriptor = os.open(name, os.O_RDONLY)
+            except OSError:
+                continue
+            try:
+                try:
+                    os.fsync(descriptor)
+                except OSError:
+                    pass
+                os.posix_fadvise(descriptor, 0, 0, os.POSIX_FADV_DONTNEED)
             finally:
-                browser.stop()
-                # The engine's processes have to be gone before the next launch, or the next
-                # launch competes with them for the memory it is about to be measured holding.
-                time.sleep(SETTLE)
+                os.close(descriptor)
+
+
+def mapped_files(root: int) -> set[str]:
+    """The files the process tree under `root` maps: its binaries, its libraries and the engine's
+    resources, which are what a cold launch reads from disk."""
+    files = set()
+    pending = [root]
+    tree = children_by_parent()
+    while pending:
+        process = pending.pop()
+        pending += tree.get(process, [])
+        try:
+            with open(f"/proc/{process}/maps", encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    fields = line.split(maxsplit=5)
+                    if len(fields) == 6 and fields[5].startswith("/"):
+                        files.add(fields[5].strip().removesuffix(" (deleted)"))
+        except OSError:
+            pass
+    return files
+
+
+def learn_mapped_files(workspace: Workspace, executable: str, url: str) -> set[str]:
+    """What a launch reads that is not the profile, from one launch that is not counted."""
+    browser = workspace.browser(executable)
+    try:
+        browser.start(url)
+        browser.await_phases(("first-frame",))
+        return mapped_files(browser.pid)
+    finally:
+        browser.stop()
+        time.sleep(SETTLE)
+
+
+def time_launches(workspace: Workspace, executable: str, url: str, repetitions: int, cold: bool,
+                  awaited: tuple[str, ...], profile: str) -> float:
+    """The median of several launches, because one launch is a coin toss, with each launch's
+    phases printed. A cold launch is preceded by dropping what the browser reads from the page
+    cache."""
+    engine_files = learn_mapped_files(workspace, executable, url) if cold else set()
+    timings = []
+    launches = []
+    for index in range(repetitions):
+        browser = workspace.browser(executable)
+        try:
+            if cold:
+                evict([*engine_files, executable, workspace.root])
+            browser.start(url)
+            timings.append(browser.startup_seconds)
+            launches.append(browser.await_phases(awaited))
+            log(f"  launch {index + 1}: {browser.startup_seconds:.3f} s")
+        finally:
+            browser.stop()
+            # The engine's processes have to be gone before the next launch, or the next
+            # launch competes with them for the memory it is about to be measured holding.
+            time.sleep(SETTLE)
+    log(f"  phases, {'cold' if cold else 'warm'}, {profile} profile:")
+    for row in phase_table(launches):
+        log(row)
+    return sorted(timings)[len(timings) // 2]
+
+
+def measure_startup(executable: str, repetitions: int, cold: bool = False) -> dict:
+    """Startup on a profile nobody has used yet, warm unless `cold` is asked for."""
+    workspace = Workspace()
+    try:
+        return {"startup_seconds": time_launches(workspace, executable, workspace.page_url,
+                                                 repetitions, cold, ("first-frame",), "fresh")}
     finally:
         workspace.discard()
-    timings.sort()
-    return {"startup_seconds": timings[len(timings) // 2]}
+
+
+class LivedInSite:
+    """Serves the lived-in profile's pages, and on its warm-up launch the page that fills them.
+
+    The Space on show at start restores a tab whose page, while `warming` is set, fills the
+    profile's HTTP cache, a service worker's Cache Storage and IndexedDB, then names itself
+    `LIVED_IN_WARMED`. The browser writes each in its own format, so what a launch reads back is
+    what a reader's profile holds rather than files made to look like it. Every other address is a
+    page of its own that asks for nothing.
+    """
+
+    def __init__(self) -> None:
+        self.warming = False
+        self.server = PageLoadServer(("127.0.0.1", 0), self._handler())
+
+    @property
+    def address(self) -> str:
+        host, port = self.server.server_address[:2]
+        return f"http://{host}:{port}/"
+
+    def start(self) -> None:
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def stop(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+    def _handler(self) -> type[http.server.BaseHTTPRequestHandler]:
+        site = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, format: str, *arguments) -> None:  # noqa: A002
+                pass
+
+            def do_GET(self) -> None:  # noqa: N802
+                path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/blob/"):
+                    # Kept by the HTTP cache for a year, except what the service worker stores.
+                    body = os.urandom(1024 * 1024)
+                    content_type = "application/octet-stream"
+                    caching = "no-store" if path.startswith("/blob/stored-") else LIVED_IN_CACHED
+                elif path == "/worker.js":
+                    body = b"self.addEventListener('fetch', () => {});\n"
+                    content_type, caching = "text/javascript", "no-store"
+                elif path == LIVED_IN_WARMING_PATH and site.warming:
+                    body = lived_in_warming_page().encode()
+                    content_type, caching = "text/html; charset=utf-8", "no-store"
+                else:
+                    body = (f"<!doctype html><meta charset=utf-8><title>{html.escape(path)}</title>"
+                            f"<p>{html.escape(path)}</p>").encode()
+                    content_type, caching = "text/html; charset=utf-8", "no-store"
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Cache-Control", caching)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        return Handler
+
+
+def lived_in_warming_page() -> str:
+    """The page that fills the active Space's storage, a mebibyte at a time."""
+    sizes = LIVED_IN_ENGINE_MIB
+    return f"""<!doctype html>
+<meta charset="utf-8">
+<title>warming</title>
+<script>
+  async function warm() {{
+    for (let i = 0; i < {sizes["cache"]}; i++) await (await fetch(`/blob/cached-${{i}}`)).blob();
+    await navigator.serviceWorker.register("/worker.js");
+    await navigator.serviceWorker.ready;
+    const stored = await caches.open("lived-in");
+    for (let i = 0; i < {sizes["service worker"]}; i++) await stored.add(`/blob/stored-${{i}}`);
+    await new Promise((done, failed) => {{
+      const opening = indexedDB.open("lived-in", 1);
+      opening.onupgradeneeded = () => opening.result.createObjectStore("blobs");
+      opening.onerror = () => failed(opening.error);
+      opening.onsuccess = () => {{
+        const writing = opening.result.transaction("blobs", "readwrite");
+        for (let i = 0; i < {sizes["IndexedDB"]}; i++) {{
+          // `getRandomValues` fills at most 64 KiB a call.
+          const blob = new Uint8Array(1024 * 1024);
+          for (let at = 0; at < blob.length; at += 65536) {{
+            crypto.getRandomValues(blob.subarray(at, at + 65536));
+          }}
+          writing.objectStore("blobs").put(blob.buffer, i);
+        }}
+        writing.oncomplete = done;
+        writing.onerror = () => failed(writing.error);
+      }};
+    }});
+    document.title = "{LIVED_IN_WARMED}";
+  }}
+  warm().catch((error) => {{ document.title = `warming failed: ${{error}}`; }});
+</script>
+"""
+
+
+def write_lived_in_extension(data_root: str) -> None:
+    """A package of the size a reader's password manager unpacks to, where the browser looks for
+    Bitwarden. A build with Known extensions loads it at start; one without leaves it on disk."""
+    package = os.path.join(data_root, "extensions", "qt", "bitwarden")
+    os.makedirs(os.path.join(package, "assets"))
+    with open(os.path.join(package, "manifest.json"), "w", encoding="utf-8") as handle:
+        json.dump({"manifest_version": 3, "name": "Lived-in", "version": "1.0",
+                   "background": {"service_worker": "background.js"}}, handle)
+    with open(os.path.join(package, "background.js"), "w", encoding="utf-8") as handle:
+        handle.write("chrome.runtime.onInstalled.addListener(() => {});\n")
+    for index in range(LIVED_IN_EXTENSION_MIB):
+        with open(os.path.join(package, "assets", f"{index}.bin"), "wb") as handle:
+            handle.write(os.urandom(1024 * 1024))
+
+
+def directory_mib(path: str) -> float:
+    return sum(os.path.getsize(os.path.join(directory, name))
+               for directory, _, names in os.walk(path) for name in names) / (1024 * 1024)
+
+
+def lived_in_seeder(executable: str, seeder: str) -> str:
+    """The session seeder: the one asked for, else the one beside the browser or the CI build's."""
+    candidates = [seeder] if seeder else [
+        os.path.join(os.path.dirname(os.path.abspath(executable)), "omaweb-lived-in-session"),
+        str(ROOT / "build" / "ci" / "omaweb-lived-in-session"),
+    ]
+    for candidate in candidates:
+        if os.access(candidate, os.X_OK):
+            return candidate
+    raise Unavailable("no omaweb-lived-in-session is built to seed the lived-in session with; "
+                      "build it with the ci preset or name it with --seeder")
+
+
+def build_lived_in(workspace: Workspace, site: LivedInSite, executable: str, seeder: str) -> None:
+    """Seeds the session, the filter lists and the extension, then fills the engine's storage
+    with one launch of the browser on it."""
+    data = os.path.join(workspace.root, "data")
+    subprocess.run([seeder, data, site.address], check=True)
+    seed_content_blocking(data, user_rules=[], disabled_sites=[])
+    write_lived_in_extension(data)
+    site.warming = True
+    browser = workspace.browser(executable)
+    try:
+        browser.start("")
+        browser.await_title(LIVED_IN_WARMED, timeout=LIVED_IN_WARM_UP_TIMEOUT)
+    except MeasurementFailed:
+        log_messages(browser)
+        raise
+    finally:
+        browser.stop()
+        site.warming = False
+        time.sleep(SETTLE)
+    log(f"  lived-in profile: {directory_mib(data):.0f} MiB")
+
+
+def measure_lived_in(executable: str, repetitions: int, seeder: str, cold: bool = True,
+                     required: bool = False) -> dict:
+    """Startup on a profile a reader has used for months, cold unless warm is asked for."""
+    try:
+        seeder = lived_in_seeder(executable, seeder)
+    except Unavailable as error:
+        if required:
+            raise MeasurementFailed(f"{error}, and --require-lived-in says it may not skip") \
+                from error
+        raise
+    os.makedirs(LIVED_IN_PARENT, exist_ok=True)
+    workspace = Workspace(parent=str(LIVED_IN_PARENT))
+    site = LivedInSite()
+    site.start()
+    try:
+        build_lived_in(workspace, site, executable, seeder)
+        return {"startup_lived_in_seconds": time_launches(
+            workspace, executable, "", repetitions, cold, LIVED_IN_AWAITED, "lived-in")}
+    finally:
+        site.stop()
+        workspace.discard()
 
 
 def measure_memory(executable: str) -> dict:
@@ -1960,7 +2298,12 @@ def measure_livetabs(executable: str) -> dict:
 
 
 MEASUREMENTS = {
-    "startup": lambda arguments: measure_startup(arguments.browser, arguments.repetitions),
+    "startup": lambda arguments: measure_startup(arguments.browser, arguments.repetitions,
+                                                 cold=arguments.cache == "cold"),
+    "livedin": lambda arguments: measure_lived_in(arguments.browser, arguments.repetitions,
+                                                  arguments.seeder,
+                                                  cold=arguments.cache != "warm",
+                                                  required=arguments.require_lived_in),
     "memory": lambda arguments: measure_memory(arguments.browser),
     "spaces": lambda arguments: measure_spaces(arguments.browser, arguments.spaces),
     "freezing": lambda arguments: measure_freezing(arguments.browser),
@@ -2028,6 +2371,14 @@ def main() -> int:
     parser.add_argument("--browser", default="build/dev/omaweb", help="the browser to measure")
     parser.add_argument("--repetitions", type=int, default=3,
                         help="launches to take the median startup from")
+    parser.add_argument("--cache", choices=("cold", "warm"), default=None,
+                        help="evict the browser's files from the page cache before each launch, or "
+                        "not; startup is warm and livedin cold by default, as their budgets are")
+    parser.add_argument("--seeder", default="",
+                        help="the omaweb-lived-in-session that seeds livedin's session, found "
+                        "beside the browser or in build/ci by default")
+    parser.add_argument("--require-lived-in", action="store_true",
+                        help="fail livedin rather than skip it where no seeder is built")
     parser.add_argument("--spaces", type=int, default=4,
                         help="how many Spaces to open, the first one included")
     parser.add_argument("--require-dns", action="store_true",
