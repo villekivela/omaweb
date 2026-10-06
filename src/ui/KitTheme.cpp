@@ -43,6 +43,10 @@ KitTheme::KitTheme(
         QStringLiteral("qs.Commons"), QStringLiteral("Color"));
     m_style = engine->singletonInstance<QObject *>(
         QStringLiteral("qs.Commons"), QStringLiteral("Style"));
+    // `Omaweb.SystemMotion` is a platform type this library does not link, so it is found the way
+    // QML finds it. Without it the kit keeps its own `hyprctl` answer.
+    m_motion = engine->singletonInstance<QObject *>(
+        QStringLiteral("Omaweb"), QStringLiteral("SystemMotion"));
     if (!m_color || !m_style) {
         qWarning("The Omarchy kit's qs.Commons singletons are unavailable, so kit "
                  "components will draw with the kit's own colour and type.");
@@ -79,6 +83,10 @@ KitTheme::KitTheme(
     followResets(m_style,
         {QStringLiteral("fontFamily"), QStringLiteral("resolvedFontFamily"),
             QStringLiteral("fontBaseSize")});
+    if (m_motion) {
+        QQmlProperty(m_motion, QStringLiteral("reduced")).connectNotifySignal(this, SLOT(apply()));
+        followResets(m_style, {QStringLiteral("reduceMotion")});
+    }
     apply();
 }
 
@@ -132,6 +140,11 @@ void KitTheme::apply()
         size = m_fonts->interfaceFontSize();
     }
     assign(m_style, QStringLiteral("fontBaseSize"), size);
+    // The kit reads `animations:enabled` from `hyprctl` and nothing else. Omaweb's chrome stills
+    // for any of the desktop's answers, so the kit's controls take the same one.
+    if (m_motion) {
+        assign(m_style, QStringLiteral("reduceMotion"), m_motion->property("reduced"));
+    }
     m_applying = false;
 }
 

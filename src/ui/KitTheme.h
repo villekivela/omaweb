@@ -9,7 +9,8 @@
 // `~/.config/omarchy/shell.toml` and `hyprctl`. Omaweb's theme palette is its
 // source of truth instead, so this pushes the palette into those singletons
 // and keeps pushing: the kit's own lookups are files and processes that land
-// after startup, and a value written once would simply lose to them.
+// after startup, and a value written once would simply lose to them. The
+// desktop's motion preference goes in the same way, from `SystemMotion`.
 
 #include <QObject>
 #include <QString>
@@ -44,6 +45,7 @@ private:
     FontSettings *m_fonts = nullptr;
     QObject *m_color = nullptr;
     QObject *m_style = nullptr;
+    QObject *m_motion = nullptr;
     bool m_applying = false;
 };
 

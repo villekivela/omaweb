@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
+import Omaweb
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui as Omarchy
@@ -240,6 +241,24 @@ TestCase {
 
         fontSettings.resetInterfaceFontSize();
         compare(Style.font.baseSize, themeSize);
+    }
+
+    // Every kit animation runs for `Style.duration(ms)`, which is 0 under `reduceMotion`. The
+    // kit sets that from `hyprctl` alone, after startup; Omaweb's answer is `SystemMotion`'s,
+    // which also hears the portal, GNOME and macOS, so it is pushed in and outlasts the kit's.
+    function test_theKitStillsWhenTheDesktopAsksForLessMotion() {
+        const reduced = SystemMotion.reduced;
+        SystemMotion.reduced = true;
+        compare(Style.reduceMotion, true);
+        compare(Style.duration(120), 0);
+
+        Style.reduceMotion = false;
+        compare(Style.reduceMotion, true);
+
+        SystemMotion.reduced = false;
+        compare(Style.reduceMotion, false);
+        compare(Style.duration(120), 120);
+        SystemMotion.reduced = reduced;
     }
 
     // Palette normalization can reject two different desktop palettes to the

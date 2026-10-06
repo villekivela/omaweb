@@ -227,8 +227,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   browser starts and again on each config reload, GNOME's `org.gnome.desktop.interface`
   `enable-animations` through the same portal, and macOS's Reduce motion. Under it the sidebar, a
   peek, a Space, a tab, the Omnibar, sheets and panels arrive settled, the Space notice appears and
-  goes where it stands, the page loading indicator holds still, and a busy Agent mark is held dim
-  instead of pulsing.
+  goes where it stands, the page loading indicator holds still, a busy Agent mark is held dim
+  instead of pulsing, and a button, toggle or switch changes state without a fade or a slide.
 - The size Omaweb's own type is drawn at is the theme's until the reader sets it. Settings'
   interface section steps it up and down a pixel at a time within a supported range and resets it,
   the change reaches every Omaweb surface at once, Private windows included, and it survives a
