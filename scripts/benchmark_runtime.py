@@ -186,11 +186,13 @@ WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 PAGELOAD_IMAGES = 40
 PAGELOAD_LOADS = 10
 
-# Loads kept in reserve for each case and mode. On CI's runner the engine cancels an image now and
-# then as its answer arrives, with blocking on and off alike, and a page missing an image is not
-# the page the other mode loaded. Such a load is not counted and a spare takes its place; the spares
-# are in the plan from the start because the DNS zone is written before the browser runs.
-PAGELOAD_SPARES = 6
+# Loads kept in reserve for each case and mode. A page missing an image is not the page the other
+# mode loaded, so such a load is not counted and a spare takes its place; the spares are in the plan
+# from the start because the DNS zone is written before the browser runs. No cause of a short load
+# is known since /dev/shm was given room for the response bodies (#600). Two are kept so that one
+# stray short load on a shared runner does not fail the run, and each one used is listed, while a
+# cause that comes back runs them out within a few loads rather than hiding behind them.
+PAGELOAD_SPARES = 2
 
 # How many hosts the forty images come from. The worst case is a page that reaches every host for
 # the first time, so every request waits on its lookups; the common case is a page whose few hosts
@@ -290,6 +292,14 @@ PAGELOAD_TOOLS = {
     "mount": "binding the resolver files over the machine's",
     "unshare": "running the browser as its own user rather than as root",
 }
+
+# The least free /dev/shm a run may start with. The engine writes each response body into a data
+# pipe of 2 MiB there, and the worst case's forty images can all be in flight at once: a run with
+# room to spare peaked at 74 MiB. Docker gives a container 64 MiB, and there the engine cancelled
+# the last images of a load as their answers arrived, because no pipe could be made for them
+# (#600). The floor is about three times that peak, so a slower renderer that holds its pipes a
+# little longer still has room; a desktop's /dev/shm is half its memory.
+PAGELOAD_SHARED_MEMORY_MEBIBYTES = 256
 
 
 class Unavailable(RuntimeError):
@@ -1209,10 +1219,11 @@ class PageLoadSite:
 
     def page(self, number: int) -> bytes:
         load = self.plan[number]
-        # CORS mode rather than no-cors. On CI's runner the engine cancelled no-cors image
-        # requests as their answers arrived, some forty a run in both modes, and CORS-mode
-        # requests about three: the net log shows the response started and then the request
-        # cancelled, with no network error. What is left is repeated with a spare.
+        # CORS mode rather than no-cors: the ceilings were recorded in CORS mode. On CI's runner
+        # the engine cancelled no-cors image requests as their answers arrived, some forty a run
+        # in both modes, and CORS-mode requests about three. The CORS-mode ones were cancelled
+        # because /dev/shm had no room for their response bodies (#600); no-cors has not been
+        # measured since.
         images = "\n".join(
             f'<img src="{with_port(image, self.port)}" crossorigin="anonymous" width="16" '
             'height="16" alt="">'
@@ -1603,6 +1614,25 @@ def machine_serves_zone() -> bool:
     return any(answer[4][0] == "127.0.0.1" for answer in answers)
 
 
+def check_shared_memory() -> None:
+    """Fails a run that starts without room in /dev/shm for the page's response bodies.
+
+    A failure rather than a skip: the measurement would run, and the loads it cut short are the
+    machine's limit rather than the engine's behaviour, which the spares would hide until they ran
+    out. A machine with no /dev/shm keeps its shared memory elsewhere and is measured.
+    """
+    try:
+        shared = os.statvfs("/dev/shm")
+    except OSError:
+        return
+    free = shared.f_bavail * shared.f_frsize / 1024 / KIB_PER_MIB
+    if free < PAGELOAD_SHARED_MEMORY_MEBIBYTES:
+        raise MeasurementFailed(
+            f"/dev/shm has {free:.0f} MiB free, and a run wants {PAGELOAD_SHARED_MEMORY_MEBIBYTES} "
+            "MiB for the response bodies it has in flight: give the container more with "
+            "--shm-size")
+
+
 def measure_pageload(executable: str, require_dns: bool) -> dict:
     """What Content blocking as a whole adds to a page load, in the worst case and the common one.
 
@@ -1613,12 +1643,14 @@ def measure_pageload(executable: str, require_dns: bool) -> dict:
     """
     if machine_serves_zone():
         log("  the machine's own resolver answers the run's names, so it measures there")
+        check_shared_memory()
         return run_pageload(executable, private=False)
     try:
         missing = [f"{tool}, for {purpose}" for tool, purpose in PAGELOAD_TOOLS.items()
                    if shutil.which(tool) is None]
         if missing:
             raise Unavailable(f"this needs {'; '.join(missing)}")
+        check_shared_memory()
         return in_child(lambda: run_pageload(executable, private=True))
     except Unavailable as error:
         if require_dns:

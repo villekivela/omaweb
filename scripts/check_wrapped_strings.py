@@ -62,6 +62,7 @@ TOKENS = {
     ("SpaceOutline.qml", "lock"),
     ("SpaceOutline.qml", "shield"),
     ("NightRoad.qml", "white"),
+    ("NightSky.qml", "white"),
     ("SettingsPage.qml", "claude"),
 }
 

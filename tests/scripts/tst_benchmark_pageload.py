@@ -414,5 +414,50 @@ class RequireDnsTest(unittest.TestCase):
             self.measure(require_dns=True)
 
 
+class SharedMemoryTest(unittest.TestCase):
+    """A /dev/shm without room for the page's response bodies fails the run before a browser starts.
+
+    Docker's default of 64 MiB is what cut CI's loads short (#600).
+    """
+
+    @staticmethod
+    def shared_memory(size, free):
+        """A statvfs answer for a /dev/shm of `size` MiB with `free` MiB of it available."""
+        pages = 256
+        return os.statvfs_result((4096, 4096, size * pages, free * pages, free * pages,
+                                  0, 0, 0, 0, 255))
+
+    def measure(self, statvfs, private=False):
+        with mock.patch.object(runtime.os, "statvfs", **statvfs) as read, \
+                mock.patch.object(runtime, "machine_serves_zone", return_value=not private), \
+                mock.patch.object(runtime.shutil, "which", return_value="/usr/bin/tool"), \
+                mock.patch.object(runtime, "in_child", return_value={}) as child, \
+                mock.patch.object(runtime, "run_pageload", return_value={}) as run:
+            runtime.measure_pageload("build/dev/omaweb", require_dns=True)
+        if "return_value" in statvfs:
+            read.assert_called_with("/dev/shm")
+        return child if private else run
+
+    def test_dockers_default_fails_the_run_and_names_the_option(self):
+        with self.assertRaisesRegex(runtime.MeasurementFailed, "64 MiB free.*--shm-size"):
+            self.measure({"return_value": self.shared_memory(64, 64)})
+
+    def test_a_large_dev_shm_that_is_mostly_taken_fails_the_run(self):
+        with self.assertRaisesRegex(runtime.MeasurementFailed, "40 MiB free"):
+            self.measure({"return_value": self.shared_memory(2048, 40)})
+
+    def test_the_private_network_checks_before_it_starts_its_child(self):
+        with self.assertRaises(runtime.MeasurementFailed):
+            self.measure({"return_value": self.shared_memory(64, 64)}, private=True)
+
+    def test_a_desktops_share_of_its_memory_measures(self):
+        self.measure({"return_value": self.shared_memory(8192, 8000)}).assert_called_once()
+        self.measure({"return_value": self.shared_memory(8192, 8000)},
+                     private=True).assert_called_once()
+
+    def test_a_machine_without_dev_shm_measures(self):
+        self.measure({"side_effect": FileNotFoundError}).assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

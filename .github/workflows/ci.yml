@@ -121,7 +121,13 @@ jobs:
     needs: changes
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
+    # Room in /dev/shm for the page-load budget's response bodies, which
+    # Docker's 64 MiB ran out of (#600, docs/development.md). Not
+    # `--disable-dev-shm-usage`: that moves the engine's shared memory to /tmp,
+    # which is a configuration no reader runs.
+    container:
+      image: archlinux:base-devel
+      options: --shm-size=2g
     # The runtime budget's steps bring the job to 40 minutes, too close to 45.
     timeout-minutes: 60
     env:
