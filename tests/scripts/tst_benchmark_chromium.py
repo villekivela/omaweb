@@ -13,6 +13,7 @@ import json
 import os
 import re
 import socket
+import struct
 import sys
 import tempfile
 import threading
@@ -293,6 +294,68 @@ class HistoryTest(unittest.TestCase):
         for record in history.read():
             self.assertIn(record["kind"], (history.KIND_BUDGET, history.KIND_COMPARISON))
             self.assertTrue(record["machine"])
+
+
+def elf_with_comment(path: Path, *comments: str) -> str:
+    """A 64-bit little-endian ELF holding nothing but a `.comment` section of these strings, which
+    is where a compiler and a linker sign what they made."""
+    names = b"\0.shstrtab\0.comment\0"
+    comment = b"".join(text.encode() + b"\0" for text in comments)
+    header_size, entry_size = 64, 64
+    sections = header_size + len(names) + len(comment)
+    header = (b"\x7fELF" + bytes([2, 1, 1]) + bytes(9)
+              + struct.pack("<HHIQQQIHHHHHH", 3, 183, 1, 0, 0, sections, 0, header_size, 0, 0,
+                            entry_size, 3, 1))
+    table = bytes(entry_size)
+    table += struct.pack("<IIQQQQIIQQ", 1, 3, 0, 0, header_size, len(names), 0, 0, 1, 0)
+    table += struct.pack("<IIQQQQIIQQ", 11, 1, 0x30, 0, header_size + len(names), len(comment),
+                         0, 0, 1, 1)
+    path.write_bytes(header + names + comment + table)
+    return str(path)
+
+
+class EngineTest(unittest.TestCase):
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.directory = Path(directory.name)
+
+    def engine(self, library: str) -> dict:
+        return history.describe_engine(str(self.directory / "no-omaweb"), library)
+
+    def test_an_engine_built_with_clang_says_so(self):
+        # The library's own words, from the aarch64 clang build #575 measured: the C runtime's
+        # objects are GCC's, so its line is there beside clang's.
+        library = elf_with_comment(self.directory / "libQt6WebEngineCore.so.6",
+                                   "clang version 22.1.8", "Linker: LLD 22.1.8",
+                                   "GCC: (GNU) 16.1.1 20260430")
+        self.assertEqual(self.engine(library)["toolchain"], "clang")
+
+    def test_an_engine_built_with_gcc_says_so(self):
+        # The aarch64 6.11.2-5 that #576 publishes.
+        library = elf_with_comment(self.directory / "libQt6WebEngineCore.so.6",
+                                   "GCC: (GNU) 16.1.1 20260430")
+        self.assertEqual(self.engine(library)["toolchain"], "gcc")
+
+    def test_an_engine_that_cannot_be_read_names_no_toolchain(self):
+        # A development build on macOS links a framework, which is no ELF, and a browser whose
+        # engine was not found has no library at all. Neither stops a run from being recorded.
+        framework = self.directory / "QtWebEngineCore"
+        framework.write_bytes(b"\xcf\xfa\xed\xfe" + bytes(60))
+        for library in (str(framework), str(self.directory / "missing.so"), ""):
+            self.assertEqual(self.engine(library)["toolchain"], "", library)
+
+    def test_a_damaged_engine_names_no_toolchain(self):
+        # The library is read after every suite has run, so what it says must not cost the run.
+        library = Path(elf_with_comment(self.directory / "libQt6WebEngineCore.so.6",
+                                        "GCC: (GNU) 16.1.1 20260430"))
+        data = bytearray(library.read_bytes())
+        sections, = struct.unpack_from("<Q", data, 0x28)
+        for size in (2**63, 2**40):
+            struct.pack_into("<Q", data, sections + 2 * 64 + 32, size)
+            library.write_bytes(data)
+            self.assertEqual(self.engine(str(library))["toolchain"], "", size)
 
 
 class PlotDataTest(unittest.TestCase):
