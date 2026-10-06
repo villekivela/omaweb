@@ -1237,18 +1237,35 @@ a margin over their first measurement. All eight run under `ctest --preset ci`, 
 [frame intervals](#frame-intervals) of the chrome's movements, which are held to a budget instead.
 
 Baseline measured on the initial macOS development machine, an Apple M2 Max on macOS 26.6.2, with
-the `dev` preset on 2026-09-12:
+the `dev` preset on 2026-09-12, and on CI's runners on 2026-10-06:
 
-| Probe                                             | Measured       | Threshold | Test                        |
-| ------------------------------------------------- | -------------- | --------- | --------------------------- |
-| Startup to first window drawn                     | 470 to 550 ms  | 2200 ms   | `omaweb-startup-probes`     |
-| Session restore to the visible Space's page drawn | 560 to 620 ms  | 2500 ms   | `omaweb-startup-probes`     |
-| Tab switch to the destination page's frame        | 7 ms           | 50 ms     | `omaweb-ui-performance`     |
-| Chromeless frame time over an animated page       | 0.8 to 1.0 ms  | 10 ms     | `omaweb-ui-performance`     |
-| Resident memory per frozen tab                    | 103 to 104 MiB | 200 MiB   | `omaweb-qt-engine-contract` |
-| Visit record, on the interface thread             | 2 to 15 us     | 2000 us   | `omaweb-session-store`      |
-| Coalesced tab write, on the interface thread      | 1 to 2 us      | 2000 us   | `omaweb-session-store`      |
-| Closed-tab write, on the interface thread         | 1 to 2 us      | 2000 us   | `omaweb-session-store`      |
+| Probe                                             | M2 Max         | CI, EPYC 7763  | CI, EPYC 9V45 | Threshold | Test                        |
+| ------------------------------------------------- | -------------- | -------------- | ------------- | --------- | --------------------------- |
+| Startup to first window drawn                     | 470 to 550 ms  | 640 to 660 ms  | 429 ms        | 2200 ms   | `omaweb-startup-probes`     |
+| Session restore to the visible Space's page drawn | 560 to 620 ms  | 960 to 980 ms  | 618 ms        | 2500 ms   | `omaweb-startup-probes`     |
+| Tab switch to the destination page's frame        | 7 ms           | 5.5 to 6.1 ms  | 5.4 to 5.6 ms | 50 ms     | `omaweb-ui-performance`     |
+| Chromeless frame time over an animated page       | 0.8 to 1.0 ms  | 0.4 to 0.6 ms  | 0.3 ms        | 10 ms     | `omaweb-ui-performance`     |
+| Resident memory per frozen tab                    | 103 to 104 MiB | 108 to 117 MiB | 108 MiB       | 200 MiB   | `omaweb-qt-engine-contract` |
+| Visit record, on the interface thread             | 2 to 15 us     | 10 to 42 us    | 12 us         | 2000 us   | `omaweb-session-store`      |
+| Coalesced tab write, on the interface thread      | 1 to 2 us      | 2.9 to 5.7 us  | 2.7 us        | 2000 us   | `omaweb-session-store`      |
+| Closed-tab write, on the interface thread         | 1 to 2 us      | 2.0 to 5.0 us  | 2.2 us        | 2000 us   | `omaweb-session-store`      |
+
+The CI columns are the `arch-linux-clang` and `arch-linux-gcc` jobs of `main` at `d4561d3` and
+`9a39d1c`, read from the step that prints the probes' numbers from ctest's log, which needs no
+failure to speak. The engine is 6.11.2-5. GitHub hands a job one of several runners, and the job
+names its processor in the step before the build: three of the four jobs ran on an AMD EPYC 7763,
+one on an EPYC 9V45, which is about a third faster at startup and restore. Each range is those jobs'
+runs, and the 9V45 column is one job. The clang and gcc builds agree except in memory, where the
+clang job measured 108.5 MiB and the two gcc jobs 114.0 and 117.3. Every CI probe is inside its
+threshold with at least a third of it to spare, and none is outside its macOS ceiling: startup is
+1.2 to 1.4 times the M2 Max's and the restore 1.6 times, on a runner with no display and the
+software rasteriser.
+
+Nothing here is Linux-only or missing on Linux. On CI the window probes run on
+`QT_QPA_PLATFORM=offscreen` through the software rasteriser, as do the engine contract's memory
+probe and the session writes' test, which open no window. So the two frame numbers are comparative
+there, as the frame time below explains, and say nothing of a GPU. The Omarchy numbers from real
+hardware are below.
 
 What each one measures:
 
@@ -1304,9 +1321,8 @@ build/dev/omaweb-session-store-tests aThreadedStoreTakesTheSessionsRunningWrites
 ```
 
 Set `QT_QPA_PLATFORM=offscreen` for the middle two, or `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1` to
-draw the frame probe through Metal and read what the frames cost the GPU. The Linux numbers are
-still to be taken: re-run on Linux hardware when it is available and record them here beside the
-macOS ones.
+draw the frame probe through Metal and read what the frames cost the GPU. On Linux with a display,
+`QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1` does the same through the desktop's GPU.
 
 ### Frame intervals
 
