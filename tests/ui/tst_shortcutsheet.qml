@@ -587,6 +587,20 @@ TestCase {
             verify(tabs.indexOf(row) !== -1, "a row that did not change was built again");
     }
 
+    // The sheet lays its rows out once when it is made, so its first opening
+    // finds them built rather than building them all in its first frame
+    // (#594). The probe allows one slow opening in eleven, so it cannot hold
+    // the first one alone.
+    function test_aSheetNeverOpenedHasItsRowsBuilt() {
+        liveSheet = sheetComponent.createObject(testCase, {
+                                                    "open": false
+                                                });
+        verify(liveSheet !== null);
+        verify(!liveSheet.open);
+        verify(drawnKeys(liveSheet).length > 0,
+               "the sheet laid nothing out before its first opening");
+    }
+
     // Opening works the list out again, and a list that came out the same
     // is the one already drawn: opening the sheet again builds nothing.
     function test_reopeningAnUnchangedSheetKeepsItsRows() {
