@@ -237,11 +237,16 @@ jobs:
       # needed, still reaches the network.
       - name: Refuse the tests' outbound connections
         run: |
-          for tables in iptables ip6tables; do
-            "$tables" -A OUTPUT -m owner --uid-owner builder ! -o lo -j REJECT
-          done
-          if su builder -c 'curl --silent --show-error --max-time 10 https://easylist.to/'; then
-            echo "::error::the build user still reaches the network" >&2
+          iptables -A OUTPUT -m owner --uid-owner builder ! -o lo -j REJECT
+          # A runner whose kernel has no IPv6 tables has no IPv6 to refuse.
+          ip6tables -A OUTPUT -m owner --uid-owner builder ! -o lo -j REJECT \
+            || echo "::warning::IPv6 connections are not refused"
+          # An address rather than a name, so the refusal is what fails, not a
+          # lookup. curl's exit code 7 is "failed to connect".
+          status=0
+          su builder -c 'curl --silent --max-time 10 http://1.1.1.1/' || status=$?
+          if [ "$status" -ne 7 ]; then
+            echo "::error::the build user's connection was not refused (curl exit $status)" >&2
             exit 1
           fi
       - name: Test
