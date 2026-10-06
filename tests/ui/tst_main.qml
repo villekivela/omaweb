@@ -271,6 +271,8 @@ TestCase {
             window.setStartPageScene("crt-road");
         if (!window.startPageGlass)
             window.setStartPageGlass(true);
+        if (fontSettings.interfaceFontSizeOverridden)
+            fontSettings.resetInterfaceFontSize();
         // Whatever the last test pressed, this one starts from the pointer and
         // a desktop that has not asked for reduced motion.
         InputOrigin.pointer = true;
@@ -9763,7 +9765,6 @@ TestCase {
         verify(sky.unlit);
         compare(sky.stars, 0);
         verify(!sky.cometShown);
-        verify(sky.planetShown);
         verify(!sky.limbGlows);
         verify(findChild(scene, "crtGlass").visible);
         verify(!findChild(window.contentItem, "nightSky").unlit);
@@ -12079,10 +12080,24 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting scene");
     }
 
+    function test_theSkysPlanetCrestsBelowTheOmnibar_data() {
+        return [
+                    {
+                        tag: "theme's type",
+                        larger: 0
+                    },
+                    {
+                        tag: "larger type",
+                        larger: 6
+                    }
+                ];
+    }
+
     // The sky's planet crests just below the resting Omnibar's hint row, with
-    // a small gap, so its curve shows whole, and the Omnibar keeps the place
-    // it has over the road.
-    function test_theSkysPlanetCrestsBelowTheOmnibar() {
+    // a small gap, so its curve shows whole, at whatever size the interface's
+    // type is, and the Omnibar keeps the place it has over the road.
+    function test_theSkysPlanetCrestsBelowTheOmnibar(data) {
+        fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + data.larger);
         const panel = findChild(window.contentItem, "omnibar");
         const scene = findChild(window.contentItem, "startPageScene");
         const homeSpaceId = browser.activeSpaceId;
@@ -12097,6 +12112,7 @@ TestCase {
         verify(crest > bottom + 4, "crest " + crest + ", Omnibar's bottom " + bottom);
         verify(crest < bottom + 24, "crest " + crest + ", Omnibar's bottom " + bottom);
         leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
+        fontSettings.resetInterfaceFontSize();
     }
 
     // A reader who turned the road off before there was a choice arrives on

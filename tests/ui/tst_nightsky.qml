@@ -192,9 +192,7 @@ TestCase {
         const unlit = makeSky({
                                   unlit: true
                               });
-        verify(lit.planetShown);
         verify(lit.limbGlows);
-        verify(unlit.planetShown);
         verify(!unlit.limbGlows);
     }
 

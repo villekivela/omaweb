@@ -175,6 +175,10 @@ Item {
                                            * panel.border.width - 8 - 24 - hints.implicitHeight
     readonly property real restHeight: header.height + body.height + hints.height + 2
                                        * panel.border.width
+    // How far the field and its hint row reach below the horizon at rest,
+    // which the Start page's sky keeps clear: its planet crests below them.
+    readonly property real restReach: header.height + hints.height + 2 * panel.border.width
+                                      - horizonBelowTop
     NumberAnimation {
         id: arrivalEase
         target: root

@@ -1065,8 +1065,9 @@ Rectangle {
                         onClicked: root.glanceToggled(!checked)
                     }
 
-                    // The thumbnails run the row's width, under its title and
-                    // note, rather than in the control's place at its right.
+                    // The thumbnails stand in a row of their own under the
+                    // title and note, rather than in the control's place at
+                    // the right.
                     Column {
                         objectName: "startPageSceneRow"
                         width: pane.width

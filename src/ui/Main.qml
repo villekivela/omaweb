@@ -215,10 +215,10 @@ ApplicationWindow {
     // Whether the Scene is shown through its CRT glass. Local the same way.
     property bool startPageGlass: true
     readonly property var startPageScenes: ["crt-road", "night-sky", "none"]
-    // The window whose Scene choice this one shows and changes: a Private
+    // The window whose Scene settings this one shows and changes: a Private
     // window keeps no preferences, so it follows the ordinary window's.
-    readonly property var sceneChooser: window.privateWindow && window.opener ? window.opener :
-                                                                                window
+    readonly property var sceneSettingsWindow: window.privateWindow && window.opener
+                                               ? window.opener : window
 
     // What a bar over the page blurs under its ground: the Start page or the
     // page on show, and nothing over a blank viewport. In a split the Start
@@ -2810,7 +2810,7 @@ ApplicationWindow {
             window.windowBrowser.stopAwaitingAddress(window.windowBrowser.activeSpaceId);
         const newTab = window.startPageSummoned;
         window.windowBrowser.cancelHistorySuggestions();
-        if (window.sceneChooser.startPageScene === "none") {
+        if (window.sceneSettingsWindow.startPageScene === "none") {
             window.windowBrowser.openInput(text, newTab);
             window.startPageSummoned = false;
             window.focusPage();
@@ -2853,7 +2853,7 @@ ApplicationWindow {
         target: window.windowBrowser
         function onAwaitedAddressLoaded(spaceId, tabId) {
             if (spaceId !== window.windowBrowser.activeSpaceId
-                    || window.sceneChooser.startPageScene === "none")
+                    || window.sceneSettingsWindow.startPageScene === "none")
                 return;
             window.startStartPageDrive(tabId);
         }
@@ -3646,8 +3646,9 @@ ApplicationWindow {
                     privateWindow: window.privateWindow
                     open: window.startPageShown
                     ease: window.chromeEase
-                    sceneId: window.sceneChooser.startPageScene
-                    glassEnabled: window.sceneChooser.startPageGlass
+                    sceneId: window.sceneSettingsWindow.startPageScene
+                    omnibarReach: omnibar.restReach
+                    glassEnabled: window.sceneSettingsWindow.startPageGlass
                     reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
@@ -4237,8 +4238,8 @@ ApplicationWindow {
                     floatingControls: window.floatingControls
                     sidebarSide: window.sidebarSide
                     glanceEnabled: window.glanceEnabled
-                    startPageScene: window.sceneChooser.startPageScene
-                    startPageGlass: window.sceneChooser.startPageGlass
+                    startPageScene: window.sceneSettingsWindow.startPageScene
+                    startPageGlass: window.sceneSettingsWindow.startPageGlass
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -4289,10 +4290,10 @@ ApplicationWindow {
                         window.setGlanceEnabled(enabled);
                     }
                     onStartPageSceneChosen: function (scene) {
-                        window.sceneChooser.setStartPageScene(scene);
+                        window.sceneSettingsWindow.setStartPageScene(scene);
                     }
                     onStartPageGlassToggled: function (enabled) {
-                        window.sceneChooser.setStartPageGlass(enabled);
+                        window.sceneSettingsWindow.setStartPageGlass(enabled);
                     }
                     onTintFaviconsToggled: function (enabled) {
                         window.setTintFavicons(enabled);

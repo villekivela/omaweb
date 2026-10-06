@@ -27,6 +27,9 @@ Item {
     // "none", where the backdrop below takes its place.
     property string sceneId: "crt-road"
     readonly property bool sceneShown: root.sceneId !== "none"
+    // How far the resting Omnibar reaches below the horizon, which the night
+    // sky keeps clear.
+    property real omnibarReach: 40
     // The Settings interface section's CRT glass over the Scene.
     property bool glassEnabled: true
     // The reader asked for less motion: the Scene holds one still frame, with
@@ -114,6 +117,13 @@ Item {
         running: root.visible && root.sceneShown && root.windowActive
         navigating: root.driving ? 1 : 0
         scene: root.sceneId === "night-sky" ? sky : nightRoad
+    }
+
+    Binding {
+        target: host.sceneItem
+        property: "omnibarReach"
+        value: root.omnibarReach
+        when: !!host.sceneItem && host.sceneItem.objectName === "nightSky"
     }
 
     Component {

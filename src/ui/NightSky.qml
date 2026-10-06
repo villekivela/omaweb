@@ -1,5 +1,6 @@
 import QtQuick
 import Omaweb
+import "SceneColour.mjs" as Colour
 
 // The night sky, the Start page's second Scene, after Netscape Navigator's
 // throbber: a still star field over a dark planet whose limb crests just
@@ -38,6 +39,11 @@ Item {
     // glow on the planet's limb, even while the reader navigates, and the
     // night is lit by the theme's text rather than its accent.
     property bool unlit: false
+    // How far the resting Omnibar reaches below where it rests, which the
+    // planet's crest keeps clear. The browser's Start page hands it in; a
+    // picture of the sky with no Omnibar over it, such as a thumbnail, keeps
+    // the reach at the theme's type size.
+    property real omnibarReach: root.parameters.planet.omnibarReach
 
     // ---- what it declares
 
@@ -58,7 +64,6 @@ Item {
     // ---- what it drew, for the tests
 
     readonly property int stars: root.unlit ? 0 : root.parameters.stars.count
-    readonly property bool planetShown: true
     readonly property bool limbGlows: !root.unlit
     readonly property bool cometShown: !root.unlit && (root.reducedMotion || root.cometFalls
                                                        && root.cometRun < 1)
@@ -72,22 +77,15 @@ Item {
 
     // ---- palette
 
-    function mixColour(from, to, amount) {
-        const a = Qt.color(from);
-        const b = Qt.color(to);
-        return Qt.rgba(a.r + (b.r - a.r) * amount, a.g + (b.g - a.g) * amount, a.b + (b.b - a.b)
-                       * amount, 1);
-    }
-
     // A night in the theme, as the road's. A light theme's night is drawn
     // from its dark text, so the sky stays dark and the stars stay light.
     readonly property var roles: {
         const night = root.parameters.night;
-        const ground = root.dark ? Qt.color(root.colors.windowOpaque) : root.mixColour(root.colors.text,
-                                                                                       "black", night.lightThemeGround);
+        const ground = root.dark ? Qt.color(root.colors.windowOpaque) : Colour.mix(root.colors.text,
+                                                                                   "black", night.lightThemeGround);
         const light = Qt.color(root.dark ? root.colors.text : root.colors.windowOpaque);
-        const deep = root.mixColour(ground, "black", root.dark ? night.deep : night.deepLightTheme);
-        const glow = root.unlit ? root.mixColour(light, ground, 0.3) : Qt.color(root.colors.accent);
+        const deep = Colour.mix(ground, "black", root.dark ? night.deep : night.deepLightTheme);
+        const glow = root.unlit ? Colour.mix(light, ground, 0.3) : Qt.color(root.colors.accent);
         return {
             black: Qt.color("black"),
             white: Qt.color("white"),
@@ -95,8 +93,8 @@ Item {
             light: light,
             glow: glow,
             skyTop: deep,
-            skyLow: root.mixColour(ground, glow, night.skyLow),
-            face: root.mixColour(ground, "black", root.parameters.planet.face)
+            skyLow: Colour.mix(ground, glow, night.skyLow),
+            face: Colour.mix(ground, "black", root.parameters.planet.face)
         };
     }
 
@@ -104,30 +102,12 @@ Item {
     function colour(name) {
         if (typeof name === "string")
             return root.roles[name];
-        return root.mixColour(root.colour(name.mix[0]), root.colour(name.mix[1]), name.mix[2]);
-    }
-
-    // A colour at an alpha, for an item to draw.
-    function withAlpha(colour, alpha) {
-        const c = Qt.color(colour);
-        return Qt.rgba(c.r, c.g, c.b, alpha);
-    }
-
-    // A colour as the canvas takes it, at an alpha.
-    function css(colour, alpha) {
-        const c = Qt.color(colour);
-        return "rgba(" + Math.round(c.r * 255) + ", " + Math.round(c.g * 255) + ", " + Math.round(
-                    c.b * 255) + ", " + (alpha === undefined ? 1 : alpha) + ")";
-    }
-
-    function fraction(value) {
-        return value - Math.floor(value);
+        return Colour.mix(root.colour(name.mix[0]), root.colour(name.mix[1]), name.mix[2]);
     }
 
     // A repeatable scatter: the same index always lands in the same place.
     function hash(index) {
-        const s = root.parameters.scatter;
-        return root.fraction(Math.sin(index * s[0] + s[1]) * s[2]);
+        return Colour.scatter(index, root.parameters.scatter);
     }
 
     // A place in a [from, span] range that `index` scatters to.
@@ -142,6 +122,8 @@ Item {
     // motion gets one comet held part way across.
 
     readonly property var comets: root.parameters.comets
+    // The diagonal comets and streaks fall down, in degrees.
+    readonly property real fallAngle: Math.atan(root.comets.slope) * 180 / Math.PI
     readonly property int cometSlot: Math.floor(root.time / root.comets.every)
     // Whether a comet falls in this slot at all.
     readonly property bool cometFalls: root.hash(root.cometSlot) > root.comets.chance
@@ -166,11 +148,11 @@ Item {
     // ---- the planet
     //
     // A circle centred below the page, its radius the page area's width
-    // times `radius`, whose top, its limb's crest, stands `crest` below where
-    // the Omnibar rests: just under its hint row, so the curve shows whole.
+    // times `radius`, whose top, its limb's crest, stands `gap` below the
+    // resting Omnibar's hint row, so the curve shows whole.
 
     readonly property real planetRadius: root.drawWidth * root.parameters.planet.radius
-    readonly property real crestY: root.horizonY + root.parameters.planet.crest
+    readonly property real crestY: root.horizonY + root.omnibarReach + root.parameters.planet.gap
     readonly property point planetCentre: Qt.point(root.drawWidth / 2, root.crestY
                                                    + root.planetRadius)
 
@@ -191,22 +173,22 @@ Item {
         const h = root.drawHeight;
         const gradient = context.createLinearGradient(0, 0, 0, root.crestY);
         for (const stop of p.sky)
-            gradient.addColorStop(stop[0], root.css(root.colour(stop[1]), stop.length > 2 ? stop[2] :
-                                                                                            1));
+            gradient.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop.length > 2
+                                                      ? stop[2] : 1));
         context.fillStyle = gradient;
         context.fillRect(0, 0, w, h);
 
         const st = p.stars;
         for (let index = 0; index < root.stars; ++index) {
-            const across = root.fraction(Math.sin(index * st.across[0]) * st.across[1]);
-            const high = root.fraction(Math.sin(index * st.height[0]) * st.height[1]);
-            const bright = root.fraction(Math.sin(index * st.brightness[0]) * st.brightness[1]);
+            const across = Colour.scatter(index, st.across);
+            const high = Colour.scatter(index, st.height);
+            const bright = Colour.scatter(index, st.brightness);
             const brightest = bright > st.brightAbove;
             const size = brightest ? st.sizes.bright : bright > st.mediumAbove ? st.sizes.medium :
                                                                                  st.sizes.dim;
             const alpha = brightest ? 1 : (st.alpha.base + st.alpha.range * bright) * (1 - high
                                                                                        * st.alpha.lowFade);
-            context.fillStyle = root.css(root.roles.light, alpha);
+            context.fillStyle = Colour.css(root.roles.light, alpha);
             const pixel = root.pitch;
             context.fillRect(Math.floor(across * w / pixel) * pixel, Math.floor(high * h / pixel)
                              * pixel, size, size);
@@ -223,58 +205,29 @@ Item {
         if (root.limbGlows) {
             const haze = context.createRadialGradient(c.x, c.y, r, c.x, c.y, r + p.glow.reach);
             for (const stop of p.glow.stops)
-                haze.addColorStop(stop[0], root.css(root.colour(stop[1]), stop[2]));
+                haze.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop[2]));
             context.fillStyle = haze;
             context.fillRect(0, root.crestY - p.glow.reach, root.drawWidth, root.drawHeight);
         }
         context.beginPath();
         context.arc(c.x, c.y, r, 0, Math.PI * 2, false);
-        context.fillStyle = root.css(root.roles.face);
+        context.fillStyle = Colour.css(root.roles.face);
         context.fill();
         context.lineWidth = p.limb.width;
-        context.strokeStyle = root.limbGlows ? root.css(root.colour(p.limb.colour)) : root.css(
+        context.strokeStyle = root.limbGlows ? Colour.css(root.colour(p.limb.colour)) : Colour.css(
                                                    root.roles.light, p.limb.unlit);
         context.stroke();
     }
 
-    Layer {
+    SceneLayer {
         id: still
 
         readonly property string key: [root.width, root.height, root.roles.ground, root.roles.light,
             root.roles.glow, root.unlit].join("/")
 
+        pitch: root.pitch
         paintWith: root.drawStill
         onKeyChanged: draw()
-    }
-
-    // A canvas the Scene draws into in logical pixels, scaled to its own. It
-    // paints only while it can be seen; a paint asked for while it cannot is
-    // kept for when it can.
-    component Layer: Canvas {
-        id: layer
-
-        property var paintWith: function (context) {}
-        property bool stale: true
-
-        anchors.fill: parent
-        renderTarget: Canvas.Image
-        renderStrategy: Canvas.Immediate
-
-        function draw() {
-            layer.stale = true;
-            if (layer.visible)
-                layer.requestPaint();
-        }
-
-        onVisibleChanged: if (visible && stale)
-                              requestPaint()
-        onPaint: {
-            layer.stale = false;
-            const context = getContext("2d");
-            context.reset();
-            context.scale(1 / root.pitch, 1 / root.pitch);
-            layer.paintWith(context);
-        }
     }
 
     // ---- the light it casts
@@ -298,7 +251,7 @@ Item {
             stops: g.stops.map(function (stop) {
                 return {
                     position: stop[0],
-                    colour: root.withAlpha(root.colour(stop[1]), stop.length > 2 ? stop[2] : 1)
+                    colour: Colour.withAlpha(root.colour(stop[1]), stop.length > 2 ? stop[2] : 1)
                 };
             }),
             bloom: g.bloom
@@ -358,7 +311,7 @@ Item {
                 readonly property var st: root.falling
                 readonly property real lasts: root.spread(st.lasts, index + 101)
                 readonly property real phase: root.hash(index + 202)
-                readonly property real run: root.fraction(root.time / lasts + phase)
+                readonly property real run: Colour.fraction(root.time / lasts + phase)
                 readonly property real travel: st.travel * root.drawWidth * run
                 readonly property real headX: root.spread(st.across, index + 303) * root.drawWidth
                                               + travel
@@ -370,14 +323,14 @@ Item {
                 width: root.drawWidth * root.spread(st.length, index + 505) * root.rush
                 height: st.width
                 transformOrigin: Item.Right
-                rotation: Math.atan(root.comets.slope) * 180 / Math.PI
+                rotation: root.fallAngle
                 antialiasing: true
                 opacity: Math.min(1, root.rush * 2) * Math.sin(Math.PI * run)
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop {
                         position: 0
-                        color: root.withAlpha(root.roles.light, 0)
+                        color: Colour.withAlpha(root.roles.light, 0)
                     }
                     GradientStop {
                         position: 1
@@ -405,13 +358,13 @@ Item {
                 width: comet.tail
                 height: root.cometMeasure.width
                 transformOrigin: Item.Right
-                rotation: Math.atan(root.comets.slope) * 180 / Math.PI
+                rotation: root.fallAngle
                 antialiasing: true
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop {
                         position: 0
-                        color: root.withAlpha(root.colour(root.comets.tail), 0)
+                        color: Colour.withAlpha(root.colour(root.comets.tail), 0)
                     }
                     GradientStop {
                         position: 1
@@ -433,12 +386,13 @@ Item {
         }
     }
 
-    Layer {
+    SceneLayer {
         id: planet
 
         readonly property string key: [root.width, root.height, root.roles.face, root.roles.light,
             root.roles.glow, root.unlit].join("/")
 
+        pitch: root.pitch
         paintWith: root.drawPlanet
         onKeyChanged: draw()
     }
