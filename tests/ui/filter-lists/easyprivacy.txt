@@ -1,0 +1,5 @@
+[Adblock Plus 2.0]
+! Title: EasyPrivacy fixture
+! A list of the harness's own: the UI suites fetch lists from here, never from the network.
+||tracker.fixture.example^
+fixture-easyprivacy.example##.fixture-easyprivacy-beacon
