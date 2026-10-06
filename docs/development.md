@@ -1283,12 +1283,16 @@ frame probe therefore fails its 10 ms threshold on Wayland, as it does on Metal,
 page's frame probe does not finish: it stops at its wait for the Start page's scene to run, before
 it times anything. Both run only offscreen until they hold on a real display.
 
-Run with `HYPRLAND_INSTANCE_SIGNATURE` set, as it is in any Hyprland session, the startup and
-restore probes read 5.6 s and 5.9 s: the lab's first frame comes about five seconds late. Unset, the
-same launch gives the 0.67 s in the table. The cause is the connection `LinuxSystemMotion.cpp` makes
-to Hyprland's request socket: leaving out its `connectToServer(requests)` brings the first frame
-back, while the same request from `hyprctl` or a raw socket is answered in 4 ms. The Omarchy column
-is taken with the variable unset, and the 5.6 s is the one number far outside the macOS ceiling.
+The Omarchy column was taken with `HYPRLAND_INSTANCE_SIGNATURE` unset. Set, as it is in any Hyprland
+session, the startup and restore probes then read 5.6 s and 5.9 s. Once Hyprland accepts a
+connection to its request socket, it stops the whole compositor for up to five seconds while it
+waits for the request. `LinuxSystemMotion.cpp` connected while QML was loading and left the request
+for its event loop to send, then created the window, which waits on the compositor. Each waited on
+the other until Hyprland gave up (#618). The request now goes out as the connection is made, and
+`omaweb-system-motion` fails if it does not. Measured afterwards on the same laptop, the variable
+makes no difference: startup reads 905 to 918 ms and the restore 1139 to 1152 ms either way. The
+whole laptop read slower than the column that day: offscreen startup took 833 ms against 582 to 593
+ms, and the build before the change read the same, so the change does not cause it.
 
 What each one measures:
 

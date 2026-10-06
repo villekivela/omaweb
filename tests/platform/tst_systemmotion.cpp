@@ -1,6 +1,11 @@
 #include "SystemMotion.h"
 
+#include <QDir>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QProcessEnvironment>
+#include <QScopeGuard>
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace omaweb;
@@ -12,6 +17,7 @@ private slots:
     void readsThePortalsReducedMotion();
     void readsHyprlandsAnimationsSwitch();
     void hearsHyprlandReloadItsConfiguration();
+    void asksHyprlandBeforeTheEventLoopTurns();
     void findsHyprlandsSockets();
     void readsGnomesEnableAnimations();
 };
@@ -38,6 +44,11 @@ void SystemMotionTest::readsHyprlandsAnimationsSwitch()
         hyprlandAsksToReduceMotion(R"({"option": "animations:enabled", "int": 0, "set": true})"));
     QVERIFY(
         !hyprlandAsksToReduceMotion(R"({"option": "animations:enabled", "int": 1, "set": false})"));
+    // Hyprland 0.56 answers a boolean option as `bool`, spaced as it sends it.
+    QVERIFY(hyprlandAsksToReduceMotion(
+        R"({"option": "animations:enabled", "bool": false, "set": true })"));
+    QVERIFY(!hyprlandAsksToReduceMotion(
+        R"({"option": "animations:enabled", "bool": true, "set": true })"));
     // An answer that is not the option's is no answer: an error, a compositor
     // that did not understand, or a socket that closed early.
     QVERIFY(!hyprlandAsksToReduceMotion("no such option"));
@@ -54,6 +65,43 @@ void SystemMotionTest::hearsHyprlandReloadItsConfiguration()
     // A window whose title names the event is not the event.
     QVERIFY(!hyprlandConfigurationReloaded("workspace>>2\nactivewindow>>kitty,configreloaded>>\n"));
     QVERIFY(!hyprlandConfigurationReloaded(""));
+}
+
+// Hyprland waits up to five seconds for a request on a connection it has
+// accepted, with the whole compositor stopped, and the window's first frame
+// waits on the compositor. The request is therefore on the wire before the
+// constructor returns, with no turn of the event loop to send it.
+void SystemMotionTest::asksHyprlandBeforeTheEventLoopTurns()
+{
+    QTemporaryDir runtime;
+    QVERIFY(runtime.isValid());
+    QVERIFY(QDir(runtime.path()).mkpath(QStringLiteral("hypr/test")));
+    const auto environment = QProcessEnvironment::systemEnvironment();
+    const auto restore = qScopeGuard([environment] {
+        for (const auto *name :
+            {"XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE", "DBUS_SESSION_BUS_ADDRESS"}) {
+            const auto value = environment.value(QString::fromLatin1(name));
+            value.isNull() ? qunsetenv(name) : qputenv(name, value.toUtf8());
+        }
+    });
+    qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
+    qputenv("HYPRLAND_INSTANCE_SIGNATURE", "test");
+    // No session bus, so only Hyprland's answer can reduce motion here.
+    qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent");
+    QLocalServer hyprland;
+    QVERIFY(hyprland.listen(runtime.filePath(QStringLiteral("hypr/test/.socket.sock"))));
+
+    SystemMotion motion;
+    QVERIFY(!motion.reduced());
+    // Both waits poll the socket and run no events.
+    QVERIFY(hyprland.waitForNewConnection(1000));
+    auto *connection = hyprland.nextPendingConnection();
+    QVERIFY(connection->waitForReadyRead(1000));
+    QCOMPARE(connection->readAll(), QByteArray("j/getoption animations:enabled"));
+
+    connection->write(R"({"option": "animations:enabled", "bool": false, "set": true })");
+    connection->disconnectFromServer();
+    QTRY_VERIFY(motion.reduced());
 }
 
 // The sockets live under the runtime directory, named by the instance the

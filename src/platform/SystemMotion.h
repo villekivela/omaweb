@@ -57,9 +57,9 @@ private:
 // documentation asks.
 bool portalAsksToReduceMotion(const QVariant &reducedMotion);
 
-// Hyprland's answer to `j/getoption animations:enabled`: its `int` is 0 while
-// the compositor's own animations are off. Anything that is not that option's
-// answer says nothing.
+// Hyprland's answer to `j/getoption animations:enabled`: its `bool` is false,
+// or an older release's `int` is 0, while the compositor's own animations are
+// off. Anything that is not that option's answer says nothing.
 bool hyprlandAsksToReduceMotion(QByteArrayView getoptionJson);
 
 // Whether a read from Hyprland's event socket holds the line announcing a
