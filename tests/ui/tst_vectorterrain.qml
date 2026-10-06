@@ -338,7 +338,7 @@ TestCase {
     }
 
     // A Private window's terrain has its lights out: the wireframe alone, no
-    // moon and no glow, its lines dimmed from the accent toward the ground,
+    // moon and no glow, its lines the theme's light dimmed toward the ground,
     // and it holds still, even on commit.
     function test_anUnlitTerrainIsTheWireframeOnly() {
         const lit = makeTerrain();

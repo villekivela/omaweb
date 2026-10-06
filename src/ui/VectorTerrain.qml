@@ -96,6 +96,11 @@ Item {
         return Colour.scatter(index, root.parameters.scatter);
     }
 
+    // A place in a [from, span] range that `index` scatters to.
+    function spread(range, index) {
+        return range[0] + range[1] * root.hash(index);
+    }
+
     function wrap(value, span) {
         return ((value % span) + span) % span;
     }
@@ -135,13 +140,14 @@ Item {
         const count = layer.peaks;
         const points = [];
         for (let peak = 0; peak <= count; ++peak) {
+            // Three scatters a peak: its valley, where it stands and its height.
             const seed = layer.seed + (peak % count) * 3;
             points.push([peak / count * root.drawWidth, root.groundY - layer.valley * root.hash(seed)
                          * root.mountains]);
             if (peak === count)
                 break;
-            const across = (peak + 0.3 + 0.4 * root.hash(seed + 1)) / count;
-            const high = layer.height[0] + layer.height[1] * root.hash(seed + 2);
+            const across = (peak + root.spread(layer.place, seed + 1)) / count;
+            const high = root.spread(layer.height, seed + 2);
             points.push([across * root.drawWidth, root.groundY - high * root.mountains]);
         }
         return points;
@@ -228,10 +234,15 @@ Item {
     // ---- drawing
 
     // A path drawn as a line of the terrain: thin, in `colour`, with a vector
-    // monitor's glow around it while the lights are on.
+    // monitor's glow around it while the lights are on. The width is in
+    // logical pixels, scaled to the Scene's with the canvas; the blur is not
+    // scaled, so it is in the Scene's pixels already. Joins are round: a
+    // mitred join at a sharp peak would reach up past the peak toward the
+    // Omnibar.
     function stroke(context, colour) {
         const l = root.parameters.lines;
         context.lineWidth = l.width * root.pitch;
+        context.lineJoin = "round";
         context.strokeStyle = Colour.css(colour);
         context.shadowOffsetX = 0;
         context.shadowOffsetY = 0;
@@ -301,22 +312,22 @@ Item {
         const layer = root.parameters.ridges.layers[index];
         const points = root.ridge(index);
         const colour = root.colour(layer.colour);
-        for (let loop = 0; loop < 2; ++loop) {
-            const shift = loop * root.drawWidth;
+        const outline = function (shift) {
             context.beginPath();
             context.moveTo(points[0][0] + shift, points[0][1]);
-            for (const point of points)
+            for (const point of points.slice(1))
                 context.lineTo(point[0] + shift, point[1]);
+        };
+        for (let loop = 0; loop < 2; ++loop) {
+            const shift = loop * root.drawWidth;
+            outline(shift);
             context.lineTo(points[points.length - 1][0] + shift, root.groundY);
             context.lineTo(points[0][0] + shift, root.groundY);
             context.closePath();
             context.fillStyle = Colour.css(root.roles.ground);
             context.fill();
 
-            context.beginPath();
-            context.moveTo(points[0][0] + shift, points[0][1]);
-            for (const point of points)
-                context.lineTo(point[0] + shift, point[1]);
+            outline(shift);
             for (let peak = 1; peak < points.length; peak += 2) {
                 const top = points[peak];
                 const next = points[peak + 1];
@@ -361,24 +372,26 @@ Item {
             model: root.depthLines
 
             Item {
+                id: line
+
                 required property int index
 
-                readonly property var g: root.parameters.grid
-                readonly property var l: root.parameters.lines
-                readonly property real d: root.lineDepth(index)
-                readonly property color colour: root.colour(g.colour)
-                readonly property real reach: l.glow.blur * root.pitch
+                readonly property var grid: root.parameters.grid
+                readonly property var lines: root.parameters.lines
+                readonly property real depth: root.lineDepth(index)
+                readonly property color colour: root.colour(grid.colour)
+                readonly property real reach: lines.glow.blur * root.pitch
 
                 y: root.depthLineY(index)
                 width: root.drawWidth
-                opacity: Math.max(0, Math.min(1, (g.count * g.spacing + 1 - d) / g.fadeFar, (d - 1)
-                                              / g.fadeNear))
+                opacity: Math.max(0, Math.min(1, (grid.count * grid.spacing + 1 - depth) / grid.fadeFar,
+                                              (depth - 1) / grid.fadeNear))
 
                 Rectangle {
                     visible: root.glowing
-                    y: -parent.reach
-                    width: parent.width
-                    height: 2 * parent.reach
+                    y: -line.reach
+                    width: line.width
+                    height: 2 * line.reach
                     gradient: Gradient {
                         GradientStop {
                             position: 0
@@ -386,8 +399,7 @@ Item {
                         }
                         GradientStop {
                             position: 0.5
-                            color: Colour.withAlpha(root.roles.glow,
-                                                    root.parameters.lines.glow.alpha * 0.5)
+                            color: Colour.withAlpha(root.roles.glow, line.lines.glow.across)
                         }
                         GradientStop {
                             position: 1
@@ -398,9 +410,9 @@ Item {
 
                 Rectangle {
                     y: -height / 2
-                    width: parent.width
-                    height: parent.l.width * root.pitch
-                    color: parent.colour
+                    width: line.width
+                    height: line.lines.width * root.pitch
+                    color: line.colour
                 }
             }
         }

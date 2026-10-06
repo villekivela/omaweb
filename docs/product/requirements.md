@@ -187,17 +187,17 @@ reports the gap and remains experimental rather than imitating behavior it canno
   Scenes' thumbnails, so the gliders read at that size. A Private window's board is frozen, its
   cells dimmed and without trails, even on commit.
 - The vector terrain is after Battlezone and the vector arcade games, drawn from the palette in the
-  same way and always night. Wireframe mountains stand on a horizon below the Omnibar, the highest
-  peak a small gap below the hint row as the sky's planet is, and each hides what stands behind it.
-  A perspective grid lies on the ground before them, and a wireframe crescent moon hangs low in the
-  sky beside the Omnibar, or just above it where the page area has no room beside it. Its lines are
-  thin, the mountains and the grid in the accent, the farther ridge dimmer, the moon in the theme's
-  light, each with a vector monitor's glow. At rest the ridges drift by in slow parallax, the nearer
-  faster, and the grid holds still. On commit the grid's lines rush toward the reader while the
-  mountains hold the horizon, until the page paints, then the page takes over as it does from the
-  road. It casts no light on the Omnibar. Reduced motion holds one frame of the mountains, the grid
-  and the moon. A Private window's terrain is the wireframe alone, its lines the theme's light
-  dimmed, with no moon and no glow, and it holds still, even on commit.
+  same way and always night. Wireframe mountains stand on a horizon below the Omnibar, no peak
+  higher than a small gap below the hint row, as the sky's planet, and each hides what stands behind
+  it. A perspective grid lies on the ground before them, and a wireframe crescent moon hangs low in
+  the sky beside the Omnibar, or just above it where the page area has no room beside it. Its lines
+  are thin, the mountains and the grid in the accent, the farther ridge dimmer, the moon in the
+  theme's light, each with a vector monitor's glow. At rest the ridges drift by in slow parallax,
+  the nearer faster, and the grid holds still. On commit the grid's lines rush toward the reader
+  while the mountains hold the horizon, until the page paints, then the page takes over as it does
+  from the road. It casts no light on the Omnibar. Reduced motion holds one frame of the mountains,
+  the grid and the moon. A Private window's terrain is the wireframe alone, its lines the theme's
+  light dimmed, with no moon and no glow, and it holds still, even on commit.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.
