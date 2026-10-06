@@ -232,6 +232,14 @@ jobs:
           key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Test
         run: su builder -c 'ctest --preset ci --parallel "$(nproc)"'
+      # What the runtime probes and the frame intervals measured. ctest prints a
+      # test's output only when it fails, and these are the numbers
+      # docs/development.md records for CI, so they are read from its log.
+      - name: Print the probes' numbers
+        if: ${{ !cancelled() }}
+        run: |
+          grep -E '^(QINFO|QWARN) +: .*(probe |95th percentile|over budget)' \
+            build/ci/Testing/Temporary/LastTest.log || echo 'no probe printed a number'
       # The engine contract skips CNAME uncloaking's test on an engine without
       # the DNS alias API, and a skip passes. ctest prints only failing
       # output, so the result is read from its log. Every result it holds for
@@ -520,6 +528,14 @@ jobs:
           key: ccache-gcc-ci-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Test
         run: su builder -c 'ctest --preset ci --parallel "$(nproc)"'
+      # What the runtime probes and the frame intervals measured. ctest prints a
+      # test's output only when it fails, and these are the numbers
+      # docs/development.md records for CI, so they are read from its log.
+      - name: Print the probes' numbers
+        if: ${{ !cancelled() }}
+        run: |
+          grep -E '^(QINFO|QWARN) +: .*(probe |95th percentile|over budget)' \
+            build/ci/Testing/Temporary/LastTest.log || echo 'no probe printed a number'
 
   # The small client on its own, where a sandbox has it: Qt's base and nothing
   # else installed, so a dependency the client must not have fails the build
