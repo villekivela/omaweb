@@ -45,6 +45,10 @@ endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# No source here is a C++ module. Scanning for them adds a step before each
+# compile, and under GCC puts `-fmodules-ts` on the compile line, which ccache
+# will not cache (#604).
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 function(omaweb_strict_target target)
