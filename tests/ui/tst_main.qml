@@ -11428,6 +11428,7 @@ TestCase {
         window.shortcutsOpen = false;
         tryCompare(sheet, "visible", false);
         const before = caps();
+        verify(before.length > 0, "the closed sheet dropped its key caps");
 
         const homeId = browser.activeSpaceId;
         const otherId = browser.createSpace("Caps kept");

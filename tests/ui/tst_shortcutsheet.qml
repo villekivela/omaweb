@@ -557,6 +557,7 @@ TestCase {
         const sheet = makeSheet();
         const navigation = rowsOf(sheet, "navigation");
         verify(navigation.length > 0);
+        const tabs = rowsOf(sheet, "tabs");
         const columns = sheet.columnCount;
         verify(columns > 1);
 
@@ -579,6 +580,11 @@ TestCase {
         for (let index = 0; index < navigation.length; ++index)
             verify(kept[index] === navigation[index],
                    "a group that did not change was built again");
+        // In the group that did change, only the command that went is gone.
+        const keptTabs = rowsOf(sheet, "tabs");
+        compare(keptTabs.length, tabs.length - 1);
+        for (const row of keptTabs)
+            verify(tabs.indexOf(row) !== -1, "a row that did not change was built again");
     }
 
     // Opening works the list out again, and a list that came out the same
