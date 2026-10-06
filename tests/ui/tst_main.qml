@@ -8486,7 +8486,7 @@ TestCase {
         tryCompare(engineHost, "besideEngine", engineHost.engines[rightTabId]);
         // The right pane arrives with a nudge, and in the middle of it the
         // pane stands wherever the easing has it.
-        tryCompare(engineHost, "tabNudgeX", 0);
+        waitForTheNudgeToRest();
         engineHost.setLeftPaneWidth(401);
         verifyOnWholePixels(findChild(engineHost, "splitDivider"), "the split's divider", "x");
         verifyOnWholePixels(findChild(engineHost, "splitResizer"), "the split's handle", "x");
