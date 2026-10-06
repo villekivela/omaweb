@@ -2294,6 +2294,11 @@
         <translation>Yötaivas</translation>
     </message>
     <message>
+        <source>Game of Life</source>
+        <comment>Start page Scene</comment>
+        <translation>Elämäpeli</translation>
+    </message>
+    <message>
         <source>None</source>
         <comment>Start page Scene: the sidebar&apos;s fill</comment>
         <translation>Ei mitään</translation>

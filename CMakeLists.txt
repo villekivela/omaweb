@@ -529,6 +529,8 @@ add_library(omaweb-ui STATIC
     src/ui/FaviconTint.h
     src/ui/KitTheme.cpp
     src/ui/KitTheme.h
+    src/ui/LifeBoard.cpp
+    src/ui/LifeBoard.h
     src/ui/InputOrigin.cpp
     src/ui/InputOrigin.h
     src/ui/PrimaryHold.cpp
@@ -552,6 +554,7 @@ qt_add_resources(omaweb-ui "omaweb_scenes"
     BASE "share/scenes"
     FILES
         "share/scenes/crt-road.json"
+        "share/scenes/game-of-life.json"
         "share/scenes/night-sky.json"
 )
 qt_add_shaders(omaweb-ui "omaweb_shaders"
@@ -838,6 +841,7 @@ set(omaweb_ui_files
     src/ui/HttpsOnlyPage.qml
     src/ui/NightRoad.qml
     src/ui/NightSky.qml
+    src/ui/GameOfLife.qml
     src/ui/RimLight.qml
     src/ui/SceneHost.qml
     src/ui/SceneLayer.qml

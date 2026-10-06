@@ -1082,6 +1082,7 @@ Rectangle {
 
                         ScenePicker {
                             objectName: "startPageScenePicker"
+                            availableWidth: pane.width
                             colors: root.colors
                             value: root.startPageScene
                             accessibleName: qsTr("Scene on the Start page")

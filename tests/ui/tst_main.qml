@@ -9867,6 +9867,38 @@ TestCase {
         });
     }
 
+    // A Private window's board is frozen, its cells dimmed, and the window
+    // beside it keeps its own board moving and lit.
+    function test_aPrivateWindowsBoardIsFrozen() {
+        window.setStartPageScene("game-of-life");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const startPage = findChild(privateBrowser.contentItem, "startPage");
+        tryVerify(function () {
+            return startPage.visible && startPage.sceneRunning;
+        });
+        const life = findChild(privateBrowser.contentItem, "gameOfLife");
+        verify(life !== null, "no board");
+        verify(life.unlit, "a lit board");
+        tryVerify(function () {
+            return life.population > 0;
+        }, 5000, "an empty board");
+        const frames = startPage.sceneFrames;
+        tryVerify(function () {
+            return startPage.sceneFrames > frames + 30;
+        });
+        compare(life.generation, 0);
+        verify(!findChild(window.contentItem, "gameOfLife").unlit);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     // A Private window shows the Scene the reader chose, and its sky has its
     // lights out: its planet stays, without the glow on its limb, and there
     // are no stars and no comets, under the glass all the same.
@@ -11728,11 +11760,18 @@ TestCase {
         return [
                     {
                         tag: "road",
-                        scene: "crt-road"
+                        scene: "crt-road",
+                        drawing: "nightRoad"
                     },
                     {
                         tag: "sky",
-                        scene: "night-sky"
+                        scene: "night-sky",
+                        drawing: "nightSky"
+                    },
+                    {
+                        tag: "life",
+                        scene: "game-of-life",
+                        drawing: "gameOfLife"
                     }
                 ];
     }
@@ -11744,6 +11783,7 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         window.setStartPageScene(data.scene);
         const restingSpaceId = enterRestingSpace("Resting frames");
+        verify(findChild(startPage, data.drawing) !== null, "no " + data.drawing);
         tryVerify(function () {
             return startPage.sceneRunning;
         });
@@ -11798,6 +11838,7 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         window.setStartPageScene(data.scene);
         const restingSpaceId = enterRestingSpace("Resting still");
+        verify(findChild(startPage, data.drawing) !== null, "no " + data.drawing);
         tryVerify(function () {
             return startPage.sceneRunning;
         });
@@ -12156,7 +12197,11 @@ TestCase {
         keyClick(Qt.Key_Right);
         compare(browser.preference("start-page-scene", ""), "night-sky");
         keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "game-of-life");
+        keyClick(Qt.Key_Right);
+        keyClick(Qt.Key_Return);
         compare(browser.preference("start-page-scene", ""), "none");
+        keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Space);
@@ -12300,7 +12345,122 @@ TestCase {
         window.setStartPageScene("night-sky");
         window.restoreChromeAppearance();
         compare(window.startPageScene, "night-sky");
+        window.setStartPageScene("game-of-life");
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, "game-of-life");
         browser.setPreference("start-page-road", "");
+    }
+
+    // Settings offers the Scenes as a grid of thumbnails, four to a row where
+    // the pane has room, in a set order, None last. Game of Life's thumbnail
+    // is drawn twice as close as the others, so its gliders read. Choosing it
+    // stands the Start page on its board at once.
+    function test_settingsOffersTheScenesInAGrid() {
+        const scene = findChild(window.contentItem, "startPageScene");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        window.settingsOpen = true;
+        settings.section = settings.sections.indexOf("interface");
+        const picker = findChild(settings, "startPageScenePicker");
+        compare(picker.columns, 4);
+        const order = ["crt-road", "night-sky", "game-of-life", "none"];
+        const thumbnails = order.map(function (value) {
+            const thumbnail = findChild(picker, "sceneThumbnail-" + value);
+            verify(thumbnail !== null, "no " + value);
+            return thumbnail;
+        });
+        tryVerify(function () {
+            return thumbnails[0].width > 0 && settings.opacity === 1 && settings.lift === 0;
+        });
+        // The first row holds four, left to right in the order.
+        for (let index = 1; index < 4; ++index) {
+            compare(thumbnails[index].y, thumbnails[0].y);
+            verify(thumbnails[index].x > thumbnails[index - 1].x);
+        }
+        let sky = null;
+        let life = null;
+        tryVerify(function () {
+            sky = findChild(thumbnails[1], "nightSky");
+            life = findChild(thumbnails[2], "gameOfLife");
+            return sky !== null && life !== null && life.width > 1;
+        });
+        compare(life.drawWidth * 2, sky.drawWidth);
+
+        const miss = clickReportingAMiss(thumbnails[2], function () {
+            return browser.preference("start-page-scene", "") === "game-of-life";
+        });
+        verify(miss === "", miss);
+        window.settingsOpen = false;
+        tryVerify(function () {
+            return findChild(scene, "gameOfLife") !== null;
+        });
+        window.setStartPageScene("crt-road");
+    }
+
+    // The board casts no light on the Omnibar's rim, and the Omnibar stands
+    // over it: nothing the board draws is over the Omnibar.
+    function test_theBoardDrawsNothingOverTheOmnibar() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const panel = findChild(window.contentItem, "omnibar");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("game-of-life");
+        const restingSpaceId = enterRestingSpace("Resting under the Omnibar");
+        tryVerify(function () {
+            return startPage.sceneRunning && findChild(scene, "gameOfLife") !== null;
+        });
+        compare(scene.light, null);
+        verify(!findChild(window.contentItem, "omnibarRim").visible);
+        verify(!findChild(window.contentItem, "omnibarInnerBloom").visible);
+        // The Omnibar's own layer stands over the one the Start page is in.
+        let omnibarLayer = panel;
+        while (omnibarLayer.parent !== window.contentItem)
+            omnibarLayer = omnibarLayer.parent;
+        let sceneLayer = scene;
+        while (sceneLayer.parent !== window.contentItem)
+            sceneLayer = sceneLayer.parent;
+        verify(sceneLayer !== omnibarLayer);
+        verify(omnibarLayer.z > sceneLayer.z, omnibarLayer.z + " over " + sceneLayer.z);
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting under the Omnibar");
+    }
+
+    // A commit runs the board's generations flat out until the page first
+    // paints, and they slow again once it has.
+    function test_theBoardRunsFlatOutUntilFirstPaint() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("game-of-life");
+        const restingSpaceId = enterRestingSpace("Resting board");
+        const life = findChild(window.contentItem, "gameOfLife");
+        verify(life !== null);
+        tryVerify(function () {
+            return startPage.sceneRunning;
+        });
+
+        input.text = "https://slow-paint.example/life";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        compare(life.navigating, 1);
+        // At rest ten generations take five seconds.
+        const start = life.generation;
+        tryVerify(function () {
+            return life.generation >= start + 10;
+        }, 2500);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        }, 400);
+        compare(life.navigating, 0);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting board");
     }
 
     // A commit brings the sky's streaks until the page first paints, as it
