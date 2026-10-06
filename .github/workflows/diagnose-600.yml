@@ -1,6 +1,8 @@
-# [DEBUG-600] Repeats the page-load step on CI's runner until the engine cuts a load short, and
-# keeps what each such run saw: the page's and the server's account, the browser's stderr, and a
-# Chromium net log on every other repetition. Diagnostics for #600, removed before it merges.
+# [DEBUG-600] Repeats the page-load step on CI's runner and counts the loads the engine cuts
+# short, under three sizes of /dev/shm: Docker's default 64 MiB, the default with 24 MiB of it
+# taken, and 2 GiB. Each data pipe a response body is written into is 2 MiB of /dev/shm, so if
+# the cut-short loads are the pipes running out, the 2 GiB jobs have none and the filled jobs
+# have them in the known-host case too. Diagnostics for #600, removed before it merges.
 name: Diagnose 600
 
 on:
@@ -14,18 +16,32 @@ permissions:
 jobs:
   pageload:
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
+    container:
+      image: archlinux:base-devel
+      options: ${{ matrix.options }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        variant: [default, filled, large]
+        shard: [1, 2]
+        include:
+          - variant: default
+            options: ''
+            filler: 0
+          - variant: filled
+            options: ''
+            filler: 24
+          - variant: large
+            options: --shm-size=2g
+            filler: 0
     env:
       CC: clang
       CXX: clang++
-      SHARD: ${{ matrix.shard }}
-      REPETITIONS: 30
-      CAPTURES: 4
+      SHARD: ${{ matrix.variant }}-${{ matrix.shard }}
+      FILLER: ${{ matrix.filler }}
+      REPETITIONS: 10
+      OMAWEB_DIAG_SPARES: 30
     steps:
       - name: Install toolchain
         run:
@@ -52,37 +68,42 @@ jobs:
       - name: Repeat the page loads
         run: |
           nproc; grep -m1 'model name' /proc/cpuinfo; free -m
+          if [ "$FILLER" -gt 0 ]; then
+            dd if=/dev/zero of=/dev/shm/filler bs=1M count="$FILLER" status=none
+          fi
+          df -h /dev/shm
           mkdir -p /tmp/diag
           chown builder /tmp/diag
+          cat > /tmp/peak.py <<'PEAK'
+          import os, sys, time
+          peak = 0
+          while os.path.exists(sys.argv[1]):
+              stat = os.statvfs("/dev/shm")
+              peak = max(peak, (stat.f_blocks - stat.f_bfree) * stat.f_frsize)
+              time.sleep(0.001)
+          stat = os.statvfs("/dev/shm")
+          print(f"{peak // 1048576} of {stat.f_blocks * stat.f_frsize // 1048576} MiB")
+          PEAK
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
           cat >> /tmp/measure.sh <<'SCRIPT'
-          captured=0
           for i in $(seq "$REPETITIONS"); do
             out=/tmp/diag/run-$i
             mkdir -p "$out"
-            if [ $((i % 2)) -eq 1 ]; then
-              export QTWEBENGINE_CHROMIUM_FLAGS="--log-net-log=$out/netlog.json --net-log-capture-mode=Default"
-              netlog=yes
-            else
-              unset QTWEBENGINE_CHROMIUM_FLAGS
-              netlog=no
-            fi
+            touch /tmp/sampling
+            python3 /tmp/peak.py /tmp/sampling > "$out/peak.txt" &
+            sampler=$!
             OMAWEB_DIAG_DIR="$out" scripts/benchmark_runtime.py pageload \
               --browser build/ci/omaweb-browser --require-dns > "$out/output.txt" 2>&1
             status=$?
+            rm -f /tmp/sampling
+            wait "$sampler"
             short=$(sed -n 's/.*repeated \([0-9]*\) of.*/\1/p' "$out/output.txt")
             failed=$(grep -c '^FAILED' "$out/output.txt")
-            echo "=== shard $SHARD repetition $i netlog $netlog exit $status cut short ${short:-0} failed $failed"
-            if [ -n "$short" ] || [ "$failed" -ne 0 ]; then
-              grep -E 'DEBUG-600|cut short|missing|FAILED' "$out/output.txt" | head -80
-              [ -f "$out/netlog.json" ] && gzip "$out/netlog.json"
-              captured=$((captured + 1))
-              if [ "$captured" -ge "$CAPTURES" ]; then break; fi
-            else
-              rm -rf "$out"
-            fi
+            cases=$(grep -oE '^    load [0-9]+ \([a-z]+ hosts, blocking [a-z]+' "$out/output.txt" \
+              | sed 's/.*(\([a-z]*\) hosts, blocking \([a-z]*\)/\1-\2/' | sort | uniq -c | tr -s ' \n' ' ')
+            echo "=== $SHARD repetition $i exit $status cut short ${short:-0} failed $failed" \
+              "peak /dev/shm $(cat "$out/peak.txt") cases:${cases}"
           done
-          echo "=== shard $SHARD captured $captured"
           chmod -R a+rX /tmp/diag
           SCRIPT
           chmod 0755 /tmp/measure.sh
@@ -94,7 +115,7 @@ jobs:
           su builder -c "
             set -eu
             export XDG_RUNTIME_DIR=/tmp/runtime-builder SHARD=$SHARD REPETITIONS=$REPETITIONS
-            export CAPTURES=$CAPTURES
+            export OMAWEB_DIAG_SPARES=$OMAWEB_DIAG_SPARES
             mkdir -p \"\$XDG_RUNTIME_DIR\"
             chmod 700 \"\$XDG_RUNTIME_DIR\"
             export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
@@ -103,6 +124,6 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: pageload-diagnostics-${{ matrix.shard }}
+          name: pageload-diagnostics-${{ matrix.variant }}-${{ matrix.shard }}
           path: /tmp/diag/
           if-no-files-found: ignore

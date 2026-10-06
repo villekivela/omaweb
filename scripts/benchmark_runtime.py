@@ -190,7 +190,7 @@ PAGELOAD_LOADS = 10
 # then as its answer arrives, with blocking on and off alike, and a page missing an image is not
 # the page the other mode loaded. Such a load is not counted and a spare takes its place; the spares
 # are in the plan from the start because the DNS zone is written before the browser runs.
-PAGELOAD_SPARES = 6
+PAGELOAD_SPARES = int(os.environ.get("OMAWEB_DIAG_SPARES", "6"))  # [DEBUG-600]
 
 # How many hosts the forty images come from. The worst case is a page that reaches every host for
 # the first time, so every request waits on its lookups; the common case is a page whose few hosts
