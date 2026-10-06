@@ -15,6 +15,7 @@
 #include <QVariantList>
 
 #include <atomic>
+#include <functional>
 #include <memory>
 
 namespace omaweb {
@@ -131,6 +132,11 @@ public:
         const QString &resourceType, const QString &spaceId,
         const QStringList &dnsAliases = {}) const;
 
+    // What compiles a rule set, in place of the library, for a test that has to hold a compile
+    // open or see one produce nothing. Asked for by every compile from then on.
+    using Compile = std::function<MatcherCompilation(const QString &rules)>;
+    void setCompileForTests(Compile compile);
+
 signals:
     void configurationChanged();
     void subscriptionsChanged();
@@ -214,8 +220,10 @@ private:
     void takeFetchedList(
         const QString &id, bool failed, const QString &error, const QByteArray &list);
     void save() const;
+    // A compile the reader's own change asks for, on m_compiler.
     void recompile();
-    void releaseOnTheCompiler(std::shared_ptr<const void> retired);
+    void recompileOn(QThreadPool &lane);
+    void releaseOffTheInterfaceThread(std::shared_ptr<const void> retired);
     void replaceDisabledSites();
     Subscription *findSubscription(const QString &id);
     QString updateStatusText(const QString &status) const;
@@ -254,13 +262,17 @@ private:
     QStringList m_pendingCurrent;
     // The newest compile asked for. The compiler's thread reads it to skip a compile a newer one
     // has replaced.
+    Compile m_compile = &ContentMatcher::compile;
     std::atomic<quint64> m_compileGeneration = 0;
     int m_activeCompilations = 0;
-    // One thread compiles lists, one at a time, in the order they were asked for. Compiling is
-    // what a refresh costs, and the global pool ran a list's check and the compiles after it
-    // together, on the cores the interface thread draws on (#613). Declared last so it is
-    // destroyed first, waiting for the compile under way before anything it reads goes.
+    // Two threads compile, each one compile at a time, in the order asked for. A refresh checks,
+    // stores and compiles its lists on m_refresher, so its compiles never run side by side on the
+    // cores the interface thread draws on: the global pool ran a list's check and the compiles
+    // after it together (#613). A change the reader makes compiles on m_compiler, so it never
+    // waits behind a refresh. Declared last so they are destroyed first, waiting for the compiles
+    // under way before anything those read goes.
     QThreadPool m_compiler;
+    QThreadPool m_refresher;
 };
 
 } // namespace omaweb

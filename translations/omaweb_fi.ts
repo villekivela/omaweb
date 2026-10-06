@@ -4554,6 +4554,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>epäonnistui: listaa ei voitu tallentaa</translation>
     </message>
     <message>
+        <source>failed: could not compile the lists</source>
+        <translation>epäonnistui: listoja ei voitu kääntää</translation>
+    </message>
+    <message>
         <source>failed: %1</source>
         <translation>epäonnistui: %1</translation>
     </message>
