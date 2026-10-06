@@ -1,0 +1,108 @@
+# [DEBUG-600] Repeats the page-load step on CI's runner until the engine cuts a load short, and
+# keeps what each such run saw: the page's and the server's account, the browser's stderr, and a
+# Chromium net log on every other repetition. Diagnostics for #600, removed before it merges.
+name: Diagnose 600
+
+on:
+  push:
+    branches: [fix/600-find-what-cancels-answered-images]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pageload:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      CC: clang
+      CXX: clang++
+      SHARD: ${{ matrix.shard }}
+      REPETITIONS: 30
+      CAPTURES: 4
+    steps:
+      - name: Install toolchain
+        run:
+          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
+          qt6-shadertools qt6-tools qt6-wayland libsecret libsodium cage wtype dnsmasq
+          gnu-free-fonts
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Omaweb's engine
+        run: |
+          scripts/trust_omaweb_repository.sh
+          pacman -Syu --noconfirm omaweb-qtwebengine
+      - name: Take the build off root
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          chown -R builder "$GITHUB_WORKSPACE"
+      - name: Bootstrap content blocker
+        run: su builder -c 'scripts/bootstrap_content_blocker.sh'
+      - name: Configure
+        run:
+          su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
+          -DOMAWEB_KNOWN_EXTENSIONS=ON'
+      - name: Build
+        run: su builder -c 'cmake --build --preset ci'
+      - name: Repeat the page loads
+        run: |
+          nproc; grep -m1 'model name' /proc/cpuinfo; free -m
+          mkdir -p /tmp/diag
+          chown builder /tmp/diag
+          printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
+          cat >> /tmp/measure.sh <<'SCRIPT'
+          captured=0
+          for i in $(seq "$REPETITIONS"); do
+            out=/tmp/diag/run-$i
+            mkdir -p "$out"
+            if [ $((i % 2)) -eq 1 ]; then
+              export QTWEBENGINE_CHROMIUM_FLAGS="--log-net-log=$out/netlog.json --net-log-capture-mode=Default"
+              netlog=yes
+            else
+              unset QTWEBENGINE_CHROMIUM_FLAGS
+              netlog=no
+            fi
+            OMAWEB_DIAG_DIR="$out" scripts/benchmark_runtime.py pageload \
+              --browser build/ci/omaweb-browser --require-dns > "$out/output.txt" 2>&1
+            status=$?
+            short=$(sed -n 's/.*repeated \([0-9]*\) of.*/\1/p' "$out/output.txt")
+            failed=$(grep -c '^FAILED' "$out/output.txt")
+            echo "=== shard $SHARD repetition $i netlog $netlog exit $status cut short ${short:-0} failed $failed"
+            if [ -n "$short" ] || [ "$failed" -ne 0 ]; then
+              grep -E 'DEBUG-600|cut short|missing|FAILED' "$out/output.txt" | head -80
+              [ -f "$out/netlog.json" ] && gzip "$out/netlog.json"
+              captured=$((captured + 1))
+              if [ "$captured" -ge "$CAPTURES" ]; then break; fi
+            else
+              rm -rf "$out"
+            fi
+          done
+          echo "=== shard $SHARD captured $captured"
+          chmod -R a+rX /tmp/diag
+          SCRIPT
+          chmod 0755 /tmp/measure.sh
+          scripts/benchmark_runtime.py --print-dns-zone > /tmp/pageload-zone.conf
+          dnsmasq --conf-file=/tmp/pageload-zone.conf --pid-file=/tmp/dnsmasq.pid
+          cp /etc/resolv.conf /tmp/resolv.conf.saved
+          trap 'cat /tmp/resolv.conf.saved > /etc/resolv.conf; kill "$(cat /tmp/dnsmasq.pid)"' EXIT
+          echo 'nameserver 127.0.0.1' > /etc/resolv.conf
+          su builder -c "
+            set -eu
+            export XDG_RUNTIME_DIR=/tmp/runtime-builder SHARD=$SHARD REPETITIONS=$REPETITIONS
+            export CAPTURES=$CAPTURES
+            mkdir -p \"\$XDG_RUNTIME_DIR\"
+            chmod 700 \"\$XDG_RUNTIME_DIR\"
+            export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
+            cage -- /tmp/measure.sh
+          "
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: pageload-diagnostics-${{ matrix.shard }}
+          path: /tmp/diag/
+          if-no-files-found: ignore
