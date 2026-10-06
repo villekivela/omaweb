@@ -158,7 +158,7 @@ TestCase {
     // `Style` imports `Quickshell.Hyprland` and connects to `Hyprland.rawEvent`, so the module has
     // to exist for any token to load, and the signal has to exist or the `Connections` warns on
     // every load.
-    function test_styleFindsTheHyprlandEventItConnectsTo() {
+    function test_theShimDeclaresTheHyprlandEventStyleConnectsTo() {
         const spy = createTemporaryQmlObject("import QtTest; SignalSpy {}", testCase);
         spy.target = Hyprland;
         spy.signalName = "rawEvent";

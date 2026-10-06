@@ -45,7 +45,7 @@ private:
     FontSettings *m_fonts = nullptr;
     QObject *m_color = nullptr;
     QObject *m_style = nullptr;
-    QObject *m_motion = nullptr;
+    QObject *m_systemMotion = nullptr;
     bool m_applying = false;
 };
 
