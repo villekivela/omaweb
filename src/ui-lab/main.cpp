@@ -847,6 +847,8 @@ int main(int argc, char *argv[])
             return 1;
         }
         auto *root = engine.rootObjects().constFirst();
+        // Built after the first frame otherwise, which a report does not wait for.
+        QMetaObject::invokeMethod(root, "settingsPage");
         auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
         auto *connection = root->findChild<QObject *>(QStringLiteral("siteInformationVerdict"));
         auto *language = root->findChild<QObject *>(QStringLiteral("languageRow"));
@@ -870,6 +872,7 @@ int main(int argc, char *argv[])
             return 1;
         }
         auto *root = engine.rootObjects().constFirst();
+        QMetaObject::invokeMethod(root, "settingsPage");
         auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
         auto *toggle = root->findChild<QObject *>(QStringLiteral("floatingControls"));
         if (heading == nullptr || toggle == nullptr) {
@@ -1269,6 +1272,11 @@ int main(int argc, char *argv[])
         // adding a section, or moving one, cannot leave the lab pointing at
         // the wrong page. `settings:privacy:clear` still stands the dialog on
         // the section it names.
+        // Settings is built after the window's first frame, and a state that
+        // stands on it has it built at once, as a reader asking for it does.
+        if (requested.startsWith(QLatin1String("settings"))) {
+            QMetaObject::invokeMethod(root, "settingsPage");
+        }
         auto state = states.value(requested);
         auto parts = requested.split(QLatin1Char(':'));
         if (state.isEmpty() && parts.size() >= 2 && parts.first() == QLatin1String("settings")) {

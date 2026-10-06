@@ -228,6 +228,11 @@ TestCase {
         verify(window !== null);
         window.show();
         wait(50);
+        // Settings is built after the window's first frame, and every test
+        // starts from a window that has it.
+        tryVerify(function () {
+            return findChild(window.contentItem, "settingsSurface") !== null;
+        }, 10000, "Settings was never built");
     }
 
     function cleanupTestCase() {
@@ -7890,6 +7895,9 @@ TestCase {
 
         const spaceSwitcher = findChild(privateBrowser.contentItem, "spaceSwitcher");
         const pinnedList = findChild(privateBrowser.contentItem, "pinnedList");
+        // Settings, which holds the button, is built after the window's
+        // first frame.
+        privateBrowser.settingsPage();
         const newSpaceButton = findChild(privateBrowser.contentItem, "newSpaceButton");
         const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
         const privateBadge = findChild(privateBrowser.contentItem, "privateBadge");
@@ -11468,18 +11476,19 @@ TestCase {
     // the page area's width before its first frame.
     function test_aClosedSettingsPageKeepsItsWidth() {
         const settings = findChild(window.contentItem, "settingsSurface");
+        const viewport = findChild(window.contentItem, "engineViewport");
         verify(!settings.visible);
         const width = settings.width;
-        const pageArea = settings.parent.width;
+        const pageArea = viewport.width;
         window.setSidebarWidth(window.sidebarWidth + 40);
         tryVerify(function () {
-            return settings.parent.width !== pageArea;
+            return viewport.width !== pageArea;
         });
         compare(settings.width, width, "the closed Settings page took the page area's new width");
 
         window.settingsOpen = true;
         verify(settings.visible);
-        compare(settings.width, settings.parent.width);
+        compare(settings.width, viewport.width);
         window.settingsOpen = false;
         tryCompare(settings, "visible", false);
     }
@@ -12813,6 +12822,50 @@ TestCase {
         verify(matches.length > 0);
         compare(matches[0].command, "shortcuts");
         verify(matches[0].keys.length > 0);
+    }
+
+    // Settings is the heaviest page in the window and none of it is on show
+    // when the window comes up, so it is built after the first frame rather
+    // than before it (#618).
+    function test_settingsIsBuiltAfterTheWindowsFirstFrame() {
+        const fresh = windowComponent.createObject(null);
+        verify(fresh !== null);
+        try {
+            compare(findChild(fresh.contentItem, "settingsSurface"), null);
+            fresh.show();
+            tryVerify(function () {
+                return findChild(fresh.contentItem, "settingsSurface") !== null;
+            }, 10000, "Settings was never built");
+        } finally {
+            fresh.destroy();
+            // The fresh window took the keyboard, and the suite's goes on.
+            window.requestActivate();
+            tryVerify(function () {
+                return window.active;
+            });
+        }
+    }
+
+    // A reader who asks for Settings before it has been built gets it at once,
+    // on the section they asked for.
+    function test_settingsAskedForBeforeItIsBuiltIsBuiltAtOnce() {
+        const fresh = windowComponent.createObject(null);
+        verify(fresh !== null);
+        try {
+            compare(findChild(fresh.contentItem, "settingsSurface"), null);
+            fresh.requestDownloads();
+            const settings = findChild(fresh.contentItem, "settingsSurface");
+            verify(settings !== null);
+            compare(settings.sections[settings.section], "downloads");
+            verify(settings.open);
+        } finally {
+            fresh.destroy();
+            // The fresh window took the keyboard, and the suite's goes on.
+            window.requestActivate();
+            tryVerify(function () {
+                return window.active;
+            });
+        }
     }
 
     // A binding this build cannot honour is dropped rather than taking the
