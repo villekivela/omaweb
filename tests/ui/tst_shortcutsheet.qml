@@ -106,10 +106,14 @@ TestCase {
             width: testCase.wideViewport
             height: 1200
 
+            // Commands the registry says cannot be carried out here, as a
+            // page's commands are over the Start page.
+            property var unavailable: []
+
             commands: QtObject {
                 readonly property var descriptions: testCase.buildDescriptions()
                 function available(command) {
-                    return true;
+                    return sheet.unavailable.indexOf(command) === -1;
                 }
             }
 
@@ -599,6 +603,39 @@ TestCase {
         verify(!liveSheet.open);
         verify(drawnKeys(liveSheet).length > 0,
                "the sheet laid nothing out before its first opening");
+    }
+
+    // A command the registry stops offering, as a page's commands go over the
+    // Start page, has its row hidden rather than taken away, so going
+    // between the Start page and a page builds no row either way (#594).
+    function test_aCommandThatComesAndGoesKeepsItsRow() {
+        const sheet = makeSheet();
+        const rows = rowsOf(sheet, "page");
+        verify(rows.length > 2);
+        const gone = ["page-1", "page-2"];
+        const goneKeys = [sheet.keymap.keysFor("page-1"), sheet.keymap.keysFor("page-2")];
+
+        sheet.unavailable = gone;
+        compare(sheet.sections.filter(function (section) {
+            return section.group === "page";
+        })[0].entries.length, rows.length - 2);
+        // A row's caps sit in the row, which is drawn only while it is on
+        // offer. The suite's own window is never shown, so what is drawn is
+        // read from that rather than from `visible`.
+        const shown = rows.filter(function (row) {
+            return row.parent.available;
+        });
+        compare(shown.length, rows.length - 2);
+        for (const row of rows)
+            compare(row.parent.available, goneKeys.indexOf(row.keys) === -1, row.keys);
+
+        sheet.unavailable = [];
+        const kept = rowsOf(sheet, "page");
+        compare(kept.length, rows.length);
+        for (let index = 0; index < rows.length; ++index) {
+            verify(kept[index] === rows[index], "a command that came back built its row again");
+            verify(kept[index].parent.available);
+        }
     }
 
     // Opening works the list out again, and a list that came out the same

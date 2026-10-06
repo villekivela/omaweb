@@ -57,7 +57,7 @@ Rectangle {
     // about every command costs a Space switch about a frame, because the
     // registry's answers change with the page on show (#594); opening works
     // the list out again.
-    readonly property var sections: {
+    readonly property var listed: {
         if (!root.listing)
             return [];
         // Read for the dependency alone: the keys come from keysFor(), and a
@@ -73,19 +73,18 @@ Rectangle {
                     continue;
                 if (root.privateWindow && root.privateExclusions.indexOf(command) !== -1)
                     continue;
-                // A command the engine or the window cannot carry out here has
-                // no key worth promising. The command registry decides that,
-                // so the sheet and the Omnibar cannot disagree.
-                if (root.commands && !root.commands.available(command))
-                    continue;
                 const keys = root.keymap ? root.keymap.keysFor(command) : "";
                 // A command with no binding is reachable from the command
                 // panel and has nothing to say on a sheet of keys.
                 if (keys.length === 0)
                     continue;
+                // A command the engine or the window cannot carry out here has
+                // no key worth promising. The command registry decides that,
+                // so the sheet and the Omnibar cannot disagree.
                 entries.push({
                                  "title": descriptions[command].title,
-                                 "keys": keys
+                                 "keys": keys,
+                                 "available": !root.commands || root.commands.available(command)
                              });
             }
             if (entries.length > 0)
@@ -97,6 +96,27 @@ Rectangle {
         return list;
     }
 
+    // Each group with the commands the sheet promises, the ones on offer
+    // here. `listed` keeps the rest too, so a command that comes and goes, as
+    // a page's do over the Start page, hides its row rather than taking it
+    // away and building it again (#594).
+    function offered(groups) {
+        const list = [];
+        for (const section of groups) {
+            const entries = section.entries.filter(function (entry) {
+                return entry.available;
+            });
+            if (entries.length > 0)
+                list.push({
+                              "group": section.group,
+                              "entries": entries
+                          });
+        }
+        return list;
+    }
+
+    readonly property var sections: root.offered(root.listed)
+
     // What the sheet lays out, and the width it lays it out at: `sections`
     // and `width` as they were when the sheet was last listing. A closed
     // sheet that followed `width` would measure, pack and build its columns
@@ -105,7 +125,8 @@ Rectangle {
     // again, which takes both before the sheet's first frame. Closing keeps
     // them, so the sheet drops away as it was drawn and opens again on rows
     // already built.
-    property var laidOutSections: []
+    property var laidOutListed: []
+    readonly property var laidOutSections: root.offered(root.laidOutListed)
     property real layoutWidth: 0
 
     function takeLayout() {
@@ -116,11 +137,11 @@ Rectangle {
         // unchanged one is kept.
         // A group that came out the same keeps the list its rows were built
         // from, so only the groups that changed build theirs again.
-        if (JSON.stringify(root.sections) !== JSON.stringify(root.laidOutSections)) {
+        if (JSON.stringify(root.listed) !== JSON.stringify(root.laidOutListed)) {
             const kept = ({});
-            for (const section of root.laidOutSections)
+            for (const section of root.laidOutListed)
                 kept[section.group] = section;
-            root.laidOutSections = root.sections.map(function (section) {
+            root.laidOutListed = root.listed.map(function (section) {
                 const old = kept[section.group];
                 return old && JSON.stringify(old) === JSON.stringify(section) ? old : section;
             });
@@ -129,11 +150,11 @@ Rectangle {
         // A keymap or a registry that fills in after the sheet is made, and
         // a window not yet given its width, are still laid out before the
         // sheet stops listing.
-        if (root.sections.length > 0 && root.width > 0)
+        if (root.listed.length > 0 && root.width > 0)
             root.primed = true;
     }
 
-    onSectionsChanged: takeLayout()
+    onListedChanged: takeLayout()
     onWidthChanged: takeLayout()
     Component.onCompleted: takeLayout()
 
@@ -351,7 +372,7 @@ Rectangle {
 
     // Brings `model` in step with `entries`, which keep the registry's order,
     // by removing the rows that went and inserting the ones that came, and
-    // changing the keys of a row in place.
+    // changing the keys and whether a row is on offer in place.
     function keepRows(model, entries) {
         let row = 0;
         for (let index = 0; index < entries.length; ++index) {
@@ -366,13 +387,16 @@ Rectangle {
             if (found < 0) {
                 model.insert(row, {
                                  "title": entry.title,
-                                 "keys": entry.keys
+                                 "keys": entry.keys,
+                                 "available": entry.available
                              });
             } else {
                 if (found > row)
                     model.remove(row, found - row);
                 if (model.get(row).keys !== entry.keys)
                     model.setProperty(row, "keys", entry.keys);
+                if (model.get(row).available !== entry.available)
+                    model.setProperty(row, "available", entry.available);
             }
             ++row;
         }
@@ -381,9 +405,9 @@ Rectangle {
     }
 
     function sectionOf(group) {
-        for (let index = 0; index < root.laidOutSections.length; ++index) {
-            if (root.laidOutSections[index].group === group)
-                return root.laidOutSections[index];
+        for (let index = 0; index < root.laidOutListed.length; ++index) {
+            if (root.laidOutListed[index].group === group)
+                return root.laidOutListed[index];
         }
         return null;
     }
@@ -553,7 +577,8 @@ Rectangle {
                                                                                                "y": 0
                                                                                            })
 
-                        visible: section !== null
+                        // A group with nothing on offer here is not packed.
+                        visible: root.placements.places[modelData] !== undefined
                         x: place.column * (root.columnWidth + root.columnGap)
                         y: place.y
                         width: root.columnWidth
@@ -579,7 +604,11 @@ Rectangle {
 
                                 required property string title
                                 required property string keys
+                                required property bool available
 
+                                // Hidden while its command is not on offer:
+                                // the column leaves it out.
+                                visible: available
                                 width: parent.width
                                 height: root.rowHeight
                                 Accessible.role: Accessible.StaticText
