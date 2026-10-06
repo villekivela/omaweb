@@ -293,6 +293,11 @@ class BeatChecks(unittest.TestCase):
                    {"host": "quillstack.test", "path": "/docs/tracing/", "hints": 14}]
         film.expect_hints("Hints", reports, "quillstack.test")
 
+    def test_hints_that_came_up_and_went_miss_the_hints_beat(self):
+        reports = [{"host": "quillstack.test", "path": "/docs/tracing/", "hints": 14},
+                   {"host": "quillstack.test", "path": "/docs/tracing/", "hints": 0}]
+        self.assertMissed("Hints", film.expect_hints, reports, "quillstack.test")
+
     def test_a_page_that_never_showed_its_hints_misses_the_hints_beat(self):
         reports = [{"host": "quillstack.test", "path": "/docs/tracing/", "hints": 0},
                    {"host": "halyard.test", "path": "/", "hints": 9}]
@@ -479,10 +484,13 @@ class FilmFiles(unittest.TestCase):
             # A stand-in for the raw recording: a dark field at the recording's size, as dark as
             # the film so that its flash check passes, cut into every beat, the Omnibar long
             # enough to hold the poster's frame.
+            # Written as wf-recorder writes it: limited-range values, labelled full range.
             subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
                             "color=c=0x202020:size={}x{}:rate={}:duration=16".format(
                                 *film.OUTPUT_MODE, film.FPS),
-                            "-c:v", "libx264", "-preset", "ultrafast", str(out / "raw.mkv")],
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            "-bsf:v", "h264_metadata=video_full_range_flag=1",
+                            str(out / "raw.mkv")],
                            check=True)
             marks, start = [], 0.0
             for beat in film.BEATS:
@@ -501,6 +509,19 @@ class FilmFiles(unittest.TestCase):
                     self.assertGreater((out / name).stat().st_size, 0)
                     self.assertLessEqual((out / name).stat().st_size, limit)
             self.assertEqual((out / "poster.webp").read_bytes()[8:12], b"WEBP")
+            # Labelled as what it holds, so a browser shows the dark as dark, not grey.
+            for name in ("omaweb.webm", "omaweb.mp4"):
+                tags = subprocess.run(
+                    ["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries",
+                     "stream=color_range,color_space,color_primaries,color_transfer",
+                     "-of", "csv=p=0", str(out / name)],
+                    capture_output=True, text=True, check=True).stdout.strip()
+                # The field's grey, 0x20, is 43 in limited range, and stays 43 rather than being
+                # squeezed again.
+                level = film.frame_brightness(out / name)[0]
+                with self.subTest(file=name):
+                    self.assertEqual(sorted(tags.split(",")), ["bt709", "bt709", "bt709", "tv"])
+                    self.assertAlmostEqual(level, 43, delta=3)
             captions = (out / "captions.vtt").read_text(encoding="utf-8")
             self.assertTrue(captions.startswith("WEBVTT"))
             captioned = [beat.caption for beat in film.BEATS if beat.caption]

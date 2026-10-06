@@ -266,9 +266,16 @@ def expect_blocked(beat: str, server: FixtureServer, reports: list[dict], page_h
 
 
 def expect_hints(beat: str, reports: list[dict], host: str) -> None:
-    """A page of `host` reported link hints on show: `report.js` counts them as they come up."""
-    if not any(report.get("hints") for report in reports if report["host"] == host):
-        raise BeatMissed(beat, f"no page of {host} showed its link hints")
+    """A page of `host` still has its link hints on show at the end of the beat.
+
+    `report.js` reports the count each time the hints come up or go, so the last report is what
+    is on screen. Hints that came up and were taken down at once would pass a check of any report
+    and still show nothing on camera.
+    """
+    counts = [report.get("hints", 0) for report in reports if report["host"] == host]
+    if not counts or not counts[-1]:
+        raise BeatMissed(beat, f"no page of {host} kept its link hints on show; it reported "
+                               f"{', '.join(map(str, counts)) or 'nothing'}")
 
 
 def hover_point(beat: str, held: dict) -> tuple[float, float]:
@@ -457,6 +464,16 @@ FLASH_WINDOW = 6
 
 # What the film may weigh, per file, which together stay under the 5 MB the page can afford.
 BUDGET = {"omaweb.webm": 2_000_000, "omaweb.mp4": 2_600_000, "poster.webp": 250_000}
+
+# What the recording's pixels are. wf-recorder converts the screen to limited-range BT.709 but
+# flags the stream full range, and a browser that believes the flag shows black as grey, so the
+# whole film looks washed out. The flag is put right as the recording is read, before a filter can
+# squeeze the values a second time, the finished edit is labelled with what it holds, since its
+# filters drop part of the label, and every file it is cut into says the same.
+RAW_RANGE = ["-bsf:v", "h264_metadata=video_full_range_flag=0"]
+COLOURS = "setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709"
+COLOUR_TAGS = ["-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709",
+               "-color_trc", "bt709"]
 
 SETTLE = 0.8
 LOAD_SETTLE = 2.5
@@ -752,8 +769,9 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     time.sleep(CAPTION_LEAD)
     keys("f", settle=2.2)
     end = recorder.now()
+    shown = server.reports()[since:]
     keys("Escape")
-    expect_hints(beat.name, server.reports()[since:], "quillstack.test")
+    expect_hints(beat.name, shown, "quillstack.test")
     mark(beat, start, end)
 
     # Off camera: the sidebar back, and the magazine on show in Personal.
@@ -1050,12 +1068,14 @@ def compose(out: Path) -> None:
             f":expansion=none:fontsize={size}:fontcolor=white"
             f":box=1:boxcolor=0x05182e@0.82:boxborderw=22|34:x=(w-text_w)/2:y=h-text_h-84"
             f":alpha='{alpha}':enable='between(t,{cue.start:.3f},{cue.end:.3f})'")
-    chains.append(f"{joined}{','.join(texts) or 'null'}[film]")
+    chains.append(f"{joined}{','.join(texts + [COLOURS])}[film]")
     master = out / "master.mkv"
     pointer_input = ["-i", str(POINTER)] if pointed else []
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out / "raw.mkv"), *pointer_input,
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *RAW_RANGE, "-i", str(out / "raw.mkv"),
+                    *pointer_input,
                     "-filter_complex", ";".join(chains), "-map", "[film]", "-an",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", str(master)],
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", *COLOUR_TAGS,
+                    str(master)],
                    check=True)
     encode(out, master)
     expect_no_flash("Film", out / "omaweb.mp4")
@@ -1124,7 +1144,7 @@ def encode(out: Path, master: Path) -> None:
         for quality in ladder:
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(master), "-an",
                             "-pix_fmt", "yuv420p", *arguments, "-crf", str(quality),
-                            str(out / name)], check=True)
+                            *COLOUR_TAGS, str(out / name)], check=True)
             size = (out / name).stat().st_size
             log(f"{name}: {size} bytes at crf {quality}")
             if size <= BUDGET[name]:
