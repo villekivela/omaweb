@@ -407,6 +407,8 @@ add_library(omaweb-core STATIC
     src/core/SessionStore.h
     src/core/SqliteSessionStore.cpp
     src/core/SqliteSessionStore.h
+    src/core/StartupPhases.cpp
+    src/core/StartupPhases.h
     src/core/StoredFavicons.cpp
     src/core/StoredFavicons.h
     src/core/ThreadedSessionStore.cpp
@@ -1366,6 +1368,11 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-core-tests)
     omaweb_declarative_fixture_target(omaweb-core-tests)
     add_test(NAME omaweb-core COMMAND omaweb-core-tests)
+
+    qt_add_executable(omaweb-startup-phases-tests "tests/core/tst_startupphases.cpp")
+    target_link_libraries(omaweb-startup-phases-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-startup-phases-tests)
+    add_test(NAME omaweb-startup-phases COMMAND omaweb-startup-phases-tests)
 
     qt_add_executable(omaweb-payment-cards-tests
         "tests/core/tst_paymentcards.cpp"

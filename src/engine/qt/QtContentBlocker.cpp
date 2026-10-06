@@ -4,6 +4,7 @@
 #include "ContentMatcher.h"
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
+#include "StartupPhases.h"
 
 #include <QBuffer>
 #include <QQuickWebEngineProfile>
@@ -16,6 +17,7 @@
 #include <QWebEngineUrlSchemeHandler>
 
 #include <algorithm>
+#include <mutex>
 #include <utility>
 
 namespace omaweb {
@@ -85,6 +87,8 @@ namespace {
 
         void interceptRequest(QWebEngineUrlRequestInfo &info) override
         {
+            static std::once_flag first;
+            std::call_once(first, [] { markStartupPhase("first-request"); });
             // Set before the refusal is decided rather than after: a request
             // refused below never leaves, and one redirected below comes
             // through here again as the request that does.
