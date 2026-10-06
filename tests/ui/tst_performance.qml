@@ -573,12 +573,7 @@ TestCase {
         engine.motionReview = false;
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(spaceId, "Filtering"));
-        probeIntervals("omnibar-frame-interval", report, {
-                           "guard": 120,
-                           "reason": "each keystroke ranks the tabs and the commands up to "
-                                     + "three times: for the text, then for each answer that "
-                                     + "arrives"
-                       });
+        probeIntervals("omnibar-frame-interval", report);
     }
 
     // A Glance opening over a moving page, as a page's new-tab request opens

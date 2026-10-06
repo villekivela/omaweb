@@ -258,7 +258,9 @@ def comparison_ratios(record: dict) -> dict[str, dict[str, float]]:
 def engine_label(engine: dict) -> str:
     package = engine.get("package") or "engine"
     version = engine.get("version") or engine.get("qtwebengine") or "unknown"
-    return f"{package} {version}"
+    # The same package version has been built with two toolchains, only one of them published.
+    toolchain = engine.get("toolchain")
+    return f"{package} {version}, {toolchain}" if toolchain else f"{package} {version}"
 
 
 def engine_updates(records: list[dict]) -> list[dict]:

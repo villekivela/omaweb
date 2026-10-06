@@ -2722,12 +2722,12 @@
         <translation>Kiinnitetty välilehti, jolle on asetettu Pidä aktiivisena, tai välilehti, johon on liitetty kehittäjätyökalut, pysyy käynnissä, vaikka sen Tila ei ole aktiivinen. Se näkyy tässä kustannuksineen.</translation>
     </message>
     <message>
-        <source>Floating controls</source>
-        <translation>Kelluvat ohjaimet</translation>
+        <source>The edge of the window the sidebar stands against. While it is hidden, the floating controls stay at that edge.</source>
+        <translation>Ikkunan reuna, jota vasten sivupalkki on. Kun sivupalkki on piilotettu, kelluvat ohjaimet pysyvät tässä reunassa.</translation>
     </message>
     <message>
-        <source>With the sidebar hidden, keep the navigation controls over the page. Pause at the left edge to peek at the sidebar; it hides when the pointer leaves.</source>
-        <translation>Kun sivupalkki on piilotettu, pidä siirtymisohjaimet sivun päällä. Viivähdä vasemmassa reunassa, niin näet sivupalkin; se piiloutuu, kun osoitin poistuu.</translation>
+        <source>Floating controls</source>
+        <translation>Kelluvat ohjaimet</translation>
     </message>
     <message>
         <source>Glance at a page&apos;s new tabs</source>
@@ -3465,6 +3465,24 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Cards are kept in the desktop&apos;s keyring and offered in forms in every Space, never in a Private window. The security code is never kept.</source>
         <translation>Kortit säilytetään työpöydän avainnipussa, ja niitä tarjotaan lomakkeissa jokaisessa tilassa, ei koskaan yksityisessä ikkunassa. Turvakoodia ei koskaan säilytetä.</translation>
+    </message>
+    <message>
+        <source>Sidebar side</source>
+        <translation>Sivupalkin puoli</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <comment>sidebar side: the window&apos;s left edge</comment>
+        <translation>Vasen</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <comment>sidebar side: the window&apos;s right edge</comment>
+        <translation>Oikea</translation>
+    </message>
+    <message>
+        <source>With the sidebar hidden, keep the navigation controls over the page. Pause at the sidebar&apos;s edge of the window to peek at it; it hides when the pointer leaves.</source>
+        <translation>Kun sivupalkki on piilotettu, pidä siirtymisohjaimet sivun päällä. Viivähdä ikkunan sivupalkin puoleisessa reunassa, niin näet sivupalkin; se piiloutuu, kun osoitin poistuu.</translation>
     </message>
     <message>
         <source>Add card</source>

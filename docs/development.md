@@ -107,18 +107,19 @@ Agent Space sits unused. `--agents-away` keeps the reader's Space on show instea
 `--agents-grant` has the Agent ask for the reader's page on show, so the grant prompt stands over
 it. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` six more Agent
 Spaces, so the footer counts the ones it has no room for; `--narrow` puts the sidebar at its minimum
-width and `--space-overflow` opens the menu of the Spaces left out. `--agents-taken-over` has the
-reader take the Agent's Space over while the Agent is still attached, so a Space of the reader's
-wears the Agent mark in its own colour, and has the Agent at work in a second Agent Space of its
-own. Pass `--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700
-ms by default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
-reviewing chrome changes without a desktop session. The chrome's movements are reviewed the same
-way: `--show space-step`, `tab-step`, `omnibar-step` and `settings-step` run the switch or the
-opening shortly before the capture, so the frame lands part way through it, and the `-settled`
-spelling of each runs it early enough to land at rest. The leaving list's picture and the Omnibar's
-growth need the hardware renderer, so those two captures go without `QT_QUICK_BACKEND=software`.
-Development presets load QML, themes, and the icon font directly from the source tree. Editing those
-files requires an application restart but no compile or relink.
+width, `--sidebar-right` stands it against the window's right edge, and `--space-overflow` opens the
+menu of the Spaces left out. `--agents-taken-over` has the reader take the Agent's Space over while
+the Agent is still attached, so a Space of the reader's wears the Agent mark in its own colour, and
+has the Agent at work in a second Agent Space of its own. Pass `--capture <path>` to render one
+frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by default, which works headlessly with
+`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes without a desktop
+session. The chrome's movements are reviewed the same way: `--show space-step`, `tab-step`,
+`omnibar-step` and `settings-step` run the switch or the opening shortly before the capture, so the
+frame lands part way through it, and the `-settled` spelling of each runs it early enough to land at
+rest. The leaving list's picture and the Omnibar's growth need the hardware renderer, so those two
+captures go without `QT_QUICK_BACKEND=software`. Development presets load QML, themes, and the icon
+font directly from the source tree. Editing those files requires an application restart but no
+compile or relink.
 
 The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
 engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so
@@ -1296,19 +1297,26 @@ changed in at least three frames a movement: the page under it redraws every fra
 do not say the surface moved. The Omnibar's word is set into the field a letter at a time rather
 than sent as keys, because a compositor need not give the test window the keyboard.
 
-The sidebar and a Space switch hold the budget. The Omnibar and the Glance do not hold it in CI yet.
-Each of those two prints both budget lines with the reason it is over, and holds a guard instead:
-the same count of movements, at most one in ten, with a frame slower than the surface's guard rather
-than the ceiling. A guard sits over the slowest movement CI's runner has drawn. It catches a change
-that puts a frame over the guard in more than one movement, such as a stall on every opening, and
-nothing smaller: on CI a stall on each opening goes unnoticed under about 60 ms for the Omnibar and
-25 ms for the Glance. The change that brings a surface inside removes its `overBudget` argument, and
-the budget is held.
+The sidebar, a Space switch and the Omnibar hold the budget. The Glance does not hold it in CI yet.
+It prints both budget lines with the reason it is over, and holds a guard instead: the same count of
+movements, at most one in ten, with a frame slower than its guard rather than the ceiling. The guard
+sits over the slowest movement CI's runner has drawn. It catches a change that puts a frame over the
+guard in more than one movement, such as a stall on every opening, and nothing smaller: on CI a
+stall on each opening goes unnoticed under about 25 ms. The change that brings the Glance inside
+removes its `overBudget` argument, and the budget is held.
 
-- The Omnibar. Each edit ranks the tabs and the commands up to three times: for the text, then for
-  the history answer and the engine answer as each arrives. On the GPU it is inside the budget.
 - The Glance. Inside the budget on this laptop and on the GPU, but on CI's runner three of its ten
   movements hold a frame, at 36 to 40 ms.
+
+The Omnibar reads the commands when it opens and when the Space changes, and the tabs and the Spaces
+then and again after one of them changes, rather than for each keystroke. It ranks them once for
+each edit. When History's answer or the engine's arrives, only History's rows, the put-away tabs and
+the keywords are ranked again, and they are merged into the edit's ranking, with the engine's
+proposals listed after as before. An answer that lists the very rows already shown, as an empty one
+does, leaves them standing rather than building them again. Reading and ranking all of them again
+for each edit and each answer held two to five of the ten movements over the budget offscreen and
+five on CI. Ranking once for each edit alone still held two on CI's `arch-linux` job, at 35 to 42
+ms.
 
 What the reader cannot see lays nothing out while the chrome moves. A closed Shortcut sheet lists
 nothing and keeps the rows it laid out when the window started or when it last opened; it works its
@@ -1319,18 +1327,18 @@ real engine's hidden view costs the interface thread nothing at a new width.
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
 `arch-linux-gcc` jobs' runs of #588. GPU is three runs in the Hyprland session on the laptop's 60 Hz
-display, drawn through radeonsi. The sidebar and Space switch rows were retaken on 2026-10-06 with
-#594: offscreen is six runs of the whole `tst_performance.qml`, and GPU is three runs as before. CI
-prints a probe's lines only when its suite fails, so the passing runs of #597 say only that both
-held; the Space switch's numbers are from the run before the last commit of #597, which printed them
-because the sidebar was still over:
+display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight runs one at a time,
+CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which print a probe's numbers only
+when it fails, and GPU is three runs. The sidebar and Space switch rows are #594's, on 2026-10-06:
+offscreen is SIX_RUNS, CI is #597's two jobs, whose passing runs print nothing, and GPU is three
+runs:
 
-| Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI | GPU p95     | Held, GPU | Guard  |
-| ------------ | ------------- | --------------- | ----------- | ----------- | -------- | ----------- | --------- | ------ |
-| Sidebar      | 19 ms         | 0               | passed      | not printed | passed   | 17 ms       | 0         | none   |
-| Space switch | 17 ms         | 0 to 1          | 17 ms       | 23 to 28 ms | 0        | 17 ms       | 0         | none   |
-| Omnibar      | 25 to 30 ms   | 2 to 5          | 36 to 40 ms | 52 to 56 ms | 5        | 20 to 22 ms | 0 to 1    | 120 ms |
-| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3        | 17 ms       | 1         | 67 ms  |
+| Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI    | GPU p95 | Held, GPU | Guard |
+| ------------ | ------------- | --------------- | ----------- | ----------- | ----------- | ------- | --------- | ----- |
+| Sidebar      | SB_OFF        | SB_OFF_H        | passed      | not printed | not printed | SB_GPU  | SB_GPU_H  | none  |
+| Space switch | SS_OFF        | SS_OFF_H        | passed      | not printed | not printed | SS_GPU  | SS_GPU_H  | none  |
+| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed | not printed | 0 to 1      | 17 ms   | 0         | none  |
+| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3           | 17 ms   | 1         | 67 ms |
 
 On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to
 35 ms. On the GPU all four are inside the budget. The software rasteriser draws no blur, so the

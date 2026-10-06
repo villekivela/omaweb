@@ -1,7 +1,7 @@
 import QtQuick
 
-// The seam between a panel and the page beside it — the sidebar on the left,
-// docked Developer tools on the right. It straddles the border rather than
+// The seam between a panel and the page beside it: the sidebar on whichever
+// side the reader chose, docked Developer tools on the right. It straddles the border rather than
 // taking a column of its own, so the panel keeps every pixel of the width the
 // reader asked for. Dragging and the arrow keys move the same seam: a pointer
 // is a convenience here, never the only way through.
