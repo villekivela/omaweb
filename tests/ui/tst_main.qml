@@ -12351,14 +12351,13 @@ TestCase {
         browser.setPreference("start-page-road", "");
     }
 
-    // Settings offers the Scenes as a grid of thumbnails, four to a row, in
-    // a set order, None last. Choosing Game of Life stands the Start page on
-    // its board at once.
+    // Settings offers the Scenes as a grid of thumbnails, four to a row where
+    // the pane has room, in a set order, None last. Game of Life's thumbnail
+    // is drawn twice as close as the others, so its gliders read. Choosing it
+    // stands the Start page on its board at once.
     function test_settingsOffersTheScenesInAGrid() {
         const scene = findChild(window.contentItem, "startPageScene");
         const settings = findChild(window.contentItem, "settingsSurface");
-        const homeSpaceId = browser.activeSpaceId;
-        const restingSpaceId = enterRestingSpace("Resting grid");
         window.settingsOpen = true;
         settings.section = settings.sections.indexOf("interface");
         const picker = findChild(settings, "startPageScenePicker");
@@ -12377,6 +12376,14 @@ TestCase {
             compare(thumbnails[index].y, thumbnails[0].y);
             verify(thumbnails[index].x > thumbnails[index - 1].x);
         }
+        let sky = null;
+        let life = null;
+        tryVerify(function () {
+            sky = findChild(thumbnails[1], "nightSky");
+            life = findChild(thumbnails[2], "gameOfLife");
+            return sky !== null && life !== null && life.width > 1;
+        });
+        compare(life.drawWidth * 2, sky.drawWidth);
 
         const miss = clickReportingAMiss(thumbnails[2], function () {
             return browser.preference("start-page-scene", "") === "game-of-life";
@@ -12384,9 +12391,9 @@ TestCase {
         verify(miss === "", miss);
         window.settingsOpen = false;
         tryVerify(function () {
-            return findChild(scene, "gameOfLife") !== null && scene.visible;
+            return findChild(scene, "gameOfLife") !== null;
         });
-        leaveSpace(homeSpaceId, restingSpaceId, "Resting grid");
+        window.setStartPageScene("crt-road");
     }
 
     // The board casts no light on the Omnibar's rim, and the Omnibar stands

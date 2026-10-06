@@ -183,8 +183,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   area's, and it is seeded again when it dies out or stalls, and for a new size. On commit
   generations run flat out, one a frame, until the page paints, then the page takes over as it does
   from the road. It casts no light on the Omnibar. Reduced motion holds a board with a few gliders
-  mid-flight, each with its trail. A Private window's board is frozen, its cells dimmed and without
-  trails, even on commit.
+  mid-flight, each with its trail. Its thumbnail shows that board twice as close as the other
+  Scenes' thumbnails, so the gliders read at that size. A Private window's board is frozen, its
+  cells dimmed and without trails, even on commit.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.
