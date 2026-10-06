@@ -1965,6 +1965,7 @@ if(BUILD_TESTING)
             OMAWEB_MOCK_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
             OMAWEB_MOCK_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
             OMAWEB_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
+            OMAWEB_FILTER_LIST_FIXTURES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/ui/filter-lists"
             OMAWEB_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
             OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             OMAWEB_OMARCHY_IMPORT_PATH="${omaweb_omarchy_root}"

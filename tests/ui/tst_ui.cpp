@@ -37,6 +37,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QImage>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
@@ -57,6 +58,44 @@
 #include <memory>
 
 namespace {
+
+// The seeded lists, fetched from the fixtures in `tests/ui/filter-lists` rather
+// than from easylist.to, so a suite's list check never leaves the machine
+// (#614). The blocker reads these from its settings as it would a reader's: the
+// same ids and titles as the seeded lists, never fetched, so the check it runs
+// five seconds after it starts fetches, compiles and swaps them in.
+void writeFixtureSubscriptions(const QString &dataRoot)
+{
+    QJsonArray subscriptions;
+    for (const auto &[id, title] :
+        {std::pair {QStringLiteral("easylist"), QStringLiteral("EasyList")},
+            std::pair {QStringLiteral("easyprivacy"), QStringLiteral("EasyPrivacy")}}) {
+        subscriptions.append(QJsonObject {
+            {QStringLiteral("id"), id},
+            {QStringLiteral("title"), title},
+            {QStringLiteral("source"), QStringLiteral("https://easylist.to/")},
+            {QStringLiteral("license"), QStringLiteral("fixture")},
+            {QStringLiteral("updateAddress"),
+                QUrl::fromLocalFile(
+                    QStringLiteral(OMAWEB_FILTER_LIST_FIXTURES_PATH "/%1.txt").arg(id))
+                    .toString()},
+            {QStringLiteral("updateStatus"), QStringLiteral("not updated")},
+            {QStringLiteral("enabled"), true},
+        });
+    }
+    const auto directory = QDir(dataRoot).filePath(QStringLiteral("content-blocking"));
+    QDir().mkpath(directory);
+    QFile file(QDir(directory).filePath(QStringLiteral("settings.json")));
+    if (!file.open(QIODevice::WriteOnly)) {
+        qFatal("Could not write the fixture subscriptions to %s", qPrintable(file.fileName()));
+    }
+    file.write(QJsonDocument(QJsonObject {
+                                 {QStringLiteral("version"), 1},
+                                 {QStringLiteral("seeded"), true},
+                                 {QStringLiteral("subscriptions"), subscriptions},
+                             })
+            .toJson());
+}
 
 // A search engine's suggest endpoint on loopback, for the Omnibar's Engine
 // suggestion rows to be asked for and answered without the network.
@@ -439,6 +478,7 @@ public slots:
         m_paymentCards = std::make_unique<omaweb::PaymentCards>(
             std::make_unique<omaweb::MemoryPaymentCardKeyring>());
         m_browser->setPaymentCards(m_paymentCards.get());
+        writeFixtureSubscriptions(m_dataRoot->path());
         m_contentBlocker = std::make_unique<omaweb::ContentBlocker>(m_dataRoot->path());
         m_imageProbe = std::make_unique<ImageProbe>(m_dataRoot->filePath(QStringLiteral("images")));
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));

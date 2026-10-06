@@ -1,0 +1,5 @@
+[Adblock Plus 2.0]
+! Title: EasyList fixture
+! A list of the harness's own: the UI suites fetch lists from here, never from the network.
+||ads.fixture.example^
+fixture-easylist.example##.fixture-easylist-banner
