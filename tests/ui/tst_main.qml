@@ -267,10 +267,12 @@ TestCase {
             window.setFloatingControls(true);
         if (window.sidebarSide !== "left")
             window.setSidebarSide("left");
-        if (!window.startPageRoad)
-            window.setStartPageRoad(true);
+        if (window.startPageScene !== "crt-road")
+            window.setStartPageScene("crt-road");
         if (!window.startPageGlass)
             window.setStartPageGlass(true);
+        if (fontSettings.interfaceFontSizeOverridden)
+            fontSettings.resetInterfaceFontSize();
         // Whatever the last test pressed, this one starts from the pointer and
         // a desktop that has not asked for reduced motion.
         InputOrigin.pointer = true;
@@ -9865,6 +9867,40 @@ TestCase {
         });
     }
 
+    // A Private window shows the Scene the reader chose, and its sky has its
+    // lights out: its planet stays, without the glow on its limb, and there
+    // are no stars and no comets, under the glass all the same.
+    function test_aPrivateWindowsSkyHasItsLightsOut() {
+        window.setStartPageScene("night-sky");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        tryVerify(function () {
+            return findChild(privateBrowser.contentItem, "startPage").visible;
+        });
+        const sky = findChild(privateBrowser.contentItem, "nightSky");
+        const scene = findChild(privateBrowser.contentItem, "startPageScene");
+        verify(sky !== null);
+        verify(scene.visible);
+        verify(sky.unlit);
+        compare(sky.stars, 0);
+        verify(!sky.cometShown);
+        verify(!sky.limbGlows);
+        verify(findChild(scene, "crtGlass").visible);
+        verify(!findChild(window.contentItem, "nightSky").unlit);
+
+        // A choice made while it is open reaches it.
+        window.setStartPageScene("none");
+        verify(!scene.visible);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     function test_historyIsAFilteredBrowserOwnedSheet() {
         browser.recordVisit("https://history-sheet.example/first", "History sheet first");
         browser.recordVisit("https://other-sheet.example/second", "Other sheet");
@@ -11686,18 +11722,34 @@ TestCase {
         compare(origin.x, page.x);
     }
 
-    // The road moves only while the reader could see it: a window that has
+    // The Scenes the reader can choose, for the tests that hold every one of
+    // them to the road's rules.
+    function test_theStartPageDrawsNoFramesHiddenOrUnfocused_data() {
+        return [
+                    {
+                        tag: "road",
+                        scene: "crt-road"
+                    },
+                    {
+                        tag: "sky",
+                        scene: "night-sky"
+                    }
+                ];
+    }
+
+    // A Scene moves only while the reader could see it: a window that has
     // lost the keyboard or gone from the screen schedules no frame for it.
-    function test_theStartPageDrawsNoFramesHiddenOrUnfocused() {
+    function test_theStartPageDrawsNoFramesHiddenOrUnfocused(data) {
         const startPage = findChild(window.contentItem, "startPage");
         const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene(data.scene);
         const restingSpaceId = enterRestingSpace("Resting frames");
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
-        let frames = startPage.roadFrames;
+        let frames = startPage.sceneFrames;
         tryVerify(function () {
-            return startPage.roadFrames > frames + 2;
+            return startPage.sceneFrames > frames + 2;
         });
 
         const other = createTemporaryObject(otherWindowComponent, testCase);
@@ -11706,57 +11758,62 @@ TestCase {
         tryVerify(function () {
             return !window.active;
         });
-        verify(!startPage.roadRunning);
-        frames = startPage.roadFrames;
+        verify(!startPage.sceneRunning);
+        frames = startPage.sceneFrames;
         wait(250);
-        compare(startPage.roadFrames, frames);
+        compare(startPage.sceneFrames, frames);
         other.close();
 
         activateWindow();
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
 
         window.hide();
         tryVerify(function () {
-            return !startPage.roadRunning;
+            return !startPage.sceneRunning;
         });
-        frames = startPage.roadFrames;
+        frames = startPage.sceneFrames;
         wait(250);
-        compare(startPage.roadFrames, frames);
+        compare(startPage.sceneFrames, frames);
         window.show();
         activateWindow();
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
 
         leaveSpace(homeSpaceId, restingSpaceId, "Resting frames");
     }
 
-    // A reader who asked for less motion gets a road that holds still: no
+    function test_reducedMotionHoldsTheSceneStill_data() {
+        return test_theStartPageDrawsNoFramesHiddenOrUnfocused_data();
+    }
+
+    // A reader who asked for less motion gets a Scene that holds still: no
     // clock, so no frame is drawn for it, and the glass without its band or
-    // flicker. The desktop's setting reaches the road through the window.
-    function test_reducedMotionHoldsTheRoadStill() {
+    // flicker. The desktop's setting reaches the Scene through the window.
+    function test_reducedMotionHoldsTheSceneStill(data) {
         const startPage = findChild(window.contentItem, "startPage");
         const glass = findChild(window.contentItem, "crtGlass");
         const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene(data.scene);
         const restingSpaceId = enterRestingSpace("Resting still");
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
 
         SystemMotion.reduced = true;
         verify(window.reducedMotion);
-        verify(!startPage.roadRunning);
-        const frames = startPage.roadFrames;
+        verify(!startPage.sceneRunning);
+        const frames = startPage.sceneFrames;
         wait(250);
-        compare(startPage.roadFrames, frames);
+        compare(startPage.sceneFrames, frames);
         compare(glass.flicker, 0);
         compare(glass.bandStrength, 0);
 
         SystemMotion.reduced = false;
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
         leaveSpace(homeSpaceId, restingSpaceId, "Resting still");
     }
@@ -12062,47 +12119,223 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting sheet");
     }
 
-    // The road is the reader's to turn off, on this installation alone.
-    function test_settingsTurnsTheRoadOffLocally() {
+    // The reader chooses the Start page's Scene in Settings' interface
+    // section, on this installation alone: Night road, Night sky, or None,
+    // which leaves the Omnibar over the sidebar's fill. The choice takes effect
+    // at once.
+    function test_settingsChoosesTheStartPageScene() {
         const startPage = findChild(window.contentItem, "startPage");
-        const road = findChild(window.contentItem, "nightRoad");
+        const scene = findChild(window.contentItem, "startPageScene");
         const backdrop = findChild(window.contentItem, "startPageBackdrop");
         const settings = findChild(window.contentItem, "settingsSurface");
         const homeSpaceId = browser.activeSpaceId;
-        const restingSpaceId = enterRestingSpace("Resting road");
+        const restingSpaceId = enterRestingSpace("Resting scene");
         tryVerify(function () {
-            return road.visible;
+            return scene.visible && findChild(scene, "nightRoad") !== null;
         });
         verify(!backdrop.visible);
 
         window.settingsOpen = true;
         settings.section = settings.sections.indexOf("interface");
-        const toggle = findChild(settings, "startPageRoad");
-        verify(toggle !== null);
-        verify(toggle.checked);
-        toggle.clicked();
-        compare(browser.preference("start-page-road", "true"), "false");
+        const picker = findChild(settings, "startPageScenePicker");
+        verify(picker !== null);
+        compare(picker.value, "crt-road");
+        const sky = findChild(picker, "sceneThumbnail-night-sky");
+        // Settings has arrived, so a click lands on it.
+        tryVerify(function () {
+            return sky.visible && sky.width > 0 && settings.opacity === 1 && settings.lift === 0;
+        });
+        const miss = clickReportingAMiss(sky, function () {
+            return browser.preference("start-page-scene", "") === "night-sky";
+        });
+        verify(miss === "", miss);
+        compare(picker.value, "night-sky");
+
+        // The keyboard moves between the thumbnails, and Return chooses.
+        picker.forceActiveFocus();
+        keyClick(Qt.Key_Right);
+        compare(browser.preference("start-page-scene", ""), "night-sky");
+        keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "none");
+        keyClick(Qt.Key_Left);
+        keyClick(Qt.Key_Left);
+        keyClick(Qt.Key_Space);
+        compare(browser.preference("start-page-scene", ""), "crt-road");
+        const again = clickReportingAMiss(sky, function () {
+            return browser.preference("start-page-scene", "") === "night-sky";
+        });
+        verify(again === "", again);
         window.settingsOpen = false;
 
         tryVerify(function () {
             return startPage.open;
         });
-        verify(!road.visible);
+        verify(findChild(scene, "nightSky") !== null);
+        // The road the sky replaced is let go once the event loop turns.
+        tryVerify(function () {
+            return findChild(scene, "nightRoad") === null;
+        });
+        // Shown once the Start page has begun to fade in.
+        tryVerify(function () {
+            return scene.visible && startPage.sceneRunning;
+        });
+
+        window.setStartPageScene("none");
+        compare(browser.preference("start-page-scene", ""), "none");
+        verify(!scene.visible);
         tryVerify(function () {
             return backdrop.visible;
         });
-        verify(!startPage.roadRunning);
-
-        window.setStartPageRoad(true);
-        compare(browser.preference("start-page-road", "false"), "true");
-        verify(road.visible);
+        verify(!startPage.sceneRunning);
 
         // The stored choice is what the window follows, however it was made.
-        browser.setPreference("start-page-road", "false");
-        verify(!road.visible);
-        browser.setPreference("start-page-road", "true");
-        verify(road.visible);
-        leaveSpace(homeSpaceId, restingSpaceId, "Resting road");
+        browser.setPreference("start-page-scene", "night-sky");
+        verify(scene.visible);
+        verify(findChild(scene, "nightSky") !== null);
+        browser.setPreference("start-page-scene", "crt-road");
+        verify(findChild(scene, "nightRoad") !== null);
+        tryVerify(function () {
+            return findChild(scene, "nightSky") === null;
+        });
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting scene");
+    }
+
+    function test_theSkysPlanetStaysBelowTheOmnibar_data() {
+        return [
+                    {
+                        tag: "1360 x 860",
+                        width: 1360,
+                        height: 860,
+                        larger: 0
+                    },
+                    {
+                        tag: "1000 x 640",
+                        width: 1000,
+                        height: 640,
+                        larger: 0
+                    },
+                    {
+                        tag: "1800 x 1100",
+                        width: 1800,
+                        height: 1100,
+                        larger: 0
+                    },
+                    {
+                        tag: "larger type",
+                        width: 1360,
+                        height: 860,
+                        larger: 6
+                    }
+                ];
+    }
+
+    // The sky's planet lies wholly under the resting Omnibar: its top, the
+    // glow along its limb included, stands a small gap below the hint row's
+    // bottom edge, at any window size and type size, so its curve shows whole.
+    // The Omnibar keeps the place it has over the road.
+    function test_theSkysPlanetStaysBelowTheOmnibar(data) {
+        const width = window.width;
+        const height = window.height;
+        fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + data.larger);
+        const panel = findChild(window.contentItem, "omnibar");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting planet");
+        try {
+            window.width = data.width;
+            window.height = data.height;
+            tryCompare(window.contentItem, "height", data.height);
+            const restY = panel.restY;
+            window.setStartPageScene("night-sky");
+            const sky = findChild(scene, "nightSky");
+            verify(sky !== null);
+            compare(panel.restY, restY);
+            const bottom = function () {
+                return panel.restY + panel.restHeight;
+            };
+            const top = function () {
+                return scene.mapToItem(panel, 0, sky.planetTop).y;
+            };
+            tryVerify(function () {
+                return top() > bottom() + 4;
+            }, 1000, "planet's top " + top() + ", Omnibar's bottom " + bottom());
+            verify(top() < bottom() + 24, "planet's top " + top() + ", Omnibar's bottom " + bottom(
+                       ));
+        } finally {
+            leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
+            fontSettings.resetInterfaceFontSize();
+            window.width = width;
+            window.height = height;
+        }
+    }
+
+    // A reader who turned the road off before there was a choice arrives on
+    // None, and one who left it on, or never touched it, on the road.
+    function test_theRoadSwitchCarriesOverToTheScene_data() {
+        return [
+                    {
+                        tag: "switched off",
+                        road: "false",
+                        scene: "none"
+                    },
+                    {
+                        tag: "switched on",
+                        road: "true",
+                        scene: "crt-road"
+                    },
+                    {
+                        tag: "never switched",
+                        road: "",
+                        scene: "crt-road"
+                    }
+                ];
+    }
+
+    function test_theRoadSwitchCarriesOverToTheScene(data) {
+        browser.setPreference("start-page-scene", "");
+        browser.setPreference("start-page-road", data.road);
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, data.scene);
+        // A choice made since is the one that holds.
+        window.setStartPageScene("night-sky");
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, "night-sky");
+        browser.setPreference("start-page-road", "");
+    }
+
+    // A commit brings the sky's streaks until the page first paints, as it
+    // drives the road.
+    function test_theSkyStreaksUntilFirstPaint() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("night-sky");
+        const restingSpaceId = enterRestingSpace("Resting streaks");
+        const sky = findChild(window.contentItem, "nightSky");
+        verify(sky !== null);
+
+        input.text = "https://slow-paint.example/sky";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        compare(sky.navigating, 1);
+        tryVerify(function () {
+            return sky.streaks > 0;
+        });
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        }, 400);
+        compare(sky.navigating, 0);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting streaks");
     }
 
     // The CRT glass is on unless the reader turns it off, on this installation
@@ -12142,6 +12375,16 @@ TestCase {
         window.setStartPageGlass(true);
         compare(browser.preference("start-page-glass", "false"), "true");
         verify(glass.visible);
+
+        // The glass is over whichever Scene stands there, and with None there
+        // is no Scene for it, so the setting is not offered.
+        compare(toggle.title, "CRT glass over the Scene");
+        window.setStartPageScene("night-sky");
+        verify(findChild(scene, "nightSky") !== null);
+        verify(glass.visible);
+        verify(toggle.visible);
+        window.setStartPageScene("none");
+        verify(!toggle.visible);
         leaveSpace(homeSpaceId, restingSpaceId, "Resting glass");
     }
 
