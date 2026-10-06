@@ -178,7 +178,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The Game of Life is Conway's, drawn from the palette in the same way and always night, a light
   theme's ground drawn from its dark text. Each cell is one of the Scene's square pixels, and the
   board wraps at its edges. Live cells are the accent, and a cell that has just died leaves a short
-  trail, dimmer for each generation since. At rest the board moves about two generations a second.
+  trail, dimmer for each generation since. At rest the board moves about eight generations a second.
   Random soups fed by a glider gun or two keep it alive, a gun on a small board and two on a page
   area's, and it is seeded again when it dies out or stalls, and for a new size. On commit
   generations run flat out, one a frame, until the page paints, then the page takes over as it does
