@@ -8,10 +8,13 @@
 #include <QObject>
 #include <QSet>
 #include <QStringList>
+#include <QThread>
+#include <QThreadPool>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 
+#include <atomic>
 #include <memory>
 
 namespace omaweb {
@@ -44,6 +47,7 @@ public:
 
     explicit ContentBlocker(
         QString dataRoot, DefaultLists defaults = DefaultLists::Seed, QObject *parent = nullptr);
+    ~ContentBlocker() override;
 
     QString userRules() const;
     void setUserRules(const QString &rules);
@@ -207,8 +211,11 @@ private:
     void noteRefusal(
         const RefusalKey &key, const RefusedRequest &request, const QString &elementAddress);
     void flushRefusals();
+    void takeFetchedList(
+        const QString &id, bool failed, const QString &error, const QByteArray &list);
     void save() const;
     void recompile();
+    void release(std::shared_ptr<const void> retired);
     void replaceDisabledSites();
     Subscription *findSubscription(const QString &id);
     QString updateStatusText(const QString &status) const;
@@ -240,11 +247,20 @@ private:
     // from a test of it (#142).
     QHash<QObject *, ViewedPage> m_viewedPages;
     int m_refusalTallyGeneration = 0;
-    QNetworkAccessManager m_network;
+    // Lives on m_networkThread and is deleted there when the thread finishes.
+    QNetworkAccessManager *m_network = new QNetworkAccessManager;
+    QThread m_networkThread;
     QVariantMap m_compilationReport;
     QStringList m_pendingCurrent;
-    quint64 m_compileGeneration = 0;
+    // The newest compile asked for. The compiler's thread reads it to skip a compile a newer one
+    // has replaced.
+    std::atomic<quint64> m_compileGeneration = 0;
     int m_activeCompilations = 0;
+    // One thread compiles lists, one at a time, in the order they were asked for. Compiling is
+    // what a refresh costs, and the global pool ran a list's check and the compiles after it
+    // together, on the cores the interface thread draws on (#613). Declared last so it is
+    // destroyed first, waiting for the compile under way before anything it reads goes.
+    QThreadPool m_compiler;
 };
 
 } // namespace omaweb

@@ -11,6 +11,9 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <atomic>
+#include <thread>
+
 #include <memory>
 
 using omaweb::ContentBlocker;
@@ -35,6 +38,7 @@ private slots:
     void proceduralRulesFollowRuleReplacementAndSiteToggles();
     void subscriptionsExposeRequiredProvenanceAndUpdateStatus();
     void invalidSubscriptionUpdateKeepsTheActiveRules();
+    void aRefreshedListTakesOverWithNoGapInBlocking();
     void aListKeepsTheRulesThisContractParses();
     void aRefusedWindowCountsAsABlockedRequest();
     void aNewPageLoadStartsTheTallyAgain();
@@ -338,6 +342,79 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
             .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
                 QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"), space)
             .blocked);
+}
+
+// Requests are matched on the engine's threads while a refreshed list is compiled and put in
+// force, so a request is decided by whichever list is in force when it arrives. Every answer
+// has to come from the old list or the new one: until the new list is in force the old one is,
+// and once it is the old one never answers again (#613).
+void ContentBlockerTest::aRefreshedListTakesOverWithNoGapInBlocking()
+{
+    QTemporaryDir root;
+    QFile list(root.filePath(QStringLiteral("list.txt")));
+    QVERIFY(list.open(QIODevice::WriteOnly));
+    list.write("||old.example^\n||both.example^\n");
+    list.close();
+
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    const auto id = blocker.addSubscription(QStringLiteral("Test list"),
+        QUrl(QStringLiteral("https://lists.example/about")), QStringLiteral("CC0-1.0"),
+        QUrl::fromLocalFile(list.fileName()));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        blocker.subscriptions().first().toMap().value(QStringLiteral("updateStatus")).toString(),
+        QStringLiteral("current"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+
+    const QUrl page(QStringLiteral("https://site.example/"));
+    const auto blocks = [&blocker, &page](const char *host) {
+        return blocker
+            .checkRequest(QUrl(QStringLiteral("https://%1/pixel").arg(QLatin1String(host))), page,
+                QStringLiteral("image"), space)
+            .blocked;
+    };
+    QVERIFY(blocks("old.example"));
+    QVERIFY(blocks("both.example"));
+    QVERIFY(!blocks("new.example"));
+
+    QVERIFY(list.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    list.write("||new.example^\n||both.example^\n");
+    list.close();
+
+    // Each check is a decision of its own, so each asks one thing: a host both lists refuse is
+    // let through only when no list is in force, and a host only the old list refuses says
+    // which of the two answered.
+    std::atomic<bool> stop = false;
+    std::atomic<int> byTheOldList = 0;
+    std::atomic<int> byTheNewList = 0;
+    std::atomic<int> byNoList = 0;
+    std::atomic<int> byTheOldListAfterTheNew = 0;
+    std::thread engine([&] {
+        while (!stop) {
+            if (!blocks("both.example")) {
+                ++byNoList;
+            }
+            if (!blocks("old.example")) {
+                ++byTheNewList;
+            } else {
+                ++(byTheNewList > 0 ? byTheOldListAfterTheNew : byTheOldList);
+            }
+        }
+    });
+    blocker.updateSubscription(id);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        blocker.subscriptions().first().toMap().value(QStringLiteral("updateStatus")).toString(),
+        QStringLiteral("current"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(byTheNewList > 0, 5000);
+    stop = true;
+    engine.join();
+
+    QVERIFY(byTheOldList > 0);
+    QCOMPARE(byNoList.load(), 0);
+    QCOMPARE(byTheOldListAfterTheNew.load(), 0);
+    QVERIFY(!blocks("old.example"));
+    QVERIFY(blocks("both.example"));
+    QVERIFY(blocks("new.example"));
 }
 
 // A published list always carries rules outside this contract, and a list that
