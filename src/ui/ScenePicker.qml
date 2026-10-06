@@ -54,6 +54,11 @@ Grid {
             zoom: 2
         },
         {
+            value: "vector-terrain",
+            label: qsTr("Vector terrain", "Start page Scene"),
+            scene: terrainScene
+        },
+        {
             value: "none",
             label: qsTr("None", "Start page Scene: the sidebar's fill"),
             scene: null
@@ -110,6 +115,12 @@ Grid {
         id: lifeScene
 
         GameOfLife {}
+    }
+
+    Component {
+        id: terrainScene
+
+        VectorTerrain {}
     }
 
     Repeater {

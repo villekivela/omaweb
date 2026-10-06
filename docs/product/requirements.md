@@ -143,15 +143,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   `min(page area width - 32 px, 720 px)` wide, its top edge 50 px above the horizon, which lies at
   half the page area's height, with a 50 px field and 16 px of padding. The Omnibar's hint row,
   under the field, holds `?` as a key cap with the word "shortcuts", the way to the Shortcut sheet.
-- Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life, or
-  None, which leaves the Omnibar over the sidebar's fill. It is a grid of small thumbnails, four to
-  a row, in that order, each a still of its Scene drawn by the Scene itself, without the CRT glass,
-  and None as the plain sidebar fill, each named under it and the chosen one marked in the accent. A
-  click chooses, and the keyboard walks between them in reading order. The choice takes effect at
-  once and survives a restart. A reader who had turned the road off before there was a choice
-  arrives on None, and anyone else on Night road. A Private window shows the ordinary window's
-  choice. "CRT glass over the Scene", below it, applies to every Scene and is offered unless None is
-  chosen.
+- Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life,
+  Vector terrain, or None, which leaves the Omnibar over the sidebar's fill. It is a grid of small
+  thumbnails, four to a row, in that order, each a still of its Scene drawn by the Scene itself,
+  without the CRT glass, and None as the plain sidebar fill, each named under it and the chosen one
+  marked in the accent. A click chooses, and the keyboard walks between them in reading order. The
+  choice takes effect at once and survives a restart. A reader who had turned the road off before
+  there was a choice arrives on None, and anyone else on Night road. A Private window shows the
+  ordinary window's choice. "CRT glass over the Scene", below it, applies to every Scene and is
+  offered unless None is chosen.
 - A Scene fills the page area, or the one pane of a split it stands in, and is never drawn under the
   sidebar, which stands on its own fill as it does with None. It is drawn at the page area's size,
   centred on it; the road has the composition the website draws in a viewport of that size. With the
@@ -186,6 +186,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   mid-flight, each with its trail. Its thumbnail shows that board twice as close as the other
   Scenes' thumbnails, so the gliders read at that size. A Private window's board is frozen, its
   cells dimmed and without trails, even on commit.
+- The vector terrain is after Battlezone and the vector arcade games, drawn from the palette in the
+  same way and always night. Wireframe mountains stand on a horizon below the Omnibar, the highest
+  peak a small gap below the hint row as the sky's planet is, and each hides what stands behind it.
+  A perspective grid lies on the ground before them, and a wireframe crescent moon hangs low in the
+  sky beside the Omnibar, or just above it where the page area has no room beside it. Its lines are
+  thin, the mountains and the grid in the accent, the farther ridge dimmer, the moon in the theme's
+  light, each with a vector monitor's glow. At rest the ridges drift by in slow parallax, the nearer
+  faster, and the grid holds still. On commit the grid's lines rush toward the reader while the
+  mountains hold the horizon, until the page paints, then the page takes over as it does from the
+  road. It casts no light on the Omnibar. Reduced motion holds one frame of the mountains, the grid
+  and the moon. A Private window's terrain is the wireframe alone, its lines the theme's light
+  dimmed, with no moon and no glow, and it holds still, even on commit.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.
