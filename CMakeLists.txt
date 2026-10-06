@@ -562,6 +562,7 @@ qt_add_resources(omaweb-ui "omaweb_scenes"
         "share/scenes/crt-road.json"
         "share/scenes/game-of-life.json"
         "share/scenes/night-sky.json"
+        "share/scenes/vector-terrain.json"
 )
 qt_add_shaders(omaweb-ui "omaweb_shaders"
     PREFIX "/omaweb/shaders"
@@ -849,6 +850,7 @@ set(omaweb_ui_files
     src/ui/NightRoad.qml
     src/ui/NightSky.qml
     src/ui/GameOfLife.qml
+    src/ui/VectorTerrain.qml
     src/ui/RimLight.qml
     src/ui/SceneHost.qml
     src/ui/SceneLayer.qml

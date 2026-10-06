@@ -1,0 +1,91 @@
+{
+  "description": "A vector terrain behind the Start page, after Battlezone and the vector arcade games (#607): wireframe mountains on a horizon below the Omnibar, a perspective grid on the ground before them and a wireframe crescent moon low in the sky, in thin palette-coloured lines with a vector monitor's glow. The browser draws it (src/ui/VectorTerrain.qml); the website does not. Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, black, white) or a mix of two at an amount. `pitch` is 2 rather than the other Scenes' 4, so a line is thin, and `crt` is the road's glass at the road's size on screen: its pixel counts are doubled. `rest` is where the Omnibar rests, as a share of the height. `peaks`: no peak stands higher than `gap` CSS pixels below the resting Omnibar's hint row, which the browser hands in and which reaches `omnibarReach` below where the Omnibar rests at the theme's type size, and the ground's horizon lies `share` of the way from there to the bottom edge, so the mountains, as tall as that space at most, stay below the Omnibar. `lines` are `width` of the Scene's pixels wide, each with a glow `blur` of its pixels around it at `alpha` of its colour, or `across` at the middle of a grid line's glow; in a Private window a line is the light mixed toward the ground by `unlit`, with no glow. `ridges` are the mountains, far to near, each a range of `peaks` peaks on a loop the scene's width long: a peak stands `height` [from, span] of the mountains' space high, `place` [from, span] of the way along its share of the loop, where `seed` scatters it, a valley `valley` of the space at most, and a facet line falls from each peak to the ground `facet` of the way to the next valley. At rest a range drifts sideways `drift` of the width a second; nearer ranges drift faster. Its fill is the ground, so a nearer range hides a farther one and the moon. `still` is how far, in seconds of drift, a still or Private terrain has drifted. `omnibar` is where the resting Omnibar's field stands, which the moon keeps clear: its top edge `above` CSS pixels above where it rests, `widest` CSS pixels wide at most and `margin` in from either side. `moon` is a wireframe crescent, its radius `radius` of the width or the height, whichever is less, low in the sky beside the Omnibar: `across` the width, or further out to clear the Omnibar by the peaks' `gap`, its centre `lift` radii above the highest a peak may stand. Where the page area has no room beside the Omnibar, it stands `across` the width, as far in as it must to stay on the page, the peaks' `gap` above the Omnibar's top edge; a circle as large cuts it, its centre `phase` radii from the moon's toward its dark side, which faces `tilt` degrees clockwise from the right. `grid` is the ground: `radials` lines each side of the middle, `spread` of the half width apart at the bottom edge, running from depth `far` toward the reader; and `count` lines across, `spacing` apart in depth, each fading in over `fadeFar` from the far end and out over the last `fadeNear` before the bottom edge. At rest the grid holds still; from a commit until the page paints its lines rush toward the reader at `rush` depth units a second, the speed easing toward that at `ease` and back down after the page has painted, over a frame of at most `longestStep`. `still` is where a still or Private grid stands, in depth units.",
+  "id": "vector-terrain",
+  "name": "Vector terrain",
+  "pitch": 2,
+  "fps": 30,
+  "glass": "crt",
+  "crt": {
+    "bloom": { "scale": 6, "opacity": 0.22 },
+    "scanlines": { "every": 6, "shade": 0.38 },
+    "vignette": { "clear": 0.55, "shade": 0.55 },
+    "band": {
+      "every": 7,
+      "from": -0.2,
+      "travel": 1.4,
+      "reach": 0.07,
+      "reachAtLeast": 8,
+      "strength": 0.05
+    },
+    "flicker": { "least": 0.02, "range": 0.025, "frequencies": [37.1, 11.3] }
+  },
+  "options": {},
+  "rest": 0.5,
+  "night": {
+    "lightThemeGround": 0.45,
+    "deep": 0.45,
+    "deepLightTheme": 0.72,
+    "skyLow": 0.12,
+    "groundNear": 0.3
+  },
+  "scatter": [91.345, 7.13, 47453.5453],
+  "sky": [
+    [0, "skyTop"],
+    [1, "skyLow"]
+  ],
+  "peaks": { "omnibarReach": 40, "gap": 12, "share": 0.38 },
+  "omnibar": { "above": 50, "widest": 720, "margin": 16 },
+  "lines": {
+    "width": 1,
+    "glow": { "blur": 5, "alpha": 0.85, "across": 0.42 },
+    "unlit": 0.35
+  },
+  "ridges": {
+    "layers": [
+      {
+        "peaks": 6,
+        "height": [0.55, 0.45],
+        "place": [0.3, 0.4],
+        "valley": 0.18,
+        "facet": 0.45,
+        "drift": 0.004,
+        "seed": 11,
+        "colour": { "mix": ["glow", "ground", 0.45] }
+      },
+      {
+        "peaks": 4,
+        "height": [0.3, 0.3],
+        "place": [0.3, 0.4],
+        "valley": 0.08,
+        "facet": 0.35,
+        "drift": 0.01,
+        "seed": 37,
+        "colour": "glow"
+      }
+    ],
+    "still": 21
+  },
+  "moon": {
+    "across": 0.84,
+    "radius": 0.05,
+    "lift": 1.3,
+    "phase": 0.55,
+    "tilt": -25,
+    "colour": { "mix": ["light", "glow", 0.25] }
+  },
+  "grid": {
+    "radials": 9,
+    "spread": 0.45,
+    "far": 14,
+    "count": 12,
+    "spacing": 0.5,
+    "fadeFar": 3,
+    "fadeNear": 0.25,
+    "rush": 9,
+    "ease": 3,
+    "longestStep": 0.1,
+    "still": 0.35,
+    "colour": { "mix": ["glow", "ground", 0.25] }
+  },
+  "horizon": { "colour": "glow" }
+}

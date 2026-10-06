@@ -9943,6 +9943,40 @@ TestCase {
         });
     }
 
+    // A Private window's terrain is the wireframe alone, with no moon and no
+    // glow, and holds still, and the window beside it keeps its own lit.
+    function test_aPrivateWindowsTerrainIsTheWireframeOnly() {
+        window.setStartPageScene("vector-terrain");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const startPage = findChild(privateBrowser.contentItem, "startPage");
+        tryVerify(function () {
+            return startPage.visible && startPage.sceneRunning;
+        });
+        const terrain = findChild(privateBrowser.contentItem, "vectorTerrain");
+        verify(terrain !== null, "no terrain");
+        verify(terrain.unlit, "a lit terrain");
+        verify(!terrain.moonShown, "a moon");
+        verify(!terrain.glowing, "a glow");
+        const drift = terrain.drift;
+        const travel = terrain.travel;
+        const frames = startPage.sceneFrames;
+        tryVerify(function () {
+            return startPage.sceneFrames > frames + 30;
+        });
+        compare(terrain.drift, drift);
+        compare(terrain.travel, travel);
+        verify(findChild(window.contentItem, "vectorTerrain").moonShown);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     // A Private window shows the Scene the reader chose, and its sky has its
     // lights out: its planet stays, without the glow on its limb, and there
     // are no stars and no comets, under the glass all the same.
@@ -11898,6 +11932,11 @@ TestCase {
                         tag: "life",
                         scene: "game-of-life",
                         drawing: "gameOfLife"
+                    },
+                    {
+                        tag: "terrain",
+                        scene: "vector-terrain",
+                        drawing: "vectorTerrain"
                     }
                 ];
     }
@@ -12326,7 +12365,11 @@ TestCase {
         compare(browser.preference("start-page-scene", ""), "game-of-life");
         keyClick(Qt.Key_Right);
         keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "vector-terrain");
+        keyClick(Qt.Key_Right);
+        keyClick(Qt.Key_Return);
         compare(browser.preference("start-page-scene", ""), "none");
+        keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
@@ -12474,13 +12517,16 @@ TestCase {
         window.setStartPageScene("game-of-life");
         window.restoreChromeAppearance();
         compare(window.startPageScene, "game-of-life");
+        window.setStartPageScene("vector-terrain");
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, "vector-terrain");
         browser.setPreference("start-page-road", "");
     }
 
     // Settings offers the Scenes as a grid of thumbnails, four to a row where
     // the pane has room, in a set order, None last. Game of Life's thumbnail
-    // is drawn twice as close as the others, so its gliders read. Choosing it
-    // stands the Start page on its board at once.
+    // is drawn twice as close as the others, so its gliders read. Choosing a
+    // Scene stands the Start page on it at once.
     function test_settingsOffersTheScenesInAGrid() {
         const scene = findChild(window.contentItem, "startPageScene");
         const settings = findChild(window.contentItem, "settingsSurface");
@@ -12488,7 +12534,7 @@ TestCase {
         settings.section = settings.sections.indexOf("interface");
         const picker = findChild(settings, "startPageScenePicker");
         compare(picker.columns, 4);
-        const order = ["crt-road", "night-sky", "game-of-life", "none"];
+        const order = ["crt-road", "night-sky", "game-of-life", "vector-terrain", "none"];
         const thumbnails = order.map(function (value) {
             const thumbnail = findChild(picker, "sceneThumbnail-" + value);
             verify(thumbnail !== null, "no " + value);
@@ -12502,14 +12548,30 @@ TestCase {
             compare(thumbnails[index].y, thumbnails[0].y);
             verify(thumbnails[index].x > thumbnails[index - 1].x);
         }
+        // The fifth starts the next row.
+        verify(thumbnails[4].y > thumbnails[0].y);
+        compare(thumbnails[4].x, thumbnails[0].x);
         let sky = null;
         let life = null;
+        let terrain = null;
         tryVerify(function () {
             sky = findChild(thumbnails[1], "nightSky");
             life = findChild(thumbnails[2], "gameOfLife");
-            return sky !== null && life !== null && life.width > 1;
+            terrain = findChild(thumbnails[3], "vectorTerrain");
+            return sky !== null && life !== null && life.width > 1 && terrain !== null
+                    && terrain.width > 1;
         });
         compare(life.drawWidth * 2, sky.drawWidth);
+        compare(terrain.drawWidth, sky.drawWidth);
+        verify(terrain.reducedMotion);
+
+        const choose = clickReportingAMiss(thumbnails[3], function () {
+            return browser.preference("start-page-scene", "") === "vector-terrain";
+        });
+        verify(choose === "", choose);
+        tryVerify(function () {
+            return findChild(scene, "vectorTerrain") !== null;
+        });
 
         const miss = clickReportingAMiss(thumbnails[2], function () {
             return browser.preference("start-page-scene", "") === "game-of-life";
@@ -12522,17 +12584,32 @@ TestCase {
         window.setStartPageScene("crt-road");
     }
 
-    // The board casts no light on the Omnibar's rim, and the Omnibar stands
-    // over it: nothing the board draws is over the Omnibar.
-    function test_theBoardDrawsNothingOverTheOmnibar() {
+    function test_theSceneDrawsNothingOverTheOmnibar_data() {
+        return [
+                    {
+                        tag: "life",
+                        scene: "game-of-life",
+                        drawing: "gameOfLife"
+                    },
+                    {
+                        tag: "terrain",
+                        scene: "vector-terrain",
+                        drawing: "vectorTerrain"
+                    }
+                ];
+    }
+
+    // The board and the terrain cast no light on the Omnibar's rim, and the
+    // Omnibar stands over them: nothing either draws is over the Omnibar.
+    function test_theSceneDrawsNothingOverTheOmnibar(data) {
         const startPage = findChild(window.contentItem, "startPage");
         const scene = findChild(window.contentItem, "startPageScene");
         const panel = findChild(window.contentItem, "omnibar");
         const homeSpaceId = browser.activeSpaceId;
-        window.setStartPageScene("game-of-life");
+        window.setStartPageScene(data.scene);
         const restingSpaceId = enterRestingSpace("Resting under the Omnibar");
         tryVerify(function () {
-            return startPage.sceneRunning && findChild(scene, "gameOfLife") !== null;
+            return startPage.sceneRunning && findChild(scene, data.drawing) !== null;
         });
         compare(scene.light, null);
         verify(!findChild(window.contentItem, "omnibarRim").visible);
@@ -12587,6 +12664,89 @@ TestCase {
         });
         browser.closeActiveTab();
         leaveSpace(homeSpaceId, restingSpaceId, "Resting board");
+    }
+
+    // The terrain's mountains stand wholly under the resting Omnibar, the
+    // highest peak a small gap below the hint row's bottom edge, at any
+    // window size and type size. The Omnibar keeps the place it has over the
+    // road.
+    function test_theTerrainsPeaksStayBelowTheOmnibar_data() {
+        return test_theSkysPlanetStaysBelowTheOmnibar_data();
+    }
+
+    function test_theTerrainsPeaksStayBelowTheOmnibar(data) {
+        const width = window.width;
+        const height = window.height;
+        fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + data.larger);
+        const panel = findChild(window.contentItem, "omnibar");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting peaks");
+        try {
+            window.width = data.width;
+            window.height = data.height;
+            tryCompare(window.contentItem, "height", data.height);
+            const restY = panel.restY;
+            window.setStartPageScene("vector-terrain");
+            const terrain = findChild(scene, "vectorTerrain");
+            verify(terrain !== null);
+            compare(panel.restY, restY);
+            const bottom = function () {
+                return panel.restY + panel.restHeight;
+            };
+            const top = function () {
+                return scene.mapToItem(panel, 0, terrain.peaksTop).y;
+            };
+            tryVerify(function () {
+                return top() > bottom() + 4;
+            }, 1000, "peaks' top " + top() + ", Omnibar's bottom " + bottom());
+            verify(top() < bottom() + 24, "peaks' top " + top() + ", Omnibar's bottom " + bottom());
+        } finally {
+            leaveSpace(homeSpaceId, restingSpaceId, "Resting peaks");
+            fontSettings.resetInterfaceFontSize();
+            window.width = width;
+            window.height = height;
+        }
+    }
+
+    // A commit rushes the terrain's grid toward the reader until the page
+    // first paints, as it drives the road, and the grid slows after.
+    function test_theGridRushesUntilFirstPaint() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("vector-terrain");
+        const restingSpaceId = enterRestingSpace("Resting grid");
+        const terrain = findChild(window.contentItem, "vectorTerrain");
+        verify(terrain !== null);
+        tryVerify(function () {
+            return startPage.sceneRunning;
+        });
+        compare(terrain.speed, 0);
+
+        input.text = "https://slow-paint.example/terrain";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        compare(terrain.navigating, 1);
+        const start = terrain.travel;
+        tryVerify(function () {
+            return terrain.travel > start + 2;
+        }, 2000);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        }, 400);
+        compare(terrain.navigating, 0);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting grid");
     }
 
     // A commit brings the sky's streaks until the page first paints, as it
