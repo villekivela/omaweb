@@ -101,30 +101,24 @@ namespace {
 
 #pragma GCC diagnostic pop
 
-    // What became of a fetched list: kept for the rules that compiled and stored where the
-    // compile reads it, or refused.
-    enum class ListValidation { Stored, NoUsableRules, NotStored };
-
     // Every published list carries a handful of rules this contract cannot parse: EasyList alone
     // has one. Refusing a list over those rejected EasyList and EasyPrivacy in full and blocked
     // nothing at all, so a list is kept for the rules that did compile, and refused only when
     // none did or when the unparsable rules outnumber them. The rule set the check compiles is
-    // let go of here, on the compiler's thread, since only its report is wanted.
-    ListValidation validateAndStore(
-        const ContentBlocker::Compile &compile, const QByteArray &candidate, const QString &path)
+    // let go of here, on the refresh thread, since only its report is wanted.
+    bool hasUsableRules(const ContentBlocker::Compile &compile, const QByteArray &candidate)
     {
         const auto validation = compile(QString::fromUtf8(candidate));
         const auto accepted = validation.report.value(QStringLiteral("acceptedRuleCount")).toInt();
         const auto invalid = validation.report.value(QStringLiteral("invalidRuleCount")).toInt();
-        if (!validation.matcher || accepted == 0 || invalid > accepted) {
-            return ListValidation::NoUsableRules;
-        }
+        return validation.matcher && accepted > 0 && invalid <= accepted;
+    }
+
+    bool storeList(const QByteArray &list, const QString &path)
+    {
         QDir().mkpath(QFileInfo(path).absolutePath());
         QSaveFile file(path);
-        if (!file.open(QIODevice::WriteOnly) || file.write(candidate) < 0 || !file.commit()) {
-            return ListValidation::NotStored;
-        }
-        return ListValidation::Stored;
+        return file.open(QIODevice::WriteOnly) && file.write(list) >= 0 && file.commit();
     }
 
     // The reader's rules and every enabled list, joined and compiled. The lists are megabytes
@@ -521,9 +515,9 @@ void ContentBlocker::takeFetchedList(
     emit subscriptionsChanged();
     ++m_activeCompilations;
     emit compilingChanged();
-    auto *watcher = new QFutureWatcher<ListValidation>(this);
-    connect(watcher, &QFutureWatcher<ListValidation>::finished, this, [this, watcher, id] {
-        const auto validation = watcher->result();
+    auto *watcher = new QFutureWatcher<bool>(this);
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, id, list] {
+        const auto usable = watcher->result();
         watcher->deleteLater();
         --m_activeCompilations;
         emit compilingChanged();
@@ -531,12 +525,16 @@ void ContentBlocker::takeFetchedList(
         if (!subscription) {
             return;
         }
+        // Stored here rather than on the refresh thread. Both this and save() sync the disk, and
+        // on CI's runner settings.json's sync waited 42 to 324 ms behind a list's sync made on
+        // the refresh thread at the same time. One after the other, each took 0.3 to 8 ms (#613).
+        const auto stored = usable && storeList(list, listPath(id));
         // A list switched off while it was fetched is stored for when it is switched on again,
         // and is current as stored: none of it is in force, so there is nothing to compile.
-        const auto compiles = validation == ListValidation::Stored && subscription->enabled;
-        if (validation == ListValidation::NoUsableRules) {
+        const auto compiles = stored && subscription->enabled;
+        if (!usable) {
             subscription->updateStatus = QStringLiteral("failed: list has no usable rules");
-        } else if (validation == ListValidation::NotStored) {
+        } else if (!stored) {
             subscription->updateStatus = QStringLiteral("failed: could not store list");
         } else {
             subscription->updateStatus
@@ -552,10 +550,8 @@ void ContentBlocker::takeFetchedList(
             recompileOn(m_refresher);
         }
     });
-    watcher->setFuture(
-        QtConcurrent::run(&m_refresher, [compile = m_compile, list, path = listPath(id)] {
-            return validateAndStore(compile, list, path);
-        }));
+    watcher->setFuture(QtConcurrent::run(
+        &m_refresher, [compile = m_compile, list] { return hasUsableRules(compile, list); }));
 }
 
 void ContentBlocker::updateAllSubscriptions()
