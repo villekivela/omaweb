@@ -186,11 +186,13 @@ WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 PAGELOAD_IMAGES = 40
 PAGELOAD_LOADS = 10
 
-# Loads kept in reserve for each case and mode. On CI's runner the engine cancels an image now and
-# then as its answer arrives, with blocking on and off alike, and a page missing an image is not
-# the page the other mode loaded. Such a load is not counted and a spare takes its place; the spares
-# are in the plan from the start because the DNS zone is written before the browser runs.
-PAGELOAD_SPARES = int(os.environ.get("OMAWEB_DIAG_SPARES", "6"))  # [DEBUG-600]
+# Loads kept in reserve for each case and mode. A page missing an image is not the page the other
+# mode loaded, so such a load is not counted and a spare takes its place; the spares are in the plan
+# from the start because the DNS zone is written before the browser runs. No cause of a short load
+# is known since /dev/shm was given room for the response bodies (#600). Two are kept so that one
+# stray short load on a shared runner does not fail the run, and each one used is listed, while a
+# cause that comes back runs them out within a few loads rather than hiding behind them.
+PAGELOAD_SPARES = 2
 
 # How many hosts the forty images come from. The worst case is a page that reaches every host for
 # the first time, so every request waits on its lookups; the common case is a page whose few hosts
@@ -290,6 +292,13 @@ PAGELOAD_TOOLS = {
     "mount": "binding the resolver files over the machine's",
     "unshare": "running the browser as its own user rather than as root",
 }
+
+# The least /dev/shm a run may have. The engine writes each response body into a data pipe of
+# 2 MiB there, and the worst case's forty images can all be in flight at once: a run with room to
+# spare peaked at 70 MiB. Docker gives a container 64 MiB, and there the engine cancelled the last
+# images of a load as their answers arrived, because no pipe could be made for them (#600). A
+# desktop's /dev/shm is half its memory.
+PAGELOAD_SHARED_MEMORY_MEBIBYTES = 256
 
 
 class Unavailable(RuntimeError):
@@ -1079,11 +1088,7 @@ PAGELOAD_PAGE = """<!doctype html>
     if (entry) resolve(entry.startTime);
   }}).observe({{ type: "paint", buffered: true }}));
   const failed = new Set();
-  const failedAt = {{}}; // [DEBUG-600]
-  addEventListener("error", event => {{
-    failed.add(event.target.src);
-    failedAt[event.target.src] = performance.now(); // [DEBUG-600]
-  }}, true);
+  addEventListener("error", event => failed.add(event.target.src), true);
   let reporting = "not yet";
   // A page still here after this long has gone quiet, and says how far it got.
   setInterval(() => fetch("/stalled", {{ method: "POST", body: JSON.stringify({{
@@ -1110,22 +1115,6 @@ PAGELOAD_PAGE = """<!doctype html>
       firstContentfulPaint,
       missing: missing.map(image => image.src),
       failed: missing.filter(image => failed.has(image.src)).length,
-      // [DEBUG-600] What the renderer saw of each missing image, and of the page's slowest one.
-      latestResponseEnd: Math.max(0, ...performance.getEntriesByType("resource")
-        .filter(timing => timing.initiatorType === "img").map(timing => timing.responseEnd)),
-      detail: missing.map(image => {{
-        const timing = performance.getEntriesByName(image.src)[0];
-        const fields = ["startTime", "fetchStart", "domainLookupStart", "domainLookupEnd",
-          "connectStart", "connectEnd", "requestStart", "responseStart", "responseEnd",
-          "transferSize", "encodedBodySize", "decodedBodySize", "responseStatus",
-          "nextHopProtocol"];
-        return {{
-          src: image.src,
-          complete: image.complete,
-          failedAt: failedAt[image.src] ?? null,
-          timing: timing ? Object.fromEntries(fields.map(field => [field, timing[field]])) : null,
-        }};
-      }}),
     }};
     reporting = "sent";
     const sent = await fetch("/report", {{ method: "POST", body: JSON.stringify(report) }});
@@ -1201,10 +1190,6 @@ class PageLoadSite:
         # apart as one that never arrived here and one that did and went missing on the way back.
         self.requested: set[str] = set()
         self.answered: set[str] = set()
-        # [DEBUG-600] Every request, answer and connection end, in order, with its connection.
-        self.events: list[tuple[float, str, str, int, int]] = []
-        self.events_lock = threading.Lock()
-        self.started = time.monotonic()
         # What a page that went quiet last said of itself.
         self.stalled: dict[int, dict] = {}
         self.ready = False
@@ -1233,10 +1218,10 @@ class PageLoadSite:
 
     def page(self, number: int) -> bytes:
         load = self.plan[number]
-        # CORS mode rather than no-cors. On CI's runner the engine cancelled no-cors image
-        # requests as their answers arrived, some forty a run in both modes, and CORS-mode
-        # requests about three: the net log shows the response started and then the request
-        # cancelled, with no network error. What is left is repeated with a spare.
+        # CORS mode rather than no-cors, which the ceilings were recorded with. On CI's runner the
+        # engine cancelled no-cors image requests as their answers arrived, some forty a run in
+        # both modes, and CORS-mode requests about three. The CORS-mode ones were /dev/shm too
+        # small for their response bodies (#600); no-cors has not been measured since.
         images = "\n".join(
             f'<img src="{with_port(image, self.port)}" crossorigin="anonymous" width="16" '
             'height="16" alt="">'
@@ -1366,32 +1351,12 @@ class PageLoadSite:
                 self.wfile.write(body)
                 self.wfile.flush()
                 site.answered.add(self.address)
-                self.event("answered", self.address)
-
-            # [DEBUG-600] Which request on its connection this is, and how the connection ended.
-            def event(self, kind: str, address: str) -> None:
-                with site.events_lock:
-                    site.events.append((time.monotonic() - site.started, kind, address,
-                                        self.client_address[1], getattr(self, "served", 0)))
-
-            def handle(self) -> None:
-                self.served = 0
-                self.last = ""
-                try:
-                    super().handle()
-                except Exception as error:
-                    self.event(f"ended {type(error).__name__}", self.last)
-                    raise
-                self.event("closed", self.last)
 
             @property
             def address(self) -> str:
                 return f"http://{self.headers.get('Host', '')}{self.path}"
 
             def do_GET(self) -> None:  # noqa: N802
-                self.served += 1
-                self.last = self.address
-                self.event("request", self.address)
                 site.requested.add(self.address)
                 path = urllib.parse.urlsplit(self.path).path
                 if path == "/ready":
@@ -1593,7 +1558,6 @@ def run_pageload(executable: str, private: bool) -> dict:
         browser.stop()
         if site:
             site.stop()
-            dump_diagnostics(site, browser)
         if network:
             network.leave()
         workspace.discard()
@@ -1604,31 +1568,6 @@ def run_pageload(executable: str, private: bool) -> dict:
         for number in site.repeated:
             log(f"    {site.describe_missing(plan[number])}")
     return pageload_results(site)
-
-
-def dump_diagnostics(site: PageLoadSite, browser: Browser) -> None:
-    """[DEBUG-600] What the page and the server saw of each load the engine cut short."""
-    directory = os.environ.get("OMAWEB_DIAG_DIR")
-    if not directory or not site.repeated:
-        return
-    os.makedirs(directory, exist_ok=True)
-    short = {number: site.reports[number] for number in site.repeated}
-    addresses = {item["src"] for report in short.values() for item in report.get("detail", [])}
-    for number, report in short.items():
-        log(f"  [DEBUG-600] load {number}: latest image responseEnd "
-            f"{report.get('latestResponseEnd')} ms, load event {report['milliseconds']} ms")
-        for item in report.get("detail", []):
-            log(f"  [DEBUG-600]   {item['src']} complete={item['complete']} "
-                f"failedAt={item['failedAt']} timing={json.dumps(item['timing'])}")
-            for event in site.events:
-                if event[2] == item["src"]:
-                    log(f"  [DEBUG-600]     server {event[0]:.4f} s {event[1]} port {event[3]} "
-                        f"request {event[4]} on its connection")
-    with open(os.path.join(directory, "pageload.json"), "w", encoding="utf-8") as handle:
-        json.dump({"repeated": site.repeated, "reports": site.reports, "events": site.events,
-                   "missing": sorted(addresses), "errors": site.server.errors}, handle)
-    with open(os.path.join(directory, "browser.log"), "w", encoding="utf-8") as handle:
-        handle.write("\n".join(browser.messages()) + "\n")
 
 
 def pageload_results(site: PageLoadSite) -> dict:
@@ -1673,6 +1612,25 @@ def machine_serves_zone() -> bool:
     return any(answer[4][0] == "127.0.0.1" for answer in answers)
 
 
+def check_shared_memory() -> None:
+    """Fails a run whose /dev/shm is too small for the page's response bodies to be in flight.
+
+    A load short of images there is the machine's limit rather than the engine's behaviour, and the
+    spares would hide it until they ran out. A machine with no /dev/shm keeps its shared memory
+    elsewhere and is measured.
+    """
+    try:
+        filesystem = os.statvfs("/dev/shm")
+    except OSError:
+        return
+    mebibytes = filesystem.f_blocks * filesystem.f_frsize // (1024 * 1024)
+    if mebibytes < PAGELOAD_SHARED_MEMORY_MEBIBYTES:
+        raise MeasurementFailed(
+            f"/dev/shm is {mebibytes} MiB, and the page's response bodies need "
+            f"{PAGELOAD_SHARED_MEMORY_MEBIBYTES} MiB of it: give the container more with "
+            "--shm-size")
+
+
 def measure_pageload(executable: str, require_dns: bool) -> dict:
     """What Content blocking as a whole adds to a page load, in the worst case and the common one.
 
@@ -1683,12 +1641,14 @@ def measure_pageload(executable: str, require_dns: bool) -> dict:
     """
     if machine_serves_zone():
         log("  the machine's own resolver answers the run's names, so it measures there")
+        check_shared_memory()
         return run_pageload(executable, private=False)
     try:
         missing = [f"{tool}, for {purpose}" for tool, purpose in PAGELOAD_TOOLS.items()
                    if shutil.which(tool) is None]
         if missing:
             raise Unavailable(f"this needs {'; '.join(missing)}")
+        check_shared_memory()
         return in_child(lambda: run_pageload(executable, private=True))
     except Unavailable as error:
         if require_dns:

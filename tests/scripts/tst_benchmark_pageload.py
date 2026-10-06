@@ -414,5 +414,38 @@ class RequireDnsTest(unittest.TestCase):
             self.measure(require_dns=True)
 
 
+class SharedMemoryTest(unittest.TestCase):
+    """A /dev/shm too small for the page's response bodies fails the run before a browser starts.
+
+    Each response body is written into a data pipe of 2 MiB in /dev/shm, and Docker gives a
+    container 64 MiB of it. On CI's runner the worst case's forty images then ran it out, and the
+    engine cancelled the last of them as their answers arrived (#600).
+    """
+
+    def measure(self, mebibytes):
+        filesystem = os.statvfs_result((4096, 4096, mebibytes * 256, mebibytes * 256,
+                                        mebibytes * 256, 0, 0, 0, 0, 255))
+        with mock.patch.object(runtime.os, "statvfs", return_value=filesystem) as statvfs, \
+                mock.patch.object(runtime, "machine_serves_zone", return_value=True), \
+                mock.patch.object(runtime, "run_pageload", return_value={}) as run:
+            runtime.measure_pageload("build/dev/omaweb", require_dns=True)
+        statvfs.assert_called_with("/dev/shm")
+        return run
+
+    def test_dockers_default_fails_the_run_and_names_the_option(self):
+        with self.assertRaisesRegex(runtime.MeasurementFailed, "64 MiB.*--shm-size"):
+            self.measure(64)
+
+    def test_a_desktops_share_of_its_memory_measures(self):
+        self.measure(8192).assert_called_once()
+
+    def test_a_machine_without_dev_shm_measures(self):
+        with mock.patch.object(runtime.os, "statvfs", side_effect=FileNotFoundError), \
+                mock.patch.object(runtime, "machine_serves_zone", return_value=True), \
+                mock.patch.object(runtime, "run_pageload", return_value={}) as run:
+            runtime.measure_pageload("build/dev/omaweb", require_dns=True)
+        run.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

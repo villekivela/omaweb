@@ -121,7 +121,14 @@ jobs:
     needs: changes
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
+    # A desktop's /dev/shm rather than Docker's 64 MiB. The engine writes each
+    # response body into a 2 MiB data pipe there, and the page-load budget's
+    # forty images in flight at once ran 64 MiB out: the engine cancelled the
+    # last of them as their answers arrived (#600). `--disable-dev-shm-usage`
+    # would move the pipes to /tmp, which is a different engine to measure.
+    container:
+      image: archlinux:base-devel
+      options: --shm-size=2g
     # The runtime budget's steps bring the job to 40 minutes, too close to 45.
     timeout-minutes: 60
     env:
