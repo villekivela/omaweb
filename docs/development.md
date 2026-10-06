@@ -1354,8 +1354,9 @@ Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, wit
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
 `arch-linux-gcc` jobs' runs of #588. GPU is three runs in the Hyprland session on the laptop's 60 Hz
 display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight runs one at a time,
-CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which print a probe's numbers only
-when it fails, and GPU is three runs:
+CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which then printed a probe's
+numbers only when it failed, and GPU is three runs. A run now prints them all, in the
+`Print the probes' numbers` step of `arch-linux-clang` and `arch-linux-gcc`:
 
 | Surface      | Offscreen p95 | Held, offscreen | CI p95        | CI slowest    | Held, CI | GPU p95     | Held, GPU | Guard  |
 | ------------ | ------------- | --------------- | ------------- | ------------- | -------- | ----------- | --------- | ------ |
