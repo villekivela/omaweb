@@ -85,6 +85,7 @@ import tempfile
 import threading
 import time
 import urllib.parse
+from collections.abc import Iterable
 from pathlib import Path
 
 import performance_history as history
@@ -736,7 +737,8 @@ class Browser:
         phases["window-mapped"] = self.startup_seconds
         return phases
 
-    def await_phases(self, wanted: tuple[str, ...], timeout: float = PHASES_AFTER_MAPPING) -> dict:
+    def await_phases(self, wanted: tuple[str, ...],
+                     timeout: float = PHASES_AFTER_MAPPING) -> dict[str, float]:
         """The phases once every one of `wanted` is in, or once `timeout` has passed."""
         deadline = time.time() + timeout
         while True:
@@ -915,7 +917,7 @@ def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: in
     time.sleep(LOAD_SETTLE)
 
 
-def startup_phases(lines, started_at: float) -> dict[str, float]:
+def startup_phases(lines: Iterable[str], started_at: float) -> dict[str, float]:
     """Seconds from `started_at`, on the wall clock, to the first mark of each phase in `lines`."""
     phases: dict[str, float] = {}
     for line in lines:
@@ -938,7 +940,7 @@ def phase_table(launches: list[dict[str, float]]) -> list[str]:
     return rows
 
 
-def evict(paths) -> None:
+def evict(paths: Iterable[str]) -> None:
     """Drops each file under `paths` from the page cache, as far as an unprivileged process can.
 
     Dirty pages are written first, since the kernel drops only clean ones. A page another process
@@ -984,11 +986,11 @@ def mapped_files(root: int) -> set[str]:
     return files
 
 
-def learn_mapped_files(workspace, executable: str, url: str | None = None) -> set[str]:
+def learn_mapped_files(workspace: Workspace, executable: str, url: str) -> set[str]:
     """What a launch reads that is not the profile, from one launch that is not counted."""
     browser = workspace.browser(executable)
     try:
-        browser.start(url if url is not None else workspace.page_url)
+        browser.start(url)
         browser.await_phases(("first-frame",))
         return mapped_files(browser.pid)
     finally:
@@ -996,34 +998,42 @@ def learn_mapped_files(workspace, executable: str, url: str | None = None) -> se
         time.sleep(SETTLE)
 
 
-def measure_startup(executable: str, repetitions: int, cold: bool = False) -> dict:
-    """The median of several launches, because one launch is a cold cache and a coin toss."""
-    workspace = Workspace()
+def time_launches(workspace: Workspace, executable: str, url: str, repetitions: int, cold: bool,
+                  awaited: tuple[str, ...], profile: str) -> float:
+    """The median of several launches, because one launch is a coin toss, with each launch's
+    phases printed. A cold launch is preceded by dropping what the browser reads from the page
+    cache."""
+    engine_files = learn_mapped_files(workspace, executable, url) if cold else set()
     timings = []
     launches = []
-    try:
-        engine_files = learn_mapped_files(workspace, executable) if cold else set()
-        for index in range(repetitions):
-            browser = workspace.browser(executable)
-            try:
-                if cold:
-                    evict([*engine_files, executable, workspace.root])
-                browser.start(workspace.page_url)
-                timings.append(browser.startup_seconds)
-                launches.append(browser.await_phases(("first-frame",)))
-                log(f"  launch {index + 1}: {browser.startup_seconds:.3f} s")
-            finally:
-                browser.stop()
-                # The engine's processes have to be gone before the next launch, or the next
-                # launch competes with them for the memory it is about to be measured holding.
-                time.sleep(SETTLE)
-    finally:
-        workspace.discard()
-    timings.sort()
-    log(f"  phases, {'cold' if cold else 'warm'}, fresh profile:")
+    for index in range(repetitions):
+        browser = workspace.browser(executable)
+        try:
+            if cold:
+                evict([*engine_files, executable, workspace.root])
+            browser.start(url)
+            timings.append(browser.startup_seconds)
+            launches.append(browser.await_phases(awaited))
+            log(f"  launch {index + 1}: {browser.startup_seconds:.3f} s")
+        finally:
+            browser.stop()
+            # The engine's processes have to be gone before the next launch, or the next
+            # launch competes with them for the memory it is about to be measured holding.
+            time.sleep(SETTLE)
+    log(f"  phases, {'cold' if cold else 'warm'}, {profile} profile:")
     for row in phase_table(launches):
         log(row)
-    return {"startup_seconds": timings[len(timings) // 2]}
+    return sorted(timings)[len(timings) // 2]
+
+
+def measure_startup(executable: str, repetitions: int, cold: bool = False) -> dict:
+    """Startup on a profile nobody has used yet, warm unless `cold` is asked for."""
+    workspace = Workspace()
+    try:
+        return {"startup_seconds": time_launches(workspace, executable, workspace.page_url,
+                                                 repetitions, cold, ("first-frame",), "fresh")}
+    finally:
+        workspace.discard()
 
 
 class LivedInSite:
@@ -1181,38 +1191,27 @@ def build_lived_in(workspace: Workspace, site: LivedInSite, executable: str, see
     log(f"  lived-in profile: {directory_mib(data):.0f} MiB")
 
 
-def measure_lived_in(executable: str, repetitions: int, seeder: str, warm: bool = False) -> dict:
-    """Startup on a profile a reader has used for months, cold unless `warm` is asked for."""
-    seeder = lived_in_seeder(executable, seeder)
+def measure_lived_in(executable: str, repetitions: int, seeder: str, cold: bool = True,
+                     required: bool = False) -> dict:
+    """Startup on a profile a reader has used for months, cold unless warm is asked for."""
+    try:
+        seeder = lived_in_seeder(executable, seeder)
+    except Unavailable as error:
+        if required:
+            raise MeasurementFailed(f"{error}, and --require-lived-in says it may not skip") \
+                from error
+        raise
     os.makedirs(LIVED_IN_PARENT, exist_ok=True)
     workspace = Workspace(parent=str(LIVED_IN_PARENT))
     site = LivedInSite()
     site.start()
-    timings = []
-    launches = []
     try:
         build_lived_in(workspace, site, executable, seeder)
-        engine_files = set() if warm else learn_mapped_files(workspace, executable, "")
-        for index in range(repetitions):
-            browser = workspace.browser(executable)
-            try:
-                if not warm:
-                    evict([*engine_files, executable, workspace.root])
-                browser.start("")
-                timings.append(browser.startup_seconds)
-                launches.append(browser.await_phases(LIVED_IN_AWAITED))
-                log(f"  launch {index + 1}: {browser.startup_seconds:.3f} s")
-            finally:
-                browser.stop()
-                time.sleep(SETTLE)
+        return {"startup_lived_in_seconds": time_launches(
+            workspace, executable, "", repetitions, cold, LIVED_IN_AWAITED, "lived-in")}
     finally:
         site.stop()
         workspace.discard()
-    log(f"  phases, {'warm' if warm else 'cold'}, lived-in profile:")
-    for row in phase_table(launches):
-        log(row)
-    timings.sort()
-    return {"startup_lived_in_seconds": timings[len(timings) // 2]}
 
 
 def measure_memory(executable: str) -> dict:
@@ -2303,7 +2302,8 @@ MEASUREMENTS = {
                                                  cold=arguments.cache == "cold"),
     "livedin": lambda arguments: measure_lived_in(arguments.browser, arguments.repetitions,
                                                   arguments.seeder,
-                                                  warm=arguments.cache == "warm"),
+                                                  cold=arguments.cache != "warm",
+                                                  required=arguments.require_lived_in),
     "memory": lambda arguments: measure_memory(arguments.browser),
     "spaces": lambda arguments: measure_spaces(arguments.browser, arguments.spaces),
     "freezing": lambda arguments: measure_freezing(arguments.browser),
@@ -2371,12 +2371,14 @@ def main() -> int:
     parser.add_argument("--browser", default="build/dev/omaweb", help="the browser to measure")
     parser.add_argument("--repetitions", type=int, default=3,
                         help="launches to take the median startup from")
-    parser.add_argument("--cache", choices=("cold", "warm"), default="",
+    parser.add_argument("--cache", choices=("cold", "warm"), default=None,
                         help="evict the browser's files from the page cache before each launch, or "
                         "not; startup is warm and livedin cold by default, as their budgets are")
     parser.add_argument("--seeder", default="",
                         help="the omaweb-lived-in-session that seeds livedin's session, found "
                         "beside the browser or in build/ci by default")
+    parser.add_argument("--require-lived-in", action="store_true",
+                        help="fail livedin rather than skip it where no seeder is built")
     parser.add_argument("--spaces", type=int, default=4,
                         help="how many Spaces to open, the first one included")
     parser.add_argument("--require-dns", action="store_true",

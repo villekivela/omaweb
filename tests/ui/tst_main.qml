@@ -7897,7 +7897,7 @@ TestCase {
         const pinnedList = findChild(privateBrowser.contentItem, "pinnedList");
         // Settings, which holds the button, is built after the window's
         // first frame.
-        privateBrowser.settingsPage();
+        privateBrowser.buildSettings();
         const newSpaceButton = findChild(privateBrowser.contentItem, "newSpaceButton");
         const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
         const privateBadge = findChild(privateBrowser.contentItem, "privateBadge");
@@ -12854,7 +12854,6 @@ TestCase {
                 return engineHost.item !== null && engineHost.item !== before;
             });
             const engine = engineHost.item;
-            wait(50);
             compare(engine.currentUrl.toString(), "");
             pending.rulesPending = false;
             tryVerify(function () {
@@ -12862,6 +12861,58 @@ TestCase {
             });
         } finally {
             engineHost.blocker = blocker;
+        }
+    }
+
+    // A profile still loading its extensions, for the hold a page shares with
+    // the rules.
+    Component {
+        id: loadingExtensionsHostComponent
+
+        QtObject {
+            property int extensionLoadsPending: 1
+        }
+    }
+
+    Component {
+        id: heldEngineComponent
+
+        QtObject {
+            property url currentUrl: ""
+        }
+    }
+
+    // A page that waits on both its profile's extensions and the rules goes
+    // to its address only when neither is pending, whichever ends first.
+    function test_aPageWaitsForItsExtensionsAndTheRulesTogether() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const blocker = engineHost.blocker;
+        const url = "https://held-for-both.example/";
+        for (const last of ["rules", "extensions"]) {
+            const rules = createTemporaryObject(pendingRulesBlockerComponent, testCase);
+            const host = createTemporaryObject(loadingExtensionsHostComponent, testCase);
+            // Gone before what it waited on, as a page is before the browser's
+            // content blocking.
+            const engine = heldEngineComponent.createObject(testCase);
+            engineHost.blocker = rules;
+            try {
+                verify(engineHost.pageWaits(host));
+                engineHost.releaseWhenReady(engine, host, url);
+                if (last === "rules")
+                    host.extensionLoadsPending = 0;
+                else
+                    rules.rulesPending = false;
+                compare(engine.currentUrl.toString(), "", "released with " + last + " pending");
+                if (last === "rules")
+                    rules.rulesPending = false;
+                else
+                    host.extensionLoadsPending = 0;
+                compare(engine.currentUrl.toString(), url);
+            } finally {
+                engineHost.blocker = blocker;
+                engine.destroy();
+                wait(0);
+            }
         }
     }
 

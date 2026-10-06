@@ -5,6 +5,7 @@ import QtQuick.Effects
 import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
+import "SettingsAttention.mjs" as SettingsAttention
 
 // Settings is a place, not a dialog. It has outgrown a modal — filter lists, a
 // rule editor and download history in one scroll — so it takes the page area
@@ -188,10 +189,10 @@ Rectangle {
     // worth a notice: nothing composes and nothing says why.
     readonly property bool inputMethodMissing: !InputMethodReport.available
 
-    // Whether anything in here is waiting on the reader. The sidebar's settings
-    // button reads this, so a notice that lives on one section is still
-    // findable from outside it.
-    readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
+    // Whether anything in here is waiting on the reader, so a notice that
+    // lives on one section is still findable from outside it.
+    readonly property bool needsAttention: SettingsAttention.needed(keyboardReport,
+                                                                    !inputMethodMissing)
 
     // The keys the rest of the chrome finds a section by, and what the rail
     // calls each one, in the same order.

@@ -698,23 +698,24 @@ Item {
 
     // Whether a page built now waits before it is pointed at its address.
     function pageWaits(host) {
-        return (host !== null && host.extensionLoadsPending > 0) || (root.blocker !== null
-                                                                     && root.blocker.rulesPending
-                                                                     === true);
+        return Boolean(host && host.extensionLoadsPending > 0) || Boolean(root.blocker
+                                                                          && root.blocker.rulesPending);
     }
 
     function releaseWhenReady(engine, host, tabUrl) {
         let alive = true;
         const blocker = root.blocker;
+        // A profile host that hosts no extensions, as the UI lab's does, has
+        // no count to wait on.
+        const extensions = host && host.extensionLoadsPendingChanged ? host : null;
         const stopWaiting = function () {
-            if (host && host.extensionLoadsPendingChanged)
-                host.extensionLoadsPendingChanged.disconnect(release);
-            if (blocker && blocker.rulesPendingChanged)
+            if (extensions)
+                extensions.extensionLoadsPendingChanged.disconnect(release);
+            if (blocker)
                 blocker.rulesPendingChanged.disconnect(release);
         };
         const release = function () {
-            if ((host && host.extensionLoadsPending > 0) || (blocker && blocker.rulesPending
-                                                             === true))
+            if (root.pageWaits(host))
                 return;
             stopWaiting();
             if (alive && String(engine.currentUrl).length === 0)
@@ -724,9 +725,9 @@ Item {
             alive = false;
             stopWaiting();
         });
-        if (host && host.extensionLoadsPendingChanged)
-            host.extensionLoadsPendingChanged.connect(release);
-        if (blocker && blocker.rulesPendingChanged)
+        if (extensions)
+            extensions.extensionLoadsPendingChanged.connect(release);
+        if (blocker)
             blocker.rulesPendingChanged.connect(release);
     }
 

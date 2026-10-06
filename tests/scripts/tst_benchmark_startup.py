@@ -171,6 +171,23 @@ class SeederTest(unittest.TestCase):
                 runtime.lived_in_seeder(str(Path(directory) / "omaweb"), "")
 
 
+class RequireLivedInTest(unittest.TestCase):
+    """CI asks for the lived-in launch, so a build without the seeder fails there rather than
+    passing with one measurement fewer."""
+
+    def test_a_missing_seeder_fails_the_measurement_when_it_is_required(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(runtime, "ROOT", Path(directory)):
+            with self.assertRaises(runtime.MeasurementFailed):
+                runtime.measure_lived_in(str(Path(directory) / "omaweb"), 1, "", required=True)
+
+    def test_without_it_a_missing_seeder_is_a_skip(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(runtime, "ROOT", Path(directory)):
+            with self.assertRaises(runtime.Unavailable):
+                runtime.measure_lived_in(str(Path(directory) / "omaweb"), 1, "")
+
+
 class EvictTest(unittest.TestCase):
     """A cold launch reads what the browser maps, so that is what is dropped."""
 

@@ -1560,9 +1560,9 @@ the window's mapping comes from, against the moment they started the process:
 | `first-request`           | the restored page's first request reaches content blocking             |
 | `extension-loaded`        | the profile's first extension has loaded                               |
 
-The last three follow the window rather than hold it. A restored page waits for the last two before
-it is pointed at its address, so its first request is checked against the reader's rules and runs
-their password manager.
+The last three follow the window rather than hold it. A restored page waits for `rules-compiled` and
+`extension-loaded` before it is pointed at its address, so its first request is checked against the
+reader's rules and runs their password manager.
 
 `--cache cold` drops every file the browser's processes map, its binary and the profile from the
 page cache before each launch, with `posix_fadvise`, and learns what they map from one launch that

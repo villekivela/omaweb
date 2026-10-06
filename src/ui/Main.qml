@@ -6,6 +6,7 @@ import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
 import "DevicePixels.mjs" as DevicePixels
+import "SettingsAttention.mjs" as SettingsAttention
 
 ApplicationWindow {
     id: window
@@ -372,11 +373,11 @@ ApplicationWindow {
                                                  && window.downloadQuestion.disposition
                                                  !== BrowserController.SaveDownloadAs
     property bool settingsOpen: false
-    // What Settings' button is marked for, which is the page's own notices:
-    // read here, because the mark is on show before the page is built.
-    readonly property bool settingsNeedAttention: (keyboardNavigation
-                                                   && keyboardNavigation.errorMessage.length > 0)
-                                                  || !InputMethodReport.available
+    // What Settings' button is marked for, read here because the mark is on
+    // show before the page is built.
+    readonly property bool settingsNeedAttention: SettingsAttention.needed(keyboardNavigation
+                                                                           ? keyboardNavigation.errorMessage :
+                                                                             "", InputMethodReport.available)
     property bool historyOpen: false
     property bool shortcutsOpen: false
     // A page's new-tab request opens a Glance over the page, unless the reader
@@ -809,38 +810,33 @@ ApplicationWindow {
         }
     }
 
-    // The Settings page, built now if it has not been yet.
-    function settingsPage() {
+    // Builds the Settings page now if it has not been built yet, rather than
+    // a piece at a time, and gives it back.
+    function buildSettings() {
         settingsLoader.asynchronous = false;
         settingsLoader.active = true;
         return settingsLoader.item;
     }
 
-    function requestDownloads() {
+    function requestSettingsSection(name) {
         window.historyOpen = false;
-        const settings = window.settingsPage();
-        const downloads = settings.sections.indexOf("downloads");
-        if (downloads >= 0)
-            settings.section = downloads;
+        const settings = window.buildSettings();
+        const section = settings.sections.indexOf(name);
+        if (section >= 0)
+            settings.section = section;
         window.settingsOpen = true;
+    }
+
+    function requestDownloads() {
+        window.requestSettingsSection("downloads");
     }
 
     function requestPutAwaySetting() {
-        window.historyOpen = false;
-        const settings = window.settingsPage();
-        const interfaceSection = settings.sections.indexOf("interface");
-        if (interfaceSection >= 0)
-            settings.section = interfaceSection;
-        window.settingsOpen = true;
+        window.requestSettingsSection("interface");
     }
 
     function requestSync() {
-        window.historyOpen = false;
-        const settings = window.settingsPage();
-        const syncSection = settings.sections.indexOf("sync");
-        if (syncSection >= 0)
-            settings.section = syncSection;
-        window.settingsOpen = true;
+        window.requestSettingsSection("sync");
     }
 
     function requestHistory() {
@@ -1077,7 +1073,7 @@ ApplicationWindow {
     // A Glance stands over one tab and ends with it: a switch to another tab or
     // Space, the tab closing, or a sheet taking the page area.
     onSettingsOpenChanged: if (settingsOpen) {
-                               window.settingsPage();
+                               window.buildSettings();
                                window.closeGlance();
                            }
     onHistoryOpenChanged: if (historyOpen)
@@ -3111,7 +3107,7 @@ ApplicationWindow {
                 onTabActivated: function (tabId) {
                     window.windowBrowser.activateTab(tabId);
                     if (window.settingsOpen)
-                        window.settingsPage().forceActiveFocus();
+                        window.buildSettings().forceActiveFocus();
                 }
                 onTabCloseRequested: function (tabId) {
                     window.windowBrowser.closeTab(tabId);

@@ -793,6 +793,7 @@ set(omaweb_ui_files
     src/ui/DeveloperToolsDock.qml
     src/ui/DevicePixels.mjs
     src/ui/SceneColour.mjs
+    src/ui/SettingsAttention.mjs
     src/ui/DownloadMark.qml
     src/ui/ExtensionMark.qml
     src/ui/FindBar.qml

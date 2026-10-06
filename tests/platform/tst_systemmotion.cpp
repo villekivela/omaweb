@@ -44,7 +44,9 @@ void SystemMotionTest::readsHyprlandsAnimationsSwitch()
         hyprlandAsksToReduceMotion(R"({"option": "animations:enabled", "int": 0, "set": true})"));
     QVERIFY(
         !hyprlandAsksToReduceMotion(R"({"option": "animations:enabled", "int": 1, "set": false})"));
-    // Hyprland 0.56 answers a boolean option as `bool`, spaced as it sends it.
+    // Hyprland 0.56 answers a boolean option as `bool`. The answer with animations on is the
+    // one `hyprctl -j getoption animations:enabled` gave on 0.56.2, spacing and all; the one
+    // with them off is that answer with the value turned.
     QVERIFY(hyprlandAsksToReduceMotion(
         R"({"option": "animations:enabled", "bool": false, "set": true })"));
     QVERIFY(!hyprlandAsksToReduceMotion(

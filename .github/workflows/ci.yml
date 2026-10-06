@@ -353,17 +353,20 @@ jobs:
           -DOMAWEB_KNOWN_EXTENSIONS=ON'
       - name: Check the build found the patched engine
         run: scripts/check_omaweb_engine.sh build/ci
-      # The browser and the catalogues it reads, without the test binaries.
+      # The browser and the catalogues it reads, and the seeder of the lived-in
+      # profile, without the test binaries.
       - name: Build the browser
-        run: su builder -c 'cmake --build --preset ci --target omaweb-browser omaweb-translations'
+        run:
+          su builder -c 'cmake --build --preset ci --target omaweb-browser omaweb-translations
+          omaweb-lived-in-session'
       - name: Report the compiler cache
         if: ${{ !cancelled() }}
         run: CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" ccache --show-stats --verbose
-      # Process start to the window mapping, the proportional set size of the
-      # process tree at rest and with Spaces open, whether a frozen Space's
-      # pages are still running, what Content blocking adds to a page load,
-      # how soon that page first paints, and what 20 and 50 live tabs hold and
-      # the CPU they use at rest. There is no GPU here, so the paint is a
+      # Process start to the window mapping, on a fresh profile and, cold, on a
+      # lived-in one, the proportional set size of the process tree at rest
+      # and with Spaces open, whether a frozen Space's pages are still running,
+      # what Content blocking adds to a page load, how soon that page first
+      # paints, and what 20 and 50 live tabs hold and the CPU they use at rest. There is no GPU here, so the paint is a
       # software rasteriser's: it is held against this runner's own recording
       # to catch a regression, not to say what a reader sees.
       #
@@ -376,7 +379,7 @@ jobs:
       #
       # `--require-dns` fails the page-load measurement where a developer's
       # machine would skip it, so the budget cannot quietly stop measuring
-      # here.
+      # here, and `--require-lived-in` does the same for the lived-in launch.
       #
       # The page loads resolve their hosts through dnsmasq. On a developer's
       # machine the script makes a private network for it, but this container
@@ -389,7 +392,7 @@ jobs:
           rm -f /tmp/budget.status
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
           cat >> /tmp/measure.sh <<'SCRIPT'
-          scripts/benchmark_runtime.py --browser build/ci/omaweb-browser --require-dns
+          scripts/benchmark_runtime.py --browser build/ci/omaweb-browser --require-dns --require-lived-in
           echo $? > /tmp/budget.status
           SCRIPT
           chmod 0755 /tmp/measure.sh
