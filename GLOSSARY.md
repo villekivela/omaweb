@@ -99,9 +99,14 @@ that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
 
 **Scene**: The drawing behind the Start page, and nothing else: the host sizes it, keeps its clock
 and shows it, through the CRT glass when it declares one. A Scene may also name the light it casts,
-which the host lays on the page, as the website's Omnibar catches the sun at its rim. The CRT road
-is the one Omaweb ships, a night drive in the theme's colours that the website draws from the same
-parameter file, `share/scenes/crt-road.json`. _Avoid_: Wallpaper, background
+which the host lays on the page, as the website's Omnibar catches the sun at its rim. Omaweb ships
+three, and the reader chooses one in Settings, or None for the sidebar's fill. The night road, the
+CRT road, is a night drive in the theme's colours that the website draws from the same parameter
+file, `share/scenes/crt-road.json`. The night sky, `share/scenes/night-sky.json`, is a star field
+with comets falling behind a dark planet's limb, after Netscape Navigator's throbber. The Game of
+Life, `share/scenes/game-of-life.json`, is Conway's cellular automaton, a cell to each of the
+Scene's pixels, kept alive by random soups and glider guns. Only the browser draws the sky and the
+Game of Life. _Avoid_: Wallpaper, background
 
 **Shortcut sheet**: The browser's keyboard commands and the keys that run them, read from the live
 keymap. `?` or `Primary+/` summons it over a page or over the Start page, and `Escape` closes it.

@@ -44,10 +44,22 @@ Rectangle {
     readonly property var privateExclusions: ["pin-tab", "move-tab", "next-space", "select-space",
         "new-space"]
 
-    // Rebuilt whenever the keymap is: reading `browserBindings` here is what
-    // makes an edited keyboard configuration reach the sheet, since the keys
-    // themselves come from a function call QML cannot watch.
-    readonly property var sections: {
+    // Whether the list is worked out: while the sheet is open, and once at
+    // the start, so the first opening finds its rows built.
+    readonly property bool listing: root.open || !root.primed
+    property bool primed: false
+
+    // Worked out again whenever the keymap or what the registry offers
+    // changes while the sheet is listing: reading `browserBindings` here is
+    // what makes an edited keyboard configuration reach the sheet, since the
+    // keys themselves come from a function call QML cannot watch. Otherwise
+    // it lists nothing and depends on `listing` alone. Asking the registry
+    // about every command costs a Space switch about a frame, because the
+    // registry's answers change with the page on show (#594); opening works
+    // the list out again.
+    readonly property var listed: {
+        if (!root.listing)
+            return [];
         // Read for the dependency alone: the keys come from keysFor(), and a
         // function call is not something QML can watch for changes.
         void (root.keymap ? root.keymap.browserBindings : null);
@@ -61,19 +73,18 @@ Rectangle {
                     continue;
                 if (root.privateWindow && root.privateExclusions.indexOf(command) !== -1)
                     continue;
-                // A command the engine or the window cannot carry out here has
-                // no key worth promising. The command registry decides that,
-                // so the sheet and the Omnibar cannot disagree.
-                if (root.commands && !root.commands.available(command))
-                    continue;
                 const keys = root.keymap ? root.keymap.keysFor(command) : "";
                 // A command with no binding is reachable from the command
                 // panel and has nothing to say on a sheet of keys.
                 if (keys.length === 0)
                     continue;
+                // A command the engine or the window cannot carry out here has
+                // no key worth promising. The command registry decides that,
+                // so the sheet and the Omnibar cannot disagree.
                 entries.push({
                                  "title": descriptions[command].title,
-                                 "keys": keys
+                                 "keys": keys,
+                                 "available": !root.commands || root.commands.available(command)
                              });
             }
             if (entries.length > 0)
@@ -84,6 +95,68 @@ Rectangle {
         }
         return list;
     }
+
+    // Each group with the commands the sheet promises, the ones on offer
+    // here. `listed` keeps the rest too, so a command that comes and goes, as
+    // a page's do over the Start page, hides its row rather than taking it
+    // away and building it again (#594).
+    function offered(groups) {
+        const list = [];
+        for (const section of groups) {
+            const entries = section.entries.filter(function (entry) {
+                return entry.available;
+            });
+            if (entries.length > 0)
+                list.push({
+                              "group": section.group,
+                              "entries": entries
+                          });
+        }
+        return list;
+    }
+
+    readonly property var sections: root.offered(root.listed)
+
+    // What the sheet lays out, and the width it lays it out at: `sections`
+    // and `width` as they were when the sheet was last listing. A closed
+    // sheet that followed `width` would measure, pack and build its columns
+    // whenever the page area settled at a new width, and the sidebar sliding
+    // at that moment would wait on it (#594). Opening works `sections` out
+    // again, which takes both before the sheet's first frame. Closing keeps
+    // them, so the sheet drops away as it was drawn and opens again on rows
+    // already built.
+    property var laidOutListed: []
+    readonly property var laidOutSections: root.offered(root.laidOutListed)
+    property real layoutWidth: 0
+
+    function takeLayout() {
+        if (!root.listing)
+            return;
+        // `sections` is a new list whenever anything it reads changes, often
+        // with the same entries, and a new list rebuilds every row, so an
+        // unchanged one is kept.
+        // A group that came out the same keeps the list its rows were built
+        // from, so only the groups that changed build theirs again.
+        if (JSON.stringify(root.listed) !== JSON.stringify(root.laidOutListed)) {
+            const kept = ({});
+            for (const section of root.laidOutListed)
+                kept[section.group] = section;
+            root.laidOutListed = root.listed.map(function (section) {
+                const old = kept[section.group];
+                return old && JSON.stringify(old) === JSON.stringify(section) ? old : section;
+            });
+        }
+        root.layoutWidth = root.width;
+        // A keymap or a registry that fills in after the sheet is made, and
+        // a window not yet given its width, are still laid out before the
+        // sheet stops listing.
+        if (root.listed.length > 0 && root.width > 0)
+            root.primed = true;
+    }
+
+    onListedChanged: takeLayout()
+    onWidthChanged: takeLayout()
+    Component.onCompleted: takeLayout()
 
     function groupLabel(name) {
         switch (name) {
@@ -155,8 +228,8 @@ Rectangle {
     // without one.
     function widestOf(measure, field) {
         let widest = 0;
-        for (let group = 0; group < root.sections.length; ++group) {
-            const entries = root.sections[group].entries;
+        for (let group = 0; group < root.laidOutSections.length; ++group) {
+            const entries = root.laidOutSections[group].entries;
             for (let index = 0; index < entries.length; ++index)
                 widest = Math.max(widest, measure(entries[index][field]));
         }
@@ -188,19 +261,19 @@ Rectangle {
     // cannot run away on a wide display, and there is nothing left to guess.
     readonly property int minimumColumnWidth: root.keyColumnWidth + root.keyGap
                                               + root.titleColumnWidth
-    readonly property int availableWidth: Math.max(0, root.width - root.sideMargin * 2)
+    readonly property int availableWidth: Math.max(0, root.layoutWidth - root.sideMargin * 2)
 
     // How many of those fit, never more than there are groups to put in them.
     // There is no threshold constant: the answer is a function of the type, so
     // it stays right when the theme changes its size, and it reaches one column
     // in a narrow window by the same arithmetic rather than by a special case.
     readonly property int columnCount: {
-        if (root.sections.length === 0)
+        if (root.laidOutSections.length === 0)
             return 1;
         const fits = Math.floor((root.availableWidth + root.columnGap) / Math.max(1,
                                                                                   root.minimumColumnWidth
                                                                                   + root.columnGap));
-        return Math.max(1, Math.min(root.sections.length, fits));
+        return Math.max(1, Math.min(root.laidOutSections.length, fits));
     }
 
     readonly property int columnWidth: Math.max(1, Math.min(root.minimumColumnWidth,
@@ -286,7 +359,85 @@ Rectangle {
         return packed;
     }
 
-    readonly property var layoutColumns: root.packColumns(root.sections, root.columnCount)
+    readonly property var layoutColumns: root.packColumns(root.laidOutSections, root.columnCount)
+
+    // A group's label, measured once rather than read off a block.
+    SectionLabel {
+        id: labelRuler
+        visible: false
+        width: root.columnWidth
+        colors: root.colors
+        text: root.groupLabel(root.groups[0])
+    }
+
+    // Brings `model` in step with `entries`, which keep the registry's order,
+    // by removing the rows that went and inserting the ones that came, and
+    // changing the keys and whether a row is on offer in place.
+    function keepRows(model, entries) {
+        let row = 0;
+        for (let index = 0; index < entries.length; ++index) {
+            const entry = entries[index];
+            let found = -1;
+            for (let look = row; look < model.count; ++look) {
+                if (model.get(look).title === entry.title) {
+                    found = look;
+                    break;
+                }
+            }
+            if (found < 0) {
+                model.insert(row, {
+                                 "title": entry.title,
+                                 "keys": entry.keys,
+                                 "available": entry.available
+                             });
+            } else {
+                if (found > row)
+                    model.remove(row, found - row);
+                if (model.get(row).keys !== entry.keys)
+                    model.setProperty(row, "keys", entry.keys);
+                if (model.get(row).available !== entry.available)
+                    model.setProperty(row, "available", entry.available);
+            }
+            ++row;
+        }
+        if (model.count > row)
+            model.remove(row, model.count - row);
+    }
+
+    function sectionOf(group) {
+        for (let index = 0; index < root.laidOutListed.length; ++index) {
+            if (root.laidOutListed[index].group === group)
+                return root.laidOutListed[index];
+        }
+        return null;
+    }
+
+    // Where each group's block stands: its column, and how far down it, under
+    // the groups packed above it. A block is its label and its rows, with the
+    // entry gap between each.
+    readonly property var placements: {
+        const places = ({});
+        let height = 0;
+        for (let column = 0; column < root.layoutColumns.length; ++column) {
+            let y = 0;
+            const sections = root.layoutColumns[column];
+            for (let index = 0; index < sections.length; ++index) {
+                if (index > 0)
+                    y += root.groupGap;
+                places[sections[index].group] = {
+                    "column": column,
+                    "y": y
+                };
+                const rows = sections[index].entries.length;
+                y += labelRuler.height + rows * (root.rowHeight + root.entryGap);
+            }
+            height = Math.max(height, y);
+        }
+        return {
+            "places": places,
+            "height": height
+        };
+    }
 
     visible: open
     // The sheet can be drawn after it closes, for the length of its drop, and
@@ -394,92 +545,106 @@ Rectangle {
                 }
             }
 
-            Row {
+            // Every group the sheet can show has a block of its own, built
+            // once, which the packing places rather than builds: a width
+            // that holds another number of columns moves the blocks, and a
+            // group whose commands change builds its own rows again and no
+            // one else's. An opening that rebuilt every row held its first
+            // frame for as long as the whole sheet takes to build (#594).
+            Item {
                 id: columns
-                spacing: root.columnGap
+                width: root.gridWidth
+                height: root.placements.height
 
                 Repeater {
-                    model: root.layoutColumns
+                    model: root.groups
 
                     Column {
-                        id: columnBlock
+                        id: groupBlock
 
-                        required property var modelData
+                        required property string modelData
+                        readonly property var section: root.sectionOf(modelData)
+                        // The rows, kept in step with the group's entries
+                        // one row at a time: a command that comes or goes
+                        // builds or removes its own row, and the rest stay.
+                        ListModel {
+                            id: rows
+                        }
+                        onSectionChanged: root.keepRows(rows, section ? section.entries : [])
+                        Component.onCompleted: root.keepRows(rows, section ? section.entries : [])
+                        readonly property var place: root.placements.places[modelData] || ({
+                                                                                               "column": 0,
+                                                                                               "y": 0
+                                                                                           })
 
+                        // A group with nothing on offer here is not packed.
+                        visible: root.placements.places[modelData] !== undefined
+                        x: place.column * (root.columnWidth + root.columnGap)
+                        y: place.y
                         width: root.columnWidth
-                        spacing: root.groupGap
+                        spacing: root.entryGap
+
+                        SectionLabel {
+                            width: parent.width
+                            colors: root.colors
+                            text: root.groupLabel(groupBlock.modelData)
+                        }
 
                         Repeater {
-                            model: columnBlock.modelData
+                            model: rows
 
-                            Column {
-                                id: groupBlock
+                            // The key comes first and in the accent: the
+                            // reader is here to find which key runs a
+                            // command, and a column of keys is what they can
+                            // scan. The rule under each row is what lets a
+                            // key and its command be read across a gap this
+                            // wide.
+                            Item {
+                                id: entryRow
 
-                                required property var modelData
+                                required property string title
+                                required property string keys
+                                required property bool available
 
-                                width: root.columnWidth
-                                spacing: root.entryGap
+                                // Hidden while its command is not on offer:
+                                // the column leaves it out.
+                                visible: available
+                                width: parent.width
+                                height: root.rowHeight
+                                Accessible.role: Accessible.StaticText
+                                Accessible.name: title + ": " + keys
 
-                                SectionLabel {
-                                    width: parent.width
+                                // The keys are the website's key caps, one to
+                                // a key, so the same command reads the same
+                                // way here as in the Omnibar's hint row.
+                                KeyCaps {
+                                    id: entryKeys
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
                                     colors: root.colors
-                                    text: root.groupLabel(groupBlock.modelData.group)
+                                    iconFontFamily: root.iconFontFamily
+                                    plate: root.colors.windowOpaque
+                                    keys: entryRow.keys
                                 }
 
-                                Repeater {
-                                    model: groupBlock.modelData.entries
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: root.keyColumnWidth + root.keyGap
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: entryRow.title
+                                    color: root.colors.text
+                                    elide: Text.ElideRight
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.body
+                                }
 
-                                    // The key comes first and in the accent:
-                                    // the reader is here to find which key runs
-                                    // a command, and a column of keys is what
-                                    // they can scan. The rule under each row is
-                                    // what lets a key and its command be read
-                                    // across a gap this wide.
-                                    Item {
-                                        id: entryRow
-
-                                        required property var modelData
-
-                                        width: parent.width
-                                        height: root.rowHeight
-                                        Accessible.role: Accessible.StaticText
-                                        Accessible.name: modelData.title + ": " + modelData.keys
-
-                                        // The keys are the website's key
-                                        // caps, one to a key, so the same
-                                        // command reads the same way here as
-                                        // in the Omnibar's hint row.
-                                        KeyCaps {
-                                            id: entryKeys
-                                            anchors.left: parent.left
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            colors: root.colors
-                                            iconFontFamily: root.iconFontFamily
-                                            plate: root.colors.windowOpaque
-                                            drawn: root.open
-                                            keys: entryRow.modelData.keys
-                                        }
-
-                                        Text {
-                                            anchors.left: parent.left
-                                            anchors.leftMargin: root.keyColumnWidth + root.keyGap
-                                            anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: entryRow.modelData.title
-                                            color: root.colors.text
-                                            elide: Text.ElideRight
-                                            font.family: Style.font.family
-                                            font.pixelSize: Style.font.body
-                                        }
-
-                                        Rectangle {
-                                            anchors.left: parent.left
-                                            anchors.right: parent.right
-                                            anchors.bottom: parent.bottom
-                                            height: Style.spacing.hairline
-                                            color: root.colors.separator
-                                        }
-                                    }
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    height: Style.spacing.hairline
+                                    color: root.colors.separator
                                 }
                             }
                         }

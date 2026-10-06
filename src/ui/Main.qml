@@ -208,11 +208,18 @@ ApplicationWindow {
     // does, with no limit, since nothing is loading yet.
     readonly property bool projectAddressAwaited: window.windowBrowser.activeSpaceAwaitsAddress
                                                   === true
-    // Whether the Start page draws its road. Local to this installation, like
-    // the Glance: Sync carries neither.
-    property bool startPageRoad: true
-    // Whether the road is shown through its CRT glass. Local the same way.
+    // The Scene the Start page stands on, by its id: "crt-road", "night-sky",
+    // "game-of-life", or "none" for the sidebar's fill. Local to this
+    // installation, like the Glance: Sync carries neither.
+    property string startPageScene: "crt-road"
+    // Whether the Scene is shown through its CRT glass. Local the same way.
     property bool startPageGlass: true
+    readonly property var startPageScenes: ["crt-road", "night-sky", "game-of-life", "none"]
+    // The window whose Scene settings this one shows and changes: a Private
+    // window keeps no preferences, so it follows the ordinary window's.
+    readonly property var sceneSettingsWindow: window.privateWindow && window.opener
+                                               ? window.opener : window
+
     // What a bar over the page blurs under its ground: the Start page or the
     // page on show, and nothing over a blank viewport. In a split the Start
     // page fills one pane, and the page host holds both.
@@ -1931,8 +1938,14 @@ ApplicationWindow {
         window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
                 === "true";
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
-        window.startPageRoad = window.windowBrowser.preference("start-page-road", "true")
-                === "true";
+        // Before there was a choice the road was a switch, and a reader who
+        // turned it off arrives on None.
+        const scene = window.windowBrowser.preference("start-page-scene", "");
+        if (window.startPageScenes.indexOf(scene) >= 0)
+            window.startPageScene = scene;
+        else
+            window.startPageScene = window.windowBrowser.preference("start-page-road", "true")
+                    === "false" ? "none" : "crt-road";
         window.startPageGlass = window.windowBrowser.preference("start-page-glass", "true")
                 === "true";
         window.sidebarSide = window.windowBrowser.preference("sidebar-side", "left") === "right"
@@ -1949,9 +1962,9 @@ ApplicationWindow {
         window.windowBrowser.setPreference("floating-controls", enabled ? "true" : "false");
     }
 
-    function setStartPageRoad(enabled) {
-        window.startPageRoad = enabled;
-        window.windowBrowser.setPreference("start-page-road", enabled ? "true" : "false");
+    function setStartPageScene(scene) {
+        window.startPageScene = scene;
+        window.windowBrowser.setPreference("start-page-scene", scene);
     }
 
     function setStartPageGlass(enabled) {
@@ -1995,7 +2008,7 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
-            if (name === "floating-controls" || name === "glance" || name === "start-page-road" || name
+            if (name === "floating-controls" || name === "glance" || name === "start-page-scene" || name
                     === "start-page-glass" || name === "sidebar-side")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
@@ -2797,7 +2810,7 @@ ApplicationWindow {
             window.windowBrowser.stopAwaitingAddress(window.windowBrowser.activeSpaceId);
         const newTab = window.startPageSummoned;
         window.windowBrowser.cancelHistorySuggestions();
-        if (!window.startPageRoad) {
+        if (window.sceneSettingsWindow.startPageScene === "none") {
             window.windowBrowser.openInput(text, newTab);
             window.startPageSummoned = false;
             window.focusPage();
@@ -2839,7 +2852,8 @@ ApplicationWindow {
     Connections {
         target: window.windowBrowser
         function onAwaitedAddressLoaded(spaceId, tabId) {
-            if (spaceId !== window.windowBrowser.activeSpaceId || !window.startPageRoad)
+            if (spaceId !== window.windowBrowser.activeSpaceId
+                    || window.sceneSettingsWindow.startPageScene === "none")
                 return;
             window.startStartPageDrive(tabId);
         }
@@ -3632,8 +3646,9 @@ ApplicationWindow {
                     privateWindow: window.privateWindow
                     open: window.startPageShown
                     ease: window.chromeEase
-                    roadEnabled: window.startPageRoad
-                    glassEnabled: window.startPageGlass
+                    sceneId: window.sceneSettingsWindow.startPageScene
+                    omnibarReach: omnibar.restReach
+                    glassEnabled: window.sceneSettingsWindow.startPageGlass
                     reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
@@ -4174,7 +4189,18 @@ ApplicationWindow {
                 SettingsPage {
                     id: settingsSurface
                     objectName: "settingsSurface"
-                    anchors.fill: parent
+                    // As wide as the page area while it is drawn. Closed, it
+                    // keeps the width it was last drawn at: following the
+                    // page area would lay every row out again each time the
+                    // sidebar's slide settles, and the slide would wait on it
+                    // (#594). Opening takes the width before the first frame.
+                    height: parent.height
+                    Component.onCompleted: width = parent.width
+                    Binding on width {
+                        when: settingsLift.showing
+                        value: settingsSurface.parent.width
+                        restoreMode: Binding.RestoreNone
+                    }
                     z: 45
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
@@ -4223,8 +4249,8 @@ ApplicationWindow {
                     floatingControls: window.floatingControls
                     sidebarSide: window.sidebarSide
                     glanceEnabled: window.glanceEnabled
-                    startPageRoad: window.startPageRoad
-                    startPageGlass: window.startPageGlass
+                    startPageScene: window.sceneSettingsWindow.startPageScene
+                    startPageGlass: window.sceneSettingsWindow.startPageGlass
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -4274,11 +4300,11 @@ ApplicationWindow {
                     onGlanceToggled: function (enabled) {
                         window.setGlanceEnabled(enabled);
                     }
-                    onStartPageRoadToggled: function (enabled) {
-                        window.setStartPageRoad(enabled);
+                    onStartPageSceneChosen: function (scene) {
+                        window.sceneSettingsWindow.setStartPageScene(scene);
                     }
                     onStartPageGlassToggled: function (enabled) {
-                        window.setStartPageGlass(enabled);
+                        window.sceneSettingsWindow.setStartPageGlass(enabled);
                     }
                     onTintFaviconsToggled: function (enabled) {
                         window.setTintFavicons(enabled);

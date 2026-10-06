@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 import Omaweb
+import "SceneColour.mjs" as Colour
 
 // The CRT road, the Scene the Start page stands on: a night drive toward a
 // banded sun over a desert, its ground lit by the sun's glow, layered ridges,
@@ -63,22 +64,15 @@ Item {
 
     // ---- palette
 
-    function mixColour(from, to, amount) {
-        const a = Qt.color(from);
-        const b = Qt.color(to);
-        return Qt.rgba(a.r + (b.r - a.r) * amount, a.g + (b.g - a.g) * amount, a.b + (b.b - a.b)
-                       * amount, 1);
-    }
-
     // A night in the theme. A light theme's night is drawn from its dark
     // text, so the ground stays dark and the lit lines stay light.
     readonly property var roles: {
         const night = root.parameters.night;
-        const ground = root.dark ? Qt.color(root.colors.windowOpaque) : root.mixColour(root.colors.text,
-                                                                                       "black", night.lightThemeGround);
+        const ground = root.dark ? Qt.color(root.colors.windowOpaque) : Colour.mix(root.colors.text,
+                                                                                   "black", night.lightThemeGround);
         const light = Qt.color(root.dark ? root.colors.text : root.colors.windowOpaque);
-        const deep = root.mixColour(ground, "black", root.dark ? night.deep : night.deepLightTheme);
-        const glow = root.unlit ? root.mixColour(light, ground, 0.3) : Qt.color(root.colors.accent);
+        const deep = Colour.mix(ground, "black", root.dark ? night.deep : night.deepLightTheme);
+        const glow = root.unlit ? Colour.mix(light, ground, 0.3) : Qt.color(root.colors.accent);
         return {
             black: Qt.color("black"),
             white: Qt.color("white"),
@@ -86,10 +80,10 @@ Item {
             light: light,
             glow: glow,
             skyTop: deep,
-            skyLow: root.mixColour(ground, glow, night.skyLow),
-            groundNear: root.mixColour(deep, "black", night.groundNear),
-            sunTop: root.mixColour(light, "white", night.sunTop),
-            sunLow: root.mixColour(glow, light, night.sunLow)
+            skyLow: Colour.mix(ground, glow, night.skyLow),
+            groundNear: Colour.mix(deep, "black", night.groundNear),
+            sunTop: Colour.mix(light, "white", night.sunTop),
+            sunLow: Colour.mix(glow, light, night.sunLow)
         };
     }
 
@@ -97,35 +91,18 @@ Item {
     function colour(name) {
         if (typeof name === "string")
             return root.roles[name];
-        return root.mixColour(root.colour(name.mix[0]), root.colour(name.mix[1]), name.mix[2]);
-    }
-
-    // A colour at an alpha, for an item to draw.
-    function withAlpha(colour, alpha) {
-        const c = Qt.color(colour);
-        return Qt.rgba(c.r, c.g, c.b, alpha);
-    }
-
-    // A colour as the canvas takes it, at an alpha.
-    function css(colour, alpha) {
-        const c = Qt.color(colour);
-        return "rgba(" + Math.round(c.r * 255) + ", " + Math.round(c.g * 255) + ", " + Math.round(
-                    c.b * 255) + ", " + (alpha === undefined ? 1 : alpha) + ")";
+        return Colour.mix(root.colour(name.mix[0]), root.colour(name.mix[1]), name.mix[2]);
     }
 
     // A gradient's stops, from [position, colour] or [position, colour,
     // alpha], the alphas scaled by `scale`.
     function stops(gradient, list, scale) {
-        for (const stop of list)
-            gradient.addColorStop(stop[0], root.css(root.colour(stop[1]), (stop.length > 2 ? stop[2] :
-                                                                                             1) * (scale
-                                                                                                   === undefined
-                                                                                                   ? 1 : scale)));
+        const strength = scale === undefined ? 1 : scale;
+        for (const stop of list) {
+            const alpha = (stop.length > 2 ? stop[2] : 1) * strength;
+            gradient.addColorStop(stop[0], Colour.css(root.colour(stop[1]), alpha));
+        }
         return gradient;
-    }
-
-    function fraction(value) {
-        return value - Math.floor(value);
     }
 
     function wrap(value, span) {
@@ -134,8 +111,7 @@ Item {
 
     // A repeatable scatter: the same index always lands in the same place.
     function hash(index) {
-        const s = root.parameters.scatter;
-        return root.fraction(Math.sin(index * s[0] + s[1]) * s[2]);
+        return Colour.scatter(index, root.parameters.scatter);
     }
 
     // ---- geometry
@@ -179,7 +155,7 @@ Item {
             stops: p.light.rim.stops.map(function (stop) {
                 return {
                     position: stop[0],
-                    colour: root.withAlpha(root.colour(stop[1]), stop.length > 2 ? stop[2] : 1)
+                    colour: Colour.withAlpha(root.colour(stop[1]), stop.length > 2 ? stop[2] : 1)
                 };
             }),
             bloom: {
@@ -284,18 +260,16 @@ Item {
         // Stars, a few of them brighter, thinning toward the horizon.
         const st = p.stars;
         for (let index = 0; index < root.stars; ++index) {
-            const across = root.fraction(Math.sin(index * st.across[0]) * st.across[1]);
-            const high = Math.pow(root.fraction(Math.sin(index * st.height[0]) * st.height[1]),
-                                  st.heightPower);
+            const across = Colour.scatter(index, st.across);
+            const high = Math.pow(Colour.scatter(index, st.height), st.heightPower);
 
-
-            const bright = root.fraction(Math.sin(index * st.brightness[0]) * st.brightness[1]);
+            const bright = Colour.scatter(index, st.brightness);
             const brightest = bright > st.brightAbove;
             const size = brightest ? st.sizes.bright : bright > st.mediumAbove ? st.sizes.medium :
                                                                                  st.sizes.dim;
             const alpha = brightest ? 1 : (st.alpha.base + st.alpha.range * bright) * (1 - high
                                                                                        * st.alpha.horizonFade);
-            context.fillStyle = root.css(root.roles.light, alpha);
+            context.fillStyle = Colour.css(root.roles.light, alpha);
             context.fillRect(across * w, high * root.horizonY * st.reach, size, size);
         }
 
@@ -316,7 +290,7 @@ Item {
             context.lineTo(w, root.horizonY + 1);
             context.lineTo(0, root.horizonY + 1);
             context.closePath();
-            context.fillStyle = root.css(root.colour(layer.tone));
+            context.fillStyle = Colour.css(root.colour(layer.tone));
             context.fill();
         }
 
@@ -347,7 +321,7 @@ Item {
             context.fill();
         };
         for (const edge of p.road.edges)
-            wedge(edge.spread, root.css("black", edge.shade));
+            wedge(edge.spread, Colour.css("black", edge.shade));
         wedge(p.road.reflection.spread, root.stops(context.createLinearGradient(0, root.horizonY, 0,
                                                                                 h), p.road.reflection.stops));
 
@@ -356,42 +330,13 @@ Item {
         context.fillRect(0, root.horizonY - line / 2, w, line);
     }
 
-    // A canvas the Scene draws into in logical pixels, scaled to its own. It
-    // paints only while it can be seen; a paint asked for while it cannot is
-    // kept for when it can.
-    component Layer: Canvas {
-        id: layer
-
-        property var paintWith: function (context) {}
-        property bool stale: true
-
-        anchors.fill: parent
-        renderTarget: Canvas.Image
-        renderStrategy: Canvas.Immediate
-
-        function draw() {
-            layer.stale = true;
-            if (layer.visible)
-                layer.requestPaint();
-        }
-
-        onVisibleChanged: if (visible && stale)
-                              requestPaint()
-        onPaint: {
-            layer.stale = false;
-            const context = getContext("2d");
-            context.reset();
-            context.scale(1 / root.pitch, 1 / root.pitch);
-            layer.paintWith(context);
-        }
-    }
-
-    Layer {
+    SceneLayer {
         id: still
 
         readonly property string key: [root.width, root.height, root.roles.ground, root.roles.light,
             root.roles.glow, root.unlit, root.options.bands, root.options.road].join("/")
 
+        pitch: root.pitch
         paintWith: root.drawStill
         onKeyChanged: draw()
     }
@@ -455,12 +400,12 @@ Item {
                 orientation: Gradient.Horizontal
                 GradientStop {
                     position: 0
-                    color: root.withAlpha(root.roles.light, 0)
+                    color: Colour.withAlpha(root.roles.light, 0)
                 }
                 GradientStop {
                     position: 1
-                    color: root.withAlpha(root.colour(shootingStar.star.colour), 1
-                                          - shootingStar.run * shootingStar.star.fade)
+                    color: Colour.withAlpha(root.colour(shootingStar.star.colour), 1
+                                            - shootingStar.run * shootingStar.star.fade)
                 }
             }
         }
@@ -557,12 +502,13 @@ Item {
     // A radial glow from where the road meets the horizon, down to `reach`,
     // drawn once per size and theme at full strength and shown at the
     // strength asked for.
-    component Glow: Layer {
+    component Glow: SceneLayer {
         property var gradient
         property real radius: 0
         property real reach: 0
 
         visible: opacity > 0
+        pitch: root.pitch
         paintWith: function (context) {
             context.fillStyle = root.radial(context, root.vanishingX, root.horizonY, radius,
                                             gradient.stops);

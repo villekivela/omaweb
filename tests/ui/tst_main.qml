@@ -267,10 +267,12 @@ TestCase {
             window.setFloatingControls(true);
         if (window.sidebarSide !== "left")
             window.setSidebarSide("left");
-        if (!window.startPageRoad)
-            window.setStartPageRoad(true);
+        if (window.startPageScene !== "crt-road")
+            window.setStartPageScene("crt-road");
         if (!window.startPageGlass)
             window.setStartPageGlass(true);
+        if (fontSettings.interfaceFontSizeOverridden)
+            fontSettings.resetInterfaceFontSize();
         // Whatever the last test pressed, this one starts from the pointer and
         // a desktop that has not asked for reduced motion.
         InputOrigin.pointer = true;
@@ -282,6 +284,33 @@ TestCase {
         tryVerify(function () {
             return sidebar.visible && Math.round(sidebar.x) === 0;
         });
+        // So does the drop of a sheet or card the last test left open, and
+        // until it ends the sheet can take a click that lands on it: Settings
+        // and the site information card do. A test that clicked the page or
+        // the outline straight away hit the one still dropping whenever
+        // nothing else held the interface thread for the length of the drop.
+        for (const name of ["settingsSurface", "historySurface", "siteInformationCard",
+                            "shortcutSheet"]) {
+            const surface = findChild(window.contentItem, name);
+            tryVerify(function () {
+                return !surface.visible;
+            }, 5000, name + " was still dropping");
+        }
+    }
+
+    // What the Shortcut sheet lists, read with it open: a closed sheet lists
+    // nothing, so asking the registry costs nothing while it is away (#594).
+    // It is closed again, and its drop let finish, before the test goes on.
+    function shortcutSheetSections() {
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        verify(sheet !== null);
+        window.shortcutsOpen = true;
+        verify(sheet.open, "the Shortcut sheet did not open");
+        const sections = sheet.sections;
+        verify(sections.length > 0);
+        window.shortcutsOpen = false;
+        tryCompare(sheet, "visible", false);
+        return sections;
     }
 
     // A Download record outlives the test that made it, and every test here
@@ -1587,8 +1616,7 @@ TestCase {
         compare(browser.developerToolsTabId, "");
         compare(engine.inspectedElementCount, 0);
         verify(!dock.visible);
-        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
-        compare(shortcutSheet.sections.filter(function (section) {
+        compare(shortcutSheetSections().filter(function (section) {
             return section.group === "developer";
         }).length, 0);
 
@@ -1625,9 +1653,7 @@ TestCase {
 
         // The sheet of keys promises nothing it cannot carry out either, so the
         // registry is the only place that decides.
-        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
-        verify(shortcutSheet !== null);
-        const developerSections = shortcutSheet.sections.filter(function (section) {
+        const developerSections = shortcutSheetSections().filter(function (section) {
             return section.group === "developer";
         });
         compare(developerSections.length, 0);
@@ -3732,10 +3758,10 @@ TestCase {
         const keys = window.commands.keymap.keysFor("site-information");
         compare(keys, window.commands.keymap.displayFor("Primary+Shift+L"));
 
-        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const sections = shortcutSheetSections();
         let sheetKeys = "";
-        for (let group = 0; group < sheet.sections.length; ++group) {
-            const entries = sheet.sections[group].entries;
+        for (let group = 0; group < sections.length; ++group) {
+            const entries = sections[group].entries;
             for (let index = 0; index < entries.length; ++index) {
                 if (entries[index].title === "Site information")
                     sheetKeys = entries[index].keys;
@@ -5421,9 +5447,8 @@ TestCase {
         verify(listed["open-file"] !== undefined);
         compare(listed["open-file"].keys, "");
 
-        const sheet = findChild(window.contentItem, "shortcutSheet");
         const keysByTitle = {};
-        const tabs = sheet.sections.filter(function (section) {
+        const tabs = shortcutSheetSections().filter(function (section) {
             return section.group === "tabs";
         })[0];
         for (let index = 0; index < tabs.entries.length; ++index)
@@ -8449,6 +8474,9 @@ TestCase {
         browser.activateTab(leftTabId);
         verify(browser.addSplit(rightTabId));
         tryCompare(engineHost, "besideEngine", engineHost.engines[rightTabId]);
+        // The right pane arrives with a nudge, and in the middle of it the
+        // pane stands wherever the easing has it.
+        tryCompare(engineHost, "tabNudgeX", 0);
         engineHost.setLeftPaneWidth(401);
         verifyOnWholePixels(findChild(engineHost, "splitDivider"), "the split's divider", "x");
         verifyOnWholePixels(findChild(engineHost, "splitResizer"), "the split's handle", "x");
@@ -9865,6 +9893,72 @@ TestCase {
         });
     }
 
+    // A Private window's board is frozen, its cells dimmed, and the window
+    // beside it keeps its own board moving and lit.
+    function test_aPrivateWindowsBoardIsFrozen() {
+        window.setStartPageScene("game-of-life");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const startPage = findChild(privateBrowser.contentItem, "startPage");
+        tryVerify(function () {
+            return startPage.visible && startPage.sceneRunning;
+        });
+        const life = findChild(privateBrowser.contentItem, "gameOfLife");
+        verify(life !== null, "no board");
+        verify(life.unlit, "a lit board");
+        tryVerify(function () {
+            return life.population > 0;
+        }, 5000, "an empty board");
+        const frames = startPage.sceneFrames;
+        tryVerify(function () {
+            return startPage.sceneFrames > frames + 30;
+        });
+        compare(life.generation, 0);
+        verify(!findChild(window.contentItem, "gameOfLife").unlit);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
+    // A Private window shows the Scene the reader chose, and its sky has its
+    // lights out: its planet stays, without the glow on its limb, and there
+    // are no stars and no comets, under the glass all the same.
+    function test_aPrivateWindowsSkyHasItsLightsOut() {
+        window.setStartPageScene("night-sky");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        tryVerify(function () {
+            return findChild(privateBrowser.contentItem, "startPage").visible;
+        });
+        const sky = findChild(privateBrowser.contentItem, "nightSky");
+        const scene = findChild(privateBrowser.contentItem, "startPageScene");
+        verify(sky !== null);
+        verify(scene.visible);
+        verify(sky.unlit);
+        compare(sky.stars, 0);
+        verify(!sky.cometShown);
+        verify(!sky.limbGlows);
+        verify(findChild(scene, "crtGlass").visible);
+        verify(!findChild(window.contentItem, "nightSky").unlit);
+
+        // A choice made while it is open reaches it.
+        window.setStartPageScene("none");
+        verify(!scene.visible);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     function test_historyIsAFilteredBrowserOwnedSheet() {
         browser.recordVisit("https://history-sheet.example/first", "History sheet first");
         browser.recordVisit("https://other-sheet.example/second", "Other sheet");
@@ -10607,6 +10701,9 @@ TestCase {
         // the `checked` binding. Drive it from the keyboard, since that is how
         // this browser is meant to be reached, and on both of the kit's
         // activation keys.
+        // Settings is open to be used: a closed one takes neither the
+        // pointer nor the keyboard.
+        window.settingsOpen = true;
         window.requestActivate();
         tryVerify(function () {
             return window.active;
@@ -10619,6 +10716,7 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(keyboardNavigation.enabled, true);
         compare(keyboardNavigationEnabled.checked, true);
+        window.settingsOpen = false;
     }
 
     function activateWindow() {
@@ -11319,26 +11417,103 @@ TestCase {
         tryCompare(panel, "visible", false);
     }
 
-    // The Shortcut sheet holds a row for every command whether it is open or
-    // not. A closed sheet draws none of their key caps, which kept the rest of
-    // the window slow enough to miss clicks, and an open one draws them.
-    function test_aClosedShortcutSheetDrawsNoKeyCaps() {
+    // Settings and the site information card are drawn for the length of
+    // their drop, and by then the page is back beneath them, so a click in
+    // that time is the page's, as it is under the Shortcut sheet.
+    function test_aClickDuringADropIsThePages() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const card = findChild(window.contentItem, "siteInformationCard");
+        const engine = openPage("https://under-the-drop.example/");
+        settleMotion();
+        const page = createTemporaryObject(pageCursorComponent, engine);
+        verify(page !== null);
+
+        window.settingsOpen = true;
+        tryCompare(settings, "visible", true);
+        window.settingsOpen = false;
+        verify(settings.visible, "Settings was gone before the click");
+        mouseClick(page, page.width / 2, page.height / 2);
+        verify(settings.visible, "Settings was gone before the click");
+        compare(page.presses, 1, "Settings took a click while it dropped");
+        tryCompare(settings, "visible", false);
+
+        // The card is wider than the sidebar, so its far side stands over the
+        // page.
+        window.openSiteInformation("");
+        tryCompare(card, "visible", true);
+        const over = card.mapToItem(page, card.width - 20, card.height / 2);
+        verify(over.x > 0 && over.x < page.width, "the card does not reach over the page");
+        window.closeSiteInformation();
+        verify(card.visible, "the card was gone before the click");
+        mouseClick(page, over.x, over.y);
+        verify(card.visible, "the card was gone before the click");
+        compare(page.presses, 2, "the card took a click while it dropped");
+        tryCompare(card, "visible", false);
+    }
+
+    // Settings is as wide as the page area while it is on show. Closed, it
+    // keeps the width it was last drawn at, so the page area settling at a new
+    // width beside the sidebar does not lay every row of it out again, which
+    // held the sidebar's slide over its frame budget (#594). Opening it takes
+    // the page area's width before its first frame.
+    function test_aClosedSettingsPageKeepsItsWidth() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        verify(!settings.visible);
+        const width = settings.width;
+        const pageArea = settings.parent.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
+        tryVerify(function () {
+            return settings.parent.width !== pageArea;
+        });
+        compare(settings.width, width, "the closed Settings page took the page area's new width");
+
+        window.settingsOpen = true;
+        verify(settings.visible);
+        compare(settings.width, settings.parent.width);
+        window.settingsOpen = false;
+        tryCompare(settings, "visible", false);
+    }
+
+    // A closed Shortcut sheet keeps the rows and key caps it last laid out,
+    // ready for its next opening, and builds none of them again while it is
+    // closed: not when the page area takes a new width beside the sidebar,
+    // and not when a Space switch changes what the registry offers. A closed
+    // sheet that rebuilt them kept the rest of the window slow enough to miss
+    // clicks, and one that built them as it opened held its first frame over
+    // the budget (#594).
+    function test_aClosedShortcutSheetBuildsNoKeyCaps() {
         const sheet = findChild(window.contentItem, "shortcutSheet");
-        const capsIn = function () {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const caps = function () {
             return childrenNamed(sheet, "keycap").filter(function (cap) {
                 return cap.text.length > 0;
-            }).length;
+            });
         };
-        verify(!window.shortcutsOpen);
-        compare(capsIn(), 0);
         window.requestShortcuts();
         tryVerify(function () {
-            return window.shortcutsOpen && capsIn() > 0;
+            return window.shortcutsOpen && caps().length > 0;
         });
         window.shortcutsOpen = false;
+        tryCompare(sheet, "visible", false);
+        const before = caps();
+        verify(before.length > 0, "the closed sheet dropped its key caps");
+
+        const homeId = browser.activeSpaceId;
+        const otherId = browser.createSpace("Caps kept");
+        verify(browser.switchSpace(otherId));
+        openPage("https://caps-kept.example/");
+        const pageArea = engineHost.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
         tryVerify(function () {
-            return capsIn() === 0;
+            return engineHost.width !== pageArea;
         });
+        const after = caps();
+        compare(after.length, before.length);
+        for (let index = 0; index < before.length; ++index)
+            verify(after[index] === before[index], "the closed sheet built its key caps again");
+
+        verify(browser.switchSpace(homeId));
+        verify(browser.deleteSpace(otherId, "Caps kept"));
     }
 
     // A Space with nothing open in it has no page to show and no ordinary tab
@@ -11686,18 +11861,42 @@ TestCase {
         compare(origin.x, page.x);
     }
 
-    // The road moves only while the reader could see it: a window that has
+    // The Scenes the reader can choose, for the tests that hold every one of
+    // them to the road's rules.
+    function test_theStartPageDrawsNoFramesHiddenOrUnfocused_data() {
+        return [
+                    {
+                        tag: "road",
+                        scene: "crt-road",
+                        drawing: "nightRoad"
+                    },
+                    {
+                        tag: "sky",
+                        scene: "night-sky",
+                        drawing: "nightSky"
+                    },
+                    {
+                        tag: "life",
+                        scene: "game-of-life",
+                        drawing: "gameOfLife"
+                    }
+                ];
+    }
+
+    // A Scene moves only while the reader could see it: a window that has
     // lost the keyboard or gone from the screen schedules no frame for it.
-    function test_theStartPageDrawsNoFramesHiddenOrUnfocused() {
+    function test_theStartPageDrawsNoFramesHiddenOrUnfocused(data) {
         const startPage = findChild(window.contentItem, "startPage");
         const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene(data.scene);
         const restingSpaceId = enterRestingSpace("Resting frames");
+        verify(findChild(startPage, data.drawing) !== null, "no " + data.drawing);
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
-        let frames = startPage.roadFrames;
+        let frames = startPage.sceneFrames;
         tryVerify(function () {
-            return startPage.roadFrames > frames + 2;
+            return startPage.sceneFrames > frames + 2;
         });
 
         const other = createTemporaryObject(otherWindowComponent, testCase);
@@ -11706,57 +11905,63 @@ TestCase {
         tryVerify(function () {
             return !window.active;
         });
-        verify(!startPage.roadRunning);
-        frames = startPage.roadFrames;
+        verify(!startPage.sceneRunning);
+        frames = startPage.sceneFrames;
         wait(250);
-        compare(startPage.roadFrames, frames);
+        compare(startPage.sceneFrames, frames);
         other.close();
 
         activateWindow();
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
 
         window.hide();
         tryVerify(function () {
-            return !startPage.roadRunning;
+            return !startPage.sceneRunning;
         });
-        frames = startPage.roadFrames;
+        frames = startPage.sceneFrames;
         wait(250);
-        compare(startPage.roadFrames, frames);
+        compare(startPage.sceneFrames, frames);
         window.show();
         activateWindow();
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
 
         leaveSpace(homeSpaceId, restingSpaceId, "Resting frames");
     }
 
-    // A reader who asked for less motion gets a road that holds still: no
+    function test_reducedMotionHoldsTheSceneStill_data() {
+        return test_theStartPageDrawsNoFramesHiddenOrUnfocused_data();
+    }
+
+    // A reader who asked for less motion gets a Scene that holds still: no
     // clock, so no frame is drawn for it, and the glass without its band or
-    // flicker. The desktop's setting reaches the road through the window.
-    function test_reducedMotionHoldsTheRoadStill() {
+    // flicker. The desktop's setting reaches the Scene through the window.
+    function test_reducedMotionHoldsTheSceneStill(data) {
         const startPage = findChild(window.contentItem, "startPage");
         const glass = findChild(window.contentItem, "crtGlass");
         const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene(data.scene);
         const restingSpaceId = enterRestingSpace("Resting still");
+        verify(findChild(startPage, data.drawing) !== null, "no " + data.drawing);
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
 
         SystemMotion.reduced = true;
         verify(window.reducedMotion);
-        verify(!startPage.roadRunning);
-        const frames = startPage.roadFrames;
+        verify(!startPage.sceneRunning);
+        const frames = startPage.sceneFrames;
         wait(250);
-        compare(startPage.roadFrames, frames);
+        compare(startPage.sceneFrames, frames);
         compare(glass.flicker, 0);
         compare(glass.bandStrength, 0);
 
         SystemMotion.reduced = false;
         tryVerify(function () {
-            return startPage.roadRunning;
+            return startPage.sceneRunning;
         });
         leaveSpace(homeSpaceId, restingSpaceId, "Resting still");
     }
@@ -12062,47 +12267,342 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting sheet");
     }
 
-    // The road is the reader's to turn off, on this installation alone.
-    function test_settingsTurnsTheRoadOffLocally() {
+    // The reader chooses the Start page's Scene in Settings' interface
+    // section, on this installation alone: Night road, Night sky, or None,
+    // which leaves the Omnibar over the sidebar's fill. The choice takes effect
+    // at once.
+    function test_settingsChoosesTheStartPageScene() {
         const startPage = findChild(window.contentItem, "startPage");
-        const road = findChild(window.contentItem, "nightRoad");
+        const scene = findChild(window.contentItem, "startPageScene");
         const backdrop = findChild(window.contentItem, "startPageBackdrop");
         const settings = findChild(window.contentItem, "settingsSurface");
         const homeSpaceId = browser.activeSpaceId;
-        const restingSpaceId = enterRestingSpace("Resting road");
+        const restingSpaceId = enterRestingSpace("Resting scene");
         tryVerify(function () {
-            return road.visible;
+            return scene.visible && findChild(scene, "nightRoad") !== null;
         });
         verify(!backdrop.visible);
 
         window.settingsOpen = true;
         settings.section = settings.sections.indexOf("interface");
-        const toggle = findChild(settings, "startPageRoad");
-        verify(toggle !== null);
-        verify(toggle.checked);
-        toggle.clicked();
-        compare(browser.preference("start-page-road", "true"), "false");
+        const picker = findChild(settings, "startPageScenePicker");
+        verify(picker !== null);
+        compare(picker.value, "crt-road");
+        const sky = findChild(picker, "sceneThumbnail-night-sky");
+        // Settings has arrived, so a click lands on it.
+        tryVerify(function () {
+            return sky.visible && sky.width > 0 && settings.opacity === 1 && settings.lift === 0;
+        });
+        const miss = clickReportingAMiss(sky, function () {
+            return browser.preference("start-page-scene", "") === "night-sky";
+        });
+        verify(miss === "", miss);
+        compare(picker.value, "night-sky");
+
+        // The keyboard moves between the thumbnails, and Return chooses.
+        picker.forceActiveFocus();
+        keyClick(Qt.Key_Right);
+        compare(browser.preference("start-page-scene", ""), "night-sky");
+        keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "game-of-life");
+        keyClick(Qt.Key_Right);
+        keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "none");
+        keyClick(Qt.Key_Left);
+        keyClick(Qt.Key_Left);
+        keyClick(Qt.Key_Left);
+        keyClick(Qt.Key_Space);
+        compare(browser.preference("start-page-scene", ""), "crt-road");
+        const again = clickReportingAMiss(sky, function () {
+            return browser.preference("start-page-scene", "") === "night-sky";
+        });
+        verify(again === "", again);
         window.settingsOpen = false;
 
         tryVerify(function () {
             return startPage.open;
         });
-        verify(!road.visible);
+        verify(findChild(scene, "nightSky") !== null);
+        // The road the sky replaced is let go once the event loop turns.
+        tryVerify(function () {
+            return findChild(scene, "nightRoad") === null;
+        });
+        // Shown once the Start page has begun to fade in.
+        tryVerify(function () {
+            return scene.visible && startPage.sceneRunning;
+        });
+
+        window.setStartPageScene("none");
+        compare(browser.preference("start-page-scene", ""), "none");
+        verify(!scene.visible);
         tryVerify(function () {
             return backdrop.visible;
         });
-        verify(!startPage.roadRunning);
-
-        window.setStartPageRoad(true);
-        compare(browser.preference("start-page-road", "false"), "true");
-        verify(road.visible);
+        verify(!startPage.sceneRunning);
 
         // The stored choice is what the window follows, however it was made.
-        browser.setPreference("start-page-road", "false");
-        verify(!road.visible);
-        browser.setPreference("start-page-road", "true");
-        verify(road.visible);
-        leaveSpace(homeSpaceId, restingSpaceId, "Resting road");
+        browser.setPreference("start-page-scene", "night-sky");
+        verify(scene.visible);
+        verify(findChild(scene, "nightSky") !== null);
+        browser.setPreference("start-page-scene", "crt-road");
+        verify(findChild(scene, "nightRoad") !== null);
+        tryVerify(function () {
+            return findChild(scene, "nightSky") === null;
+        });
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting scene");
+    }
+
+    function test_theSkysPlanetStaysBelowTheOmnibar_data() {
+        return [
+                    {
+                        tag: "1360 x 860",
+                        width: 1360,
+                        height: 860,
+                        larger: 0
+                    },
+                    {
+                        tag: "1000 x 640",
+                        width: 1000,
+                        height: 640,
+                        larger: 0
+                    },
+                    {
+                        tag: "1800 x 1100",
+                        width: 1800,
+                        height: 1100,
+                        larger: 0
+                    },
+                    {
+                        tag: "larger type",
+                        width: 1360,
+                        height: 860,
+                        larger: 6
+                    }
+                ];
+    }
+
+    // The sky's planet lies wholly under the resting Omnibar: its top, the
+    // glow along its limb included, stands a small gap below the hint row's
+    // bottom edge, at any window size and type size, so its curve shows whole.
+    // The Omnibar keeps the place it has over the road.
+    function test_theSkysPlanetStaysBelowTheOmnibar(data) {
+        const width = window.width;
+        const height = window.height;
+        fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + data.larger);
+        const panel = findChild(window.contentItem, "omnibar");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting planet");
+        try {
+            window.width = data.width;
+            window.height = data.height;
+            tryCompare(window.contentItem, "height", data.height);
+            const restY = panel.restY;
+            window.setStartPageScene("night-sky");
+            const sky = findChild(scene, "nightSky");
+            verify(sky !== null);
+            compare(panel.restY, restY);
+            const bottom = function () {
+                return panel.restY + panel.restHeight;
+            };
+            const top = function () {
+                return scene.mapToItem(panel, 0, sky.planetTop).y;
+            };
+            tryVerify(function () {
+                return top() > bottom() + 4;
+            }, 1000, "planet's top " + top() + ", Omnibar's bottom " + bottom());
+            verify(top() < bottom() + 24, "planet's top " + top() + ", Omnibar's bottom " + bottom(
+                       ));
+        } finally {
+            leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
+            fontSettings.resetInterfaceFontSize();
+            window.width = width;
+            window.height = height;
+        }
+    }
+
+    // A reader who turned the road off before there was a choice arrives on
+    // None, and one who left it on, or never touched it, on the road.
+    function test_theRoadSwitchCarriesOverToTheScene_data() {
+        return [
+                    {
+                        tag: "switched off",
+                        road: "false",
+                        scene: "none"
+                    },
+                    {
+                        tag: "switched on",
+                        road: "true",
+                        scene: "crt-road"
+                    },
+                    {
+                        tag: "never switched",
+                        road: "",
+                        scene: "crt-road"
+                    }
+                ];
+    }
+
+    function test_theRoadSwitchCarriesOverToTheScene(data) {
+        browser.setPreference("start-page-scene", "");
+        browser.setPreference("start-page-road", data.road);
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, data.scene);
+        // A choice made since is the one that holds.
+        window.setStartPageScene("night-sky");
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, "night-sky");
+        window.setStartPageScene("game-of-life");
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, "game-of-life");
+        browser.setPreference("start-page-road", "");
+    }
+
+    // Settings offers the Scenes as a grid of thumbnails, four to a row where
+    // the pane has room, in a set order, None last. Game of Life's thumbnail
+    // is drawn twice as close as the others, so its gliders read. Choosing it
+    // stands the Start page on its board at once.
+    function test_settingsOffersTheScenesInAGrid() {
+        const scene = findChild(window.contentItem, "startPageScene");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        window.settingsOpen = true;
+        settings.section = settings.sections.indexOf("interface");
+        const picker = findChild(settings, "startPageScenePicker");
+        compare(picker.columns, 4);
+        const order = ["crt-road", "night-sky", "game-of-life", "none"];
+        const thumbnails = order.map(function (value) {
+            const thumbnail = findChild(picker, "sceneThumbnail-" + value);
+            verify(thumbnail !== null, "no " + value);
+            return thumbnail;
+        });
+        tryVerify(function () {
+            return thumbnails[0].width > 0 && settings.opacity === 1 && settings.lift === 0;
+        });
+        // The first row holds four, left to right in the order.
+        for (let index = 1; index < 4; ++index) {
+            compare(thumbnails[index].y, thumbnails[0].y);
+            verify(thumbnails[index].x > thumbnails[index - 1].x);
+        }
+        let sky = null;
+        let life = null;
+        tryVerify(function () {
+            sky = findChild(thumbnails[1], "nightSky");
+            life = findChild(thumbnails[2], "gameOfLife");
+            return sky !== null && life !== null && life.width > 1;
+        });
+        compare(life.drawWidth * 2, sky.drawWidth);
+
+        const miss = clickReportingAMiss(thumbnails[2], function () {
+            return browser.preference("start-page-scene", "") === "game-of-life";
+        });
+        verify(miss === "", miss);
+        window.settingsOpen = false;
+        tryVerify(function () {
+            return findChild(scene, "gameOfLife") !== null;
+        });
+        window.setStartPageScene("crt-road");
+    }
+
+    // The board casts no light on the Omnibar's rim, and the Omnibar stands
+    // over it: nothing the board draws is over the Omnibar.
+    function test_theBoardDrawsNothingOverTheOmnibar() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const panel = findChild(window.contentItem, "omnibar");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("game-of-life");
+        const restingSpaceId = enterRestingSpace("Resting under the Omnibar");
+        tryVerify(function () {
+            return startPage.sceneRunning && findChild(scene, "gameOfLife") !== null;
+        });
+        compare(scene.light, null);
+        verify(!findChild(window.contentItem, "omnibarRim").visible);
+        verify(!findChild(window.contentItem, "omnibarInnerBloom").visible);
+        // The Omnibar's own layer stands over the one the Start page is in.
+        let omnibarLayer = panel;
+        while (omnibarLayer.parent !== window.contentItem)
+            omnibarLayer = omnibarLayer.parent;
+        let sceneLayer = scene;
+        while (sceneLayer.parent !== window.contentItem)
+            sceneLayer = sceneLayer.parent;
+        verify(sceneLayer !== omnibarLayer);
+        verify(omnibarLayer.z > sceneLayer.z, omnibarLayer.z + " over " + sceneLayer.z);
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting under the Omnibar");
+    }
+
+    // A commit runs the board's generations flat out until the page first
+    // paints, and they slow again once it has.
+    function test_theBoardRunsFlatOutUntilFirstPaint() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("game-of-life");
+        const restingSpaceId = enterRestingSpace("Resting board");
+        const life = findChild(window.contentItem, "gameOfLife");
+        verify(life !== null);
+        tryVerify(function () {
+            return startPage.sceneRunning;
+        });
+
+        input.text = "https://slow-paint.example/life";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        compare(life.navigating, 1);
+        // At rest ten generations take five seconds.
+        const start = life.generation;
+        tryVerify(function () {
+            return life.generation >= start + 10;
+        }, 2500);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        }, 400);
+        compare(life.navigating, 0);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting board");
+    }
+
+    // A commit brings the sky's streaks until the page first paints, as it
+    // drives the road.
+    function test_theSkyStreaksUntilFirstPaint() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("night-sky");
+        const restingSpaceId = enterRestingSpace("Resting streaks");
+        const sky = findChild(window.contentItem, "nightSky");
+        verify(sky !== null);
+
+        input.text = "https://slow-paint.example/sky";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        compare(sky.navigating, 1);
+        tryVerify(function () {
+            return sky.streaks > 0;
+        });
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        }, 400);
+        compare(sky.navigating, 0);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting streaks");
     }
 
     // The CRT glass is on unless the reader turns it off, on this installation
@@ -12142,6 +12642,16 @@ TestCase {
         window.setStartPageGlass(true);
         compare(browser.preference("start-page-glass", "false"), "true");
         verify(glass.visible);
+
+        // The glass is over whichever Scene stands there, and with None there
+        // is no Scene for it, so the setting is not offered.
+        compare(toggle.title, "CRT glass over the Scene");
+        window.setStartPageScene("night-sky");
+        verify(findChild(scene, "nightSky") !== null);
+        verify(glass.visible);
+        verify(toggle.visible);
+        window.setStartPageScene("none");
+        verify(!toggle.visible);
         leaveSpace(homeSpaceId, restingSpaceId, "Resting glass");
     }
 

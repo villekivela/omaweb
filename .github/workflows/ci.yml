@@ -121,7 +121,13 @@ jobs:
     needs: changes
     if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
+    # Room in /dev/shm for the page-load budget's response bodies, which
+    # Docker's 64 MiB ran out of (#600, docs/development.md). Not
+    # `--disable-dev-shm-usage`: that moves the engine's shared memory to /tmp,
+    # which is a configuration no reader runs.
+    container:
+      image: archlinux:base-devel
+      options: --shm-size=2g
     # The runtime budget's steps bring the job to 40 minutes, too close to 45.
     timeout-minutes: 60
     env:
@@ -191,6 +197,14 @@ jobs:
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
         run: su builder -c 'ctest --preset ci'
+      # ctest prints only failing output, so the frame-interval probes' lines
+      # are read from its log: how far inside the budget each surface runs on
+      # this runner is what a change near the ceiling is weighed against.
+      - name: Print the frame intervals
+        run: |
+          grep -E 'frame-interval: |shortcut-sheet-opening: |probe [a-z-]+-(frame-interval|held-openings)' \
+            build/ci/Testing/Temporary/LastTest.log \
+            | sed -E 's/^[A-Z!]+ +: omaweb_ui::[A-Za-z]+::[A-Za-z_]+\(\) (qml: )?//' || true
       # The engine contract skips CNAME uncloaking's test on an engine without
       # the DNS alias API, and a skip passes. ctest prints only failing
       # output, so the result is read from its log. Every result it holds for
@@ -333,6 +347,14 @@ jobs:
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
         run: su builder -c 'ctest --preset ci'
+      # ctest prints only failing output, so the frame-interval probes' lines
+      # are read from its log: how far inside the budget each surface runs on
+      # this runner is what a change near the ceiling is weighed against.
+      - name: Print the frame intervals
+        run: |
+          grep -E 'frame-interval: |shortcut-sheet-opening: |probe [a-z-]+-(frame-interval|held-openings)' \
+            build/ci/Testing/Temporary/LastTest.log \
+            | sed -E 's/^[A-Z!]+ +: omaweb_ui::[A-Za-z]+::[A-Za-z_]+\(\) (qml: )?//' || true
 
   # The small client on its own, where a sandbox has it: Qt's base and nothing
   # else installed, so a dependency the client must not have fails the build

@@ -59,6 +59,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQmlExpression>
 #include <QTemporaryDir>
 #include <QQuickWindow>
 #include <QThread>
@@ -1008,6 +1009,38 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--sidebar-right")) && !engine.rootObjects().isEmpty()) {
         engine.rootObjects().constFirst()->setProperty("sidebarSide", QStringLiteral("right"));
     }
+    // `--scene <id>` stands the Start page on that Scene, as Settings'
+    // interface section does: `crt-road`, `night-sky`, `game-of-life` or
+    // `none`.
+    const auto sceneIndex = arguments.indexOf(QStringLiteral("--scene"));
+    if (sceneIndex >= 0 && sceneIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
+        engine.rootObjects().constFirst()->setProperty(
+            "startPageScene", arguments.at(sceneIndex + 1));
+    }
+    // `--scene-time <seconds>` holds the Start page's Scene still at that time
+    // on its clock, so a capture shows a moment that comes and goes, such as a
+    // comet catching the Omnibar's rim. The clock is stepped there a frame at
+    // a time once the `--show` state is in place, so whatever the Scene eases,
+    // such as a drive, has eased as far as it would have.
+    const auto sceneTimeIndex = arguments.indexOf(QStringLiteral("--scene-time"));
+    if (sceneTimeIndex >= 0 && sceneTimeIndex + 1 < arguments.size()
+        && !engine.rootObjects().isEmpty()) {
+        auto *window = engine.rootObjects().constFirst();
+        const auto until = arguments.at(sceneTimeIndex + 1).toDouble();
+        QTimer::singleShot(0, window, [window, until] {
+            auto *host = window->findChild<QObject *>(QStringLiteral("startPageScene"));
+            if (host == nullptr) {
+                return;
+            }
+            // An assignment in QML, which lets go of the binding that would
+            // start the clock again; a write from here would leave it.
+            QQmlExpression(qmlContext(host), host, QStringLiteral("running = false")).evaluate();
+            constexpr auto frame = 1.0 / 30;
+            for (auto time = 0.0; time < until; time += frame) {
+                host->setProperty("time", std::min(time + frame, until));
+            }
+        });
+    }
     // `--space-overflow` opens the menu of the Spaces the footer left out, which
     // is a click on its count. Late enough that a compositor has given the
     // window its size: the menu hangs from where the count stands then.
@@ -1054,6 +1087,9 @@ int main(int argc, char *argv[])
             // The Start page's road without its CRT glass, as the Settings
             // interface section leaves it.
             {QStringLiteral("plain-road"), {{"", "startPageGlass", false}}},
+            // The Start page's Scene as a commit leaves it until the page
+            // paints: the road speeding up, the sky's stars streaking.
+            {QStringLiteral("drive"), {{"", "startPageDriving", true}}},
             // Opens the Agent activity page in a new tab, as its command does.
             // `--agent-filter` picks one Agent's lines.
             {QStringLiteral("agent-activity"), {}},

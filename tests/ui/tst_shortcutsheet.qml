@@ -106,10 +106,14 @@ TestCase {
             width: testCase.wideViewport
             height: 1200
 
+            // Commands the registry says cannot be carried out here, as a
+            // page's commands are over the Start page.
+            property var unavailable: []
+
             commands: QtObject {
                 readonly property var descriptions: testCase.buildDescriptions()
                 function available(command) {
-                    return true;
+                    return sheet.unavailable.indexOf(command) === -1;
                 }
             }
 
@@ -488,5 +492,166 @@ TestCase {
 
         verify(sheet.keyColumnWidth < wide);
         verify(sheet.keyColumnWidth > 0);
+    }
+
+    // The keys of each drawn row of caps. A Flickable's content item
+    // is also among its children, so `descendants` meets each row twice.
+    function drawnKeys(sheet) {
+        return descendants(sheet, "keycaps").filter(function (row, index, rows) {
+            return row.keys.length > 0 && rows.indexOf(row) === index;
+        }).map(function (row) {
+            return row.keys;
+        });
+    }
+
+    // A closed sheet lays nothing out when its width or the keymap changes,
+    // as they do when the sidebar slides or the reader edits their keys, and
+    // the chrome moving at that moment must not wait on it (#594). Opening it
+    // still shows the current keymap at the current width.
+    function test_aClosedSheetLaysOutOnlyWhenItOpens() {
+        const sheet = makeSheet();
+        const columns = sheet.layoutColumns;
+        const rows = descendants(sheet, "keycaps");
+        verify(sheet.columnCount > 1);
+        verify(drawnKeys(sheet).indexOf(testCase.longestKeys) !== -1);
+        sheet.open = false;
+
+        const shortened = ({});
+        for (const binding in sheet.bindings) {
+            if (binding !== testCase.longestKeys)
+                shortened[binding] = sheet.bindings[binding];
+        }
+        sheet.bindings = shortened;
+        sheet.width = testCase.narrowViewport;
+        verify(sheet.layoutColumns === columns, "the closed sheet packed its columns again");
+        const kept = descendants(sheet, "keycaps");
+        compare(kept.length, rows.length);
+        for (let index = 0; index < rows.length; ++index)
+            verify(kept[index] === rows[index], "the closed sheet built its rows again");
+
+        sheet.open = true;
+        compare(sheet.columnCount, 1);
+        compare(sheet.layoutColumns.length, 1);
+        verify(sheet.contentWidth <= sheet.width);
+        const keys = drawnKeys(sheet);
+        compare(keys.length, Object.keys(shortened).length);
+        verify(keys.indexOf(testCase.longestKeys) === -1);
+    }
+
+    // The rows of each group, by the group's own keys.
+    function rowsOf(sheet, group) {
+        const keys = [];
+        for (const section of sheet.laidOutSections) {
+            if (section.group === group) {
+                for (const entry of section.entries)
+                    keys.push(entry.keys);
+            }
+        }
+        return descendants(sheet, "keycaps").filter(function (row, index, rows) {
+            return rows.indexOf(row) === index && keys.indexOf(row.keys) !== -1;
+        });
+    }
+
+    // What changes is laid out again and nothing else: a group whose
+    // commands change builds its own rows again, a width that holds another
+    // number of columns moves the groups, and the rows of every other group
+    // stay the ones already drawn. An opening that rebuilt every row held
+    // its first frame for as long as the whole sheet takes to build (#594).
+    function test_onlyWhatChangesIsBuiltAgain() {
+        const sheet = makeSheet();
+        const navigation = rowsOf(sheet, "navigation");
+        verify(navigation.length > 0);
+        const tabs = rowsOf(sheet, "tabs");
+        const columns = sheet.columnCount;
+        verify(columns > 1);
+
+        const fewer = ({});
+        let dropped = false;
+        for (const binding in sheet.bindings) {
+            if (!dropped && binding.indexOf("Ctrl+t") === 0) {
+                dropped = true;
+                continue;
+            }
+            fewer[binding] = sheet.bindings[binding];
+        }
+        verify(dropped);
+        sheet.bindings = fewer;
+        sheet.width = testCase.narrowViewport;
+        compare(sheet.columnCount, 1);
+
+        const kept = rowsOf(sheet, "navigation");
+        compare(kept.length, navigation.length);
+        for (let index = 0; index < navigation.length; ++index)
+            verify(kept[index] === navigation[index],
+                   "a group that did not change was built again");
+        // In the group that did change, only the command that went is gone.
+        const keptTabs = rowsOf(sheet, "tabs");
+        compare(keptTabs.length, tabs.length - 1);
+        for (const row of keptTabs)
+            verify(tabs.indexOf(row) !== -1, "a row that did not change was built again");
+    }
+
+    // The sheet lays its rows out once when it is made, so its first opening
+    // finds them built rather than building them all in its first frame
+    // (#594). The probe allows one slow opening in eleven, so it cannot hold
+    // the first one alone.
+    function test_aSheetNeverOpenedHasItsRowsBuilt() {
+        liveSheet = sheetComponent.createObject(testCase, {
+                                                    "open": false
+                                                });
+        verify(liveSheet !== null);
+        verify(!liveSheet.open);
+        verify(drawnKeys(liveSheet).length > 0,
+               "the sheet laid nothing out before its first opening");
+    }
+
+    // A command the registry stops offering, as a page's commands go over the
+    // Start page, has its row hidden rather than taken away, so going
+    // between the Start page and a page builds no row either way (#594).
+    function test_aCommandThatComesAndGoesKeepsItsRow() {
+        const sheet = makeSheet();
+        const rows = rowsOf(sheet, "page");
+        verify(rows.length > 2);
+        const gone = ["page-1", "page-2"];
+        const goneKeys = [sheet.keymap.keysFor("page-1"), sheet.keymap.keysFor("page-2")];
+
+        sheet.unavailable = gone;
+        compare(sheet.sections.filter(function (section) {
+            return section.group === "page";
+        })[0].entries.length, rows.length - 2);
+        // A row's caps sit in the row, which is drawn only while it is on
+        // offer. The suite's own window is never shown, so what is drawn is
+        // read from that rather than from `visible`.
+        const shown = rows.filter(function (row) {
+            return row.parent.available;
+        });
+        compare(shown.length, rows.length - 2);
+        for (const row of rows)
+            compare(row.parent.available, goneKeys.indexOf(row.keys) === -1, row.keys);
+
+        sheet.unavailable = [];
+        const kept = rowsOf(sheet, "page");
+        compare(kept.length, rows.length);
+        for (let index = 0; index < rows.length; ++index) {
+            verify(kept[index] === rows[index], "a command that came back built its row again");
+            verify(kept[index].parent.available);
+        }
+    }
+
+    // Opening works the list out again, and a list that came out the same
+    // is the one already drawn: opening the sheet again builds nothing.
+    function test_reopeningAnUnchangedSheetKeepsItsRows() {
+        const sheet = makeSheet();
+        const columns = sheet.layoutColumns;
+        const rows = descendants(sheet, "keycaps");
+        verify(drawnKeys(sheet).length > 0);
+
+        sheet.open = false;
+        sheet.open = true;
+        verify(sheet.layoutColumns === columns, "the reopened sheet packed its columns again");
+        const kept = descendants(sheet, "keycaps");
+        compare(kept.length, rows.length);
+        for (let index = 0; index < rows.length; ++index)
+            verify(kept[index] === rows[index], "the reopened sheet built its rows again");
     }
 }

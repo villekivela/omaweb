@@ -1,0 +1,123 @@
+{
+  "description": "Conway's Game of Life behind the Start page (#606): a board of cells in the palette, evolving behind the Omnibar. The browser draws it (src/ui/GameOfLife.qml, on src/ui/LifeBoard.h); the website does not. A cell is one of the Scene's pixels and the board wraps at its edges. Times are in seconds. `crt` is the CRT glass it declares, which the host draws, with the road's amounts. `rest` is where the Omnibar rests, as a share of the height. `night` is the ground, as the sky's: a light theme's from its dark text. `generations` is how fast the board evolves: `rest` a second at rest and `rush` a second, one a frame, from a commit until the page paints, the pace easing back down from it at `ease` once the page has painted, over a frame of at most `longestStep`. `cells`: a live cell is the accent; a cell that has just died leaves a trail, one generation for each of `trail`, the accent mixed toward the ground by that amount; in a Private window the board is frozen and a live cell is the light mixed toward the ground by `unlit`, with no trail. `soups` are the random squares the board starts from, `size` cells across at `density`, one for every `every` cells of board, placed where the seeds `across` and `down` scatter them, with `tries` places tried for each and run `settle` generations before the board is shown, a whole number of the guns' period of 30, so a gun is shown as placed. `guns` are Gosper glider guns: `places` are where each stands, its top left corner `across` and `down` as shares of the width and height, and whether it is `turned` about to fire the other way; a board narrower than `twoFrom` columns takes only the first, and none smaller than the gun. Soups keep `clear` cells away from a gun. The board is seeded again when it dies out, or when it stalls, coming back to a board it was within the last `stall` generations. `still` is the frame a reader who asked for less motion sees, and the thumbnail: `gliders`, each `across` and `down` as shares of the width and height, `mirrored` left to right and `flipped` top to bottom, run `run` generations so each leaves its trail.",
+  "id": "game-of-life",
+  "name": "Game of Life",
+  "pitch": 4,
+  "fps": 30,
+  "glass": "crt",
+  "crt": {
+    "bloom": {
+      "scale": 3,
+      "opacity": 0.22
+    },
+    "scanlines": {
+      "every": 3,
+      "shade": 0.38
+    },
+    "vignette": {
+      "clear": 0.55,
+      "shade": 0.55
+    },
+    "band": {
+      "every": 7,
+      "from": -0.2,
+      "travel": 1.4,
+      "reach": 0.07,
+      "reachAtLeast": 4,
+      "strength": 0.05
+    },
+    "flicker": {
+      "least": 0.02,
+      "range": 0.025,
+      "frequencies": [37.1, 11.3]
+    }
+  },
+  "options": {},
+  "rest": 0.5,
+  "night": {
+    "lightThemeGround": 0.45
+  },
+  "generations": {
+    "rest": 2,
+    "rush": 30,
+    "ease": 2.5,
+    "longestStep": 0.1
+  },
+  "cells": {
+    "trail": [0.45, 0.7],
+    "unlit": 0.6
+  },
+  "soups": {
+    "size": 16,
+    "density": 0.5,
+    "every": 5000,
+    "tries": 8,
+    "across": [12.9898, 43758.5453],
+    "down": [78.233, 12543.123],
+    "settle": 30
+  },
+  "guns": {
+    "pattern": [
+      "........................O...........",
+      "......................O.O...........",
+      "............OO......OO............OO",
+      "...........O...O....OO............OO",
+      "OO........O.....O...OO..............",
+      "OO........O...O.OO....O.O...........",
+      "..........O.....O.......O...........",
+      "...........O...O....................",
+      "............OO......................"
+    ],
+    "places": [
+      {
+        "across": 0.06,
+        "down": 0.1,
+        "turned": false
+      },
+      {
+        "across": 0.7,
+        "down": 0.78,
+        "turned": true
+      }
+    ],
+    "twoFrom": 160,
+    "clear": 8
+  },
+  "stall": 30,
+  "still": {
+    "glider": [".O.", "..O", "OOO"],
+    "gliders": [
+      {
+        "across": 0.12,
+        "down": 0.2,
+        "mirrored": false,
+        "flipped": false
+      },
+      {
+        "across": 0.3,
+        "down": 0.72,
+        "mirrored": true,
+        "flipped": false
+      },
+      {
+        "across": 0.62,
+        "down": 0.16,
+        "mirrored": false,
+        "flipped": true
+      },
+      {
+        "across": 0.82,
+        "down": 0.66,
+        "mirrored": true,
+        "flipped": true
+      },
+      {
+        "across": 0.5,
+        "down": 0.86,
+        "mirrored": false,
+        "flipped": false
+      }
+    ],
+    "run": 2
+  }
+}

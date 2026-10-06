@@ -157,7 +157,8 @@ Rectangle {
     property bool floatingControls: true
     property string sidebarSide: "left"
     property bool glanceEnabled: true
-    property bool startPageRoad: true
+    // The Start page's Scene, by its id, or "none".
+    property string startPageScene: "crt-road"
     property bool startPageGlass: true
     property string lastReportedSyncError: ""
     property var engines: []
@@ -419,7 +420,7 @@ Rectangle {
     signal floatingControlsToggled(bool enabled)
     signal sidebarSideChosen(string side)
     signal glanceToggled(bool enabled)
-    signal startPageRoadToggled(bool enabled)
+    signal startPageSceneChosen(string scene)
     signal startPageGlassToggled(bool enabled)
 
     Dialogs.FileDialog {
@@ -434,6 +435,9 @@ Rectangle {
     }
 
     visible: open
+    // Settings can be drawn after it closes, for the length of its drop, and
+    // by then the page is back beneath it. A click in that time is the page's.
+    enabled: open
     // Settings is a place over the page rather than instead of it, so the page
     // stays visible through it: blurred, under the same translucency the
     // sidebar beside it has.
@@ -1064,27 +1068,47 @@ Rectangle {
                         onClicked: root.glanceToggled(!checked)
                     }
 
-                    SettingToggle {
-                        objectName: "startPageRoad"
+                    // The thumbnails stand in a row of their own under the
+                    // title and note, rather than in the control's place at
+                    // the right.
+                    Column {
+                        objectName: "startPageSceneRow"
                         width: pane.width
-                        colors: root.colors
-                        title: qsTr("Night road on the Start page")
-                        note: qsTr(
-                                  "Draw a road under the Start page's Omnibar, moving while the window is in use and speeding up until the page you asked for paints. When off, the Omnibar rests on the sidebar's colour.")
-                        accessibleName: qsTr("Night road on the Start page")
-                        checked: root.startPageRoad
-                        onClicked: root.startPageRoadToggled(!checked)
+
+                        SettingRow {
+                            width: pane.width
+                            colors: root.colors
+                            title: qsTr("Scene on the Start page")
+                            note: qsTr(
+                                      "What the Start page's Omnibar rests on. A Scene moves while the window is in use and quickens until the page you asked for paints. With None, the Omnibar rests on the sidebar's colour.")
+                        }
+
+                        ScenePicker {
+                            objectName: "startPageScenePicker"
+                            availableWidth: pane.width
+                            colors: root.colors
+                            value: root.startPageScene
+                            accessibleName: qsTr("Scene on the Start page")
+                            onChanged: function (scene) {
+                                root.startPageSceneChosen(scene);
+                            }
+                        }
+
+                        Item {
+                            width: 1
+                            height: Style.spacing.huge
+                        }
                     }
 
                     SettingToggle {
                         objectName: "startPageGlass"
                         width: pane.width
-                        visible: root.startPageRoad
+                        visible: root.startPageScene !== "none"
                         colors: root.colors
-                        title: qsTr("CRT glass over the road")
+                        title: qsTr("CRT glass over the Scene")
                         note: qsTr(
-                                  "Show the night road through an old screen's glass: scanlines, a soft bloom and a faint flicker. When off, the road is its plain pixels.")
-                        accessibleName: qsTr("CRT glass over the road")
+                                  "Show the Start page's Scene through an old screen's glass: scanlines, a soft bloom and a faint flicker. When off, the Scene is its plain pixels.")
+                        accessibleName: qsTr("CRT glass over the Scene")
                         checked: root.startPageGlass
                         onClicked: root.startPageGlassToggled(!checked)
                     }

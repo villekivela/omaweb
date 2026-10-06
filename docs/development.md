@@ -1273,6 +1273,14 @@ and filtering them as a word is typed, and a Glance opening over a page and goin
 opened and closed once unwatched, then five more times with every frame watched, over a page that
 redraws every frame, so the last movement is a closing and the next probe starts with nothing open.
 
+A fifth probe watches the Shortcut sheet's openings one at a time, since each is a different one:
+the window's first, over a moving page, then five over the Start page and five over the page in
+turn, whose commands differ from the Start page's. Each opening's slowest interval, from the frame
+before the input to the frame the sheet rests in, counts as a movement, and at most one of the
+eleven may go over the ceiling. Single openings on the laptop below took 15 to 24 ms offscreen and
+17 to 23 ms on its GPU, the window's first the slowest. On CI's runner, in #597's `arch-linux` and
+`arch-linux-gcc` jobs, every opening took 17 to 23 ms and none went over.
+
 What is read is the time from each frame's end to the next one's, not the frame's cost: the cost is
 the scene graph's own, and a movement's script and layout run on the interface thread between
 frames, where the cost bracket does not see them. A frame that waited on one held frame arrives two
@@ -1293,19 +1301,14 @@ changed in at least three frames a movement: the page under it redraws every fra
 do not say the surface moved. The Omnibar's word is set into the field a letter at a time rather
 than sent as keys, because a compositor need not give the test window the keyboard.
 
-The Omnibar holds the budget. Each other surface prints both budget lines with the reason it is
-over, and holds a guard instead: the same count of movements, at most one in ten, with a frame
-slower than the surface's guard rather than the ceiling. A guard sits over the slowest movement CI's
-runner has drawn. It catches a change that puts a frame over the guard in more than one movement,
-such as a stall on every opening, and nothing smaller: on CI a stall on each opening goes unnoticed
-under about 50 ms for the sidebar, 300 ms for a Space switch and 25 ms for the Glance. The change
-that brings a surface inside removes its `overBudget` argument, and the budget is held.
+The sidebar, a Space switch and the Omnibar hold the budget. The Glance does not hold it in CI yet.
+It prints both budget lines with the reason it is over, and holds a guard instead: the same count of
+movements, at most one in ten, with a frame slower than its guard rather than the ceiling. The guard
+sits over the slowest movement CI's runner has drawn. It catches a change that puts a frame over the
+guard in more than one movement, such as a stall on every opening, and nothing smaller: on CI a
+stall on each opening goes unnoticed under about 25 ms. The change that brings the Glance inside
+removes its `overBudget` argument, and the budget is held.
 
-- The sidebar. When the seam settles, the page area takes its new width and the closed Shortcut
-  sheet packs its columns and builds them again for it, about 30 ms on the interface thread on the
-  offscreen platform.
-- A Space switch. Showing the arriving Space's page rebuilds the closed Shortcut sheet's sections,
-  about 100 ms before the slide's first frame on the offscreen platform.
 - The Glance. Inside the budget on this laptop and on the GPU, but on CI's runner three of its ten
   movements hold a frame, at 36 to 40 ms.
 
@@ -1319,25 +1322,33 @@ for each edit and each answer held two to five of the ten movements over the bud
 five on CI. Ranking once for each edit alone still held two on CI's `arch-linux` job, at 35 to 42
 ms.
 
+What the reader cannot see lays nothing out while the chrome moves. A closed Shortcut sheet lists
+nothing and keeps the rows it laid out when the window started or when it last opened; it works its
+list out and takes the page area's width as it opens. Closed Settings keeps the width it was last
+drawn at. The UI lab's stand-in page follows the page area's width only while it is drawn, since a
+real engine's hidden view costs the interface thread little at a new width.
+
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
 `arch-linux-gcc` jobs' runs of #588. GPU is three runs in the Hyprland session on the laptop's 60 Hz
 display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight runs one at a time,
 CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which print a probe's numbers only
-when it fails, and GPU is three runs:
+when it fails, and GPU is three runs. The sidebar and Space switch rows are #594's, on 2026-10-06:
+offscreen is three runs of the whole `tst_performance.qml`, CI is #597's two jobs at 816e61e, read
+from the step that prints the frame-interval lines from ctest's log, and GPU is three runs:
 
-| Surface      | Offscreen p95 | Held, offscreen | CI p95        | CI slowest    | Held, CI | GPU p95     | Held, GPU | Guard  |
-| ------------ | ------------- | --------------- | ------------- | ------------- | -------- | ----------- | --------- | ------ |
-| Sidebar      | 45 to 50 ms   | 10 of 10        | 65 to 69 ms   | 67 to 99 ms   | 10       | 46 to 47 ms | 5 to 9    | 150 ms |
-| Space switch | 112 to 126 ms | 10 of 10        | 134 to 140 ms | 158 to 190 ms | 10       | 68 to 71 ms | 10        | 500 ms |
-| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed   | not printed   | 0 to 1   | 17 ms       | 0         | none   |
-| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms   | 39 to 40 ms   | 3        | 17 ms       | 1         | 67 ms  |
+| Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI | GPU p95 | Held, GPU | Guard |
+| ------------ | ------------- | --------------- | ----------- | ----------- | -------- | ------- | --------- | ----- |
+| Sidebar      | 17 to 18 ms   | 0               | 17 to 18 ms | 21 to 23 ms | 0        | 17 ms   | 0         | none  |
+| Space switch | 17 to 18 ms   | 0 to 1          | 17 to 19 ms | 24 to 31 ms | 0        | 17 ms   | 0         | none  |
+| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed | not printed | 0 to 1   | 17 ms   | 0         | none  |
+| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3        | 17 ms   | 1         | 67 ms |
 
 On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to
-35 ms. On the GPU the sidebar and the Space switch are over the budget too, and the Omnibar and the
-Glance are inside it. The software rasteriser draws no blur, so the Omnibar's glass, the Glance's
-backdrop and the sidebar's floating shelf are priced only by the GPU columns. Take those from a
-terminal in the session, where the test window opens over the desktop for about fifteen seconds:
+35 ms. On the GPU all four are inside the budget. The software rasteriser draws no blur, so the
+Omnibar's glass, the Glance's backdrop and the sidebar's floating shelf are priced only by the GPU
+columns. Take those from a terminal in the session, where the test window opens over the desktop for
+about fifteen seconds:
 
 ```sh
 QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1 build/ci/omaweb-ui-tests \
@@ -1460,11 +1471,16 @@ on both. "Off" is the per-site switch: the page is served from a second host, an
 switched off for that one, which is the comparison a reader makes and the one
 [ADR 0050](adr/0050-uncloak-cname-trackers-in-the-engine.md) made. The page times itself, from its
 navigation starting to its `load` event. A load that shows fewer than 40 images is not counted,
-because the two modes would no longer have loaded the same page. On CI's runner the engine now and
-then cancels an image as its answer arrives, with blocking on and off alike, so a spare of the same
-case and mode, whose hosts are already in the zone, is loaded in its place and the run lists it.
-Running out of spares fails the run. What the budget holds is the median with blocking on minus the
-median with it off; the two medians are printed beside it.
+because the two modes would no longer have loaded the same page. A spare of the same case and mode,
+whose hosts are already in the zone, is loaded in its place and the run lists it. Running out of
+spares fails the run. What the budget holds is the median with blocking on minus the median with it
+off; the two medians are printed beside it.
+
+The engine writes each response body into a 2 MiB data pipe in `/dev/shm`, and the worst case's 40
+images can all be in flight at once. Docker gives a container 64 MiB of `/dev/shm`, which a run
+outgrows: the engine then cancels the last images of a load as their answers arrive, because no pipe
+can be made for them. So `pageload` fails when `/dev/shm` has less than 256 MiB free, and CI's
+`arch-linux` job starts its container with `--shm-size=2g`.
 
 The rules are EasyList and EasyPrivacy from `third_party/filter-lists`, snapshots pinned by digest
 so a run next month measures the same rules. `ctest` checks them against their manifest
@@ -1676,7 +1692,10 @@ carries:
   checkout, or the release tag for an installed package.
 - `machine`: set with `--machine` or described from the hardware. Runs from different machines share
   the file and are told apart by this field.
-- `engine`: the engine library, its package and version, and its Qt WebEngine and Chromium versions
+- `engine`: the engine library, its package and version, its Qt WebEngine and Chromium versions, and
+  its `toolchain`, `clang` or `gcc`, read from the library's ELF `.comment` section. One package
+  version has been built with both (#575), so the version alone cannot say which was measured. A
+  library that is not ELF, such as a macOS framework, records it blank.
 - for a budget run, `measurements`: each value beside the ceiling it was held to at the time
 - for a comparison, `browsers` with each browser's version, flags and GPU status and the matched
   Chromium's `sha256` and the file it is of (`sha256_of`), `suites` with the pinned commits,

@@ -1,5 +1,7 @@
 #include "Scenes.h"
 
+#include "LifeBoard.h"
+
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -20,6 +22,7 @@ void registerScenes()
 {
     qmlRegisterSingletonType<Scenes>("Omaweb", 1, 0, "Scenes",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new Scenes; });
+    qmlRegisterType<LifeBoard>("Omaweb", 1, 0, "LifeBoard");
 }
 
 } // namespace omaweb
