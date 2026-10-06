@@ -10633,6 +10633,9 @@ TestCase {
         // the `checked` binding. Drive it from the keyboard, since that is how
         // this browser is meant to be reached, and on both of the kit's
         // activation keys.
+        // Settings is open to be used: a closed one takes neither the
+        // pointer nor the keyboard.
+        window.settingsOpen = true;
         window.requestActivate();
         tryVerify(function () {
             return window.active;
@@ -10645,6 +10648,7 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(keyboardNavigation.enabled, true);
         compare(keyboardNavigationEnabled.checked, true);
+        window.settingsOpen = false;
     }
 
     function activateWindow() {
@@ -11402,26 +11406,45 @@ TestCase {
         tryCompare(settings, "visible", false);
     }
 
-    // A closed Shortcut sheet keeps the rows it last laid out, ready for its
-    // next opening, and draws none of their key caps, which kept the rest of
-    // the window slow enough to miss clicks. An open one draws them.
-    function test_aClosedShortcutSheetDrawsNoKeyCaps() {
+    // A closed Shortcut sheet keeps the rows and key caps it last laid out,
+    // ready for its next opening, and builds none of them again while it is
+    // closed: not when the page area takes a new width beside the sidebar,
+    // and not when a Space switch changes what the registry offers. A closed
+    // sheet that rebuilt them kept the rest of the window slow enough to miss
+    // clicks, and one that built them as it opened held its first frame over
+    // the budget (#594).
+    function test_aClosedShortcutSheetBuildsNoKeyCaps() {
         const sheet = findChild(window.contentItem, "shortcutSheet");
-        const capsIn = function () {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const caps = function () {
             return childrenNamed(sheet, "keycap").filter(function (cap) {
                 return cap.text.length > 0;
-            }).length;
+            });
         };
-        verify(!window.shortcutsOpen);
-        compare(capsIn(), 0);
         window.requestShortcuts();
         tryVerify(function () {
-            return window.shortcutsOpen && capsIn() > 0;
+            return window.shortcutsOpen && caps().length > 0;
         });
         window.shortcutsOpen = false;
+        tryCompare(sheet, "visible", false);
+        const before = caps();
+
+        const homeId = browser.activeSpaceId;
+        const otherId = browser.createSpace("Caps kept");
+        verify(browser.switchSpace(otherId));
+        openPage("https://caps-kept.example/");
+        const pageArea = engineHost.width;
+        window.setSidebarWidth(window.sidebarWidth + 40);
         tryVerify(function () {
-            return capsIn() === 0;
+            return engineHost.width !== pageArea;
         });
+        const after = caps();
+        compare(after.length, before.length);
+        for (let index = 0; index < before.length; ++index)
+            verify(after[index] === before[index], "the closed sheet built its key caps again");
+
+        verify(browser.switchSpace(homeId));
+        verify(browser.deleteSpace(otherId, "Caps kept"));
     }
 
     // A Space with nothing open in it has no page to show and no ordinary tab

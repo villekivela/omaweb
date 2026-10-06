@@ -534,6 +534,53 @@ TestCase {
         verify(keys.indexOf(testCase.longestKeys) === -1);
     }
 
+    // The rows of each group, by the group's own keys.
+    function rowsOf(sheet, group) {
+        const keys = [];
+        for (const section of sheet.laidOutSections) {
+            if (section.group === group) {
+                for (const entry of section.entries)
+                    keys.push(entry.keys);
+            }
+        }
+        return descendants(sheet, "keycaps").filter(function (row, index, rows) {
+            return rows.indexOf(row) === index && keys.indexOf(row.keys) !== -1;
+        });
+    }
+
+    // What changes is laid out again and nothing else: a group whose
+    // commands change builds its own rows again, a width that holds another
+    // number of columns moves the groups, and the rows of every other group
+    // stay the ones already drawn. An opening that rebuilt every row held
+    // its first frame for as long as the whole sheet takes to build (#594).
+    function test_onlyWhatChangesIsBuiltAgain() {
+        const sheet = makeSheet();
+        const navigation = rowsOf(sheet, "navigation");
+        verify(navigation.length > 0);
+        const columns = sheet.columnCount;
+        verify(columns > 1);
+
+        const fewer = ({});
+        let dropped = false;
+        for (const binding in sheet.bindings) {
+            if (!dropped && binding.indexOf("Ctrl+t") === 0) {
+                dropped = true;
+                continue;
+            }
+            fewer[binding] = sheet.bindings[binding];
+        }
+        verify(dropped);
+        sheet.bindings = fewer;
+        sheet.width = testCase.narrowViewport;
+        compare(sheet.columnCount, 1);
+
+        const kept = rowsOf(sheet, "navigation");
+        compare(kept.length, navigation.length);
+        for (let index = 0; index < navigation.length; ++index)
+            verify(kept[index] === navigation[index],
+                   "a group that did not change was built again");
+    }
+
     // Opening works the list out again, and a list that came out the same
     // is the one already drawn: opening the sheet again builds nothing.
     function test_reopeningAnUnchangedSheetKeepsItsRows() {
