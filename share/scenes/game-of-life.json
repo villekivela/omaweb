@@ -38,7 +38,7 @@
     "lightThemeGround": 0.45
   },
   "generations": {
-    "rest": 2,
+    "rest": 8,
     "rush": 30,
     "ease": 2.5,
     "longestStep": 0.1

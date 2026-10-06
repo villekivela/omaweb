@@ -107,14 +107,14 @@ TestCase {
         }
     }
 
-    // At rest the board evolves about two generations a second.
+    // At rest the board evolves about eight generations a second.
     function test_theBoardEvolvesSlowlyAtRest() {
         const life = makeLife();
         verify(life.population > 0);
         const start = life.generation;
         drive(life, 10);
         const generations = life.generation - start;
-        verify(generations >= 18 && generations <= 22, generations + " generations in ten seconds");
+        verify(generations >= 78 && generations <= 82, generations + " generations in ten seconds");
     }
 
     // Generations the board moves over `seconds` of its clock.
@@ -140,7 +140,7 @@ TestCase {
         life.navigating = 0;
         drive(life, 4);
         const resting = generationsIn(life, 5);
-        verify(resting >= 9 && resting <= 11, resting + " generations in five seconds");
+        verify(resting >= 38 && resting <= 42, resting + " generations in five seconds");
     }
 
     // Drives the clock until the board has moved a generation.

@@ -12568,10 +12568,10 @@ TestCase {
         keyClick(Qt.Key_Return);
         verify(window.startPageDriving);
         compare(life.navigating, 1);
-        // At rest ten generations take five seconds.
+        // At rest forty generations take five seconds.
         const start = life.generation;
         tryVerify(function () {
-            return life.generation >= start + 10;
+            return life.generation >= start + 40;
         }, 2500);
         tryVerify(function () {
             return engineLoader.item !== null;
