@@ -44,7 +44,7 @@
     "alpha": { "base": 0.15, "range": 0.55, "lowFade": 0.5 }
   },
   "planet": {
-    "radius": 0.9,
+    "radius": 1.5,
     "omnibarReach": 40,
     "gap": 12,
     "face": 0.5,
