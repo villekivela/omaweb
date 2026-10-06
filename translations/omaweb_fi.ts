@@ -2299,6 +2299,11 @@
         <translation>Elämäpeli</translation>
     </message>
     <message>
+        <source>Vector terrain</source>
+        <comment>Start page Scene</comment>
+        <translation>Vektorimaasto</translation>
+    </message>
+    <message>
         <source>None</source>
         <comment>Start page Scene: the sidebar&apos;s fill</comment>
         <translation>Ei mitään</translation>
