@@ -21,8 +21,9 @@ public:
     Q_INVOKABLE QVariantMap parameters(const QString &id) const;
 };
 
-// Makes `Scenes` available to QML as `import Omaweb`. Call once per process,
-// before loading QML that uses it.
+// Makes `Scenes`, and the `LifeBoard` the Game of Life Scene draws on,
+// available to QML as `import Omaweb`. Call once per process, before loading
+// QML that uses them.
 void registerScenes();
 
 } // namespace omaweb
