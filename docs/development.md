@@ -1278,7 +1278,8 @@ the window's first, over a moving page, then five over the Start page and five o
 turn, whose commands differ from the Start page's. Each opening's slowest interval, from the frame
 before the input to the frame the sheet rests in, counts as a movement, and at most one of the
 eleven may go over the ceiling. Single openings on the laptop below took 15 to 24 ms offscreen and
-17 to 23 ms on its GPU, the window's first the slowest.
+17 to 23 ms on its GPU, the window's first the slowest. On CI's runner, in #597's `arch-linux` and
+`arch-linux-gcc` jobs, every opening took 17 to 23 ms and none went over.
 
 What is read is the time from each frame's end to the next one's, not the frame's cost: the cost is
 the scene graph's own, and a movement's script and layout run on the interface thread between
@@ -1333,15 +1334,15 @@ Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, wit
 display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight runs one at a time,
 CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which print a probe's numbers only
 when it fails, and GPU is three runs. The sidebar and Space switch rows are #594's, on 2026-10-06:
-offscreen is three runs of the whole `tst_performance.qml`, CI is #597's two jobs, whose passing
-runs print nothing, and GPU is three runs:
+offscreen is three runs of the whole `tst_performance.qml`, CI is #597's two jobs at 816e61e, read
+from the step that prints the frame-interval lines from ctest's log, and GPU is three runs:
 
-| Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI    | GPU p95 | Held, GPU | Guard |
-| ------------ | ------------- | --------------- | ----------- | ----------- | ----------- | ------- | --------- | ----- |
-| Sidebar      | 17 to 18 ms   | 0               | passed      | not printed | not printed | 17 ms   | 0         | none  |
-| Space switch | 17 to 18 ms   | 0 to 1          | passed      | not printed | not printed | 17 ms   | 0         | none  |
-| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed | not printed | 0 to 1      | 17 ms   | 0         | none  |
-| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3           | 17 ms   | 1         | 67 ms |
+| Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI | GPU p95 | Held, GPU | Guard |
+| ------------ | ------------- | --------------- | ----------- | ----------- | -------- | ------- | --------- | ----- |
+| Sidebar      | 17 to 18 ms   | 0               | 17 to 18 ms | 21 to 23 ms | 0        | 17 ms   | 0         | none  |
+| Space switch | 17 to 18 ms   | 0 to 1          | 17 to 19 ms | 24 to 31 ms | 0        | 17 ms   | 0         | none  |
+| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed | not printed | 0 to 1   | 17 ms   | 0         | none  |
+| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3        | 17 ms   | 1         | 67 ms |
 
 On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to
 35 ms. On the GPU all four are inside the budget. The software rasteriser draws no blur, so the
