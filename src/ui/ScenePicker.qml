@@ -3,9 +3,10 @@ import qs.Commons
 import qs.Ui as Omarchy
 
 // The Start page's Scenes as a grid of small thumbnails, four to a row, or as
-// many as the width it is given holds, each a still of its Scene drawn by the Scene itself, without the CRT glass, which
-// does not read at this size, and None last as the sidebar's plain fill. Each
-// is named under it, and the one in force is marked in the accent.
+// many as the width it is given holds. Each is a still of its Scene drawn by
+// the Scene itself, without the CRT glass, which does not read at this size,
+// and None comes last as the sidebar's plain fill. Each is named under it,
+// and the one in force is marked in the accent.
 //
 // A click chooses. As the kit's ButtonGroup, the grid is one Tab stop: Left
 // and Right, or h and l, walk between the thumbnails from the one in force, in

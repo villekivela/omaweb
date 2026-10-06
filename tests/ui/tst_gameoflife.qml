@@ -20,6 +20,18 @@ TestCase {
             width: 200
             height: 125
             colors: crtRoadKeyColours.dark.theme
+            seedNumber: 0
+        }
+    }
+
+    // A board as a launch makes it, with a seed of its own.
+    Component {
+        id: launchedComponent
+
+        Omaweb.GameOfLife {
+            width: 200
+            height: 125
+            colors: crtRoadKeyColours.dark.theme
         }
     }
 
@@ -39,7 +51,9 @@ TestCase {
                 anchors.fill: parent
                 colors: crtRoadKeyColours.dark.theme
                 scene: Component {
-                    Omaweb.GameOfLife {}
+                    Omaweb.GameOfLife {
+                        seedNumber: 0
+                    }
                 }
             }
         }
@@ -111,11 +125,12 @@ TestCase {
     }
 
     // From a commit until the page paints, generations run flat out, one a
-    // frame, and once it has painted they slow to the resting pace again.
+    // frame from the first, and once it has painted they slow to the resting
+    // pace again.
     function test_navigatingRunsGenerationsFlatOut() {
         const life = makeLife();
+        drive(life, 1);
         life.navigating = 1;
-        drive(life, 2);
         let frames = 0;
         const start = life.generation;
         drive(life, 1, function () {
@@ -343,5 +358,17 @@ TestCase {
         compare(picture.length, 200);
         verify(holds(picture, gun, 18, 20, false), "no gun at the top left");
         verify(holds(picture, gun, 210, 156, true), "no gun turned about at the bottom right");
+    }
+
+    // Each launch opens on a board of its own: the soups fall in other
+    // places, with other cells in them.
+    function test_eachLaunchOpensOnABoardOfItsOwn() {
+        const one = createTemporaryObject(launchedComponent, testCase);
+        const other = createTemporaryObject(launchedComponent, testCase);
+        verify(one.population > 0 && other.population > 0);
+        const picture = function (life) {
+            return String(findChild(life, "lifeBoard").picture());
+        };
+        verify(picture(one) !== picture(other));
     }
 }

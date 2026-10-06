@@ -13,7 +13,11 @@ namespace {
 
     // FNV-1a over the indices of the live cells.
     constexpr quint32 firstHash = 2166136261U;
-    constexpr quint32 hashPrime = 16777619U;
+
+    quint32 hashed(quint32 hash, size_t cell)
+    {
+        return (hash ^ static_cast<quint32>(cell)) * 16777619U;
+    }
 
 } // namespace
 
@@ -26,22 +30,6 @@ LifeBoard::LifeBoard(QQuickItem *parent)
 void LifeBoard::setColumns(int columns) { resize(columns, m_rows); }
 
 void LifeBoard::setRows(int rows) { resize(m_columns, rows); }
-
-void LifeBoard::setTrail(int trail)
-{
-    trail = std::clamp(trail, 0, 255);
-    if (trail == m_trail) {
-        return;
-    }
-    m_trail = trail;
-    for (auto &faded : m_faded) {
-        if (faded > m_trail) {
-            faded = 0;
-        }
-    }
-    emit trailChanged();
-    update();
-}
 
 void LifeBoard::setGround(const QColor &ground)
 {
@@ -69,6 +57,12 @@ void LifeBoard::setTrailColours(const QVariantList &colours)
         return;
     }
     m_trailColours = colours;
+    m_trail = static_cast<int>(std::min<qsizetype>(colours.size(), 255));
+    for (auto &faded : m_faded) {
+        if (faded > m_trail) {
+            faded = 0;
+        }
+    }
     emit coloursChanged();
     update();
 }
@@ -85,7 +79,7 @@ void LifeBoard::resize(int columns, int rows)
     m_cells.assign(static_cast<size_t>(columns) * rows, 0);
     m_next.assign(m_cells.size(), 0);
     m_faded.assign(m_cells.size(), 0);
-    emit sizeChanged();
+    emit boardSizeChanged();
     count();
 }
 
@@ -149,7 +143,7 @@ void LifeBoard::count()
     for (size_t cell = 0; cell < m_cells.size(); ++cell) {
         if (m_cells[cell]) {
             ++population;
-            hash = (hash ^ static_cast<quint32>(cell)) * hashPrime;
+            hash = hashed(hash, cell);
         }
     }
     counted(population, hash);
@@ -175,7 +169,8 @@ void LifeBoard::step()
     quint8 *next = m_next.data();
     quint8 *faded = m_faded.data();
     // Counted as the board is moved on, rather than in a second pass, since
-    // the Scene settles a new board for thirty generations at once.
+    // the Scene settles a new board for thirty generations at once. For the
+    // same reason the rows and columns wrap here rather than through index().
     int population = 0;
     quint32 hash = firstHash;
     for (int y = 0; y < rows; ++y) {
@@ -195,7 +190,7 @@ void LifeBoard::step()
             if (lives) {
                 since = 0;
                 ++population;
-                hash = (hash ^ static_cast<quint32>(here + x)) * hashPrime;
+                hash = hashed(hash, static_cast<size_t>(here + x));
             } else if (alive) {
                 since = trail > 0 ? 1 : 0;
             } else if (since > 0) {
@@ -216,7 +211,7 @@ QStringList LifeBoard::picture() const
             if (m_cells[index(x, y)]) {
                 line[x] = QLatin1Char('O');
             } else if (const auto since = m_faded[index(x, y)]; since > 0) {
-                line[x] = QString::number(since).at(0);
+                line[x] = QChar(u'0' + std::min<int>(since, 9));
             }
         }
         lines.append(line);

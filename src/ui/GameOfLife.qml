@@ -90,6 +90,9 @@ Item {
 
     // Whether the board has been seeded for the size it has.
     property bool seeded: false
+    // Where the soups fall and what is in them: a launch of its own each
+    // time, and the same board for the same seed, as a test needs.
+    property int seedNumber: Math.floor(Math.random() * 100000)
     // The hashes of the boards it has been through lately, to tell a stall.
     property var lately: []
 
@@ -109,11 +112,18 @@ Item {
         const guns = root.placeGuns();
         const s = root.parameters.soups;
         const count = Math.max(1, Math.round(root.columns * root.rows / s.every));
-        const base = root.reseeds * 97;
+        // Each seeding scatters from indices of its own, past the most soups
+        // a seeding tries.
+        const tries = count * s.tries;
+        const base = (root.seedNumber + root.reseeds) * tries;
+        // A soup stands wholly on the board rather than wrapping over an
+        // edge, so it is kept clear of a gun however close to an edge.
+        const across = Math.max(0, root.columns - s.size);
+        const down = Math.max(0, root.rows - s.size);
         let placed = 0;
-        for (let index = 0; placed < count && index < count * 8; ++index) {
-            const x = Math.floor(Colour.scatter(base + index, s.across) * root.columns);
-            const y = Math.floor(Colour.scatter(base + index, s.height) * root.rows);
+        for (let index = 0; placed < count && index < tries; ++index) {
+            const x = Math.floor(Colour.scatter(base + index, s.across) * across);
+            const y = Math.floor(Colour.scatter(base + index, s.down) * down);
             if (guns.some(function (gun) {
                 return x + s.size > gun.x && x < gun.x + gun.width && y + s.size > gun.y && y
                         < gun.y + gun.height;
@@ -136,9 +146,9 @@ Item {
                                                                     ? g.places.slice(0, 1) :
                                                                       g.places;
         return places.map(function (place) {
-            const x = Math.min(root.columns - width, Math.floor(place[0] * root.columns));
-            const y = Math.min(root.rows - height, Math.floor(place[1] * root.rows));
-            board.place(g.pattern, x, y, place[2], place[2]);
+            const x = Math.min(root.columns - width, Math.floor(place.across * root.columns));
+            const y = Math.min(root.rows - height, Math.floor(place.down * root.rows));
+            board.place(g.pattern, x, y, place.turned, place.turned);
             return {
                 x: x - g.clear,
                 y: y - g.clear,
@@ -153,9 +163,9 @@ Item {
     function layStill() {
         const st = root.parameters.still;
         for (const glider of st.gliders)
-            board.place(st.glider, Math.floor(glider[0] * root.columns), Math.floor(glider[1]
-                                                                                    * root.rows),
-                        glider[2], glider[3]);
+            board.place(st.glider, Math.floor(glider.across * root.columns), Math.floor(glider.down
+                                                                                        * root.rows),
+                        glider.mirrored, glider.flipped);
         for (let generation = 0; generation < st.run; ++generation)
             board.step();
     }
@@ -177,9 +187,9 @@ Item {
 
     // ---- the clock
     //
-    // How fast the board moves eases with the clock toward what `navigating`
-    // asks: a generation now and then at rest, and one a frame from a commit
-    // until the page paints. A still or unlit board does not move.
+    // How fast the board moves follows what `navigating` asks: a generation
+    // now and then at rest, and one a frame from a commit until the page
+    // paints, easing back down after. A still or unlit board does not move.
 
     property real pace: 0
     // Generations owed: the board moves one when a whole one is due.
@@ -197,7 +207,12 @@ Item {
             root.due = 0;
             return;
         }
-        root.pace += (root.navigating - root.pace) * Math.min(1, step * g.ease);
+        // Flat out from the commit's first frame, slowing with the clock
+        // once the page has painted.
+        if (root.navigating > root.pace)
+            root.pace = root.navigating;
+        else
+            root.pace += (root.navigating - root.pace) * Math.min(1, step * g.ease);
         root.due += step * (g.rest + (g.rush - g.rest) * root.pace);
         // A frame's worth of a whole generation is due within rounding.
         if (root.due >= 1 - 1e-6) {
@@ -217,13 +232,13 @@ Item {
         anchors.fill: parent
         columns: root.columns
         rows: root.rows
-        trail: root.roles.trail.length
         ground: root.roles.ground
         live: root.roles.live
         trailColours: root.roles.trail
-        // A board given a new size is seeded for it. SceneHost holds the
-        // width while a dragged seam moves, so this is once a resize, not
-        // once a frame of it.
-        onSizeChanged: root.seed()
+        // A board given a new size is seeded for it, once its columns and
+        // rows have both arrived. SceneHost holds the width while a dragged
+        // seam moves, so this is once a resize, not once a frame of it.
+        onBoardSizeChanged: if (board.columns === root.columns && board.rows === root.rows)
+                                root.seed()
     }
 }

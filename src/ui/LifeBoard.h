@@ -20,16 +20,17 @@ namespace omaweb {
 // cells, moves thirty generations a second on commit.
 class LifeBoard : public QQuickItem {
     Q_OBJECT
-    Q_PROPERTY(int columns READ columns WRITE setColumns NOTIFY sizeChanged)
-    Q_PROPERTY(int rows READ rows WRITE setRows NOTIFY sizeChanged)
-    // How many generations a cell that has died is drawn as a trail.
-    Q_PROPERTY(int trail READ trail WRITE setTrail NOTIFY trailChanged)
+    Q_PROPERTY(int columns READ columns WRITE setColumns NOTIFY boardSizeChanged)
+    Q_PROPERTY(int rows READ rows WRITE setRows NOTIFY boardSizeChanged)
     // What it draws: a dead cell in `ground`, a live one in `live`, and a
-    // trail in `trailColours`, the first for a cell that has just died.
+    // trail in `trailColours`, the first for a cell that has just died. A
+    // cell that has died is drawn as a trail for one generation a colour,
+    // `trail` in all.
     Q_PROPERTY(QColor ground READ ground WRITE setGround NOTIFY coloursChanged)
     Q_PROPERTY(QColor live READ live WRITE setLive NOTIFY coloursChanged)
     Q_PROPERTY(
         QVariantList trailColours READ trailColours WRITE setTrailColours NOTIFY coloursChanged)
+    Q_PROPERTY(int trail READ trail NOTIFY coloursChanged)
     // How many cells are alive, and a hash of which, the same for the same
     // live cells.
     Q_PROPERTY(int population READ population NOTIFY cellsChanged)
@@ -43,7 +44,6 @@ public:
     void setColumns(int columns);
     void setRows(int rows);
     int trail() const { return m_trail; }
-    void setTrail(int trail);
     QColor ground() const { return m_ground; }
     void setGround(const QColor &ground);
     QColor live() const { return m_live; }
@@ -67,12 +67,13 @@ public:
     // Moves the board on a generation.
     Q_INVOKABLE void step();
     // The board as rows of `O` for a live cell, the generations since it died
-    // for a cell drawn as a trail, and `.` for any other dead one.
+    // for a cell drawn as a trail, 9 for nine or more, and `.` for any other
+    // dead one.
     Q_INVOKABLE QStringList picture() const;
 
 signals:
-    void sizeChanged();
-    void trailChanged();
+    // Its columns or its rows changed, and every cell is dead.
+    void boardSizeChanged();
     void coloursChanged();
     void cellsChanged();
 

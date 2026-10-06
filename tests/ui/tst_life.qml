@@ -78,11 +78,11 @@ TestCase {
         compare(across.picture(), [".....", "....O", "....O", "....O", "....."]);
     }
 
-    // A cell that has just died leaves a trail for `trail` generations, which
-    // the picture numbers by the generations since it died.
+    // A cell that has just died leaves a trail, a generation for each trail
+    // colour, which the picture numbers by the generations since it died.
     function test_aCellThatDiesLeavesAShortTrail() {
         const board = boardOf(["...", ".O.", "..."]);
-        board.trail = 2;
+        board.trailColours = ["#808080", "#404040"];
         board.step();
         compare(board.picture(), ["...", ".1.", "..."]);
         board.step();
@@ -92,7 +92,7 @@ TestCase {
 
         // A cell that comes alive again has no trail.
         const blinker = boardOf([".....", "..O..", "..O..", "..O..", "....."]);
-        blinker.trail = 2;
+        blinker.trailColours = ["#808080", "#404040"];
         blinker.step();
         blinker.step();
         compare(blinker.picture(), [".....", "..O..", ".1O1.", "..O..", "....."]);
@@ -117,7 +117,6 @@ TestCase {
         board.place(["....", ".O..", "...."], 0, 0);
         board.width = 40;
         board.height = 30;
-        board.trail = 2;
         board.ground = "#101010";
         board.live = "#ff8000";
         board.trailColours = ["#804000", "#402000"];
