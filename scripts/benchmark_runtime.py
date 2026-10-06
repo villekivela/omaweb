@@ -295,7 +295,7 @@ PAGELOAD_TOOLS = {
 
 # The least /dev/shm a run may have. The engine writes each response body into a data pipe of
 # 2 MiB there, and the worst case's forty images can all be in flight at once: a run with room to
-# spare peaked at 70 MiB. Docker gives a container 64 MiB, and there the engine cancelled the last
+# spare peaked at 74 MiB. Docker gives a container 64 MiB, and there the engine cancelled the last
 # images of a load as their answers arrived, because no pipe could be made for them (#600). A
 # desktop's /dev/shm is half its memory.
 PAGELOAD_SHARED_MEMORY_MEBIBYTES = 256
