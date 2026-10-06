@@ -8,9 +8,9 @@
       "note": "Process start to the first buffer on the toplevel's surface, median of three launches. The three were 1.127, 0.690 and 0.668 s, the first paying for a cold page cache. The ceiling is about four times the median, which is what the startup probes in docs/development.md use, because a shared runner's speed is not its own."
     },
     "startup_lived_in_seconds": {
-      "ceiling": 3.0,
-      "recorded": 0.72,
-      "note": "Process start to the first buffer on the toplevel's surface with the lived-in profile, file-cache cold, median of three launches. The profile is #618's reader's shape at about its size, 403 MiB: two Spaces, three open tabs, closed and put-away tabs, 106 visits, both filter lists, an 83 MiB extension and the engine's HTTP cache, Cache Storage and IndexedDB. Measured on the Lenovo the development guide names, on 2026-10-06 from the package-like release build on omaweb-qtwebengine 6.11.2-3: 0.717, 0.720 and 0.720 s, and 6.18 to 6.20 s before #618. The ceiling is about four times the median, as the startup ceiling is, and the same 3.0 s, because a reader's months of use cost the window 80 ms."
+      "ceiling": 6.5,
+      "recorded": 1.62,
+      "note": "Process start to the first buffer on the toplevel's surface with the lived-in profile, file-cache cold, median of three launches. The profile is #618's reader's shape at about its size, 403 MiB: two Spaces, three open tabs, closed and put-away tabs, 106 visits, both filter lists, an 83 MiB extension and the engine's HTTP cache, Cache Storage and IndexedDB. Recorded on 2026-10-06 on CI's runner from #619's budget job: 1.616, 1.624 and 1.644 s. The ceiling is about four times the median, as the startup ceiling is, because a shared runner's speed is not its own. On the Lenovo the development guide names, the package-like release build on omaweb-qtwebengine 6.11.2-3 read 0.717 to 0.720 s, and 6.18 to 6.20 s before #618."
     },
     "memory_mebibytes": {
       "ceiling": 960.0,
