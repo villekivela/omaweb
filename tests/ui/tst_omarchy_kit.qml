@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
+import Omaweb
+import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui as Omarchy
 import "../../src/ui" as Omaweb
@@ -153,6 +155,16 @@ TestCase {
         compare(IpcRegistry.call("omaweb-test", "destroy", []).ran, false);
     }
 
+    // `Style` imports `Quickshell.Hyprland` and connects to `Hyprland.rawEvent`, so the module has
+    // to exist for any token to load, and the signal has to exist or the `Connections` warns on
+    // every load.
+    function test_theShimDeclaresTheHyprlandEventStyleConnectsTo() {
+        const spy = createTemporaryQmlObject("import QtTest; SignalSpy {}", testCase);
+        spy.target = Hyprland;
+        spy.signalName = "rawEvent";
+        verify(spy.valid);
+    }
+
     // Omaweb's own Typography object is gone: the kit's scale is the only type
     // scale, so every size a Omaweb surface asks for has to exist on it.
     function test_theKitScaleCoversEverySizeOmawebAsksFor() {
@@ -229,6 +241,24 @@ TestCase {
 
         fontSettings.resetInterfaceFontSize();
         compare(Style.font.baseSize, themeSize);
+    }
+
+    // Every kit animation runs for `Style.duration(ms)`, which is 0 under `reduceMotion`. The
+    // kit sets that from `hyprctl` alone, after startup; Omaweb's answer is `SystemMotion`'s,
+    // which also hears the portal, GNOME and macOS, so it is pushed in and outlasts the kit's.
+    function test_theKitStillsWhenTheDesktopAsksForLessMotion() {
+        const reduced = SystemMotion.reduced;
+        SystemMotion.reduced = true;
+        compare(Style.reduceMotion, true);
+        compare(Style.duration(120), 0);
+
+        Style.reduceMotion = false;
+        compare(Style.reduceMotion, true);
+
+        SystemMotion.reduced = false;
+        compare(Style.reduceMotion, false);
+        compare(Style.duration(120), 120);
+        SystemMotion.reduced = reduced;
     }
 
     // Palette normalization can reject two different desktop palettes to the

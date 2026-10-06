@@ -39,6 +39,12 @@ writes only on a difference, so once the values agree nothing writes again. Inst
 singletons from `main()` rather than waiting for the first QML that imports them adds no work. The
 kit's lookups already ran during startup, so it only moves them a few milliseconds earlier.
 
+Motion is pushed the same way. The kit runs every animation for `Style.duration(ms)`, which is 0
+while `Style.reduceMotion` is on, and sets that from `hyprctl`'s `animations:enabled` alone.
+Omaweb's own chrome stills for any of `SystemMotion`'s sources, so `KitTheme` hands the kit that
+answer and re-applies it when the kit's `hyprctl` run lands. `SystemMotion` is a platform type the
+UI library does not link, so the seam finds it as QML does, by its `Omaweb` singleton name.
+
 What the seam does not drive stays the kit's. `Color.urgent` is one: Omaweb's palette has no error
 role to map onto it, so the kit's own red stands until the palette grows one. `Style.cornerRadius`
 is another. It mirrors Hyprland's `decoration:rounding`, and a control that rounds like the rest of

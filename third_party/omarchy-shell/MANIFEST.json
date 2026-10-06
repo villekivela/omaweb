@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/omacom/omarchy",
   "branch": "quattro",
-  "ref": "97a9fce54f5df007afe7b8637ddc09314f38ad00",
-  "fetched": "2026-10-04",
+  "ref": "81145eb1fd41532fcae4310b26f860608e2eaf82",
+  "fetched": "2026-10-06",
   "license": "MIT",
   "files": {
     "LICENSE": {
@@ -37,8 +37,8 @@
     },
     "qs/Commons/Style.qml": {
       "upstream": "shell/Commons/Style.qml",
-      "blob": "ec61252b7626fead302a2b69012e548b06982e88",
-      "sha256": "f5901092617ae62645597199270afd4dfb0644d596bdfff16e1834fca6ad7243"
+      "blob": "0582356cfdae3d8e31432fdb5fec5d555258bd40",
+      "sha256": "3d09947d917633b167f08d250696302e126e608c47991c604dca969d692f6221"
     },
     "qs/Commons/Util.qml": {
       "upstream": "shell/Commons/Util.qml",
@@ -82,8 +82,8 @@
     },
     "qs/Ui/Button.qml": {
       "upstream": "shell/Ui/Button.qml",
-      "blob": "2b84577a3c553d82203ed5222ba17e54236e2bad",
-      "sha256": "fda48672cc11dba109acea1cc98eb4b29746e5ce09f90a47f487b776ff99e799"
+      "blob": "09c5806cef925fb48fc8582cf7657a8ebd65a221",
+      "sha256": "3a6377217c27219849958184c897d23c38752e7e9f9ee4d18a8d87d3f113aaef"
     },
     "qs/Ui/ButtonGroup.qml": {
       "upstream": "shell/Ui/ButtonGroup.qml",
@@ -97,8 +97,8 @@
     },
     "qs/Ui/CursorSurface.qml": {
       "upstream": "shell/Ui/CursorSurface.qml",
-      "blob": "58e46d0629fa3884a0b0332b19b49208de5ef322",
-      "sha256": "27844a40fbe378e84c0aea35654dd8b396afb7e331c86be80852e1529da4f5b2"
+      "blob": "cb715df9e2070ada6d0ba4535ac261edcaf1b5eb",
+      "sha256": "0260e0aa8396873e65ad99d152ce61deeb54ebacc8517730c1d50c75902ed467"
     },
     "qs/Ui/Dropdown.qml": {
       "upstream": "shell/Ui/Dropdown.qml",
@@ -107,13 +107,13 @@
     },
     "qs/Ui/KeyboardPanel.qml": {
       "upstream": "shell/Ui/KeyboardPanel.qml",
-      "blob": "b2fb218f46b40dd7f907fc123e714d09319ed2f8",
-      "sha256": "96245f2da8d38baa0017caa285d596c485bd19a3a4d2cd1675bee9d84ffba42d"
+      "blob": "38a2979ce62ce7325d4b22df0db586d3599707cd",
+      "sha256": "22f91587315df2e91711fc6c6c4ec6775b3f2f848773ff8b19f611e2a545dd3d"
     },
     "qs/Ui/MultiSelect.qml": {
       "upstream": "shell/Ui/MultiSelect.qml",
-      "blob": "85705779fc729a75fdc84b2c5b86aa1c15b2e2b7",
-      "sha256": "ed85c2bf48ca17a059611b582d3d650eb2a1ad37cff2b700ca0c6c441a4c52df"
+      "blob": "ad2e29553ce44f9bf85828695e3ea4eb09bdefe3",
+      "sha256": "b33531cb8563f3fb6c78e8e070cc9d3c317bd395c8da1f9b30c27180509156a7"
     },
     "qs/Ui/NumberField.qml": {
       "upstream": "shell/Ui/NumberField.qml",
@@ -137,8 +137,8 @@
     },
     "qs/Ui/PanelActionButton.qml": {
       "upstream": "shell/Ui/PanelActionButton.qml",
-      "blob": "05f7d6be06dbe018cc76001c29eeab880530b80c",
-      "sha256": "6c94ff62997f18d1712a741e8ae24ed98a6fa5c6350b266c631ff92f26cffdc7"
+      "blob": "d4115e2bdd7207553b2a430eae06e93a5192c55a",
+      "sha256": "9aaece5e83930de697b8f10693b95d5dc2df3e6e63e8ee3a622b264517caa7ed"
     },
     "qs/Ui/PanelController.qml": {
       "upstream": "shell/Ui/PanelController.qml",
@@ -152,8 +152,8 @@
     },
     "qs/Ui/PanelKeyCatcher.qml": {
       "upstream": "shell/Ui/PanelKeyCatcher.qml",
-      "blob": "b110b223592a1c6891dac2db31dac35bf9b7e6c5",
-      "sha256": "567f6fd8d4426fdd77b36be790fcc7be9204b61dca9170bd43f09b9f77f45fb7"
+      "blob": "03cf59f166e9a5e51bb3c161efe74f616870f282",
+      "sha256": "16f84aedb456fba224bdc40df5c40a5ec3ff7cd701f1ac616811d3aac9cf4cb7"
     },
     "qs/Ui/PanelSectionHeader.qml": {
       "upstream": "shell/Ui/PanelSectionHeader.qml",
@@ -167,8 +167,8 @@
     },
     "qs/Ui/PanelSlider.qml": {
       "upstream": "shell/Ui/PanelSlider.qml",
-      "blob": "d7bf1303b438cd00242d1d697e1d0f498547dbd3",
-      "sha256": "aa8fcf167324ff9eb60a219f037004482adbe2a30369af123d53956a81a93068"
+      "blob": "64396713efcb224fafe75ed850c8a5906b98d26c",
+      "sha256": "997b8db25877e3463e500e7c60a596a5496f44cd903d20938fcdaf2fa81f668f"
     },
     "qs/Ui/PanelToolTip.qml": {
       "upstream": "shell/Ui/PanelToolTip.qml",
@@ -187,8 +187,8 @@
     },
     "qs/Ui/PopupCard.qml": {
       "upstream": "shell/Ui/PopupCard.qml",
-      "blob": "058b068f9a2858341373ef991392f3af1e99221f",
-      "sha256": "b3751c78dba9d3b6383c072c915c3d1ecf5e2227cc8417127323077df1f0af5a"
+      "blob": "3bc8193a105e9fafc4a73ffec333de17d70e15b2",
+      "sha256": "83588693a116ac0e0b1e0936d0e12e96e3a8e091812c5dbfd2c16fb81dddd08a"
     },
     "qs/Ui/ScreenMoveRemap.qml": {
       "upstream": "shell/Ui/ScreenMoveRemap.qml",
@@ -202,8 +202,8 @@
     },
     "qs/Ui/SpeedTestOverlay.qml": {
       "upstream": "shell/Ui/SpeedTestOverlay.qml",
-      "blob": "a8f84c7be4a2d29bf8735746a5098801b12af94f",
-      "sha256": "f7b37ccf6e641c3a607d91b824f7df15aac6177e5004462718842c686325af48"
+      "blob": "f1beef92b23df39af806453df260c5e32be1c3fe",
+      "sha256": "c65e67f0d09ecf0a0a9bd0be2e403cf5c24b8986d9cf021ed06c5c45a1261e3f"
     },
     "qs/Ui/TextField.qml": {
       "upstream": "shell/Ui/TextField.qml",
@@ -212,18 +212,18 @@
     },
     "qs/Ui/Toggle.qml": {
       "upstream": "shell/Ui/Toggle.qml",
-      "blob": "b861fec78296215dc9b0fc50076039edcd5ab7f8",
-      "sha256": "158aaa84cf1fff771b932bb1c79e00be19bee1bfeef2d27bfbd8aa4f1c416e6b"
+      "blob": "0f2c9b7c49475f7acc4597685d97bc3ccb7cf6d6",
+      "sha256": "d8ffc8fd7bfa11bb187f203a3cfb8212bb55df4022a503dc02af8626bbfd1f03"
     },
     "qs/Ui/ToggleSwitch.qml": {
       "upstream": "shell/Ui/ToggleSwitch.qml",
-      "blob": "22e6461abe3546fe40eeb64c998c149a9694fd2f",
-      "sha256": "6bfae25396c1d03979efd9a27130e03f11edc2c7062d1f0c0c252b30e60a9898"
+      "blob": "f1aa80fa61fd7549c3f8ed455a3494c468961ae8",
+      "sha256": "789abfa94092a99ea1b06a5ff5ea24ae5431f611cd865fc0a9050180e9e0cd62"
     },
     "qs/Ui/WidgetButton.qml": {
       "upstream": "shell/Ui/WidgetButton.qml",
-      "blob": "87d18050cf294fb260490c2c9b779b870aebf35d",
-      "sha256": "a3cc74adca517b73a176eae0f93e976c24a3ec73b4b5855340b61b1ed2dcd08f"
+      "blob": "107fcac63772714a9157d2cac0b81d84dea5d759",
+      "sha256": "9a7fa232a87ad5afa5e032fd57324bfa36013fc524ce8eaf6329c046753abd31"
     },
     "qs/Ui/qmldir": {
       "upstream": "shell/Ui/qmldir",

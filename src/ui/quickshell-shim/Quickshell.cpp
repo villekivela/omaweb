@@ -1,5 +1,6 @@
 #include "Quickshell.h"
 
+#include "QuickshellHyprland.h"
 #include "QuickshellIo.h"
 
 #include <QQmlEngine>
@@ -26,6 +27,8 @@ void installShim(QQmlEngine &engine)
     qmlRegisterSingletonType<Quickshell>("Quickshell", 1, 0, "Quickshell",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new Quickshell; });
     qmlRegisterType<Singleton>("Quickshell", 1, 0, "Singleton");
+    qmlRegisterSingletonType<Hyprland>("Quickshell.Hyprland", 1, 0, "Hyprland",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new Hyprland; });
     qmlRegisterType<FileView>("Quickshell.Io", 1, 0, "FileView");
     qmlRegisterType<IpcHandler>("Quickshell.Io", 1, 0, "IpcHandler");
     qmlRegisterType<Process>("Quickshell.Io", 1, 0, "Process");

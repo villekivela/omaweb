@@ -704,12 +704,13 @@ and pinned by `MANIFEST.json`. Both projects are QML on Qt 6, so the kit is used
 reimplemented.
 
 Vendored files are byte-for-byte copies and are never edited. `ctest` fails on any local change.
-Omaweb meets the kit from three sides: `src/ui/quickshell-shim` registers the `Quickshell` and
-`Quickshell.Io` types the kit's singletons import, the QML in `src/ui` adapts components to Omaweb's
-call sites, keeping Omaweb's property names and its accessibility annotations, and
-`src/ui/KitTheme.cpp` drives the kit's `qs.Commons` colour and type singletons from the theme
-palette so they follow `ThemeController` rather than an Omarchy theme on disk. The vendor root is on
-the QML import path in source builds and lands under `qrc:/qt/qml` in resource builds.
+Omaweb meets the kit from three sides: `src/ui/quickshell-shim` registers the `Quickshell`,
+`Quickshell.Hyprland` and `Quickshell.Io` types the kit's singletons import, the QML in `src/ui`
+adapts components to Omaweb's call sites, keeping Omaweb's property names and its accessibility
+annotations, and `src/ui/KitTheme.cpp` drives the kit's `qs.Commons` colour and type singletons from
+the theme palette so they follow `ThemeController` rather than an Omarchy theme on disk, and the
+kit's `Style.reduceMotion` from `SystemMotion`. The vendor root is on the QML import path in source
+builds and lands under `qrc:/qt/qml` in resource builds.
 
 Running on Omarchy itself means the real Quickshell is already installed in Qt's qml directory,
 where a module on the import path beats the shim's C++ registration. The shim ships a qmldir for
@@ -1459,11 +1460,16 @@ on both. "Off" is the per-site switch: the page is served from a second host, an
 switched off for that one, which is the comparison a reader makes and the one
 [ADR 0050](adr/0050-uncloak-cname-trackers-in-the-engine.md) made. The page times itself, from its
 navigation starting to its `load` event. A load that shows fewer than 40 images is not counted,
-because the two modes would no longer have loaded the same page. On CI's runner the engine now and
-then cancels an image as its answer arrives, with blocking on and off alike, so a spare of the same
-case and mode, whose hosts are already in the zone, is loaded in its place and the run lists it.
-Running out of spares fails the run. What the budget holds is the median with blocking on minus the
-median with it off; the two medians are printed beside it.
+because the two modes would no longer have loaded the same page. A spare of the same case and mode,
+whose hosts are already in the zone, is loaded in its place and the run lists it. Running out of
+spares fails the run. What the budget holds is the median with blocking on minus the median with it
+off; the two medians are printed beside it.
+
+The engine writes each response body into a 2 MiB data pipe in `/dev/shm`, and the worst case's 40
+images can all be in flight at once. Docker gives a container 64 MiB of `/dev/shm`, which a run
+outgrows: the engine then cancels the last images of a load as their answers arrive, because no pipe
+can be made for them. So `pageload` fails when `/dev/shm` has less than 256 MiB free, and CI's
+`arch-linux` job starts its container with `--shm-size=2g`.
 
 The rules are EasyList and EasyPrivacy from `third_party/filter-lists`, snapshots pinned by digest
 so a run next month measures the same rules. `ctest` checks them against their manifest
