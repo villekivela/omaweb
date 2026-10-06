@@ -1555,7 +1555,7 @@ the window's mapping comes from, against the moment they started the process:
 | `engine-started`          | the first Space's profile exists, which is what starts Chromium        |
 | `qml-loaded`              | the window's QML has loaded                                            |
 | `window-mapped`           | the window's first buffer is on its surface, from the protocol log     |
-| `first-frame`             | the window has swapped its first frame                                 |
+| `first-frame`             | the interface thread hears that the window swapped its first frame     |
 | `rules-compiled`          | the filter lists are in force                                          |
 | `first-request`           | the restored page's first request reaches content blocking             |
 | `extension-loaded`        | the profile's first extension has loaded                               |
@@ -1612,6 +1612,10 @@ it, both between `qml-load-started` and `engine-started`:
 - **Settings, about half a second.** The window built Settings, every section's controls, before its
   first frame, though none of it is on show then. Deferring it took the package-like build from 1.10
   s to 0.58 s, fresh and warm. It is now built after the first frame.
+
+`first-frame` is logged on the interface thread when it hears the render thread swap, so it trails
+`window-mapped` by however long that thread is busy: about 90 ms after #618, because the filter
+lists land and Settings starts to build just as the window maps.
 
 The profile's size is not on the path to the window: lived-in maps it 80 ms after fresh, warm or
 cold, which is the session and the page it restores. A cold launch costs about 150 ms over a warm
