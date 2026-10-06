@@ -165,14 +165,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The night sky is drawn from the palette in the same way and follows a live theme change, and it is
   always night, a light theme's night drawn from its dark text. A dark planet rises from the bottom,
   after Navigator's globe: its face from the palette's dark, a thin glow in the palette along its
-  curved limb, and the limb cresting just below the resting Omnibar's hint row, with a small gap, so
-  the curve shows whole. The Omnibar keeps the place it has over the road. Over it a still star
-  field, and a comet or a shooting star now and then on a slow diagonal, falling above the limb and
-  going out behind it. There is no mark: the Omnibar is the one thing in the middle. A comet passing
-  near the field briefly catches the Omnibar's rim. On commit stars fall thick and fast as streaks
-  until the page paints, then the page takes over as it does from the road. Reduced motion holds one
-  frame, the star field and one comet part way across, with no glint. A Private window's sky has its
-  lights out: the planet and its limb stay, with no glow, stars, comets or glint, even on commit.
+  curved limb. The planet lies wholly under the resting Omnibar: its top, the glow included, stands
+  a small gap below the hint row, so the curve shows whole. The Omnibar keeps the place it has over
+  the road. Over it a still star field, and a comet or a shooting star now and then on a slow
+  diagonal, falling above the limb and going out behind it. There is no mark: the Omnibar is the one
+  thing in the middle. A comet passing near the field briefly catches the Omnibar's rim. On commit
+  stars fall thick and fast as streaks until the page paints, then the page takes over as it does
+  from the road. Reduced motion holds one frame, the star field and one comet part way across, with
+  no glint. A Private window's sky has its lights out: the planet and its limb stay, with no glow,
+  stars, comets or glint, even on commit.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.

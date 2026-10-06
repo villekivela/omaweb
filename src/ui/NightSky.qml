@@ -148,11 +148,17 @@ Item {
     // ---- the planet
     //
     // A circle centred below the page, its radius the page area's width
-    // times `radius`, whose top, its limb's crest, stands `gap` below the
-    // resting Omnibar's hint row, so the curve shows whole.
+    // times `radius`. Its top, the glow over its limb included, stands `gap`
+    // below the resting Omnibar's hint row, so the planet lies wholly under
+    // the Omnibar and its curve shows whole. Unlit, it has no glow and stands
+    // in the same place.
 
     readonly property real planetRadius: root.drawWidth * root.parameters.planet.radius
+    readonly property real glowReach: root.parameters.planet.glow.reach
     readonly property real crestY: root.horizonY + root.omnibarReach + root.parameters.planet.gap
+                                   + root.glowReach
+    // The planet's highest point, the glow over its limb included.
+    readonly property real planetTop: root.crestY - (root.limbGlows ? root.glowReach : 0)
     readonly property point planetCentre: Qt.point(root.drawWidth / 2, root.crestY
                                                    + root.planetRadius)
 

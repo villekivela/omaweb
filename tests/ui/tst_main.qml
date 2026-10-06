@@ -12080,39 +12080,73 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting scene");
     }
 
-    function test_theSkysPlanetCrestsBelowTheOmnibar_data() {
+    function test_theSkysPlanetStaysBelowTheOmnibar_data() {
         return [
                     {
-                        tag: "theme's type",
+                        tag: "1360 x 860",
+                        width: 1360,
+                        height: 860,
+                        larger: 0
+                    },
+                    {
+                        tag: "1000 x 640",
+                        width: 1000,
+                        height: 640,
+                        larger: 0
+                    },
+                    {
+                        tag: "1800 x 1100",
+                        width: 1800,
+                        height: 1100,
                         larger: 0
                     },
                     {
                         tag: "larger type",
+                        width: 1360,
+                        height: 860,
                         larger: 6
                     }
                 ];
     }
 
-    // The sky's planet crests just below the resting Omnibar's hint row, with
-    // a small gap, so its curve shows whole, at whatever size the interface's
-    // type is, and the Omnibar keeps the place it has over the road.
-    function test_theSkysPlanetCrestsBelowTheOmnibar(data) {
+    // The sky's planet lies wholly under the resting Omnibar: its top, the
+    // glow along its limb included, stands a small gap below the hint row's
+    // bottom edge, at any window size and type size, so its curve shows whole.
+    // The Omnibar keeps the place it has over the road.
+    function test_theSkysPlanetStaysBelowTheOmnibar(data) {
+        const width = window.width;
+        const height = window.height;
         fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + data.larger);
         const panel = findChild(window.contentItem, "omnibar");
         const scene = findChild(window.contentItem, "startPageScene");
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting planet");
-        const restY = panel.restY;
-        window.setStartPageScene("night-sky");
-        const sky = findChild(scene, "nightSky");
-        verify(sky !== null);
-        compare(panel.restY, restY);
-        const crest = scene.mapToItem(panel, 0, sky.planetCentre.y - sky.planetRadius).y;
-        const bottom = panel.restY + panel.restHeight;
-        verify(crest > bottom + 4, "crest " + crest + ", Omnibar's bottom " + bottom);
-        verify(crest < bottom + 24, "crest " + crest + ", Omnibar's bottom " + bottom);
-        leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
-        fontSettings.resetInterfaceFontSize();
+        try {
+            window.width = data.width;
+            window.height = data.height;
+            tryCompare(window.contentItem, "height", data.height);
+            const restY = panel.restY;
+            window.setStartPageScene("night-sky");
+            const sky = findChild(scene, "nightSky");
+            verify(sky !== null);
+            compare(panel.restY, restY);
+            const bottom = function () {
+                return panel.restY + panel.restHeight;
+            };
+            const top = function () {
+                return scene.mapToItem(panel, 0, sky.planetTop).y;
+            };
+            tryVerify(function () {
+                return top() > bottom() + 4;
+            }, 1000, "planet's top " + top() + ", Omnibar's bottom " + bottom());
+            verify(top() < bottom() + 24, "planet's top " + top() + ", Omnibar's bottom " + bottom(
+                       ));
+        } finally {
+            leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
+            fontSettings.resetInterfaceFontSize();
+            window.width = width;
+            window.height = height;
+        }
     }
 
     // A reader who turned the road off before there was a choice arrives on
