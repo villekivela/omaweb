@@ -641,13 +641,15 @@ Item {
             engineComponent = Qt.createComponent(root.engineSource);
         // The extension belongs to the profile, and the profile is there
         // first; but its packages arrive a moment after it, and a document
-        // created in that moment runs none of their scripts. So a page asked
-        // for while the profile is still waiting on one starts blank and is
-        // pointed at its address when the wait ends.
+        // created in that moment runs none of their scripts. The rules the
+        // browser started with are still compiling for a moment after the
+        // window is up too, and a request made in that moment is let
+        // through unchecked. So a page asked for while either is pending
+        // starts blank and is pointed at its address when the wait ends.
         const host = root.spaceProfiles ? root.spaceProfiles.hostFor(spaceId !== undefined ? spaceId :
                                                                                              root.sessionSpaceId) :
                                           null;
-        const held = host && host.extensionLoadsPending > 0 && !root.pagelessAddress(tabUrl);
+        const held = root.pageWaits(host) && !root.pagelessAddress(tabUrl);
         const engine = engineComponent.createObject(parent, {
                                                         "profilePath": profilePath !== undefined
                                                                        ? profilePath :
@@ -689,25 +691,43 @@ Item {
                                                         "visible": false
                                                     });
         if (held)
-            root.releaseWhenExtensionsLoaded(engine, host, tabUrl);
+            root.releaseWhenReady(engine, host, tabUrl);
         root.giveScrollbar(engine);
         return engine;
     }
 
-    function releaseWhenExtensionsLoaded(engine, host, tabUrl) {
+    // Whether a page built now waits before it is pointed at its address.
+    function pageWaits(host) {
+        return (host !== null && host.extensionLoadsPending > 0) || (root.blocker !== null
+                                                                     && root.blocker.rulesPending
+                                                                     === true);
+    }
+
+    function releaseWhenReady(engine, host, tabUrl) {
         let alive = true;
+        const blocker = root.blocker;
+        const stopWaiting = function () {
+            if (host && host.extensionLoadsPendingChanged)
+                host.extensionLoadsPendingChanged.disconnect(release);
+            if (blocker && blocker.rulesPendingChanged)
+                blocker.rulesPendingChanged.disconnect(release);
+        };
         const release = function () {
-            if (host.extensionLoadsPending > 0)
+            if ((host && host.extensionLoadsPending > 0) || (blocker && blocker.rulesPending
+                                                             === true))
                 return;
-            host.extensionLoadsPendingChanged.disconnect(release);
+            stopWaiting();
             if (alive && String(engine.currentUrl).length === 0)
                 engine.currentUrl = tabUrl;
         };
         engine.Component.destruction.connect(function () {
             alive = false;
-            host.extensionLoadsPendingChanged.disconnect(release);
+            stopWaiting();
         });
-        host.extensionLoadsPendingChanged.connect(release);
+        if (host && host.extensionLoadsPendingChanged)
+            host.extensionLoadsPendingChanged.connect(release);
+        if (blocker && blocker.rulesPendingChanged)
+            blocker.rulesPendingChanged.connect(release);
     }
 
     // The bar the page scrolls in, drawn by the chrome rather than the engine.

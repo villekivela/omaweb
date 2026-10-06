@@ -32,6 +32,12 @@ class ContentBlocker final : public QObject {
     // from here to subscriptions, so the two never list the same thing.
     Q_PROPERTY(QVariantList knownLists READ knownLists NOTIFY subscriptionsChanged)
     Q_PROPERTY(bool compiling READ compiling NOTIFY compilingChanged)
+    // Whether the rules the browser started with are still compiling. A page
+    // asked for meanwhile waits for them, so its first request is checked
+    // against the reader's rules rather than let through. Once they are in
+    // force, or the compile has produced nothing, a later compile holds up no
+    // page: the rules in force go on answering until it lands.
+    Q_PROPERTY(bool rulesPending READ rulesPending NOTIFY rulesPendingChanged)
     Q_PROPERTY(QVariantMap compilationReport READ compilationReport NOTIFY rulesChanged)
     // How many times a Refusal tally has moved. A tally is keyed by page
     // address and Space, so it is asked for rather than bound to; reading this
@@ -55,6 +61,7 @@ public:
     QVariantList subscriptions() const;
     QVariantList knownLists() const;
     bool compiling() const;
+    bool rulesPending() const;
     QVariantMap compilationReport() const;
 
     Q_INVOKABLE QString addSubscription(const QString &title, const QUrl &source,
@@ -141,6 +148,7 @@ signals:
     void configurationChanged();
     void subscriptionsChanged();
     void compilingChanged();
+    void rulesPendingChanged();
     void rulesChanged();
     void refusalTallyGenerationChanged();
     // The addresses refused for the page a view is showing, in the batch its
@@ -265,6 +273,7 @@ private:
     Compile m_compile = &ContentMatcher::compile;
     std::atomic<quint64> m_compileGeneration = 0;
     int m_activeCompilations = 0;
+    bool m_rulesPending = true;
     // Two threads compile, each one compile at a time, in the order asked for. A refresh checks,
     // stores and compiles its lists on m_refresher, so its compiles never run side by side on the
     // cores the interface thread draws on: the global pool ran a list's check and the compiles

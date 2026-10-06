@@ -12824,6 +12824,47 @@ TestCase {
         verify(matches[0].keys.length > 0);
     }
 
+    // Content blocking while the rules the browser started with are still
+    // compiling: everything the mock engine asks of it is a no-op.
+    Component {
+        id: pendingRulesBlockerComponent
+
+        QtObject {
+            property bool rulesPending: true
+
+            function showPage() {
+            }
+        }
+    }
+
+    // A page asked for while the browser's rules are still compiling starts
+    // blank and is pointed at its address once they are in force, so its
+    // first request is checked against them rather than let through (#618).
+    function test_aPageWaitsForTheRulesTheBrowserStartedWith() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        verify(engineHost !== null);
+        const blocker = engineHost.blocker;
+        const pending = createTemporaryObject(pendingRulesBlockerComponent, testCase);
+        engineHost.blocker = pending;
+        try {
+            const url = "https://held-for-rules.example/";
+            const before = engineHost.item;
+            browser.openInput(url, true);
+            tryVerify(function () {
+                return engineHost.item !== null && engineHost.item !== before;
+            });
+            const engine = engineHost.item;
+            wait(50);
+            compare(engine.currentUrl.toString(), "");
+            pending.rulesPending = false;
+            tryVerify(function () {
+                return engine.currentUrl.toString() === url;
+            });
+        } finally {
+            engineHost.blocker = blocker;
+        }
+    }
+
     // Settings is the heaviest page in the window and none of it is on show
     // when the window comes up, so it is built after the first frame rather
     // than before it (#618).
