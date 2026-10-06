@@ -41,6 +41,9 @@ ApplicationWindow {
     // hand the page the whole window may mean the whole window, so the strip is
     // theirs to refuse; the keys that hide the sidebar bring it back either way.
     property bool floatingControls: true
+    // The window edge the sidebar stands against, "left" or "right". The page,
+    // the seam and the floating controls follow it.
+    property string sidebarSide: "left"
     // The desktop asking for no movement, which stills everything the chrome
     // would move, whatever started it.
     readonly property bool reducedMotion: SystemMotion.reduced
@@ -1932,6 +1935,13 @@ ApplicationWindow {
                 === "true";
         window.startPageGlass = window.windowBrowser.preference("start-page-glass", "true")
                 === "true";
+        window.sidebarSide = window.windowBrowser.preference("sidebar-side", "left") === "right"
+                ? "right" : "left";
+    }
+
+    function setSidebarSide(side) {
+        window.sidebarSide = side;
+        window.windowBrowser.setPreference("sidebar-side", side);
     }
 
     function setFloatingControls(enabled) {
@@ -1986,7 +1996,7 @@ ApplicationWindow {
 
         function onPreferenceChanged(name) {
             if (name === "floating-controls" || name === "glance" || name === "start-page-road" || name
-                    === "start-page-glass")
+                    === "start-page-glass" || name === "sidebar-side")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
@@ -2933,6 +2943,24 @@ ApplicationWindow {
             readonly property real settledSeam: window.sidebarCollapsed ? 0 :
                                                                           window.sidebarDrawnWidth
             property real peekRevealed: window.sidebarPeeked ? 1 : 0
+            readonly property bool sidebarOnRight: window.sidebarSide === "right"
+            // Where a right sidebar's inner edge stands. A window need not be
+            // a whole number of the display's pixels wide at a fractional
+            // scale, so the edge is snapped rather than taken from the width.
+            readonly property real rightSeamX: DevicePixels.snap(chromeRow.width - chromeRow.seam,
+                                                                 window.devicePixelRatio)
+            // Where the page starts: at the seam beside a left sidebar, at the
+            // window's edge beside a right one.
+            readonly property real pageX: chromeRow.sidebarOnRight ? 0 : chromeRow.seam
+            readonly property real settledPageX: chromeRow.sidebarOnRight ? 0 :
+                                                                            chromeRow.settledSeam
+            // Beside a right sidebar at rest the page ends on its snapped edge;
+            // without an inset it reaches the window's.
+            readonly property real pageWidth: chromeRow.sidebarOnRight && chromeRow.pageInset > 0
+                                              ? DevicePixels.snap(chromeRow.width
+                                                                  - chromeRow.pageInset,
+                                                                  window.devicePixelRatio) :
+                                                chromeRow.width - chromeRow.pageInset
             // The page is a webpage's viewport, so every width it is handed is
             // a layout of that page. It takes the wider of the two widths the
             // slide ends at and gives it up once the seam has settled, riding
@@ -2981,8 +3009,14 @@ ApplicationWindow {
                 // The sidebar's own width does not change as it leaves or
                 // arrives, so the rows in it are not laid out again on the way.
                 width: window.sidebarDrawnWidth
-                x: chromeRow.seam - width + (window.sidebarCollapsed ? chromeRow.peekRevealed
-                                                                       * width : 0)
+                // Its outer edge against the window's, the shown part of it
+                // inside the row: a hidden sidebar leaves toward its own edge.
+                readonly property real shown: chromeRow.seam + (window.sidebarCollapsed
+                                                                ? chromeRow.peekRevealed * width :
+                                                                  0)
+                x: chromeRow.sidebarOnRight ? DevicePixels.snap(chromeRow.width - shown,
+                                                                window.devicePixelRatio) : shown
+                                              - width
                 visible: chromeRow.seam > 0 || (chromeRow.peekRevealed > 0 &&
                                                 !engineLoader.siteFullscreenActive)
                 // Above the page while a Space arrives, so a page arriving
@@ -2991,6 +3025,7 @@ ApplicationWindow {
                 z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
+                onRight: chromeRow.sidebarOnRight
                 browser: window.windowBrowser
                 keyMap: keymap
                 keyLabelsShown: PrimaryHold.held && !window.settingsOpen
@@ -3084,11 +3119,12 @@ ApplicationWindow {
             SpaceNotice {
                 id: spaceNotice
                 objectName: "spaceNotice"
-                x: DevicePixels.snap(chromeRow.settledSeam + (chromeRow.width
-                                                              - chromeRow.settledSeam - (
-                                                                  developerToolsDock.visible
-                                                                  ? developerToolsDock.width : 0)
-                                                              - width) / 2, window.devicePixelRatio)
+                x: DevicePixels.snap(chromeRow.settledPageX + (chromeRow.width
+                                                               - chromeRow.settledSeam - (
+                                                                   developerToolsDock.visible
+                                                                   ? developerToolsDock.width : 0)
+                                                               - width) / 2,
+                                     window.devicePixelRatio)
                 z: 40
                 colors: window.colors
                 spaceName: window.windowBrowser.activeSpaceName
@@ -3114,11 +3150,24 @@ ApplicationWindow {
                 }
             }
 
+            // The page area's bounds. Beside a right sidebar the page stays
+            // where it is while the seam moves, keeping one width for the
+            // slide, and this ends it at the seam so it is not drawn over the
+            // sidebar. The two items below are its children.
+            Item {
+                id: pageClip
+                objectName: "pageClip"
+                width: chromeRow.sidebarOnRight ? chromeRow.rightSeamX : chromeRow.width
+                height: parent.height
+                clip: chromeRow.sidebarOnRight && seamEase.running
+            }
+
             // What shows where the page is not while it arrives: the page's
             // own opaque ground, standing still, rather than the desktop.
             Rectangle {
-                x: chromeRow.seam
-                width: chromeRow.width - chromeRow.pageInset
+                parent: pageClip
+                x: chromeRow.pageX
+                width: chromeRow.pageWidth
                 height: parent.height
                 visible: sidebar.arriving
                 color: window.pagelessViewport ? window.colors.sheet : window.colors.windowOpaque
@@ -3126,8 +3175,9 @@ ApplicationWindow {
 
             Item {
                 objectName: "engineViewport"
-                x: chromeRow.seam
-                width: chromeRow.width - chromeRow.pageInset
+                parent: pageClip
+                x: chromeRow.pageX
+                width: chromeRow.pageWidth
                 height: parent.height
                 // The page arrives with the Space, from the side the sidebar's
                 // list arrives from, by a fraction of the list's travel: it is
@@ -3657,8 +3707,10 @@ ApplicationWindow {
                 FindBar {
                     id: findBar
                     objectName: "findBar"
-                    anchors.right: parent.right
-                    anchors.rightMargin: 20
+                    // Across the page from the sidebar's side, where the
+                    // floating controls stand while it is hidden.
+                    x: chromeRow.sidebarOnRight ? 20 : DevicePixels.snap(parent.width - width - 20,
+                                                                         window.devicePixelRatio)
                     anchors.top: parent.top
                     anchors.topMargin: 16
                     z: 41
@@ -4169,6 +4221,7 @@ ApplicationWindow {
                     useFavicons: window.useFavicons
                     tintFavicons: window.tintFavicons
                     floatingControls: window.floatingControls
+                    sidebarSide: window.sidebarSide
                     glanceEnabled: window.glanceEnabled
                     startPageRoad: window.startPageRoad
                     startPageGlass: window.startPageGlass
@@ -4233,6 +4286,9 @@ ApplicationWindow {
                     onFloatingControlsToggled: function (enabled) {
                         window.setFloatingControls(enabled);
                     }
+                    onSidebarSideChosen: function (side) {
+                        window.setSidebarSide(side);
+                    }
                 }
 
                 HistoryPage {
@@ -4271,19 +4327,24 @@ ApplicationWindow {
                     // in for the top of the sidebar, so hiding the sidebar
                     // leaves the commands where the reader was already
                     // reaching for them rather than moving them to the floor.
-                    anchors.left: parent.left
-                    anchors.leftMargin: 16
+                    // Beside a right sidebar that is the window's right edge,
+                    // over the top of docked developer tools.
+                    x: chromeRow.sidebarOnRight ? DevicePixels.snap(parent.width - width - 16,
+                                                                    window.devicePixelRatio) : 16
                     anchors.top: parent.top
                     anchors.topMargin: 16
                     z: 5
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     // The page behind the strip, not the viewport that owns
-                    // both, so the blur never samples itself.
-                    backdropSource: engineLoader
+                    // both, so the blur never samples itself. Over the dock
+                    // there is no page to blur, so the strip takes its own fill.
+                    backdropSource: chromeRow.sidebarOnRight && developerToolsDock.visible ? null :
+                                                                                             engineLoader
                     canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                     canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                     sidebarCollapsed: window.sidebarCollapsed
+                    sidebarOnRight: chromeRow.sidebarOnRight
 
                     onBackRequested: engineLoader.goBack()
                     onForwardRequested: engineLoader.goForward()
@@ -4427,8 +4488,9 @@ ApplicationWindow {
         }
 
         MouseArea {
-            x: chromeRow.seam
-            width: parent.width - x
+            objectName: "siteInformationDismissArea"
+            x: chromeRow.sidebarOnRight ? 0 : chromeRow.seam
+            width: chromeRow.sidebarOnRight ? chromeRow.rightSeamX : parent.width - chromeRow.seam
             height: parent.height
             visible: window.siteInformationOpen
             z: 50
@@ -4443,7 +4505,7 @@ ApplicationWindow {
         MouseArea {
             id: sidebarRevealEdge
             objectName: "sidebarRevealEdge"
-            anchors.left: parent.left
+            x: chromeRow.sidebarOnRight ? parent.width - width : 0
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             width: 6
@@ -4480,9 +4542,10 @@ ApplicationWindow {
 
             enabled: visible
             height: parent.height
-            x: sidebar.x + sidebar.width - width / 2
+            x: (chromeRow.sidebarOnRight ? sidebar.x : sidebar.x + sidebar.width) - width / 2
             z: 6
             colors: window.colors
+            measureFromRight: chromeRow.sidebarOnRight
             currentWidth: window.sidebarWidth
             minimumWidth: window.sidebarMinimumWidth
             maximumWidth: window.sidebarMaximumWidth
@@ -5134,7 +5197,7 @@ ApplicationWindow {
         road: startPage.visible ? startPage.scene : null
         // The Start page stands in the viewport, which a Space arriving slides
         // by `pageArrival`.
-        roadOrigin: startPage.scene ? Qt.point(chromeRow.seam + chromeRow.pageArrival + startPage.x
+        roadOrigin: startPage.scene ? Qt.point(chromeRow.pageX + chromeRow.pageArrival + startPage.x
                                                + startPage.scene.x, startPage.y
                                                + startPage.scene.y) : Qt.point(0, 0)
         ease: window.chromeEase
@@ -5149,7 +5212,7 @@ ApplicationWindow {
         // It stays open underneath, keeping what is typed.
         opacity: window.shortcutsOpen && omnibar.shownResting ? 0 : 1
         resting: window.startPageShown && !window.omnibarOpen
-        restArea: Qt.rect(chromeRow.seam + startPage.x, startPage.y, startPage.width,
+        restArea: Qt.rect(chromeRow.pageX + startPage.x, startPage.y, startPage.width,
                           startPage.height)
         horizonY: startPage.horizonY
         suggestions: window.omnibarSuggestions

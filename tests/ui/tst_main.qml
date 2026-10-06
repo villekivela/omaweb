@@ -265,6 +265,8 @@ TestCase {
             window.setSidebarWidth(window.sidebarDefaultWidth);
         if (!window.floatingControls)
             window.setFloatingControls(true);
+        if (window.sidebarSide !== "left")
+            window.setSidebarSide("left");
         if (!window.startPageRoad)
             window.setStartPageRoad(true);
         if (!window.startPageGlass)
@@ -8406,6 +8408,35 @@ TestCase {
         window.setSidebarWidth(window.sidebarDefaultWidth);
     }
 
+    // A right sidebar starts on a whole pixel of the display, and the page
+    // beside it ends on one, in a window whose width is not a whole number of
+    // the display's pixels at a fractional scale.
+    function test_aRightSidebarRestsOnWholePixels() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        openPage("https://right-pixels.example/");
+        const width = window.width;
+        window.setSidebarSide("right");
+        window.width = width + 1;
+        try {
+            tryCompare(window.contentItem, "width", width + 1);
+            for (const sidebarWidth of [window.sidebarDefaultWidth, 261]) {
+                window.setSidebarWidth(sidebarWidth);
+                tryVerify(function () {
+                    return Math.abs(sidebar.x + sidebar.width - window.contentItem.width) < 1;
+                });
+                verifyOnWholePixels(sidebar, "a right sidebar " + sidebarWidth + " wide", "x");
+                const pageEnd = viewport.mapToItem(null, viewport.width, 0).x;
+                verifyOnDevicePixel(pageEnd * window.devicePixelRatio,
+                                    "the page beside a right sidebar ends between pixels");
+                compare(pageEnd, sidebar.mapToItem(null, 0, 0).x);
+            }
+        } finally {
+            window.width = width;
+            window.setSidebarWidth(window.sidebarDefaultWidth);
+        }
+    }
+
     // A split's divider, its handle and the pane right of it rest on whole
     // pixels of the display wherever the reader leaves the divider, here at an
     // odd width for the left pane.
@@ -12315,6 +12346,288 @@ TestCase {
         floatingControls.clicked();
         compare(window.floatingControls, true);
         compare(browser.preference("floating-controls", "true"), "true");
+    }
+
+    // The kit's choice draws one button per option and names none of them, so
+    // a button is found by what it says.
+    function chipLabelled(group, label) {
+        for (let index = 0; index < group.children.length; ++index) {
+            if (group.children[index].text === label)
+                return group.children[index];
+        }
+        return null;
+    }
+
+    // The side is the reader's, chosen in Interface. It moves the sidebar at
+    // once, without a restart, and comes back on the next start.
+    function test_interfaceChoosesTheSidebarsSide() {
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("interface");
+        const side = findChild(settings, "sidebarSide");
+        verify(side !== null);
+        verify(side.visible);
+        compare(side.value, "left");
+        const sidebar = findChild(window.contentItem, "sidebar");
+
+        const right = chipLabelled(side, "Right");
+        verify(right !== null);
+        settleActions(right);
+        const missed = clickReportingAMiss(right, function () {
+            return window.sidebarSide === "right";
+        });
+        verify(missed.length === 0, missed);
+        compare(side.value, "right");
+        compare(browser.preference("sidebar-side", "left"), "right");
+        tryCompare(sidebar, "x", window.width - sidebar.width);
+
+        // What the next start reads.
+        window.sidebarSide = "left";
+        window.restoreChromeAppearance();
+        compare(window.sidebarSide, "right");
+
+        const left = chipLabelled(side, "Left");
+        mouseClick(left, left.width / 2, left.height / 2);
+        compare(window.sidebarSide, "left");
+        compare(browser.preference("sidebar-side", "right"), "left");
+        tryCompare(sidebar, "x", 0);
+        window.settingsOpen = false;
+
+        // Another window choosing a side moves this one's sidebar as well.
+        browser.setPreference("sidebar-side", "right");
+        compare(window.sidebarSide, "right");
+        browser.setPreference("sidebar-side", "left");
+        compare(window.sidebarSide, "left");
+    }
+
+    // On the right the sidebar is the left one turned round: the page starts at
+    // the window's left edge and ends on the seam, the divider and the handle
+    // stand on the sidebar's inner edge, and every way of resizing reads the
+    // width from the right edge.
+    function test_aRightSidebarResizesFromItsInnerEdge() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        window.setSidebarSide("right");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const resizer = findChild(window.contentItem, "sidebarResizer");
+        const divider = findChild(sidebar, "sidebarDivider");
+        verify(divider !== null);
+        const row = window.contentItem.width;
+        const restsAt = function (width) {
+            return Math.round(sidebar.x) === row - width && Math.round(viewport.x) === 0
+                    && Math.round(viewport.width) === row - width;
+        };
+        tryVerify(function () {
+            return restsAt(window.sidebarDefaultWidth);
+        });
+        compare(Math.round(resizer.x + resizer.width / 2), Math.round(sidebar.x));
+        compare(Math.round(divider.mapToItem(window.contentItem, 0, 0).x), Math.round(sidebar.x));
+        // The Space notice stands over the middle of the page, not of the window.
+        const notice = findChild(window.contentItem, "spaceNotice");
+        verify(Math.abs(notice.x + notice.width / 2 - (row - window.sidebarDefaultWidth) / 2) <= 1);
+
+        resizer.forceActiveFocus();
+        keyClick(Qt.Key_Left);
+        compare(window.sidebarWidth, window.sidebarDefaultWidth + 16);
+        keyClick(Qt.Key_Right);
+        compare(window.sidebarWidth, window.sidebarDefaultWidth);
+
+        // A drag toward the page widens the sidebar by the distance travelled.
+        mousePress(resizer, resizer.width / 2, 300);
+        mouseMove(resizer, resizer.width / 2 - 60, 300);
+        compare(window.sidebarWidth, window.sidebarDefaultWidth + 60);
+        mouseRelease(resizer, resizer.width / 2, 300);
+        tryVerify(function () {
+            return restsAt(window.sidebarDefaultWidth + 60);
+        });
+        compare(Math.round(resizer.x + resizer.width / 2), Math.round(sidebar.x));
+
+        window.commands.run("reset-sidebar", -1);
+        window.commands.run("widen-sidebar", -1);
+        tryVerify(function () {
+            return restsAt(window.sidebarDefaultWidth + 24);
+        });
+        window.commands.run("narrow-sidebar", -1);
+        tryVerify(function () {
+            return restsAt(window.sidebarDefaultWidth);
+        });
+
+        // The sidebar is to the right of the page now, so that is the way the
+        // keyboard goes to reach it.
+        window.focusPage();
+        window.commands.run("move-focus-left", -1);
+        compare(window.focusedRegionName(), "page");
+        window.commands.run("move-focus-right", -1);
+        compare(window.focusedRegionName(), "sidebar");
+        window.commands.run("move-focus-left", -1);
+        compare(window.focusedRegionName(), "page");
+        window.commands.run("focus-sidebar", -1);
+        compare(window.focusedRegionName(), "sidebar");
+        window.commands.run("focus-page", -1);
+        compare(window.focusedRegionName(), "page");
+    }
+
+    // A right sidebar hides toward the right edge and comes back from it. In
+    // every frame the page stays at the window's left edge, so its content
+    // does not jump, and the part of it on show ends on the sidebar's leading
+    // edge, so the slide opens no gap and the page is not drawn over the
+    // sidebar. Hidden, it leaves the floating controls and the edge that peeks
+    // at it on the right.
+    function test_aRightSidebarHidesTowardItsOwnEdge() {
+        window.setSidebarSide("right");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const cluster = findChild(window.contentItem, "navigationCluster");
+        const revealEdge = findChild(window.contentItem, "sidebarRevealEdge");
+        const backdrop = findChild(window.contentItem, "sidebarBackdrop");
+        const pageClip = findChild(window.contentItem, "pageClip");
+        const row = window.contentItem.width;
+        const shownAt = row - window.sidebarDefaultWidth;
+        tryVerify(function () {
+            return Math.round(sidebar.x) === shownAt;
+        });
+
+        const watchTheRightSeam = function () {
+            return watchFrames(function () {
+                const pageEnd = viewport.mapToItem(window.contentItem, viewport.width, 0).x;
+                return {
+                    "sidebarStart": Math.round(sidebar.x),
+                    "pageStart": Math.round(viewport.mapToItem(window.contentItem, 0, 0).x),
+                    "pageShownEnd": Math.round(pageClip.clip ? Math.min(pageEnd, pageClip.width) :
+                                                               pageEnd),
+                    "sidebarShown": sidebar.visible,
+                    "strip": cluster.visible
+                };
+            });
+        };
+        const checkTheRightSeam = function (watch) {
+            stopWatching(watch);
+            verify(watch.seen.length > 0);
+            for (let at = 0; at < watch.seen.length; ++at) {
+                const frame = watch.seen[at];
+                compare(frame.pageStart, 0);
+                compare(frame.pageShownEnd, frame.sidebarStart);
+                if (frame.strip)
+                    verify(!frame.sidebarShown);
+            }
+        };
+
+        let seam = watchTheRightSeam();
+        let slide = watchChanges(sidebar, "x");
+        sidebar.sidebarToggled();
+        verify(passedBetween(slide, shownAt, row));
+        tryVerify(function () {
+            return !sidebar.visible;
+        });
+        checkTheRightSeam(seam);
+        compare(Math.round(viewport.x), 0);
+        compare(Math.round(viewport.width), row);
+
+        // The strip stands where the sidebar's top was, against the right edge.
+        verify(cluster.visible);
+        const strip = cluster.mapToItem(window.contentItem, 0, 0);
+        compare(Math.round(strip.x + cluster.width), row - 16);
+        // The find bar moves across the page, out of the strip's way.
+        const findBar = findChild(window.contentItem, "findBar");
+        verify(findBar.mapToItem(window.contentItem, 0, 0).x + findBar.width < strip.x);
+        compare(Math.round(revealEdge.mapToItem(window.contentItem, 0, 0).x + revealEdge.width),
+                row);
+
+        // Holding the pointer at the right edge peeks from there.
+        mouseMove(window.contentItem, row - 2, window.height / 2);
+        tryCompare(sidebar, "visible", true);
+        compare(sidebar.floating, true);
+        tryVerify(function () {
+            return Math.round(sidebar.x) === shownAt;
+        });
+        compare(backdrop.sourceRect.x, sidebar.x);
+        mouseMove(window.contentItem, row / 2, window.height / 2);
+        tryCompare(sidebar, "visible", false);
+        compare(window.sidebarCollapsed, true);
+
+        seam = watchTheRightSeam();
+        slide = watchChanges(sidebar, "x");
+        cluster.sidebarToggled();
+        verify(passedBetween(slide, row, shownAt));
+        tryVerify(function () {
+            return Math.round(viewport.width) === shownAt;
+        });
+        checkTheRightSeam(seam);
+        compare(Math.round(sidebar.x), shownAt);
+        compare(Math.round(viewport.x), 0);
+    }
+
+    // With developer tools docked and a right sidebar hidden, the strip still
+    // stands against the window's right edge, over the dock's top corner,
+    // where the sidebar's controls were.
+    function test_aRightSidebarsStripStandsAtTheWindowsEdgeBesideTheDock() {
+        openPage("https://dock-strip.example/");
+        window.setSidebarSide("right");
+        window.commands.run("developer-tools", -1);
+        const dock = findChild(window.contentItem, "developerToolsDock");
+        const cluster = findChild(window.contentItem, "navigationCluster");
+        tryVerify(function () {
+            return dock.visible;
+        });
+        try {
+            window.sidebarCollapsed = true;
+            tryVerify(function () {
+                return cluster.visible;
+            });
+            const strip = cluster.mapToItem(window.contentItem, 0, 0);
+            compare(Math.round(strip.x + cluster.width), window.contentItem.width - 16);
+        } finally {
+            browser.closeDeveloperTools();
+            tryVerify(function () {
+                return !dock.visible;
+            });
+        }
+    }
+
+    // What stands over the page area beside a right sidebar stands over the
+    // page and not over the sidebar: the Start page's resting Omnibar and its
+    // road, and the area a click in puts Site information away.
+    function test_aRightSidebarLeavesTheOverlaysOverThePage() {
+        // Summoned over a page, which is where the Start page is summoned.
+        openPage("https://overlays.example/");
+        window.setSidebarSide("right");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const omnibar = findChild(window.contentItem, "omnibar");
+        const startPage = findChild(window.contentItem, "startPage");
+        tryVerify(function () {
+            return Math.round(sidebar.x) === window.contentItem.width - window.sidebarDefaultWidth;
+        });
+        window.startPageSummoned = true;
+        try {
+            tryVerify(function () {
+                return window.startPageShown && omnibar.resting;
+            });
+            const page = startPage.mapToItem(window.contentItem, 0, 0);
+            compare(omnibar.restArea.x, page.x);
+            verify(omnibar.restArea.x + omnibar.restArea.width <= sidebar.x);
+            verify(startPage.scene !== null);
+            const road = startPage.scene.mapToItem(window.contentItem, 0, 0);
+            compare(omnibar.roadOrigin.x, road.x);
+        } finally {
+            window.startPageSummoned = false;
+            tryCompare(startPage, "visible", false);
+            tryCompare(omnibar, "visible", false);
+        }
+
+        window.openSiteInformation("");
+        const dismiss = findChild(window.contentItem, "siteInformationDismissArea");
+        verify(dismiss !== null);
+        tryVerify(function () {
+            return dismiss.visible;
+        });
+        compare(dismiss.x, 0);
+        compare(dismiss.x + dismiss.width, sidebar.x);
+        window.closeSiteInformation();
+        // The card hangs over the seam, so the next test's handle waits for it.
+        tryCompare(siteCard(), "visible", false);
     }
 
     // A key hides the sidebar in one step: the seam is where it settles in the

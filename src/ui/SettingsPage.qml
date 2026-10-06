@@ -155,6 +155,7 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool floatingControls: true
+    property string sidebarSide: "left"
     property bool glanceEnabled: true
     property bool startPageRoad: true
     property bool startPageGlass: true
@@ -416,6 +417,7 @@ Rectangle {
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
+    signal sidebarSideChosen(string side)
     signal glanceToggled(bool enabled)
     signal startPageRoadToggled(bool enabled)
     signal startPageGlassToggled(bool enabled)
@@ -1010,13 +1012,41 @@ Rectangle {
                     visible: root.section === 1
                     spacing: pane.spacing
 
+                    SettingRow {
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Sidebar side")
+                        note: qsTr(
+                                  "The edge of the window the sidebar stands against. While it is hidden, the floating controls stay at that edge.")
+
+                        SettingChoice {
+                            objectName: "sidebarSide"
+                            colors: root.colors
+                            options: [
+                                {
+                                    value: "left",
+                                    label: qsTr("Left", "sidebar side: the window's left edge")
+                                },
+                                {
+                                    value: "right",
+                                    label: qsTr("Right", "sidebar side: the window's right edge")
+                                }
+                            ]
+                            value: root.sidebarSide
+                            accessibleName: qsTr("Sidebar side")
+                            onChanged: function (side) {
+                                root.sidebarSideChosen(side);
+                            }
+                        }
+                    }
+
                     SettingToggle {
                         objectName: "floatingControls"
                         width: pane.width
                         colors: root.colors
                         title: qsTr("Floating controls")
                         note: qsTr(
-                                  "With the sidebar hidden, keep the navigation controls over the page. Pause at the left edge to peek at the sidebar; it hides when the pointer leaves.")
+                                  "With the sidebar hidden, keep the navigation controls over the page. Pause at the sidebar's edge of the window to peek at it; it hides when the pointer leaves.")
                         accessibleName: qsTr("Floating controls")
                         checked: root.floatingControls
                         onClicked: root.floatingControlsToggled(!checked)
