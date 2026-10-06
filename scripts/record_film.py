@@ -411,6 +411,7 @@ BEATS = [
          [(0.0, None), (CAPTION_LEAD + 1.4, FORM)]),
     Beat("End", "", [(0.0, None)]),
 ]
+BEAT_NAMED = {beat.name: beat for beat in BEATS}
 
 # The frame the page shows before the film plays: the Omnibar with its rows open.
 POSTER = ("Omnibar", CAPTION_LEAD + 2.8)
@@ -634,7 +635,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
         marks.append({"beat": beat.name, "start": start, "end": end, **drawn})
         log(f"{beat.name}: {start:.1f}s to {end:.1f}s")
 
-    beats = {beat.name: beat for beat in BEATS}
+    beats = BEAT_NAMED
 
     # The stage, which the film cuts: two Spaces and their tabs, the Work Space's two pages split.
     # Each Space's first page is typed into the blank tab it opened on, as a reader fills one, and
@@ -699,15 +700,16 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     # each name on show and the edit draws the pointer where the window says the square is.
     beat = beats["Space switch"]
 
-    def hold(space: str = "") -> tuple[float, float] | None:
-        if not space:
-            expect_ran(beat.name, omaweb(browser, "film-hover"))
-            return None
+    def hold(space: str) -> tuple[float, float]:
+        """Holds `space`'s name on show and returns where its square is."""
         return hover_point(beat.name, answer(beat.name, browser, "film-hover", space))
+
+    def let_go() -> None:
+        expect_ran(beat.name, omaweb(browser, "film-hover"))
 
     # Off camera: where each square is. The squares do not move while the reader stays.
     personal, work = hold("Personal"), hold("Work")
-    hold()
+    let_go()
     moves = []
 
     def glide(to: tuple[float, float]) -> None:
@@ -721,13 +723,13 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     time.sleep(MOVE)
     hold("Personal")
     time.sleep(1.0)
-    hold()
+    let_go()
     glide(work)
     time.sleep(MOVE)
     hold("Work")
     time.sleep(0.9)
     keys("Primary+2", settle=1.8)
-    hold()
+    let_go()
     end = recorder.now()
     expect_space_on_show(beat.name, answer(beat.name, browser, "spaces"), "Work")
     mark(beat, start, end, pointer=moves)
@@ -799,19 +801,19 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     beat = beats["Agent"]
     lines = []
 
-    def runs(*command: str) -> None:
+    def show_command(*command: str) -> None:
         lines.append({"at": round(recorder.now() - start, 3), "text": "$ " + " ".join(command)})
 
     start = recorder.now()
     time.sleep(CAPTION_LEAD)
-    runs("omaweb", "space", "new", "Invoices")
+    show_command("omaweb", "space", "new", "Invoices")
     created = omaweb(browser, "space", "new", "Invoices", name=AGENT)
     expect_ran(beat.name, created)
     space = created.stdout.strip()
     expect_ran(beat.name, omaweb(browser, "space", space))
     expect_space_on_show(beat.name, answer(beat.name, browser, "spaces"), "Invoices")
     time.sleep(COMMAND_READ)
-    runs("omaweb", "open", INVOICE_PAGE)
+    show_command("omaweb", "open", INVOICE_PAGE)
     opened = omaweb(browser, "open", INVOICE_PAGE, "--space", space, name=AGENT)
     expect_ran(beat.name, opened)
     tab = opened.stdout.strip()
@@ -822,7 +824,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     wait_for(beat.name, "the invoice form to load",
              reported(server, "tallyhaus.test", urllib.parse.urlsplit(INVOICE_PAGE).path))
     time.sleep(COMMAND_READ)
-    runs("omaweb", "look")
+    show_command("omaweb", "look")
     look = answer(beat.name, browser, "look", "--tab", tab, name=AGENT)["look"]
     time.sleep(COMMAND_READ)
     # One batch, as the skill teaches, sent with Enter from the last field as a person would: a
@@ -835,7 +837,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
         f'fill {target(beat.name, look, "Due date")} "{INVOICE["due"]}"',
         "press Enter",
     ]
-    runs("omaweb", "do", *(f"'{step}'" for step in steps[:2]), "…")
+    show_command("omaweb", "do", *(f"'{step}'" for step in steps[:2]), "…")
     expect_ran(beat.name, omaweb(browser, "do", *steps, "--tab", tab, name=AGENT))
     time.sleep(1.4)
     end = recorder.now()
@@ -988,10 +990,9 @@ def cues(marks: list[dict]) -> list[Cue]:
     takes the caption's place at the time it was run, and the last line stays until the beat
     fades. A beat without a caption shows nothing.
     """
-    beats = {beat.name: beat for beat in BEATS}
     shown = []
     for entry, position in zip(marks, positions(marks)):
-        caption = beats[entry["beat"]].caption
+        caption = BEAT_NAMED[entry["beat"]].caption
         if not caption:
             continue
         end = position + entry["end"] - entry["start"] - FADE
@@ -1010,7 +1011,6 @@ def timestamp(seconds: float) -> str:
 def compose(out: Path) -> None:
     """Cuts the raw recording to its beats, follows each beat's focus, and captions it."""
     marks = json.loads((out / "marks.json").read_text(encoding="utf-8"))
-    beats = {beat.name: beat for beat in BEATS}
     fonts = ROOT / "website" / "assets" / "fonts"
     font = {False: fonts / "Tomorrow-SemiBold.woff2", True: fonts / "IoskeleyMono-Medium.woff2"}
     starts = positions(marks)
@@ -1021,13 +1021,13 @@ def compose(out: Path) -> None:
         chains.append(f"[1:v]split={len(pointed)}"
                       + "".join(f"[p{index}]" for index in range(len(pointed))))
     for index, entry in enumerate(marks):
-        beat = beats[entry["beat"]]
+        beat = BEAT_NAMED[entry["beat"]]
         trimmed = (f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},"
                    "setpts=PTS-STARTPTS")
-        drawn = pointer(entry)
-        if drawn:
+        overlay = pointer(entry)
+        if overlay:
             chains.append(f"{trimmed}[r{index}]")
-            trimmed = f"[r{index}][p{pointed.index(entry)}]{drawn}"
+            trimmed = f"[r{index}][p{pointed.index(entry)}]{overlay}"
         chains.append(f"{trimmed},{camera(beat)},setsar=1,format=yuv420p[b{index}]")
     joined = "[b0]"
     for index in range(1, len(marks)):
@@ -1039,18 +1039,18 @@ def compose(out: Path) -> None:
     shutil.rmtree(lines, ignore_errors=True)
     lines.mkdir()
     shown = cues(marks)
-    drawn = []
+    texts = []
     for index, cue in enumerate(shown):
         (lines / f"{index}.txt").write_text(cue.text, encoding="utf-8")
         alpha = (f"if(lt(t,{cue.start + 0.3:.3f}),(t-{cue.start:.3f})/0.3,"
                  f"if(gt(t,{cue.end - 0.3:.3f}),({cue.end:.3f}-t)/0.3,1))")
         size = 40 if cue.mono else 46
-        drawn.append(
+        texts.append(
             f"drawtext=fontfile='{font[cue.mono]}':textfile='{lines / f'{index}.txt'}'"
             f":expansion=none:fontsize={size}:fontcolor=white"
             f":box=1:boxcolor=0x05182e@0.82:boxborderw=22|34:x=(w-text_w)/2:y=h-text_h-84"
             f":alpha='{alpha}':enable='between(t,{cue.start:.3f},{cue.end:.3f})'")
-    chains.append(f"{joined}{','.join(drawn) or 'null'}[film]")
+    chains.append(f"{joined}{','.join(texts) or 'null'}[film]")
     master = out / "master.mkv"
     pointer_input = ["-i", str(POINTER)] if pointed else []
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out / "raw.mkv"), *pointer_input,
@@ -1134,7 +1134,7 @@ def encode(out: Path, master: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("step", choices=("record", "compose"))
-    parser.add_argument("--browser", type=Path, default=ROOT / "build" / "ci" / "omaweb")
+    parser.add_argument("--browser", type=Path, default=ROOT / "build" / "ci" / "omaweb-browser")
     parser.add_argument("--out", type=Path, default=ROOT / "build" / "film")
     arguments = parser.parse_args()
     arguments.out.mkdir(parents=True, exist_ok=True)

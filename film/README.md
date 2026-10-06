@@ -10,7 +10,7 @@ order:
    Kestrel's suggestions. The reader picks a suggestion.
 1. A Space switch. The pointer rests on each Space's square in the footer, which names its Space,
    and the reader switches to Work. The footer stays on camera, so its colour is seen to change.
-1. Work's split view, with the sidebar hidden so the docs take the whole window.
+1. Work's split, two docs pages side by side, with the sidebar hidden so they take the whole window.
 1. Link hints: `f` puts a label on every link of the page.
 1. Blocking on a magazine, its ad slots empty. The camera closes on the blocked count and the page
    loads again under it, so the count is seen to climb. The ad network and the tracker are never

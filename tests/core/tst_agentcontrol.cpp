@@ -2028,8 +2028,6 @@ void AgentControlTest::runsOnlyThePublicCommandsInTheWindow()
     QCOMPARE(failure(run(QStringLiteral("reload"))), QStringLiteral("failed"));
 }
 
-// A command added to the registry is decided here, public or kept in, rather
-// than let out or left out without anyone choosing.
 // The introductory film's recording has no pointer, so a browser built for it
 // takes `film-hover`, which the window answers by holding a Space's name on
 // show. A browser built to ship has no such verb.
@@ -2068,6 +2066,8 @@ void AgentControlTest::holdsASpacesNameOnlyForTheFilm()
 #endif
 }
 
+// A command added to the registry is decided here, public or kept in, rather
+// than let out or left out without anyone choosing.
 void AgentControlTest::decidesEveryCommandOfTheRegistry()
 {
     QFile source(QStringLiteral(OMAWEB_BROWSER_COMMANDS_QML));
