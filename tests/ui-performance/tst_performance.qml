@@ -616,6 +616,7 @@ TestCase {
         let movementsDuringARefresh = 0;
         try {
             report = watchMovements(function (movement) {
+                console.info("[DEBUG-623] movement " + movement);
                 if (movement === 2) {
                     listsPutInForce = 0;
                     refreshingLists = true;

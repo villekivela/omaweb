@@ -1,0 +1,70 @@
+name: DEBUG-623
+
+# [DEBUG-623] Loops the list-refresh Space switch probe on CI's runners, with
+# the interface thread's refresh steps timed. Dropped before the pull request.
+on:
+  push:
+    branches: [fix/623-keep-list-refresh-syncs-off-the-interface-thread]
+
+permissions:
+  contents: read
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [1, 2, 3, 4, 5, 6]
+    container:
+      image: archlinux:base-devel
+      options: --shm-size=2g
+    timeout-minutes: 45
+    env:
+      CC: gcc
+      CXX: g++
+    steps:
+      - name: Install toolchain
+        run:
+          pacman -Syu --noconfirm git cmake ninja gcc ccache rust qt6-base qt6-declarative
+          qt6-shadertools qt6-tools qt6-webengine libsecret libsodium
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-gcc-ci-debug-623
+          restore-keys: ccache-gcc-ci-
+      - name: Name the processor and the disk
+        run: |
+          grep -m1 'model name' /proc/cpuinfo
+          nproc
+          df -h "$GITHUB_WORKSPACE" /tmp /dev/shm
+      - name: Take the build off root
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          chown -R builder "$GITHUB_WORKSPACE"
+      - name: Bootstrap content blocker
+        run: su builder -c 'scripts/bootstrap_content_blocker.sh'
+      - name: Configure
+        run: su builder -c 'cmake --preset ci'
+      - name: Build the UI tests
+        run: su builder -c 'cmake --build --preset ci --target omaweb-ui-tests'
+      - name: Loop the probe
+        run: |
+          su builder -c '
+            export QT_QPA_PLATFORM=offscreen DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb
+            failed=0
+            for run in $(seq 1 12); do
+              echo "=== run $run"
+              if ! timeout 300 build/ci/omaweb-ui-tests -input tests/ui-performance \
+                  PerformanceProbes::test_aSpaceSwitchHoldsTheFrameBudgetWhileAListIsRefreshed \
+                  > run.log 2>&1; then
+                failed=$((failed + 1))
+                echo "--- run $run FAILED"
+              fi
+              grep -E "DEBUG-623|frame-interval: |FAIL!|Totals" run.log \
+                | sed -E "s/^[A-Z!]+ +: [A-Za-z_:]+\(\) (qml: )?//"
+            done
+            echo "=== $failed of 12 runs failed"
+          '

@@ -3,6 +3,7 @@
 #include "ContentMatcher.h"
 
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -34,6 +35,26 @@ struct KnownList {
 };
 
 namespace {
+
+// [DEBUG-623] How long the interface thread spends in each step of a refresh.
+struct DebugTimer623 {
+    explicit DebugTimer623(const char *step)
+        : what(step)
+    {
+        timer.start();
+    }
+    ~DebugTimer623()
+    {
+        const auto ms = static_cast<double>(timer.nsecsElapsed()) / 1e6;
+        if (ms >= 1.0) {
+            qInfo("[DEBUG-623] %s %.1f ms", what, ms);
+        }
+    }
+    DebugTimer623(const DebugTimer623 &) = delete;
+    DebugTimer623 &operator=(const DebugTimer623 &) = delete;
+    const char *what;
+    QElapsedTimer timer;
+};
 
     constexpr int startupUpdateDelayMilliseconds = 5000;
     // A busy page refuses hundreds of requests. Crediting each one separately
@@ -503,6 +524,7 @@ void ContentBlocker::updateSubscription(const QString &id)
 void ContentBlocker::takeFetchedList(
     const QString &id, bool failed, const QString &error, const QByteArray &list)
 {
+    const DebugTimer623 debugTimer("fetched, whole");
     auto *subscription = findSubscription(id);
     if (!subscription) {
         return;
@@ -531,7 +553,11 @@ void ContentBlocker::takeFetchedList(
         // Stored here rather than on the refresh thread. Both this and save() sync the disk, and
         // on CI's runner settings.json's sync waited 42 to 324 ms behind a list's sync made on
         // the refresh thread at the same time. One after the other, each took 0.3 to 8 ms (#613).
-        const auto stored = usable && storeList(list, listPath(id));
+        const DebugTimer623 debugTimer("validated, whole");
+        const auto stored = [&] {
+            const DebugTimer623 storeTimer("storeList");
+            return usable && storeList(list, listPath(id));
+        }();
         // A list switched off while it was fetched is stored for when it is switched on again,
         // and is current as stored: none of it is in force, so there is nothing to compile.
         const auto compiles = stored && subscription->enabled;
@@ -852,6 +878,7 @@ void ContentBlocker::reloadSyncedConfiguration()
 
 void ContentBlocker::save() const
 {
+    const DebugTimer623 debugTimer("save");
     QJsonArray subscriptions;
     for (const auto &subscription : m_subscriptions) {
         subscriptions.append(QJsonObject {
@@ -903,6 +930,7 @@ void ContentBlocker::recompileOn(QThreadPool &lane)
     auto *watcher = new QFutureWatcher<MatcherCompilation>(this);
     connect(
         watcher, &QFutureWatcher<MatcherCompilation>::finished, this, [this, watcher, generation] {
+            const DebugTimer623 debugTimer("compiled, whole");
             auto compilation = watcher->future().takeResult();
             watcher->deleteLater();
             --m_activeCompilations;
