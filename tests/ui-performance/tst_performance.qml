@@ -62,25 +62,6 @@ TestCase {
         verify(window !== null);
         window.show();
         wait(50);
-        refreshTheContentBlocker();
-    }
-
-    // The content blocker checks its lists five seconds after it starts, and a
-    // list it fetches is compiled and swapped in on the interface thread. In a
-    // process of their own the probes start within those five seconds, and the
-    // swap held a frame in the middle of the Space switch's movements (#604).
-    // They measure the chrome at rest, so they run the check themselves and
-    // wait for every list it fetched to be in force or to have failed. A list
-    // it brought up to date is not fetched again when the timer comes. The
-    // statuses are the English ones: the harness installs no translation.
-    function refreshTheContentBlocker() {
-        const inFlight = ["updating", "validating", "compiling"];
-        contentBlocker.updateStaleSubscriptions();
-        tryVerify(function () {
-            return !contentBlocker.compiling && contentBlocker.subscriptions.every(function (list) {
-                return inFlight.indexOf(list.updateStatus) < 0;
-            });
-        }, 60000, "the content blocker's lists were still refreshing");
     }
 
     function cleanupTestCase() {
@@ -557,6 +538,118 @@ TestCase {
         verify(browser.deleteSpace(spaceIds[0], "Sliding left"));
         verify(browser.deleteSpace(spaceIds[1], "Sliding right"));
         probeIntervals("space-switch-frame-interval", report);
+    }
+
+    // The filter lists refreshed and put in force while the reader switches
+    // Spaces, as the startup check and the daily one can land (#613). The
+    // lists are the two the browser seeds, as vendored, served from disk so
+    // the probe needs no network. Both are refreshed together, as the check
+    // refreshes them, and again each time both are in force, so every
+    // movement watched has a refresh under way.
+    property var refreshedListIds: []
+    property bool refreshingLists: false
+    property int listsPutInForce: 0
+
+    // A refresh is over when both lists are in force or have failed and no
+    // compile is under way, which can be any of these signals' moment: a
+    // compile the next one replaced puts nothing in force.
+    Connections {
+        target: contentBlocker
+
+        function onRulesChanged() {
+            if (testCase.refreshingLists)
+                ++testCase.listsPutInForce;
+            testCase.refreshAgainAtRest();
+        }
+
+        function onCompilingChanged() {
+            testCase.refreshAgainAtRest();
+        }
+
+        function onSubscriptionsChanged() {
+            testCase.refreshAgainAtRest();
+        }
+    }
+
+    function refreshAgainAtRest() {
+        if (refreshingLists && refreshedListsAtRest())
+            refreshTheLists();
+    }
+
+    function refreshTheLists() {
+        refreshedListIds.forEach(function (id) {
+            contentBlocker.updateSubscription(id);
+        });
+    }
+
+    // The statuses are the English ones: the harness installs no translation.
+    function refreshedListsAtRest() {
+        const inFlight = ["updating", "validating", "compiling"];
+        return !contentBlocker.compiling && contentBlocker.subscriptions.every(function (list) {
+            return refreshedListIds.indexOf(list.id) < 0 || inFlight.indexOf(list.updateStatus) < 0;
+        });
+    }
+
+    function test_aSpaceSwitchHoldsTheFrameBudgetWhileAListIsRefreshed() {
+        refreshedListIds = ["easylist", "easyprivacy"].map(function (name) {
+            return contentBlocker.addSubscription(name + " as vendored", "https://easylist.to/",
+                                                  "GPLv3 or CC BY-SA 3.0", Qt.resolvedUrl(
+                                                      "../../third_party/filter-lists/" + name
+                                                      + ".txt"));
+        });
+        verify(refreshedListIds.every(function (id) {
+            return id !== "";
+        }));
+        tryVerify(refreshedListsAtRest, 60000, "the lists never came into force the first time");
+
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceIds = [browser.createSpace("Refreshing left"), browser.createSpace(
+                              "Refreshing right")];
+        const engines = spaceIds.map(function (spaceId, index) {
+            verify(browser.switchSpace(spaceId));
+            return openAnimatedPage("https://refresh-motion-" + index + ".example/");
+        });
+        const sidebar = findChild(window.contentItem, "sidebar");
+        tryCompare(sidebar, "arriving", false);
+
+        let report;
+        let movementsDuringARefresh = 0;
+        try {
+            report = watchMovements(function (movement) {
+                if (movement === 2) {
+                    listsPutInForce = 0;
+                    refreshingLists = true;
+                    refreshTheLists();
+                }
+                if (movement >= 2 && !refreshedListsAtRest())
+                    ++movementsDuringARefresh;
+                verify(browser.switchSpace(spaceIds[movement % 2]));
+            }, function (movement) {
+                return !sidebar.arriving && browser.activeSpaceId === spaceIds[movement % 2];
+            }, function () {
+                return sidebar.arrivalOffset;
+            });
+        } finally {
+            refreshingLists = false;
+            tryVerify(refreshedListsAtRest, 60000, "the last refresh never finished");
+            refreshedListIds.forEach(function (id) {
+                contentBlocker.setSubscriptionEnabled(id, false);
+            });
+            tryVerify(refreshedListsAtRest, 60000, "the lists were never taken out of force");
+            engines.forEach(function (engine) {
+                engine.motionReview = false;
+            });
+            verify(browser.switchSpace(homeSpaceId));
+            verify(browser.deleteSpace(spaceIds[0], "Refreshing left"));
+            verify(browser.deleteSpace(spaceIds[1], "Refreshing right"));
+        }
+        console.info("lists put in force during the movements: " + listsPutInForce);
+        // A movement that began with no refresh under way, or a watch in which
+        // no refresh was put in force, would measure the Space switch alone.
+        compare(movementsDuringARefresh, movementCount,
+                "movements that began while the lists were being refreshed");
+        verify(listsPutInForce >= 1, "no refresh was put in force while the Spaces switched");
+        probeIntervals("space-switch-during-list-refresh-frame-interval", report);
     }
 
     // The Omnibar opening over a page in a Space of a hundred tabs, the
