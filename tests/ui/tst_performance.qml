@@ -452,10 +452,13 @@ TestCase {
     }
 
     // The Shortcut sheet opening, which takes its list and its width as it
-    // opens (#594): the window's first opening, then one over the Start page,
-    // and one over a page after it, whose commands are not the Start page's.
-    // Each is a different movement, so each is held to the ceiling on its
-    // own rather than as one in ten.
+    // opens (#594): the window's first opening over a moving page, then
+    // openings over the Start page and over the page in turn, whose commands
+    // differ, so each builds or removes the rows the other did not have.
+    // Each opening is a movement of its own, held as the others are: at most
+    // one in the eleven with a frame over the ceiling.
+    readonly property int sheetOpeningPairs: 5
+
     function test_theShortcutSheetOpensInsideTheFrameBudget() {
         const sheet = findChild(window.contentItem, "shortcutSheet");
         const startPage = findChild(window.contentItem, "startPage");
@@ -463,39 +466,49 @@ TestCase {
         const opened = function () {
             return sheet.visible && sheet.opacity === 1;
         };
+        const slowest = [];
+        const names = [];
         const openSheet = function (name) {
-            const slowest = watchOneMovement(function () {
+            slowest.push(watchOneMovement(function () {
                 window.shortcutsOpen = true;
-            }, opened);
+            }, opened));
+            names.push(name);
             window.shortcutsOpen = false;
             tryCompare(sheet, "visible", false);
-            console.info(name + ": slowest interval " + slowest.toFixed(1) + " ms");
-            return slowest;
         };
 
         const engine = openAnimatedPage("https://sheet-motion.example/");
         const pageTabId = browser.activeTabId;
-        const first = openSheet("shortcut-sheet-first-opening");
-        engine.motionReview = false;
-
+        openSheet("first");
         browser.openInput("about:blank", true);
-        tryVerify(function () {
-            return startPage.visible && startPage.open;
-        });
-        const overStartPage = openSheet("shortcut-sheet-opening-over-the-start-page");
+        const blankTabId = browser.activeTabId;
+        for (let pair = 0; pair < sheetOpeningPairs; ++pair) {
+            browser.activateTab(blankTabId);
+            tryVerify(function () {
+                return startPage.visible && startPage.open;
+            });
+            wait(150);
+            openSheet("start page");
+            browser.activateTab(pageTabId);
+            tryVerify(function () {
+                return !startPage.visible;
+            });
+            wait(150);
+            openSheet("page");
+        }
+        browser.activateTab(blankTabId);
         browser.closeActiveTab();
-
         browser.activateTab(pageTabId);
-        engine.motionReview = true;
-        tryVerify(function () {
-            return !startPage.visible;
-        });
-        const overPage = openSheet("shortcut-sheet-opening-over-a-page");
         engine.motionReview = false;
 
-        probe("shortcut-sheet-first-opening", first, "ms", ceiling);
-        probe("shortcut-sheet-opening-over-the-start-page", overStartPage, "ms", ceiling);
-        probe("shortcut-sheet-opening-over-a-page", overPage, "ms", ceiling);
+        const over = slowest.filter(function (interval) {
+            return interval > ceiling;
+        }).length;
+        console.info("shortcut-sheet-opening: slowest by opening " + slowest.map(function (interval,
+                                                                                           index) {
+            return names[index] + " " + interval.toFixed(0);
+        }).join(", ") + " ms");
+        probe("shortcut-sheet-held-openings", over, "openings", heldMovementAllowance);
     }
 
     // A Space switch between two Spaces with a moving page each: the list

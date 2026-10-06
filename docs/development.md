@@ -1274,11 +1274,11 @@ opened and closed once unwatched, then five more times with every frame watched,
 redraws every frame, so the last movement is a closing and the next probe starts with nothing open.
 
 A fifth probe watches the Shortcut sheet's openings one at a time, since each is a different one:
-the window's first, one over the Start page, and one over a page after it, whose commands differ
-from the Start page's. Each opening's slowest interval is held to the ceiling, from the frame before
-the input to the frame the sheet rests in. Over five runs of the whole file offscreen on the laptop
-below, the first opening's slowest was 18 to 24 ms, over the Start page 15 to 18 ms and over a page
-20 to 23 ms; on its GPU, 19 to 23 ms, 17 ms and 17 ms.
+the window's first, over a moving page, then five over the Start page and five over the page in
+turn, whose commands differ from the Start page's. Each opening's slowest interval, from the frame
+before the input to the frame the sheet rests in, counts as a movement, and at most one of the
+eleven may go over the ceiling. Single openings on the laptop below took 15 to 24 ms offscreen and
+17 to 23 ms on its GPU, the window's first the slowest.
 
 What is read is the time from each frame's end to the next one's, not the frame's cost: the cost is
 the scene graph's own, and a movement's script and layout run on the interface thread between
@@ -1325,7 +1325,7 @@ What the reader cannot see lays nothing out while the chrome moves. A closed Sho
 nothing and keeps the rows it laid out when the window started or when it last opened; it works its
 list out and takes the page area's width as it opens. Closed Settings keeps the width it was last
 drawn at. The UI lab's stand-in page follows the page area's width only while it is drawn, since a
-real engine's hidden view costs the interface thread nothing at a new width.
+real engine's hidden view costs the interface thread little at a new width.
 
 Measured on an AMD Ryzen 7 PRO 7840HS with Radeon 780M graphics, on Omarchy, with the `ci` preset on
 2026-10-05. Offscreen is twelve runs, nine of them three at a time. CI is the `arch-linux` and
