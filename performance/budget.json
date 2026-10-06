@@ -7,6 +7,11 @@
       "recorded": 0.69,
       "note": "Process start to the first buffer on the toplevel's surface, median of three launches. The three were 1.127, 0.690 and 0.668 s, the first paying for a cold page cache. The ceiling is about four times the median, which is what the startup probes in docs/development.md use, because a shared runner's speed is not its own."
     },
+    "startup_lived_in_seconds": {
+      "ceiling": 5.0,
+      "recorded": 1.28,
+      "note": "PROVISIONAL, retaken before merge. Process start to the first buffer on the toplevel's surface with the lived-in profile, file-cache cold, median of three launches on the Lenovo: 1.265, 1.276 and 1.283 s."
+    },
     "memory_mebibytes": {
       "ceiling": 960.0,
       "recorded": 481.45,

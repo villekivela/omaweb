@@ -1291,6 +1291,12 @@ if(BUILD_TESTING)
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_freezing.py"
         )
+        # The startup phases read from a launch's log, the pages that fill the
+        # lived-in profile, and the ceiling the lived-in launch is held to.
+        add_test(NAME omaweb-benchmark-startup
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_startup.py"
+        )
         # Which tabs the live-tabs budget opens in which Space, what each is
         # served, and the arithmetic over its memory and CPU readings.
         add_test(NAME omaweb-benchmark-livetabs
@@ -1368,6 +1374,12 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-core-tests)
     omaweb_declarative_fixture_target(omaweb-core-tests)
     add_test(NAME omaweb-core COMMAND omaweb-core-tests)
+
+    # Writes the session of the lived-in profile scripts/benchmark_runtime.py
+    # launches the browser on, through the store the browser reads.
+    qt_add_executable(omaweb-lived-in-session "tests/benchmarks/lived_in_session.cpp")
+    target_link_libraries(omaweb-lived-in-session PRIVATE omaweb-core)
+    omaweb_strict_target(omaweb-lived-in-session)
 
     qt_add_executable(omaweb-startup-phases-tests "tests/core/tst_startupphases.cpp")
     target_link_libraries(omaweb-startup-phases-tests PRIVATE omaweb-core Qt6::Test)
