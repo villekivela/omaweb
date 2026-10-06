@@ -1457,6 +1457,8 @@ if(BUILD_TESTING)
     target_include_directories(omaweb-session-store-tests PRIVATE "tests")
     omaweb_strict_target(omaweb-session-store-tests)
     add_test(NAME omaweb-session-store COMMAND omaweb-session-store-tests)
+    # The threaded writes are held to 2 ms, so nothing runs beside them.
+    set_tests_properties(omaweb-session-store PROPERTIES RUN_SERIAL TRUE)
 
     if(TARGET omaweb-sync)
         qt_add_executable(omaweb-sync-tests tests/sync/tst_syncmodule.cpp)
@@ -1912,6 +1914,7 @@ if(BUILD_TESTING)
     add_test(NAME omaweb-startup-probes COMMAND omaweb-startup-probes)
     set_tests_properties(omaweb-startup-probes PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        RUN_SERIAL TRUE
     )
 
     if(OMAWEB_BUILD_UI_LAB)
@@ -1948,7 +1951,12 @@ if(BUILD_TESTING)
         )
         target_include_directories(omaweb-ui-tests PRIVATE "tests")
         omaweb_strict_target(omaweb-ui-tests)
-        add_test(NAME omaweb-ui COMMAND omaweb-ui-tests)
+        # The suite is every `tst_*.qml` under `tests/ui`. The performance
+        # probes are in a directory of their own and run as tests of their
+        # own below, because they measure time and these take minutes beside
+        # other tests.
+        add_test(NAME omaweb-ui
+            COMMAND omaweb-ui-tests -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui")
         # The chrome is checked against a desktop that offers nothing, so the
         # commands standing on a platform service report themselves unavailable
         # and the shell's own wording for that is what gets tested. On Linux
@@ -1967,11 +1975,29 @@ if(BUILD_TESTING)
         set(omaweb_ui_themed_home "${CMAKE_CURRENT_BINARY_DIR}/ui-themed-home")
         configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tests/ui/desktop-theme-shell.toml"
             "${omaweb_ui_themed_home}/.local/state/omarchy/current/theme/shell.toml" COPYONLY)
-        add_test(NAME omaweb-ui-themed COMMAND omaweb-ui-tests)
+        add_test(NAME omaweb-ui-themed
+            COMMAND omaweb-ui-tests -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui")
         set_tests_properties(omaweb-ui-themed PROPERTIES
             ENVIRONMENT
                 "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
             ENVIRONMENT_MODIFICATION "HOME=set:${omaweb_ui_themed_home}"
+        )
+        # The runtime probes and frame intervals of `tst_performance.qml`, on
+        # both desktops as before, with the machine to themselves.
+        add_test(NAME omaweb-ui-performance
+            COMMAND omaweb-ui-tests -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui-performance")
+        set_tests_properties(omaweb-ui-performance PROPERTIES
+            ENVIRONMENT
+                "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
+            RUN_SERIAL TRUE
+        )
+        add_test(NAME omaweb-ui-themed-performance
+            COMMAND omaweb-ui-tests -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui-performance")
+        set_tests_properties(omaweb-ui-themed-performance PROPERTIES
+            ENVIRONMENT
+                "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
+            ENVIRONMENT_MODIFICATION "HOME=set:${omaweb_ui_themed_home}"
+            RUN_SERIAL TRUE
         )
         # The chrome rests on whole pixels of the display, which at a scale
         # Omarchy offers is not always a whole logical pixel (#571). The runs
@@ -1997,6 +2023,16 @@ if(BUILD_TESTING)
                     "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=${scale};DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
             )
         endforeach()
+
+        # CI runs the suite a job per processor, and the tests that measure
+        # time have to have the machine to themselves while they do.
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME omaweb-probes-run-alone
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_probes_run_alone.py
+                    ${CMAKE_CTEST_COMMAND} ${CMAKE_CURRENT_BINARY_DIR}
+            )
+        endif()
     endif()
 
     if(OMAWEB_BUILD_BROWSER)
