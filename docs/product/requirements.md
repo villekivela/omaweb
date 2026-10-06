@@ -143,14 +143,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   `min(page area width - 32 px, 720 px)` wide, its top edge 50 px above the horizon, which lies at
   half the page area's height, with a 50 px field and 16 px of padding. The Omnibar's hint row,
   under the field, holds `?` as a key cap with the word "shortcuts", the way to the Shortcut sheet.
-- Settings' interface section chooses the Scene, locally: Night road, Night sky, or None, which
-  leaves the Omnibar over the sidebar's fill. It is a row of small thumbnails, each a still of its
-  Scene drawn by the Scene itself, without the CRT glass, and None as the plain sidebar fill, each
-  named under it and the chosen one marked in the accent. A click chooses, and the keyboard walks
-  between them. The choice takes effect at once and survives a restart. A reader who had turned the
-  road off before there was a choice arrives on None, and anyone else on Night road. A Private
-  window shows the ordinary window's choice. "CRT glass over the Scene", below it, applies to either
-  Scene and is offered unless None is chosen.
+- Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life, or
+  None, which leaves the Omnibar over the sidebar's fill. It is a grid of small thumbnails, four to
+  a row, in that order, each a still of its Scene drawn by the Scene itself, without the CRT glass,
+  and None as the plain sidebar fill, each named under it and the chosen one marked in the accent. A
+  click chooses, and the keyboard walks between them in reading order. The choice takes effect at
+  once and survives a restart. A reader who had turned the road off before there was a choice
+  arrives on None, and anyone else on Night road. A Private window shows the ordinary window's
+  choice. "CRT glass over the Scene", below it, applies to every Scene and is offered unless None is
+  chosen.
 - A Scene fills the page area, or the one pane of a split it stands in, and is never drawn under the
   sidebar, which stands on its own fill as it does with None. It is drawn at the page area's size,
   centred on it; the road has the composition the website draws in a viewport of that size. With the
@@ -174,6 +175,17 @@ reports the gap and remains experimental rather than imitating behavior it canno
   from the road. Reduced motion holds one frame, the star field and one comet part way across, with
   no glint. A Private window's sky has its lights out: the planet and its limb stay, with no glow,
   stars, comets or glint, even on commit.
+- The Game of Life is Conway's, drawn from the palette in the same way and always night, a light
+  theme's ground drawn from its dark text. Each cell is one of the Scene's square pixels, and the
+  board wraps at its edges. Live cells are the accent, and a cell that has just died leaves a short
+  trail, dimmer for each generation since. At rest the board moves about two generations a second.
+  Random soups fed by a glider gun or two keep it alive, a gun on a small board and two on a page
+  area's, and it is seeded again when it dies out or stalls, and for a new size. On commit
+  generations run flat out, one a frame, until the page paints, then the page takes over as it does
+  from the road. It casts no light on the Omnibar. Reduced motion holds a board with a few gliders
+  mid-flight, each with its trail. Its thumbnail shows that board twice as close as the other
+  Scenes' thumbnails, so the gliders read at that size. A Private window's board is frozen, its
+  cells dimmed and without trails, even on commit.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.

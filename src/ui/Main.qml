@@ -209,12 +209,12 @@ ApplicationWindow {
     readonly property bool projectAddressAwaited: window.windowBrowser.activeSpaceAwaitsAddress
                                                   === true
     // The Scene the Start page stands on, by its id: "crt-road", "night-sky",
-    // or "none" for the sidebar's fill. Local to this installation, like the
-    // Glance: Sync carries neither.
+    // "game-of-life", or "none" for the sidebar's fill. Local to this
+    // installation, like the Glance: Sync carries neither.
     property string startPageScene: "crt-road"
     // Whether the Scene is shown through its CRT glass. Local the same way.
     property bool startPageGlass: true
-    readonly property var startPageScenes: ["crt-road", "night-sky", "none"]
+    readonly property var startPageScenes: ["crt-road", "night-sky", "game-of-life", "none"]
     // The window whose Scene settings this one shows and changes: a Private
     // window keeps no preferences, so it follows the ordinary window's.
     readonly property var sceneSettingsWindow: window.privateWindow && window.opener
@@ -4189,7 +4189,18 @@ ApplicationWindow {
                 SettingsPage {
                     id: settingsSurface
                     objectName: "settingsSurface"
-                    anchors.fill: parent
+                    // As wide as the page area while it is drawn. Closed, it
+                    // keeps the width it was last drawn at: following the
+                    // page area would lay every row out again each time the
+                    // sidebar's slide settles, and the slide would wait on it
+                    // (#594). Opening takes the width before the first frame.
+                    height: parent.height
+                    Component.onCompleted: width = parent.width
+                    Binding on width {
+                        when: settingsLift.showing
+                        value: settingsSurface.parent.width
+                        restoreMode: Binding.RestoreNone
+                    }
                     z: 45
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl

@@ -21,11 +21,6 @@ Row {
     property bool dotted: true
     // Whether the alternative with the fewest keys, the bare one, comes first.
     property bool bareFirst: false
-    // Whether the caps are made. The Shortcut sheet holds a row for every
-    // command whether it is open or not, and a closed sheet that drew them all
-    // slowed the rest of the window down.
-    property bool drawn: true
-
     readonly property var entries: root.entriesFor(root.keys)
     readonly property var parts: root.entries.filter(function (entry) {
         return !entry.separator;
@@ -108,7 +103,7 @@ Row {
     }
 
     Repeater {
-        model: root.drawn ? root.entries : []
+        model: root.entries
 
         Item {
             id: entry

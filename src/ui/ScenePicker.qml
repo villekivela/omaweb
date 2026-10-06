@@ -2,29 +2,39 @@ import QtQuick
 import qs.Commons
 import qs.Ui as Omarchy
 
-// The Start page's Scenes as a row of small thumbnails, each a still of its
-// Scene drawn by the Scene itself, without the CRT glass, which does not read
-// at this size, and None as the sidebar's plain fill. Each is named under it,
+// The Start page's Scenes as a grid of small thumbnails, four to a row, or as
+// many as the width it is given holds. Each is a still of its Scene drawn by
+// the Scene itself, without the CRT glass, which does not read at this size,
+// and None comes last as the sidebar's plain fill. Each is named under it,
 // and the one in force is marked in the accent.
 //
-// A click chooses. As the kit's ButtonGroup, the row is one Tab stop: Left and
-// Right, or h and l, walk between the thumbnails from the one in force, and
-// Return or Space chooses the one walked to.
-Row {
+// A click chooses. As the kit's ButtonGroup, the grid is one Tab stop: Left
+// and Right, or h and l, walk between the thumbnails from the one in force, in
+// reading order across the rows, and Return or Space chooses the one walked
+// to.
+Grid {
     id: root
 
     property var colors
     property string value: ""
     property string accessibleName: ""
-    // Which thumbnail the keyboard is on while the row has focus, or -1.
+    // Which thumbnail the keyboard is on while the grid has focus, or -1.
     property int cursor: -1
+    // The width the grid may take, which a narrow pane or a large type wraps
+    // to fewer thumbnails a row.
+    property real availableWidth: Infinity
 
     // Each thumbnail is the Scene drawn at `zoom` times its size and shrunk,
     // so it shows the composition a page area of that size would, in pixels
-    // as coarse as a page's.
+    // as coarse as a page's. The Game of Life is drawn twice as close: a page
+    // area's board shrunk that far shows its gliders as specks.
     readonly property int thumbnailWidth: 128
     readonly property int thumbnailHeight: 80
     readonly property int zoom: 4
+    readonly property int edge: 2
+    readonly property int perRow: 4
+    // A thumbnail in its frame and the gap after it.
+    readonly property real slot: root.thumbnailWidth + 2 * root.edge + root.spacing
 
     readonly property var options: [
         {
@@ -36,6 +46,12 @@ Row {
             value: "night-sky",
             label: qsTr("Night sky", "Start page Scene"),
             scene: skyScene
+        },
+        {
+            value: "game-of-life",
+            label: qsTr("Game of Life", "Start page Scene"),
+            scene: lifeScene,
+            zoom: 2
         },
         {
             value: "none",
@@ -53,6 +69,8 @@ Row {
         return 0;
     }
 
+    columns: Math.max(1, Math.min(root.perRow, Math.floor((root.availableWidth + root.spacing)
+                                                          / root.slot)))
     spacing: Style.spacing.lg
     activeFocusOnTab: true
 
@@ -88,6 +106,12 @@ Row {
         NightSky {}
     }
 
+    Component {
+        id: lifeScene
+
+        GameOfLife {}
+    }
+
     Repeater {
         model: root.options
 
@@ -111,7 +135,7 @@ Row {
             Omarchy.BorderSurface {
                 id: frame
 
-                readonly property real edge: 2
+                readonly property real edge: root.edge
 
                 width: root.thumbnailWidth + 2 * edge
                 height: root.thumbnailHeight + 2 * edge
@@ -145,9 +169,11 @@ Row {
                         active: !!option.modelData.scene && root.visible
                         asynchronous: true
                         sourceComponent: SceneHost {
-                            width: root.thumbnailWidth * root.zoom
-                            height: root.thumbnailHeight * root.zoom
-                            scale: 1 / root.zoom
+                            readonly property int zoom: option.modelData.zoom || root.zoom
+
+                            width: root.thumbnailWidth * zoom
+                            height: root.thumbnailHeight * zoom
+                            scale: 1 / zoom
                             transformOrigin: Item.TopLeft
                             colors: root.colors
                             scene: option.modelData.scene
@@ -158,11 +184,13 @@ Row {
                 }
             }
 
+            // A name wider than its thumbnail, at a large type, takes a
+            // second line rather than losing its end.
             Text {
                 width: frame.width
                 horizontalAlignment: Text.AlignHCenter
                 text: option.modelData.label
-                elide: Text.ElideRight
+                wrapMode: Text.Wrap
                 color: option.chosen ? root.colors.accent : root.colors.text
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption

@@ -25,7 +25,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Agent command     | Agentin komento       | What `:ask` runs in the reader's terminal.                                                      |
 | Project directory | Projektikansio        | The folder a Space is for, which `omaweb dev` opens. "Projekti" for the project as a whole.     |
 | Start page        | Aloitussivu           |                                                                                                 |
-| Scene             | Maisema               | The drawing behind the Start page: the night road or the night sky.                             |
+| Scene             | Maisema               | The drawing behind the Start page: the night road, the night sky or the Game of Life.           |
 | Tab               | Välilehti             |                                                                                                 |
 | Pinned tab        | Kiinnitetty välilehti |                                                                                                 |
 | Sidebar           | Sivupalkki            |                                                                                                 |

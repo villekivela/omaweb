@@ -2198,6 +2198,28 @@ TestCase {
         return null;
     }
 
+    // The Scene thumbnails stand four to a row, and a pane too narrow for
+    // four wraps them onto more rows rather than running them off its edge.
+    function test_theSceneThumbnailsWrapInANarrowPane() {
+        const page = makePage();
+        page.section = page.sections.indexOf("interface");
+        const pane = findChild(page, "settingsPane");
+        const picker = findChild(page, "startPageScenePicker");
+        verify(picker !== null);
+        compare(picker.columns, 4);
+        page.width = 640;
+        tryVerify(function () {
+            return picker.columns < 4;
+        });
+        const first = findChild(picker, "sceneThumbnail-crt-road");
+        const last = findChild(picker, "sceneThumbnail-none");
+        tryVerify(function () {
+            return last.y > first.y;
+        });
+        verify(testCase.overflowingItem(pane, picker) === null, describe(testCase.overflowingItem(
+                                                                             pane, picker)));
+    }
+
     // The whole-page form of the same question the properties above ask one at
     // a time, and it is asked of every section the rail names: a pixel count
     // left in any one of them shows up here and nowhere else.
