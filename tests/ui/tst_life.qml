@@ -105,6 +105,13 @@ TestCase {
                 < 0.02;
     }
 
+    // The colour a grab of `item` shows at its logical `x`, `y`, whatever
+    // the display's scale.
+    function drawnAt(image, item, x, y) {
+        const scale = image.width / item.width;
+        return image.pixel(Math.floor(x * scale), Math.floor(y * scale));
+    }
+
     // The board draws a cell to each of its pixels, stretched over the item
     // sharp-edged: a live cell in `live`, a trail in the colour for the
     // generations since the cell died, and every other cell in `ground`.
@@ -122,19 +129,19 @@ TestCase {
         board.trailColours = ["#804000", "#402000"];
         waitForRendering(board);
         let image = grabImage(board);
-        verify(near(image.pixel(15, 15), "#ff8000"), image.pixel(15, 15));
-        verify(near(image.pixel(10, 10), "#ff8000"), image.pixel(10, 10));
-        verify(near(image.pixel(19, 19), "#ff8000"), image.pixel(19, 19));
-        verify(near(image.pixel(9, 15), "#101010"), image.pixel(9, 15));
-        verify(near(image.pixel(35, 25), "#101010"), image.pixel(35, 25));
+        verify(near(drawnAt(image, board, 15, 15), "#ff8000"), drawnAt(image, board, 15, 15));
+        verify(near(drawnAt(image, board, 10, 10), "#ff8000"), drawnAt(image, board, 10, 10));
+        verify(near(drawnAt(image, board, 19, 19), "#ff8000"), drawnAt(image, board, 19, 19));
+        verify(near(drawnAt(image, board, 9, 15), "#101010"), drawnAt(image, board, 9, 15));
+        verify(near(drawnAt(image, board, 35, 25), "#101010"), drawnAt(image, board, 35, 25));
 
         board.step();
         waitForRendering(board);
         image = grabImage(board);
-        verify(near(image.pixel(15, 15), "#804000"), image.pixel(15, 15));
+        verify(near(drawnAt(image, board, 15, 15), "#804000"), drawnAt(image, board, 15, 15));
         board.step();
         waitForRendering(board);
         image = grabImage(board);
-        verify(near(image.pixel(15, 15), "#402000"), image.pixel(15, 15));
+        verify(near(drawnAt(image, board, 15, 15), "#402000"), drawnAt(image, board, 15, 15));
     }
 }
