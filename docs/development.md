@@ -175,9 +175,17 @@ writes, and the frame-interval probes of `tests/ui-performance/tst_performance.q
 `omaweb-ui-performance` and `omaweb-ui-themed-performance` rather than inside the UI suites.
 `omaweb-probes-run-alone` holds that list. A process of their own starts the frame-interval probes
 within the content blocker's first five seconds, when it checks its lists and swaps in what it
-fetched, so they run that check themselves and wait for it to end. The runtime budget has its job's
-runner to itself. Run the suite the same way locally with `ctest --preset ci --parallel <n>`, a
-share of the machine's processors on a machine others build on too.
+fetched, so they run that check themselves and wait for it to end.
+
+The UI suites run offline. Their content blocker subscribes to the fixtures in
+`tests/ui/filter-lists` (`easylist.txt` and `easyprivacy.txt`, a few rules each) instead of
+easylist.to, and `tests/ui/tst_contentblockerlists.qml` checks that the check fetches, compiles and
+swaps them in. `arch-linux-clang` refuses the build user every connection but loopback while it runs
+`ctest`, and proves the refusal first, so a test that reached for the network fails there. To try it
+locally, run `unshare -rn sh -c 'ip link set lo up && ctest --preset ui -R ^omaweb-ui'`. The runtime
+budget has its job's runner to itself. Run the suite the same way locally with
+`ctest --preset ci --parallel <n>`, a share of the machine's processors on a machine others build on
+too.
 
 The clang and GCC jobs each restore a ccache directory from the last run and save it once they have
 built, under a key per compiler and preset, capped at 500 MB. A pull request starts from the cache

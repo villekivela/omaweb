@@ -147,7 +147,7 @@ jobs:
     # with the suites in parallel more than one engine is running at a time.
     container:
       image: archlinux:base-devel
-      options: --shm-size=2g
+      options: --shm-size=2g --cap-add=NET_ADMIN
     timeout-minutes: 30
     env:
       CC: clang
@@ -164,7 +164,7 @@ jobs:
         # same font asked for by name.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-shadertools qt6-tools libsecret libsodium gnu-free-fonts
+          qt6-shadertools qt6-tools libsecret libsodium gnu-free-fonts iptables
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The engine Omaweb ships (ADR 0049) rather than the distribution's, so
       # that what the patch series adds is built and tested here: CNAME
@@ -229,6 +229,21 @@ jobs:
         with:
           path: .cache/ccache
           key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      # The suites run offline (#614): the UI suites take their filter lists
+      # from tests/ui/filter-lists, so a test that reached for the network would
+      # fail here instead of passing on a good connection. The build user may
+      # reach loopback and nothing else, and the step proves the refusal before
+      # the tests rely on it. The job's root, which installed what the build
+      # needed, still reaches the network.
+      - name: Refuse the tests' outbound connections
+        run: |
+          for tables in iptables ip6tables; do
+            "$tables" -A OUTPUT -m owner --uid-owner builder ! -o lo -j REJECT
+          done
+          if su builder -c 'curl --silent --show-error --max-time 10 https://easylist.to/'; then
+            echo "::error::the build user still reaches the network" >&2
+            exit 1
+          fi
       - name: Test
         run: su builder -c 'ctest --preset ci --parallel "$(nproc)"'
       # ctest prints only failing output, so the probes' lines are read from
