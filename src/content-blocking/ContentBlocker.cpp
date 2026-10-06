@@ -101,6 +101,41 @@ namespace {
 
 #pragma GCC diagnostic pop
 
+    // Every published list carries a handful of rules this contract cannot parse: EasyList alone
+    // has one. Refusing a list over those rejected EasyList and EasyPrivacy in full and blocked
+    // nothing at all, so a list is kept for the rules that did compile, and refused only when
+    // none did or when the unparsable rules outnumber them. The rule set the check compiles is
+    // let go of here, on the refresh thread, since only its report is wanted.
+    bool hasUsableRules(const ContentBlocker::Compile &compile, const QByteArray &candidate)
+    {
+        const auto validation = compile(QString::fromUtf8(candidate));
+        const auto accepted = validation.report.value(QStringLiteral("acceptedRuleCount")).toInt();
+        const auto invalid = validation.report.value(QStringLiteral("invalidRuleCount")).toInt();
+        return validation.matcher && accepted > 0 && invalid <= accepted;
+    }
+
+    bool storeList(const QByteArray &list, const QString &path)
+    {
+        QDir().mkpath(QFileInfo(path).absolutePath());
+        QSaveFile file(path);
+        return file.open(QIODevice::WriteOnly) && file.write(list) >= 0 && file.commit();
+    }
+
+    // The reader's rules and every enabled list, joined and compiled. The lists are megabytes
+    // of text, so they are read here rather than on the interface thread.
+    MatcherCompilation compileLists(const ContentBlocker::Compile &compile,
+        const QString &userRules, const QStringList &listPaths)
+    {
+        QString rules = userRules;
+        for (const auto &path : listPaths) {
+            QFile file(path);
+            if (file.open(QIODevice::ReadOnly)) {
+                rules += QLatin1Char('\n') + QString::fromUtf8(file.readAll());
+            }
+        }
+        return compile(rules);
+    }
+
 } // namespace
 
 ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject *parent)
@@ -109,6 +144,12 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
     , m_defaultLists(defaults)
 {
     storeSnapshot(&m_runtime, std::make_shared<const Runtime>());
+    m_compiler.setMaxThreadCount(1);
+    m_refresher.setMaxThreadCount(1);
+    m_network->moveToThread(&m_networkThread);
+    connect(&m_networkThread, &QThread::finished, m_network, &QObject::deleteLater);
+    m_networkThread.setObjectName(QStringLiteral("filter-list-fetch"));
+    m_networkThread.start();
     m_refusalFlush.setSingleShot(true);
     m_refusalFlush.setInterval(refusalFlushIntervalMilliseconds);
     connect(&m_refusalFlush, &QTimer::timeout, this, &ContentBlocker::flushRefusals);
@@ -120,6 +161,18 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
     QTimer::singleShot(
         startupUpdateDelayMilliseconds, this, &ContentBlocker::updateStaleSubscriptions);
 }
+
+// A fetch still under way is abandoned with the thread, and a compile not yet started is dropped.
+// Neither would have anything to go to. A compile under way runs to its end.
+ContentBlocker::~ContentBlocker()
+{
+    m_compiler.clear();
+    m_refresher.clear();
+    m_networkThread.quit();
+    m_networkThread.wait();
+}
+
+void ContentBlocker::setCompileForTests(Compile compile) { m_compile = std::move(compile); }
 
 int ContentBlocker::refusalTallyGeneration() const { return m_refusalTallyGeneration; }
 
@@ -343,6 +396,9 @@ QString ContentBlocker::updateStatusText(const QString &status) const
     if (status == QStringLiteral("failed: could not store list")) {
         return tr("failed: could not store list");
     }
+    if (status == QStringLiteral("failed: could not compile the lists")) {
+        return tr("failed: could not compile the lists");
+    }
     if (status.startsWith(QStringLiteral("failed: "))) {
         return tr("failed: %1").arg(status.mid(QStringLiteral("failed: ").size()));
     }
@@ -410,6 +466,9 @@ void ContentBlocker::setSubscriptionEnabled(const QString &id, bool enabled)
     recompile();
 }
 
+// The list is fetched on the network thread and handed back whole. The first secure request
+// loads the system's certificates where it is made, 15 ms on a fast machine, and a reply's data
+// arrives in pieces worked through where the manager lives (#613).
 void ContentBlocker::updateSubscription(const QString &id)
 {
     auto *subscription = findSubscription(id);
@@ -418,72 +477,81 @@ void ContentBlocker::updateSubscription(const QString &id)
     }
     subscription->updateStatus = QStringLiteral("updating");
     emit subscriptionsChanged();
-    auto *reply = m_network.get(QNetworkRequest(subscription->updateAddress));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, id] {
-        auto *current = findSubscription(id);
-        if (!current) {
-            reply->deleteLater();
+    QMetaObject::invokeMethod(
+        m_network,
+        [this, network = m_network, address = subscription->updateAddress, id] {
+            auto *reply = network->get(QNetworkRequest(address));
+            connect(reply, &QNetworkReply::finished, reply, [this, reply, id] {
+                const auto failed = reply->error() != QNetworkReply::NoError;
+                const auto error = failed ? reply->errorString() : QString();
+                const auto list = failed ? QByteArray() : reply->readAll();
+                reply->deleteLater();
+                // The destructor waits for this thread before the blocker is gone, so it is
+                // still there to post to.
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, id, failed, error, list] { takeFetchedList(id, failed, error, list); },
+                    Qt::QueuedConnection);
+            });
+        },
+        Qt::QueuedConnection);
+}
+
+void ContentBlocker::takeFetchedList(
+    const QString &id, bool failed, const QString &error, const QByteArray &list)
+{
+    auto *subscription = findSubscription(id);
+    if (!subscription) {
+        return;
+    }
+    if (failed) {
+        subscription->updateStatus = QStringLiteral("failed: %1").arg(error);
+        save();
+        emit subscriptionsChanged();
+        return;
+    }
+    subscription->updateStatus = QStringLiteral("validating");
+    save();
+    emit subscriptionsChanged();
+    ++m_activeCompilations;
+    emit compilingChanged();
+    auto *watcher = new QFutureWatcher<bool>(this);
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, id, list] {
+        const auto usable = watcher->result();
+        watcher->deleteLater();
+        --m_activeCompilations;
+        emit compilingChanged();
+        auto *subscription = findSubscription(id);
+        if (!subscription) {
             return;
         }
-        if (reply->error() != QNetworkReply::NoError) {
-            current->updateStatus = QStringLiteral("failed: %1").arg(reply->errorString());
+        // Stored here rather than on the refresh thread. Both this and save() sync the disk, and
+        // on CI's runner settings.json's sync waited 42 to 324 ms behind a list's sync made on
+        // the refresh thread at the same time. One after the other, each took 0.3 to 8 ms (#613).
+        const auto stored = usable && storeList(list, listPath(id));
+        // A list switched off while it was fetched is stored for when it is switched on again,
+        // and is current as stored: none of it is in force, so there is nothing to compile.
+        const auto compiles = stored && subscription->enabled;
+        if (!usable) {
+            subscription->updateStatus = QStringLiteral("failed: list has no usable rules");
+        } else if (!stored) {
+            subscription->updateStatus = QStringLiteral("failed: could not store list");
         } else {
-            const auto candidate = reply->readAll();
-            current->updateStatus = QStringLiteral("validating");
-            ++m_activeCompilations;
-            emit compilingChanged();
-            auto *watcher = new QFutureWatcher<MatcherCompilation>(this);
-            connect(watcher, &QFutureWatcher<MatcherCompilation>::finished, this,
-                [this, watcher, id, candidate] {
-                    const auto validation = watcher->result();
-                    watcher->deleteLater();
-                    --m_activeCompilations;
-                    emit compilingChanged();
-                    auto *subscription = findSubscription(id);
-                    if (!subscription) {
-                        return;
-                    }
-                    const auto accepted
-                        = validation.report.value(QStringLiteral("acceptedRuleCount")).toInt();
-                    const auto invalid
-                        = validation.report.value(QStringLiteral("invalidRuleCount")).toInt();
-                    // Every published list carries a handful of rules this
-                    // contract cannot parse: EasyList alone has one. Refusing
-                    // a list over those rejected EasyList and EasyPrivacy in
-                    // full and blocked nothing at all, so a list is kept for
-                    // the rules that did compile, and refused only when none
-                    // did or when the unparsable rules outnumber them.
-                    if (!validation.matcher || accepted == 0 || invalid > accepted) {
-                        subscription->updateStatus
-                            = QStringLiteral("failed: list has no usable rules");
-                        save();
-                        emit subscriptionsChanged();
-                        return;
-                    }
-                    QDir().mkpath(QFileInfo(listPath(id)).absolutePath());
-                    QSaveFile file(listPath(id));
-                    if (!file.open(QIODevice::WriteOnly) || file.write(candidate) < 0
-                        || !file.commit()) {
-                        subscription->updateStatus = QStringLiteral("failed: could not store list");
-                        save();
-                        emit subscriptionsChanged();
-                        return;
-                    }
-                    subscription->updateStatus = QStringLiteral("compiling");
-                    subscription->lastUpdated
-                        = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-                    m_pendingCurrent.append(id);
-                    save();
-                    emit subscriptionsChanged();
-                    recompile();
-                });
-            watcher->setFuture(QtConcurrent::run(
-                [candidate] { return ContentMatcher::compile(QString::fromUtf8(candidate)); }));
+            subscription->updateStatus
+                = compiles ? QStringLiteral("compiling") : QStringLiteral("current");
+            subscription->lastUpdated = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+        }
+        if (compiles) {
+            m_pendingCurrent.append(id);
         }
         save();
         emit subscriptionsChanged();
-        reply->deleteLater();
+        if (compiles) {
+            recompileOn(m_refresher);
+        }
     });
+    watcher->setFuture(QtConcurrent::run(
+        &m_refresher, [compile = m_compile, list] { return hasUsableRules(compile, list); }));
 }
 
 void ContentBlocker::updateAllSubscriptions()
@@ -814,16 +882,16 @@ void ContentBlocker::save() const
     file.commit();
 }
 
-void ContentBlocker::recompile()
+// Only the exchange of the pointer to the rules in force happens on the interface thread. Until
+// it, requests are decided by the rules in force before; after it, by the new ones.
+void ContentBlocker::recompile() { recompileOn(m_compiler); }
+
+void ContentBlocker::recompileOn(QThreadPool &lane)
 {
-    QString rules = m_userRules;
+    QStringList listPaths;
     for (const auto &subscription : std::as_const(m_subscriptions)) {
-        if (!subscription.enabled) {
-            continue;
-        }
-        QFile file(listPath(subscription.id));
-        if (file.open(QIODevice::ReadOnly)) {
-            rules += QLatin1Char('\n') + QString::fromUtf8(file.readAll());
+        if (subscription.enabled) {
+            listPaths.append(listPath(subscription.id));
         }
     }
     const auto generation = ++m_compileGeneration;
@@ -832,17 +900,34 @@ void ContentBlocker::recompile()
     auto *watcher = new QFutureWatcher<MatcherCompilation>(this);
     connect(
         watcher, &QFutureWatcher<MatcherCompilation>::finished, this, [this, watcher, generation] {
-            const auto compilation = watcher->result();
+            auto compilation = watcher->future().takeResult();
             watcher->deleteLater();
             --m_activeCompilations;
             emit compilingChanged();
-            if (generation != m_compileGeneration || !compilation.matcher) {
+            if (generation != m_compileGeneration) {
+                releaseOffTheInterfaceThread(std::move(compilation.matcher));
+                return;
+            }
+            // The newest compile decides what the lists waiting on it end as. One that produced
+            // nothing leaves the rules in force as they were.
+            if (!compilation.matcher) {
+                for (const auto &id : std::as_const(m_pendingCurrent)) {
+                    if (auto *subscription = findSubscription(id)) {
+                        subscription->updateStatus
+                            = QStringLiteral("failed: could not compile the lists");
+                    }
+                }
+                m_pendingCurrent.clear();
+                save();
+                emit subscriptionsChanged();
                 return;
             }
             auto runtime = std::make_shared<Runtime>();
-            runtime->matcher = compilation.matcher;
+            runtime->matcher = std::move(compilation.matcher);
             runtime->disabledSites = m_disabledSites;
+            auto retired = loadSnapshot(&m_runtime);
             storeSnapshot(&m_runtime, std::shared_ptr<const Runtime>(std::move(runtime)));
+            releaseOffTheInterfaceThread(std::move(retired));
             m_compilationReport = compilation.report.toVariantMap();
             for (const auto &id : std::as_const(m_pendingCurrent)) {
                 if (auto *subscription = findSubscription(id)) {
@@ -854,8 +939,24 @@ void ContentBlocker::recompile()
             emit subscriptionsChanged();
             emit rulesChanged();
         });
-    watcher->setFuture(
-        QtConcurrent::run([rules = std::move(rules)] { return ContentMatcher::compile(rules); }));
+    watcher->setFuture(QtConcurrent::run(&lane,
+        [this, compile = m_compile, userRules = m_userRules, listPaths = std::move(listPaths),
+            generation]() -> MatcherCompilation {
+            if (m_compileGeneration != generation) {
+                return {};
+            }
+            return compileLists(compile, userRules, listPaths);
+        }));
+}
+
+// A rule set going out of force is let go of on the refresh thread, so its destruction is not
+// the interface thread's. A request under way on another thread may still hold it, in which case
+// that thread lets go of it last.
+void ContentBlocker::releaseOffTheInterfaceThread(std::shared_ptr<const void> retired)
+{
+    if (retired) {
+        m_refresher.start([retired = std::move(retired)]() mutable { retired.reset(); });
+    }
 }
 
 void ContentBlocker::replaceDisabledSites()

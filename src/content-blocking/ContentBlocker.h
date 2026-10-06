@@ -8,10 +8,14 @@
 #include <QObject>
 #include <QSet>
 #include <QStringList>
+#include <QThread>
+#include <QThreadPool>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 
+#include <atomic>
+#include <functional>
 #include <memory>
 
 namespace omaweb {
@@ -44,6 +48,7 @@ public:
 
     explicit ContentBlocker(
         QString dataRoot, DefaultLists defaults = DefaultLists::Seed, QObject *parent = nullptr);
+    ~ContentBlocker() override;
 
     QString userRules() const;
     void setUserRules(const QString &rules);
@@ -127,6 +132,11 @@ public:
         const QString &resourceType, const QString &spaceId,
         const QStringList &dnsAliases = {}) const;
 
+    // What compiles a rule set, in place of the library, for a test that has to hold a compile
+    // open or see one produce nothing. Asked for by every compile from then on.
+    using Compile = std::function<MatcherCompilation(const QString &rules)>;
+    void setCompileForTests(Compile compile);
+
 signals:
     void configurationChanged();
     void subscriptionsChanged();
@@ -207,8 +217,13 @@ private:
     void noteRefusal(
         const RefusalKey &key, const RefusedRequest &request, const QString &elementAddress);
     void flushRefusals();
+    void takeFetchedList(
+        const QString &id, bool failed, const QString &error, const QByteArray &list);
     void save() const;
+    // A compile the reader's own change asks for, on m_compiler.
     void recompile();
+    void recompileOn(QThreadPool &lane);
+    void releaseOffTheInterfaceThread(std::shared_ptr<const void> retired);
     void replaceDisabledSites();
     Subscription *findSubscription(const QString &id);
     QString updateStatusText(const QString &status) const;
@@ -240,11 +255,24 @@ private:
     // from a test of it (#142).
     QHash<QObject *, ViewedPage> m_viewedPages;
     int m_refusalTallyGeneration = 0;
-    QNetworkAccessManager m_network;
+    // Lives on m_networkThread and is deleted there when the thread finishes.
+    QNetworkAccessManager *m_network = new QNetworkAccessManager;
+    QThread m_networkThread;
     QVariantMap m_compilationReport;
     QStringList m_pendingCurrent;
-    quint64 m_compileGeneration = 0;
+    // The newest compile asked for. The compiler's thread reads it to skip a compile a newer one
+    // has replaced.
+    Compile m_compile = &ContentMatcher::compile;
+    std::atomic<quint64> m_compileGeneration = 0;
     int m_activeCompilations = 0;
+    // Two threads compile, each one compile at a time, in the order asked for. A refresh checks,
+    // stores and compiles its lists on m_refresher, so its compiles never run side by side on the
+    // cores the interface thread draws on: the global pool ran a list's check and the compiles
+    // after it together (#613). A change the reader makes compiles on m_compiler, so it never
+    // waits behind a refresh. Declared last so they are destroyed first, waiting for the compiles
+    // under way before anything those read goes.
+    QThreadPool m_compiler;
+    QThreadPool m_refresher;
 };
 
 } // namespace omaweb

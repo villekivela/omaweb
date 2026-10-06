@@ -149,8 +149,22 @@ The Qt adapter calls a separately built `adblock-rust` shared library through a 
 Its version matches the pinned Ladybird revision. Ladybird uses its internal copy. Both adapters run
 the same conformance fixtures.
 
-Request matching uses an immutable in-memory snapshot. Subscription updates compile off the request
-path and atomically replace the active matcher.
+Request matching uses an immutable in-memory snapshot. A subscription update leaves the interface
+thread only its disk writes and putting the new matcher in force:
+
+- The list is fetched on the content blocker's network thread. The first secure request there loads
+  the system's certificates, and the reply's data is worked through there.
+- The refresh thread checks the list, then the interface thread stores it. The refresh thread reads
+  every enabled list and compiles the matcher, one compile at a time in the order asked for, and
+  skips one a newer one has replaced. Several compiles at once took the cores the interface thread
+  draws on (#613). The list is stored where the settings are saved, because a list's disk sync on
+  another thread made the settings' sync on the interface thread wait for it.
+- A change the reader makes, such as their own rules or a list switched on or off, compiles on a
+  thread of its own, one compile at a time, so it never waits behind a refresh.
+- The interface thread atomically replaces the pointer to the active matcher. Until then the old
+  matcher decides every request; afterwards the new one does. The matcher it replaces is released on
+  the refresh thread. When the newest compile produces nothing, the old matcher stays in force and
+  each list waiting on it is marked failed.
 
 ## Tab lifecycle
 
