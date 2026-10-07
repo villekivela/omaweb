@@ -2304,6 +2304,11 @@
         <translation>Vektorimaasto</translation>
     </message>
     <message>
+        <source>Radar</source>
+        <comment>Start page Scene</comment>
+        <translation>Tutka</translation>
+    </message>
+    <message>
         <source>None</source>
         <comment>Start page Scene: the sidebar&apos;s fill</comment>
         <translation>Ei mitään</translation>

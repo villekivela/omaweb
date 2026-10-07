@@ -1,0 +1,113 @@
+{
+  "description": "A radar behind the Start page, after a plan-position display (#608): the whole page area is its face, and a phosphor sweep turns clockwise across it from a centre behind the Omnibar, over faint range rings and spokes, its afterglow trailing behind the beam, with a blip for each open tab in the Space on show. The browser draws it (src/ui/Radar.qml); the website does not. Lengths are CSS pixels unless named otherwise; times are in seconds; a bearing is in degrees clockwise from straight up. A tab's site is its host, or for a page with no host its scheme; a blank page has none. A colour is a role (ground, light, glow, face, black, white) or a mix of two at an amount. `pitch` is 2, as the vector terrain's, so a line is thin, and `crt` is the road's glass at the road's size on screen: its pixel counts are doubled. `rest` is where the Omnibar rests, as a share of the height, and the sweep's centre stands there, in the middle of the page area's width. `night.face` mixes the night toward the glow for the face. `field` is the resting Omnibar's field and hint row, which the blips keep clear: its top edge `above` above where it rests, its bottom `omnibarReach` below at the theme's type size, which the browser hands in, `widest` wide at most and `margin` in from either side. `grid`: the face is `face`, with a range ring every `ringEvery` out from the centre and a spoke every `spokeEvery` degrees, both out past the page area's edges, in `colour` at `alpha` and `spokeAlpha`. `lines` are `width` of the Scene's pixels wide with a glow `blur` of its pixels around them at `alpha` of their colour; in a Private window the lines are the light mixed toward the ground by `unlit`, with no glow. `sweep`: a turn takes `turn` seconds at rest, and the swept area glows for `afterglow` seconds behind the beam, fading by the power `fade`, the face mixed `alpha` of the way toward `colour` at its brightest, in `slices` slices; the beam itself is `beam` alpha. From a commit until the page paints the sweep turns `spin` times as fast, its speed easing toward that at `ease` and back after the page has painted, over a frame of at most `longestStep`. A still or Private sweep stands at bearing `still`. `blips`: an open tab's blip stands at a bearing a scatter of its site gives, `range` [from, to] of the way out along it from `clear` beyond the field to `margin` in from the page area's edge, a triangle pointing up, `size` of the Scene's pixels across, with a glow `halo` times as wide at `haloAlpha` while the lights are on; the sweep lights it and it fades with the afterglow to `floor`. A picture with no Space behind it, such as a thumbnail, shows `sample` blips. A still radar's blips are all lit. On a commit, the page being opened has a blip of its own that brightens over `arrive.rise` seconds until the page paints, when its tab's own blip takes its place, with a glow `arrive.halo` times its size at `arrive.haloAlpha`. `light` is the sweep's light on the Omnibar's rim, centred where the beam leaves the field: an ellipse `across` of the rim's width and `reach` down, its stops a position, a colour and its alpha, and a bloom over it; a Private window's radar casts none.",
+  "id": "radar",
+  "name": "Radar",
+  "pitch": 2,
+  "fps": 30,
+  "glass": "crt",
+  "crt": {
+    "bloom": {
+      "scale": 6,
+      "opacity": 0.22
+    },
+    "scanlines": {
+      "every": 6,
+      "shade": 0.38
+    },
+    "vignette": {
+      "clear": 0.55,
+      "shade": 0.55
+    },
+    "band": {
+      "every": 7,
+      "from": -0.2,
+      "travel": 1.4,
+      "reach": 0.07,
+      "reachAtLeast": 8,
+      "strength": 0.05
+    },
+    "flicker": {
+      "least": 0.02,
+      "range": 0.025,
+      "frequencies": [37.1, 11.3]
+    }
+  },
+  "options": {},
+  "rest": 0.5,
+  "night": {
+    "lightThemeGround": 0.45,
+    "deep": 0.45,
+    "deepLightTheme": 0.72,
+    "face": 0.06
+  },
+  "field": {
+    "omnibarReach": 40,
+    "above": 50,
+    "widest": 720,
+    "margin": 16
+  },
+  "grid": {
+    "face": "face",
+    "ringEvery": 140,
+    "spokeEvery": 30,
+    "colour": {
+      "mix": ["glow", "ground", 0.35]
+    },
+    "alpha": 0.3,
+    "spokeAlpha": 0.18
+  },
+  "lines": {
+    "width": 1,
+    "glow": {
+      "blur": 5,
+      "alpha": 0.85
+    },
+    "unlit": 0.35
+  },
+  "sweep": {
+    "turn": 6,
+    "afterglow": 2,
+    "fade": 1.6,
+    "alpha": 0.42,
+    "slices": 120,
+    "beam": 0.9,
+    "spin": 8,
+    "ease": 3,
+    "longestStep": 0.1,
+    "still": 60,
+    "colour": "glow"
+  },
+  "blips": {
+    "range": [0.1, 0.9],
+    "clear": 24,
+    "margin": 24,
+    "size": 5,
+    "halo": 2.5,
+    "haloAlpha": 0.3,
+    "floor": 0.15,
+    "sample": 5,
+    "colour": {
+      "mix": ["glow", "light", 0.35]
+    },
+    "arrive": {
+      "rise": 1.2,
+      "halo": 3,
+      "haloAlpha": 0.3,
+      "colour": "light"
+    }
+  },
+  "light": {
+    "across": 0.1,
+    "reach": 30,
+    "stops": [
+      [0, "glow", 0.55],
+      [0.45, "glow", 0.25],
+      [1, "glow", 0]
+    ],
+    "bloom": {
+      "opacity": 0.3,
+      "width": 8,
+      "blur": 4
+    }
+  }
+}
