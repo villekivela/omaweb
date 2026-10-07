@@ -48,7 +48,7 @@ import urllib.request
 # Reader-facing notes out of text that is already in the prompt, with the
 # parts a release cannot get wrong held in code rather than asked of the
 # model. `--model` overrides this where a range turns out to need more.
-MODEL = "claude-sonnet-5"
+MODEL = "claude-opus-5-5"
 API_VERSION = "2023-06-01"
 
 # Thinking is on by default on this model and its tokens come out of the same
@@ -221,6 +221,24 @@ repeat it.
 - Leave out changes with no reader-visible effect unless the range is nothing \
 else. Internal work, refactors, and test changes belong in the commit list, \
 which the compare URL reaches.
+
+Write the way a person who uses the browser talks about it.
+
+- Start each entry with what changed. No bold lead-in that restates the entry \
+as a headline.
+- Name the mechanism, the key, or the number the input gives. A sentence that \
+could sit unchanged in another browser's notes says nothing about this one, so \
+cut it.
+- Use active voice and plain words: "use", not "leverage"; "is", not "serves \
+as". Drop "seamless", "enhanced", "robust", "streamlined", "improved \
+experience", and adverbs that prop up a weak verb.
+- Do not end a sentence on an -ing clause that claims a benefit ("making it \
+easier to...", "ensuring a smoother..."). Say the benefit as its own fact or \
+leave it out.
+- One idea per sentence. Group items in whatever number they come in, not in \
+threes, and do not write "not just X, but Y".
+- No dashes as punctuation. Use a comma or a new sentence, and keep colons for \
+introducing a list.
 
 Format: Markdown, starting at `##` for the sections. Never write a `#` \
 heading, and do not open with a title naming the release: the page these notes \
