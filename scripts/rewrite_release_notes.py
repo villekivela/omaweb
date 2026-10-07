@@ -222,6 +222,24 @@ repeat it.
 else. Internal work, refactors, and test changes belong in the commit list, \
 which the compare URL reaches.
 
+Write the way a person who uses the browser talks about it.
+
+- Start each entry with what changed. No bold lead-in that restates the entry \
+as a headline.
+- Name the mechanism, the key, or the number the input gives. A sentence that \
+could sit unchanged in another browser's notes says nothing about this one, so \
+cut it.
+- Use active voice and plain words: "use", not "leverage"; "is", not "serves \
+as". Drop "seamless", "enhanced", "robust", "streamlined", "improved \
+experience", and adverbs that prop up a weak verb.
+- Do not end a sentence on an -ing clause that claims a benefit ("making it \
+easier to...", "ensuring a smoother..."). Say the benefit as its own fact or \
+leave it out.
+- One idea per sentence. Group items in whatever number they come in, not in \
+threes, and do not write "not just X, but Y".
+- No dashes as punctuation. Use a comma or a new sentence, and keep colons for \
+introducing a list.
+
 Format: Markdown, starting at `##` for the sections. Never write a `#` \
 heading, and do not open with a title naming the release: the page these notes \
 become already heads them with the version, so a title repeats it. Do not wrap \
