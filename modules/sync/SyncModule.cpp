@@ -1,6 +1,7 @@
 #include "SyncModule.h"
 
 #include "SessionStore.h"
+#include "SettingsFile.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 
@@ -39,6 +40,17 @@ namespace {
     // `ease-sidebar` went when the chrome stopped offering its ease as a
     // setting (#503).
     const QStringList retiredPreferences {QStringLiteral("ease-sidebar")};
+
+    // A synced setting's record holds its value as text, as every version of
+    // the record has; settings.json holds it typed.
+    QByteArray settingRecord(const QString &name, bool value)
+    {
+        return QJsonDocument(QJsonObject {{QStringLiteral("version"), SyncModule::contractVersion},
+                                 {QStringLiteral("key"), name},
+                                 {QStringLiteral("value"),
+                                     value ? QStringLiteral("true") : QStringLiteral("false")}})
+            .toJson(QJsonDocument::Indented);
+    }
 
     void setError(QString *destination, const QString &message)
     {
@@ -1056,7 +1068,7 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
             return false;
         }
     }
-    return restoreConfiguration(store, errorMessage) && writeAppliedRecordInventory(errorMessage);
+    return restoreConfiguration(errorMessage) && writeAppliedRecordInventory(errorMessage);
 }
 
 bool SyncModule::writeAppliedRecordInventory(QString *errorMessage) const
@@ -1144,16 +1156,11 @@ bool SyncModule::writeLocalBaselineInventory(SessionStore &store, QString *error
     inventory.insert(QStringLiteral("spaces"), spaces);
     inventory.insert(QStringLiteral("tabs"), tabs);
     QJsonObject configuration;
-    const auto missing = QString(QChar(0));
+    const SettingsFile settings(m_options.configRoot);
     for (const auto &name : syncedPreferences) {
-        const auto value = store.preference(name, missing);
-        if (value != missing) {
-            const auto contents = QJsonDocument(
-                QJsonObject {{QStringLiteral("version"), contractVersion},
-                    {QStringLiteral("key"), name},
-                    {QStringLiteral("value"),
-                        value}}).toJson(QJsonDocument::Indented);
-            configuration.insert(QStringLiteral("settings/%1.json").arg(name), digest(contents));
+        if (settings.isSet(name)) {
+            configuration.insert(QStringLiteral("settings/%1.json").arg(name),
+                digest(settingRecord(name, settings.value(name).toBool())));
         }
     }
     QFile keybindings(QDir(m_options.configRoot).filePath(QStringLiteral("keybindings.json")));
@@ -1209,22 +1216,41 @@ bool SyncModule::stageConfigurationFile(
     return true;
 }
 
-bool SyncModule::restoreConfiguration(SessionStore &store, QString *errorMessage)
+bool SyncModule::restoreConfiguration(QString *errorMessage)
 {
     const auto settingsDirectory = QDir(checkoutRoot()).filePath(QStringLiteral("settings"));
+    QJsonObject synced;
     for (const auto &name : syncedPreferences) {
         const auto record = readJsonObject(QDir(settingsDirectory).filePath(name + ".json"));
         if (record.isEmpty()) {
             continue;
         }
+        const auto value = record.value(QStringLiteral("value")).toString();
         if (record.value(QStringLiteral("version")).toInt() != contractVersion
             || record.value(QStringLiteral("key")).toString() != name
-            || !record.value(QStringLiteral("value")).isString()
-            || !store.savePreference(name, record.value(QStringLiteral("value")).toString())) {
+            || (value != QLatin1String("true") && value != QLatin1String("false"))) {
             setError(errorMessage,
                 QCoreApplication::translate("SyncModule", "A synced Setting is not valid"));
             return false;
         }
+        synced.insert(name, value == QLatin1String("true"));
+    }
+    // Merged into the file through the one writer the Settings page uses too,
+    // which reads it again under its lock, so neither write drops the other.
+    // The browser's watch on the file applies what changed.
+    SettingsFile settings(m_options.configRoot);
+    if (!settings.readable()) {
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule",
+                "%1 could not be read, so Sync did not write the synced settings into it")
+                .arg(SettingsFile::fileName()));
+        return false;
+    }
+    if (!synced.isEmpty() && !settings.merge(synced)) {
+        setError(errorMessage,
+            QCoreApplication::translate("SyncModule", "Could not apply the synced settings to %1")
+                .arg(SettingsFile::fileName()));
+        return false;
     }
 
     const auto remoteKeybindings
@@ -1281,7 +1307,7 @@ bool SyncModule::restoreConfiguration(SessionStore &store, QString *errorMessage
     return true;
 }
 
-bool SyncModule::captureConfiguration(SessionStore &store, QString *errorMessage)
+bool SyncModule::captureConfiguration(QString *errorMessage)
 {
     for (const auto &name : retiredPreferences) {
         const auto retired
@@ -1293,19 +1319,23 @@ bool SyncModule::captureConfiguration(SessionStore &store, QString *errorMessage
             return false;
         }
     }
-    const auto missing = QString(QChar(0));
-    for (const auto &name : syncedPreferences) {
-        const auto value = store.preference(name, missing);
-        if (value == missing) {
+    // A file the reader left unreadable says nothing about their settings, so
+    // nothing is captured from it until it is fixed.
+    const SettingsFile settings(m_options.configRoot);
+    const auto applied = readJsonObject(
+        QDir(m_options.dataRoot).filePath(QStringLiteral("sync/applied-records.json")))
+                             .value(QStringLiteral("configuration"))
+                             .toObject();
+    for (const auto &name : settings.readable() ? syncedPreferences : QStringList {}) {
+        const auto path = QStringLiteral("settings/%1.json").arg(name);
+        // A key the reader took out of the file is back at its default. That
+        // is a change to sync only where a value of theirs was synced before:
+        // a machine that never chose one has nothing to say to the others.
+        if (!settings.isSet(name) && !applied.contains(path)) {
             continue;
         }
-        const auto contents = QJsonDocument(
-            QJsonObject {{QStringLiteral("version"), contractVersion},
-                {QStringLiteral("key"), name},
-                {QStringLiteral("value"),
-                    value}}).toJson(QJsonDocument::Indented);
         if (!stageConfigurationFile(
-                QStringLiteral("settings/%1.json").arg(name), contents, errorMessage)) {
+                path, settingRecord(name, settings.value(name).toBool()), errorMessage)) {
             return false;
         }
     }
@@ -1440,7 +1470,7 @@ bool SyncModule::reconcileRemote(SessionStore &store, QString *errorMessage)
         || !tombstoneMissingRecords(QStringLiteral("tabs"), currentTabIds, errorMessage)) {
         return false;
     }
-    if (!captureConfiguration(store, errorMessage)) {
+    if (!captureConfiguration(errorMessage)) {
         return false;
     }
 

@@ -1,6 +1,6 @@
 #include "GlobalPrivacyControl.h"
 
-#include "PrivacyFile.h"
+#include "SettingsFile.h"
 
 #include <utility>
 
@@ -13,8 +13,13 @@ namespace {
 
 GlobalPrivacyControl::GlobalPrivacyControl(QString configRoot, QObject *parent)
     : QObject(parent)
-    , m_configRoot(std::move(configRoot))
+    , m_settings(std::move(configRoot))
 {
+    connect(&m_settings, &SettingsFile::changed, this, [this](const QStringList &keys) {
+        if (keys.contains(enabledKey)) {
+            load();
+        }
+    });
     load();
 }
 
@@ -25,9 +30,8 @@ void GlobalPrivacyControl::setEnabled(bool enabled)
     if (enabled == m_enabled) {
         return;
     }
-    m_enabled = enabled;
-    save();
-    emit enabledChanged();
+    // Applied when the file says it was written, the way an edit made there is.
+    m_settings.set(enabledKey, enabled);
 }
 
 QByteArray GlobalPrivacyControl::headerName() { return QByteArrayLiteral("Sec-GPC"); }
@@ -52,10 +56,11 @@ QString GlobalPrivacyControl::scriptSource()
 // nobody: only an explicit `false` does.
 void GlobalPrivacyControl::load()
 {
-    const auto value = PrivacyFile::read(m_configRoot, enabledKey);
-    m_enabled = value.isBool() ? value.toBool() : true;
+    const auto value = m_settings.value(enabledKey).toBool(true);
+    if (value != m_enabled) {
+        m_enabled = value;
+        emit enabledChanged();
+    }
 }
-
-void GlobalPrivacyControl::save() const { PrivacyFile::write(m_configRoot, enabledKey, m_enabled); }
 
 } // namespace omaweb

@@ -296,9 +296,10 @@ open it. It carries one JSON object per line each way. `ControlSocket` owns the 
 A request's verb decides what it may do, never its connection's name. `spaces`, `tabs`, `open`,
 `close`, `space`, `focus`, `commands` and `run` are browser commands and always answer. `space new`
 and `space delete` wait for Allow agents, which is off until the reader turns it on and is kept in
-`privacy.json` beside the reader's other decisions. `AgentControl` watches that file, and its
-directory because a write replaces the file, so turning the setting off in a running browser clears
-every connection's current tab at once.
+`agents.json`, apart from `settings.json` so that copying the settings to another machine does not
+let Agents in there ([ADR 0061](adr/0061-keep-the-readers-settings-in-one-file.md)). `AgentControl`
+watches that file, and its directory because a write replaces the file, so turning the setting off
+in a running browser clears every connection's current tab at once.
 
 `open` into an existing tab takes a tab an Agent opened in this run, or an ordinary tab of an Agent
 Space or a granted Space while Allow agents is on. `close` takes a tab an Agent opened, or an
@@ -334,7 +335,7 @@ fails until one or the other is decided.
 
 `:ask` goes the other way: the reader starts their own agent from the browser
 ([ADR 0058](adr/0058-start-the-readers-agent-on-request.md)). `AgentControl.askAgent` splits the
-agent command kept in `privacy.json` with `QProcess::splitCommand` and starts `xdg-terminal-exec`
+agent command kept in `agents.json` with `QProcess::splitCommand` and starts `xdg-terminal-exec`
 detached with it, adding one argument that names the tab and carries the reader's words. Nothing
 passes through a shell. It refuses while Allow agents is off, and for a tab its window does not
 hold, so a Private window's tab is never handed over. `ask` is kept out of `publicCommands`, so an

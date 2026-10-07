@@ -30,7 +30,7 @@ void SecureDnsTest::isOffWithoutBeingSetUp()
     const SecureDns dns(root.filePath(QStringLiteral("config")));
     QVERIFY(dns.resolver().isEmpty());
     QVERIFY(dns.serverTemplate().isEmpty());
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/privacy.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
 }
 
 void SecureDnsTest::keepsTheReadersResolverAcrossARestart()

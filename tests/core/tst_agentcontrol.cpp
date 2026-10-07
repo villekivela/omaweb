@@ -1318,9 +1318,9 @@ void AgentControlTest::followsAllowAgentsInTheReadersFile()
     AgentControl control(browser.get(), config.path());
     QSignalSpy changed(&control, &AgentControl::allowAgentsChanged);
 
-    // Written the way an editor or PrivacyFile writes, by replacing the file.
+    // Written the way an editor or AgentsFile writes, by replacing the file.
     const auto write = [&config](const QByteArray &contents) {
-        QSaveFile file(config.filePath(QStringLiteral("privacy.json")));
+        QSaveFile file(config.filePath(QStringLiteral("agents.json")));
         QVERIFY(file.open(QIODevice::WriteOnly));
         file.write(contents);
         QVERIFY(file.commit());
@@ -1331,7 +1331,7 @@ void AgentControlTest::followsAllowAgentsInTheReadersFile()
     QVERIFY(succeeded(ask(control, QStringLiteral("agent"), QStringLiteral("open"),
         {{QStringLiteral("url"), QStringLiteral("https://example.com/")}})));
 
-    write(R"({"allow-agents": false, "global-privacy-control": true})");
+    write(R"({"allow-agents": false, "agent-command": "codex"})");
     QTRY_VERIFY(!control.allowAgents());
     QCOMPARE(failure(ask(control, QStringLiteral("agent"), QStringLiteral("close"))),
         QStringLiteral("no-current-tab"));
@@ -1349,11 +1349,11 @@ void AgentControlTest::followsAllowAgentsInTheReadersFile()
     // An editor that writes the file where it is changes nothing in its
     // directory, and is followed all the same.
     const auto overwrite = [&config](const QByteArray &contents) {
-        QFile file(config.filePath(QStringLiteral("privacy.json")));
+        QFile file(config.filePath(QStringLiteral("agents.json")));
         QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
         file.write(contents);
     };
-    QTRY_VERIFY(QFileInfo::exists(config.filePath(QStringLiteral("privacy.json"))));
+    QTRY_VERIFY(QFileInfo::exists(config.filePath(QStringLiteral("agents.json"))));
     overwrite(R"({"allow-agents": true})");
     QTRY_VERIFY(control.allowAgents());
     overwrite(R"({"allow-agents": false})");

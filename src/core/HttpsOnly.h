@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SettingsFile.h"
+
 #include <QDateTime>
 #include <QHash>
 #include <QObject>
@@ -99,13 +101,12 @@ private:
     };
 
     void load();
-    void save() const;
     bool exempt(const QUrl &url, const QString &spaceId);
     bool upgradable(const QUrl &url, const QString &spaceId);
     // Forgets the load under way to `host`, which has arrived or failed.
     static void forgetLoad(Space &space, const QString &host);
 
-    QString m_configRoot;
+    SettingsFile m_settings;
     bool m_enabled = true;
     Remembered m_remembered;
     QHash<QString, Space> m_spaces;

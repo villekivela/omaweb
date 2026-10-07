@@ -1,7 +1,7 @@
 #include "HttpsOnly.h"
 
 #include "BrowserController.h"
-#include "PrivacyFile.h"
+#include "SettingsFile.h"
 
 #include <algorithm>
 #include <utility>
@@ -34,8 +34,13 @@ namespace {
 
 HttpsOnly::HttpsOnly(QString configRoot, QObject *parent)
     : QObject(parent)
-    , m_configRoot(std::move(configRoot))
+    , m_settings(std::move(configRoot))
 {
+    connect(&m_settings, &SettingsFile::changed, this, [this](const QStringList &keys) {
+        if (keys.contains(enabledKey)) {
+            load();
+        }
+    });
     load();
 }
 
@@ -46,9 +51,8 @@ void HttpsOnly::setEnabled(bool enabled)
     if (enabled == m_enabled) {
         return;
     }
-    m_enabled = enabled;
-    save();
-    emit enabledChanged();
+    // Applied when the file says it was written, the way an edit made there is.
+    m_settings.set(enabledKey, enabled);
 }
 
 void HttpsOnly::setRemembered(Remembered remembered) { m_remembered = std::move(remembered); }
@@ -186,10 +190,11 @@ void HttpsOnly::allowOnce(const QString &spaceId, const QUrl &url)
 // way it is written leaves it on.
 void HttpsOnly::load()
 {
-    const auto value = PrivacyFile::read(m_configRoot, enabledKey);
-    m_enabled = value.isBool() ? value.toBool() : true;
+    const auto value = m_settings.value(enabledKey).toBool(true);
+    if (value != m_enabled) {
+        m_enabled = value;
+        emit enabledChanged();
+    }
 }
-
-void HttpsOnly::save() const { PrivacyFile::write(m_configRoot, enabledKey, m_enabled); }
 
 } // namespace omaweb

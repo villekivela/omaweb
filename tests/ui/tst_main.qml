@@ -12879,33 +12879,13 @@ TestCase {
         }
     }
 
-    // A reader who turned the road off before there was a choice arrives on
-    // None, and one who left it on, or never touched it, on the road.
-    function test_theRoadSwitchCarriesOverToTheScene_data() {
-        return [
-                    {
-                        tag: "switched off",
-                        road: "false",
-                        scene: "none"
-                    },
-                    {
-                        tag: "switched on",
-                        road: "true",
-                        scene: "crt-road"
-                    },
-                    {
-                        tag: "never switched",
-                        road: "",
-                        scene: "crt-road"
-                    }
-                ];
-    }
-
-    function test_theRoadSwitchCarriesOverToTheScene(data) {
+    // A reader who has not chosen a Scene is on the road. Settings moved the
+    // road's old switch into the Scene when the settings moved to their file
+    // (tst_settingsmigration), so the chrome reads the Scene alone.
+    function test_aChosenSceneIsTheOneThatHolds() {
         browser.setPreference("start-page-scene", "");
-        browser.setPreference("start-page-road", data.road);
         window.restoreChromeAppearance();
-        compare(window.startPageScene, data.scene);
+        compare(window.startPageScene, "crt-road");
         // A choice made since is the one that holds.
         window.setStartPageScene("night-sky");
         window.restoreChromeAppearance();
@@ -12922,7 +12902,7 @@ TestCase {
         window.setStartPageScene("hyperspace");
         window.restoreChromeAppearance();
         compare(window.startPageScene, "hyperspace");
-        browser.setPreference("start-page-road", "");
+        browser.setPreference("start-page-scene", "");
     }
 
     // Settings offers the Scenes as a grid of thumbnails, four to a row where

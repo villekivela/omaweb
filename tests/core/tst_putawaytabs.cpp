@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "PrivateSessionFixture.h"
 #include "SessionFixture.h"
+#include "SettingsFile.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
 #include "TabListModel.h"
@@ -52,8 +53,9 @@ QStringList putAwayUrls(const BrowserController &controller)
 // A window whose clock reads `start`, so the tabs it opens left show then.
 std::unique_ptr<BrowserController> openWindow(const QTemporaryDir &root)
 {
-    auto controller
-        = std::make_unique<BrowserController>(SpaceStorage(root.path(), QStringLiteral("test")));
+    // A configuration root of its own, where the reader's limit is kept.
+    auto controller = std::make_unique<BrowserController>(
+        SpaceStorage(root.path(), QStringLiteral("test")), root.filePath(QStringLiteral("config")));
     controller->setNowForTests(start);
     return controller;
 }
@@ -676,14 +678,12 @@ SessionSpec spaceWithATabLastShownLastWeek()
 // the default: with it off, nothing goes however old.
 void PutAwayTabsTest::readsTheReadersLimitAtStartup()
 {
-    SessionFixture fixture(spaceWithATabLastShownLastWeek());
+    QTemporaryDir config;
+    QVERIFY(config.isValid());
+    QVERIFY(
+        omaweb::SettingsFile(config.path()).set(QStringLiteral("put-away-unused-tabs-after"), 0));
+    SessionFixture fixture(spaceWithATabLastShownLastWeek(), config.path());
     QVERIFY_SESSION_READY(fixture);
-    {
-        omaweb::SqliteSessionStore store(fixture.dataRoot());
-        QVERIFY(store.open());
-        QVERIFY(store.savePreference(
-            QStringLiteral("put-away-unused-tabs-after"), QStringLiteral("0")));
-    }
 
     const auto controller = fixture.createController();
     QCOMPARE(controller->tabs()->rowCount(), 2);

@@ -51,6 +51,7 @@ public:
         const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId) override;
     QString preference(const QString &name, const QString &fallback = {}) const override;
     bool savePreference(const QString &name, const QString &value) override;
+    bool deletePreference(const QString &name) override;
     // Records one visit, and restores the retention bound once a batch of them
     // has arrived. A long session trims as it goes rather than only when the
     // Space database is first opened.

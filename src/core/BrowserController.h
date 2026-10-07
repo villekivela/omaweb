@@ -5,6 +5,7 @@
 #include "RetainedTab.h"
 #include "SessionSiteState.h"
 #include "SessionStore.h"
+#include "SettingsFile.h"
 #include "ExtensionInstaller.h"
 #include "SpaceListModel.h"
 #include "SpaceProject.h"
@@ -564,6 +565,7 @@ public:
     // the package: a reader can enable one before it has been fetched, and what
     // the engine is handed is the pair.
     Q_INVOKABLE QVariantList knownExtensions() const;
+    bool knownExtensionEnabled(const QString &key) const;
     Q_INVOKABLE bool setKnownExtensionEnabled(const QString &key, bool enabled);
 
     // Fetch this extension's package from the store, whatever is on disk. The
@@ -916,6 +918,9 @@ private:
     // Space is active it is not in the tab model to be noticed missing.
     QString m_developerToolsSpaceId;
     QString m_configRoot;
+    // The reader's settings. A Private window reads the same file as every
+    // other window, and writes there what it can change.
+    SettingsFile m_settings;
     QVariantList m_searchEngines;
     QString m_defaultSearchEngineId;
     QString m_errorMessage;

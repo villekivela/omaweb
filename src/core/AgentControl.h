@@ -80,7 +80,7 @@ class AgentControl final : public QObject {
     // order they were granted.
     Q_PROPERTY(QVariantList grantedSpaces READ grantedSpaces NOTIFY grantedSpacesChanged)
     // The command line `askAgent` starts in the reader's terminal, kept in
-    // `privacy.json` beside Allow agents. Setting it empty gives back the
+    // `agents.json` beside Allow agents. Setting it empty gives back the
     // default.
     Q_PROPERTY(
         QString agentCommand READ agentCommand WRITE setAgentCommand NOTIFY agentCommandChanged)
@@ -102,7 +102,7 @@ public:
 
     using Reply = std::function<void(const QJsonObject &)>;
 
-    // Reads Allow agents from `privacy.json` under `configRoot` and follows
+    // Reads Allow agents from `agents.json` under `configRoot` and follows
     // the file, so the reader turning it off there detaches every connection
     // without a restart.
     AgentControl(BrowserController *browser, QString configRoot, QObject *parent = nullptr);

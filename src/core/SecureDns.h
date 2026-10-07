@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SettingsFile.h"
+
 #include <QObject>
 #include <QString>
 #include <QVariantList>
@@ -49,9 +51,9 @@ signals:
 
 private:
     void load();
-    void save() const;
+    void save(const QString &resolver, const QString &customTemplate);
 
-    QString m_configRoot;
+    SettingsFile m_settings;
     QString m_resolver;
     QString m_customTemplate;
 };

@@ -408,8 +408,12 @@ add_library(omaweb-core STATIC
     src/core/ReleaseCheck.h
     src/core/ReleaseWatch.cpp
     src/core/ReleaseWatch.h
-    src/core/PrivacyFile.cpp
-    src/core/PrivacyFile.h
+    src/core/AgentsFile.cpp
+    src/core/AgentsFile.h
+    src/core/SettingsFile.cpp
+    src/core/SettingsFile.h
+    src/core/SettingsMigration.cpp
+    src/core/SettingsMigration.h
     src/core/PrivateSessionStore.cpp
     src/core/PrivateSessionStore.h
     src/core/SessionStore.h
@@ -1663,6 +1667,16 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-webrtc-policy-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-webrtc-policy-tests)
     add_test(NAME omaweb-webrtc-policy COMMAND omaweb-webrtc-policy-tests)
+
+    qt_add_executable(omaweb-settings-file-tests tests/core/tst_settingsfile.cpp)
+    target_link_libraries(omaweb-settings-file-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-settings-file-tests)
+    add_test(NAME omaweb-settings-file COMMAND omaweb-settings-file-tests)
+
+    qt_add_executable(omaweb-settings-migration-tests tests/core/tst_settingsmigration.cpp)
+    target_link_libraries(omaweb-settings-migration-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-settings-migration-tests)
+    add_test(NAME omaweb-settings-migration COMMAND omaweb-settings-migration-tests)
 
     qt_add_executable(omaweb-font-settings-tests tests/core/tst_fontsettings.cpp)
     target_link_libraries(omaweb-font-settings-tests PRIVATE omaweb-core Qt6::Test)

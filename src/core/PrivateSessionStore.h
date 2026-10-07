@@ -57,6 +57,7 @@ public:
 
     QString preference(const QString &name, const QString &fallback = {}) const override;
     bool savePreference(const QString &name, const QString &value) override;
+    bool deletePreference(const QString &name) override;
 
     bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title) override;
     QVariantList history(const QString &spaceId, const QString &query, int limit) const override;

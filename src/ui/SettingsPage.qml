@@ -180,6 +180,14 @@ Rectangle {
     // ancestor of this item.
     property Item pageSource: null
 
+    // settings.json, which every setting on this page is a key in. Null where
+    // there is no file, as in the lab.
+    property var settingsFile: null
+    readonly property string settingsProblem: settingsFile ? settingsFile.problem : ""
+    // A file Omaweb could not read is never written over, so the controls that
+    // would write it wait until the reader has fixed it.
+    readonly property bool settingsWritable: !settingsFile || settingsFile.readable
+
     // What the keymap could not honour, if anything. Empty is the ordinary
     // case, and shows nothing at all.
     readonly property string keyboardReport: keyboard ? keyboard.errorMessage : ""
@@ -192,7 +200,9 @@ Rectangle {
     // Whether anything in here is waiting on the reader, so a notice that
     // lives on one section is still findable from outside it.
     readonly property bool needsAttention: SettingsAttention.needed(keyboardReport,
-                                                                    !inputMethodMissing)
+                                                                    !inputMethodMissing, !
+                                                                    !settingsFile
+                                                                    && settingsFile.needsAttention)
 
     // The keys the rest of the chrome finds a section by, and what the rail
     // calls each one, in the same order.
@@ -393,6 +403,7 @@ Rectangle {
     signal downloadCancelled(int row)
     signal downloadRetried(int row)
     signal downloadRevealed(string path)
+    signal settingsFileRevealed(string path)
     signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
     signal syncCodeCopied(string notice)
@@ -928,6 +939,47 @@ Rectangle {
                 // would break one list into a stack of cards.
                 spacing: Style.spacing.lg
 
+                // ---- the file -----------------------------------------------
+                //
+                // Every setting here is a key in one file the reader can edit,
+                // diff and keep with their dotfiles, so the page names it above
+                // every section, with what went wrong reading it.
+                Column {
+                    width: pane.width
+                    visible: !!root.settingsFile
+                    spacing: pane.spacing
+
+                    SettingRow {
+                        objectName: "settingsFileLine"
+                        width: pane.width
+                        colors: root.colors
+                        separated: false
+                        title: qsTr("Kept in %1").arg(root.settingsFile
+                                                      ? root.settingsFile.displayPath : "")
+                        note: qsTr("Edit the file and Omaweb follows it while it runs.")
+
+                        ActionButton {
+                            objectName: "revealSettingsFile"
+                            colors: root.colors
+                            label: qsTr("Show")
+                            accessibleName: qsTr("Show the settings file in its folder")
+                            onClicked: root.settingsFileRevealed(root.settingsFile.path)
+                        }
+                    }
+
+                    NoticeBox {
+                        objectName: "settingsFileNotice"
+                        width: pane.width
+                        visible: root.settingsProblem.length > 0
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "warning"
+                        title: root.settingsWritable ? qsTr("Some settings were not read") : qsTr(
+                                                           "The settings file could not be read")
+                        detail: root.settingsProblem
+                    }
+                }
+
                 // ---- tabs ---------------------------------------------------
 
                 Column {
@@ -937,6 +989,7 @@ Rectangle {
 
                     SettingToggle {
                         objectName: "useFavicons"
+                        enabled: root.settingsWritable
                         width: pane.width
                         colors: root.colors
                         title: qsTr("Use site favicons")
@@ -953,7 +1006,7 @@ Rectangle {
                         title: qsTr("Tint favicons")
                         note: qsTr("Recolor site artwork to match the sidebar palette.")
                         accessibleName: qsTr("Tint favicons")
-                        enabled: root.useFavicons
+                        enabled: root.settingsWritable && (root.useFavicons)
                         checked: root.tintFavicons
                         onClicked: root.tintFaviconsToggled(!checked)
                     }
@@ -1026,6 +1079,7 @@ Rectangle {
 
                         SettingChoice {
                             objectName: "sidebarSide"
+                            enabled: root.settingsWritable
                             colors: root.colors
                             options: [
                                 {
@@ -1047,6 +1101,7 @@ Rectangle {
 
                     SettingToggle {
                         objectName: "floatingControls"
+                        enabled: root.settingsWritable
                         width: pane.width
                         colors: root.colors
                         title: qsTr("Floating controls")
@@ -1059,6 +1114,7 @@ Rectangle {
 
                     SettingToggle {
                         objectName: "glanceEnabled"
+                        enabled: root.settingsWritable
                         width: pane.width
                         colors: root.colors
                         title: qsTr("Glance at a page's new tabs")
@@ -1086,6 +1142,7 @@ Rectangle {
 
                         ScenePicker {
                             objectName: "startPageScenePicker"
+                            enabled: root.settingsWritable
                             availableWidth: pane.width
                             colors: root.colors
                             value: root.startPageScene
@@ -1103,6 +1160,7 @@ Rectangle {
 
                     SettingToggle {
                         objectName: "startPageGlass"
+                        enabled: root.settingsWritable
                         width: pane.width
                         visible: root.startPageScene !== "none"
                         colors: root.colors
@@ -1128,6 +1186,7 @@ Rectangle {
 
                         SettingDropdown {
                             objectName: "putAwayAfter"
+                            enabled: root.settingsWritable
                             colors: root.colors
                             options: [
                                 {
@@ -1181,6 +1240,7 @@ Rectangle {
 
                         SettingStepper {
                             objectName: "interfaceFontSize"
+                            enabled: root.settingsWritable
                             colors: root.colors
                             value: root.fontSettings ? root.fontSettings.interfaceFontSize : 0
                             minimum: root.fontSettings ? root.fontSettings.minimumInterfaceFontSize :
@@ -1292,6 +1352,7 @@ Rectangle {
 
                             SettingDropdown {
                                 objectName: "pageStandardFamily"
+                                enabled: root.settingsWritable
                                 width: pageFontsGroup.familyControlWidth(options)
                                 colors: root.colors
                                 options: pageFontsGroup.familyOptions(
@@ -1314,6 +1375,7 @@ Rectangle {
 
                             SettingDropdown {
                                 objectName: "pageFixedFamily"
+                                enabled: root.settingsWritable
                                 width: pageFontsGroup.familyControlWidth(options)
                                 colors: root.colors
                                 options: pageFontsGroup.familyOptions(root.pageFontsMap.fixedFamily
@@ -1336,6 +1398,7 @@ Rectangle {
 
                             SettingStepper {
                                 objectName: "pageFontSize"
+                                enabled: root.settingsWritable
                                 colors: root.colors
                                 value: root.pageFontsMap.fontSize
                                        ? root.pageFontsMap.fontSize.value : 0
@@ -1364,6 +1427,7 @@ Rectangle {
 
                             SettingStepper {
                                 objectName: "pageMinimumFontSize"
+                                enabled: root.settingsWritable
                                 colors: root.colors
                                 value: root.pageFontsMap.minimumFontSize
                                        ? root.pageFontsMap.minimumFontSize.value : 0
@@ -1722,6 +1786,7 @@ Rectangle {
                     // has nowhere to ask.
                     SettingToggle {
                         objectName: "engineSuggestions"
+                        enabled: root.settingsWritable
                         visible: !!root.engineSuggestions
                         width: pane.width
                         colors: root.colors
@@ -1772,7 +1837,9 @@ Rectangle {
                             colors: root.colors
                             label: qsTr("Change")
                             accessibleName: qsTr("Change the download directory")
-                            enabled: root.browser ? !root.browser.privateBrowsing : false
+                            enabled: root.settingsWritable && (root.browser ?
+                                                                   !root.browser.privateBrowsing :
+                                                                   false)
                             onClicked: root.downloadDirectoryRequested()
                         }
                     }
@@ -2094,6 +2161,7 @@ Rectangle {
                     // window is bound by it too.
                     SettingToggle {
                         objectName: "globalPrivacyControl"
+                        enabled: root.settingsWritable
                         visible: !!root.globalPrivacyControl
                         width: pane.width
                         colors: root.colors
@@ -2113,6 +2181,7 @@ Rectangle {
                     // protection Omaweb offers on its own.
                     SettingToggle {
                         objectName: "httpsOnly"
+                        enabled: root.settingsWritable
                         visible: !!root.httpsOnly
                         width: pane.width
                         colors: root.colors
@@ -2154,6 +2223,7 @@ Rectangle {
 
                             SettingDropdown {
                                 objectName: "secureDnsResolver"
+                                enabled: root.settingsWritable
                                 colors: root.colors
                                 accessibleName: qsTr("Secure DNS resolver")
                                 options: {
@@ -2191,6 +2261,7 @@ Rectangle {
 
                             SettingField {
                                 objectName: "secureDnsAddress"
+                                enabled: root.settingsWritable
                                 visible: secureDnsGroup.chosen === "custom"
                                 width: parent.width
                                 colors: root.colors
@@ -2240,6 +2311,7 @@ Rectangle {
                     // Space says nothing about what the reader wants leaked.
                     SettingToggle {
                         objectName: "webRtcPublicInterfacesOnly"
+                        enabled: root.settingsWritable
                         visible: !!root.webRtcPolicy && !root.webRtcPolicyUnreachable
                         width: pane.width
                         colors: root.colors
@@ -3177,7 +3249,7 @@ Rectangle {
                                 // to refuse the switch. Only a download already
                                 // running is: pressing again would ask for the
                                 // same folder twice.
-                                enabled: !modelData.fetching
+                                enabled: root.settingsWritable && (!modelData.fetching)
                                 checked: modelData.enabled
                                 onClicked: root.knownExtensionToggled(modelData.key,
                                                                       !modelData.enabled)
@@ -3570,6 +3642,7 @@ Rectangle {
 
                     SettingToggle {
                         objectName: "checkForReleases"
+                        enabled: root.settingsWritable
                         visible: !!root.releaseWatch
                         width: pane.width
                         colors: root.colors

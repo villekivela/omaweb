@@ -66,8 +66,8 @@ private:
     bool openCheckout(QString *errorMessage);
     bool reconcileRemote(SessionStore &store, QString *errorMessage);
     SyncError phaseError(const QString &message) const;
-    bool captureConfiguration(SessionStore &store, QString *errorMessage);
-    bool restoreConfiguration(SessionStore &store, QString *errorMessage);
+    bool captureConfiguration(QString *errorMessage);
+    bool restoreConfiguration(QString *errorMessage);
     bool restoreRemoteState(SessionStore &store, QString *errorMessage);
     bool gitRefExists(const QString &reference) const;
     bool mergeRemote(QString *errorMessage);

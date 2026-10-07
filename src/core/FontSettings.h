@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SettingsFile.h"
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -21,7 +23,7 @@ namespace omaweb {
 // now rather than to a number remembered from when it was set.
 //
 // One setting for the whole browser, kept with the reader's other decisions
-// in the configuration directory (ADR 0016). A Space's session store cannot
+// in settings.json (ADR 0061). A Space's session store cannot
 // hold it: a Private window has no store, and its type and its pages are the
 // same reader's to read.
 class FontSettings final : public QObject {
@@ -51,6 +53,8 @@ public:
         QString fixedFamily;
         int fontSize = 0;
         int minimumFontSize = 0;
+
+        bool operator==(const PageFonts &) const = default;
     };
 
     // Twice the kit's default base size at the top, and at the bottom the
@@ -117,9 +121,11 @@ private:
     int &storedSize(PageSize which);
     int storedSize(PageSize which) const;
     void load();
-    void save() const;
+    // False when the file could not be written, which leaves the values the
+    // file holds standing.
+    bool save();
 
-    QString m_configRoot;
+    SettingsFile m_settings;
     QStringList m_installedFamilies;
     int m_themeFontSize = 12;
     std::optional<int> m_interfaceFontSize;

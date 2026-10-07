@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SettingsFile.h"
+
 #include <QObject>
 #include <QString>
 
@@ -35,9 +37,8 @@ signals:
 
 private:
     void load();
-    void save() const;
 
-    QString m_configRoot;
+    SettingsFile m_settings;
     bool m_publicInterfacesOnly = true;
 };
 

@@ -476,7 +476,7 @@ options. These words, `look`, `read`, `do`, `shot`, `eval` and `console` among t
 `omaweb open https://…` and `omaweb tabs` are clients of a running browser and exit with 3 when
 there is none. A launcher that starts the browser with an address passes the address alone,
 `omaweb https://…`, as the desktop entry does. `space new` and `space delete` need Allow agents,
-which has no switch in Settings yet; set `"allow-agents": true` in `privacy.json` under the
+which has no switch in Settings yet; set `"allow-agents": true` in `agents.json` under the
 configuration root. A running browser follows the file, and turning it off there detaches every
 connection at once. `space new --temporary` prints the Space's id and keeps running, and the Space
 is deleted when the process stops, so start it in the background and stop it when the Agent is done.

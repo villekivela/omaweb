@@ -1,11 +1,7 @@
 #include "FontSettings.h"
 
-#include <QDir>
-#include <QFile>
-#include <QJsonDocument>
 #include <QJsonObject>
 #include <QQmlEngine>
-#include <QSaveFile>
 
 #include <algorithm>
 #include <utility>
@@ -13,9 +9,6 @@
 namespace omaweb {
 namespace {
 
-    // The file is named for the Settings section it belongs to rather than
-    // for any one key, the way the privacy section's is.
-    constexpr auto fileName = "interface.json";
     constexpr auto interfaceSizeKey = "font-size";
     constexpr auto pageFontsKey = "page-fonts";
     constexpr auto standardFamilyKey = "standard-family";
@@ -32,9 +25,24 @@ namespace {
 
 FontSettings::FontSettings(QString configRoot, QStringList installedFamilies, QObject *parent)
     : QObject(parent)
-    , m_configRoot(std::move(configRoot))
+    , m_settings(std::move(configRoot))
     , m_installedFamilies(std::move(installedFamilies))
 {
+    connect(&m_settings, &SettingsFile::changed, this, [this](const QStringList &keys) {
+        if (!keys.contains(QLatin1String(interfaceSizeKey))
+            && !keys.contains(QLatin1String(pageFontsKey))) {
+            return;
+        }
+        const auto interfaceSize = interfaceFontSize();
+        const auto stored = m_pageFonts;
+        load();
+        if (interfaceFontSize() != interfaceSize) {
+            emit interfaceFontSizeChanged();
+        }
+        if (m_pageFonts != stored) {
+            emit pageFontsChanged();
+        }
+    });
     load();
 }
 
@@ -66,7 +74,10 @@ void FontSettings::setInterfaceFontSize(int size)
         return;
     }
     m_interfaceFontSize = clamped;
-    save();
+    if (!save()) {
+        load();
+        return;
+    }
     emit interfaceFontSizeChanged();
 }
 
@@ -80,7 +91,10 @@ void FontSettings::resetInterfaceFontSize()
         return;
     }
     m_interfaceFontSize.reset();
-    save();
+    if (!save()) {
+        load();
+        return;
+    }
     emit interfaceFontSizeChanged();
 }
 
@@ -142,7 +156,10 @@ void FontSettings::setPageFamily(PageFamily which, const QString &family)
         return;
     }
     stored = family;
-    save();
+    if (!save()) {
+        load();
+        return;
+    }
     emit pageFontsChanged();
 }
 
@@ -156,7 +173,10 @@ void FontSettings::setPageSize(PageSize which, int size)
         return;
     }
     stored = clamped;
-    save();
+    if (!save()) {
+        load();
+        return;
+    }
     emit pageFontsChanged();
 }
 
@@ -193,41 +213,26 @@ QString FontSettings::installedFamily(const QString &family) const
     return m_installedFamilies.contains(family) ? family : QString {};
 }
 
-// A file that cannot be read the way it is written sets nothing: only a value
-// in the shape this writes is a value the reader chose.
+// A value settings.json cannot vouch for sets nothing: only a value in the
+// shape this writes is a value the reader chose.
 void FontSettings::load()
 {
     m_interfaceFontSize.reset();
     m_pageFonts = {};
-    if (m_configRoot.isEmpty()) {
-        return;
-    }
-    QFile file(QDir(m_configRoot).filePath(QLatin1String(fileName)));
-    if (!file.open(QIODevice::ReadOnly)) {
-        return;
-    }
-    const auto object = QJsonDocument::fromJson(file.readAll()).object();
-    const auto interfaceSize = object.value(QLatin1String(interfaceSizeKey));
+    const auto interfaceSize = m_settings.value(QLatin1String(interfaceSizeKey));
     if (interfaceSize.isDouble()) {
         m_interfaceFontSize
             = std::clamp(interfaceSize.toInt(), minimumInterfaceFontSize, maximumInterfaceFontSize);
     }
-    const auto page = object.value(QLatin1String(pageFontsKey)).toObject();
+    const auto page = m_settings.value(QLatin1String(pageFontsKey)).toObject();
     m_pageFonts.standardFamily = page.value(QLatin1String(standardFamilyKey)).toString();
     m_pageFonts.fixedFamily = page.value(QLatin1String(fixedFamilyKey)).toString();
     m_pageFonts.fontSize = sizeOrZero(page.value(QLatin1String(pageSizeKey)));
     m_pageFonts.minimumFontSize = sizeOrZero(page.value(QLatin1String(pageMinimumSizeKey)));
 }
 
-void FontSettings::save() const
+bool FontSettings::save()
 {
-    if (m_configRoot.isEmpty() || !QDir().mkpath(m_configRoot)) {
-        return;
-    }
-    QSaveFile file(QDir(m_configRoot).filePath(QLatin1String(fileName)));
-    if (!file.open(QIODevice::WriteOnly)) {
-        return;
-    }
     // Only what the reader set is written, so the file reads as the list of
     // their decisions rather than a copy of the defaults.
     QJsonObject page;
@@ -243,15 +248,11 @@ void FontSettings::save() const
     if (m_pageFonts.minimumFontSize > 0) {
         page.insert(QLatin1String(pageMinimumSizeKey), m_pageFonts.minimumFontSize);
     }
-    QJsonObject object;
-    if (m_interfaceFontSize) {
-        object.insert(QLatin1String(interfaceSizeKey), *m_interfaceFontSize);
-    }
-    if (!page.isEmpty()) {
-        object.insert(QLatin1String(pageFontsKey), page);
-    }
-    file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
-    file.commit();
+    return m_settings.merge({
+        {QLatin1String(interfaceSizeKey),
+            m_interfaceFontSize ? QJsonValue(*m_interfaceFontSize) : QJsonValue()},
+        {QLatin1String(pageFontsKey), page},
+    });
 }
 
 void registerFontSettings()

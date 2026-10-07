@@ -9,6 +9,7 @@
 #include "HistoryQuery.h"
 #include "HistorySearch.h"
 #include "PaymentCards.h"
+#include "SettingsMigration.h"
 #include "SqliteSessionStore.h"
 #include "StoredFavicons.h"
 #include "ThreadedSessionStore.h"
@@ -53,8 +54,9 @@ namespace {
     constexpr qint64 putAwayKeptMilliseconds = 30LL * 24 * 60 * 60 * 1000;
     // How long a tab may go unshown before it is put away, in seconds, unless
     // the reader chose otherwise.
-    constexpr int defaultPutAwayAfterSeconds = 12 * 60 * 60;
     constexpr auto putAwayAfterKey = "put-away-unused-tabs-after";
+    constexpr auto knownExtensionsKey = "known-extensions";
+    constexpr auto downloadDirectoryKey = "download-directory";
     // Whether this installation has told the reader it puts tabs away.
     constexpr auto putAwayNoticeKey = "put-away-notice-given";
     // How often a window that stays open checks again. The shortest limit is
@@ -206,6 +208,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     , m_store(std::move(store))
     , m_storage(std::move(storage))
     , m_configRoot(std::move(configRoot))
+    , m_settings(m_configRoot)
     , m_privateBrowsing(privateBrowsing)
     , m_capabilities(
           privateBrowsing ? WindowCapabilities::privateWindow() : WindowCapabilities::mainWindow())
@@ -259,8 +262,24 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(this, &BrowserController::splitChanged, this, &BrowserController::noteTabsOnShow);
     connect(this, &BrowserController::activeSpaceChanged, this,
         &BrowserController::rememberReadersSpace);
-    loadDownloadDirectory();
+    // The file says which keys it changed, whether Settings or the reader's
+    // editor wrote it, and each reaches the chrome the one way.
+    connect(&m_settings, &SettingsFile::changed, this, [this](const QStringList &keys) {
+        for (const auto &key : keys) {
+            emit preferenceChanged(key);
+        }
+        if (keys.contains(QLatin1String(putAwayAfterKey))) {
+            emit putAwayAfterChanged();
+        }
+        if (keys.contains(QLatin1String(knownExtensionsKey))) {
+            emit knownExtensionsChanged();
+        }
+        if (keys.contains(QLatin1String(downloadDirectoryKey))) {
+            loadDownloadDirectory();
+        }
+    });
     initialize();
+    loadDownloadDirectory();
     rememberReadersSpace();
     // Built once the store is open, because it reads the Space's Download
     // records to come up with the list it already has.
@@ -438,9 +457,7 @@ qint64 BrowserController::putAwayLimit() const { return 1000LL * putAwayAfterSec
 
 int BrowserController::putAwayAfterSeconds() const
 {
-    return preference(
-        QString::fromLatin1(putAwayAfterKey), QString::number(defaultPutAwayAfterSeconds))
-        .toInt();
+    return m_settings.value(QString::fromLatin1(putAwayAfterKey)).toInt();
 }
 
 bool BrowserController::setPutAwayAfterSeconds(int seconds)
@@ -450,7 +467,6 @@ bool BrowserController::setPutAwayAfterSeconds(int seconds)
         || !setPreference(QString::fromLatin1(putAwayAfterKey), QString::number(seconds))) {
         return false;
     }
-    emit putAwayAfterChanged();
     return true;
 }
 
@@ -715,21 +731,15 @@ QString BrowserController::downloadDirectory() const { return m_downloadDirector
 
 void BrowserController::loadDownloadDirectory()
 {
-    m_downloadDirectory = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-    if (m_configRoot.isEmpty()) {
-        return;
-    }
-    QFile file(QDir(m_configRoot).filePath(QStringLiteral("downloads.json")));
-    if (!file.open(QIODevice::ReadOnly)) {
-        return;
-    }
-    const auto configured = QJsonDocument::fromJson(file.readAll())
-                                .object()
-                                .value(QStringLiteral("directory"))
-                                .toString()
-                                .trimmed();
+    auto directory = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    const auto configured
+        = m_settings.value(QString::fromLatin1(downloadDirectoryKey)).toString().trimmed();
     if (!configured.isEmpty() && QFileInfo(configured).isDir()) {
-        m_downloadDirectory = configured;
+        directory = configured;
+    }
+    if (directory != m_downloadDirectory) {
+        m_downloadDirectory = directory;
+        emit downloadDirectoryChanged();
     }
 }
 
@@ -740,22 +750,10 @@ bool BrowserController::setDownloadDirectory(const QString &path)
         || !QFileInfo(chosen).isDir() || chosen == m_downloadDirectory) {
         return false;
     }
-    if (!QDir().mkpath(m_configRoot)) {
-        return false;
-    }
-    QSaveFile file(QDir(m_configRoot).filePath(QStringLiteral("downloads.json")));
-    if (!file.open(QIODevice::WriteOnly)) {
-        return false;
-    }
-    file.write(QJsonDocument(
-        QJsonObject {{QStringLiteral("version"), 1}, {QStringLiteral("directory"), chosen}})
-            .toJson(QJsonDocument::Indented));
-    if (!file.commit()) {
-        return false;
-    }
-    m_downloadDirectory = chosen;
-    emit downloadDirectoryChanged();
-    return true;
+    // The system's own folder is the default, so choosing it takes the key out.
+    const auto systemDirectory = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    return m_settings.set(QString::fromLatin1(downloadDirectoryKey),
+        chosen == systemDirectory ? QJsonValue() : QJsonValue(chosen));
 }
 
 bool BrowserController::acceptDownloads() const { return true; }
@@ -3989,18 +3987,51 @@ bool BrowserController::rememberExternalProtocolDecision(const QUrl &url, const 
     return m_store->savePermissionDecision(m_activeSpaceId, origin, permission, AllowPersistently);
 }
 
-// A Private window has no store to read or write, so it browses on the
+// A setting is read from settings.json in every window, as text for the
+// chrome that asks this way. What else the store keeps is the machine's, and
+// a Private window has no store to read or write, so it browses on the
 // defaults and leaves nothing of itself behind.
 QString BrowserController::preference(const QString &name, const QString &fallback) const
 {
+    if (SettingsFile::keys().contains(name)) {
+        const auto value = m_settings.value(name);
+        if (value.isBool()) {
+            return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+        }
+        if (value.isDouble()) {
+            return QString::number(value.toInteger());
+        }
+        return value.isString() ? value.toString() : fallback;
+    }
     if (!m_ready) {
         return fallback;
     }
     return m_store->preference(name, fallback);
 }
 
+// Empty text takes a setting back to its default. preferenceChanged comes
+// from the file for a setting, so it says only what changed.
 bool BrowserController::setPreference(const QString &name, const QString &value)
 {
+    if (SettingsFile::keys().contains(name)) {
+        const auto fallback = SettingsFile::defaultValue(name);
+        QJsonValue typed = value;
+        if (value.isEmpty()) {
+            typed = QJsonValue::Null;
+        } else if (fallback.isBool()) {
+            if (value != QLatin1String("true") && value != QLatin1String("false")) {
+                return false;
+            }
+            typed = value == QLatin1String("true");
+        } else if (fallback.isDouble()) {
+            bool number = false;
+            typed = value.toInt(&number);
+            if (!number) {
+                return false;
+            }
+        }
+        return m_settings.set(name, typed);
+    }
     if (!m_ready) {
         return false;
     }
@@ -4012,13 +4043,6 @@ bool BrowserController::setPreference(const QString &name, const QString &value)
 }
 
 namespace {
-
-    // What a reader's answer about one Known extension is stored under. Named once
-    // so the Settings switch and the engine read the same key.
-    QString extensionPreferenceName(const QString &key)
-    {
-        return QStringLiteral("known-extension-%1-enabled").arg(key);
-    }
 
     // The publisher's own mark for the extension, so a list of them is read the
     // way the reader recognises them rather than as a row of identical glyphs.
@@ -4061,6 +4085,14 @@ namespace {
 
 } // namespace
 
+bool BrowserController::knownExtensionEnabled(const QString &key) const
+{
+    return m_settings.value(QString::fromLatin1(knownExtensionsKey))
+        .toObject()
+        .value(key)
+        .toBool(false);
+}
+
 QVariantList BrowserController::knownExtensions() const
 {
     QVariantList entries;
@@ -4083,8 +4115,7 @@ QVariantList BrowserController::knownExtensions() const
             {QStringLiteral("iconUrl"), installed ? extensionIconUrl(path) : QUrl {}},
             {QStringLiteral("fetching"),
                 m_extensionInstaller && m_extensionInstaller->fetching(extension.key)},
-            {QStringLiteral("enabled"),
-                preference(extensionPreferenceName(extension.key)) == QStringLiteral("true")},
+            {QStringLiteral("enabled"), knownExtensionEnabled(extension.key)},
         });
     }
     return entries;
@@ -4134,7 +4165,7 @@ void BrowserController::refreshKnownExtensionsIfDue()
     }
     const QString today = QDate::currentDate().toString(Qt::ISODate);
     for (const KnownExtension &extension : omaweb::knownExtensions()) {
-        if (preference(extensionPreferenceName(extension.key)) != QStringLiteral("true")) {
+        if (!knownExtensionEnabled(extension.key)) {
             continue;
         }
         if (preference(extensionCheckName(extension.key)) == today) {
@@ -4153,11 +4184,17 @@ bool BrowserController::setKnownExtensionEnabled(const QString &key, bool enable
     if (omaweb::knownExtension(key).key.isEmpty()) {
         return false;
     }
-    if (!setPreference(extensionPreferenceName(key),
-            enabled ? QStringLiteral("true") : QStringLiteral("false"))) {
+    // Only an extension the reader turned on is written down: off is the
+    // default for every one.
+    auto extensions = m_settings.value(QString::fromLatin1(knownExtensionsKey)).toObject();
+    if (enabled) {
+        extensions.insert(key, true);
+    } else {
+        extensions.remove(key);
+    }
+    if (!m_settings.set(QString::fromLatin1(knownExtensionsKey), extensions)) {
         return false;
     }
-    emit knownExtensionsChanged();
     // Turning one on is asking for it. A reader who enabled an extension and
     // found nothing there would have to go looking for a second control that
     // fetches it, and there is no reason for that control to exist.
@@ -4218,16 +4255,21 @@ void BrowserController::reloadSyncedState()
     emit spaceRestored(m_activeSpaceId);
     emit activeSpaceChanged();
     emit activeTabChanged();
-    for (const auto &name : {QStringLiteral("floating-controls"), QStringLiteral("use-favicons"),
-             QStringLiteral("tint-favicons")}) {
-        emit preferenceChanged(name);
-    }
+    // Sync's restore wrote its settings into settings.json, and reading the
+    // file now rather than when its watch fires says so before this returns.
+    m_settings.reload();
 }
 
 void BrowserController::initialize()
 {
     if (!m_store->open(&m_errorMessage)) {
         return;
+    }
+    // Before anything reads a setting, so the first start of this version
+    // reads the reader's settings where they now are.
+    if (!m_privateBrowsing && !m_configRoot.isEmpty()) {
+        migrateSettings(m_configRoot, *m_store);
+        m_settings.reload();
     }
     // A Private window has no Spaces and nothing saved to restore them from,
     // so its one ordinary tab starts blank.

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SettingsFile.h"
+
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QString>
@@ -48,7 +50,7 @@ signals:
     void enabledChanged();
 
 private:
-    QString m_configRoot;
+    SettingsFile m_settings;
     bool m_enabled = false;
     // Built on the first ask: a browser whose reader never turns this on
     // never builds a network stack for it.

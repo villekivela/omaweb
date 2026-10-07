@@ -1,6 +1,6 @@
 #include "EngineSuggestions.h"
 
-#include "PrivacyFile.h"
+#include "SettingsFile.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -21,12 +21,23 @@ namespace {
 
 EngineSuggestions::EngineSuggestions(QString configRoot, QObject *parent)
     : QObject(parent)
-    , m_configRoot(std::move(configRoot))
+    , m_settings(std::move(configRoot))
 {
     // Only an explicit `true` turns it on: a file that cannot be read the way
     // it is written sends nothing anywhere.
-    const auto value = PrivacyFile::read(m_configRoot, enabledKey);
-    m_enabled = value.isBool() && value.toBool();
+    const auto load = [this] {
+        const auto value = m_settings.value(enabledKey).toBool(false);
+        if (value != m_enabled) {
+            m_enabled = value;
+            emit enabledChanged();
+        }
+    };
+    connect(&m_settings, &SettingsFile::changed, this, [load](const QStringList &keys) {
+        if (keys.contains(enabledKey)) {
+            load();
+        }
+    });
+    load();
 }
 
 EngineSuggestions::~EngineSuggestions() = default;
@@ -38,9 +49,8 @@ void EngineSuggestions::setEnabled(bool enabled)
     if (enabled == m_enabled) {
         return;
     }
-    m_enabled = enabled;
-    PrivacyFile::write(m_configRoot, enabledKey, m_enabled);
-    emit enabledChanged();
+    // Applied when the file says it was written, the way an edit made there is.
+    m_settings.set(enabledKey, enabled);
 }
 
 QNetworkReply *EngineSuggestions::ask(const QUrl &address)
