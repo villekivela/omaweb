@@ -3,7 +3,7 @@
 #include "AgentActivityLog.h"
 #include "AgentProtocol.h"
 #include "BrowserController.h"
-#include "PrivacyFile.h"
+#include "AgentsFile.h"
 #include "SpaceProject.h"
 
 #include <QAbstractItemModel>
@@ -34,9 +34,6 @@ namespace {
 
     constexpr QLatin1StringView allowAgentsKey("allow-agents");
 
-    // Where PrivacyFile keeps it. Named here too because the file is watched.
-    constexpr auto privacyFileName = "privacy.json";
-
     const auto defaultAgentSpaceName = QStringLiteral("Agent");
 
     constexpr QLatin1StringView agentCommandKey("agent-command");
@@ -66,7 +63,7 @@ namespace {
 
     QString storedAgentCommand(const QString &configRoot)
     {
-        return agentCommandOrDefault(PrivacyFile::read(configRoot, agentCommandKey).toString());
+        return agentCommandOrDefault(AgentsFile::read(configRoot, agentCommandKey).toString());
     }
 
     // A program named by its path, if it can be run, or the first one of the
@@ -307,13 +304,13 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
             [this] { m_browser->setAgentTabIds(agentTabIds()); });
     }
     // Only an explicit `true` lets Agents in.
-    m_allowAgents = PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false);
+    m_allowAgents = AgentsFile::read(m_configRoot, allowAgentsKey).toBool(false);
     m_agentCommand = storedAgentCommand(m_configRoot);
     if (m_configRoot.isEmpty()) {
         return;
     }
     // The file is watched, so the reader turning Agents off reaches a browser
-    // already running. PrivacyFile writes by replacing the file, which a
+    // already running. AgentsFile writes by replacing the file, which a
     // watch on the file alone loses, so the directory is watched as well and
     // the file is watched again whenever it comes back.
     QDir().mkpath(m_configRoot);
@@ -330,7 +327,7 @@ void AgentControl::setAllowAgents(bool allowed)
     if (allowed == m_allowAgents) {
         return;
     }
-    PrivacyFile::write(m_configRoot, allowAgentsKey, allowed);
+    AgentsFile::write(m_configRoot, allowAgentsKey, allowed);
     apply(allowed);
 }
 
@@ -344,7 +341,7 @@ void AgentControl::setAgentCommand(const QString &command)
     }
     // Only a command of the reader's own is written down, so the default can
     // change in a later release for a reader who never chose one.
-    PrivacyFile::write(m_configRoot, agentCommandKey,
+    AgentsFile::write(m_configRoot, agentCommandKey,
         chosen == defaultAgentCommand ? QJsonValue() : QJsonValue(chosen));
     m_agentCommand = chosen;
     emit agentCommandChanged();
@@ -402,11 +399,11 @@ void AgentControl::setTerminalProgram(const QString &program) { m_terminalProgra
 
 void AgentControl::reload()
 {
-    const auto path = QDir(m_configRoot).filePath(QLatin1String(privacyFileName));
+    const auto path = QDir(m_configRoot).filePath(AgentsFile::fileName());
     if (QFileInfo::exists(path) && !m_watcher.files().contains(path)) {
         m_watcher.addPath(path);
     }
-    apply(PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false));
+    apply(AgentsFile::read(m_configRoot, allowAgentsKey).toBool(false));
     const auto command = storedAgentCommand(m_configRoot);
     if (command != m_agentCommand) {
         m_agentCommand = command;

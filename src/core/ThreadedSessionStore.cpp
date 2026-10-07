@@ -242,6 +242,11 @@ bool ThreadedSessionStore::savePreference(const QString &name, const QString &va
     return ask([this, &name, &value] { return m_store->savePreference(name, value); });
 }
 
+bool ThreadedSessionStore::deletePreference(const QString &name)
+{
+    return ask([this, &name] { return m_store->deletePreference(name); });
+}
+
 bool ThreadedSessionStore::recordVisit(
     const QString &spaceId, const QUrl &url, const QString &title)
 {

@@ -549,8 +549,9 @@ def seed(root: Path) -> tuple[Path, Path]:
     """
     data, config = root / "data", root / "config"
     config.mkdir(parents=True)
-    (config / "privacy.json").write_text(
-        json.dumps({"allow-agents": True, "engine-suggestions": True}), encoding="utf-8")
+    (config / "settings.json").write_text(
+        json.dumps({"version": 1, "engine-suggestions": True}), encoding="utf-8")
+    (config / "agents.json").write_text(json.dumps({"allow-agents": True}), encoding="utf-8")
     (config / "search-engines.json").write_text(json.dumps({
         "version": 3,
         "default": "kestrel",

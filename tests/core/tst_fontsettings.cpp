@@ -2,6 +2,9 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -20,6 +23,8 @@ private slots:
     void offersOnlyInstalledFamilies();
     void clampsThePageSizes();
     void keepsThePageFontsAcrossARestart();
+    void followsAPageFontWrittenInTheFile();
+    void keepsAPageFontTheFileGainedBeforeItWasRead();
     void readsAFileItCannotUseAsTheDefault_data();
     void readsAFileItCannotUseAsTheDefault();
     void writesNothingForAChoiceAlreadyMade();
@@ -47,7 +52,7 @@ void FontSettingsTest::drawsTheInterfaceAtTheThemesSizeUntilTold()
     QVERIFY(!fonts.interfaceFontSizeOverridden());
     fonts.setThemeFontSize(13);
     QCOMPARE(fonts.interfaceFontSize(), 13);
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/interface.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
 }
 
 // A step up or down starts from the size on show, whichever of the theme and
@@ -268,7 +273,7 @@ void FontSettingsTest::readsAFileItCannotUseAsTheDefault()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QVERIFY(QDir(root.path()).mkpath(QStringLiteral("config")));
-    QFile file(root.filePath(QStringLiteral("config/interface.json")));
+    QFile file(root.filePath(QStringLiteral("config/settings.json")));
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(contents);
     file.close();
@@ -295,7 +300,54 @@ void FontSettingsTest::writesNothingForAChoiceAlreadyMade()
     fonts.setPageSize(FontSettings::PageSize::Default, 0);
     QCOMPARE(interfaceChanged.count(), 0);
     QCOMPARE(pageChanged.count(), 0);
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/interface.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
+}
+
+// A page font the reader writes into settings.json while Omaweb runs reaches
+// the pages without a restart, as one chosen in Settings does.
+void FontSettingsTest::followsAPageFontWrittenInTheFile()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    FontSettings fonts(root.path(), installed);
+    fonts.setEngineFonts(engineFonts());
+    QSignalSpy pageChanged(&fonts, &FontSettings::pageFontsChanged);
+
+    QSaveFile file(QDir(root.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(
+        R"({"version": 1, "page-fonts": {"fixed-family": "JetBrains Mono", "font-size": 18}})");
+    QVERIFY(file.commit());
+
+    QTRY_COMPARE(fonts.pageFonts().fixedFamily, QStringLiteral("JetBrains Mono"));
+    QCOMPARE(fonts.pageFonts().fontSize, 18);
+    QVERIFY(fonts.pageSizeOverridden(FontSettings::PageSize::Default));
+    QCOMPARE(pageChanged.count(), 1);
+}
+
+// A page size chosen in Settings goes into the page fonts as the file holds
+// them now, so a family the reader wrote there a moment before stays.
+void FontSettingsTest::keepsAPageFontTheFileGainedBeforeItWasRead()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    FontSettings fonts(root.path(), installed);
+    QFile file(QDir(root.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "page-fonts": {"fixed-family": "JetBrains Mono"}})");
+    file.close();
+
+    fonts.setPageSize(FontSettings::PageSize::Default, 18);
+
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const auto pageFonts = QJsonDocument::fromJson(file.readAll())
+                               .object()
+                               .value(QStringLiteral("page-fonts"))
+                               .toObject();
+    QCOMPARE(pageFonts.value(QStringLiteral("fixed-family")),
+        QJsonValue(QStringLiteral("JetBrains Mono")));
+    QCOMPARE(pageFonts.value(QStringLiteral("font-size")), QJsonValue(18));
+    QCOMPARE(fonts.pageFonts().fixedFamily, QStringLiteral("JetBrains Mono"));
 }
 
 QTEST_GUILESS_MAIN(FontSettingsTest)

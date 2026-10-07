@@ -25,7 +25,7 @@ void EngineSuggestionsTest::isOffWithoutBeingSetUp()
     QVERIFY(root.isValid());
     const EngineSuggestions suggestions(root.filePath(QStringLiteral("config")));
     QVERIFY(!suggestions.enabled());
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/privacy.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
 }
 
 void EngineSuggestionsTest::keepsTheReadersChoiceAcrossARestart()

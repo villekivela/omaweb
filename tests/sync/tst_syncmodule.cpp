@@ -8,6 +8,7 @@
 #include "GitHubForge.h"
 
 #include "SessionStore.h"
+#include "SettingsFile.h"
 
 #include "PrivateSessionStore.h"
 #include "ReleaseWatch.h"
@@ -20,13 +21,16 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QScopeGuard>
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QThread>
 #include <QUrlQuery>
 
 #include <algorithm>
+#include <atomic>
 #include <utility>
 
 using omaweb::BrowserController;
@@ -265,6 +269,17 @@ bool writeFile(const QString &path, const QByteArray &contents)
         && file.write(contents) == contents.size();
 }
 
+// The reader's settings as settings.json holds them.
+bool writeSettings(const QString &configRoot, const QJsonObject &values)
+{
+    return omaweb::SettingsFile(configRoot).merge(values);
+}
+
+QJsonValue setting(const QString &configRoot, const QString &key)
+{
+    return omaweb::SettingsFile(configRoot).value(key);
+}
+
 QJsonObject readObject(const QString &path)
 {
     QFile file(path);
@@ -283,6 +298,9 @@ private slots:
     void writesEncryptedBrowserStateToAGitRemote();
     void restoresBrowserStateOnASecondMachine();
     void syncsOnlyTheApprovedConfiguration();
+    void restoresSettingsBesideASettingsPageWrite();
+    void restoresTheRestBesideASettingsFileItCannotRead();
+    void capturesNoSettingWhoseValueCannotBeRead();
     void dropsTheRetiredChromeEaseSetting();
     void leavesTheRemoteUntouchedWhenNothingChanged();
     void authorizationPollBacksOffWithinItsCeiling();
@@ -460,11 +478,10 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
 
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
-    QVERIFY(
-        firstStore.savePreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
+    QVERIFY(writeSettings(firstConfigRoot.path(),
+        {{QStringLiteral("floating-controls"), false}, {QStringLiteral("use-favicons"), false},
+            {QStringLiteral("tint-favicons"), true}, {QStringLiteral("glance"), false}}));
     QVERIFY(firstStore.savePreference(QStringLiteral("ease-sidebar"), QStringLiteral("false")));
-    QVERIFY(firstStore.savePreference(QStringLiteral("use-favicons"), QStringLiteral("false")));
-    QVERIFY(firstStore.savePreference(QStringLiteral("tint-favicons"), QStringLiteral("true")));
     QVERIFY(firstStore.savePreference(QStringLiteral("sidebar-width"), QStringLiteral("500")));
     QVERIFY(firstStore.savePreference(
         QStringLiteral("clear-data-range"), QStringLiteral("machine-a-only")));
@@ -505,6 +522,8 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/ease-sidebar.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/sidebar-width.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/start-page-road.json")));
+    QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/glance.json")));
+    QVERIFY(!filesBelow(checkout).contains("settings.json"));
     QVERIFY(!filesBelow(checkout).contains("visited.example"));
     QVERIFY(!filesBelow(checkout).contains("private.example"));
     QVERIFY(!filesBelow(checkout).contains("downloaded"));
@@ -531,8 +550,12 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
-    QCOMPARE(secondStore.preference(QStringLiteral("floating-controls")), QStringLiteral("false"));
-    QCOMPARE(secondStore.preference(QStringLiteral("tint-favicons")), QStringLiteral("true"));
+    QCOMPARE(
+        setting(secondConfigRoot.path(), QStringLiteral("floating-controls")), QJsonValue(false));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("tint-favicons")), QJsonValue(true));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(true));
+    QVERIFY(secondStore.preference(QStringLiteral("floating-controls")).isEmpty());
     QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
     QCOMPARE(secondStore.preference(QStringLiteral("sidebar-width")), QStringLiteral("311"));
     QCOMPARE(secondStore.preference(QStringLiteral("clear-data-range")),
@@ -554,6 +577,190 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
                  .value(QStringLiteral("id"))
                  .toString(),
         QStringLiteral("reader-list"));
+}
+
+// Sync's restore and the Settings page write the same file. A reader changing
+// a setting while a restore writes the synced ones loses neither change.
+void SyncModuleTest::restoresSettingsBesideASettingsPageWrite()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'r');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(writeSettings(firstConfigRoot.path(),
+        {{QStringLiteral("floating-controls"), false}, {QStringLiteral("tint-favicons"), true}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+
+    // The Settings page, writing switch after switch while the restore runs.
+    const auto configRoot = secondConfigRoot.path();
+    std::atomic_bool restored = false;
+    std::atomic_int writes = 0;
+    std::unique_ptr<QThread> settingsPage(QThread::create([configRoot, &restored, &writes] {
+        omaweb::SettingsFile settings(configRoot);
+        for (int round = 0; !restored || round < 2; ++round) {
+            settings.set(QStringLiteral("sidebar-side"),
+                round % 2 == 0 ? QStringLiteral("left") : QStringLiteral("right"));
+            ++writes;
+            // A reader's clicks, not a loop that never lets go of the lock.
+            QThread::msleep(1);
+        }
+        settings.set(QStringLiteral("sidebar-side"), QStringLiteral("right"));
+    }));
+    settingsPage->start();
+    // Stopped whichever way the test ends, so a failure cannot leave it
+    // writing.
+    const auto stop = qScopeGuard([&restored, &settingsPage] {
+        restored = true;
+        settingsPage->wait(30000);
+    });
+    // Writing before the restore starts, and until it has finished.
+    QTRY_VERIFY(writes > 0);
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    restored = true;
+    QVERIFY(settingsPage->wait(30000));
+
+    QCOMPARE(setting(configRoot, QStringLiteral("floating-controls")), QJsonValue(false));
+    QCOMPARE(setting(configRoot, QStringLiteral("tint-favicons")), QJsonValue(true));
+    QCOMPARE(
+        setting(configRoot, QStringLiteral("sidebar-side")), QJsonValue(QStringLiteral("right")));
+}
+
+// A settings.json the reader left unreadable is never written over, by Sync
+// any more than by Settings. Only the synced settings wait for it: the rest
+// of the restore goes ahead, and the settings arrive once the file is fixed.
+void SyncModuleTest::restoresTheRestBesideASettingsFileItCannotRead()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'u');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("use-favicons"), false}}));
+    const auto keybindings = QByteArrayLiteral(R"({"version":1,"bindings":{"j":"scroll-down"}})");
+    QVERIFY(writeFile(firstConfigRoot.filePath(QStringLiteral("keybindings.json")), keybindings));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    const auto settingsPath = secondConfigRoot.filePath(QStringLiteral("settings.json"));
+    const auto broken = QByteArrayLiteral("{\"version\": 1, \"glance\": fals");
+    QVERIFY(writeFile(settingsPath, broken));
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("could not read .*settings\\.json")));
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("Sync holds the synced settings back")));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QFile restoredKeybindings(secondConfigRoot.filePath(QStringLiteral("keybindings.json")));
+    QVERIFY(restoredKeybindings.open(QIODevice::ReadOnly));
+    QCOMPARE(restoredKeybindings.readAll(), keybindings);
+    QFile settings(settingsPath);
+    QVERIFY(settings.open(QIODevice::ReadOnly));
+    QCOMPARE(settings.readAll(), broken);
+    settings.close();
+
+    QVERIFY(writeFile(settingsPath, R"({"version": 1, "glance": false})"));
+    SyncModule fixed({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(fixed.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(fixed, secondStore));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(false));
+}
+
+// A synced setting the reader wrote a value into that cannot be read is not
+// their choice of the default, so it is not sent to the other machines as one.
+void SyncModuleTest::capturesNoSettingWhoseValueCannotBeRead()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    QTemporaryDir inspectionRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'v');
+    SqliteSessionStore store(dataRoot.path());
+    QVERIFY(store.open(&error));
+    // A machine with a Space of its own reconciles rather than restoring.
+    QVERIFY(store.saveSpace(
+        {QStringLiteral("space"), QStringLiteral("Space"), QStringLiteral("green"), true}));
+    QVERIFY(writeSettings(configRoot.path(), {{QStringLiteral("floating-controls"), false}}));
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine")});
+    OMAWEB_VERIFY_SYNC(sync.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
+
+    QVERIFY(writeFile(configRoot.filePath(QStringLiteral("settings.json")),
+        R"({"version": 1, "floating-controls": "off"})"));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("floating-controls")));
+    SyncModule again({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine")});
+    OMAWEB_VERIFY_SYNC(again.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(again, store));
+
+    QVERIFY2(runGit(inspectionRoot.path(),
+                 {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
+        qPrintable(error));
+    const auto record = readObject(
+        inspectionRoot.filePath(QStringLiteral("checkout/settings/floating-controls.json")));
+    QCOMPARE(record.value(QStringLiteral("value")), QJsonValue(QStringLiteral("false")));
 }
 
 // The chrome's ease stopped being a setting, so a repository an earlier
@@ -580,8 +787,7 @@ void SyncModuleTest::dropsTheRetiredChromeEaseSetting()
 
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
-    QVERIFY(
-        firstStore.savePreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
+    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("floating-controls"), false}}));
     SyncModule first({.dataRoot = firstDataRoot.path(),
         .configRoot = firstConfigRoot.path(),
         .remoteUrl = remote,
@@ -616,7 +822,8 @@ void SyncModuleTest::dropsTheRetiredChromeEaseSetting()
         .machineId = QStringLiteral("machine-b")});
     OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
-    QCOMPARE(secondStore.preference(QStringLiteral("floating-controls")), QStringLiteral("false"));
+    QCOMPARE(
+        setting(secondConfigRoot.path(), QStringLiteral("floating-controls")), QJsonValue(false));
     QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
 
     QVERIFY2(runGit(inspectionRoot.path(),
@@ -897,7 +1104,7 @@ void SyncModuleTest::compactsAnOvergrownRepositoryIntoASnapshot()
         .historyCommitLimit = 3,
         .historyMaxAgeMilliseconds = 0});
     OMAWEB_VERIFY_SYNC(sync.open({.recoveryKey = QByteArray(32, 'k')}));
-    QVERIFY(store.savePreference(QStringLiteral("floating-controls"), QStringLiteral("0")));
+    QVERIFY(writeSettings(configRoot.path(), {{QStringLiteral("floating-controls"), false}}));
     OMAWEB_VERIFY_SYNC(settle(sync, store));
 
     SqliteSessionStore staleStore(staleDataRoot.path());
@@ -911,17 +1118,19 @@ void SyncModuleTest::compactsAnOvergrownRepositoryIntoASnapshot()
     OMAWEB_VERIFY_SYNC(stale.open({.recoveryKey = QByteArray(32, 'k')}));
     OMAWEB_VERIFY_SYNC(settle(stale, staleStore));
 
+    // Each revision flips the switch, and the last leaves it off. On is the
+    // default, so every other revision takes the key out of the file.
     for (int revision = 1; revision < 5; ++revision) {
-        QVERIFY(
-            store.savePreference(QStringLiteral("floating-controls"), QString::number(revision)));
+        QVERIFY(writeSettings(
+            configRoot.path(), {{QStringLiteral("floating-controls"), revision % 2 == 1}}));
         OMAWEB_VERIFY_SYNC(settle(sync, store));
     }
-    QVERIFY(
-        staleStore.savePreference(QStringLiteral("floating-controls"), QStringLiteral("stale")));
+    QVERIFY(writeSettings(staleConfigRoot.path(), {{QStringLiteral("floating-controls"), true}}));
     QVERIFY(staleStore.saveSpace({QStringLiteral("stale-space"), QStringLiteral("Stale"),
         QStringLiteral("#ffffff"), false}));
     OMAWEB_VERIFY_SYNC(settle(stale, staleStore));
-    QCOMPARE(staleStore.preference(QStringLiteral("floating-controls")), QStringLiteral("4"));
+    QCOMPARE(
+        setting(staleConfigRoot.path(), QStringLiteral("floating-controls")), QJsonValue(false));
     QCOMPARE(staleStore.loadSpaces().size(), 1);
     QCOMPARE(staleStore.loadSpaces().constFirst().id, QStringLiteral("space"));
     QCOMPARE(gitOutput(remoteRoot.filePath(QStringLiteral("sync.git")),
@@ -1070,8 +1279,7 @@ void SyncModuleTest::preservesUnappliedRemoteChangesDuringALocalEdit()
     });
     OMAWEB_VERIFY_SYNC(staged.open({.recoveryKey = key}));
     OMAWEB_VERIFY_SYNC(staged.reconcile(secondStore));
-    QVERIFY(
-        secondStore.savePreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
+    QVERIFY(writeSettings(secondConfigRoot.path(), {{QStringLiteral("floating-controls"), false}}));
 
     SyncModule settled({.dataRoot = secondDataRoot.path(),
         .configRoot = secondConfigRoot.path(),

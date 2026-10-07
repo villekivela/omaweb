@@ -4,6 +4,7 @@
 #include "ContentBlocker.h"
 #include "KeyboardNavigation.h"
 #include "SessionStore.h"
+#include "SettingsFile.h"
 
 #include <QAbstractItemModel>
 #include <QDir>
@@ -86,7 +87,13 @@ BrowserStateImage BrowserStateExchangeAdapter::capture(const BrowserStateSelecti
         image.activeTabId = image.activeTabIds.value(image.activeSpaceId);
     }
     image.pristine = m_browser->startedWithEmptyState();
+    // A setting reads as its value, the default included, from settings.json.
+    // Anything else is a row of the store's, and only a row that is there.
     for (const auto &name : selection.preferenceNames) {
+        if (SettingsFile::keys().contains(name)) {
+            image.preferences.insert(name, m_browser->preference(name));
+            continue;
+        }
         const auto missing = QString(QChar(0));
         const auto value = store->preference(name, missing);
         if (value != missing) {

@@ -7,6 +7,7 @@
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
 #include "SecureDns.h"
+#include "SettingsFile.h"
 #include "WebRtcPolicy.h"
 #include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
@@ -593,6 +594,10 @@ int main(int argc, char *argv[])
         QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
+    // The file the lab's own settings are written to, under its data root, so
+    // Settings names a file and says what is wrong with it as it would.
+    omaweb::SettingsFile settingsFile(dataRootPath);
+    engine.rootContext()->setContextProperty(QStringLiteral("settingsFile"), &settingsFile);
     engine.rootContext()->setContextProperty(
         QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);

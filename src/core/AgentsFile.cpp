@@ -1,4 +1,4 @@
-#include "PrivacyFile.h"
+#include "AgentsFile.h"
 
 #include <QDir>
 #include <QFile>
@@ -9,11 +9,9 @@
 namespace omaweb {
 namespace {
 
-    constexpr auto fileName = "privacy.json";
-
     QString path(const QString &configRoot)
     {
-        return QDir(configRoot).filePath(QLatin1String(fileName));
+        return QDir(configRoot).filePath(AgentsFile::fileName());
     }
 
     QJsonObject contents(const QString &configRoot)
@@ -27,7 +25,9 @@ namespace {
 
 } // namespace
 
-QJsonValue PrivacyFile::read(const QString &configRoot, QLatin1StringView key)
+QString AgentsFile::fileName() { return QStringLiteral("agents.json"); }
+
+QJsonValue AgentsFile::read(const QString &configRoot, QLatin1StringView key)
 {
     if (configRoot.isEmpty()) {
         return {};
@@ -37,19 +37,23 @@ QJsonValue PrivacyFile::read(const QString &configRoot, QLatin1StringView key)
 
 // A file that cannot be read is replaced rather than kept: the reader's
 // decision has to land, and a file nobody could read held nobody's.
-void PrivacyFile::write(const QString &configRoot, QLatin1StringView key, const QJsonValue &value)
+bool AgentsFile::write(const QString &configRoot, QLatin1StringView key, const QJsonValue &value)
 {
     if (configRoot.isEmpty() || !QDir().mkpath(configRoot)) {
-        return;
+        return false;
     }
     auto object = contents(configRoot);
-    object.insert(key, value);
+    if (value.isUndefined() || value.isNull()) {
+        object.remove(key);
+    } else {
+        object.insert(key, value);
+    }
     QSaveFile file(path(configRoot));
     if (!file.open(QIODevice::WriteOnly)) {
-        return;
+        return false;
     }
     file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
-    file.commit();
+    return file.commit();
 }
 
 } // namespace omaweb

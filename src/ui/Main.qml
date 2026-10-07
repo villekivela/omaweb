@@ -379,7 +379,9 @@ ApplicationWindow {
     // show before the page is built.
     readonly property bool settingsNeedAttention: SettingsAttention.needed(keyboardNavigation
                                                                            ? keyboardNavigation.errorMessage :
-                                                                             "", InputMethodReport.available)
+                                                                             "", InputMethodReport.available,
+                                                                           !!window.readerSettings
+                                                                           && window.readerSettings.needsAttention)
     property bool historyOpen: false
     property bool shortcutsOpen: false
     // A page's new-tab request opens a Glance over the page, unless the reader
@@ -1584,6 +1586,8 @@ ApplicationWindow {
         engineLoader.printPage(destination);
     }
 
+    // settings.json, where this window has one: the lab runs without it.
+    readonly property var readerSettings: typeof settingsFile !== "undefined" ? settingsFile : null
     // HTTPS-only mode's policy, where this window has one: the lab and the
     // tests run without it.
     readonly property var httpsOnlyPolicy: typeof httpsOnly !== "undefined" ? httpsOnly : null
@@ -2002,14 +2006,8 @@ ApplicationWindow {
         window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
                 === "true";
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
-        // Before there was a choice the road was a switch, and a reader who
-        // turned it off arrives on None.
-        const scene = window.windowBrowser.preference("start-page-scene", "");
-        if (window.startPageScenes.indexOf(scene) >= 0)
-            window.startPageScene = scene;
-        else
-            window.startPageScene = window.windowBrowser.preference("start-page-road", "true")
-                    === "false" ? "none" : "crt-road";
+        const scene = window.windowBrowser.preference("start-page-scene", "crt-road");
+        window.startPageScene = window.startPageScenes.indexOf(scene) >= 0 ? scene : "crt-road";
         window.startPageGlass = window.windowBrowser.preference("start-page-glass", "true")
                 === "true";
         window.sidebarSide = window.windowBrowser.preference("sidebar-side", "left") === "right"
@@ -4291,6 +4289,7 @@ ApplicationWindow {
                             engineSecureDns: window.engineDnsResolver
                             engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                             fontSettings: window.readerFonts
+                            settingsFile: window.readerSettings
                             pageFonts: window.enginePageFonts
                             knownExtensions: window.knownExtensions
                             knownExtensionsAvailable: window.knownExtensionsAvailable
@@ -4372,6 +4371,9 @@ ApplicationWindow {
                             }
                             onDownloadRevealed: function (path) {
                                 window.revealDownload(path);
+                            }
+                            onSettingsFileRevealed: function (path) {
+                                SavedDownload.reveal(path);
                             }
                             onDownloadForgotten: function (row) {
                                 window.downloads.forget(row);

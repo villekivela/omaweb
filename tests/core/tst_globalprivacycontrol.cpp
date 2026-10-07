@@ -28,7 +28,7 @@ void GlobalPrivacyControlTest::isOnWithoutBeingSetUp()
     QVERIFY(root.isValid());
     const GlobalPrivacyControl control(root.filePath(QStringLiteral("config")));
     QVERIFY(control.enabled());
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/privacy.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
 }
 
 // Off is the reader's decision, so it is written where the reader's other
@@ -72,7 +72,7 @@ void GlobalPrivacyControlTest::readsAFileItCannotUseAsTheDefault()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QVERIFY(QDir(root.path()).mkpath(QStringLiteral("config")));
-    QFile file(root.filePath(QStringLiteral("config/privacy.json")));
+    QFile file(root.filePath(QStringLiteral("config/settings.json")));
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(contents);
     file.close();
@@ -90,7 +90,7 @@ void GlobalPrivacyControlTest::writesNothingForAChoiceAlreadyMade()
     QSignalSpy changed(&control, &GlobalPrivacyControl::enabledChanged);
     control.setEnabled(true);
     QCOMPARE(changed.count(), 0);
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/privacy.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
 }
 
 // The header and the script property are the two halves the specification

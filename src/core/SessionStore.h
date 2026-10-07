@@ -113,6 +113,8 @@ public:
 
     virtual QString preference(const QString &name, const QString &fallback = {}) const = 0;
     virtual bool savePreference(const QString &name, const QString &value) = 0;
+    // True when the row is gone, whether or not there was one.
+    virtual bool deletePreference(const QString &name) = 0;
 
     virtual bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title) = 0;
     virtual QVariantList history(const QString &spaceId, const QString &query, int limit) const = 0;

@@ -2711,6 +2711,26 @@
         <translation>Sulje asetukset</translation>
     </message>
     <message>
+        <source>Kept in %1</source>
+        <translation>Tallennettu tiedostoon %1</translation>
+    </message>
+    <message>
+        <source>Edit the file and Omaweb follows it while it runs.</source>
+        <translation>Muokkaa tiedostoa, niin Omaweb seuraa sitä käynnissä ollessaan.</translation>
+    </message>
+    <message>
+        <source>Show the settings file in its folder</source>
+        <translation>Näytä asetustiedosto kansiossaan</translation>
+    </message>
+    <message>
+        <source>Some settings were not read</source>
+        <translation>Kaikkia asetuksia ei luettu</translation>
+    </message>
+    <message>
+        <source>The settings file could not be read</source>
+        <translation>Asetustiedostoa ei voitu lukea</translation>
+    </message>
+    <message>
         <source>Use site favicons</source>
         <translation>Käytä sivustojen kuvakkeita</translation>
     </message>
@@ -4418,6 +4438,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Synkronoitu asetus ei kelpaa</translation>
     </message>
     <message>
+        <source>Could not apply the synced settings to %1</source>
+        <translation>Synkronoituja asetuksia ei voitu ottaa käyttöön tiedostossa %1</translation>
+    </message>
+    <message>
         <source>Could not read the synced keybindings</source>
         <translation>Synkronoituja pikanäppäimiä ei voitu lukea</translation>
     </message>
@@ -4575,6 +4599,37 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>failed: %1</source>
         <translation>epäonnistui: %1</translation>
+    </message>
+</context>
+<context>
+    <name>omaweb::SettingsFile</name>
+    <message>
+        <source>%1 on line %2</source>
+        <translation>%1 rivillä %2</translation>
+    </message>
+    <message>
+        <source>it holds no object of settings</source>
+        <translation>siinä ei ole asetusoliota</translation>
+    </message>
+    <message>
+        <source>it is version %1, and this Omaweb reads version %2</source>
+        <translation>se on versiota %1, ja tämä Omaweb lukee versiota %2</translation>
+    </message>
+    <message>
+        <source>%1 could not be read: %2. Omaweb keeps the settings it read last, and Settings changes nothing in the file until it is fixed.</source>
+        <translation>Tiedostoa %1 ei voitu lukea: %2. Omaweb pitää viimeksi lukemansa asetukset, eivätkä Asetukset muuta tiedostoa ennen kuin se on korjattu.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; holds a value Omaweb cannot use, so it is at its default.</source>
+        <translation>Kohdassa &quot;%1&quot; on arvo, jota Omaweb ei voi käyttää, joten se on oletusarvossaan.</translation>
+    </message>
+    <message>
+        <source>%1 is left from an earlier version and is not read, because %2 has taken its place. It can be deleted.</source>
+        <translation>%1 on jäänyt aiemmasta versiosta, eikä sitä lueta, koska %2 on korvannut sen. Sen voi poistaa.</translation>
+    </message>
+    <message>
+        <source>Ignored, because Omaweb knows no such setting: %1.</source>
+        <translation>Ohitettu, koska Omaweb ei tunne tällaista asetusta: %1.</translation>
     </message>
 </context>
 <context>

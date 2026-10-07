@@ -274,6 +274,11 @@ omaweb dev localhost:5173 --agent 'devbox-claude {dir}'
 User configuration lives in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that variable is
 unset:
 
+- `settings.json` holds what you changed in Settings, and only that: a key set back to its default
+  leaves the file. Omaweb follows the file while it runs, and Settings names it and says what it
+  could not read.
+- `agents.json` holds Allow agents and the agent command `:ask` runs. It is kept apart so that
+  copying `settings.json` to another machine does not let Agents in there.
 - `keybindings.json` controls bindings and per-site key passthrough.
 - `theme.json` controls the browser palette.
 - `search-engines.json` controls local search engines. DuckDuckGo is the default, and remote

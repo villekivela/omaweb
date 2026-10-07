@@ -1,6 +1,6 @@
 #include "SecureDns.h"
 
-#include "PrivacyFile.h"
+#include "SettingsFile.h"
 
 #include <QUrl>
 
@@ -57,8 +57,13 @@ namespace {
 
 SecureDns::SecureDns(QString configRoot, QObject *parent)
     : QObject(parent)
-    , m_configRoot(std::move(configRoot))
+    , m_settings(std::move(configRoot))
 {
+    connect(&m_settings, &SettingsFile::changed, this, [this](const QStringList &keys) {
+        if (keys.contains(resolverKey) || keys.contains(customTemplateKey)) {
+            load();
+        }
+    });
     load();
 }
 
@@ -99,12 +104,7 @@ bool SecureDns::useResolver(const QString &id)
     if (!namedResolver(id)) {
         return false;
     }
-    if (m_resolver != id) {
-        m_resolver = id;
-        save();
-        emit changed();
-    }
-    return true;
+    return m_resolver == id || save(id, m_customTemplate);
 }
 
 bool SecureDns::useCustom(const QString &address)
@@ -114,10 +114,7 @@ bool SecureDns::useCustom(const QString &address)
         return false;
     }
     if (m_resolver != customId || m_customTemplate != trimmed) {
-        m_resolver = customId;
-        m_customTemplate = trimmed;
-        save();
-        emit changed();
+        return save(customId, trimmed);
     }
     return true;
 }
@@ -127,31 +124,39 @@ void SecureDns::turnOff()
     if (m_resolver.isEmpty()) {
         return;
     }
-    m_resolver.clear();
-    save();
-    emit changed();
+    save({}, m_customTemplate);
 }
 
 // A value the file cannot vouch for leaves names to the system, which is the
 // default: a resolver is only ever one the reader chose.
 void SecureDns::load()
 {
-    const auto resolver = PrivacyFile::read(m_configRoot, resolverKey).toString();
-    const auto customTemplate = PrivacyFile::read(m_configRoot, customTemplateKey).toString();
-    if (isServerTemplate(customTemplate)) {
-        m_customTemplate = customTemplate;
-    }
-    if (namedResolver(resolver) || (resolver == customId && !m_customTemplate.isEmpty())) {
-        m_resolver = resolver;
+    const auto resolver = m_settings.value(resolverKey).toString();
+    const auto customTemplate = m_settings.value(customTemplateKey).toString();
+    const auto chosenTemplate = isServerTemplate(customTemplate) ? customTemplate : QString();
+    const auto chosenResolver
+        = namedResolver(resolver) || (resolver == customId && !chosenTemplate.isEmpty())
+        ? resolver
+        : QString();
+    if (chosenResolver != m_resolver || chosenTemplate != m_customTemplate) {
+        m_resolver = chosenResolver;
+        m_customTemplate = chosenTemplate;
+        emit changed();
     }
 }
 
-void SecureDns::save() const
+// Applied when the file says it was written, the way an edit made there is.
+bool SecureDns::save(const QString &resolver, const QString &customTemplate)
 {
-    PrivacyFile::write(m_configRoot, resolverKey, m_resolver);
-    if (!m_customTemplate.isEmpty()) {
-        PrivacyFile::write(m_configRoot, customTemplateKey, m_customTemplate);
+    const bool saved = m_settings.merge({{QString(resolverKey), resolver},
+        {QString(customTemplateKey),
+            customTemplate.isEmpty() ? QJsonValue() : QJsonValue(customTemplate)}});
+    // A write the file refuses changes nothing, and saying so draws the
+    // control the reader moved back to where it stands.
+    if (!saved) {
+        emit changed();
     }
+    return saved;
 }
 
 } // namespace omaweb

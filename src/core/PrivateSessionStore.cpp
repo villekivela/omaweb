@@ -93,6 +93,8 @@ QString PrivateSessionStore::preference(const QString &, const QString &fallback
 
 bool PrivateSessionStore::savePreference(const QString &, const QString &) { return false; }
 
+bool PrivateSessionStore::deletePreference(const QString &) { return false; }
+
 bool PrivateSessionStore::recordVisit(const QString &, const QUrl &, const QString &)
 {
     return false;

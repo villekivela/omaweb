@@ -16,7 +16,7 @@
 # It needs a graphical session, puts a browser window on screen twice, and
 # sends one STUN request per run to the server named below, so it is a check
 # to run by hand rather than a CI gate. The browser runs on throwaway data and
-# configuration roots: the policy is written to the scratch `privacy.json`,
+# configuration roots: the policy is written to the scratch `settings.json`,
 # and nothing of the reader's is read or changed.
 #
 #     scripts/check_webrtc_candidates.sh [path to the built omaweb binary]
@@ -95,7 +95,7 @@ gather() {
     rm -rf "$work/data" "$work/config"
     mkdir -p "$work/data" "$work/config" "$work/home"
     if [ "$1" = off ]; then
-        echo '{"webrtc-public-interfaces-only": false}' > "$work/config/privacy.json"
+        echo '{"version": 1, "webrtc-public-interfaces-only": false}' > "$work/config/settings.json"
     fi
     HOME="$work/home" XDG_DATA_HOME="$work/data" OMAWEB_CONFIG_ROOT="$work/config" \
         "$browser" --remote-debugging="$debugging_port" "http://127.0.0.1:$port/" \

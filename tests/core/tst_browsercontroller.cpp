@@ -2,6 +2,7 @@
 #include "BrowserStateExchange.h"
 #include "EngineSuggestions.h"
 #include "HistoryQuery.h"
+#include "ExtensionInstaller.h"
 #include "KnownExtensions.h"
 #include "PrivateSessionFixture.h"
 #include "SessionFixture.h"
@@ -213,6 +214,11 @@ private slots:
     void remembersPlainHttpPerOriginAndSpaceButNotInPrivate();
     void configuresOneDownloadDirectoryForEveryWindow();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
+    void keepsTheReadersSettingsInTheSettingsFile();
+    void followsAChromeSettingWrittenInTheFile();
+    void fetchesAKnownExtensionTurnedOnInTheFile();
+    void keepsAnExtensionTheFileGainedBeforeItWasRead();
+    void movesSettingsOutOfTheStoreOnStart();
     void attachesOneInspectorToOneTab();
     void keepsTheInspectorThroughASpaceSwitch();
     void detachesTheInspectorWithTheTabItInspects();
@@ -2848,6 +2854,146 @@ void BrowserControllerTest::persistsInterfacePreferencesOutsidePrivateBrowsing()
         !privateController->setPreference(QStringLiteral("sidebar-width"), QStringLiteral("500")));
     QCOMPARE(restored.preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
         QStringLiteral("412"));
+}
+
+// A setting is the reader's and lives in settings.json, typed and sparse. A
+// width the window was left at is the machine's and stays in the store. A
+// Private window reads the same file and writes what it can change there.
+void BrowserControllerTest::keepsTheReadersSettingsInTheSettingsFile()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    const auto settingsPath = QDir(config.path()).filePath(QStringLiteral("settings.json"));
+    const auto readSettings = [&settingsPath] {
+        QFile file(settingsPath);
+        return file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object()
+                                              : QJsonObject {};
+    };
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    QVERIFY(controller.setPreference(QStringLiteral("sidebar-side"), QStringLiteral("right")));
+    QVERIFY(controller.setPreference(QStringLiteral("glance"), QStringLiteral("false")));
+    QVERIFY(controller.setPutAwayAfterSeconds(3600));
+    QVERIFY(controller.setPreference(QStringLiteral("sidebar-width"), QStringLiteral("360")));
+    QVERIFY(controller.setKnownExtensionEnabled(QStringLiteral("bitwarden"), false));
+
+    QCOMPARE(readSettings(),
+        (QJsonObject {{QStringLiteral("version"), 1},
+            {QStringLiteral("sidebar-side"), QStringLiteral("right")},
+            {QStringLiteral("glance"), false},
+            {QStringLiteral("put-away-unused-tabs-after"), 3600}}));
+    QCOMPARE(controller.preference(QStringLiteral("glance"), QStringLiteral("true")),
+        QStringLiteral("false"));
+    QCOMPARE(controller.putAwayAfterSeconds(), 3600);
+    QVERIFY(!controller.setPutAwayAfterSeconds(5));
+    // A key with no default of Omaweb's own answers with the caller's.
+    QCOMPARE(
+        controller.preference(QStringLiteral("download-directory"), QStringLiteral("fallback")),
+        QStringLiteral("fallback"));
+
+    // The default again takes the key out.
+    QVERIFY(controller.setPreference(QStringLiteral("glance"), QStringLiteral("true")));
+    QVERIFY(!readSettings().contains(QStringLiteral("glance")));
+    QVERIFY(!controller.setPreference(QStringLiteral("glance"), QStringLiteral("maybe")));
+
+    PrivateSessionFixture privateSession(config.path());
+    auto privateWindow = privateSession.createController();
+    QCOMPARE(privateWindow->preference(QStringLiteral("sidebar-side"), QStringLiteral("left")),
+        QStringLiteral("right"));
+    QCOMPARE(privateWindow->preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
+        QStringLiteral("292"));
+    QVERIFY(privateWindow->setPreference(QStringLiteral("tint-favicons"), QStringLiteral("true")));
+    QCOMPARE(readSettings().value(QStringLiteral("tint-favicons")), QJsonValue(true));
+    QTRY_COMPARE(controller.preference(QStringLiteral("tint-favicons"), QStringLiteral("false")),
+        QStringLiteral("true"));
+}
+
+// What the reader writes into settings.json while Omaweb runs reaches every
+// window as a Settings change would: through preferenceChanged, which the
+// chrome already follows.
+void BrowserControllerTest::followsAChromeSettingWrittenInTheFile()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    PrivateSessionFixture privateSession(config.path());
+    auto privateWindow = privateSession.createController();
+    QSignalSpy changed(&controller, &BrowserController::preferenceChanged);
+    QSignalSpy privateChanged(privateWindow.get(), &BrowserController::preferenceChanged);
+
+    QFile file(QDir(config.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "floating-controls": false})");
+    file.close();
+
+    QTRY_COMPARE(changed.count(), 1);
+    QCOMPARE(changed.at(0).at(0).toString(), QStringLiteral("floating-controls"));
+    QCOMPARE(controller.preference(QStringLiteral("floating-controls"), QStringLiteral("true")),
+        QStringLiteral("false"));
+    QTRY_COMPARE(privateChanged.count(), 1);
+    QCOMPARE(privateWindow->preference(QStringLiteral("floating-controls"), QStringLiteral("true")),
+        QStringLiteral("false"));
+}
+
+// An extension the reader turns on in settings.json is asked for, as one
+// turned on in Settings is: a switch that reads on with nothing installed
+// would be a switch that lies.
+void BrowserControllerTest::fetchesAKnownExtensionTurnedOnInTheFile()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    // Asking answers at once that this build downloads nothing, so the test
+    // learns that the browser asked without reaching the store.
+    controller.setExtensionsAskForTests(omaweb::ExtensionInstaller::Ask::Never);
+    QSignalSpy failed(&controller, &BrowserController::knownExtensionFailed);
+
+    QFile file(QDir(config.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "known-extensions": {"bitwarden": true}})");
+    file.close();
+
+    QTRY_COMPARE(failed.count(), 1);
+    QCOMPARE(failed.at(0).at(0).toString(), QStringLiteral("bitwarden"));
+}
+
+// A switch flipped in Settings goes into the Known extensions as the file
+// holds them now, so one the reader turned on there a moment before stays on.
+void BrowserControllerTest::keepsAnExtensionTheFileGainedBeforeItWasRead()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    controller.setExtensionsAskForTests(omaweb::ExtensionInstaller::Ask::Never);
+    QFile file(QDir(config.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "known-extensions": {"ublock": true}})");
+    file.close();
+
+    QVERIFY(controller.setKnownExtensionEnabled(QStringLiteral("bitwarden"), true));
+
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(
+        QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("known-extensions")),
+        QJsonValue(
+            QJsonObject {{QStringLiteral("ublock"), true}, {QStringLiteral("bitwarden"), true}}));
+}
+
+// The first start of this version finds the reader's settings in the store's
+// rows and moves them into settings.json before anything reads them.
+void BrowserControllerTest::movesSettingsOutOfTheStoreOnStart()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    const SpaceStorage storage(root.path(), QStringLiteral("test"));
+    {
+        omaweb::SqliteSessionStore store(storage.dataRoot());
+        QVERIFY(store.open());
+        QVERIFY(store.savePreference(
+            QStringLiteral("put-away-unused-tabs-after"), QStringLiteral("3600")));
+    }
+    BrowserController controller(storage, config.path());
+    QCOMPARE(controller.putAwayAfterSeconds(), 3600);
+    QVERIFY(QFileInfo::exists(QDir(config.path()).filePath(QStringLiteral("settings.json"))));
 }
 
 // One inspector inspects one tab. Asking for it on a second tab moves it rather

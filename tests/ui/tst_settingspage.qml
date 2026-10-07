@@ -1059,6 +1059,77 @@ TestCase {
     }
 
     QtObject {
+        id: settingsFileStub
+
+        property string path: "/home/reader/.config/omaweb/settings.json"
+        property string displayPath: "~/.config/omaweb/settings.json"
+        property bool readable: true
+        property string problem: ""
+        property bool needsAttention: false
+    }
+
+    SignalSpy {
+        id: settingsFileRevealedSpy
+        signalName: "settingsFileRevealed"
+    }
+
+    // The top of Settings names the file the settings are kept in, whichever
+    // section is open, and offers to show it in its folder.
+    function test_settingsNamesTheFileItKeepsTheSettingsIn() {
+        const page = makePage();
+        page.settingsFile = settingsFileStub;
+        settingsFileRevealedSpy.target = page;
+        settingsFileRevealedSpy.clear();
+        for (const section of ["tabs", "privacy"]) {
+            page.section = page.sections.indexOf(section);
+            const line = findChild(page, "settingsFileLine");
+            verify(line !== null);
+            verify(line.visible);
+            verify(line.title.indexOf("~/.config/omaweb/settings.json") >= 0, line.title);
+        }
+        verify(!findChild(page, "settingsFileNotice").visible);
+        verify(!page.needsAttention);
+
+        const reveal = findChild(page, "revealSettingsFile");
+        settleAction(reveal);
+        mouseClick(reveal, reveal.width / 2, reveal.height / 2);
+        compare(settingsFileRevealedSpy.count, 1);
+        compare(settingsFileRevealedSpy.signalArguments[0][0], settingsFileStub.path);
+        settingsFileRevealedSpy.target = null;
+    }
+
+    // A file Omaweb could not read is said at the top, the page asks for the
+    // reader's attention, and the switches that would write it wait until it
+    // is fixed rather than overwrite what the reader typed.
+    function test_aSettingsFileThatCannotBeReadIsSaidAndNotWritten() {
+        const page = makePage();
+        page.settingsFile = settingsFileStub;
+        page.section = page.sections.indexOf("tabs");
+        const toggle = findChild(page, "useFavicons");
+        verify(toggle.enabled);
+
+        settingsFileStub.readable = false;
+        settingsFileStub.problem
+                = "settings.json could not be read: unterminated object on line 2.";
+        settingsFileStub.needsAttention = true;
+        const notice = findChild(page, "settingsFileNotice");
+        verify(notice.visible);
+        compare(notice.detail, settingsFileStub.problem);
+        verify(page.needsAttention);
+        verify(!toggle.enabled);
+        page.section = page.sections.indexOf("privacy");
+        page.httpsOnly = httpsOnlyStub;
+        verify(!findChild(page, "httpsOnly").enabled);
+
+        settingsFileStub.readable = true;
+        settingsFileStub.problem = "";
+        settingsFileStub.needsAttention = false;
+        verify(!notice.visible);
+        verify(findChild(page, "httpsOnly").enabled);
+        verify(!page.needsAttention);
+    }
+
+    QtObject {
         id: httpsOnlyStub
 
         property bool enabled: true

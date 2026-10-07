@@ -32,7 +32,7 @@ void WebRtcPolicyTest::isOnWithoutBeingSetUp()
     QVERIFY(root.isValid());
     const WebRtcPolicy policy(root.filePath(QStringLiteral("config")));
     QVERIFY(policy.publicInterfacesOnly());
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/privacy.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
 }
 
 // Off is the reader's decision, so it is written where the reader's other
@@ -75,7 +75,7 @@ void WebRtcPolicyTest::readsAFileItCannotUseAsTheDefault()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QVERIFY(QDir(root.path()).mkpath(QStringLiteral("config")));
-    QFile file(root.filePath(QStringLiteral("config/privacy.json")));
+    QFile file(root.filePath(QStringLiteral("config/settings.json")));
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(contents);
     file.close();
@@ -91,11 +91,12 @@ void WebRtcPolicyTest::writesNothingForAChoiceAlreadyMade()
     QSignalSpy changed(&policy, &WebRtcPolicy::publicInterfacesOnlyChanged);
     policy.setPublicInterfacesOnly(true);
     QCOMPARE(changed.count(), 0);
-    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/privacy.json"))));
+    QVERIFY(!QFile::exists(root.filePath(QStringLiteral("config/settings.json"))));
 }
 
-// The privacy section keeps one file, so each decision written there leaves
-// the others as they were, whichever order the reader flips them in.
+// The reader's settings share one file, so each decision written there leaves
+// the others as they were, whichever order the reader flips them in. A switch
+// put back to its default leaves the file.
 void WebRtcPolicyTest::sharesTheFileWithTheOtherPrivacyDecisions()
 {
     QTemporaryDir root;
@@ -107,10 +108,10 @@ void WebRtcPolicyTest::sharesTheFileWithTheOtherPrivacyDecisions()
     policy.setPublicInterfacesOnly(false);
     control.setEnabled(true);
 
-    QFile file(root.filePath(QStringLiteral("config/privacy.json")));
+    QFile file(root.filePath(QStringLiteral("config/settings.json")));
     QVERIFY(file.open(QIODevice::ReadOnly));
     const auto written = QJsonDocument::fromJson(file.readAll()).object();
-    QCOMPARE(written.value(QLatin1String("global-privacy-control")), QJsonValue(true));
+    QVERIFY(!written.contains(QLatin1String("global-privacy-control")));
     QCOMPARE(written.value(QLatin1String("webrtc-public-interfaces-only")), QJsonValue(false));
 
     const GlobalPrivacyControl controlAgain(configRoot);

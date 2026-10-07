@@ -717,6 +717,14 @@ bool SqliteSessionStore::savePreference(const QString &name, const QString &valu
     return query.exec();
 }
 
+bool SqliteSessionStore::deletePreference(const QString &name)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM preferences WHERE name = ?"));
+    query.addBindValue(name);
+    return query.exec();
+}
+
 bool SqliteSessionStore::recordVisit(const QString &spaceId, const QUrl &url, const QString &title)
 {
     auto database = spaceDatabase(spaceId);

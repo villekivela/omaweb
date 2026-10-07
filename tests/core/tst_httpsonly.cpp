@@ -1,5 +1,8 @@
 #include "HttpsOnly.h"
 
+#include <QDir>
+#include <QFile>
+#include <QSaveFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -17,6 +20,8 @@ class HttpsOnlyTest final : public QObject {
 
 private slots:
     void isOnUntilTheReaderTurnsItOff();
+    void followsTheSettingsFileWhileRunning();
+    void givesTheSwitchBackWhenTheFileRefusesIt();
     void upgradesAPagesOwnPlainAddress();
     void leavesLocalDevelopmentAddressesAlone();
     void letsASiteThroughForTheLoadTheReaderAskedFor();
@@ -204,6 +209,46 @@ void HttpsOnlyTest::namesAFormItRefused()
     QCOMPARE(mode.failed(space, form).value(QStringLiteral("reason")).toString(),
         QStringLiteral("form"));
     QVERIFY(!mode.arrived(space, QUrl(QStringLiteral("https://form.example/submit"))));
+}
+
+// A reader who edits settings.json while Omaweb runs gets the mode they wrote
+// on the next load, without a restart, as the switch in Settings gives it.
+void HttpsOnlyTest::followsTheSettingsFileWhileRunning()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    HttpsOnly mode(root.path());
+    QSignalSpy changed(&mode, &HttpsOnly::enabledChanged);
+    const QUrl plain(QStringLiteral("http://example.com/"));
+    QVERIFY(mode.sendsOverHttps(QStringLiteral("space"), plain));
+
+    QSaveFile file(QDir(root.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "https-only": false})");
+    QVERIFY(file.commit());
+
+    QTRY_VERIFY(!mode.enabled());
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(!mode.sendsOverHttps(QStringLiteral("space"), plain));
+}
+
+// A settings.json that cannot be read refuses the write, so the mode stays as
+// it was, and says so, so a switch the reader flipped is drawn back.
+void HttpsOnlyTest::givesTheSwitchBackWhenTheFileRefusesIt()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QFile file(QDir(root.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("{\"version\": 1,");
+    file.close();
+    HttpsOnly mode(root.path());
+    QSignalSpy changed(&mode, &HttpsOnly::enabledChanged);
+
+    mode.setEnabled(false);
+
+    QVERIFY(mode.enabled());
+    QCOMPARE(changed.count(), 1);
 }
 
 QTEST_GUILESS_MAIN(HttpsOnlyTest)
