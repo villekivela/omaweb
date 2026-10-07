@@ -133,12 +133,10 @@ const QList<SampleTab> &sampleTabs()
     return tabs;
 }
 
-// The id of the tab a background open has just appended. A seeded tab is
-// addressed by id for its title, its icon and its pin, and the controller
-// hands back no id of its own for a background open.
-QString lastTabId(QAbstractItemModel *tabs)
+// The id of the tab in one row of a tab list.
+QString tabIdAt(QAbstractItemModel *tabs, int row)
 {
-    if (tabs == nullptr || tabs->rowCount() == 0) {
+    if (tabs == nullptr || row < 0 || row >= tabs->rowCount()) {
         return {};
     }
     const auto roles = tabs->roleNames();
@@ -146,7 +144,15 @@ QString lastTabId(QAbstractItemModel *tabs)
     if (role < 0) {
         return {};
     }
-    return tabs->data(tabs->index(tabs->rowCount() - 1, 0), role).toString();
+    return tabs->data(tabs->index(row, 0), role).toString();
+}
+
+// The id of the tab a background open has just appended. A seeded tab is
+// addressed by id for its title, its icon and its pin, and the controller
+// hands back no id of its own for a background open.
+QString lastTabId(QAbstractItemModel *tabs)
+{
+    return tabs == nullptr ? QString {} : tabIdAt(tabs, tabs->rowCount() - 1);
 }
 
 // A security key request's step as the engine reports it, for `--show
@@ -1012,6 +1018,17 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--sidebar-right")) && !engine.rootObjects().isEmpty()) {
         engine.rootObjects().constFirst()->setProperty("sidebarSide", QStringLiteral("right"));
     }
+    // `--tint-favicons` turns site colour on, as Settings' interface section
+    // does, so the active pin wears its site's colour.
+    if (arguments.contains(QStringLiteral("--tint-favicons")) && !engine.rootObjects().isEmpty()) {
+        engine.rootObjects().constFirst()->setProperty("tintFavicons", true);
+    }
+    // `--active-pin` puts the first pin on show, so its mark can be seen.
+    if (arguments.contains(QStringLiteral("--active-pin"))) {
+        if (const auto pin = tabIdAt(browser.pinnedTabs(), 0); !pin.isEmpty()) {
+            browser.activateTab(pin);
+        }
+    }
     // `--scene <id>` stands the Start page on that Scene, as Settings'
     // interface section does: `crt-road`, `night-sky`, `game-of-life`,
     // `vector-terrain`, `radar`, `hyperspace` or `none`.
@@ -1263,6 +1280,10 @@ int main(int argc, char *argv[])
                 browser.activateTab(lastTabId(unpinned));
                 browser.addSplit(
                     unpinned->data(unpinned->index(rows - 2, 0), Qt::UserRole + 1).toString());
+                // `--split-partner` puts the other half on show.
+                if (arguments.contains(QStringLiteral("--split-partner"))) {
+                    browser.focusSplitPartner();
+                }
             }
         }
 
@@ -1539,6 +1560,23 @@ QtObject {
         }
         out.write(QJsonDocument(QJsonObject::fromVariantMap(theme.palette())).toJson());
         out.close();
+    }
+
+    // `--sidebar-cursor <rows>` hands the sidebar the keyboard, which puts the
+    // Sidebar cursor on the tab on show, and steps it that many rows down, or
+    // up for a negative count. The seeded rows are built after the QML loads,
+    // so the cursor is placed a moment later.
+    const auto cursorIndex = arguments.indexOf(QStringLiteral("--sidebar-cursor"));
+    if (cursorIndex >= 0 && cursorIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
+        const auto rows = arguments.at(cursorIndex + 1).toInt();
+        auto *root = engine.rootObjects().constFirst();
+        QTimer::singleShot(200, root, [root, rows] {
+            QMetaObject::invokeMethod(root, "focusSidebar");
+            if (auto *sidebar = root->findChild<QObject *>(QStringLiteral("sidebar"));
+                sidebar != nullptr && rows != 0) {
+                QMetaObject::invokeMethod(sidebar, "stepCursor", Q_ARG(QVariant, rows));
+            }
+        });
     }
 
     const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));

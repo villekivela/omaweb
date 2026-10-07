@@ -1179,13 +1179,14 @@ Rectangle {
             anchors.right: parent.right
             anchors.top: pinnedSection.bottom
             anchors.bottom: parent.bottom
-            anchors.leftMargin: root.listMargin
             anchors.topMargin: 12
             anchors.bottomMargin: 12
-            // Padding rather than a margin on the trailing side: the scrollbar
-            // runs in the view's padding, and a margin would leave it no lane
-            // but the rows themselves.
-            rightPadding: 16
+            // The view spans the sidebar, and the list's margins are inside
+            // it: a row's wash, and the pointer it answers, reach past them to
+            // the sidebar's edges, as the Omnibar's rows reach its panel's. A
+            // view clips its content and delivers no press beyond its own
+            // edges, so margins outside it would cut both off. The scrollbar
+            // runs over the trailing margin, where a row has only its wash.
             clip: true
             opacity: root.arrivalOpacity
             transform: Translate {
@@ -1206,10 +1207,17 @@ Rectangle {
                 id: ordinarySection
                 objectName: "ordinaryList"
                 width: tabScroll.availableWidth
+                leftPadding: root.listMargin
+                rightPadding: 16
+                readonly property real rowWidth: width - leftPadding - rightPadding
+                // Where a split's two halves meet: half way across the gap between
+                // them, on a whole pixel of the display.
+                readonly property real splitMiddle: DevicePixels.snap(leftPadding + rowWidth / 2,
+                                                                      root.pixelRatio)
 
                 // The list gaps its rows as the pinned section gaps its pins, so
-                // the two halves of the sidebar read as one list, and the two
-                // halves of a split row as a row of the kit's distinct options.
+                // the two halves of the sidebar read as one list. The halves of a
+                // split keep the gap between them, and their washes meet across it.
                 spacing: pinnedSection.spacing
 
                 Repeater {
@@ -1219,7 +1227,15 @@ Rectangle {
                         id: ordinaryRow
                         required property int index
                         placeInSection: index
-                        width: inSplit ? (parent.width - ordinarySection.spacing) / 2 : parent.width
+                        width: inSplit ? (ordinarySection.rowWidth - ordinarySection.spacing) / 2 :
+                                         ordinarySection.rowWidth
+                        trailingHalf: inSplit && x > ordinarySection.leftPadding
+                        // A split's halves meet in the middle of the gap
+                        // between them, and reach their own edges.
+                        reachLeft: trailingHalf ? x - ordinarySection.splitMiddle :
+                                                  ordinarySection.leftPadding
+                        reachRight: inSplit && !trailingHalf ? ordinarySection.splitMiddle - x
+                                                               - width : ordinarySection.rightPadding
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         useFavicons: root.useFavicons

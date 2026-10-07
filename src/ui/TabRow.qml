@@ -34,11 +34,22 @@ Item {
     // The split this tab is in, as the other tab of it, and whether this tab
     // is the one on show beside the active tab. A split's two rows are one
     // row of two: each is half the width, the active half is marked as the
-    // active tab is, and the tab beside is marked as on show, bordered the
-    // way the kit borders every option of a row of them.
+    // active tab is, and the tab beside is marked as on show at half the
+    // strength.
     required property string splitPartnerId
     required property bool tabBeside
     readonly property bool inSplit: splitPartnerId.length > 0
+    // Whether this row is a split's right half. The list sets it, since it
+    // knows where it laid the row out.
+    property bool trailingHalf: false
+    // How far an ordinary row's marks reach past it on each side, which the
+    // list sets: out to the sidebar's edges, as the Omnibar's rows reach its
+    // panel's, and for a split's half, half way across the gap to the other
+    // half. The row's content stays where it is, so the site chip stays lined
+    // up with the address field's icon. A pin is a tile with no title for a
+    // bar to lead, and its marks stay inside it.
+    property real reachLeft: 0
+    property real reachRight: 0
     property var colors
     property string iconFontFamily
     property bool useFavicons: true
@@ -62,6 +73,13 @@ Item {
     property bool reachedByPointer: false
     onActiveFocusChanged: if (!activeFocus)
                               reachedByPointer = false
+    readonly property bool cursorShown: activeFocus && !reachedByPointer
+
+    // The Omnibar's bar, on the sidebar's left edge of the row on show. A
+    // split is one row on show, so it has one bar, on its left half whichever
+    // half is active: a bar on each half would draw a second line down the
+    // middle of the sidebar.
+    readonly property bool showsBar: !pinned && !trailingHalf && (active || tabBeside)
 
     // Moves the keyboard to this row as the Sidebar cursor.
     function steer() {
@@ -85,8 +103,8 @@ Item {
     // favicon with no title, so its colour is the only thing telling the sites
     // apart — but taking a colour off the site's artwork is what "Tint
     // favicons" answers, and a reader who has said no to that has said no
-    // here too. Without it the pin is chrome: the theme's muted border, the
-    // kit's own selected fill for the active one.
+    // here too. Without it the pin is chrome: the theme's muted border, and
+    // the accent for the active one, as an ordinary row's.
     readonly property bool siteColored: pinned && tintFavicons
 
     // A tab that is making sound says so, and a muted one keeps saying it:
@@ -107,6 +125,11 @@ Item {
     // them never moves.
     readonly property int chipSize: Math.round(Style.font.caption * 1.6)
     readonly property int chipInset: 8
+    // Where the close button and the Agent mark end: 12 px inside the edge the
+    // row's wash reaches, which for an ordinary row is the sidebar's. Out in
+    // the margin, so the glyph does not stand far in from a hover that runs to
+    // the sidebar's edge, but not so far that it crowds it.
+    readonly property int endGap: 12
 
     signal activated(string tabId)
     signal closeRequested(string tabId)
@@ -196,55 +219,88 @@ Item {
         root.menuRequested(root.tabId, point.x, point.y);
     }
 
-    // The kit paints hover and focus as veils over the fill, so the wash sits
-    // on a plate beneath the button rather than in its background: hovering
-    // the active pin then deepens the wash instead of replacing it.
+    // The tab on show is marked as the Omnibar marks its selected row: the
+    // accent at 14%, edge to edge with square corners. The tab beside a split's
+    // active half is on show too, at half the strength. A pin keeps the mark
+    // inside its tile, in the site's colour where it has one.
+    //
+    // The kit paints hover as a veil over the fill, so the wash sits on a plate
+    // beneath the row rather than in a background: hovering the active row
+    // then deepens the wash instead of replacing it.
     Rectangle {
+        objectName: "tabWash-" + root.tabId
         anchors.fill: parent
-        visible: root.siteColored && root.active
-        color: Qt.rgba(root.siteColor.r, root.siteColor.g, root.siteColor.b, 0.18)
-        radius: Style.cornerRadius
+        anchors.leftMargin: -root.reachLeft
+        anchors.rightMargin: -root.reachRight
+        visible: root.active || (root.tabBeside && !root.pinned)
+        radius: root.pinned ? Style.cornerRadius : 0
+        color: root.siteColored ? Qt.alpha(root.siteColor, 0.18) : Qt.alpha(root.colors.accent,
+                                                                            root.active ? 0.14 :
+                                                                                          0.07)
     }
 
+    // The Omnibar's hover on an ordinary row, edge to edge. The Sidebar cursor
+    // brings its own, so a row under both is not washed twice.
+    Rectangle {
+        objectName: "tabHover-" + root.tabId
+        anchors.fill: parent
+        anchors.leftMargin: -root.reachLeft
+        anchors.rightMargin: -root.reachRight
+        visible: !root.pinned && hoverArea.containsMouse && !root.cursorShown
+        color: Qt.alpha(root.colors.accent, 0.07)
+    }
+
+    // A pin is a bordered tile at rest, as the reader's own address field is,
+    // and carries the kit's control fill and hover. The active pin's wash is on
+    // the plate beneath, so the tile takes its border in the same colour rather
+    // than the kit's selected fill. An ordinary row is a line of text, and its
+    // marks are the plates around it.
     Omarchy.Button {
         id: tabButton
+        objectName: "tabButton-" + root.tabId
         anchors.fill: parent
-        // A site-coloured pin has a wash and a border of its own, so it never
-        // takes the kit's selected fill. Every other current row does — an
-        // unpinned one, and a pin the reader has switched site colour off for.
-        active: root.active && !root.siteColored
+        visible: root.pinned
         hasCursor: root.activeFocus || hoverArea.containsMouse
-        // A pin is a bordered tile at rest, as the reader's own address field
-        // is; an ordinary row takes its border only when it is the current tab,
-        // which is what makes one row in the list read as the page on show.
-        // The tab beside is on show too, and takes the border without the
-        // fill.
-        bordered: root.pinned || root.active || root.tabBeside
-        foreground: root.siteColored && root.active ? root.siteColor : (root.pinned
-                                                                        ? root.colors.mutedText :
-                                                                          root.colors.text)
-        // A pin is a control rather than a line of text, so it carries the
-        // kit's control fill instead of sitting on the sidebar unfilled.
-        background: root.pinned ? Style.normalFillFor(root.colors.text, root.colors.accent) :
-                                  "transparent"
+        bordered: true
+        foreground: !root.active ? root.colors.mutedText : (root.siteColored ? root.siteColor :
+                                                                               root.colors.accent)
+        background: Style.normalFillFor(root.colors.text, root.colors.accent)
         accent: root.siteColored && root.active ? root.siteColor : root.colors.accent
         horizontalPadding: 0
         verticalPadding: 0
     }
 
-    // The Sidebar cursor: the row holding the keyboard, lit in the accent so it
-    // is never taken for the tab on show, which keeps the kit's own selection.
+    // The bar, on the sidebar's edge. Square, as the wash it leads is.
+    Rectangle {
+        objectName: "tabBar-" + root.tabId
+        anchors.left: parent.left
+        anchors.leftMargin: -root.reachLeft
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 2
+        visible: root.showsBar
+        color: root.colors.accent
+    }
+
+    // The Sidebar cursor: the row holding the keyboard. On an ordinary row it
+    // is the pointer's 7% with an accent border, edge to edge: the border is
+    // what tells the keyboard from the pointer, and from the tab beside, which
+    // is 7% too. On the row with the bar the border has no left side, since a
+    // second line of the accent on that edge would merge with the bar and hide
+    // it. On a pin it is the border alone, inside the tile.
+    //
     // A row holds the keyboard only while the sidebar does, so nothing is lit
     // while the reader is on the page. A press on a row focuses it too, and a
     // row reached that way is not lit.
-    Rectangle {
+    Omarchy.BorderSurface {
         objectName: "sidebarCursor-" + root.tabId
         anchors.fill: parent
-        visible: root.activeFocus && !root.reachedByPointer
-        radius: Style.cornerRadius
-        color: Qt.rgba(root.colors.accent.r, root.colors.accent.g, root.colors.accent.b, 0.16)
-        border.width: 1
-        border.color: root.colors.accent
+        anchors.leftMargin: -root.reachLeft
+        anchors.rightMargin: -root.reachRight
+        visible: root.cursorShown
+        radius: root.pinned ? Style.cornerRadius : 0
+        color: root.pinned ? "transparent" : Qt.alpha(root.colors.accent, 0.07)
+        borderSpec: Border.flat(root.colors.accent, root.showsBar ? "1 1 1 0" : 1)
     }
 
     SiteTile {
@@ -297,7 +353,7 @@ Item {
         anchors.left: tile.right
         anchors.leftMargin: 9
         anchors.right: parent.right
-        anchors.rightMargin: closeButton.width + 10
+        anchors.rightMargin: root.endGap - root.reachRight + closeButton.width + 6
         anchors.verticalCenter: parent.verticalCenter
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
         color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
@@ -312,7 +368,7 @@ Item {
         id: agentSpot
         objectName: "agentSpot-" + root.tabId
         anchors.right: parent.right
-        anchors.rightMargin: 4
+        anchors.rightMargin: root.endGap - root.reachRight
         anchors.verticalCenter: parent.verticalCenter
         width: 28
         height: 28
@@ -352,7 +408,13 @@ Item {
     MouseArea {
         id: hoverArea
         objectName: "tabPointer-" + root.tabId
+        // The row answers the pointer as far as its wash reaches, so hover
+        // begins at the sidebar's edge rather than at the list's margin. The
+        // area's coordinates are therefore not the row's: a point the row
+        // reports is mapped out of them first.
         anchors.fill: parent
+        anchors.leftMargin: -root.reachLeft
+        anchors.rightMargin: -root.reachRight
         z: 10
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
@@ -375,14 +437,14 @@ Item {
         property bool carried: false
 
         function report(mouse) {
-            const scene = root.mapToItem(null, mouse.x, mouse.y);
+            const scene = hoverArea.mapToItem(null, mouse.x, mouse.y);
             root.dragMoved(root.tabId, scene.x, scene.y);
         }
 
         onPressed: function (mouse) {
             hoverArea.carried = false;
-            hoverArea.grabbedAt = Qt.point(mouse.x, mouse.y);
-            hoverArea.pressedAt = root.mapToItem(null, mouse.x, mouse.y);
+            hoverArea.grabbedAt = hoverArea.mapToItem(root, mouse.x, mouse.y);
+            hoverArea.pressedAt = hoverArea.mapToItem(null, mouse.x, mouse.y);
         }
 
         onPositionChanged: function (mouse) {
@@ -391,7 +453,7 @@ Item {
             // the menu must not drag the row on the way.
             if (!(hoverArea.pressedButtons & Qt.LeftButton))
                 return;
-            const scene = root.mapToItem(null, mouse.x, mouse.y);
+            const scene = hoverArea.mapToItem(null, mouse.x, mouse.y);
             if (!root.lifted) {
                 // A split's half stays with its row: the core refuses to move
                 // it, so the hand is not offered a drag it cannot finish.
@@ -423,7 +485,8 @@ Item {
             if (mouse.button === Qt.RightButton) {
                 root.reachedByPointer = true;
                 root.forceActiveFocus();
-                root.openMenu(mouse.x, mouse.y);
+                const at = hoverArea.mapToItem(root, mouse.x, mouse.y);
+                root.openMenu(at.x, at.y);
                 return;
             }
             // A row that has just been carried into place was not clicked.
@@ -431,8 +494,7 @@ Item {
                 return;
             root.reachedByPointer = true;
             root.forceActiveFocus();
-            const overClose = !root.pinned && mouse.x >= root.width - closeButton.width
-                  - closeButton.anchors.rightMargin;
+            const overClose = !root.pinned && closeButton.covers(mouse.x);
             if (audioButton.covers(mouse.x, mouse.y)) {
                 root.muteToggled(root.tabId);
             } else if (overClose) {
@@ -460,7 +522,7 @@ Item {
                                                                                       ? root.colors.mutedText :
                                                                                         root.colors.text)
             anchors.left: root.pinned ? undefined : parent.left
-            anchors.leftMargin: root.chipInset
+            anchors.leftMargin: root.reachLeft + root.chipInset
             anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
             anchors.right: root.pinned ? parent.right : undefined
             anchors.rightMargin: 2
@@ -494,12 +556,16 @@ Item {
             id: closeButton
             objectName: "close-" + root.tabId
             property string accessibleName: qsTr("Close %1").arg(root.tabTitle)
-            readonly property bool hot: hoverArea.containsMouse && hoverArea.mouseX >= root.width
-                                        - width - anchors.rightMargin
+            // The row reaches past the button to the sidebar's edge, and a press
+            // out there opens the row rather than closing it.
+            function covers(x) {
+                return x >= closeButton.x && x < closeButton.x + closeButton.width;
+            }
+            readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX)
             property color foreground: hoverArea.containsMouse ? root.colors.mutedText :
                                                                  "transparent"
             anchors.right: parent.right
-            anchors.rightMargin: 4
+            anchors.rightMargin: root.endGap
             anchors.verticalCenter: parent.verticalCenter
             width: 28
             height: 28
