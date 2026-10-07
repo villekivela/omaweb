@@ -48,7 +48,7 @@ import urllib.request
 # Reader-facing notes out of text that is already in the prompt, with the
 # parts a release cannot get wrong held in code rather than asked of the
 # model. `--model` overrides this where a range turns out to need more.
-MODEL = "claude-sonnet-5"
+MODEL = "claude-opus-5-5"
 API_VERSION = "2023-06-01"
 
 # Thinking is on by default on this model and its tokens come out of the same
