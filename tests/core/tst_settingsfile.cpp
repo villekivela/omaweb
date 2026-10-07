@@ -318,8 +318,9 @@ void SettingsFileTest::keepsASidebarOpacityBetweenHalfAndOne()
     for (const double offered : {0.5, 0.65, 1.0}) {
         QVERIFY2(SettingsFile::accepts(key, offered), qPrintable(QString::number(offered)));
     }
-    for (const QJsonValue refused : {QJsonValue(0.45), QJsonValue(1.05), QJsonValue(0),
-             QJsonValue(QStringLiteral("half")), QJsonValue(true)}) {
+    const QList<QJsonValue> refusals {QJsonValue(0.45), QJsonValue(1.05), QJsonValue(0),
+        QJsonValue(QStringLiteral("half")), QJsonValue(true)};
+    for (const auto &refused : refusals) {
         QVERIFY(!SettingsFile::accepts(key, refused));
     }
 
@@ -336,14 +337,14 @@ void SettingsFileTest::keepsASidebarOpacityBetweenHalfAndOne()
 void SettingsFileTest::readsASidebarOpacityOutOfRangeAsTheThemes()
 {
     const auto key = QStringLiteral("sidebar-opacity");
-    for (const QByteArray bad : {QByteArray("0.1"), QByteArray("2"), QByteArray("\"0.8\"")}) {
+    for (const auto *bad : {"0.1", "2", "\"0.8\""}) {
         QTemporaryDir root;
         QVERIFY(root.isValid());
         writeFile(root.filePath(QStringLiteral("settings.json")),
-            R"({"version": 1, "sidebar-opacity": )" + bad + "}");
+            R"({"version": 1, "sidebar-opacity": )" + QByteArray(bad) + "}");
         SettingsFile settings(root.path());
-        QVERIFY2(settings.value(key).isUndefined(), bad.constData());
-        QVERIFY2(!settings.isSet(key), bad.constData());
+        QVERIFY2(settings.value(key).isUndefined(), bad);
+        QVERIFY2(!settings.isSet(key), bad);
         QCOMPARE(settings.invalidKeys(), QStringList {key});
     }
 }
