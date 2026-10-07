@@ -64,6 +64,11 @@ Grid {
             scene: radarScene
         },
         {
+            value: "hyperspace",
+            label: qsTr("Hyperspace", "Start page Scene"),
+            scene: hyperspaceScene
+        },
+        {
             value: "none",
             label: qsTr("None", "Start page Scene: the sidebar's fill"),
             scene: null
@@ -132,6 +137,12 @@ Grid {
         id: radarScene
 
         Radar {}
+    }
+
+    Component {
+        id: hyperspaceScene
+
+        Hyperspace {}
     }
 
     Repeater {

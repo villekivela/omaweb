@@ -144,14 +144,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   half the page area's height, with a 50 px field and 16 px of padding. The Omnibar's hint row,
   under the field, holds `?` as a key cap with the word "shortcuts", the way to the Shortcut sheet.
 - Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life,
-  Vector terrain, Radar, or None, which leaves the Omnibar over the sidebar's fill. It is a grid of
-  small thumbnails, four to a row, in that order, each a still of its Scene drawn by the Scene
-  itself, without the CRT glass, and None as the plain sidebar fill, each named under it and the
-  chosen one marked in the accent. A click chooses, and the keyboard walks between them in reading
-  order. The choice takes effect at once and survives a restart. A reader who had turned the road
-  off before there was a choice arrives on None, and anyone else on Night road. A Private window
-  shows the ordinary window's choice. "CRT glass over the Scene", below it, applies to every Scene
-  and is offered unless None is chosen.
+  Vector terrain, Radar, Hyperspace, or None, which leaves the Omnibar over the sidebar's fill. It
+  is a grid of small thumbnails, four to a row, in that order, each a still of its Scene drawn by
+  the Scene itself, without the CRT glass, and None as the plain sidebar fill, each named under it
+  and the chosen one marked in the accent. A click chooses, and the keyboard walks between them in
+  reading order. The choice takes effect at once and survives a restart. A reader who had turned the
+  road off before there was a choice arrives on None, and anyone else on Night road. A Private
+  window shows the ordinary window's choice. "CRT glass over the Scene", below it, applies to every
+  Scene and is offered unless None is chosen.
 - A Scene fills the page area, or the one pane of a split it stands in, and is never drawn under the
   sidebar, which stands on its own fill as it does with None. It is drawn at the page area's size,
   centred on it; the road has the composition the website draws in a viewport of that size. With the
@@ -212,6 +212,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   holds the sweep at one bearing with its afterglow, and the tabs' blips lit. A Private window's
   radar is the sweep, the rings and the spokes alone, its lines the theme's light dimmed, with no
   blips, no glow and no light on the rim, and it holds still, even on commit.
+- Hyperspace is the view out of a cockpit window, drawn from the palette in the same way and always
+  night. A deep star field drifts slowly toward the reader from a centre behind the Omnibar's field,
+  over a faint nebula in the accent. On commit the stars stretch into long streaks from that centre
+  and rush past until the page paints, and the streaks hold while the page replaces the Scene, with
+  no tunnel and no collapse back to stars. It casts no light on the Omnibar. It is an homage to an
+  effect, not to a film: there is no logo, opening crawl, ship or film's name. Reduced motion holds
+  the stars and the nebula still, with no streaks. A Private window's hyperspace is the nebula
+  alone, very dim and in the theme's light, with no stars and no jump, even on commit.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.

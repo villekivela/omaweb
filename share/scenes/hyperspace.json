@@ -1,0 +1,62 @@
+{
+  "description": "Hyperspace behind the Start page (#609): the view out of a cockpit window, a deep star field drifting slowly toward the reader over a faint nebula in the accent. From a commit until the page paints, the stars stretch into streaks from the centre and rush past, held until the page has replaced the Scene, with no tunnel and no collapse back to stars. It is an homage to an effect, not to a film. The browser draws it (src/ui/Hyperspace.qml); the website does not. Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, deep, black, white) or a mix of two at an amount. `pitch` is 2 rather than the road's 4, so a streak is thin, and `crt` is the road's glass at the road's size on screen: its pixel counts are doubled. `rest` is where the Omnibar rests, as a share of the height, and the stars stream from there, behind the Omnibar's field. `space` is the night the stars stand on, from `deep` at the centre out to `edge` at the farthest corner. `nebula` is clouds of the glow, each centred `at` [across, down] of the width and height, `radius` of the width across and `squash` as tall as it is wide, turned `tilt` degrees, at `alpha` at its middle; in a Private window the glow is the light mixed toward the ground by `unlit.glow` and each cloud's alpha is scaled by `unlit.nebula`. `stars`: `count` stars, each on a ray from the centre at a bearing `bearing` scatters and a `lateral` [from, span] of the reach from the centre to the farthest corner out at depth 1, where the square root of what `spread` scatters falls, so the field is even. `phase` scatters how far round its depth a star starts. A star's depth runs from `far` toward the reader, coming round to `far` again at `near`; it fades in over `fadeFar` from the far end and out over `fadeNear` before the near one, and is drawn from the centre at its lateral over its depth. Its `brightness` scatters it from `alpha.base` to `alpha.base` plus `alpha.range` of the light, those above `brightAbove` `sizes.bright` CSS pixels square and the rest `sizes.dim`. At rest the field comes on at `drift` depth units a second. On a commit `warp` eases from 0 to 1 at `ease`, over a frame of at most `longestStep`: the field comes on at `rush` depth units a second at full warp, and each star becomes a streak running back toward the centre from the star to where it was `streak.depth` depth units further off, the light at its head fading to the glow at its tail. `still` is the depth the field has come, in depth units, in a still frame. `unlit` is a Private window: `stars` stars, at `starAlpha` of their alpha, and no warp.",
+  "id": "hyperspace",
+  "name": "Hyperspace",
+  "pitch": 2,
+  "fps": 30,
+  "glass": "crt",
+  "crt": {
+    "bloom": { "scale": 6, "opacity": 0.22 },
+    "scanlines": { "every": 6, "shade": 0.38 },
+    "vignette": { "clear": 0.55, "shade": 0.55 },
+    "band": {
+      "every": 7,
+      "from": -0.2,
+      "travel": 1.4,
+      "reach": 0.07,
+      "reachAtLeast": 8,
+      "strength": 0.05
+    },
+    "flicker": { "least": 0.02, "range": 0.025, "frequencies": [37.1, 11.3] }
+  },
+  "options": {},
+  "rest": 0.5,
+  "night": {
+    "lightThemeGround": 0.45,
+    "deep": 0.55,
+    "deepLightTheme": 0.78
+  },
+  "space": {
+    "deep": { "mix": ["deep", "glow", 0.04] },
+    "edge": "deep"
+  },
+  "nebula": [
+    { "at": [0.74, 0.24], "radius": 0.34, "squash": 0.55, "tilt": -18, "alpha": 0.16 },
+    { "at": [0.84, 0.38], "radius": 0.2, "squash": 0.6, "tilt": 25, "alpha": 0.12 },
+    { "at": [0.62, 0.14], "radius": 0.16, "squash": 0.7, "tilt": -40, "alpha": 0.1 },
+    { "at": [0.2, 0.8], "radius": 0.22, "squash": 0.45, "tilt": 12, "alpha": 0.08 },
+    { "at": [0.1, 0.68], "radius": 0.12, "squash": 0.7, "tilt": -20, "alpha": 0.06 }
+  ],
+  "stars": {
+    "count": 180,
+    "bearing": [12.9898, 43758.5453],
+    "lateral": [0.04, 0.96],
+    "spread": [78.233, 12543.123],
+    "phase": [39.425, 9321.77],
+    "brightness": [27.619, 3758.5453],
+    "near": 0.3,
+    "far": 4,
+    "fadeFar": 1.2,
+    "fadeNear": 0.15,
+    "brightAbove": 0.85,
+    "sizes": { "bright": 4, "dim": 2 },
+    "alpha": { "base": 0.35, "range": 0.65 },
+    "colour": { "mix": ["light", "white", 0.4] },
+    "tail": "glow"
+  },
+  "drift": 0.06,
+  "warp": { "rush": 5, "ease": 4, "longestStep": 0.1 },
+  "streak": { "depth": 2.5 },
+  "still": 1.7,
+  "unlit": { "glow": 0.5, "nebula": 0.45, "stars": 0, "starAlpha": 0.3 }
+}

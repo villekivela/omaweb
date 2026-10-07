@@ -2309,6 +2309,11 @@
         <translation>Tutka</translation>
     </message>
     <message>
+        <source>Hyperspace</source>
+        <comment>Start page Scene</comment>
+        <translation>Hyperavaruus</translation>
+    </message>
+    <message>
         <source>None</source>
         <comment>Start page Scene: the sidebar&apos;s fill</comment>
         <translation>Ei mitään</translation>
