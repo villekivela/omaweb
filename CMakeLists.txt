@@ -371,8 +371,6 @@ add_library(omaweb-core STATIC
     src/core/Downloads.h
     src/core/FontSettings.cpp
     src/core/FontSettings.h
-    src/core/SidebarOpacity.cpp
-    src/core/SidebarOpacity.h
     src/core/GlobalPrivacyControl.cpp
     src/core/HttpsOnly.cpp
     src/core/HttpsOnly.h
@@ -416,6 +414,8 @@ add_library(omaweb-core STATIC
     src/core/SettingsFile.h
     src/core/SettingsMigration.cpp
     src/core/SettingsMigration.h
+    src/core/SidebarOpacity.cpp
+    src/core/SidebarOpacity.h
     src/core/PrivateSessionStore.cpp
     src/core/PrivateSessionStore.h
     src/core/SessionStore.h

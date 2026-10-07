@@ -2449,6 +2449,18 @@
 <context>
     <name>SettingSlider</name>
     <message>
+        <source>the default</source>
+        <translation>oletus</translation>
+    </message>
+    <message>
+        <source>%1 percent</source>
+        <translation>%1 prosenttia</translation>
+    </message>
+    <message>
+        <source>%1 percent, %2</source>
+        <translation>%1 prosenttia, %2</translation>
+    </message>
+    <message>
         <source>reset</source>
         <translation>palauta</translation>
     </message>

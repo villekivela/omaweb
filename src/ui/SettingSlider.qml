@@ -25,14 +25,15 @@ Row {
     property string accessibleName: ""
     // Where reset takes the value, named so that reset is a return and not a
     // jump: "the theme's".
-    property string defaultName: "the default"
+    property string defaultName: qsTr("the default")
 
     // The value the reader asked for, already on a step and inside the range.
     signal moved(int value)
     signal reset
 
-    readonly property string spokenValue: root.value + " percent" + (root.overridden ? "" : ", "
-                                                                                       + root.defaultName)
+    readonly property string spokenValue: root.overridden ? qsTr("%1 percent").arg(root.value) :
+                                                            qsTr("%1 percent, %2").arg(
+                                                                root.value).arg(root.defaultName)
 
     function snapped(candidate) {
         const steps = Math.round((candidate - root.minimum) / root.step);
