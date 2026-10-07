@@ -21,6 +21,9 @@ private slots:
     void readsABadValueAsItsDefaultAndNamesIt();
     void followsAnEditMadeWhileItRuns();
     void keepsBothOfTwoWritesAtOnce();
+    void offersOnlyTheLimitsSettingsOffers();
+    void leavesAKeyWithoutADefaultUndefined();
+    void writesOneMemberIntoWhatIsOnDisk();
 };
 
 namespace {
@@ -243,26 +246,82 @@ void SettingsFileTest::keepsBothOfTwoWritesAtOnce()
     QVERIFY(root.isValid());
     const auto config = root.path();
     constexpr int rounds = 40;
-    const auto writer = [config](const QString &key) {
-        return QThread::create([config, key] {
+    // Each writer flips its switch and ends on the value that is not its
+    // default, so a write the other dropped would read as the default.
+    const auto writer = [config](const QString &key, bool last) {
+        return QThread::create([config, key, last] {
             SettingsFile settings(config);
             for (int round = 0; round < rounds; ++round) {
-                settings.set(key, round % 2 == 0);
+                settings.set(key, (rounds - 1 - round) % 2 == 0 ? last : !last);
             }
         });
     };
-    std::unique_ptr<QThread> first(writer(QStringLiteral("tint-favicons")));
-    std::unique_ptr<QThread> second(writer(QStringLiteral("floating-controls")));
+    std::unique_ptr<QThread> first(writer(QStringLiteral("tint-favicons"), true));
+    std::unique_ptr<QThread> second(writer(QStringLiteral("floating-controls"), false));
     first->start();
     second->start();
     QVERIFY(first->wait(30000));
     QVERIFY(second->wait(30000));
 
     SettingsFile settings(config);
-    // The last round of each wrote the value that is not the key's default.
-    QCOMPARE(settings.value(QStringLiteral("tint-favicons")), QJsonValue(false));
+    QCOMPARE(settings.value(QStringLiteral("tint-favicons")), QJsonValue(true));
+    QVERIFY(settings.isSet(QStringLiteral("tint-favicons")));
     QCOMPARE(settings.value(QStringLiteral("floating-controls")), QJsonValue(false));
     QVERIFY(settings.isSet(QStringLiteral("floating-controls")));
+}
+
+// The limits Settings offers are the only ones the file takes: a value the
+// page cannot show would be a choice the reader could not see or change back.
+void SettingsFileTest::offersOnlyTheLimitsSettingsOffers()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    writeFile(root.filePath(QStringLiteral("settings.json")),
+        R"({"version": 1, "put-away-unused-tabs-after": 5})");
+    SettingsFile settings(root.path());
+    QCOMPARE(settings.invalidKeys(), QStringList {QStringLiteral("put-away-unused-tabs-after")});
+    QCOMPARE(settings.value(QStringLiteral("put-away-unused-tabs-after")), QJsonValue(43200));
+    QVERIFY(!settings.set(QStringLiteral("put-away-unused-tabs-after"), 7));
+    for (const int offered : {0, 3600, 43200, 86400, 604800}) {
+        QVERIFY(SettingsFile::accepts(QStringLiteral("put-away-unused-tabs-after"), offered));
+    }
+}
+
+// A key whose default is not Omaweb's to state reads as undefined while the
+// reader has set nothing, so a caller's own fallback stands.
+void SettingsFileTest::leavesAKeyWithoutADefaultUndefined()
+{
+    const SettingsFile settings({});
+    for (const auto &key : {QStringLiteral("font-size"), QStringLiteral("page-fonts"),
+             QStringLiteral("known-extensions"), QStringLiteral("download-directory"),
+             QStringLiteral("secure-dns-template")}) {
+        QVERIFY2(SettingsFile::defaultValue(key).isUndefined(), qPrintable(key));
+        QVERIFY2(settings.value(key).isUndefined(), qPrintable(key));
+    }
+}
+
+// A switch in an object, written from Settings, goes into the object as the
+// file holds it now: a member the reader added a moment ago, before the watch
+// told this instance, stays.
+void SettingsFileTest::writesOneMemberIntoWhatIsOnDisk()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("settings.json"));
+    SettingsFile settings(root.path());
+    writeFile(path, R"({"version": 1, "known-extensions": {"ublock": true}})");
+
+    QVERIFY(
+        settings.setMember(QStringLiteral("known-extensions"), QStringLiteral("bitwarden"), true));
+    QCOMPARE(settings.value(QStringLiteral("known-extensions")),
+        QJsonValue(
+            QJsonObject {{QStringLiteral("ublock"), true}, {QStringLiteral("bitwarden"), true}}));
+
+    QVERIFY(settings.setMember(QStringLiteral("known-extensions"), QStringLiteral("ublock"), {}));
+    QVERIFY(
+        settings.setMember(QStringLiteral("known-extensions"), QStringLiteral("bitwarden"), {}));
+    QVERIFY(!readFile(path).contains("known-extensions"));
+    QVERIFY(!settings.setMember(QStringLiteral("known-extensions"), QStringLiteral("x"), 3));
 }
 
 QTEST_GUILESS_MAIN(SettingsFileTest)

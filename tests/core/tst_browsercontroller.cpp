@@ -217,6 +217,7 @@ private slots:
     void keepsTheReadersSettingsInTheSettingsFile();
     void followsAChromeSettingWrittenInTheFile();
     void fetchesAKnownExtensionTurnedOnInTheFile();
+    void keepsAnExtensionTheFileGainedBeforeItWasRead();
     void movesSettingsOutOfTheStoreOnStart();
     void attachesOneInspectorToOneTab();
     void keepsTheInspectorThroughASpaceSwitch();
@@ -2883,6 +2884,11 @@ void BrowserControllerTest::keepsTheReadersSettingsInTheSettingsFile()
     QCOMPARE(controller.preference(QStringLiteral("glance"), QStringLiteral("true")),
         QStringLiteral("false"));
     QCOMPARE(controller.putAwayAfterSeconds(), 3600);
+    QVERIFY(!controller.setPutAwayAfterSeconds(5));
+    // A key with no default of Omaweb's own answers with the caller's.
+    QCOMPARE(
+        controller.preference(QStringLiteral("download-directory"), QStringLiteral("fallback")),
+        QStringLiteral("fallback"));
 
     // The default again takes the key out.
     QVERIFY(controller.setPreference(QStringLiteral("glance"), QStringLiteral("true")));
@@ -2948,6 +2954,28 @@ void BrowserControllerTest::fetchesAKnownExtensionTurnedOnInTheFile()
 
     QTRY_COMPARE(failed.count(), 1);
     QCOMPARE(failed.at(0).at(0).toString(), QStringLiteral("bitwarden"));
+}
+
+// A switch flipped in Settings goes into the Known extensions as the file
+// holds them now, so one the reader turned on there a moment before stays on.
+void BrowserControllerTest::keepsAnExtensionTheFileGainedBeforeItWasRead()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    controller.setExtensionsAskForTests(omaweb::ExtensionInstaller::Ask::Never);
+    QFile file(QDir(config.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "known-extensions": {"ublock": true}})");
+    file.close();
+
+    QVERIFY(controller.setKnownExtensionEnabled(QStringLiteral("bitwarden"), true));
+
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(
+        QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("known-extensions")),
+        QJsonValue(
+            QJsonObject {{QStringLiteral("ublock"), true}, {QStringLiteral("bitwarden"), true}}));
 }
 
 // The first start of this version finds the reader's settings in the store's

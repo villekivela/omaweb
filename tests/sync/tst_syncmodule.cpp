@@ -299,7 +299,8 @@ private slots:
     void restoresBrowserStateOnASecondMachine();
     void syncsOnlyTheApprovedConfiguration();
     void restoresSettingsBesideASettingsPageWrite();
-    void refusesToRestoreIntoASettingsFileItCannotRead();
+    void restoresTheRestBesideASettingsFileItCannotRead();
+    void capturesNoSettingWhoseValueCannotBeRead();
     void dropsTheRetiredChromeEaseSetting();
     void leavesTheRemoteUntouchedWhenNothingChanged();
     void authorizationPollBacksOffWithinItsCeiling();
@@ -650,8 +651,9 @@ void SyncModuleTest::restoresSettingsBesideASettingsPageWrite()
 }
 
 // A settings.json the reader left unreadable is never written over, by Sync
-// any more than by Settings, and the restore says why it stopped.
-void SyncModuleTest::refusesToRestoreIntoASettingsFileItCannotRead()
+// any more than by Settings. Only the synced settings wait for it: the rest
+// of the restore goes ahead, and the settings arrive once the file is fixed.
+void SyncModuleTest::restoresTheRestBesideASettingsFileItCannotRead()
 {
     QTemporaryDir remoteRoot;
     QTemporaryDir firstDataRoot;
@@ -670,6 +672,8 @@ void SyncModuleTest::refusesToRestoreIntoASettingsFileItCannotRead()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("use-favicons"), false}}));
+    const auto keybindings = QByteArrayLiteral(R"({"version":1,"bindings":{"j":"scroll-down"}})");
+    QVERIFY(writeFile(firstConfigRoot.filePath(QStringLiteral("keybindings.json")), keybindings));
     SyncModule first({.dataRoot = firstDataRoot.path(),
         .configRoot = firstConfigRoot.path(),
         .remoteUrl = remote,
@@ -677,8 +681,9 @@ void SyncModuleTest::refusesToRestoreIntoASettingsFileItCannotRead()
     OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
     OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
+    const auto settingsPath = secondConfigRoot.filePath(QStringLiteral("settings.json"));
     const auto broken = QByteArrayLiteral("{\"version\": 1, \"glance\": fals");
-    QVERIFY(writeFile(secondConfigRoot.filePath(QStringLiteral("settings.json")), broken));
+    QVERIFY(writeFile(settingsPath, broken));
     SqliteSessionStore secondStore(secondDataRoot.path());
     QVERIFY(secondStore.open(&error));
     SyncModule second({.dataRoot = secondDataRoot.path(),
@@ -686,13 +691,76 @@ void SyncModuleTest::refusesToRestoreIntoASettingsFileItCannotRead()
         .remoteUrl = remote,
         .machineId = QStringLiteral("machine-b")});
     OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
-    const auto refused = settle(second, secondStore);
-    QVERIFY(refused);
-    QVERIFY2(
-        refused.message.contains(QStringLiteral("settings.json")), qPrintable(refused.message));
-    QFile file(secondConfigRoot.filePath(QStringLiteral("settings.json")));
-    QVERIFY(file.open(QIODevice::ReadOnly));
-    QCOMPARE(file.readAll(), broken);
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("could not read .*settings\\.json")));
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("Sync holds the synced settings back")));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QFile restoredKeybindings(secondConfigRoot.filePath(QStringLiteral("keybindings.json")));
+    QVERIFY(restoredKeybindings.open(QIODevice::ReadOnly));
+    QCOMPARE(restoredKeybindings.readAll(), keybindings);
+    QFile settings(settingsPath);
+    QVERIFY(settings.open(QIODevice::ReadOnly));
+    QCOMPARE(settings.readAll(), broken);
+    settings.close();
+
+    QVERIFY(writeFile(settingsPath, R"({"version": 1, "glance": false})"));
+    SyncModule fixed({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(fixed.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(fixed, secondStore));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(false));
+}
+
+// A synced setting the reader wrote a value into that cannot be read is not
+// their choice of the default, so it is not sent to the other machines as one.
+void SyncModuleTest::capturesNoSettingWhoseValueCannotBeRead()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    QTemporaryDir inspectionRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'v');
+    SqliteSessionStore store(dataRoot.path());
+    QVERIFY(store.open(&error));
+    // A machine with a Space of its own reconciles rather than restoring.
+    QVERIFY(store.saveSpace(
+        {QStringLiteral("space"), QStringLiteral("Space"), QStringLiteral("green"), true}));
+    QVERIFY(writeSettings(configRoot.path(), {{QStringLiteral("floating-controls"), false}}));
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine")});
+    OMAWEB_VERIFY_SYNC(sync.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
+
+    QVERIFY(writeFile(configRoot.filePath(QStringLiteral("settings.json")),
+        R"({"version": 1, "floating-controls": "off"})"));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("floating-controls")));
+    SyncModule again({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine")});
+    OMAWEB_VERIFY_SYNC(again.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(again, store));
+
+    QVERIFY2(runGit(inspectionRoot.path(),
+                 {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
+        qPrintable(error));
+    const auto record = readObject(
+        inspectionRoot.filePath(QStringLiteral("checkout/settings/floating-controls.json")));
+    QCOMPARE(record.value(QStringLiteral("value")), QJsonValue(QStringLiteral("false")));
 }
 
 // The chrome's ease stopped being a setting, so a repository an earlier

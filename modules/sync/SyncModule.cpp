@@ -1237,16 +1237,16 @@ bool SyncModule::restoreConfiguration(QString *errorMessage)
     }
     // Merged into the file through the one writer the Settings page uses too,
     // which reads it again under its lock, so neither write drops the other.
-    // The browser's watch on the file applies what changed.
+    // The browser's watch on the file applies what changed. A file the reader
+    // left unreadable is not written over: the synced settings are held back,
+    // which leaves this tree unapplied so the next pass brings them, and the
+    // rest of the restore goes ahead.
     SettingsFile settings(m_options.configRoot);
-    if (!settings.readable()) {
-        setError(errorMessage,
-            QCoreApplication::translate("SyncModule",
-                "%1 could not be read, so Sync did not write the synced settings into it")
-                .arg(SettingsFile::fileName()));
-        return false;
-    }
-    if (!synced.isEmpty() && !settings.merge(synced)) {
+    if (!synced.isEmpty() && !settings.readable()) {
+        qWarning("Sync holds the synced settings back until %s can be read.",
+            qPrintable(settings.path()));
+        m_heldBackLocalRecord = true;
+    } else if (!synced.isEmpty() && !settings.merge(synced)) {
         setError(errorMessage,
             QCoreApplication::translate("SyncModule", "Could not apply the synced settings to %1")
                 .arg(SettingsFile::fileName()));
@@ -1332,6 +1332,11 @@ bool SyncModule::captureConfiguration(QString *errorMessage)
         // is a change to sync only where a value of theirs was synced before:
         // a machine that never chose one has nothing to say to the others.
         if (!settings.isSet(name) && !applied.contains(path)) {
+            continue;
+        }
+        // A value the reader wrote that cannot be read is not their choice of
+        // the default, so it is not sent to the other machines as one.
+        if (settings.invalidKeys().contains(name)) {
             continue;
         }
         if (!stageConfigurationFile(

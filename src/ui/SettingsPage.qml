@@ -1006,7 +1006,7 @@ Rectangle {
                         title: qsTr("Tint favicons")
                         note: qsTr("Recolor site artwork to match the sidebar palette.")
                         accessibleName: qsTr("Tint favicons")
-                        enabled: root.settingsWritable && (root.useFavicons)
+                        enabled: root.settingsWritable && root.useFavicons
                         checked: root.tintFavicons
                         onClicked: root.tintFaviconsToggled(!checked)
                     }
@@ -1837,9 +1837,8 @@ Rectangle {
                             colors: root.colors
                             label: qsTr("Change")
                             accessibleName: qsTr("Change the download directory")
-                            enabled: root.settingsWritable && (root.browser ?
-                                                                   !root.browser.privateBrowsing :
-                                                                   false)
+                            enabled: root.settingsWritable && !!root.browser &&
+                                     !root.browser.privateBrowsing
                             onClicked: root.downloadDirectoryRequested()
                         }
                     }
@@ -3249,7 +3248,7 @@ Rectangle {
                                 // to refuse the switch. Only a download already
                                 // running is: pressing again would ask for the
                                 // same folder twice.
-                                enabled: root.settingsWritable && (!modelData.fetching)
+                                enabled: root.settingsWritable && !modelData.fetching
                                 checked: modelData.enabled
                                 onClicked: root.knownExtensionToggled(modelData.key,
                                                                       !modelData.enabled)

@@ -11,10 +11,40 @@
 #include <QSaveFile>
 
 #include <algorithm>
+#include <functional>
 #include <utility>
 #include <vector>
 
 namespace omaweb {
+
+// The order an object's keys were written in, and the same for each object
+// inside it, by position. QJsonObject sorts its keys, so a file read
+// through it alone and written back would lose the reader's layout.
+struct SettingsFile::Layout {
+    QStringList keys;
+    std::vector<Layout> children;
+
+    void add(const QString &key)
+    {
+        if (!keys.contains(key)) {
+            keys.append(key);
+            children.emplace_back();
+        }
+    }
+
+    const Layout *child(const QString &key) const
+    {
+        const auto index = keys.indexOf(key);
+        return index < 0 ? nullptr : &children.at(static_cast<std::size_t>(index));
+    }
+
+    Layout *child(const QString &key)
+    {
+        const auto index = keys.indexOf(key);
+        return index < 0 ? nullptr : &children.at(static_cast<std::size_t>(index));
+    }
+};
+
 namespace {
 
     constexpr auto versionKey = "version";
@@ -26,9 +56,11 @@ namespace {
         Kind kind;
         // Undefined where the default is not Omaweb's to state.
         QJsonValue fallback;
-        // For text: the values it may hold, or none for any.
-        QStringList choices {};
+        // For text or a number: the values it may hold, or none for any.
+        QJsonArray choices {};
     };
+
+    const QJsonValue unstated(QJsonValue::Undefined);
 
     const QList<Key> &schema()
     {
@@ -41,18 +73,20 @@ namespace {
             {QLatin1StringView("glance"), Kind::Switch, true},
             {QLatin1StringView("start-page-scene"), Kind::Text, QStringLiteral("crt-road")},
             {QLatin1StringView("start-page-glass"), Kind::Switch, true},
-            {QLatin1StringView("put-away-unused-tabs-after"), Kind::Number, 12 * 60 * 60},
+            // The limits Settings offers, from never to a week.
+            {QLatin1StringView("put-away-unused-tabs-after"), Kind::Number, 12 * 60 * 60,
+                {0, 60 * 60, 12 * 60 * 60, 24 * 60 * 60, 7 * 24 * 60 * 60}},
             {QLatin1StringView("release-check"), Kind::Switch, true},
-            {QLatin1StringView("known-extensions"), Kind::Extensions, {}},
-            {QLatin1StringView("font-size"), Kind::Number, {}},
-            {QLatin1StringView("page-fonts"), Kind::Fonts, {}},
-            {QLatin1StringView("download-directory"), Kind::Text, {}},
+            {QLatin1StringView("known-extensions"), Kind::Extensions, unstated},
+            {QLatin1StringView("font-size"), Kind::Number, unstated},
+            {QLatin1StringView("page-fonts"), Kind::Fonts, unstated},
+            {QLatin1StringView("download-directory"), Kind::Text, unstated},
             {QLatin1StringView("engine-suggestions"), Kind::Switch, false},
             {QLatin1StringView("global-privacy-control"), Kind::Switch, true},
             {QLatin1StringView("https-only"), Kind::Switch, true},
             {QLatin1StringView("webrtc-public-interfaces-only"), Kind::Switch, true},
             {QLatin1StringView("secure-dns"), Kind::Text, QString()},
-            {QLatin1StringView("secure-dns-template"), Kind::Text, {}},
+            {QLatin1StringView("secure-dns-template"), Kind::Text, unstated},
         };
         return keys;
     }
@@ -78,10 +112,9 @@ namespace {
         case Kind::Switch:
             return value.isBool();
         case Kind::Number:
-            return isWholeNumber(value);
+            return isWholeNumber(value) && (key.choices.isEmpty() || key.choices.contains(value));
         case Kind::Text:
-            return value.isString()
-                && (key.choices.isEmpty() || key.choices.contains(value.toString()));
+            return value.isString() && (key.choices.isEmpty() || key.choices.contains(value));
         case Kind::Fonts: {
             if (!value.isObject()) {
                 return false;
@@ -111,27 +144,7 @@ namespace {
         return false;
     }
 
-    // The order an object's keys were written in, and the same for each object
-    // inside it, by position. QJsonObject sorts its keys, so a file read
-    // through it alone and written back would lose the reader's layout.
-    struct Order {
-        QStringList keys;
-        std::vector<Order> children;
-
-        void add(const QString &key)
-        {
-            if (!keys.contains(key)) {
-                keys.append(key);
-                children.emplace_back();
-            }
-        }
-
-        const Order *child(const QString &key) const
-        {
-            const auto index = keys.indexOf(key);
-            return index < 0 ? nullptr : &children.at(static_cast<std::size_t>(index));
-        }
-    };
+    using Order = SettingsFile::Layout;
 
     // Reads the key order out of text QJsonDocument has already accepted, so
     // it can skip over anything it does not need to understand.
@@ -398,6 +411,37 @@ bool SettingsFile::set(const QString &key, const QJsonValue &value)
     return merge({{key, value.isUndefined() ? QJsonValue(QJsonValue::Null) : value}});
 }
 
+bool SettingsFile::setMember(const QString &key, const QString &member, const QJsonValue &value)
+{
+    const auto *known = find(key);
+    if (!known || (known->kind != Kind::Fonts && known->kind != Kind::Extensions)) {
+        return false;
+    }
+    return change([&](QJsonObject &object, Order *order) {
+        // What the file holds for the key now, or nothing where it holds a
+        // value that is not one: this write replaces a value nobody could use.
+        auto members = object.value(key).toObject();
+        if (value.isNull() || value.isUndefined()) {
+            members.remove(member);
+        } else {
+            members.insert(member, value);
+        }
+        if (!fits(*known, members)) {
+            return false;
+        }
+        if (members.isEmpty()) {
+            object.remove(key);
+        } else {
+            object.insert(key, members);
+            if (order) {
+                order->add(key);
+                order->child(key)->add(member);
+            }
+        }
+        return true;
+    });
+}
+
 bool SettingsFile::merge(const QJsonObject &values)
 {
     for (auto it = values.constBegin(); it != values.constEnd(); ++it) {
@@ -407,7 +451,7 @@ bool SettingsFile::merge(const QJsonObject &values)
     }
     // A key goes in where the reader put it, or in the order Omaweb lists its
     // keys when it is new.
-    const auto place = [&values](QJsonObject &object, Order *order) {
+    return change([&values](QJsonObject &object, Order *order) {
         for (const auto &key : keys()) {
             if (!values.contains(key)) {
                 continue;
@@ -423,10 +467,17 @@ bool SettingsFile::merge(const QJsonObject &values)
                 }
             }
         }
-    };
+        return true;
+    });
+}
+
+bool SettingsFile::change(const std::function<bool(QJsonObject &, Order *)> &edit)
+{
     if (m_configRoot.isEmpty()) {
         auto object = m_values;
-        place(object, nullptr);
+        if (!edit(object, nullptr)) {
+            return false;
+        }
         apply(object);
         return true;
     }
@@ -450,7 +501,9 @@ bool SettingsFile::merge(const QJsonObject &values)
             return false;
         }
     }
-    place(contents.object, &contents.order);
+    if (!edit(contents.object, &contents.order)) {
+        return false;
+    }
     if (!contents.object.contains(QLatin1String(versionKey))) {
         contents.object.insert(QLatin1String(versionKey), version);
         contents.order.keys.prepend(QLatin1String(versionKey));

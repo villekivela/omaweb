@@ -467,14 +467,10 @@ int BrowserController::putAwayAfterSeconds() const
     return m_settings.value(QString::fromLatin1(putAwayAfterKey)).toInt();
 }
 
+// Only a limit Settings offers is taken, which is the file's rule for the key.
 bool BrowserController::setPutAwayAfterSeconds(int seconds)
 {
-    static constexpr int offered[] = {0, 60 * 60, 12 * 60 * 60, 24 * 60 * 60, 7 * 24 * 60 * 60};
-    if (std::ranges::find(offered, seconds) == std::end(offered)
-        || !setPreference(QString::fromLatin1(putAwayAfterKey), QString::number(seconds))) {
-        return false;
-    }
-    return true;
+    return setPreference(QString::fromLatin1(putAwayAfterKey), QString::number(seconds));
 }
 
 bool BrowserController::putAwayNotice() const { return m_putAwayNotice; }
@@ -4172,13 +4168,8 @@ bool BrowserController::setKnownExtensionEnabled(const QString &key, bool enable
     }
     // Only an extension the reader turned on is written down: off is the
     // default for every one.
-    auto extensions = m_settings.value(QString::fromLatin1(knownExtensionsKey)).toObject();
-    if (enabled) {
-        extensions.insert(key, true);
-    } else {
-        extensions.remove(key);
-    }
-    return m_settings.set(QString::fromLatin1(knownExtensionsKey), extensions);
+    return m_settings.setMember(
+        QString::fromLatin1(knownExtensionsKey), key, enabled ? QJsonValue(true) : QJsonValue());
 }
 
 // Turning one on is asking for it, whether in Settings or in the file. A reader
@@ -4260,8 +4251,10 @@ void BrowserController::initialize()
     if (!m_store->open(&m_errorMessage)) {
         return;
     }
-    // Before anything reads a setting, so the first start of this version
-    // reads the reader's settings where they now are.
+    // Before this window reads a setting, so the first start of this version
+    // reads the reader's settings where they now are. The browser's own start
+    // has migrated already, before anything else read the file; this is the
+    // same move for a window built without it, and finds the file there.
     if (!m_privateBrowsing && !m_configRoot.isEmpty()) {
         migrateSettings(m_configRoot, *m_store);
         m_settings.reload();

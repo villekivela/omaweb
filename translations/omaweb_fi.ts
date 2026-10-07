@@ -4438,10 +4438,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Synkronoitu asetus ei kelpaa</translation>
     </message>
     <message>
-        <source>%1 could not be read, so Sync did not write the synced settings into it</source>
-        <translation>Tiedostoa %1 ei voitu lukea, joten synkronointi ei kirjoittanut synkronoituja asetuksia siihen</translation>
-    </message>
-    <message>
         <source>Could not apply the synced settings to %1</source>
         <translation>Synkronoituja asetuksia ei voitu ottaa käyttöön tiedostossa %1</translation>
     </message>

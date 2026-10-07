@@ -23,6 +23,9 @@
 #include "HttpsOnly.h"
 #include "SecureDns.h"
 #include "SettingsFile.h"
+#include "SettingsMigration.h"
+#include "SpaceStorage.h"
+#include "SqliteSessionStore.h"
 #include "WebRtcPolicy.h"
 #include "HardwareVideoDecode.h"
 #include "InputMethod.h"
@@ -293,6 +296,16 @@ int main(int argc, char *argv[])
         // better than none, so this carries on as an ordinary launch.
     }
 
+    // Before anything reads settings.json: the first start of this version
+    // moves the reader's settings into it from where an earlier one kept them,
+    // through the store the browser is about to open.
+    {
+        omaweb::SqliteSessionStore store(
+            omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")).dataRoot());
+        if (store.open()) {
+            omaweb::migrateSettings(configRoot(), store);
+        }
+    }
     // Before the browser that asks through it, so it is still there while the
     // browser lets go of a request it has in flight.
     omaweb::EngineSuggestions engineSuggestions(configRoot());
@@ -419,8 +432,7 @@ int main(int argc, char *argv[])
         qWarning("%s", qPrintable(omaweb::inputMethodDiagnostic(inputMethodHost, false)));
     }
     // The reader's settings file as Settings shows it: where it is and what
-    // went wrong reading it. Built after the browser, which moves an earlier
-    // version's settings into it before anything reads them.
+    // went wrong reading it.
     omaweb::SettingsFile settingsFile(configRoot());
     omaweb::WindowManager windowManager(configRoot(), launch.privateWindowsAvailable);
     const auto developmentSyncModule = QStringLiteral(OMAWEB_SYNC_MODULE_PATH);

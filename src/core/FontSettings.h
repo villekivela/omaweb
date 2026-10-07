@@ -116,14 +116,9 @@ private:
     static int maximumPageSize() { return maximumPageFontSize; }
     static int maximumPageMinimumSize() { return maximumPageMinimumFontSize; }
     QString installedFamily(const QString &family) const;
-    QString &storedFamily(PageFamily which);
     const QString &storedFamily(PageFamily which) const;
-    int &storedSize(PageSize which);
     int storedSize(PageSize which) const;
     void load();
-    // False when the file could not be written, which leaves the values the
-    // file holds standing.
-    bool save();
 
     SettingsFile m_settings;
     QStringList m_installedFamilies;

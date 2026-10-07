@@ -8,6 +8,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
+
 namespace omaweb {
 
 // The reader's settings, `settings.json` in the configuration directory
@@ -40,6 +42,9 @@ class SettingsFile final : public QObject {
 
 public:
     static constexpr int version = 1;
+    // The order the keys of the file, and of each object in it, were written
+    // in. Defined where the file is read and written.
+    struct Layout;
 
     // An empty configuration root keeps the settings in memory alone, which
     // is what a test without a directory gets.
@@ -69,6 +74,10 @@ public:
     bool set(const QString &key, const QJsonValue &value);
     // Writes several keys at once, each as `set` would, or none of them.
     bool merge(const QJsonObject &values);
+    // Writes one member of an object-valued key into the object as the file
+    // holds it now, or removes it for a null or undefined value. A key left
+    // with no members leaves the file.
+    bool setMember(const QString &key, const QString &member, const QJsonValue &value);
     // Whether `set` would take this value for this key.
     static bool accepts(const QString &key, const QJsonValue &value);
     // A value as the text the chrome and the session store's rows hold
@@ -106,6 +115,10 @@ signals:
 
 private:
     void apply(const QJsonObject &stored);
+    // Reads the file again under its lock, lets `edit` change it, and writes
+    // it, or changes the values in memory where there is no file. False, with
+    // nothing written, when the file cannot be read or `edit` refuses.
+    bool change(const std::function<bool(QJsonObject &, Layout *)> &edit);
     void watch();
     void log() const;
 

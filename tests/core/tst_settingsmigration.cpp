@@ -4,6 +4,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QRegularExpression>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -18,6 +19,7 @@ private slots:
     void buildsTheFileFromWhereSettingsWereKept();
     void startsAnEmptyFileWhenThereIsNothingToCarry();
     void leavesAnOldFileBesideAFileThatIsAlreadyThere();
+    void keepsAnOldFileItCannotReadAndSaysWhatItDropped();
 };
 
 namespace {
@@ -155,6 +157,52 @@ void SettingsMigrationTest::leavesAnOldFileBesideAFileThatIsAlreadyThere()
     QVERIFY2(settings.problem().contains(QStringLiteral("interface.json")),
         qPrintable(settings.problem()));
     QVERIFY(!settings.isSet(QStringLiteral("font-size")));
+}
+
+// An old file the reader edited by hand and left unparsable still holds
+// their settings, so it is not deleted: it stays, Settings names it, and the
+// next look at it is the reader's. A value that cannot be carried is said.
+void SettingsMigrationTest::keepsAnOldFileItCannotReadAndSaysWhatItDropped()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const QDir config(root.filePath(QStringLiteral("config")));
+    QVERIFY(QDir().mkpath(config.path()));
+    const QByteArray privacy(R"({"allow-agents": true, "agent-command": "codex",})");
+    {
+        QFile file(config.filePath(QStringLiteral("privacy.json")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(privacy);
+    }
+    writeJson(config.filePath(QStringLiteral("interface.json")),
+        {{QStringLiteral("font-size"), QStringLiteral("big")},
+            {QStringLiteral("page-fonts"),
+                QJsonObject {{QStringLiteral("fixed-family"), QStringLiteral("Iosevka")}}}});
+    omaweb::SqliteSessionStore store(root.filePath(QStringLiteral("data")));
+    QVERIFY(store.open());
+    QVERIFY(store.savePreference(QStringLiteral("glance"), QStringLiteral("maybe")));
+
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("privacy\\.json.*not .*read")));
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("\"font-size\".*interface\\.json")));
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("\"glance\".*session store")));
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(QStringLiteral("ignores .*privacy\\.json")));
+    QVERIFY(omaweb::migrateSettings(config.path(), store));
+
+    QFile left(config.filePath(QStringLiteral("privacy.json")));
+    QVERIFY(left.open(QIODevice::ReadOnly));
+    QCOMPARE(left.readAll(), privacy);
+    QVERIFY(!config.exists(QStringLiteral("agents.json")));
+    QVERIFY(!config.exists(QStringLiteral("interface.json")));
+    QCOMPARE(readJson(config.filePath(QStringLiteral("settings.json"))),
+        (QJsonObject {{QStringLiteral("version"), 1},
+            {QStringLiteral("page-fonts"),
+                QJsonObject {{QStringLiteral("fixed-family"), QStringLiteral("Iosevka")}}}}));
+    const SettingsFile settings(config.path());
+    QCOMPARE(settings.leftoverFiles(), QStringList {QStringLiteral("privacy.json")});
 }
 
 QTEST_GUILESS_MAIN(SettingsMigrationTest)
