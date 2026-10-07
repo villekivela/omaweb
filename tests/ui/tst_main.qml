@@ -15807,6 +15807,78 @@ TestCase {
         watch.destroy();
     }
 
+    // The release, extension and download marks each take a slot of their
+    // own, in that order, and the Spaces end before the first of them.
+    function test_theFooterMarksStandSideBySide() {
+        openPage("https://mirror.example/shelf");
+        const host = window.spaceProfileHost;
+        clearDownloads();
+        browser.recordOriginInteraction("https://mirror.example/shelf");
+        const outline = findChild(window.contentItem, "sidebar");
+        const releaseMark = findChild(outline, "releaseMark");
+        const extensionMark = findChild(outline, "extensionMark");
+        const downloadMark = findChild(outline, "downloadMark");
+        const switcher = findChild(outline, "spaceSwitcher");
+        verify(releaseMark !== null);
+        verify(extensionMark !== null);
+        verify(downloadMark !== null);
+        verify(switcher !== null);
+
+        const watch = Qt.createQmlObject('import QtQuick\nQtObject {\n'
+                                         + '    property bool announcing: true\n'
+                                         + '    property string release: "v9.9.9"\n'
+                                         + '    property string instruction: ""\n'
+                                         + '    property url notes: "https://example.invalid/releases/tag/v9.9.9"\n'
+                                         + '    function dismiss() {}\n}', releaseMark,
+                                         "releaseMarkStandIn");
+        releaseMark.watch = watch;
+        // The engine under test hosts no extension, so the mark is handed one.
+        extensionMark.hosted = [
+                    {
+                        "key": "omaweb-test-notes",
+                        "name": "Notes",
+                        "id": "omaweb-test-notes",
+                        "popupUrl": "chrome-extension://omaweb-test-notes/popup.html"
+                    }
+                ];
+        const download = host.simulateDownloadRequest("https://mirror.example/shelf",
+                                                      "https://mirror.example/omaweb-test-index.pdf",
+                                                      "omaweb-test-index.pdf", "application/pdf");
+        verify(download.length > 0);
+        tryCompare(releaseMark, "visible", true);
+        tryCompare(extensionMark, "visible", true);
+        tryCompare(downloadMark, "visible", true);
+
+        const left = function (item) {
+            return item.mapToItem(null, 0, 0).x;
+        };
+        const right = function (item) {
+            return left(item) + item.width;
+        };
+        const span = function (item) {
+            return left(item) + "-" + right(item);
+        };
+        verify(right(releaseMark) <= left(extensionMark) && right(extensionMark) <= left(
+                   downloadMark), "release " + span(releaseMark) + ", extension " + span(
+                   extensionMark) + ", download " + span(downloadMark));
+        verify(right(switcher) <= left(releaseMark), "the Spaces end at " + right(switcher)
+               + ", the release mark starts at " + left(releaseMark));
+
+        host.simulateDownloadFinished(download);
+        tryCompare(downloadMark, "running", 0);
+        findChild(window.contentItem, "pageNotice").dismiss();
+        tryCompare(downloadMark, "visible", false);
+        extensionMark.hosted = Qt.binding(function () {
+            return outline.hostedExtensions;
+        });
+        tryCompare(extensionMark, "visible", false);
+        releaseMark.watch = Qt.binding(function () {
+            return outline.releaseWatch;
+        });
+        tryCompare(releaseMark, "visible", false);
+        watch.destroy();
+    }
+
     // The window these tests share asked the application's watch for the
     // notes an upgrade owes the reader as it started, and only it has: the
     // only other windows here are Private ones. What the watch opens, where,
