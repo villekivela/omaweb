@@ -2484,7 +2484,7 @@ TestCase {
         tryVerify(function () {
             return closeButton.foreground.a > 0.5;
         });
-        mouseClick(tabRow, tabRow.width - closeButton.width / 2 - 4, tabRow.height / 2);
+        mouseClick(closeButton, closeButton.width / 2, closeButton.height / 2);
 
         tryVerify(function () {
             return findChild(window.contentItem, "tab-" + tabId) === null;
@@ -2515,7 +2515,12 @@ TestCase {
         // A silent tab says nothing about sound and shows its chip.
         verify(!speaker.visible);
         verify(tile.visible);
-        const chipX = tile.x;
+        // Across the row: the speaker lies in the row's pointer area, which
+        // reaches past the row to the sidebar's edge.
+        const acrossRow = function (item) {
+            return item.mapToItem(tabRow, 0, 0).x;
+        };
+        const chipX = acrossRow(tile);
         const chipWidth = tile.width;
 
         engine.simulateAudible(true);
@@ -2524,11 +2529,11 @@ TestCase {
         });
         verify(!tile.visible);
         // The speaker stands in the chip's box, so nothing after it moves.
-        compare(speaker.x, chipX);
+        compare(acrossRow(speaker), chipX);
         compare(speaker.width, chipWidth);
-        compare(tile.x, chipX);
+        compare(acrossRow(tile), chipX);
 
-        mouseClick(tabRow, speaker.x + speaker.width / 2, speaker.y + speaker.height / 2);
+        mouseClick(speaker, speaker.width / 2, speaker.height / 2);
         tryVerify(function () {
             return engine.audioMuted;
         });
@@ -2539,7 +2544,7 @@ TestCase {
         verify(speaker.visible);
         verify(!tile.visible);
 
-        mouseClick(tabRow, speaker.x + speaker.width / 2, speaker.y + speaker.height / 2);
+        mouseClick(speaker, speaker.width / 2, speaker.height / 2);
         tryVerify(function () {
             return !engine.audioMuted;
         });
@@ -4569,6 +4574,16 @@ TestCase {
         for (let step = order.indexOf(pinId); step < order.length - 1; ++step)
             keyClick(Qt.Key_K);
         compare(cursorTabId(), pinId);
+        // A pin is a tile and stays inset: the cursor on it is the accent
+        // border round the tile, without a fill.
+        const pinCursor = findChild(window.contentItem, "sidebarCursor-" + pinId);
+        const pinRow = findChild(window.contentItem, "pinned-" + pinId);
+        verify(pinCursor.visible);
+        compare(pinCursor.color.a, 0);
+        compare(radiusWhenRounded(pinCursor), 6);
+        compare(pinCursor.borderLeft, 1);
+        compare(pinCursor.mapToItem(pinRow, 0, 0).x, 0);
+        compare(pinCursor.width, pinRow.width);
         // The keys went to the sidebar and none of them to the page.
         compare(shownPage.keyboardInput, typed);
 
@@ -4636,6 +4651,265 @@ TestCase {
         browser.activateTab(pinId);
         browser.toggleActivePinned();
         browser.closeTab(pinId);
+    }
+
+    // Whether an item's colour is a colour at the given strength.
+    function compareWash(item, colour, alpha) {
+        fuzzyCompare(item.color.r, colour.r, 0.01);
+        fuzzyCompare(item.color.g, colour.g, 0.01);
+        fuzzyCompare(item.color.b, colour.b, 0.01);
+        fuzzyCompare(item.color.a, alpha, 0.01);
+    }
+
+    function compareAccentWash(item, alpha) {
+        compareWash(item, Qt.color(String(window.colors.accent)), alpha);
+    }
+
+    // An item's corner radius in a theme with rounded corners: in a square
+    // one, every radius is 0 whatever the item asks for.
+    function radiusWhenRounded(item) {
+        const radius = Style.cornerRadius;
+        Style.cornerRadius = 6;
+        const rounded = item.radius;
+        Style.cornerRadius = radius;
+        return rounded;
+    }
+
+    // Where an item starts and ends across the sidebar.
+    function acrossSidebar(item) {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const rect = item.mapToItem(sidebar, 0, 0, item.width, item.height);
+        return {
+            "left": rect.x,
+            "right": rect.x + rect.width
+        };
+    }
+
+    // Two new ordinary tabs, the second on show, with their rows settled. New
+    // rather than the tab on show, which an earlier test can leave in a split.
+    function openTwoTabs(name) {
+        openPageInNewTab("https://" + name + "-first.example/");
+        const firstId = browser.activeTabId;
+        openPageInNewTab("https://" + name + "-second.example/");
+        const secondId = browser.activeTabId;
+        settleMotion();
+        const first = findChild(window.contentItem, "tab-" + firstId);
+        const second = findChild(window.contentItem, "tab-" + secondId);
+        verify(first !== null && second !== null);
+        settleRow(first);
+        settleRow(second);
+        return {
+            "firstId": firstId,
+            "secondId": secondId,
+            "first": first,
+            "second": second
+        };
+    }
+
+    // The active tab is marked as the Omnibar marks its selected row: the
+    // accent at 14% across the sidebar's whole width, with square corners, and
+    // a 2 px accent bar on the sidebar's left edge. It takes neither the kit's
+    // selected fill nor its border, and its content stays inside the list's
+    // margin, where the address field's icon is.
+    function test_theActiveTabIsMarkedAsTheOmnibarMarksItsSelectedRow() {
+        const tabs = openTwoTabs("active-mark");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const accent = Qt.color(String(window.colors.accent));
+
+        const wash = findChild(tabs.second, "tabWash-" + tabs.secondId);
+        verify(wash.visible);
+        compareAccentWash(wash, 0.14);
+        compare(radiusWhenRounded(wash), 0);
+        compare(acrossSidebar(wash).left, 0);
+        compare(acrossSidebar(wash).right, sidebar.width);
+        compare(wash.height, tabs.second.height);
+
+        const bar = findChild(tabs.second, "tabBar-" + tabs.secondId);
+        verify(bar.visible);
+        compare(bar.width, 2);
+        compare(bar.height, tabs.second.height);
+        compare(String(bar.color), String(accent));
+        compare(acrossSidebar(bar).left, 0);
+
+        verify(!findChild(tabs.second, "tabButton-" + tabs.secondId).visible);
+        const tile = findChild(tabs.second, "siteTile-" + tabs.secondId);
+        compare(acrossSidebar(tile).left, sidebar.listMargin + tabs.second.chipInset);
+
+        // A tab that is not on show is not marked.
+        verify(!findChild(tabs.first, "tabWash-" + tabs.firstId).visible);
+        verify(!findChild(tabs.first, "tabBar-" + tabs.firstId).visible);
+
+        browser.closeTab(tabs.secondId);
+        browser.closeTab(tabs.firstId);
+    }
+
+    // A row under the pointer takes the Omnibar's hover, the accent at 7%
+    // across the sidebar's width, in place of the kit's inset veil. On the
+    // active tab it lies over the 14% and deepens it. The row answers the
+    // pointer as far as its wash reaches, from one edge of the sidebar to the
+    // other.
+    function test_hoverIsTheOmnibarsWashEdgeToEdge() {
+        const tabs = openTwoTabs("hover-mark");
+        const sidebar = findChild(window.contentItem, "sidebar");
+
+        const hover = findChild(tabs.first, "tabHover-" + tabs.firstId);
+        verify(!hover.visible);
+        mouseMove(tabs.first, tabs.first.width / 3, tabs.first.height / 2);
+        tryVerify(function () {
+            return hover.visible;
+        });
+        compareAccentWash(hover, 0.07);
+        compare(acrossSidebar(hover).left, 0);
+        compare(acrossSidebar(hover).right, sidebar.width);
+        verify(!findChild(tabs.first, "tabButton-" + tabs.firstId).visible);
+
+        const activeHover = findChild(tabs.second, "tabHover-" + tabs.secondId);
+        const activeWash = findChild(tabs.second, "tabWash-" + tabs.secondId);
+        mouseMove(tabs.second, tabs.second.width / 3, tabs.second.height / 2);
+        tryVerify(function () {
+            return activeHover.visible;
+        });
+        verify(!hover.visible);
+        verify(activeWash.visible);
+        verify(activeHover.z > activeWash.z || (activeHover.z === activeWash.z
+                                                && tabs.second.children.indexOf(activeHover)
+                                                > tabs.second.children.indexOf(activeWash)));
+
+        mouseMove(window.contentItem, window.width - 4, window.height - 4);
+        tryVerify(function () {
+            return !activeHover.visible;
+        });
+
+        // The middle of each margin the list leaves: the window's own resize
+        // edge takes the outermost pixels.
+        const middle = tabs.first.mapToItem(sidebar, 0, tabs.first.height / 2).y;
+        const list = findChild(sidebar, "ordinaryList");
+        const edges = [list.leftPadding / 2, sidebar.width - list.rightPadding / 2];
+        for (let at = 0; at < edges.length; ++at) {
+            mouseMove(sidebar, edges[at], middle);
+            tryVerify(function () {
+                return hover.visible;
+            }, 5000, "hover at " + edges[at]);
+            mouseMove(window.contentItem, window.width - 4, window.height - 4);
+            tryVerify(function () {
+                return !hover.visible;
+            });
+        }
+        // A press in the margin past the close button opens the row rather
+        // than closing it.
+        mouseClick(sidebar, edges[1], middle);
+        tryCompare(browser, "activeTabId", tabs.firstId);
+        const secondMiddle = tabs.second.mapToItem(sidebar, 0, tabs.second.height / 2).y;
+        mouseClick(sidebar, edges[0], secondMiddle);
+        tryCompare(browser, "activeTabId", tabs.secondId);
+
+        browser.closeTab(tabs.secondId);
+        browser.closeTab(tabs.firstId);
+    }
+
+    // The Sidebar cursor is the pointer's 7% with a 1 px accent border, both
+    // from one edge of the sidebar to the other with square corners. The
+    // border is what tells the keyboard from the pointer. On the row that
+    // shows the bar the border has no left side: the bar stands in for it.
+    function test_theSidebarCursorIsAWashAndABorderEdgeToEdge() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        window.settingsOpen = false;
+        window.sidebarCollapsed = false;
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const tabs = openTwoTabs("cursor-mark");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const accent = Qt.color(String(window.colors.accent));
+
+        window.commands.run("focus-sidebar", -1);
+        compare(cursorTabId(), tabs.secondId);
+        const onActive = findChild(window.contentItem, "sidebarCursor-" + tabs.secondId);
+        verify(onActive.visible);
+        compareAccentWash(onActive, 0.07);
+        compare(radiusWhenRounded(onActive), 0);
+        compare(acrossSidebar(onActive).left, 0);
+        compare(acrossSidebar(onActive).right, sidebar.width);
+        verify(Qt.colorEqual(onActive.borderSpec.color, accent));
+        compare(onActive.borderTop, 1);
+        compare(onActive.borderRight, 1);
+        compare(onActive.borderBottom, 1);
+        compare(onActive.borderLeft, 0);
+        verify(findChild(tabs.second, "tabBar-" + tabs.secondId).visible);
+
+        keyClick(Qt.Key_K);
+        compare(cursorTabId(), tabs.firstId);
+        const onOther = findChild(window.contentItem, "sidebarCursor-" + tabs.firstId);
+        verify(onOther.visible);
+        verify(!onActive.visible);
+        compareAccentWash(onOther, 0.07);
+        compare(acrossSidebar(onOther).left, 0);
+        compare(acrossSidebar(onOther).right, sidebar.width);
+        compare(onOther.borderLeft, 1);
+        compare(onOther.borderTop, 1);
+        // The cursor brings its own 7%, so the pointer's is not drawn twice.
+        verify(!findChild(tabs.first, "tabHover-" + tabs.firstId).visible);
+
+        window.commands.run("focus-page", -1);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        browser.closeTab(tabs.secondId);
+        browser.closeTab(tabs.firstId);
+    }
+
+    // A split's two halves read as one row: the active half at 14%, the tab
+    // beside at 7%, each reaching its own edge of the sidebar and the two
+    // meeting across the gap between them. One bar on the sidebar's left edge
+    // marks the pair, whichever half is active, and the tab beside has no
+    // border.
+    function test_aSplitIsMarkedAsOneRow() {
+        const tabs = openTwoTabs("split-mark");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const leftId = tabs.firstId;
+        const rightId = tabs.secondId;
+        browser.activateTab(leftId);
+        verify(browser.addSplit(rightId));
+        const left = tabs.first;
+        const right = tabs.second;
+        tryVerify(function () {
+            return right.inSplit && left.inSplit && left.width < sidebar.width / 2 && left.width
+                    === right.width;
+        });
+        settleRow(right);
+        verify(left.mapToItem(sidebar, 0, 0).x < right.mapToItem(sidebar, 0, 0).x);
+
+        const leftWash = findChild(left, "tabWash-" + leftId);
+        const rightWash = findChild(right, "tabWash-" + rightId);
+        const leftBar = findChild(left, "tabBar-" + leftId);
+        const rightBar = findChild(right, "tabBar-" + rightId);
+        const checkPair = function (activeWash, besideWash) {
+            verify(leftWash.visible && rightWash.visible);
+            compareAccentWash(activeWash, 0.14);
+            compareAccentWash(besideWash, 0.07);
+            compare(acrossSidebar(leftWash).left, 0);
+            compare(acrossSidebar(rightWash).right, sidebar.width);
+            fuzzyCompare(acrossSidebar(leftWash).right, acrossSidebar(rightWash).left, 0.001);
+            verify(leftBar.visible);
+            compare(acrossSidebar(leftBar).left, 0);
+            verify(!rightBar.visible);
+            verify(!findChild(left, "tabButton-" + leftId).visible);
+            verify(!findChild(right, "tabButton-" + rightId).visible);
+        };
+        compare(browser.activeTabId, leftId);
+        checkPair(leftWash, rightWash);
+
+        verify(browser.focusSplitPartner());
+        compare(browser.activeTabId, rightId);
+        tryVerify(function () {
+            return right.active && left.tabBeside;
+        });
+        checkPair(rightWash, leftWash);
+
+        browser.separateSplit();
+        browser.closeTab(rightId);
+        browser.closeTab(leftId);
     }
 
     // The binding the live keymap gives a command, a chord before a single
@@ -14564,12 +14838,31 @@ TestCase {
         const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(tile !== null);
         compare(tile.siteColoredMark, false);
+        // The active pin then takes the accent at 14% and an accent border in
+        // place of the kit's selected fill, inset in the tile as the
+        // site-coloured pin's wash is.
+        const pinWash = findChild(pinnedRow, "tabWash-" + browser.activeTabId);
+        const pinButton = findChild(pinnedRow, "tabButton-" + browser.activeTabId);
+        verify(pinWash.visible);
+        compareAccentWash(pinWash, 0.14);
+        compare(radiusWhenRounded(pinWash), 6);
+        compare(pinWash.mapToItem(pinnedRow, 0, 0).x, 0);
+        compare(pinWash.width, pinnedRow.width);
+        verify(pinButton.visible);
+        verify(pinButton.bordered);
+        verify(!pinButton.active);
+        verify(Qt.colorEqual(pinButton.foreground, window.colors.accent));
+        verify(!findChild(pinnedRow, "tabBar-" + browser.activeTabId).visible);
 
         tintFavicons.clicked();
         compare(window.tintFavicons, true);
         tryCompare(pinnedRow, "tintFavicons", true);
         compare(pinnedRow.siteColored, true);
         tryCompare(tile, "siteColoredMark", true);
+        // The site-coloured pin is as it was: its own colour at 18%.
+        compareWash(pinWash, pinnedRow.siteColor, 0.18);
+        verify(!pinButton.active);
+        verify(Qt.colorEqual(pinButton.foreground, pinnedRow.siteColor));
 
         tintFavicons.clicked();
         compare(window.tintFavicons, false);
