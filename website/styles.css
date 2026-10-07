@@ -51,8 +51,6 @@
   --ink: var(--fg);
   --dim: color-mix(in srgb, var(--fg) 68%, var(--bg));
   --line: color-mix(in srgb, var(--fg) 13%, transparent);
-  --paper: #ece1c8;
-  --paper-ink: #151311;
   --mono: "Ioskeley Mono", "JetBrains Mono", ui-monospace, monospace;
   --display: Tomorrow, var(--mono);
   --display-track: 0.04em;
@@ -142,87 +140,16 @@ a {
   font-size: clamp(32px, 3.6vw, 46px);
 }
 
-/* A key, not a label: the face sits on a darker base edge that the press pushes it down onto, so
-   the button reads as something with travel. */
+/* The site's one call to action: flat, in the accent, as the install on the Start page is. */
 .btn {
-  --depth: 5px;
-  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 22px;
-  border: 1px solid #fff8e8;
-  border-bottom-color: #b8aa8a;
-  border-radius: 4px;
-  background: linear-gradient(to bottom, #f6ecd6, var(--paper) 55%, #ddd0b3);
-  color: var(--paper-ink);
+  gap: 10px;
+  padding: 10px 18px;
+  background: var(--accent);
+  color: var(--bg);
   font-weight: 700;
-  font-size: 15px;
   text-decoration: none;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 70%),
-    0 var(--depth) 0 #9d8f70,
-    0 calc(var(--depth) + 1px) 0 #5e5442,
-    0 calc(var(--depth) + 6px) 14px rgb(0 0 0 / 55%),
-    0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
-  transform: translateY(0);
-  transition:
-    transform 0.07s ease-out,
-    box-shadow 0.2s ease-out,
-    filter 0.2s;
-}
-
-/* The keycap's finish: a fine sandblasted grain, the paper-grain tile drawn small and multiplied
-   into the face, and a soft sheen where the light from above catches it. Both sit over the label,
-   as the texture of a printed cap would, and neither is in the way of a click. */
-.btn::before,
-.btn::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.btn::before {
-  background: url("assets/art/paper-grain.webp") 0 0 / 48px;
-  mix-blend-mode: multiply;
-  opacity: 0.18;
-}
-
-.btn::after {
-  background: radial-gradient(120% 90% at 30% 0%, rgb(255 255 255 / 40%), transparent 60%);
-  mix-blend-mode: soft-light;
-}
-
-/* Pointed at, the key stays where it is and lights from underneath, as a backlit keycap does,
-   rather than lifting off its base. */
-.btn:hover {
-  filter: brightness(1.03);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 70%),
-    0 var(--depth) 0 #9d8f70,
-    0 calc(var(--depth) + 1px) 0 #5e5442,
-    0 calc(var(--depth) + 6px) 14px rgb(0 0 0 / 55%),
-    0 calc(var(--depth) + 2px) 22px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-/* Pressed, the face travels most of the way down its edge and stops on a sliver of it, as a key
-   bottoms out, and the light under it tightens. The transition is quicker going down than coming
-   back, so the press feels firm and the release springy. */
-.btn:active {
-  transform: translateY(calc(var(--depth) - 2px));
-  filter: brightness(0.97);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 50%),
-    0 2px 0 #9d8f70,
-    0 3px 0 #5e5442,
-    0 5px 8px rgb(0 0 0 / 55%),
-    0 4px 16px color-mix(in srgb, var(--accent) 35%, transparent);
-  transition:
-    transform 0.03s ease-in,
-    box-shadow 0.03s ease-in,
-    filter 0.03s;
 }
 
 .more {
@@ -721,15 +648,7 @@ body:has(.drive) > .top {
 }
 
 .start__install {
-  display: inline-flex;
   flex: none;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 18px;
-  background: var(--accent);
-  color: var(--bg);
-  font-weight: 700;
-  text-decoration: none;
 }
 
 .start__lede {
@@ -1260,10 +1179,10 @@ kbd {
 
 /* Release log */
 
-/* The road as a thin header: one still frame, scaled up pixelated, no glass. */
+/* The road as a thin header: one still frame, scaled up pixelated, no glass, fading into the
+   page's ground rather than stopping at an edge. */
 .log__road {
-  height: 140px;
-  border-bottom: 1px solid color-mix(in srgb, var(--fg) 13%, transparent);
+  height: 180px;
   background: linear-gradient(
     to bottom,
     color-mix(in srgb, var(--bg) 55%, #000),
@@ -1271,6 +1190,7 @@ kbd {
     color-mix(in srgb, var(--bg) 60%, #000) 50.2%,
     #000
   );
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
 }
 
 .log__road canvas {
@@ -1281,35 +1201,26 @@ kbd {
   image-rendering: pixelated;
 }
 
-/* One column: the notes, then every release under them. The list scrolls on its own however long
-   it grows, so a hundred releases cost the page no length. */
+/* The notes, with every release beside them on a wide screen and under them on a narrow one. The
+   list scrolls on its own however long it grows, so a hundred releases cost the page no length. */
 .log {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 48px;
-  max-width: 760px;
-  padding-block: 40px 88px;
+  padding-block: 24px 96px;
 }
 
-.log__head {
+.log__versions {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin: 0 0 14px;
-  color: color-mix(in srgb, var(--fg) 55%, transparent);
-  font-size: 13px;
-}
-
-.log__head .kicker {
-  margin: 0;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* The filter as a row of tabs: words, and a line under the one chosen. */
 .log__kinds:not([hidden]) {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
-  margin-bottom: 12px;
+  gap: 14px;
 }
 
 .log__kinds button {
@@ -1318,9 +1229,8 @@ kbd {
   border-bottom: 1px solid transparent;
   background: none;
   color: var(--dim);
-  font: 600 13px var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font: 600 12px var(--mono);
+  letter-spacing: 0.02em;
   cursor: pointer;
 }
 
@@ -1334,7 +1244,7 @@ kbd {
 }
 
 .log__screen {
-  max-height: min(64vh, 620px);
+  max-height: 42vh;
   overflow-y: auto;
   scrollbar-color: color-mix(in srgb, var(--accent) 35%, transparent) transparent;
   scrollbar-width: thin;
@@ -1342,7 +1252,7 @@ kbd {
 
 .log__list {
   margin: 0;
-  padding: 8px 0;
+  padding: 2px 0;
   list-style: none;
 }
 
@@ -1350,26 +1260,18 @@ kbd {
   display: none;
 }
 
-/* One line a release, whatever its name: a lamp column, then chip, name and date, the name cut
-   off before it wraps. The release on show lights its lamp and its text rather than sitting in a
-   box of its own. */
+/* One line a release: its kind, its name, cut off before it wraps, and its date. The release on
+   show is in the accent, with a bar at its edge where the others have a faint one. */
 .log__list a {
   display: grid;
-  grid-template-columns: 6px 98px minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 6px 12px;
   color: var(--dim);
-  font-size: 15px;
+  font-size: 14px;
   text-decoration: none;
-  transition: color 0.15s;
-}
-
-.log__list a::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+  box-shadow: inset 2px 0 color-mix(in srgb, var(--fg) 8%, transparent);
 }
 
 .log__list a:hover {
@@ -1377,28 +1279,13 @@ kbd {
 }
 
 .log__list a[aria-current="page"] {
-  color: var(--fg);
-  text-shadow:
-    0 0 0.15em color-mix(in srgb, var(--fg) 70%, transparent),
-    0 0 0.6em color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-.log__list a[aria-current="page"]::before {
-  background: var(--accent);
-  box-shadow:
-    0 0 0.4em var(--accent),
-    0 0 0.9em color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent);
+  box-shadow: inset 2px 0 var(--accent);
 }
 
 .log__kind {
-  color: rgb(201 165 140 / 70%);
+  color: color-mix(in srgb, var(--fg) 45%, transparent);
   font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-[data-kind="browser"] .log__kind {
-  color: var(--accent);
 }
 
 .log__name {
@@ -1410,34 +1297,80 @@ kbd {
 
 .log__list time {
   color: color-mix(in srgb, var(--fg) 55%, transparent);
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
-.log__all {
-  display: inline-block;
-  margin: 14px 0 0;
-  color: var(--dim);
-  font-size: 14px;
+/* Filtered to one kind, the kind on every row says the same thing, so it goes. */
+.log__list.is-one-kind .log__kind {
+  display: none;
 }
 
-.log__all:hover {
+.log__list.is-one-kind a {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.log__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: color-mix(in srgb, var(--fg) 55%, transparent);
+  font-size: 13px;
+}
+
+.log__foot a {
+  color: var(--dim);
+}
+
+.log__foot a:hover {
   color: var(--accent);
+}
+
+/* On a wide screen the list stands to the left of the notes and stays in view as they scroll. It
+   comes after them in the source, so a reader on a narrow screen meets the notes first. */
+@media (min-width: 980px) {
+  .log {
+    grid-template-columns: 300px minmax(0, 1fr);
+    column-gap: 80px;
+    align-items: start;
+  }
+
+  .log__versions {
+    position: sticky;
+    top: 24px;
+    grid-row: 1;
+    grid-column: 1;
+    max-height: calc(100vh - 48px);
+  }
+
+  .log__screen {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .log__release {
+    grid-column: 2;
+  }
+
+  /* The page a build without the releases writes has no list, so the notes column is all of it. */
+  .log--empty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .log--empty .log__release {
+    grid-column: 1;
+  }
 }
 
 /* A version keeps its own case: "v0.7.3", not the display face's capitals. */
 .log__release h1 {
   overflow-wrap: anywhere;
   text-transform: none;
-}
-
-/* Filtered to one kind, the chip on every row says the same thing, so it goes. */
-.log__list.is-one-kind .log__kind {
-  display: none;
-}
-
-.log__list.is-one-kind a {
-  grid-template-columns: 6px minmax(0, 1fr) auto;
 }
 
 .log__marks {
@@ -1462,7 +1395,8 @@ kbd {
 
 /* The notes, as the renderer writes them: h3 for every heading, fenced blocks as commands. */
 .log__notes {
-  max-width: 72ch;
+  max-width: 68ch;
+  line-height: 1.75;
 }
 
 .log__notes h3 {
@@ -1478,7 +1412,7 @@ kbd {
 
 .log__notes p,
 .log__notes li {
-  color: #d8cbc0;
+  color: color-mix(in srgb, var(--fg) 86%, var(--bg));
 }
 
 .log__notes ul,
@@ -1506,17 +1440,17 @@ kbd {
 .log__notes code {
   padding: 0 0.3em;
   border-radius: 2px;
-  background: rgb(255 255 255 / 6%);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
 }
 
 .log__notes pre {
   overflow-x: auto;
   padding: 16px 18px;
-  border: 1px solid rgb(236 227 207 / 18%);
+  border: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
   border-radius: 5px;
-  background: #070504;
+  background: color-mix(in srgb, var(--bg) 55%, #000);
   color: var(--fg);
-  text-shadow: 0 0 0.3em color-mix(in srgb, var(--accent) 45%, transparent);
+  line-height: 1.6;
 }
 
 .log__notes pre code {
@@ -1587,11 +1521,7 @@ kbd {
   }
 
   .log {
-    padding-block: 24px 56px;
-  }
-
-  .log__screen {
-    max-height: 42vh;
+    padding-block: 16px 56px;
   }
 
   .hud pre {

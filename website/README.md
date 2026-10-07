@@ -38,8 +38,8 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 - `assets/og.png` is the picture a link to the site shows where it is shared: the film's poster
   frame, cut to 1200×630. Make it again from a new poster with
   `magick poster.webp -resize 1200x675 -gravity center -extent 1200x630 -strip assets/og.png`.
-- `assets/art/` holds the textures and `assets/fonts/` the self-hosted faces, each beside its SIL
-  Open Font License: Tomorrow for headlines, Ioskeley Mono for text.
+- `assets/fonts/` holds the self-hosted faces, each beside its SIL Open Font License: Tomorrow for
+  headlines, Ioskeley Mono for text.
 - `assets/shots/` holds the captures of the real interface, one directory per Omarchy theme, and
   `themes.css`, each theme's roles on whichever element carries `data-theme`. The page wears Retro
   82 unless the reader picks another theme, and the road, the cards and the captures follow it.
@@ -160,12 +160,13 @@ per release at `dist/releases/<tag>/`. Each page is `index.html` with its `<main
 `build/render.mjs`, which decides what a body may become. `GITHUB_TOKEN`, if set, raises the API's
 rate limit.
 
-A release page is calm: the road as a thin still header, with no motion and no glass, then one
-column with the version, its date and its notes, and every release under them. It wears the landing
-page's theme, Retro 82 or the one the reader picked there, which `theme.js` keeps for the visit and
-applies in the head before the page paints. It also carries `<meta name="omaweb-palette">`, so in
-Omaweb the window's palette arrives as `--omaweb-*`, and every theme in `themes.css` defers to it:
-read in Omaweb, a release page is in the reader's own theme.
+A release page is calm: the road as a thin still header that fades into the page, with no motion and
+no glass, then the version, its date and its notes. Every release is listed beside them on a wide
+screen, in a column that stays in view and scrolls on its own, and under them on a narrow one. It
+wears the landing page's theme, Retro 82 or the one the reader picked there, which `theme.js` keeps
+for the visit and applies in the head before the page paints. It also carries
+`<meta name="omaweb-palette">`, so in Omaweb the window's palette arrives as `--omaweb-*`, and every
+theme in `themes.css` defers to it: read in Omaweb, a release page is in the reader's own theme.
 
 ## Regenerating the shots
 
