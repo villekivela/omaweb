@@ -325,7 +325,9 @@ Item {
     Rectangle {
         objectName: "sidebarCursor-" + root.tabId
         anchors.fill: parent
-        anchors.leftMargin: root.edgeHover ? -root.edgeLeft : 0
+        // PROTOTYPE #638: on a row with the bar, the border's left side sits a
+        // pixel past the window's edge, so the bar stands in for it.
+        anchors.leftMargin: root.edgeHover ? -root.edgeLeft - (root.markBar ? 1 : 0) : 0
         anchors.rightMargin: root.edgeHover ? -root.edgeRight : 0
         visible: root.cursorShown && (root.markVariant !== "keyboard" || root.pinned) && root.hoverMode
                  !== "wash"
