@@ -29,6 +29,9 @@ private slots:
     void keepsThePrivateGroundsTheSpacingTheThemeGaveTheOrdinaryOnes();
     void drawsThePrivatePaletteTheOmarchyTemplateRenders();
     void appliesSemanticOpacityToChromeSurfaces();
+    void drawsTheSidebarAtTheReadersOpacityOverTheThemes();
+    void keepsTheReadersSidebarOpacityThroughAThemeReload();
+    void handsTheSidebarBackToTheThemeWhenTheOverrideIsCleared();
     void givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency();
     void namesOneColourForSomethingBeingWrong();
     void keepsTheAgentAccentLegibleAndApartFromTheAccent();
@@ -122,6 +125,97 @@ void ThemeControllerTest::appliesSemanticOpacityToChromeSurfaces()
                  .value(QStringLiteral("overlay"))
                  .toDouble(),
         1.0);
+}
+
+namespace {
+
+QString writeSidebarTheme(const QString &path, const QString &sidebar, double opacity)
+{
+    QFile theme(path);
+    if (!theme.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return {};
+    }
+    theme.write(QStringLiteral(R"JSON({
+        "window": "#101010",
+        "sidebar": "%1",
+        "overlay": "#303030",
+        "opacity": { "sidebar": %2, "sheet": 0.7, "overlay": 0.6, "window": 0.25 }
+    })JSON")
+            .arg(sidebar)
+            .arg(opacity)
+            .toUtf8());
+    return path;
+}
+
+int alphaOf(const QVariantMap &palette, const char *key)
+{
+    return QColor(palette.value(QString::fromLatin1(key)).toString()).alpha();
+}
+
+} // namespace
+
+void ThemeControllerTest::drawsTheSidebarAtTheReadersOpacityOverTheThemes()
+{
+    QTemporaryDir root;
+    const auto path = writeSidebarTheme(
+        root.filePath(QStringLiteral("theme.json")), QStringLiteral("#202020"), 0.8);
+    QVERIFY(!path.isEmpty());
+
+    ThemeController controller(path);
+    QCOMPARE(alphaOf(controller.palette(), "sidebar"), 204);
+    QCOMPARE(controller.themeSidebarOpacity(), 0.8);
+    const auto opaque = controller.palette().value(QStringLiteral("sidebarOpaque"));
+
+    QSignalSpy changed(&controller, &ThemeController::paletteChanged);
+    controller.setSidebarOpacity(0.5);
+
+    const auto palette = controller.palette();
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(alphaOf(palette, "sidebar"), 128);
+    QCOMPARE(alphaOf(palette, "privateSidebar"), 128);
+    QCOMPARE(palette.value(QStringLiteral("sidebarOpaque")), opaque);
+    // Only the sidebar is the reader's to set: the sheet, overlay and window keep the theme's.
+    QCOMPARE(alphaOf(palette, "sheet"), 179);
+    QCOMPARE(alphaOf(palette, "privateSheet"), 179);
+    QCOMPARE(alphaOf(palette, "privateOverlay"), 153);
+    QCOMPARE(alphaOf(palette, "overlay"), 153);
+    QCOMPARE(alphaOf(palette, "window"), 64);
+    QCOMPARE(alphaOf(palette, "privateWindow"), 64);
+    QCOMPARE(controller.themeSidebarOpacity(), 0.8);
+}
+
+void ThemeControllerTest::keepsTheReadersSidebarOpacityThroughAThemeReload()
+{
+    QTemporaryDir root;
+    const auto path = writeSidebarTheme(
+        root.filePath(QStringLiteral("theme.json")), QStringLiteral("#202020"), 0.8);
+    ThemeController controller(path);
+    controller.setSidebarOpacity(0.5);
+
+    writeSidebarTheme(path, QStringLiteral("#303030"), 0.6);
+    controller.reload();
+
+    QCOMPARE(alphaOf(controller.palette(), "sidebar"), 128);
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("sidebarOpaque")).toString()),
+        QColor(QStringLiteral("#303030")));
+    QCOMPARE(controller.themeSidebarOpacity(), 0.6);
+}
+
+void ThemeControllerTest::handsTheSidebarBackToTheThemeWhenTheOverrideIsCleared()
+{
+    QTemporaryDir root;
+    const auto path = writeSidebarTheme(
+        root.filePath(QStringLiteral("theme.json")), QStringLiteral("#202020"), 0.8);
+    ThemeController controller(path);
+    controller.setSidebarOpacity(0.5);
+
+    writeSidebarTheme(path, QStringLiteral("#202020"), 0.6);
+    controller.reload();
+    QCOMPARE(alphaOf(controller.palette(), "sidebar"), 128);
+    controller.setSidebarOpacity(std::nullopt);
+
+    QCOMPARE(alphaOf(controller.palette(), "sidebar"), 153);
+    QCOMPARE(alphaOf(controller.palette(), "privateSidebar"), 153);
 }
 
 // The contrast floor Omaweb holds muted text to, and the disabled treatment it

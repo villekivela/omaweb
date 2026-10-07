@@ -1,5 +1,7 @@
 #include "ThemeController.h"
 
+#include "SidebarOpacity.h"
+
 #include <QColor>
 #include <QDateTime>
 #include <QDir>
@@ -320,6 +322,33 @@ ThemeController::ThemeController(QStringList themePaths, QObject *parent)
 
 QVariantMap ThemeController::palette() const { return m_palette; }
 
+// The palette on show is normalized from the theme's own, which is kept so the
+// reader's value can be laid over it, and taken off it again, without reading
+// the theme a second time. A reload is then the theme changing and nothing else.
+void ThemeController::setSidebarOpacity(std::optional<double> opacity)
+{
+    if (opacity) {
+        opacity = std::clamp(*opacity, 0.0, 1.0);
+    }
+    if (opacity == m_sidebarOpacity) {
+        return;
+    }
+    m_sidebarOpacity = opacity;
+    apply(normalizedPalette(m_source));
+}
+
+void ThemeController::followSidebarOpacity(const SidebarOpacity *reader)
+{
+    connect(reader, &SidebarOpacity::changed, this,
+        [this, reader] { setSidebarOpacity(reader->opacity()); });
+    setSidebarOpacity(reader->opacity());
+}
+
+double ThemeController::themeSidebarOpacity() const
+{
+    return m_palette.value(QStringLiteral("themeSidebarOpacity")).toDouble();
+}
+
 QStringList ThemeController::themeSourceState() const
 {
     QStringList state;
@@ -354,11 +383,13 @@ void ThemeController::reload()
             // colours at all.
             continue;
         }
-        apply(normalizedPalette(document.object().toVariantMap()));
+        m_source = document.object().toVariantMap();
+        apply(normalizedPalette(m_source));
         emit themeReloaded();
         return;
     }
-    apply(normalizedPalette(fallbackPalette()));
+    m_source = fallbackPalette();
+    apply(normalizedPalette(m_source));
     emit themeReloaded();
 }
 
@@ -852,6 +883,12 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         if (valid) {
             opacity.insert(it.key(), std::clamp(value, 0.0, 1.0));
         }
+    }
+    // What the theme gives the sidebar stays available to the control that
+    // resets to it, while the reader's value, where there is one, is what is drawn.
+    palette.insert(QStringLiteral("themeSidebarOpacity"), opacity.value(QStringLiteral("sidebar")));
+    if (m_sidebarOpacity) {
+        opacity.insert(QStringLiteral("sidebar"), *m_sidebarOpacity);
     }
     palette.insert(QStringLiteral("opacity"), opacity);
 

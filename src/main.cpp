@@ -18,6 +18,7 @@
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
 #include "FontSettings.h"
+#include "SidebarOpacity.h"
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
@@ -412,6 +413,9 @@ int main(int argc, char *argv[])
     // included, which is why it lives beside the theme and not in a store.
     omaweb::FontSettings fontSettings(configRoot(), QFontDatabase::families());
     omaweb::QtPageFonts pageFonts(&fontSettings);
+    // The reader's sidebar opacity, over the theme's and for every window.
+    omaweb::SidebarOpacity sidebarOpacity(configRoot());
+    theme.followSidebarOpacity(&sidebarOpacity);
     QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &pageFonts,
         &omaweb::QtPageFonts::attachToProfile);
     // What a page's call may learn about the reader's network, one answer for
@@ -497,6 +501,7 @@ int main(int argc, char *argv[])
         QStringLiteral("engineHeldDownloads"), &engineHeldDownloads);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
+    engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
     engine.rootContext()->setContextProperty(QStringLiteral("settingsFile"), &settingsFile);
     engine.rootContext()->setContextProperty(QStringLiteral("pageFonts"), &pageFonts);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);

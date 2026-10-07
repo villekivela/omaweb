@@ -16,6 +16,7 @@
 #include "../core/SuggestServer.h"
 #include "SecureDns.h"
 #include "FontSettings.h"
+#include "SidebarOpacity.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
 #include "PagePrinter.h"
@@ -491,6 +492,9 @@ public slots:
         // configuration never learns of it.
         m_fontSettings = std::make_unique<omaweb::FontSettings>(
             m_dataRoot->filePath(QStringLiteral("config")), QFontDatabase::families());
+        m_sidebarOpacity = std::make_unique<omaweb::SidebarOpacity>(
+            m_dataRoot->filePath(QStringLiteral("config")));
+        m_theme->followSidebarOpacity(m_sidebarOpacity.get());
         m_windowManager = std::make_unique<omaweb::WindowManager>();
         // A real choice under the throwaway config root, so a test can name a
         // resolver and read what the chrome says about it.
@@ -549,6 +553,8 @@ public slots:
             QStringLiteral("keymapProbe"), m_keymapProbe.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("fontSettings"), m_fontSettings.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("sidebarOpacity"), m_sidebarOpacity.get());
         // These tests run no engine, so there is nothing to draw a page's
         // fonts with; the page shows the controls and they reach nothing.
         engine->rootContext()->setContextProperty(
@@ -629,6 +635,7 @@ public slots:
         m_probeClock.reset();
         m_kitTheme.reset();
         m_runtimeSecurity.reset();
+        m_sidebarOpacity.reset();
         m_fontSettings.reset();
         m_theme.reset();
         m_windowManager.reset();
@@ -668,6 +675,7 @@ private:
     std::unique_ptr<KeymapProbe> m_keymapProbe;
     std::unique_ptr<omaweb::ThemeController> m_theme;
     std::unique_ptr<omaweb::FontSettings> m_fontSettings;
+    std::unique_ptr<omaweb::SidebarOpacity> m_sidebarOpacity;
     std::unique_ptr<omaweb::KitTheme> m_kitTheme;
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;

@@ -150,6 +150,8 @@ Rectangle {
     // build can reach the engine's fonts at all; without one, as in the lab,
     // the controls are shown and reach nothing.
     property var fontSettings: null
+    // The reader's say over the sidebar's opacity, over the theme's.
+    property var sidebarOpacity: null
     property var pageFonts: null
     readonly property bool pageFontsUnreachable: !!pageFonts && !pageFonts.available
     readonly property var pageFontsMap: fontSettings ? fontSettings.pageFontsMap : ({})
@@ -777,7 +779,7 @@ Rectangle {
         objectName: "settingsBackdrop"
         anchors.fill: parent
         source: root.pageSource
-        tint: root.colors.sheet
+        tint: root.pageSource ? root.colors.sheet : root.colors.sidebar
     }
 
     Item {
@@ -1215,6 +1217,43 @@ Rectangle {
                             onChanged: function (seconds) {
                                 root.browser.setPutAwayAfterSeconds(parseInt(seconds));
                             }
+                        }
+                    }
+
+                    // The theme names how much of the desktop shows through the
+                    // sidebar and this is the reader's say over it (#643). What
+                    // is drawn is in the palette, so a theme switch moves the
+                    // slider while no override stands.
+                    SettingRow {
+                        objectName: "sidebarOpacityRow"
+                        visible: !!root.sidebarOpacity
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Sidebar opacity")
+                        note: qsTr(
+                                  "At 100% none of the desktop shows through the sidebar; the theme's is %1%. Blur behind it comes from Hyprland's decoration:blur.").arg(
+                                  Math.round(root.colors.themeSidebarOpacity * 100))
+
+                        SettingSlider {
+                            objectName: "sidebarOpacity"
+                            enabled: root.settingsWritable
+                            colors: root.colors
+                            minimum: root.sidebarOpacity ? Math.round(root.sidebarOpacity.minimum
+                                                                      * 100) : 0
+                            maximum: root.sidebarOpacity ? Math.round(root.sidebarOpacity.maximum
+                                                                      * 100) : 0
+                            step: root.sidebarOpacity ? Math.round(root.sidebarOpacity.step * 100) :
+                                                        1
+                            current: root.sidebarOpacity && root.sidebarOpacity.overridden
+                                     ? Math.round(root.sidebarOpacity.value * 100) : Math.round(
+                                           root.colors.themeSidebarOpacity * 100)
+                            overridden: !!root.sidebarOpacity && root.sidebarOpacity.overridden
+                            accessibleName: qsTr("Sidebar opacity")
+                            defaultName: qsTr("the theme's")
+                            onMoved: function (percent) {
+                                root.sidebarOpacity.set(percent / 100);
+                            }
+                            onReset: root.sidebarOpacity.reset()
                         }
                     }
 

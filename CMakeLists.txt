@@ -414,6 +414,8 @@ add_library(omaweb-core STATIC
     src/core/SettingsFile.h
     src/core/SettingsMigration.cpp
     src/core/SettingsMigration.h
+    src/core/SidebarOpacity.cpp
+    src/core/SidebarOpacity.h
     src/core/PrivateSessionStore.cpp
     src/core/PrivateSessionStore.h
     src/core/SessionStore.h
@@ -850,6 +852,7 @@ set(omaweb_ui_files
     src/ui/SettingDropdown.qml
     src/ui/SettingField.qml
     src/ui/SettingRow.qml
+    src/ui/SettingSlider.qml
     src/ui/SettingStepper.qml
     src/ui/SettingToggle.qml
     src/ui/SettingsPage.qml
@@ -1682,6 +1685,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-font-settings-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-font-settings-tests)
     add_test(NAME omaweb-font-settings COMMAND omaweb-font-settings-tests)
+
+    qt_add_executable(omaweb-sidebar-opacity-tests tests/core/tst_sidebaropacity.cpp)
+    target_link_libraries(omaweb-sidebar-opacity-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-sidebar-opacity-tests)
+    add_test(NAME omaweb-sidebar-opacity COMMAND omaweb-sidebar-opacity-tests)
 
     qt_add_executable(omaweb-certificate-chain-tests tests/engine/tst_certificatechain.cpp)
     target_link_libraries(omaweb-certificate-chain-tests PRIVATE

@@ -49,14 +49,15 @@ namespace {
 
     constexpr auto versionKey = "version";
 
-    enum class Kind { Switch, Number, Text, Fonts, Extensions };
+    enum class Kind { Switch, Number, Fraction, Text, Fonts, Extensions };
 
     struct Key {
         QLatin1StringView name;
         Kind kind;
         // Undefined where the default is not Omaweb's to state.
         QJsonValue fallback;
-        // For text or a number: the values it may hold, or none for any.
+        // For text or a number: the values it may hold, or none for any. For a
+        // fraction: its lowest and highest.
         QJsonArray choices {};
     };
 
@@ -79,6 +80,8 @@ namespace {
             {QLatin1StringView("release-check"), Kind::Switch, true},
             {QLatin1StringView("known-extensions"), Kind::Extensions, unstated},
             {QLatin1StringView("font-size"), Kind::Number, unstated},
+            // How much of the desktop shows through the sidebar, over the theme's.
+            {QLatin1StringView("sidebar-opacity"), Kind::Fraction, unstated, {0.5, 1.0}},
             {QLatin1StringView("page-fonts"), Kind::Fonts, unstated},
             {QLatin1StringView("download-directory"), Kind::Text, unstated},
             {QLatin1StringView("engine-suggestions"), Kind::Switch, false},
@@ -113,6 +116,9 @@ namespace {
             return value.isBool();
         case Kind::Number:
             return isWholeNumber(value) && (key.choices.isEmpty() || key.choices.contains(value));
+        case Kind::Fraction:
+            return value.isDouble() && value.toDouble() >= key.choices.at(0).toDouble()
+                && value.toDouble() <= key.choices.at(1).toDouble();
         case Kind::Text:
             return value.isString() && (key.choices.isEmpty() || key.choices.contains(value));
         case Kind::Fonts: {
@@ -381,7 +387,8 @@ QString SettingsFile::text(const QJsonValue &value)
         return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
     }
     if (value.isDouble()) {
-        return QString::number(value.toInteger());
+        return isWholeNumber(value) ? QString::number(value.toInteger())
+                                    : QString::number(value.toDouble(), 'g', 6);
     }
     return value.toString();
 }
@@ -397,6 +404,11 @@ QJsonValue SettingsFile::fromText(const QString &key, const QString &text)
             return QJsonValue::Undefined;
         }
         return text == QLatin1String("true");
+    }
+    if (known && known->kind == Kind::Fraction) {
+        bool number = false;
+        const auto value = text.toDouble(&number);
+        return number ? QJsonValue(value) : QJsonValue(QJsonValue::Undefined);
     }
     if (known && known->kind == Kind::Number) {
         bool number = false;
