@@ -3,12 +3,13 @@
   the link out are website/build/render.mjs's placeholders, the renderer the live site uses, which
   decides what a body may become; the version list, its count and its filter are
   releases.mjs's own, since the list here names every kind of release. The page is calm: the road
-  as a thin still header, then one column, the notes first and every release under them.
+  as a thin still header, then the notes, with every release beside them on a wide screen and
+  under them on a narrow one. The notes come first in the source, since they are what a reader
+  came for.
 -->
 <div class="log__road" aria-hidden="true"><canvas></canvas></div>
 <section class="log wrap">
   <article class="log__release">
-    <p class="kicker">Release notes</p>
     <h1 class="display display--md">{{tag}}</h1>
     <p class="log__marks">{{marks}}</p>
     <div class="log__notes">{{notes}}</div>
@@ -16,11 +17,11 @@
   </article>
 
   <nav class="log__versions" aria-label="Releases">
-    <p class="log__head"><span class="kicker">Release log</span><span>{{count}}</span></p>
     <div class="log__kinds" role="group" aria-label="Show" hidden>{{kinds}}</div>
-    <div class="hud__screen log__screen">{{versions}}</div>
-    <a class="log__all" href="https://github.com/villekivela/omaweb/releases"
-      >Every release on GitHub <span aria-hidden="true">→</span></a
-    >
+    <div class="log__screen">{{versions}}</div>
+    <p class="log__foot">
+      <span>{{count}}</span>
+      <a href="https://github.com/villekivela/omaweb/releases">Every release on GitHub</a>
+    </p>
   </nav>
 </section>

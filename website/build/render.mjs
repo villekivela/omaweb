@@ -191,7 +191,10 @@ export function renderRelease(release, releases, template, root) {
     tag,
     marks: marks.join(""),
     notes: notes || "<p>This release published no notes.</p>",
-    github: `<a class="btn" href="${escapeHtml(page)}">This release on GitHub</a>`,
+    github:
+      `<a class="btn" href="${escapeHtml(page)}">` +
+      `<svg class="icon icon--fill" aria-hidden="true"><use href="#i-github" /></svg>` +
+      `This release on GitHub</a>`,
   };
 
   return {

@@ -197,11 +197,10 @@ export function releasePages(releases, landing, template) {
 export function fallbackPage(landing) {
   const body = `      <section class="log log--empty wrap">
         <article class="log__release">
-          <p class="kicker">Release notes</p>
           <h1 class="display display--md">The releases are on GitHub.</h1>
           <p>This page lists every release and its notes when the site is built, and this build could not read them.</p>
           <p class="log__out">
-            <a class="btn" href="https://github.com/villekivela/omaweb/releases">Every release on GitHub</a>
+            <a class="btn" href="https://github.com/villekivela/omaweb/releases"><svg class="icon icon--fill" aria-hidden="true"><use href="#i-github" /></svg>Every release on GitHub</a>
           </p>
         </article>
       </section>`;
