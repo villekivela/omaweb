@@ -1498,9 +1498,11 @@ Rectangle {
         ReleaseMark {
             id: releaseMark
             objectName: "releaseMark"
-            anchors.right: downloadMark.visible ? downloadMark.left : (syncMark.visible
-                                                                       ? syncMark.left :
-                                                                         settingsButton.left)
+            anchors.right: extensionMark.visible ? extensionMark.left : (downloadMark.visible
+                                                                         ? downloadMark.left : (
+                                                                               syncMark.visible
+                                                                               ? syncMark.left :
+                                                                                 settingsButton.left))
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             width: 26
