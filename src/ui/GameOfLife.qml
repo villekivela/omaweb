@@ -4,7 +4,7 @@ import "SceneColour.mjs" as Colour
 
 // Conway's Game of Life, a Start page Scene: a board of cells in the palette,
 // a cell to each of the Scene's pixels, evolving behind the Omnibar. At rest
-// it moves a generation now and then; from a commit until the page paints,
+// it moves a few generations a second; from a commit until the page paints,
 // a generation a frame. Random soups and a glider gun or two keep it alive,
 // and it is seeded again when it dies out or stalls.
 //
@@ -187,9 +187,9 @@ Item {
 
     // ---- the clock
     //
-    // How fast the board moves follows what `navigating` asks: a generation
-    // now and then at rest, and one a frame from a commit until the page
-    // paints, easing back down after. A still or unlit board does not move.
+    // How fast the board moves follows what `navigating` asks: a few
+    // generations a second at rest, and one a frame from a commit until the
+    // page paints, easing back down after. A still or unlit board does not move.
 
     property real pace: 0
     // Generations owed: the board moves one when a whole one is due.

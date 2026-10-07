@@ -143,6 +143,13 @@ public:
     // open or see one produce nothing. Asked for by every compile from then on.
     using Compile = std::function<MatcherCompilation(const QString &rules)>;
     void setCompileForTests(Compile compile);
+    // Called on the writer's thread before each file is written, for a test that has to see
+    // where a write runs or hold one open.
+    using BeforeWrite = std::function<void(const QString &path)>;
+    void setBeforeWriteForTests(BeforeWrite beforeWrite);
+    // Waits until the settings and lists handed to the writer so far are on disk, for a test
+    // that reads the files of a blocker it still holds.
+    void waitForWritesForTests();
 
 signals:
     void configurationChanged();
@@ -227,6 +234,7 @@ private:
     void flushRefusals();
     void takeFetchedList(
         const QString &id, bool failed, const QString &error, const QByteArray &list);
+    void settleFetchedList(const QString &id, bool usable, bool stored);
     void save() const;
     // A compile the reader's own change asks for, on m_compiler.
     void recompile();
@@ -282,6 +290,15 @@ private:
     // under way before anything those read goes.
     QThreadPool m_compiler;
     QThreadPool m_refresher;
+    // The newest save asked for. The writer reads it to skip a save a newer one has replaced.
+    mutable std::atomic<quint64> m_saveGeneration = 0;
+    BeforeWrite m_beforeWrite;
+    // The settings and the lists reach the disk on this thread, one file at a time in the order
+    // asked for, so a list's sync and the settings' never wait on each other, and the interface
+    // thread waits on neither: on CI's runners one sync held it for up to 211 ms, and a Space
+    // switch's frames with it (#623). Declared last so it is destroyed first, before anything its
+    // writes read, and its writes are not dropped: its destruction waits for them.
+    mutable QThreadPool m_writer;
 };
 
 } // namespace omaweb

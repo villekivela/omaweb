@@ -210,12 +210,13 @@ ApplicationWindow {
     readonly property bool projectAddressAwaited: window.windowBrowser.activeSpaceAwaitsAddress
                                                   === true
     // The Scene the Start page stands on, by its id: "crt-road", "night-sky",
-    // "game-of-life", or "none" for the sidebar's fill. Local to this
-    // installation, like the Glance: Sync carries neither.
+    // "game-of-life", "vector-terrain", or "none" for the sidebar's fill.
+    // Local to this installation, like the Glance: Sync carries neither.
     property string startPageScene: "crt-road"
     // Whether the Scene is shown through its CRT glass. Local the same way.
     property bool startPageGlass: true
-    readonly property var startPageScenes: ["crt-road", "night-sky", "game-of-life", "none"]
+    readonly property var startPageScenes: ["crt-road", "night-sky", "game-of-life",
+        "vector-terrain", "none"]
     // The window whose Scene settings this one shows and changes: a Private
     // window keeps no preferences, so it follows the ordinary window's.
     readonly property var sceneSettingsWindow: window.privateWindow && window.opener
