@@ -56,7 +56,7 @@
   --mono: "Ioskeley Mono", "JetBrains Mono", ui-monospace, monospace;
   --display: Tomorrow, var(--mono);
   --display-track: 0.04em;
-  --wide: 1240px;
+  --wide: 1180px;
 }
 
 *,
@@ -803,7 +803,7 @@ body:has(.drive) > .top {
 .film,
 .features,
 .install {
-  width: min(100% - 32px, 1180px);
+  width: min(100% - 32px, var(--wide));
   margin: 10px auto 0;
 }
 
