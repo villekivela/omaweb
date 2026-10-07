@@ -28,8 +28,10 @@ milestones carry what remains, in this order:
 1. [v0.12.1](https://github.com/villekivela/omaweb/milestone/10), a small release after v0.12.0: the
    release mark no longer hidden under the extension mark in the sidebar footer
    ([#628](https://github.com/villekivela/omaweb/issues/628)), the black and white icon in the
-   launcher ([#634](https://github.com/villekivela/omaweb/issues/634)), and the release pages
-   listing every release beside the notes ([#636](https://github.com/villekivela/omaweb/pull/636)).
+   launcher ([#634](https://github.com/villekivela/omaweb/issues/634)), the release pages listing
+   every release beside the notes ([#636](https://github.com/villekivela/omaweb/pull/636)), and the
+   active tab marked the way the Omnibar marks its selected row
+   ([#638](https://github.com/villekivela/omaweb/issues/638)).
 2. [v0.13.0](https://github.com/villekivela/omaweb/milestone/9), configuration as files: the
    reader's settings in a file they can keep in their dotfiles, and links from outside opening in
    the Space a rule names. Each starts with a prototype.
