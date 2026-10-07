@@ -390,15 +390,15 @@ body:has(.omnibar) .nav .radio-toggle {
 
 /* Screens */
 
-/* A screen: a thin bezel in the theme's accent, dark glass behind it, and type that glows under
-   scanlines, as the road does. */
+/* A terminal: the Omnibar's plate and edge around a plain dark field, so a command reads as one to
+   copy rather than as part of the road. */
 .hud {
   min-width: 0;
   margin: 0;
   padding: 6px;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--bg) 70%, #000);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  background: var(--plate);
 }
 
 .hud__bar {
@@ -425,25 +425,9 @@ body:has(.omnibar) .nav .radio-toggle {
 }
 
 .hud__screen {
-  position: relative;
   overflow: hidden;
-  border-radius: 5px;
-  background:
-    radial-gradient(
-      ellipse at center,
-      color-mix(in srgb, var(--accent) 7%, transparent),
-      transparent 70%
-    ),
-    #000;
-  box-shadow: inset 0 0 24px rgb(0 0 0 / 90%);
-}
-
-.hud__screen::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(to bottom, rgb(0 0 0 / 32%) 0 1px, transparent 1px 3px);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--bg) 55%, #000);
 }
 
 .hud pre {
@@ -452,7 +436,15 @@ body:has(.omnibar) .nav .radio-toggle {
   overflow-x: auto;
   color: var(--fg);
   font: 400 14px/1.9 var(--mono);
-  text-shadow: 0 0 0.6em color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* A command or a path in running text. The page is set in a monospace face, so a command needs a
+   ground of its own to stand apart from the words around it. */
+p code {
+  padding: 0.1em 0.35em;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--fg);
 }
 
 .hud__prompt {
