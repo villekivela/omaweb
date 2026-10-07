@@ -9977,6 +9977,47 @@ TestCase {
         });
     }
 
+    // A Private window's radar is the sweep and the rings alone: no blips,
+    // even for the tabs it has open, no glow and no light on the Omnibar's
+    // rim, and it holds still. The window beside it keeps its own lit.
+    function test_aPrivateWindowsRadarHasNoBlips() {
+        window.setStartPageScene("radar");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        privateBrowser.windowBrowser.openInputInBackground("https://private-blip.example/");
+        const startPage = findChild(privateBrowser.contentItem, "startPage");
+        tryVerify(function () {
+            return startPage.visible && startPage.sceneRunning;
+        });
+        const radar = findChild(privateBrowser.contentItem, "radar");
+        verify(radar !== null, "no radar");
+        verify(radar.unlit, "a lit radar");
+        tryVerify(function () {
+            return radar.pages !== null && radar.pages.length > 0;
+        });
+        compare(radar.blips.length, 0);
+        verify(!radar.glowing, "a glow");
+        compare(findChild(privateBrowser.contentItem, "startPageScene").light, null);
+        verify(!findChild(privateBrowser.contentItem, "omnibarRim").visible);
+        const sweep = radar.sweep;
+        const frames = startPage.sceneFrames;
+        tryVerify(function () {
+            return startPage.sceneFrames > frames + 30;
+        });
+        compare(radar.sweep, sweep);
+        verify(findChild(window.contentItem, "radar").glowing);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        window.setStartPageScene("crt-road");
+    }
+
     // A Private window shows the Scene the reader chose, and its sky has its
     // lights out: its planet stays, without the glow on its limb, and there
     // are no stars and no comets, under the glass all the same.
@@ -11937,6 +11978,11 @@ TestCase {
                         tag: "terrain",
                         scene: "vector-terrain",
                         drawing: "vectorTerrain"
+                    },
+                    {
+                        tag: "radar",
+                        scene: "radar",
+                        drawing: "radar"
                     }
                 ];
     }
@@ -12368,7 +12414,11 @@ TestCase {
         compare(browser.preference("start-page-scene", ""), "vector-terrain");
         keyClick(Qt.Key_Right);
         keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "radar");
+        keyClick(Qt.Key_Right);
+        keyClick(Qt.Key_Return);
         compare(browser.preference("start-page-scene", ""), "none");
+        keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
@@ -12520,6 +12570,9 @@ TestCase {
         window.setStartPageScene("vector-terrain");
         window.restoreChromeAppearance();
         compare(window.startPageScene, "vector-terrain");
+        window.setStartPageScene("radar");
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, "radar");
         browser.setPreference("start-page-road", "");
     }
 
@@ -12534,7 +12587,7 @@ TestCase {
         settings.section = settings.sections.indexOf("interface");
         const picker = findChild(settings, "startPageScenePicker");
         compare(picker.columns, 4);
-        const order = ["crt-road", "night-sky", "game-of-life", "vector-terrain", "none"];
+        const order = ["crt-road", "night-sky", "game-of-life", "vector-terrain", "radar", "none"];
         const thumbnails = order.map(function (value) {
             const thumbnail = findChild(picker, "sceneThumbnail-" + value);
             verify(thumbnail !== null, "no " + value);
@@ -12548,22 +12601,39 @@ TestCase {
             compare(thumbnails[index].y, thumbnails[0].y);
             verify(thumbnails[index].x > thumbnails[index - 1].x);
         }
-        // The fifth starts the next row.
+        // The fifth starts the next row, and the sixth follows it.
         verify(thumbnails[4].y > thumbnails[0].y);
         compare(thumbnails[4].x, thumbnails[0].x);
+        compare(thumbnails[5].y, thumbnails[4].y);
+        verify(thumbnails[5].x > thumbnails[4].x);
         let sky = null;
         let life = null;
         let terrain = null;
+        let radar = null;
         tryVerify(function () {
             sky = findChild(thumbnails[1], "nightSky");
             life = findChild(thumbnails[2], "gameOfLife");
             terrain = findChild(thumbnails[3], "vectorTerrain");
+            radar = findChild(thumbnails[4], "radar");
             return sky !== null && life !== null && life.width > 1 && terrain !== null
-                    && terrain.width > 1;
+                    && terrain.width > 1 && radar !== null && radar.width > 1;
         });
         compare(life.drawWidth * 2, sky.drawWidth);
         compare(terrain.drawWidth, sky.drawWidth);
         verify(terrain.reducedMotion);
+        compare(radar.drawWidth, sky.drawWidth);
+        verify(radar.reducedMotion);
+        // With no Space behind it, the thumbnail shows a few blips.
+        compare(radar.pages, null);
+        verify(radar.blips.length > 0);
+
+        const chooseRadar = clickReportingAMiss(thumbnails[4], function () {
+            return browser.preference("start-page-scene", "") === "radar";
+        });
+        verify(chooseRadar === "", chooseRadar);
+        tryVerify(function () {
+            return findChild(scene, "radar") !== null;
+        });
 
         const choose = clickReportingAMiss(thumbnails[3], function () {
             return browser.preference("start-page-scene", "") === "vector-terrain";
@@ -12747,6 +12817,195 @@ TestCase {
         });
         browser.closeActiveTab();
         leaveSpace(homeSpaceId, restingSpaceId, "Resting grid");
+    }
+
+    // The field the radar keeps its blips clear of, and whose rim its sweep
+    // lights, is where the Omnibar rests, at any window size and type size.
+    // The Omnibar keeps the place it has over the road.
+    function test_theRadarKnowsWhereTheOmnibarRests_data() {
+        return test_theSkysPlanetStaysBelowTheOmnibar_data();
+    }
+
+    function test_theRadarKnowsWhereTheOmnibarRests(data) {
+        const width = window.width;
+        const height = window.height;
+        fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + data.larger);
+        const panel = findChild(window.contentItem, "omnibar");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting field");
+        try {
+            window.width = data.width;
+            window.height = data.height;
+            tryCompare(window.contentItem, "height", data.height);
+            const restY = panel.restY;
+            window.setStartPageScene("radar");
+            const radar = findChild(scene, "radar");
+            verify(radar !== null);
+            compare(panel.restY, restY);
+            const field = function () {
+                const f = radar.field;
+                const from = scene.mapToItem(panel, f.x, f.y);
+                const to = scene.mapToItem(panel, f.x + f.width, f.y + f.height);
+                return Qt.rect(from.x, from.y, to.x - from.x, to.y - from.y);
+            };
+            const matches = function () {
+                const f = field();
+                return Math.abs(f.x - panel.restX) <= 1 && Math.abs(f.width - panel.restWidth) <= 1
+                        && Math.abs(f.y - panel.restY) <= 1 && Math.abs(f.y + f.height
+                                                                        - panel.restY
+                                                                        - panel.restHeight) <= 1;
+            };
+            tryVerify(matches, 1000, "the radar's field " + field() + ", the Omnibar at " + Qt.rect(
+                          panel.restX, panel.restY, panel.restWidth, panel.restHeight));
+        } finally {
+            leaveSpace(homeSpaceId, restingSpaceId, "Resting field");
+            fontSettings.resetInterfaceFontSize();
+            window.width = width;
+            window.height = height;
+            window.setStartPageScene("crt-road");
+        }
+    }
+
+    // The radar's sweep faintly catches the Omnibar's rim where the beam
+    // leaves it, round the rim as the sweep turns behind it, and the
+    // Omnibar stands over the radar: nothing the radar draws is over it.
+    function test_theRadarsSweepCatchesTheOmnibarsRim() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const panel = findChild(window.contentItem, "omnibar");
+        const rim = findChild(window.contentItem, "omnibarRim");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("radar");
+        const restingSpaceId = enterRestingSpace("Resting sweep");
+        tryVerify(function () {
+            return startPage.sceneRunning && findChild(scene, "radar") !== null;
+        });
+        const radar = findChild(scene, "radar");
+        verify(scene.light !== null);
+        verify(rim.visible);
+        verify(findChild(window.contentItem, "omnibarInnerBloom").visible);
+        // On the field's top edge as the beam points up, and on its bottom
+        // edge as it points down.
+        let top = false;
+        let bottom = false;
+        tryVerify(function () {
+            const bearing = radar.sweep % 360;
+            const sun = rim.mapToItem(panel, rim.sunCentre.x, rim.sunCentre.y);
+            if (bearing < 20 || bearing > 340)
+                top = top || Math.abs(sun.y - panel.restY) < 2;
+            if (Math.abs(bearing - 180) < 20)
+                bottom = bottom || Math.abs(sun.y - panel.restY - panel.restHeight) < 2;
+            return top && bottom;
+        }, 8000);
+        // The Omnibar's own layer stands over the one the Start page is in.
+        let omnibarLayer = panel;
+        while (omnibarLayer.parent !== window.contentItem)
+            omnibarLayer = omnibarLayer.parent;
+        let sceneLayer = scene;
+        while (sceneLayer.parent !== window.contentItem)
+            sceneLayer = sceneLayer.parent;
+        verify(sceneLayer !== omnibarLayer);
+        verify(omnibarLayer.z > sceneLayer.z, omnibarLayer.z + " over " + sceneLayer.z);
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting sweep");
+        window.setStartPageScene("crt-road");
+    }
+
+    // The radar has a blip for each open tab in the Space on show, the blank
+    // one it stands in apart, and follows a tab opening and closing.
+    function test_theRadarHasABlipForEachTabInTheSpace() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("radar");
+        const restingSpaceId = enterRestingSpace("Resting blips");
+        const radar = findChild(window.contentItem, "radar");
+        verify(radar !== null);
+        tryVerify(function () {
+            return startPage.sceneRunning && radar.pages !== null;
+        });
+        compare(radar.blips.length, 0);
+
+        browser.openInputInBackground("https://alpha-blip.example/one");
+        browser.openInputInBackground("https://beta-blip.example/");
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return startPage.open && radar.blips.length === 2;
+        }, 2000, "blips " + JSON.stringify(radar.blips));
+        const sites = radar.blips.map(function (blip) {
+            return blip.site;
+        }).sort();
+        compare(sites, ["alpha-blip.example", "beta-blip.example"]);
+        const alpha = radar.blips.filter(function (blip) {
+            return blip.site === "alpha-blip.example";
+        })[0];
+
+        browser.openInputInBackground("https://gamma-blip.example/");
+        tryVerify(function () {
+            return radar.blips.length === 3;
+        });
+        const again = radar.blips.filter(function (blip) {
+            return blip.site === "alpha-blip.example";
+        })[0];
+        compare(again.x, alpha.x);
+        compare(again.y, alpha.y);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting blips");
+        window.setStartPageScene("crt-road");
+    }
+
+    // A commit spins the radar's sweep until the page first paints, and the
+    // page being opened has a blip of its own that brightens meanwhile, where
+    // its tab's blip stands once the page has painted.
+    function test_theSweepSpinsUntilFirstPaint() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("radar");
+        const restingSpaceId = enterRestingSpace("Resting radar");
+        const radar = findChild(window.contentItem, "radar");
+        verify(radar !== null);
+        tryVerify(function () {
+            return startPage.sceneRunning;
+        });
+        compare(radar.speed, 1);
+        compare(radar.arrivingBlip, null);
+
+        input.text = "https://slow-paint.example/radar";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        compare(radar.navigating, 1);
+        tryVerify(function () {
+            return radar.arrivingBlip !== null;
+        });
+        compare(radar.arrivingBlip.site, "slow-paint.example");
+        const arriving = radar.arrivingBlip;
+        // At rest a turn takes six seconds.
+        const start = radar.sweep;
+        tryVerify(function () {
+            return radar.sweep > start + 360 && radar.arrival > 0.5;
+        }, 2500);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        }, 400);
+        compare(radar.navigating, 0);
+        const landed = radar.blips.filter(function (blip) {
+            return blip.site === "slow-paint.example";
+        });
+        compare(landed.length, 1);
+        compare(landed[0].bearing, arriving.bearing);
+        compare(landed[0].range, arriving.range);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting radar");
+        window.setStartPageScene("crt-road");
     }
 
     // A commit brings the sky's streaks until the page first paints, as it

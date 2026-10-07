@@ -144,14 +144,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   half the page area's height, with a 50 px field and 16 px of padding. The Omnibar's hint row,
   under the field, holds `?` as a key cap with the word "shortcuts", the way to the Shortcut sheet.
 - Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life,
-  Vector terrain, or None, which leaves the Omnibar over the sidebar's fill. It is a grid of small
-  thumbnails, four to a row, in that order, each a still of its Scene drawn by the Scene itself,
-  without the CRT glass, and None as the plain sidebar fill, each named under it and the chosen one
-  marked in the accent. A click chooses, and the keyboard walks between them in reading order. The
-  choice takes effect at once and survives a restart. A reader who had turned the road off before
-  there was a choice arrives on None, and anyone else on Night road. A Private window shows the
-  ordinary window's choice. "CRT glass over the Scene", below it, applies to every Scene and is
-  offered unless None is chosen.
+  Vector terrain, Radar, or None, which leaves the Omnibar over the sidebar's fill. It is a grid of
+  small thumbnails, four to a row, in that order, each a still of its Scene drawn by the Scene
+  itself, without the CRT glass, and None as the plain sidebar fill, each named under it and the
+  chosen one marked in the accent. A click chooses, and the keyboard walks between them in reading
+  order. The choice takes effect at once and survives a restart. A reader who had turned the road
+  off before there was a choice arrives on None, and anyone else on Night road. A Private window
+  shows the ordinary window's choice. "CRT glass over the Scene", below it, applies to every Scene
+  and is offered unless None is chosen.
 - A Scene fills the page area, or the one pane of a split it stands in, and is never drawn under the
   sidebar, which stands on its own fill as it does with None. It is drawn at the page area's size,
   centred on it; the road has the composition the website draws in a viewport of that size. With the
@@ -198,6 +198,20 @@ reports the gap and remains experimental rather than imitating behavior it canno
   from the road. It casts no light on the Omnibar. Reduced motion holds one frame of the mountains,
   the grid and the moon. A Private window's terrain is the wireframe alone, its lines the theme's
   light dimmed, with no moon and no glow, and it holds still, even on commit.
+- The radar is after a plan-position display, drawn from the palette in the same way and always
+  night. The whole page area is its face, with faint range rings and spokes running out past its
+  edges from a centre behind the Omnibar's field. A phosphor sweep in the accent turns clockwise
+  from there once every six seconds, with about two seconds of afterglow behind the beam. Each open
+  tab in the Space has a blip at a bearing a scatter of its site gives, between the Omnibar and the
+  page area's edge, so a tab's blip stays put while others open and close and none stands behind the
+  Omnibar; the sweep lights it as it passes and it fades with the afterglow. The picker's thumbnail,
+  with no Space behind it, shows a few blips all the same. The sweep faintly catches the Omnibar's
+  rim where the beam leaves the field, so the light rides round the rim as it turns. On commit the
+  sweep spins fast, and a new blip for the page being opened brightens where its tab's blip will
+  stand, until the page paints, then the page takes over as it does from the road. Reduced motion
+  holds the sweep at one bearing with its afterglow, and the tabs' blips lit. A Private window's
+  radar is the sweep, the rings and the spokes alone, its lines the theme's light dimmed, with no
+  blips, no glow and no light on the rim, and it holds still, even on commit.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.

@@ -100,15 +100,18 @@ that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
 **Scene**: The drawing behind the Start page, and nothing else: the host sizes it, keeps its clock
 and shows it, through the CRT glass when it declares one. A Scene may also name the light it casts,
 which the host lays on the page, as the website's Omnibar catches the sun at its rim. Omaweb ships
-four, and the reader chooses one in Settings, or None for the sidebar's fill. The night road, the
+five, and the reader chooses one in Settings, or None for the sidebar's fill. The night road, the
 CRT road, is a night drive in the theme's colours that the website draws from the same parameter
 file, `share/scenes/crt-road.json`. The night sky, `share/scenes/night-sky.json`, is a star field
 with comets falling behind a dark planet's limb, after Netscape Navigator's throbber. The Game of
 Life, `share/scenes/game-of-life.json`, is Conway's cellular automaton, a cell to each of the
 Scene's pixels, kept alive by random soups and glider guns. The vector terrain,
 `share/scenes/vector-terrain.json`, is wireframe mountains over a perspective grid with a crescent
-moon, after Battlezone, in glowing lines. Only the browser draws the sky, the Game of Life and the
-vector terrain. _Avoid_: Wallpaper, background
+moon, after Battlezone, in glowing lines. The radar, `share/scenes/radar.json`, is a phosphor sweep
+turning across the page area from behind the Omnibar, over range rings and spokes, with a blip for
+each open tab in the Space, and its beam faintly catches the Omnibar's rim where it leaves it. Only
+the browser draws the sky, the Game of Life, the vector terrain and the radar. _Avoid_: Wallpaper,
+background
 
 **Shortcut sheet**: The browser's keyboard commands and the keys that run them, read from the live
 keymap. `?` or `Primary+/` summons it over a page or over the Start page, and `Escape` closes it.

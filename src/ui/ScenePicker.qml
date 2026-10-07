@@ -59,6 +59,11 @@ Grid {
             scene: terrainScene
         },
         {
+            value: "radar",
+            label: qsTr("Radar", "Start page Scene"),
+            scene: radarScene
+        },
+        {
             value: "none",
             label: qsTr("None", "Start page Scene: the sidebar's fill"),
             scene: null
@@ -121,6 +126,12 @@ Grid {
         id: terrainScene
 
         VectorTerrain {}
+    }
+
+    Component {
+        id: radarScene
+
+        Radar {}
     }
 
     Repeater {

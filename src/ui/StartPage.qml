@@ -5,9 +5,10 @@ import qs.Commons
 // What Omaweb shows where a page would be when there is none to show: a Space
 // at rest, `about:blank`, or a new-tab request that has not been given a
 // destination yet. It is the Omnibar at rest over the Scene the reader chose:
-// the night road, the night sky, the Game of Life or the vector terrain. The
-// Omnibar itself is the window's own, drawn resting on the Scene's horizon,
-// and its hint row names the Shortcut sheet; the page is the Scene under it.
+// the night road, the night sky, the Game of Life, the vector terrain or the
+// radar. The Omnibar itself is the window's own, drawn resting on the Scene's
+// horizon, and its hint row names the Shortcut sheet; the page is the Scene
+// under it.
 //
 // It costs no engine. The Scene moves only while the page is on show and the
 // window is the reader's. It fills the page area, or the one pane of a split
@@ -24,19 +25,21 @@ Item {
     property bool privateWindow: false
     property bool open: false
     // The Settings interface section's Scene: "crt-road", "night-sky",
-    // "game-of-life", "vector-terrain", or "none", where the backdrop below
-    // takes its place.
+    // "game-of-life", "vector-terrain", "radar", or "none", where the backdrop
+    // below takes its place.
     property string sceneId: "crt-road"
     // Each Scene's drawing, by its id.
     readonly property var scenes: ({
                                        "crt-road": nightRoad,
                                        "night-sky": sky,
                                        "game-of-life": life,
-                                       "vector-terrain": terrain
+                                       "vector-terrain": terrain,
+                                       "radar": radar
                                    })
     readonly property bool sceneShown: root.sceneId !== "none"
     // How far the resting Omnibar reaches below the horizon, which the night
-    // sky's planet and the vector terrain's mountains keep clear.
+    // sky's planet, the vector terrain's mountains and the radar's blips keep
+    // clear.
     property real omnibarReach: 40
     // The Settings interface section's CRT glass over the Scene.
     property bool glassEnabled: true
@@ -48,6 +51,15 @@ Item {
     // A destination was committed from the Omnibar and its page has not
     // painted yet.
     property bool driving: false
+    // The tabs of the Space on show, as the browser lists them, and the one a
+    // commit is opening: the radar has a blip for each tab and brightens one
+    // for the page being opened.
+    property var tabs: null
+    property string arrivingTabId: ""
+    // Their addresses, the tab being opened's apart, read while the radar is
+    // on show.
+    property var pages: []
+    property string arriving: ""
     // The page the Start page was summoned over, blurred under the sheet tint
     // when no Scene is chosen. Must not be an ancestor of this item.
     property Item pageSource: null
@@ -72,9 +84,13 @@ Item {
     opacity: open ? 1 : 0
     visible: opacity > 0
 
-    // Once it has gone, the next time it comes back it starts at rest.
-    onVisibleChanged: if (!visible)
-                          drove = false
+    // Once it has gone, the next time it comes back it starts at rest, with
+    // the Space's tabs read again for the radar.
+    onVisibleChanged: {
+        if (!visible)
+            drove = false;
+        root.readPages();
+    }
 
     // The fade after a drive is the Scene reporting the page's arrival, as the
     // loading indicator reports a load, so it plays after a key's Return as
@@ -134,6 +150,72 @@ Item {
         when: !!host.sceneItem && host.sceneItem.omnibarReach !== undefined
     }
 
+    // The tab list's roles, as BrowserController's TabListModel numbers them.
+    readonly property int tabIdRole: Qt.UserRole + 1
+    readonly property int tabUrlRole: Qt.UserRole + 3
+
+    // Whether the Scene on show places the Space's tabs, as the radar does.
+    readonly property bool scenePlacesTabs: !!host.sceneItem && host.sceneItem.pages !== undefined
+
+    function readPages() {
+        if (!root.visible || !root.scenePlacesTabs || !root.tabs)
+            return;
+        const pages = [];
+        let arriving = "";
+        for (let row = 0; row < root.tabs.rowCount(); ++row) {
+            const index = root.tabs.index(row, 0);
+            const url = String(root.tabs.data(index, root.tabUrlRole));
+            if (root.tabs.data(index, root.tabIdRole) === root.arrivingTabId)
+                arriving = url;
+            else
+                pages.push(url);
+        }
+        // A tab's loading and title change its row too; the radar redraws
+        // nothing unless an address did.
+        if (pages.join("\n") !== root.pages.join("\n"))
+            root.pages = pages;
+        root.arriving = arriving;
+    }
+
+    onScenePlacesTabsChanged: root.readPages()
+    onTabsChanged: root.readPages()
+    onArrivingTabIdChanged: root.readPages()
+
+    Connections {
+        target: root.tabs
+        ignoreUnknownSignals: true
+
+        function onRowsInserted() {
+            root.readPages();
+        }
+        function onRowsRemoved() {
+            root.readPages();
+        }
+        function onRowsMoved() {
+            root.readPages();
+        }
+        function onDataChanged() {
+            root.readPages();
+        }
+        function onModelReset() {
+            root.readPages();
+        }
+    }
+
+    Binding {
+        target: host.sceneItem
+        property: "pages"
+        value: root.pages
+        when: root.scenePlacesTabs
+    }
+
+    Binding {
+        target: host.sceneItem
+        property: "arriving"
+        value: root.arriving
+        when: root.scenePlacesTabs
+    }
+
     Component {
         id: nightRoad
 
@@ -156,5 +238,11 @@ Item {
         id: terrain
 
         VectorTerrain {}
+    }
+
+    Component {
+        id: radar
+
+        Radar {}
     }
 }
