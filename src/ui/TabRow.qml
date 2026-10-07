@@ -106,11 +106,33 @@ Item {
     readonly property bool cursorShown: activeFocus && !reachedByPointer
     readonly property bool markWashBar: markVariant === "wash-bar" || markVariant === "edge"
     readonly property bool markEdge: markVariant === "edge" && !pinned
+    // How edge draws hover and the cursor:
+    //   kit          the kit's inset hover veil, the cursor an inset border
+    //   wash         the Omnibar's hover, the accent at 7% edge to edge, for the
+    //                pointer and the cursor alike
+    //   wash-border  the same 7%, and the cursor adds a border edge to edge
+    // and a split:
+    //   outer        each half reaches its own outer edge; both carry the bar
+    //   row          the pair is one row: the halves meet, the tab beside takes
+    //                7%, and one bar at the sidebar's edge marks the pair
+    //   tiles        the halves stay inset, as two options of a row: the active
+    //                half takes 14% inside its border, the tab beside the border
+    readonly property string hoverMode: markEdge ? tabMarkPrototype.hover : "kit"
+    readonly property string splitMode: markEdge && inSplit ? tabMarkPrototype.split : ""
+    readonly property bool rightHalf: inSplit && x > 0
+    readonly property bool edgeTiles: splitMode === "tiles"
+    readonly property bool edgeHover: markEdge && !edgeTiles && hoverMode !== "kit"
     // How far the wash reaches past the row on each side: the list's 16 px
-    // margin and padding, except where the other half of a split stands.
-    readonly property real edgeLeft: markEdge && !(inSplit && x > 0) ? 16 : 0
-    readonly property real edgeRight: markEdge && !(inSplit && x === 0) ? 16 : 0
-    readonly property bool markBar: !pinned && (markWashBar ? (active || tabBeside) :
+    // margin and padding, and in a row split half the gap to the other half.
+    readonly property real edgeLeft: !markEdge || edgeTiles ? 0 : !rightHalf ? 16 : splitMode
+                                                                                  === "row" ? 2 : 0
+    readonly property real edgeRight: !markEdge || edgeTiles ? 0 : !inSplit || rightHalf ? 16 :
+                                                                                           splitMode
+                                                                                           === "row" ? 2 :
+                                                                                                       0
+    readonly property bool markBar: !pinned && markEdge ? !edgeTiles && (active || tabBeside) && !(
+                                                              splitMode === "row" && rightHalf) :
+                                                          !pinned && (markWashBar ? (active || tabBeside) :
                                                                                (markVariant === "keyboard"
                                                                                 && cursorShown))
 
@@ -238,16 +260,29 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: -root.edgeLeft
         anchors.rightMargin: -root.edgeRight
-        visible: !root.markToday && !root.siteColored && (root.active || (root.markVariant
-                                                                          === "keyboard"
+        visible: !root.markToday && !root.siteColored && (root.active || ((root.markVariant
+                                                                           === "keyboard"
+                                                                           || root.splitMode
+                                                                           === "row")
                                                                           && root.tabBeside))
-        radius: root.markEdge ? 0 : Style.cornerRadius
+        radius: root.markEdge && !root.edgeTiles ? 0 : Style.cornerRadius
         color: Qt.alpha(root.colors.accent, root.active ? 0.14 : 0.07)
+    }
+
+    // PROTOTYPE #638: the Omnibar's hover, over the wash, edge to edge.
+    Rectangle {
+        anchors.fill: parent
+        anchors.leftMargin: -root.edgeLeft
+        anchors.rightMargin: -root.edgeRight
+        visible: root.edgeHover && (hoverArea.containsMouse || root.cursorShown)
+        color: Qt.alpha(root.colors.accent, 0.07)
     }
 
     Omarchy.Button {
         id: tabButton
         anchors.fill: parent
+        // PROTOTYPE #638: an edge-to-edge hover replaces the kit's veil.
+        visible: !root.edgeHover
         // A site-coloured pin has a wash and a border of its own, so it never
         // takes the kit's selected fill. Every other current row does — an
         // unpinned one, and a pin the reader has switched site colour off for.
@@ -258,7 +293,8 @@ Item {
         // which is what makes one row in the list read as the page on show.
         // The tab beside is on show too, and takes the border without the
         // fill.
-        bordered: root.markToday ? root.pinned || root.active || root.tabBeside : root.pinned
+        bordered: root.markToday || root.edgeTiles ? root.pinned || root.active || root.tabBeside :
+                                                     root.pinned
         foreground: root.siteColored && root.active ? root.siteColor : !root.markToday && root.pinned
                                                       && root.active ? root.colors.accent : (root.pinned
                                                                         ? root.colors.mutedText :
@@ -280,8 +316,11 @@ Item {
     Rectangle {
         objectName: "sidebarCursor-" + root.tabId
         anchors.fill: parent
-        visible: root.cursorShown && (root.markVariant !== "keyboard" || root.pinned)
-        radius: Style.cornerRadius
+        anchors.leftMargin: root.edgeHover ? -root.edgeLeft : 0
+        anchors.rightMargin: root.edgeHover ? -root.edgeRight : 0
+        visible: root.cursorShown && (root.markVariant !== "keyboard" || root.pinned) && root.hoverMode
+                 !== "wash"
+        radius: root.edgeHover ? 0 : Style.cornerRadius
         color: root.markToday ? Qt.rgba(root.colors.accent.r, root.colors.accent.g,
                                         root.colors.accent.b, 0.16) : "transparent"
         border.width: 1
@@ -292,7 +331,7 @@ Item {
     // row's size so it follows the row's corners.
     Item {
         objectName: "prototypeTabBar-" + root.tabId
-        visible: root.markBar && !(root.markEdge && root.edgeLeft === 0)
+        visible: root.markBar
         anchors.left: parent.left
         anchors.leftMargin: -root.edgeLeft
         anchors.top: parent.top

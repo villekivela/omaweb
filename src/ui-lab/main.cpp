@@ -601,6 +601,16 @@ int main(int argc, char *argv[])
         qEnvironmentVariableIsSet("OMAWEB_PROTOTYPE_CURSOR")
             ? qEnvironmentVariableIntValue("OMAWEB_PROTOTYPE_CURSOR")
             : -1);
+    // OMAWEB_PROTOTYPE_HOVER and OMAWEB_PROTOTYPE_SPLIT pick how the edge
+    // variant draws hover and the Sidebar cursor, and a split.
+    tabMarkPrototype->insert(QStringLiteral("hover"),
+        qEnvironmentVariableIsSet("OMAWEB_PROTOTYPE_HOVER")
+            ? qEnvironmentVariable("OMAWEB_PROTOTYPE_HOVER")
+            : QStringLiteral("kit"));
+    tabMarkPrototype->insert(QStringLiteral("split"),
+        qEnvironmentVariableIsSet("OMAWEB_PROTOTYPE_SPLIT")
+            ? qEnvironmentVariable("OMAWEB_PROTOTYPE_SPLIT")
+            : QStringLiteral("outer"));
     tabMarkPrototype->insert(QStringLiteral("siteColour"),
         qEnvironmentVariable("OMAWEB_PROTOTYPE_SITE_COLOUR") == QLatin1String("1"));
     engine.rootContext()->setContextProperty(QStringLiteral("tabMarkPrototype"), tabMarkPrototype);

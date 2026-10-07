@@ -4875,6 +4875,18 @@ ApplicationWindow {
                             "label": "|",
                             "act": null
                         }, {
+                            "label": "Hover: " + tabMarkPrototype.hover,
+                            "act": function () {
+                                const modes = ["kit", "wash", "wash-border"];
+                                tabMarkPrototype.hover = modes[(modes.indexOf(tabMarkPrototype.hover) + 1) % modes.length];
+                            }
+                        }, {
+                            "label": "Split: " + tabMarkPrototype.split,
+                            "act": function () {
+                                const modes = ["outer", "row", "tiles"];
+                                tabMarkPrototype.split = modes[(modes.indexOf(tabMarkPrototype.split) + 1) % modes.length];
+                            }
+                        }, {
                             "label": "Site colour " + (window.tintFavicons ? "on" : "off"),
                             "act": function () {
                                 window.tintFavicons = !window.tintFavicons;
