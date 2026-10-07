@@ -779,7 +779,7 @@ Rectangle {
         objectName: "settingsBackdrop"
         anchors.fill: parent
         source: root.pageSource
-        tint: root.colors.sheet
+        tint: root.pageSource ? root.colors.sheet : root.colors.sidebar
     }
 
     Item {
@@ -1244,9 +1244,9 @@ Rectangle {
                                                                       * 100) : 0
                             step: root.sidebarOpacity ? Math.round(root.sidebarOpacity.step * 100) :
                                                         1
-                            value: root.sidebarOpacity && root.sidebarOpacity.overridden
-                                   ? Math.round(root.sidebarOpacity.value * 100) : Math.round(
-                                         root.colors.themeSidebarOpacity * 100)
+                            current: root.sidebarOpacity && root.sidebarOpacity.overridden
+                                     ? Math.round(root.sidebarOpacity.value * 100) : Math.round(
+                                           root.colors.themeSidebarOpacity * 100)
                             overridden: !!root.sidebarOpacity && root.sidebarOpacity.overridden
                             accessibleName: qsTr("Sidebar opacity")
                             defaultName: qsTr("the theme's")

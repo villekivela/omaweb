@@ -1395,53 +1395,111 @@ TestCase {
         compare(engine.lastSecurityKeyAnswer.action, "cancel");
     }
 
+    // A sheet that takes the whole page area, with no page behind it to blur, takes
+    // the sidebar's translucency (the Shortcut sheet blurs the Start page instead), so it follows the reader's Sidebar opacity. Over a
+    // page it keeps the theme's sheet opacity, which the reader's value does not
+    // touch (#643).
+    function test_aSheetWithNoPageBehindItFollowsTheSidebarOpacity() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const sheets = [["settingsBackdrop", function () {
+            window.settingsOpen = true;
+        }, function () {
+            window.settingsOpen = false;
+        }], ["historyBackdrop", function () {
+            window.historyOpen = true;
+        }, function () {
+            window.historyOpen = false;
+        }]];
+        const alphaOf = function (name) {
+            return Qt.color(findChild(window.contentItem, name).tint).a;
+        };
+        const themes = Qt.color(window.colors.sheet).a;
+        verify(themes > 0.9 && themes < 0.95, "the theme's sheet opacity: " + themes);
+
+        sidebarOpacity.set(0.5);
+        browser.openInput("about:blank", false);
+        tryVerify(function () {
+            return startPage.visible;
+        });
+        for (const [name, open, close] of sheets) {
+            open();
+            tryVerify(function () {
+                return Math.abs(alphaOf(name) - 0.5) < 0.01;
+            }, 5000, name + " with no page behind it: " + alphaOf(name));
+            close();
+        }
+
+        openPage("https://behind-the-sheet.example/");
+        for (const [name, open, close] of sheets) {
+            open();
+            tryVerify(function () {
+                return Math.abs(alphaOf(name) - themes) < 0.01;
+            }, 5000, name + " over a page: " + alphaOf(name));
+            close();
+        }
+        // The theme's sheet, overlay and window opacities are not the reader's to set.
+        compare(Qt.color(window.colors.sheet).a, themes);
+        sidebarOpacity.reset();
+    }
+
     // The reader's sidebar opacity is drawn as it moves, in an ordinary window
     // and in a Private one, and reset gives the sidebar back to the theme's (#643).
     function test_theReadersSidebarOpacityDrawsTheSidebarLiveInEveryWindow() {
-        windowManager.openPrivateWindow();
-        tryCompare(windowManager, "privateWindowCount", 1);
-        const privateBrowser = window.privateWindows[0];
-        const sidebars = [findChild(window.contentItem, "sidebar"), findChild(
-                              privateBrowser.contentItem, "sidebar")];
-        verify(sidebars[0] !== null && sidebars[1] !== null);
-        const themes = Qt.color(sidebars[0].color).a;
+        // The keys go to the window that is active, so this one is, and no other
+        // window is open yet to take the focus.
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const themes = Qt.color(window.colors.sidebar).a;
         verify(themes > 0.9 && themes < 1.0, "the theme's own sidebar opacity: " + themes);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        verify(sidebar !== null);
 
-        // Moved from the slider in Settings, as a reader would: one step is what a
-        // press of an arrow key asks for, and the page test presses the keys.
+        // Moved from the slider in Settings, as a reader would, with the arrow keys.
         window.settingsOpen = true;
         const settings = findChild(window.contentItem, "settingsSurface");
         settings.section = settings.sections.indexOf("interface");
         const slider = findChild(settings, "sidebarOpacity");
         verify(slider !== null && slider.visible);
-        const alphas = function () {
-            return sidebars.map(function (sidebar) {
-                return Qt.color(sidebar.color).a;
-            });
+        slider.forceActiveFocus();
+        verify(slider.activeFocus);
+        const near = function (item, alpha) {
+            return Math.abs(Qt.color(item.color).a - alpha) < 0.01;
         };
-        const allNear = function (alpha) {
-            return alphas().every(function (value) {
-                return Math.abs(value - alpha) < 0.01;
-            });
-        };
-        slider.stepBy(1);
+
+        keyClick(Qt.Key_Right);
         tryVerify(function () {
-            return allNear(1.0);
-        }, 5000, "the sidebars at 100%: " + alphas());
-        compare(findChild(slider, "value").text, "100%");
-        for (let step = 0; step < 10; ++step)
-            slider.stepBy(-1);
+            return near(sidebar, 1.0);
+        }, 5000, "the sidebar at 100%: " + Qt.color(sidebar.color).a);
+        // Focus stays on the slider through a second press and the rest, so a
+        // reader can hold an arrow key down.
+        keyClick(Qt.Key_Left);
+        verify(slider.activeFocus, "focus left the slider after the second key");
+        for (let press = 0; press < 9; ++press)
+            keyClick(Qt.Key_Left);
+        verify(slider.activeFocus);
         tryVerify(function () {
-            return allNear(0.5);
-        }, 5000, "the sidebars at 50%: " + alphas());
+            return near(sidebar, 0.5);
+        }, 5000, "the sidebar at 50%: " + Qt.color(sidebar.color).a);
         compare(findChild(slider, "value").text, "50%");
         // What the window is drawn over stays opaque: only the translucency moved.
         compare(Qt.color(window.colors.sidebarOpaque).a, 1.0);
 
+        // A Private window is drawn at the same value.
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateSidebar = findChild(privateBrowser.contentItem, "sidebar");
+        verify(privateSidebar !== null);
+        tryVerify(function () {
+            return near(privateSidebar, 0.5) && near(sidebar, 0.5);
+        }, 5000, "both at 50%: " + Qt.color(privateSidebar.color).a);
+
         findChild(slider, "reset").clicked();
         tryVerify(function () {
-            return allNear(themes);
-        }, 5000, "the sidebars back at the theme's: " + alphas());
+            return near(privateSidebar, themes) && near(sidebar, themes);
+        }, 5000, "both back at the theme's: " + Qt.color(privateSidebar.color).a);
         compare(findChild(slider, "value").text, Math.round(themes * 100) + "%");
         window.settingsOpen = false;
 

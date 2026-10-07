@@ -1709,7 +1709,7 @@ TestCase {
         const value = findChild(slider, "value");
         const reset = findChild(slider, "reset");
         compare(value.text, themes + "%");
-        verify(!reset.visible);
+        verify(!resetShown(reset));
         compare(slider.Accessible.role, Accessible.Slider);
         compare(slider.Accessible.name, "Sidebar opacity");
         verify(slider.activeFocusOnTab);
@@ -1721,7 +1721,7 @@ TestCase {
         compare(sidebarOpacityStub.calls.length, 1);
         compare(Math.round(sidebarOpacityStub.calls[0] * 100), themes - 5);
         compare(value.text, (themes - 5) + "%");
-        verify(reset.visible);
+        verify(resetShown(reset));
 
         for (let press = 0; press < 20; ++press)
             keyClick(Qt.Key_Right);
@@ -1735,7 +1735,94 @@ TestCase {
         click(reset);
         verify(!sidebarOpacityStub.overridden);
         compare(value.text, themes + "%");
-        verify(!reset.visible);
+        verify(!resetShown(reset));
+    }
+
+    // Keyboard focus is shown, as the kit draws it on its own buttons, so a reader
+    // tabbing through Settings can see where the arrow keys will act.
+    function test_theSidebarOpacitySliderShowsKeyboardFocus() {
+        sidebarOpacityStub.reset();
+        const page = makeInterfacePage();
+        page.sidebarOpacity = sidebarOpacityStub;
+        const slider = findChild(page, "sidebarOpacity");
+        const ring = findChild(slider, "focusRing");
+        verify(ring !== null);
+        bringIntoView(slider);
+        verify(!ring.visible);
+        slider.forceActiveFocus();
+        verify(ring.visible);
+        verify(ring.width > 0 && ring.height > 0);
+        slider.focus = false;
+        page.forceActiveFocus();
+        verify(!ring.visible);
+    }
+
+    // Qt hands assistive tools a slider's value, range and step by these names,
+    // and an assistive tool that sets the value is a reader moving it: the write
+    // goes the way a drag's goes, and the value stays bound to what is stored.
+    function test_theSidebarOpacitySliderTellsAssistiveToolsItsRangeAndTakesTheirValue() {
+        sidebarOpacityStub.reset();
+        sidebarOpacityStub.calls = [];
+        const page = makeInterfacePage();
+        page.sidebarOpacity = sidebarOpacityStub;
+        const slider = findChild(page, "sidebarOpacity");
+        const themes = Math.round(page.colors.themeSidebarOpacity * 100);
+        compare(slider.value, themes);
+        compare(slider.minimumValue, 50);
+        compare(slider.maximumValue, 100);
+        compare(slider.stepSize, 5);
+
+        slider.value = 67;
+        compare(sidebarOpacityStub.calls.length, 1);
+        compare(Math.round(sidebarOpacityStub.calls[0] * 100), 65);
+        compare(slider.value, 65);
+        compare(findChild(slider, "value").text, "65%");
+
+        // Still bound: what is stored moves the value, and a second set writes again.
+        sidebarOpacityStub.set(0.9);
+        compare(slider.value, 90);
+        slider.value = 55;
+        compare(Math.round(sidebarOpacityStub.calls[sidebarOpacityStub.calls.length - 1] * 100),
+                55);
+        compare(slider.value, 55);
+        // A value past the ends is the end, and the one already shown writes nothing.
+        const calls = sidebarOpacityStub.calls.length;
+        slider.value = 55;
+        compare(sidebarOpacityStub.calls.length, calls);
+        slider.value = 250;
+        compare(sidebarOpacityStub.value, 1.0);
+    }
+
+    // Reset is drawn only while an override stands, but its place in the row is
+    // always kept: a track that moved when reset appeared would move under the
+    // pointer on the first step of a drag, and a drag would jump several steps.
+    function resetShown(reset) {
+        return reset.visible && reset.opacity === 1 && reset.enabled;
+    }
+
+    function test_theSidebarOpacityTrackStaysWhereItIsWhenResetAppears() {
+        sidebarOpacityStub.reset();
+        const page = makeInterfacePage();
+        page.sidebarOpacity = sidebarOpacityStub;
+        const slider = findChild(page, "sidebarOpacity");
+        const track = findChild(slider, "slider");
+        const reset = findChild(slider, "reset");
+        verify(track !== null && reset !== null);
+        bringIntoView(slider);
+        const before = track.mapToItem(page, 0, 0).x;
+        const widthBefore = slider.width;
+        verify(!resetShown(reset));
+        // Hidden is out of the keyboard's way and the screen reader's.
+        verify(!reset.activeFocusOnTab);
+        verify(reset.Accessible.ignored);
+
+        sidebarOpacityStub.set(0.7);
+        settleAction(track);
+        verify(resetShown(reset));
+        verify(reset.activeFocusOnTab);
+        verify(!reset.Accessible.ignored);
+        compare(track.mapToItem(page, 0, 0).x, before);
+        compare(slider.width, widthBefore);
     }
 
     // A page's families are chosen from what the host has, with the engine's

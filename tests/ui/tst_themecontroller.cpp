@@ -139,7 +139,7 @@ QString writeSidebarTheme(const QString &path, const QString &sidebar, double op
         "window": "#101010",
         "sidebar": "%1",
         "overlay": "#303030",
-        "opacity": { "sidebar": %2, "sheet": 0.5, "overlay": 0.6, "window": 0.25 }
+        "opacity": { "sidebar": %2, "sheet": 0.7, "overlay": 0.6, "window": 0.25 }
     })JSON")
             .arg(sidebar)
             .arg(opacity)
@@ -175,9 +175,12 @@ void ThemeControllerTest::drawsTheSidebarAtTheReadersOpacityOverTheThemes()
     QCOMPARE(alphaOf(palette, "privateSidebar"), 128);
     QCOMPARE(palette.value(QStringLiteral("sidebarOpaque")), opaque);
     // Only the sidebar is the reader's to set: the sheet, overlay and window keep the theme's.
-    QCOMPARE(alphaOf(palette, "sheet"), 128);
+    QCOMPARE(alphaOf(palette, "sheet"), 179);
+    QCOMPARE(alphaOf(palette, "privateSheet"), 179);
+    QCOMPARE(alphaOf(palette, "privateOverlay"), 153);
     QCOMPARE(alphaOf(palette, "overlay"), 153);
     QCOMPARE(alphaOf(palette, "window"), 64);
+    QCOMPARE(alphaOf(palette, "privateWindow"), 64);
     QCOMPARE(controller.themeSidebarOpacity(), 0.8);
 }
 

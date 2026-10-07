@@ -89,9 +89,10 @@ Rectangle {
     SheetFloor {}
 
     PageBackdrop {
+        objectName: "historyBackdrop"
         anchors.fill: parent
         source: root.pageSource
-        tint: root.colors.sheet
+        tint: root.pageSource ? root.colors.sheet : root.colors.sidebar
     }
 
     SheetInsets {
