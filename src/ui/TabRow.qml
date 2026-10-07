@@ -89,6 +89,22 @@ Item {
     // kit's own selected fill for the active one.
     readonly property bool siteColored: pinned && tintFavicons
 
+    // PROTOTYPE #638, throwaway. Which mark the active tab wears, from the UI
+    // lab's floating bar; the browser itself has no such property and stays on
+    // today's mark.
+    //   today      the kit's selected fill and border; the cursor a wash and border
+    //   wash-bar   the Omnibar's 14% wash and 2 px bar; the bar marks the tab
+    //              beside; the cursor a border alone
+    //   keyboard   the 14% wash alone, 7% for the tab beside; the bar is the
+    //              cursor, so the keyboard on the active tab is the Omnibar's row
+    readonly property string markVariant: typeof tabMarkPrototype !== "undefined"
+                                          ? tabMarkPrototype.variant : "today"
+    readonly property bool markToday: markVariant === "today"
+    readonly property bool cursorShown: activeFocus && !reachedByPointer
+    readonly property bool markBar: !pinned && (markVariant === "wash-bar" ? (active || tabBeside) :
+                                                                               (markVariant === "keyboard"
+                                                                                && cursorShown))
+
     // A tab that is making sound says so, and a muted one keeps saying it:
     // the speaker is the only place the sound can be given back, so it stays
     // on the row for as long as the reader's decision does.
@@ -206,21 +222,34 @@ Item {
         radius: Style.cornerRadius
     }
 
+    // PROTOTYPE #638: the Omnibar's wash, on the same plate as the site wash so
+    // hover deepens it.
+    Rectangle {
+        objectName: "prototypeTabWash-" + root.tabId
+        anchors.fill: parent
+        visible: !root.markToday && !root.siteColored && (root.active || (root.markVariant
+                                                                          === "keyboard"
+                                                                          && root.tabBeside))
+        radius: Style.cornerRadius
+        color: Qt.alpha(root.colors.accent, root.active ? 0.14 : 0.07)
+    }
+
     Omarchy.Button {
         id: tabButton
         anchors.fill: parent
         // A site-coloured pin has a wash and a border of its own, so it never
         // takes the kit's selected fill. Every other current row does — an
         // unpinned one, and a pin the reader has switched site colour off for.
-        active: root.active && !root.siteColored
+        active: root.markToday && root.active && !root.siteColored
         hasCursor: root.activeFocus || hoverArea.containsMouse
         // A pin is a bordered tile at rest, as the reader's own address field
         // is; an ordinary row takes its border only when it is the current tab,
         // which is what makes one row in the list read as the page on show.
         // The tab beside is on show too, and takes the border without the
         // fill.
-        bordered: root.pinned || root.active || root.tabBeside
-        foreground: root.siteColored && root.active ? root.siteColor : (root.pinned
+        bordered: root.markToday ? root.pinned || root.active || root.tabBeside : root.pinned
+        foreground: root.siteColored && root.active ? root.siteColor : !root.markToday && root.pinned
+                                                      && root.active ? root.colors.accent : (root.pinned
                                                                         ? root.colors.mutedText :
                                                                           root.colors.text)
         // A pin is a control rather than a line of text, so it carries the
@@ -240,11 +269,31 @@ Item {
     Rectangle {
         objectName: "sidebarCursor-" + root.tabId
         anchors.fill: parent
-        visible: root.activeFocus && !root.reachedByPointer
+        visible: root.cursorShown && (root.markVariant !== "keyboard" || root.pinned)
         radius: Style.cornerRadius
-        color: Qt.rgba(root.colors.accent.r, root.colors.accent.g, root.colors.accent.b, 0.16)
+        color: root.markToday ? Qt.rgba(root.colors.accent.r, root.colors.accent.g,
+                                        root.colors.accent.b, 0.16) : "transparent"
         border.width: 1
         border.color: root.colors.accent
+    }
+
+    // PROTOTYPE #638: the Omnibar's 2 px bar, cut from a rounded plate the
+    // row's size so it follows the row's corners.
+    Item {
+        objectName: "prototypeTabBar-" + root.tabId
+        visible: root.markBar
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 2
+        clip: true
+
+        Rectangle {
+            width: root.width
+            height: parent.height
+            radius: Style.cornerRadius
+            color: root.colors.accent
+        }
     }
 
     SiteTile {

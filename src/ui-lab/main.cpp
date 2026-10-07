@@ -58,6 +58,7 @@
 #include <QPainter>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlPropertyMap>
 #include <QQmlContext>
 #include <QQmlExpression>
 #include <QTemporaryDir>
@@ -586,6 +587,23 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
+    // PROTOTYPE #638, throwaway: which mark the active tab wears, switched from
+    // the floating bar Main.qml draws while this property exists.
+    // OMAWEB_PROTOTYPE_TAB_MARK picks the first variant, OMAWEB_PROTOTYPE_CURSOR
+    // steers the Sidebar cursor that many rows past the active tab, and
+    // OMAWEB_PROTOTYPE_SITE_COLOUR=1 turns site colour on, for captures.
+    auto *tabMarkPrototype = new QQmlPropertyMap(&engine);
+    tabMarkPrototype->insert(QStringLiteral("variant"),
+        qEnvironmentVariableIsSet("OMAWEB_PROTOTYPE_TAB_MARK")
+            ? qEnvironmentVariable("OMAWEB_PROTOTYPE_TAB_MARK")
+            : QStringLiteral("today"));
+    tabMarkPrototype->insert(QStringLiteral("cursorStep"),
+        qEnvironmentVariableIsSet("OMAWEB_PROTOTYPE_CURSOR")
+            ? qEnvironmentVariableIntValue("OMAWEB_PROTOTYPE_CURSOR")
+            : -1);
+    tabMarkPrototype->insert(QStringLiteral("siteColour"),
+        qEnvironmentVariable("OMAWEB_PROTOTYPE_SITE_COLOUR") == QLatin1String("1"));
+    engine.rootContext()->setContextProperty(QStringLiteral("tabMarkPrototype"), tabMarkPrototype);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(
         QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));

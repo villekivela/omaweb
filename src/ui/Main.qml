@@ -4806,6 +4806,139 @@ ApplicationWindow {
         }
     }
 
+    // PROTOTYPE #638, throwaway: the floating bar that switches the active tab's
+    // mark. Only the UI lab sets tabMarkPrototype, so the browser never draws it.
+    // Ctrl+Alt+Left and Ctrl+Alt+Right cycle the variants too.
+    Loader {
+        active: typeof tabMarkPrototype !== "undefined"
+        parent: window.contentItem
+        z: 100000
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 16
+        anchors.horizontalCenter: parent.horizontalCenter
+        sourceComponent: Rectangle {
+            id: switcher
+            readonly property var variants: [{
+                    "key": "today",
+                    "name": "Today"
+                }, {
+                    "key": "wash-bar",
+                    "name": "Wash and bar, as #638 says"
+                }, {
+                    "key": "keyboard",
+                    "name": "Bar follows the keyboard"
+                }]
+            readonly property int at: Math.max(0, variants.findIndex(function (variant) {
+                return variant.key === tabMarkPrototype.variant;
+            }))
+
+            function cycle(delta) {
+                tabMarkPrototype.variant = variants[(at + delta + variants.length) % variants.length].key;
+            }
+
+            function cursor(step) {
+                window.focusSidebar();
+                if (step > 0)
+                    sidebar.stepCursor(step);
+            }
+
+            width: buttons.implicitWidth + 28
+            height: 40
+            radius: 20
+            color: "#ee111111"
+            border.width: 2
+            border.color: "#ffd400"
+
+            Row {
+                id: buttons
+                anchors.centerIn: parent
+                spacing: 14
+
+                Repeater {
+                    model: [{
+                            "label": "\u2039",
+                            "act": function () {
+                                switcher.cycle(-1);
+                            }
+                        }, {
+                            "label": String.fromCharCode(65 + switcher.at) + "  " + switcher.variants[switcher.at].name,
+                            "act": null
+                        }, {
+                            "label": "\u203a",
+                            "act": function () {
+                                switcher.cycle(1);
+                            }
+                        }, {
+                            "label": "|",
+                            "act": null
+                        }, {
+                            "label": "Site colour " + (window.tintFavicons ? "on" : "off"),
+                            "act": function () {
+                                window.tintFavicons = !window.tintFavicons;
+                            }
+                        }, {
+                            "label": "Cursor on active",
+                            "act": function () {
+                                switcher.cursor(0);
+                            }
+                        }, {
+                            "label": "Cursor down",
+                            "act": function () {
+                                switcher.cursor(1);
+                            }
+                        }]
+
+                    Text {
+                        required property var modelData
+                        text: modelData.label
+                        color: modelData.act ? "#ffd400" : "#ffffff"
+                        font.pixelSize: 13
+                        font.bold: modelData.act !== null
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            enabled: parent.modelData.act !== null
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: parent.modelData.act()
+                        }
+                    }
+                }
+            }
+
+            Shortcut {
+                sequence: "Ctrl+Alt+Right"
+                onActivated: switcher.cycle(1)
+            }
+
+            Shortcut {
+                sequence: "Ctrl+Alt+Left"
+                onActivated: switcher.cycle(-1)
+            }
+
+            Component.onCompleted: {
+                if (tabMarkPrototype.siteColour)
+                    window.tintFavicons = true;
+                laterForCaptures.start();
+            }
+
+            // The lab seeds its tabs after the interface loads, and the Start
+            // page takes the keyboard once it is up, so both wait.
+            Timer {
+                id: laterForCaptures
+                interval: 500
+                onTriggered: {
+                    // `--proto-pin` has the first pin on show.
+                    const pins = window.windowBrowser.pinnedTabs;
+                    if (Qt.application.arguments.indexOf("--proto-pin") >= 0 && pins.rowCount() > 0)
+                        window.windowBrowser.activateTab(pins.data(pins.index(0, 0), Qt.UserRole + 1));
+                    if (tabMarkPrototype.cursorStep >= 0)
+                        switcher.cursor(tabMarkPrototype.cursorStep);
+                }
+            }
+        }
+    }
+
     Component.onCompleted: {
         if (window.privateWindow && window.privateProfileHost)
             window.adoptSpaceProfile("", window.privateProfileHost);
