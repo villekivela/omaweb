@@ -1108,8 +1108,12 @@ if(OMAWEB_BUILD_BROWSER)
         # would have to. See src/platform/LinuxRunningBrowser.cpp.
         install(FILES packaging/omaweb.desktop
             DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
-        install(FILES assets/icons/omaweb.svg
-            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
+        # The launcher draws a hicolor icon as it comes, so the icon carries its
+        # own rounded corners. It is installed as `omaweb.svg` because the
+        # desktop entry names `Icon=omaweb`.
+        install(FILES assets/icons/omaweb-mono-rounded.svg
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps"
+            RENAME omaweb.svg)
         install(FILES LICENSE THIRD_PARTY_NOTICES.md
             DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb")
     endif()

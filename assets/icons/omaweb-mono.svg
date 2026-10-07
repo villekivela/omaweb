@@ -2,7 +2,7 @@
   <title>Omaweb</title>
   <rect width="64" height="64" fill="#000000"/>
   <!--
-    The same mark and geometry as omaweb.svg, in one colour on a square. The
+    The same mark and geometry as omaweb-mono-rounded.svg, on a square. The
     corners stay unrounded and the background opaque because this one is used
     where something else does the rounding and cropping: the GitHub App logo,
     and any avatar that carries no theme of its own.

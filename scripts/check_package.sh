@@ -116,6 +116,14 @@ usr/share/omaweb/sbom.json
 usr/share/omaweb/translations/omaweb_fi.qm" \
     '^usr/((lib|libexec)/omaweb|share/(applications|icons|licenses/omaweb))/' \
     '^usr/share/omaweb/(translations/|sbom\.json$)'
+# The icon is installed under the name the desktop entry asks for, whichever
+# file it was made from, so the list above cannot tell the black and white icon
+# from another one. The launcher draws the black and white one.
+if ! bsdtar -xOf "$package" usr/share/icons/hicolor/scalable/apps/omaweb.svg \
+    | cmp -s - "$repo_root/assets/icons/omaweb-mono-rounded.svg"; then
+    echo "The package's omaweb.svg is not assets/icons/omaweb-mono-rounded.svg" >&2
+    exit 1
+fi
 # The Agent skill teaches the client, so it comes with the client.
 check_contents "$client_package" "usr/bin/omaweb
 usr/share/omaweb/skills/omaweb/SKILL.md
