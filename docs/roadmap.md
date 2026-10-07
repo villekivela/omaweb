@@ -22,19 +22,22 @@ performance and the chrome: the 6.11.2 engine rebuilt for speed, with V8's write
 x86_64, clang, LLD and ThinLTO
 ([ADR 0060](adr/0060-build-the-x86-64-engine-with-clang-and-thinlto.md)), the browser's missing
 measurements with what came in over budget fixed, jumping between tabs with `Ctrl+O` and `Ctrl+I`,
-the sidebar on the right, and five more Start page Scenes. v0.12.1 is the release in progress. Two
-milestones carry what remains, in this order:
+the sidebar on the right, and five more Start page Scenes.
+[v0.12.1](https://github.com/villekivela/omaweb/releases/tag/v0.12.1) shipped the black and white
+icon in the launcher, the active tab marked the way the Omnibar marks its selected row, and the
+release mark no longer hidden under the extension mark. v0.13.0 is the release in progress.
 
-1. [v0.12.1](https://github.com/villekivela/omaweb/milestone/10), a small release after v0.12.0: the
-   release mark no longer hidden under the extension mark in the sidebar footer
-   ([#628](https://github.com/villekivela/omaweb/issues/628)), the black and white icon in the
-   launcher ([#634](https://github.com/villekivela/omaweb/issues/634)), the release pages listing
-   every release beside the notes ([#636](https://github.com/villekivela/omaweb/pull/636)), and the
-   active tab marked the way the Omnibar marks its selected row
-   ([#638](https://github.com/villekivela/omaweb/issues/638)).
-2. [v0.13.0](https://github.com/villekivela/omaweb/milestone/9), configuration as files: the
-   reader's settings in a file they can keep in their dotfiles, and links from outside opening in
-   the Space a rule names. Each starts with a prototype.
+[v0.13.0](https://github.com/villekivela/omaweb/milestone/9) is configuration as files and the
+chrome. The reader's settings move into one file in the configuration directory that they can keep
+in their dotfiles ([#389](https://github.com/villekivela/omaweb/issues/389)), and three settings
+build on it: the app icon chosen in Settings
+([#635](https://github.com/villekivela/omaweb/issues/635)), Space colours that Omaweb owns rather
+than the theme ([#631](https://github.com/villekivela/omaweb/issues/631)), and the sidebar's opacity
+on a slider ([#643](https://github.com/villekivela/omaweb/issues/643)). Beside them, the sidebar's
+address field is sized like a tab row ([#632](https://github.com/villekivela/omaweb/issues/632)),
+the Omnibar drops its hint row at rest ([#630](https://github.com/villekivela/omaweb/issues/630)),
+and the night sky Scene's planet and comets change
+([#629](https://github.com/villekivela/omaweb/issues/629)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -65,6 +68,8 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   Agent reads the tab's network ([#373](https://github.com/villekivela/omaweb/issues/373)) and, in
   an Agent Space, the page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)).
   They join the release that is open when 6.140.0 is out.
+- Opening links from outside in the Space a rule names
+  ([#388](https://github.com/villekivela/omaweb/issues/388)) is deferred to a later release.
 - Account and Sync with replaceable providers are deferred.
 
 ## Known extensions
