@@ -23,6 +23,9 @@ private slots:
     void keepsBothOfTwoWritesAtOnce();
     void offersOnlyTheLimitsSettingsOffers();
     void leavesAKeyWithoutADefaultUndefined();
+    void keepsASidebarOpacityBetweenHalfAndOne();
+    void readsASidebarOpacityOutOfRangeAsTheThemes();
+    void roundTripsAFractionThroughText();
     void writesOneMemberIntoWhatIsOnDisk();
 };
 
@@ -298,6 +301,63 @@ void SettingsFileTest::leavesAKeyWithoutADefaultUndefined()
         QVERIFY2(SettingsFile::defaultValue(key).isUndefined(), qPrintable(key));
         QVERIFY2(settings.value(key).isUndefined(), qPrintable(key));
     }
+}
+
+// The sidebar's opacity is a fraction the reader sets from half to whole, and
+// none until they do, so the theme's own stands.
+void SettingsFileTest::keepsASidebarOpacityBetweenHalfAndOne()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("settings.json"));
+    SettingsFile settings(root.path());
+    const auto key = QStringLiteral("sidebar-opacity");
+
+    QVERIFY(SettingsFile::defaultValue(key).isUndefined());
+    QVERIFY(settings.value(key).isUndefined());
+    for (const double offered : {0.5, 0.65, 1.0}) {
+        QVERIFY2(SettingsFile::accepts(key, offered), qPrintable(QString::number(offered)));
+    }
+    for (const QJsonValue refused : {QJsonValue(0.45), QJsonValue(1.05), QJsonValue(0),
+             QJsonValue(QStringLiteral("half")), QJsonValue(true)}) {
+        QVERIFY(!SettingsFile::accepts(key, refused));
+    }
+
+    QVERIFY(settings.set(key, 0.75));
+    QCOMPARE(settings.value(key), QJsonValue(0.75));
+    QVERIFY(readFile(path).contains("\"sidebar-opacity\": 0.75"));
+    QVERIFY(!settings.set(key, 0.2));
+    QCOMPARE(settings.value(key), QJsonValue(0.75));
+
+    QVERIFY(settings.set(key, QJsonValue()));
+    QVERIFY(!readFile(path).contains("sidebar-opacity"));
+}
+
+void SettingsFileTest::readsASidebarOpacityOutOfRangeAsTheThemes()
+{
+    const auto key = QStringLiteral("sidebar-opacity");
+    for (const QByteArray bad : {QByteArray("0.1"), QByteArray("2"), QByteArray("\"0.8\"")}) {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        writeFile(root.filePath(QStringLiteral("settings.json")),
+            R"({"version": 1, "sidebar-opacity": )" + bad + "}");
+        SettingsFile settings(root.path());
+        QVERIFY2(settings.value(key).isUndefined(), bad.constData());
+        QVERIFY2(!settings.isSet(key), bad.constData());
+        QCOMPARE(settings.invalidKeys(), QStringList {key});
+    }
+}
+
+// The chrome that asks for a setting as text reads a fraction as the number
+// it is, not as the whole number it rounds to.
+void SettingsFileTest::roundTripsAFractionThroughText()
+{
+    const auto key = QStringLiteral("sidebar-opacity");
+    QCOMPARE(SettingsFile::text(QJsonValue(0.75)), QStringLiteral("0.75"));
+    QCOMPARE(SettingsFile::text(QJsonValue(1.0)), QStringLiteral("1"));
+    QCOMPARE(SettingsFile::fromText(key, QStringLiteral("0.75")), QJsonValue(0.75));
+    QVERIFY(SettingsFile::fromText(key, QStringLiteral("high")).isUndefined());
+    QVERIFY(SettingsFile::fromText(key, QString()).isNull());
 }
 
 // A switch in an object, written from Settings, goes into the object as the

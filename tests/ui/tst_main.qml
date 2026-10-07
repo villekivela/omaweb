@@ -1395,6 +1395,40 @@ TestCase {
         compare(engine.lastSecurityKeyAnswer.action, "cancel");
     }
 
+    // The reader's sidebar opacity is drawn as it moves, in an ordinary window
+    // and in a Private one, and reset gives the sidebar back to the theme's (#643).
+    function test_theReadersSidebarOpacityDrawsTheSidebarLiveInEveryWindow() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const sidebars = [findChild(window.contentItem, "sidebar"), findChild(
+                              privateBrowser.contentItem, "sidebar")];
+        verify(sidebars[0] !== null && sidebars[1] !== null);
+        const themes = Qt.color(sidebars[0].color).a;
+        verify(themes > 0.9 && themes < 1.0, "the theme's own sidebar opacity: " + themes);
+
+        sidebarOpacity.set(1.0);
+        for (const sidebar of sidebars)
+            tryCompare(Qt.color(sidebar.color), "a", 1.0);
+        sidebarOpacity.set(0.5);
+        for (const sidebar of sidebars)
+            tryVerify(function () {
+                return Math.abs(Qt.color(sidebar.color).a - 0.5) < 0.01;
+            });
+        // What the window is drawn over stays opaque: only the translucency moved.
+        compare(Qt.color(window.colors.sidebarOpaque).a, 1.0);
+
+        sidebarOpacity.reset();
+        for (const sidebar of sidebars)
+            tryVerify(function () {
+                return Math.abs(Qt.color(sidebar.color).a - themes) < 0.01;
+            });
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+    }
+
     // A Private window gets the same prompts, and names itself where a Space
     // would be named.
     function test_aPrivateWindowAsksForASecurityKeyTheSameWay() {

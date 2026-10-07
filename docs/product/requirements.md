@@ -248,8 +248,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   semantic opacity: the sidebar is read against the desktop, and a sheet is read against a page
   whose contrast is unknown, so at the sidebar's value a dark page shows through as nothing. Where
   there is no page to blur, as in a Space at rest, the surface takes the sidebar's translucency
-  instead, and the desktop behind it is left to the window system, which blurs it or not exactly as
-  it does behind the sidebar.
+  instead, which is the reader's Sidebar opacity where they set one, and the desktop behind it is
+  left to the window system, which blurs it or not exactly as it does behind the sidebar.
 - A bar at the top of the page, a page question or a page prompt, keeps its translucent ground and
   blurs the page under that ground, so the page shows through as colour and shape but its text
   cannot be read against the bar's.
@@ -433,6 +433,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   families, sizes and label spacing, and the tinting of tab tiles. Semantic opacity values control
   transparent surfaces, which fall back to an opaque color where accessibility settings require it.
   Blurring the desktop behind them is the window system's and is not required for them to read.
+- The sidebar's opacity is the theme's until the reader sets it. Settings' interface section has a
+  Sidebar opacity slider from 50% to 100% in steps of 5%, with a reset that returns to the theme's
+  value, and it can be moved with the arrow keys. It is the reader's override of the theme's
+  `opacity.sidebar`, as the interface font size is of the theme's font: it stands until reset, and a
+  theme switch changes the sidebar only while no override stands. The sidebar follows the slider as
+  it moves, in an ordinary and a Private window. The value is kept as `sidebar-opacity` in
+  `settings.json`, is local to the machine and is not synced. It does not change the sheet, overlay
+  or window opacities, which stay the theme's, and the page viewport stays opaque.
 - Quiet text is content, not decoration: a tab's title, the footer's controls. Whatever a theme
   names for it, Omaweb holds it to WCAG AA against every ordinary and Private surface it is drawn
   on, and therefore clear of the disabled rendering of ordinary text. A reader must never have to

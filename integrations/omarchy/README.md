@@ -89,9 +89,11 @@ install.
 ## Blur behind the browser's surfaces
 
 Omaweb's sidebar, overlays and empty window ground are drawn at the opacity its theme names, so the
-desktop shows through them. Whether what shows through is blurred or sharp is Hyprland's decision
-and not the browser's: there is no client-side blur protocol to ask through, so Omaweb binds nothing
-and a compositor setting is the whole mechanism.
+desktop shows through them. The reader can set the sidebar's opacity over the theme's with the
+Sidebar opacity slider in Settings' interface section, from 50% to 100%, and reset it to the
+theme's. Whether what shows through is blurred or sharp is Hyprland's decision and not the
+browser's: there is no client-side blur protocol to ask through, so Omaweb binds nothing and a
+compositor setting is the whole mechanism.
 
 Omarchy ships blur off in `default/hypr/looknfeel.lua`. Turn it on in
 `~/.config/hypr/looknfeel.lua`, which is where a window's appearance belongs:
@@ -111,12 +113,15 @@ what makes it the reader's to make.
 
 The surface it changes most is the empty window ground. The shipped template gives `sidebar` 0.95
 and `window` 0.0, so a Space at rest shows the desktop through the whole page area while the sidebar
-transmits a twentieth of it.
+transmits a twentieth of it. Moving the Sidebar opacity slider down lets the desktop show through
+the sidebar, blurred when this setting is on and sharp when it is off.
 
 Leaving blur off is a legibility choice and never a broken window. Omaweb's surfaces keep the
 opacity the theme gave them and keep taking pointer input, so nothing goes click-through; what a
 busy wallpaper costs is contrast behind quiet text. A reader who wants the desktop sealed out can
-raise the opacity in their theme instead, which needs no compositor setting at all.
+raise the opacity with the Sidebar opacity slider instead, or in their theme, which needs no
+compositor setting at all. A theme switch renders over the theme file and leaves the slider's value
+alone.
 
 ## Overrides
 

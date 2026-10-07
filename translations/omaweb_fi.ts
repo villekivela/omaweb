@@ -2447,6 +2447,17 @@
     </message>
 </context>
 <context>
+    <name>SettingSlider</name>
+    <message>
+        <source>reset</source>
+        <translation>palauta</translation>
+    </message>
+    <message>
+        <source>Reset %1 to %2</source>
+        <translation>Palauta %1 arvoon %2</translation>
+    </message>
+</context>
+<context>
     <name>SettingStepper</name>
     <message>
         <source>Decrease %1, now %2</source>
@@ -3541,6 +3552,14 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Show the Start page&apos;s Scene through an old screen&apos;s glass: scanlines, a soft bloom and a faint flicker. When off, the Scene is its plain pixels.</source>
         <translation>Näytä aloitussivun maisema vanhan kuvaruudun lasin läpi: viivoja, pehmeä hehku ja heikko välke. Kun pois päältä, maisema on pelkkiä pikseleitä.</translation>
+    </message>
+    <message>
+        <source>Sidebar opacity</source>
+        <translation>Sivupalkin peittävyys</translation>
+    </message>
+    <message>
+        <source>How much of the desktop shows through the sidebar; the theme&apos;s is %1%. Blur behind it comes from Hyprland&apos;s decoration:blur.</source>
+        <translation>Kuinka paljon työpöytä näkyy sivupalkin läpi; teeman arvo on %1 %. Sumennus sen takana tulee Hyprlandin asetuksesta decoration:blur.</translation>
     </message>
     <message>
         <source>Add card</source>

@@ -253,6 +253,7 @@ ApplicationWindow {
     // The reader's type and the engine adapter that draws pages in it, named
     // apart from their context properties for the same reason again.
     readonly property var readerFonts: fontSettings
+    readonly property var readerSidebarOpacity: sidebarOpacity
     readonly property var enginePageFonts: pageFonts
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
     // so opening it on one page does not open it over the next — and a tab that
@@ -4289,6 +4290,7 @@ ApplicationWindow {
                             engineSecureDns: window.engineDnsResolver
                             engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                             fontSettings: window.readerFonts
+                            sidebarOpacity: window.readerSidebarOpacity
                             settingsFile: window.readerSettings
                             pageFonts: window.enginePageFonts
                             knownExtensions: window.knownExtensions

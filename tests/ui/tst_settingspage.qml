@@ -34,9 +34,14 @@ TestCase {
                                               border: "#4a4658",
                                               surface: "#26232f",
                                               sidebar: "#26232fcc",
+                                              sidebarOpaque: "#26232f",
                                               sheet: "#26232f99",
                                               overlay: "#1f1d27f2",
                                               windowOpaque: "#16151d",
+                                              opacity: {
+                                                  sidebar: 0.8
+                                              },
+                                              themeSidebarOpacity: 0.8,
                                               spaces: {
                                                   green: "#98c379",
                                                   yellow: "#e5c07b",
@@ -1606,6 +1611,29 @@ TestCase {
         }
     }
 
+    // The reader's say over the sidebar, stubbed the way the page reads it. The
+    // real object is driven through the window by tst_main.
+    QtObject {
+        id: sidebarOpacityStub
+
+        property real value: 0
+        property bool overridden: false
+        property var calls: []
+        readonly property real minimum: 0.5
+        readonly property real maximum: 1.0
+        readonly property real step: 0.05
+
+        function set(opacity) {
+            calls = calls.concat([opacity]);
+            value = Math.min(maximum, Math.max(minimum, Math.round(opacity * 100) / 100));
+            overridden = true;
+        }
+        function reset() {
+            value = 0;
+            overridden = false;
+        }
+    }
+
     QtObject {
         id: pageFontsStub
 
@@ -1665,6 +1693,49 @@ TestCase {
         fontSettingsStub.override = 8;
         verify(findChild(stepper, "increase").enabled);
         verify(!findChild(stepper, "decrease").enabled);
+    }
+
+    // The sidebar's opacity is the reader's over the theme's: the slider reads
+    // the theme's value until they move it, steps by 5% from there within 50% to
+    // 100% from the keyboard, and reset hands the sidebar back to the theme.
+    function test_theSidebarOpacitySlidesFromTheThemesAndResetsToIt() {
+        sidebarOpacityStub.reset();
+        sidebarOpacityStub.calls = [];
+        const page = makeInterfacePage();
+        page.sidebarOpacity = sidebarOpacityStub;
+        const slider = findChild(page, "sidebarOpacity");
+        verify(slider !== null);
+        const themes = Math.round(page.colors.themeSidebarOpacity * 100);
+        const value = findChild(slider, "value");
+        const reset = findChild(slider, "reset");
+        compare(value.text, themes + "%");
+        verify(!reset.visible);
+        compare(slider.Accessible.role, Accessible.Slider);
+        compare(slider.Accessible.name, "Sidebar opacity");
+        verify(slider.activeFocusOnTab);
+        verify(findChild(page, "sidebarOpacityRow").note.indexOf("decoration:blur") >= 0);
+
+        bringIntoView(slider);
+        slider.forceActiveFocus();
+        keyClick(Qt.Key_Left);
+        compare(sidebarOpacityStub.calls.length, 1);
+        compare(Math.round(sidebarOpacityStub.calls[0] * 100), themes - 5);
+        compare(value.text, (themes - 5) + "%");
+        verify(reset.visible);
+
+        for (let press = 0; press < 20; ++press)
+            keyClick(Qt.Key_Right);
+        compare(value.text, "100%");
+        compare(sidebarOpacityStub.value, 1.0);
+        for (let press = 0; press < 20; ++press)
+            keyClick(Qt.Key_Left);
+        compare(value.text, "50%");
+        compare(sidebarOpacityStub.value, 0.5);
+
+        click(reset);
+        verify(!sidebarOpacityStub.overridden);
+        compare(value.text, themes + "%");
+        verify(!reset.visible);
     }
 
     // A page's families are chosen from what the host has, with the engine's
