@@ -1407,22 +1407,43 @@ TestCase {
         const themes = Qt.color(sidebars[0].color).a;
         verify(themes > 0.9 && themes < 1.0, "the theme's own sidebar opacity: " + themes);
 
-        sidebarOpacity.set(1.0);
-        for (const sidebar of sidebars)
-            tryCompare(Qt.color(sidebar.color), "a", 1.0);
-        sidebarOpacity.set(0.5);
-        for (const sidebar of sidebars)
-            tryVerify(function () {
-                return Math.abs(Qt.color(sidebar.color).a - 0.5) < 0.01;
+        // Moved from the slider in Settings, as a reader would: one step is what a
+        // press of an arrow key asks for, and the page test presses the keys.
+        window.settingsOpen = true;
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("interface");
+        const slider = findChild(settings, "sidebarOpacity");
+        verify(slider !== null && slider.visible);
+        const alphas = function () {
+            return sidebars.map(function (sidebar) {
+                return Qt.color(sidebar.color).a;
             });
+        };
+        const allNear = function (alpha) {
+            return alphas().every(function (value) {
+                return Math.abs(value - alpha) < 0.01;
+            });
+        };
+        slider.stepBy(1);
+        tryVerify(function () {
+            return allNear(1.0);
+        }, 5000, "the sidebars at 100%: " + alphas());
+        compare(findChild(slider, "value").text, "100%");
+        for (let step = 0; step < 10; ++step)
+            slider.stepBy(-1);
+        tryVerify(function () {
+            return allNear(0.5);
+        }, 5000, "the sidebars at 50%: " + alphas());
+        compare(findChild(slider, "value").text, "50%");
         // What the window is drawn over stays opaque: only the translucency moved.
         compare(Qt.color(window.colors.sidebarOpaque).a, 1.0);
 
-        sidebarOpacity.reset();
-        for (const sidebar of sidebars)
-            tryVerify(function () {
-                return Math.abs(Qt.color(sidebar.color).a - themes) < 0.01;
-            });
+        findChild(slider, "reset").clicked();
+        tryVerify(function () {
+            return allNear(themes);
+        }, 5000, "the sidebars back at the theme's: " + alphas());
+        compare(findChild(slider, "value").text, Math.round(themes * 100) + "%");
+        window.settingsOpen = false;
 
         privateBrowser.windowBrowser.closeActiveTab();
         tryCompare(windowManager, "privateWindowCount", 0);
