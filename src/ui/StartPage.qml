@@ -5,8 +5,8 @@ import qs.Commons
 // What Omaweb shows where a page would be when there is none to show: a Space
 // at rest, `about:blank`, or a new-tab request that has not been given a
 // destination yet. It is the Omnibar at rest over the Scene the reader chose:
-// the night road, the night sky, the Game of Life, the vector terrain or the
-// radar. The Omnibar itself is the window's own, drawn resting on the Scene's
+// the night road, the night sky, the Game of Life, the vector terrain, the
+// radar or hyperspace. The Omnibar itself is the window's own, drawn resting on the Scene's
 // horizon, and its hint row names the Shortcut sheet; the page is the Scene
 // under it.
 //
@@ -25,8 +25,8 @@ Item {
     property bool privateWindow: false
     property bool open: false
     // The Settings interface section's Scene: "crt-road", "night-sky",
-    // "game-of-life", "vector-terrain", "radar", or "none", where the backdrop
-    // below takes its place.
+    // "game-of-life", "vector-terrain", "radar", "hyperspace", or "none", where
+    // the backdrop below takes its place.
     property string sceneId: "crt-road"
     // Each Scene's drawing, by its id.
     readonly property var scenes: ({
@@ -34,7 +34,8 @@ Item {
                                        "night-sky": sky,
                                        "game-of-life": life,
                                        "vector-terrain": terrain,
-                                       "radar": radar
+                                       "radar": radar,
+                                       "hyperspace": hyperspace
                                    })
     readonly property bool sceneShown: root.sceneId !== "none"
     // How far the resting Omnibar reaches below the horizon, which the night
@@ -71,6 +72,8 @@ Item {
     property bool drove: false
     onDrivingChanged: if (driving)
                           drove = true
+    // Fading out after a drive, as the page it drove to takes over.
+    readonly property bool leavingAfterDrive: root.drove && !root.open
     // Where the Omnibar's field rests.
     readonly property real horizonY: host.sceneItem ? host.sceneItem.horizonY : height / 2
     readonly property int sceneFrames: host.frames
@@ -101,8 +104,8 @@ Item {
         // Leaving after a drive is slower: the page is already there under
         // it, so the longer fade costs no waiting.
         NumberAnimation {
-            duration: root.drove && !root.open ? 420 : 180
-            easing.type: root.drove && !root.open ? Easing.InOutQuad : Easing.OutCubic
+            duration: root.leavingAfterDrive ? 420 : 180
+            easing.type: root.leavingAfterDrive ? Easing.InOutQuad : Easing.OutCubic
         }
     }
 
@@ -148,6 +151,16 @@ Item {
         property: "omnibarReach"
         value: root.omnibarReach
         when: !!host.sceneItem && host.sceneItem.omnibarReach !== undefined
+    }
+
+    // A Scene that declares `leaving` hears when the Start page fades out
+    // after a drive, so it can hold its drive as the page replaces it, as
+    // hyperspace holds its streaks.
+    Binding {
+        target: host.sceneItem
+        property: "leaving"
+        value: root.leavingAfterDrive
+        when: !!host.sceneItem && host.sceneItem.leaving !== undefined
     }
 
     // The tab list's roles, as BrowserController's TabListModel numbers them.
@@ -244,5 +257,11 @@ Item {
         id: radar
 
         Radar {}
+    }
+
+    Component {
+        id: hyperspace
+
+        Hyperspace {}
     }
 }

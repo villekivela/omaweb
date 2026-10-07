@@ -10005,6 +10005,41 @@ TestCase {
         });
     }
 
+    // A Private window's hyperspace is the nebula alone, very dim, with no
+    // stars, and no jump on commit. The window beside it keeps its stars.
+    function test_aPrivateWindowsHyperspaceIsTheNebulaOnly() {
+        window.setStartPageScene("hyperspace");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const startPage = findChild(privateBrowser.contentItem, "startPage");
+        tryVerify(function () {
+            return startPage.visible && startPage.sceneRunning;
+        });
+        const field = findChild(privateBrowser.contentItem, "hyperspace");
+        verify(field !== null, "no hyperspace");
+        verify(field.unlit, "a lit hyperspace");
+        compare(field.stars, 0);
+        verify(field.nebulaStrength < 1, "a nebula as bright as the window's beside it");
+        compare(findChild(privateBrowser.contentItem, "startPageScene").light, null);
+        const travel = field.travel;
+        const frames = startPage.sceneFrames;
+        tryVerify(function () {
+            return startPage.sceneFrames > frames + 30;
+        });
+        compare(field.travel, travel);
+        compare(field.warp, 0);
+        verify(findChild(window.contentItem, "hyperspace").stars > 0);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        window.setStartPageScene("crt-road");
+    }
+
     // A Private window's radar is the sweep and the rings alone: no blips,
     // even for the tabs it has open, no glow and no light on the Omnibar's
     // rim, and it holds still. The window beside it keeps its own lit.
@@ -12011,6 +12046,11 @@ TestCase {
                         tag: "radar",
                         scene: "radar",
                         drawing: "radar"
+                    },
+                    {
+                        tag: "hyperspace",
+                        scene: "hyperspace",
+                        drawing: "hyperspace"
                     }
                 ];
     }
@@ -12445,7 +12485,11 @@ TestCase {
         compare(browser.preference("start-page-scene", ""), "radar");
         keyClick(Qt.Key_Right);
         keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "hyperspace");
+        keyClick(Qt.Key_Right);
+        keyClick(Qt.Key_Return);
         compare(browser.preference("start-page-scene", ""), "none");
+        keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
@@ -12601,6 +12645,9 @@ TestCase {
         window.setStartPageScene("radar");
         window.restoreChromeAppearance();
         compare(window.startPageScene, "radar");
+        window.setStartPageScene("hyperspace");
+        window.restoreChromeAppearance();
+        compare(window.startPageScene, "hyperspace");
         browser.setPreference("start-page-road", "");
     }
 
@@ -12615,7 +12662,8 @@ TestCase {
         settings.section = settings.sections.indexOf("interface");
         const picker = findChild(settings, "startPageScenePicker");
         compare(picker.columns, 4);
-        const order = ["crt-road", "night-sky", "game-of-life", "vector-terrain", "radar", "none"];
+        const order = ["crt-road", "night-sky", "game-of-life", "vector-terrain", "radar",
+                       "hyperspace", "none"];
         const thumbnails = order.map(function (value) {
             const thumbnail = findChild(picker, "sceneThumbnail-" + value);
             verify(thumbnail !== null, "no " + value);
@@ -12629,22 +12677,27 @@ TestCase {
             compare(thumbnails[index].y, thumbnails[0].y);
             verify(thumbnails[index].x > thumbnails[index - 1].x);
         }
-        // The fifth starts the next row, and the sixth follows it.
+        // The fifth starts the next row, and the rest follow it.
         verify(thumbnails[4].y > thumbnails[0].y);
         compare(thumbnails[4].x, thumbnails[0].x);
-        compare(thumbnails[5].y, thumbnails[4].y);
-        verify(thumbnails[5].x > thumbnails[4].x);
+        for (let index = 5; index < 7; ++index) {
+            compare(thumbnails[index].y, thumbnails[4].y);
+            verify(thumbnails[index].x > thumbnails[index - 1].x);
+        }
         let sky = null;
         let life = null;
         let terrain = null;
         let radar = null;
+        let hyperspace = null;
         tryVerify(function () {
             sky = findChild(thumbnails[1], "nightSky");
             life = findChild(thumbnails[2], "gameOfLife");
             terrain = findChild(thumbnails[3], "vectorTerrain");
             radar = findChild(thumbnails[4], "radar");
+            hyperspace = findChild(thumbnails[5], "hyperspace");
             return sky !== null && life !== null && life.width > 1 && terrain !== null
-                    && terrain.width > 1 && radar !== null && radar.width > 1;
+                    && terrain.width > 1 && radar !== null && radar.width > 1 && hyperspace !== null
+                    && hyperspace.width > 1;
         });
         compare(life.drawWidth * 2, sky.drawWidth);
         compare(terrain.drawWidth, sky.drawWidth);
@@ -12654,6 +12707,18 @@ TestCase {
         // With no Space behind it, the thumbnail shows a few blips.
         compare(radar.pages, null);
         verify(radar.blips.length > 0);
+        compare(hyperspace.drawWidth, sky.drawWidth);
+        verify(hyperspace.reducedMotion);
+        verify(hyperspace.stars > 0);
+        compare(hyperspace.warp, 0);
+
+        const chooseHyperspace = clickReportingAMiss(thumbnails[5], function () {
+            return browser.preference("start-page-scene", "") === "hyperspace";
+        });
+        verify(chooseHyperspace === "", chooseHyperspace);
+        tryVerify(function () {
+            return findChild(scene, "hyperspace") !== null;
+        });
 
         const chooseRadar = clickReportingAMiss(thumbnails[4], function () {
             return browser.preference("start-page-scene", "") === "radar";
@@ -12693,12 +12758,18 @@ TestCase {
                         tag: "terrain",
                         scene: "vector-terrain",
                         drawing: "vectorTerrain"
+                    },
+                    {
+                        tag: "hyperspace",
+                        scene: "hyperspace",
+                        drawing: "hyperspace"
                     }
                 ];
     }
 
-    // The board and the terrain cast no light on the Omnibar's rim, and the
-    // Omnibar stands over them: nothing either draws is over the Omnibar.
+    // The board, the terrain and hyperspace cast no light on the Omnibar's
+    // rim, and the Omnibar stands over them: nothing any of them draws is over
+    // the Omnibar, the streaks streaming from behind its field included.
     function test_theSceneDrawsNothingOverTheOmnibar(data) {
         const startPage = findChild(window.contentItem, "startPage");
         const scene = findChild(window.contentItem, "startPageScene");
@@ -12845,6 +12916,59 @@ TestCase {
         });
         browser.closeActiveTab();
         leaveSpace(homeSpaceId, restingSpaceId, "Resting grid");
+    }
+
+    // A commit stretches hyperspace's stars into streaks until the page first
+    // paints, and they hold while the Start page fades out over the page:
+    // the page replaces the Scene with no collapse back to stars. The next
+    // time the Start page shows, its stars are at rest.
+    function test_theStarsStreakUntilThePageReplacesThem() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        window.setStartPageScene("hyperspace");
+        const restingSpaceId = enterRestingSpace("Resting stars");
+        const field = findChild(window.contentItem, "hyperspace");
+        verify(field !== null);
+        tryVerify(function () {
+            return startPage.sceneRunning;
+        });
+        compare(field.warp, 0);
+        verify(!field.leaving);
+
+        input.text = "https://slow-paint.example/hyperspace";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        compare(field.navigating, 1);
+        tryVerify(function () {
+            return field.warp > 0.9;
+        }, 2000);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        }, 400);
+        compare(field.navigating, 0);
+        verify(field.leaving);
+        // Fading out, it still moves, and its streaks hold.
+        const frames = startPage.sceneFrames;
+        let least = field.warp;
+        tryVerify(function () {
+            if (startPage.visible)
+                least = Math.min(least, field.warp);
+            return !startPage.visible;
+        });
+        verify(startPage.sceneFrames > frames, "no frame while the Start page faded out");
+        verify(least > 0.9, "the streaks fell to " + least);
+        verify(!field.leaving);
+        compare(field.warp, 0);
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting stars");
+        window.setStartPageScene("crt-road");
     }
 
     // The field the radar keeps its blips clear of, and whose rim its sweep
