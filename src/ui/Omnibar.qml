@@ -846,10 +846,10 @@ Item {
                 Shape {
                     id: mark
                     objectName: "omnibarMark"
-                    // The mark from assets/icons/omaweb.svg, moved to the
-                    // origin: 37.83 by 18.37 in its own units. It is drawn
-                    // as the website's dash draws it, 32 px across its
-                    // 38.2 unit view box.
+                    // The mark from assets/icons/omaweb-mono-rounded.svg,
+                    // moved to the origin: 37.83 by 18.37 in its own units.
+                    // It is drawn as the website's dash draws it, 32 px
+                    // across its 38.2 unit view box.
                     anchors.centerIn: parent
                     width: 37.83
                     height: 18.37

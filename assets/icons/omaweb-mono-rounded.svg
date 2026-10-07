@@ -2,9 +2,15 @@
   <title>Omaweb</title>
   <rect width="64" height="64" rx="12" fill="#06060c"/>
   <!--
-    The mark and geometry of omaweb.svg in one colour, keeping that file's
-    rounded corners. This is the one for places that render the square as it
-    comes and do no rounding of their own, such as the README header.
+    The mark from the wordmark in website/assets/icons/omaweb.svg, lifted out of
+    its lettering and squared up. The transform carries the path's own
+    coordinates to this viewBox: the inner translate takes the mark's bounding
+    box to the origin, the scale fits its width to 48, and the outer translate
+    centres it.
+
+    The corners are rounded here because this one goes where the square is
+    drawn as it comes, with no rounding of its own: the launcher, which gets it
+    installed as omaweb.svg, and the README header.
   -->
   <path
     transform="translate(8 20.343) scale(1.26884) translate(-19.451561 -97.088945)"

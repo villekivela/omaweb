@@ -121,6 +121,13 @@ check_contents "$client_package" "usr/bin/omaweb
 usr/share/omaweb/skills/omaweb/SKILL.md
 usr/share/licenses/omaweb-cli/LICENSE" \
     '^(usr/bin/omaweb$|usr/share/omaweb/skills/omaweb/|usr/share/licenses/omaweb-cli/)'
+# The launcher shows the black and white icon, which is installed under the name
+# the desktop entry asks for.
+if ! bsdtar -xOf "$package" usr/share/icons/hicolor/scalable/apps/omaweb.svg \
+    | cmp -s - "$repo_root/assets/icons/omaweb-mono-rounded.svg"; then
+    echo "The package's omaweb.svg is not assets/icons/omaweb-mono-rounded.svg" >&2
+    exit 1
+fi
 
 if ! command -v pacman >/dev/null 2>&1 || [ "$(id -u)" -ne 0 ]; then
     echo "==> Not root, so the install, upgrade and remove pass is skipped"
