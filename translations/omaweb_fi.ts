@@ -2848,6 +2848,10 @@
         <translation>1 viikko</translation>
     </message>
     <message>
+        <source>At 100% none of the desktop shows through the sidebar; the theme&apos;s is %1%. Blur behind it comes from Hyprland&apos;s decoration:blur.</source>
+        <translation>Arvolla 100 % työpöytä ei näy sivupalkin läpi; teeman arvo on %1 %. Sumennus sen takana tulee Hyprlandin asetuksesta decoration:blur.</translation>
+    </message>
+    <message>
         <source>type</source>
         <comment>section label: typography settings</comment>
         <translation>kirjasin</translation>
@@ -3568,10 +3572,6 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Sidebar opacity</source>
         <translation>Sivupalkin peittävyys</translation>
-    </message>
-    <message>
-        <source>How much of the desktop shows through the sidebar; the theme&apos;s is %1%. Blur behind it comes from Hyprland&apos;s decoration:blur.</source>
-        <translation>Kuinka paljon työpöytä näkyy sivupalkin läpi; teeman arvo on %1 %. Sumennus sen takana tulee Hyprlandin asetuksesta decoration:blur.</translation>
     </message>
     <message>
         <source>Add card</source>

@@ -1231,7 +1231,7 @@ Rectangle {
                         colors: root.colors
                         title: qsTr("Sidebar opacity")
                         note: qsTr(
-                                  "How much of the desktop shows through the sidebar; the theme's is %1%. Blur behind it comes from Hyprland's decoration:blur.").arg(
+                                  "At 100% none of the desktop shows through the sidebar; the theme's is %1%. Blur behind it comes from Hyprland's decoration:blur.").arg(
                                   Math.round(root.colors.themeSidebarOpacity * 100))
 
                         SettingSlider {
