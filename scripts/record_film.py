@@ -474,13 +474,9 @@ BUDGET = {"omaweb.webm": 2_000_000, "omaweb.mp4": 2_600_000, "poster.webp": 250_
 
 # What the recording's pixels are. wf-recorder converts the screen to limited-range BT.709 but
 # flags the stream full range, and a browser that believes the flag shows black as grey, so the
-# whole film looks washed out. The flag is put right as the recording is read, before a filter can
-# squeeze the values a second time, the finished edit is labelled with what it holds, since its
-# filters drop part of the label, and every file it is cut into says the same.
-RAW_RANGE = ["-bsf:v", "h264_metadata=video_full_range_flag=0"]
+# whole film looks washed out. The values pass through the edit as they are, so the finished edit is
+# labelled with what it holds, and the files it is cut into carry the label on.
 COLOURS = "setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709"
-COLOUR_TAGS = ["-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709",
-               "-color_trc", "bt709"]
 
 SETTLE = 0.8
 LOAD_SETTLE = 2.5
@@ -1076,11 +1072,9 @@ def compose(out: Path) -> None:
     chains.append(f"{joined}{','.join(texts + [COLOURS])}[film]")
     master = out / "master.mkv"
     pointer_input = ["-i", str(POINTER)] if pointed else []
-    subprocess.run(["ffmpeg", "-v", "error", "-y", *RAW_RANGE, "-i", str(out / "raw.mkv"),
-                    *pointer_input,
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out / "raw.mkv"), *pointer_input,
                     "-filter_complex", ";".join(chains), "-map", "[film]", "-an",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", *COLOUR_TAGS,
-                    str(master)],
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", str(master)],
                    check=True)
     encode(out, master)
     expect_no_flash("Film", out / "omaweb.mp4")
@@ -1149,7 +1143,7 @@ def encode(out: Path, master: Path) -> None:
         for quality in ladder:
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(master), "-an",
                             "-pix_fmt", "yuv420p", *arguments, "-crf", str(quality),
-                            *COLOUR_TAGS, str(out / name)], check=True)
+                            str(out / name)], check=True)
             size = (out / name).stat().st_size
             log(f"{name}: {size} bytes at crf {quality}")
             if size <= BUDGET[name]:
