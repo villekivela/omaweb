@@ -4825,6 +4825,9 @@ ApplicationWindow {
                     "key": "wash-bar",
                     "name": "Wash and bar, as #638 says"
                 }, {
+                    "key": "edge",
+                    "name": "Wash and bar, edge to edge"
+                }, {
                     "key": "keyboard",
                     "name": "Bar follows the keyboard"
                 }]

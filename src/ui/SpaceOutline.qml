@@ -1186,7 +1186,16 @@ Rectangle {
             // runs in the view's padding, and a margin would leave it no lane
             // but the rows themselves.
             rightPadding: 16
-            clip: true
+            // PROTOTYPE #638: the edge variant draws the active row's wash out
+            // past the list's margins.
+            clip: typeof tabMarkPrototype === "undefined" || tabMarkPrototype.variant !== "edge"
+
+            // PROTOTYPE #638: the view's own Flickable clips as well.
+            Binding {
+                target: tabScroll.contentItem
+                property: "clip"
+                value: tabScroll.clip
+            }
             opacity: root.arrivalOpacity
             transform: Translate {
                 x: root.arrivalOffset * listLayer.width

@@ -95,13 +95,22 @@ Item {
     //   today      the kit's selected fill and border; the cursor a wash and border
     //   wash-bar   the Omnibar's 14% wash and 2 px bar; the bar marks the tab
     //              beside; the cursor a border alone
+    //   edge       wash-bar, with the wash and bar out to the sidebar's edges
+    //              as the Omnibar's rows reach the panel's; the row's content
+    //              stays put, so the chip lines up with the address field's icon
     //   keyboard   the 14% wash alone, 7% for the tab beside; the bar is the
     //              cursor, so the keyboard on the active tab is the Omnibar's row
     readonly property string markVariant: typeof tabMarkPrototype !== "undefined"
                                           ? tabMarkPrototype.variant : "today"
     readonly property bool markToday: markVariant === "today"
     readonly property bool cursorShown: activeFocus && !reachedByPointer
-    readonly property bool markBar: !pinned && (markVariant === "wash-bar" ? (active || tabBeside) :
+    readonly property bool markWashBar: markVariant === "wash-bar" || markVariant === "edge"
+    readonly property bool markEdge: markVariant === "edge" && !pinned
+    // How far the wash reaches past the row on each side: the list's 16 px
+    // margin and padding, except where the other half of a split stands.
+    readonly property real edgeLeft: markEdge && !(inSplit && x > 0) ? 16 : 0
+    readonly property real edgeRight: markEdge && !(inSplit && x === 0) ? 16 : 0
+    readonly property bool markBar: !pinned && (markWashBar ? (active || tabBeside) :
                                                                                (markVariant === "keyboard"
                                                                                 && cursorShown))
 
@@ -227,10 +236,12 @@ Item {
     Rectangle {
         objectName: "prototypeTabWash-" + root.tabId
         anchors.fill: parent
+        anchors.leftMargin: -root.edgeLeft
+        anchors.rightMargin: -root.edgeRight
         visible: !root.markToday && !root.siteColored && (root.active || (root.markVariant
                                                                           === "keyboard"
                                                                           && root.tabBeside))
-        radius: Style.cornerRadius
+        radius: root.markEdge ? 0 : Style.cornerRadius
         color: Qt.alpha(root.colors.accent, root.active ? 0.14 : 0.07)
     }
 
@@ -281,8 +292,9 @@ Item {
     // row's size so it follows the row's corners.
     Item {
         objectName: "prototypeTabBar-" + root.tabId
-        visible: root.markBar
+        visible: root.markBar && !(root.markEdge && root.edgeLeft === 0)
         anchors.left: parent.left
+        anchors.leftMargin: -root.edgeLeft
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 2
@@ -291,7 +303,7 @@ Item {
         Rectangle {
             width: root.width
             height: parent.height
-            radius: Style.cornerRadius
+            radius: root.markEdge ? 0 : Style.cornerRadius
             color: root.colors.accent
         }
     }
