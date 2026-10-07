@@ -117,6 +117,10 @@ Item {
     //                7%, and one bar at the sidebar's edge marks the pair
     //   tiles        the halves stay inset, as two options of a row: the active
     //                half takes 14% inside its border, the tab beside the border
+    //   one-bar      outer, with one bar at the sidebar's edge for the pair
+    //   bar-follows  outer, with the bar on the active half alone
+    //   underline    outer, with no bar: the active half takes a 2 px line
+    //                along its foot, as the pane it names
     readonly property string hoverMode: markEdge ? tabMarkPrototype.hover : "kit"
     readonly property string splitMode: markEdge && inSplit ? tabMarkPrototype.split : ""
     readonly property bool rightHalf: inSplit && x > 0
@@ -130,8 +134,13 @@ Item {
                                                                                            splitMode
                                                                                            === "row" ? 2 :
                                                                                                        0
-    readonly property bool markBar: !pinned && markEdge ? !edgeTiles && (active || tabBeside) && !(
-                                                              splitMode === "row" && rightHalf) :
+    readonly property bool markBar: !pinned && markEdge ? !edgeTiles && (active || tabBeside) && (
+                                                              splitMode === "" || splitMode === "outer"
+                                                              ? true : splitMode === "row" || splitMode
+                                                                       === "one-bar" ? !rightHalf :
+                                                                                        splitMode
+                                                                                        === "bar-follows"
+                                                                                        ? active : false) :
                                                           !pinned && (markWashBar ? (active || tabBeside) :
                                                                                (markVariant === "keyboard"
                                                                                 && cursorShown))
@@ -345,6 +354,18 @@ Item {
             radius: root.markEdge ? 0 : Style.cornerRadius
             color: root.colors.accent
         }
+    }
+
+    // PROTOTYPE #638: the underline split's mark on the active half.
+    Rectangle {
+        visible: root.markEdge && root.splitMode === "underline" && root.active
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: -root.edgeLeft
+        anchors.rightMargin: -root.edgeRight
+        height: 2
+        color: root.colors.accent
     }
 
     SiteTile {

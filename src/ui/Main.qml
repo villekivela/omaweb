@@ -4883,7 +4883,7 @@ ApplicationWindow {
                         }, {
                             "label": "Split: " + tabMarkPrototype.split,
                             "act": function () {
-                                const modes = ["outer", "row", "tiles"];
+                                const modes = ["outer", "row", "tiles", "one-bar", "bar-follows", "underline"];
                                 tabMarkPrototype.split = modes[(modes.indexOf(tabMarkPrototype.split) + 1) % modes.length];
                             }
                         }, {
