@@ -50,25 +50,6 @@ namespace {
         return QJsonDocument::fromJson(file.readAll()).object();
     }
 
-    // A row's string as the type the file holds, or undefined for one that
-    // does not read as that type.
-    QJsonValue typed(const QString &key, const QString &text)
-    {
-        const auto fallback = SettingsFile::defaultValue(key);
-        if (fallback.isBool()) {
-            if (text == QLatin1String("true") || text == QLatin1String("false")) {
-                return text == QLatin1String("true");
-            }
-            return QJsonValue::Undefined;
-        }
-        if (fallback.isDouble()) {
-            bool ok = false;
-            const auto number = text.toInt(&ok);
-            return ok ? QJsonValue(number) : QJsonValue(QJsonValue::Undefined);
-        }
-        return text;
-    }
-
 } // namespace
 
 bool migrateSettings(const QString &configRoot, SessionStore &store)
@@ -77,14 +58,9 @@ bool migrateSettings(const QString &configRoot, SessionStore &store)
         return true;
     }
     const QDir config(configRoot);
+    // The reader's own file stands. An old file beside it is theirs to delete,
+    // which SettingsFile logs and Settings names.
     if (config.exists(SettingsFile::fileName())) {
-        for (const auto &name : SettingsFile::retiredFileNames()) {
-            if (config.exists(name)) {
-                qWarning("Omaweb ignores %s, which an earlier version kept settings in: %s has "
-                         "taken its place.",
-                    qPrintable(config.filePath(name)), qPrintable(SettingsFile::fileName()));
-            }
-        }
         return true;
     }
 
@@ -98,7 +74,7 @@ bool migrateSettings(const QString &configRoot, SessionStore &store)
     for (const auto &key : settingRows) {
         const auto text = store.preference(key, missing);
         if (text != missing) {
-            carry(key, typed(key, text));
+            carry(key, SettingsFile::fromText(key, text));
         }
     }
     if (!values.contains(QStringLiteral("start-page-scene"))
@@ -126,16 +102,22 @@ bool migrateSettings(const QString &configRoot, SessionStore &store)
         }
     }
 
+    // The agent keys first: privacy.json is deleted once settings.json is
+    // there, and a key that did not reach agents.json would go with it.
+    for (const auto &key : agentKeys) {
+        if (privacy.contains(key) && !AgentsFile::write(configRoot, key, privacy.value(key))) {
+            qWarning("Omaweb could not write %s, and leaves its earlier settings where they are "
+                     "to move them on the next start.",
+                qPrintable(config.filePath(AgentsFile::fileName())));
+            return false;
+        }
+    }
     SettingsFile settings(configRoot);
     if (!settings.merge(values)) {
-        qWarning("Omaweb could not write %s, and keeps reading settings where it did before.",
+        qWarning("Omaweb could not write %s, and leaves its earlier settings where they are to "
+                 "move them on the next start.",
             qPrintable(settings.path()));
         return false;
-    }
-    for (const auto &key : agentKeys) {
-        if (privacy.contains(key)) {
-            AgentsFile::write(configRoot, key, privacy.value(key));
-        }
     }
 
     for (const auto &name : SettingsFile::retiredFileNames()) {

@@ -18,8 +18,9 @@ namespace AgentsFile {
     // cannot be read the way it is written. The caller keeps its default for
     // anything but the type it expects.
     QJsonValue read(const QString &configRoot, QLatin1StringView key);
-    // A null or undefined value removes the key.
-    void write(const QString &configRoot, QLatin1StringView key, const QJsonValue &value);
+    // A null or undefined value removes the key. False when the file could not
+    // be written.
+    bool write(const QString &configRoot, QLatin1StringView key, const QJsonValue &value);
 
 } // namespace AgentsFile
 

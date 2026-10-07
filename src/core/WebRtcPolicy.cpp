@@ -31,7 +31,11 @@ void WebRtcPolicy::setPublicInterfacesOnly(bool publicInterfacesOnly)
         return;
     }
     // Applied when the file says it was written, the way an edit made there is.
-    m_settings.set(publicInterfacesOnlyKey, publicInterfacesOnly);
+    // A write the file refuses changes nothing, and saying so draws a switch
+    // the reader flipped back to where it stands.
+    if (!m_settings.set(publicInterfacesOnlyKey, publicInterfacesOnly)) {
+        emit publicInterfacesOnlyChanged();
+    }
 }
 
 // A file that cannot be read the way it is written opens the other

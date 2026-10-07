@@ -21,6 +21,7 @@ class HttpsOnlyTest final : public QObject {
 private slots:
     void isOnUntilTheReaderTurnsItOff();
     void followsTheSettingsFileWhileRunning();
+    void givesTheSwitchBackWhenTheFileRefusesIt();
     void upgradesAPagesOwnPlainAddress();
     void leavesLocalDevelopmentAddressesAlone();
     void letsASiteThroughForTheLoadTheReaderAskedFor();
@@ -229,6 +230,25 @@ void HttpsOnlyTest::followsTheSettingsFileWhileRunning()
     QTRY_VERIFY(!mode.enabled());
     QCOMPARE(changed.count(), 1);
     QVERIFY(!mode.sendsOverHttps(QStringLiteral("space"), plain));
+}
+
+// A settings.json that cannot be read refuses the write, so the mode stays as
+// it was, and says so, so a switch the reader flipped is drawn back.
+void HttpsOnlyTest::givesTheSwitchBackWhenTheFileRefusesIt()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QFile file(QDir(root.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("{\"version\": 1,");
+    file.close();
+    HttpsOnly mode(root.path());
+    QSignalSpy changed(&mode, &HttpsOnly::enabledChanged);
+
+    mode.setEnabled(false);
+
+    QVERIFY(mode.enabled());
+    QCOMPARE(changed.count(), 1);
 }
 
 QTEST_GUILESS_MAIN(HttpsOnlyTest)

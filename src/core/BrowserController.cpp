@@ -273,6 +273,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
         }
         if (keys.contains(QLatin1String(knownExtensionsKey))) {
             emit knownExtensionsChanged();
+            fetchMissingKnownExtensions();
         }
         if (keys.contains(QLatin1String(downloadDirectoryKey))) {
             loadDownloadDirectory();
@@ -452,6 +453,12 @@ bool BrowserController::forgetPutAwayTabsSince(const QString &spaceId, qint64 si
 }
 
 void BrowserController::setNowForTests(qint64 milliseconds) { m_nowForTests = milliseconds; }
+
+void BrowserController::setExtensionsAskForTests(ExtensionInstaller::Ask ask)
+{
+    m_extensionsAsk = ask;
+    m_extensionInstaller.reset();
+}
 
 qint64 BrowserController::putAwayLimit() const { return 1000LL * putAwayAfterSeconds(); }
 
@@ -3995,13 +4002,7 @@ QString BrowserController::preference(const QString &name, const QString &fallba
 {
     if (SettingsFile::keys().contains(name)) {
         const auto value = m_settings.value(name);
-        if (value.isBool()) {
-            return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
-        }
-        if (value.isDouble()) {
-            return QString::number(value.toInteger());
-        }
-        return value.isString() ? value.toString() : fallback;
+        return value.isUndefined() ? fallback : SettingsFile::text(value);
     }
     if (!m_ready) {
         return fallback;
@@ -4014,23 +4015,8 @@ QString BrowserController::preference(const QString &name, const QString &fallba
 bool BrowserController::setPreference(const QString &name, const QString &value)
 {
     if (SettingsFile::keys().contains(name)) {
-        const auto fallback = SettingsFile::defaultValue(name);
-        QJsonValue typed = value;
-        if (value.isEmpty()) {
-            typed = QJsonValue::Null;
-        } else if (fallback.isBool()) {
-            if (value != QLatin1String("true") && value != QLatin1String("false")) {
-                return false;
-            }
-            typed = value == QLatin1String("true");
-        } else if (fallback.isDouble()) {
-            bool number = false;
-            typed = value.toInt(&number);
-            if (!number) {
-                return false;
-            }
-        }
-        return m_settings.set(name, typed);
+        const auto typed = SettingsFile::fromText(name, value);
+        return !typed.isUndefined() && m_settings.set(name, typed);
     }
     if (!m_ready) {
         return false;
@@ -4134,7 +4120,7 @@ namespace {
 ExtensionInstaller *BrowserController::extensionInstaller()
 {
     if (!m_extensionInstaller) {
-        m_extensionInstaller = std::make_unique<ExtensionInstaller>();
+        m_extensionInstaller = std::make_unique<ExtensionInstaller>(m_extensionsAsk);
         connect(m_extensionInstaller.get(), &ExtensionInstaller::installed, this,
             [this](const QString &) { emit knownExtensionsChanged(); });
         connect(m_extensionInstaller.get(), &ExtensionInstaller::fetchingChanged, this,
@@ -4192,17 +4178,26 @@ bool BrowserController::setKnownExtensionEnabled(const QString &key, bool enable
     } else {
         extensions.remove(key);
     }
-    if (!m_settings.set(QString::fromLatin1(knownExtensionsKey), extensions)) {
-        return false;
+    return m_settings.set(QString::fromLatin1(knownExtensionsKey), extensions);
+}
+
+// Turning one on is asking for it, whether in Settings or in the file. A reader
+// who enabled an extension and found nothing there would have to go looking
+// for a second control that fetches it, and there is no reason for that
+// control to exist.
+void BrowserController::fetchMissingKnownExtensions()
+{
+    if (!m_storage) {
+        return;
     }
-    // Turning one on is asking for it. A reader who enabled an extension and
-    // found nothing there would have to go looking for a second control that
-    // fetches it, and there is no reason for that control to exist.
-    if (enabled && m_storage
-        && ExtensionPackage::versionInstalled(m_storage->extensionPathFor(key)).isEmpty()) {
-        downloadKnownExtension(key);
+    for (const KnownExtension &extension : omaweb::knownExtensions()) {
+        if (knownExtensionEnabled(extension.key)
+            && ExtensionPackage::versionInstalled(m_storage->extensionPathFor(extension.key))
+                .isEmpty()
+            && !(m_extensionInstaller && m_extensionInstaller->fetching(extension.key))) {
+            downloadKnownExtension(extension.key);
+        }
     }
-    return true;
 }
 
 void BrowserController::reloadSyncedState()

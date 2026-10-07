@@ -37,10 +37,10 @@ QJsonValue AgentsFile::read(const QString &configRoot, QLatin1StringView key)
 
 // A file that cannot be read is replaced rather than kept: the reader's
 // decision has to land, and a file nobody could read held nobody's.
-void AgentsFile::write(const QString &configRoot, QLatin1StringView key, const QJsonValue &value)
+bool AgentsFile::write(const QString &configRoot, QLatin1StringView key, const QJsonValue &value)
 {
     if (configRoot.isEmpty() || !QDir().mkpath(configRoot)) {
-        return;
+        return false;
     }
     auto object = contents(configRoot);
     if (value.isUndefined() || value.isNull()) {
@@ -50,10 +50,10 @@ void AgentsFile::write(const QString &configRoot, QLatin1StringView key, const Q
     }
     QSaveFile file(path(configRoot));
     if (!file.open(QIODevice::WriteOnly)) {
-        return;
+        return false;
     }
     file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
-    file.commit();
+    return file.commit();
 }
 
 } // namespace omaweb

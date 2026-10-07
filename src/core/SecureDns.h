@@ -51,7 +51,9 @@ signals:
 
 private:
     void load();
-    void save(const QString &resolver, const QString &customTemplate);
+    // False when the file refused the write, which leaves the resolver as it
+    // was.
+    bool save(const QString &resolver, const QString &customTemplate);
 
     SettingsFile m_settings;
     QString m_resolver;

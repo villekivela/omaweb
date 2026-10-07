@@ -320,6 +320,9 @@ public:
     // The time the put-away rule reads, in milliseconds since the epoch, or
     // 0 for the wall clock. Only a test sets it.
     Q_INVOKABLE void setNowForTests(qint64 milliseconds);
+    // Whether a Known extension is fetched from the store, so a test can see
+    // the browser ask without reaching it.
+    void setExtensionsAskForTests(ExtensionInstaller::Ask ask);
     // The row the reader is dragging in the sidebar, or nothing. A tab being
     // dragged is in use and is not put away.
     Q_INVOKABLE void setDraggedTab(const QString &tabId);
@@ -880,9 +883,11 @@ private:
     // Built on the first ask rather than with the controller: a window that
     // never names an extension never builds a network stack for one.
     ExtensionInstaller *extensionInstaller();
+    void fetchMissingKnownExtensions();
 
     std::optional<SpaceStorage> m_storage;
     std::unique_ptr<ExtensionInstaller> m_extensionInstaller;
+    ExtensionInstaller::Ask m_extensionsAsk = ExtensionInstaller::Ask::Store;
     // The search, on the store's thread. Absent in a Private window, which
     // has no history to search.
     HistorySearch *m_historySearch = nullptr;

@@ -52,7 +52,11 @@ void HttpsOnly::setEnabled(bool enabled)
         return;
     }
     // Applied when the file says it was written, the way an edit made there is.
-    m_settings.set(enabledKey, enabled);
+    // A write the file refuses changes nothing, and saying so draws a switch
+    // the reader flipped back to where it stands.
+    if (!m_settings.set(enabledKey, enabled)) {
+        emit enabledChanged();
+    }
 }
 
 void HttpsOnly::setRemembered(Remembered remembered) { m_remembered = std::move(remembered); }

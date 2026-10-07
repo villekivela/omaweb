@@ -104,10 +104,7 @@ bool SecureDns::useResolver(const QString &id)
     if (!namedResolver(id)) {
         return false;
     }
-    if (m_resolver != id) {
-        save(id, m_customTemplate);
-    }
-    return true;
+    return m_resolver == id || save(id, m_customTemplate);
 }
 
 bool SecureDns::useCustom(const QString &address)
@@ -117,7 +114,7 @@ bool SecureDns::useCustom(const QString &address)
         return false;
     }
     if (m_resolver != customId || m_customTemplate != trimmed) {
-        save(customId, trimmed);
+        return save(customId, trimmed);
     }
     return true;
 }
@@ -149,11 +146,17 @@ void SecureDns::load()
 }
 
 // Applied when the file says it was written, the way an edit made there is.
-void SecureDns::save(const QString &resolver, const QString &customTemplate)
+bool SecureDns::save(const QString &resolver, const QString &customTemplate)
 {
-    m_settings.merge({{QString(resolverKey), resolver},
+    const bool saved = m_settings.merge({{QString(resolverKey), resolver},
         {QString(customTemplateKey),
             customTemplate.isEmpty() ? QJsonValue() : QJsonValue(customTemplate)}});
+    // A write the file refuses changes nothing, and saying so draws the
+    // control the reader moved back to where it stands.
+    if (!saved) {
+        emit changed();
+    }
+    return saved;
 }
 
 } // namespace omaweb

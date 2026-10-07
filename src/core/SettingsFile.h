@@ -46,7 +46,8 @@ public:
     explicit SettingsFile(QString configRoot, QObject *parent = nullptr);
 
     static QString fileName();
-    // Every key the file holds for this build, in no particular order.
+    // Every key the file holds for this build, in the order a new one goes
+    // into the file.
     static QStringList keys();
     // The value a key reads as when the reader has not set it, or an
     // undefined one for a key whose default is not Omaweb's to state, such as
@@ -70,6 +71,14 @@ public:
     bool merge(const QJsonObject &values);
     // Whether `set` would take this value for this key.
     static bool accepts(const QString &key, const QJsonValue &value);
+    // A value as the text the chrome and the session store's rows hold
+    // settings in: `true` or `false`, a whole number, or the text itself.
+    // Empty for a value that is none of those.
+    static QString text(const QJsonValue &value);
+    // What text stands for under a key, typed as the key's default is: null
+    // for empty text, which is the default again, and undefined for text that
+    // does not read as that type.
+    static QJsonValue fromText(const QString &key, const QString &text);
 
     // Reads the file again, as the watch does on its own.
     void reload();
@@ -98,6 +107,7 @@ signals:
 private:
     void apply(const QJsonObject &stored);
     void watch();
+    void log() const;
 
     QString m_configRoot;
     // The valid values the reader set, by key.

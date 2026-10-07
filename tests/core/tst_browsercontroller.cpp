@@ -2,6 +2,7 @@
 #include "BrowserStateExchange.h"
 #include "EngineSuggestions.h"
 #include "HistoryQuery.h"
+#include "ExtensionInstaller.h"
 #include "KnownExtensions.h"
 #include "PrivateSessionFixture.h"
 #include "SessionFixture.h"
@@ -215,6 +216,7 @@ private slots:
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
     void keepsTheReadersSettingsInTheSettingsFile();
     void followsAChromeSettingWrittenInTheFile();
+    void fetchesAKnownExtensionTurnedOnInTheFile();
     void movesSettingsOutOfTheStoreOnStart();
     void attachesOneInspectorToOneTab();
     void keepsTheInspectorThroughASpaceSwitch();
@@ -2924,6 +2926,28 @@ void BrowserControllerTest::followsAChromeSettingWrittenInTheFile()
     QTRY_COMPARE(privateChanged.count(), 1);
     QCOMPARE(privateWindow->preference(QStringLiteral("floating-controls"), QStringLiteral("true")),
         QStringLiteral("false"));
+}
+
+// An extension the reader turns on in settings.json is asked for, as one
+// turned on in Settings is: a switch that reads on with nothing installed
+// would be a switch that lies.
+void BrowserControllerTest::fetchesAKnownExtensionTurnedOnInTheFile()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    // Asking answers at once that this build downloads nothing, so the test
+    // learns that the browser asked without reaching the store.
+    controller.setExtensionsAskForTests(omaweb::ExtensionInstaller::Ask::Never);
+    QSignalSpy failed(&controller, &BrowserController::knownExtensionFailed);
+
+    QFile file(QDir(config.path()).filePath(QStringLiteral("settings.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "known-extensions": {"bitwarden": true}})");
+    file.close();
+
+    QTRY_COMPARE(failed.count(), 1);
+    QCOMPARE(failed.at(0).at(0).toString(), QStringLiteral("bitwarden"));
 }
 
 // The first start of this version finds the reader's settings in the store's

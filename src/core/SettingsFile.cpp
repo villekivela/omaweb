@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QLockFile>
+#include <QMutex>
 #include <QSaveFile>
 
 #include <algorithm>
@@ -361,6 +362,37 @@ bool SettingsFile::accepts(const QString &key, const QJsonValue &value)
     return known && (value.isUndefined() || value.isNull() || fits(*known, value));
 }
 
+QString SettingsFile::text(const QJsonValue &value)
+{
+    if (value.isBool()) {
+        return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+    }
+    if (value.isDouble()) {
+        return QString::number(value.toInteger());
+    }
+    return value.toString();
+}
+
+QJsonValue SettingsFile::fromText(const QString &key, const QString &text)
+{
+    const auto *known = find(key);
+    if (text.isEmpty()) {
+        return QJsonValue::Null;
+    }
+    if (known && known->kind == Kind::Switch) {
+        if (text != QLatin1String("true") && text != QLatin1String("false")) {
+            return QJsonValue::Undefined;
+        }
+        return text == QLatin1String("true");
+    }
+    if (known && known->kind == Kind::Number) {
+        bool number = false;
+        const auto value = text.toInt(&number);
+        return number ? QJsonValue(value) : QJsonValue(QJsonValue::Undefined);
+    }
+    return text;
+}
+
 bool SettingsFile::set(const QString &key, const QJsonValue &value)
 {
     return merge({{key, value.isUndefined() ? QJsonValue(QJsonValue::Null) : value}});
@@ -375,7 +407,7 @@ bool SettingsFile::merge(const QJsonObject &values)
     }
     // A key goes in where the reader put it, or in the order Omaweb lists its
     // keys when it is new.
-    const auto into = [&values](QJsonObject &object, Order *order) {
+    const auto place = [&values](QJsonObject &object, Order *order) {
         for (const auto &key : keys()) {
             if (!values.contains(key)) {
                 continue;
@@ -394,7 +426,7 @@ bool SettingsFile::merge(const QJsonObject &values)
     };
     if (m_configRoot.isEmpty()) {
         auto object = m_values;
-        into(object, nullptr);
+        place(object, nullptr);
         apply(object);
         return true;
     }
@@ -418,7 +450,7 @@ bool SettingsFile::merge(const QJsonObject &values)
             return false;
         }
     }
-    into(contents.object, &contents.order);
+    place(contents.object, &contents.order);
     if (!contents.object.contains(QLatin1String(versionKey))) {
         contents.object.insert(QLatin1String(versionKey), version);
         contents.order.keys.prepend(QLatin1String(versionKey));
@@ -453,6 +485,7 @@ void SettingsFile::reload()
     }
     if (leftovers != m_leftoverFiles) {
         m_leftoverFiles = leftovers;
+        log();
         emit statusChanged();
     }
     QFile file(path());
@@ -465,9 +498,7 @@ void SettingsFile::reload()
         if (m_parseError != contents.error) {
             m_parseError = contents.error;
             m_readable = false;
-            qWarning("Omaweb could not read %s, %s. It keeps the settings it read last and "
-                     "writes none until the file is fixed.",
-                qPrintable(path()), qPrintable(contents.error));
+            log();
             emit statusChanged();
         }
         return;
@@ -544,21 +575,55 @@ void SettingsFile::apply(const QJsonObject &stored)
     m_readable = true;
     m_parseError.clear();
     if (statusDiffers) {
-        for (const auto &key : invalid) {
-            qWarning("Omaweb reads \"%s\" in %s as its default: the value is not one it can use.",
-                qPrintable(key), qPrintable(path()));
-        }
-        for (const auto &key : ignored) {
-            qWarning("Omaweb ignores \"%s\" in %s, which names no setting it knows.",
-                qPrintable(key), qPrintable(path()));
-        }
         m_invalidKeys = invalid;
         m_ignoredKeys = ignored;
+        log();
         emit statusChanged();
     }
     if (!changedKeys.isEmpty()) {
         emit changed(changedKeys);
     }
+}
+
+// Every instance on a file reads the same problems in it, so each is logged
+// once for the process, when it first appears, rather than once an instance.
+void SettingsFile::log() const
+{
+    static QMutex mutex;
+    static QHash<QString, QStringList> logged;
+    const QMutexLocker locker(&mutex);
+    auto &previous = logged[path()];
+    QStringList current;
+    // True the first time a problem is seen since the file was last without it.
+    const auto fresh = [&previous, &current](const QString &problem) {
+        current.append(problem);
+        return !previous.contains(problem);
+    };
+    if (!m_readable && fresh(QStringLiteral("unreadable:") + m_parseError)) {
+        qWarning("Omaweb could not read %s, %s. It keeps the settings it read last and writes "
+                 "none until the file is fixed.",
+            qPrintable(path()), qPrintable(m_parseError));
+    }
+    for (const auto &key : m_invalidKeys) {
+        if (fresh(QStringLiteral("invalid:") + key)) {
+            qWarning("Omaweb reads \"%s\" in %s as its default: the value is not one it can use.",
+                qPrintable(key), qPrintable(path()));
+        }
+    }
+    for (const auto &key : m_ignoredKeys) {
+        if (fresh(QStringLiteral("ignored:") + key)) {
+            qWarning("Omaweb ignores \"%s\" in %s, which names no setting it knows.",
+                qPrintable(key), qPrintable(path()));
+        }
+    }
+    for (const auto &name : m_leftoverFiles) {
+        if (fresh(QStringLiteral("leftover:") + name)) {
+            qWarning("Omaweb ignores %s, which an earlier version kept settings in: %s has taken "
+                     "its place.",
+                qPrintable(QDir(m_configRoot).filePath(name)), qPrintable(path()));
+        }
+    }
+    previous = current;
 }
 
 // A write that replaces the file, as QSaveFile and most editors do, ends the
