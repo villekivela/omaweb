@@ -17,22 +17,19 @@ what was typed remembered, addresses and payment cards filled, the cards kept in
 keyring ([ADR 0053](adr/0053-keep-payment-cards-in-the-secret-service.md)), and signing in with a
 USB security key. It also shipped `omaweb dev`, the `omaweb` client that drives the browser from a
 container or another host, Site information as a card from the address, and the chrome resting on
-whole pixels. v0.12.0 is the release in progress. Two milestones carry what remains, in this order:
+whole pixels. [v0.12.0](https://github.com/villekivela/omaweb/releases/tag/v0.12.0) shipped
+performance and the chrome: the 6.11.2 engine rebuilt for speed, with V8's write barriers on and, on
+x86_64, clang, LLD and ThinLTO
+([ADR 0060](adr/0060-build-the-x86-64-engine-with-clang-and-thinlto.md)), the browser's missing
+measurements with what came in over budget fixed, jumping between tabs with `Ctrl+O` and `Ctrl+I`,
+the sidebar on the right, and five more Start page Scenes. v0.12.1 is the release in progress. Two
+milestones carry what remains, in this order:
 
-1. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), performance and the chrome. The
-   6.11.2 engine is rebuilt for speed. V8's write barriers on measured about 28% more on JetStream
-   and 7% more on Speedometer on x86_64 ([#356](https://github.com/villekivela/omaweb/issues/356)),
-   and building with clang, LLD, ThinLTO and Chrome's PGO profile about 6% more on Speedometer
-   again. aarch64 keeps GCC, where clang without a PGO profile measured no faster
-   ([ADR 0060](adr/0060-build-the-x86-64-engine-with-clang-and-thinlto.md)). The browser gains the
-   measurements it lacks: Linux baselines for its probes, a page's first paint, many live tabs, and
-   the chrome's frame times, and what comes in over budget is fixed in the same release. CI gets
-   faster: a pull request's checks finish within 15 minutes, and the page-load step stops running
-   out of spares. The chrome: jumping between tabs with `Ctrl+O` and `Ctrl+I`, the sidebar on the
-   right, and the sidebar's empty space moving the window. The Omarchy kit is synced with `quattro`.
-   The Start page gains Scenes beyond the night road, chosen in Settings' Interface section: a night
-   sky after Netscape Navigator's, Conway's Game of Life, a vector terrain, a radar sweep and a
-   hyperspace jump.
+1. [v0.12.1](https://github.com/villekivela/omaweb/milestone/10), a small release after v0.12.0: the
+   release mark no longer hidden under the extension mark in the sidebar footer
+   ([#628](https://github.com/villekivela/omaweb/issues/628)), the black and white icon in the
+   launcher ([#634](https://github.com/villekivela/omaweb/issues/634)), and the release pages
+   listing every release beside the notes ([#636](https://github.com/villekivela/omaweb/pull/636)).
 2. [v0.13.0](https://github.com/villekivela/omaweb/milestone/9), configuration as files: the
    reader's settings in a file they can keep in their dotfiles, and links from outside opening in
    the Space a rule names. Each starts with a prototype.
