@@ -20,14 +20,21 @@
 //
 // The build never fails on the releases API. A rate limit or an outage, or `--local`, leaves a
 // releases page that says where the releases are, so the site deploys a page that is thin rather
-// than not deploying at all.
+// than not deploying at all. The same releases name the newest one on the landing page, beside
+// its install link; without them that line stays hidden.
 
-import { copyFile, cp, mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { downloadFilm } from "./film.mjs";
-import { fallbackPage, fetchReleases, releasePages, writePages } from "./releases.mjs";
+import {
+  fallbackPage,
+  fetchReleases,
+  latestRelease,
+  releasePages,
+  writePages,
+} from "./releases.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEBSITE = resolve(HERE, "..");
@@ -97,8 +104,12 @@ async function main() {
   // that is still a reason to deploy the fallback rather than to fail the deploy.
   try {
     const template = await readFile(join(HERE, "release.html"), "utf8");
-    const pages = releasePages(await fetchReleases(), landing, template);
+    const releases = await fetchReleases();
+    const pages = releasePages(releases, landing, template);
+    // The landing page names the newest release only alongside the notes it links to.
+    const stamped = latestRelease(landing, releases);
     await writePages(RELEASES, pages);
+    await writeFile(join(OUTPUT, "index.html"), stamped);
     console.log(`website: wrote the site and ${pages.length - 1} release pages`);
   } catch (error) {
     console.warn(`website: the releases page points at GitHub instead: ${error.message}`);

@@ -3,11 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Omaweb · Web navigation system</title>
+    <title>Omaweb Browser</title>
     <meta
       name="description"
-      content="Omaweb is a keyboard-first web browser for Linux, with separate Spaces, built-in content blocking and no telemetry. Free and open source."
+      content="Omaweb is a keyboard-first web browser for Omarchy and Arch Linux, with separate Spaces, built-in content blocking and no telemetry. Free and open source."
     />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://omaweb.app" />
+    <meta property="og:title" content="Omaweb Browser" />
+    <meta
+      property="og:description"
+      content="Omaweb is a keyboard-first web browser for Omarchy and Arch Linux, with separate Spaces, built-in content blocking and no telemetry. Free and open source."
+    />
+    <meta property="og:image" content="https://omaweb.app/assets/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="theme-color" content="#020c17" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
@@ -63,7 +73,6 @@
              Its rows are the features below, and each one is a link to its card. -->
         <section class="start" aria-labelledby="start-title">
           <div class="start__sky">
-            <p class="kicker">Web navigation system</p>
             <h1 class="display start__title" id="start-title">
               A browser<br />for driving<br />the web.
             </h1>
@@ -131,8 +140,8 @@
                 </li>
                 <li role="option" id="row-pros" aria-selected="false">
                   <a href="#pros" data-card="pros"
-                    ><span class="omnibar__label">For pros</span
-                    ><span>Split view and docked DevTools.</span></a
+                    ><span class="omnibar__label">Split view and docked DevTools</span
+                    ><span>Two pages at once, the inspector beside them.</span></a
                   >
                 </li>
                 <li role="option" id="row-agents" aria-selected="false">
@@ -253,8 +262,11 @@
                 Install Omaweb
               </a>
               <p class="start__lede">
-                Keyboard first. Private. Open.<br />For people who know where they&rsquo;re going.
+                Keyboard first. Private. Open. For Omarchy and Arch Linux.<br />For people who know
+                where they&rsquo;re going.
               </p>
+              <!-- The newest release, written in by build/site.mjs from the releases it reads. -->
+              <p class="start__release" data-latest-release hidden></p>
             </div>
           </div>
         </section>
@@ -263,7 +275,7 @@
            plays muted while it is on screen and stops when it leaves; under reduced motion it waits
            on its poster frame for the reader to press play. scripts/record_film.sh records it, and
            the site's build copies it to these paths from the film release. -->
-        <section class="film" aria-label="Omaweb in a minute">
+        <section class="film" aria-label="Omaweb in use">
           <div class="film__frame">
             <video
               class="film__video"
@@ -419,7 +431,7 @@
               <p>
                 No telemetry, and no account to make. Every request the browser makes on its own is
                 <a href="https://github.com/villekivela/omaweb/blob/main/docs/network-requests.md"
-                  >written down</a
+                  >listed, with what each one sends</a
                 >.
               </p>
             </li>
@@ -453,7 +465,7 @@
                   decoding="async"
                 />
               </div>
-              <h2>For pros</h2>
+              <h2>Split view and docked DevTools</h2>
               <p>Two pages side by side in split view, and DevTools docked beside the page.</p>
             </li>
             <li class="card card--last" id="agents">
@@ -471,7 +483,9 @@
               <h2>Agents drive their own Spaces</h2>
               <p>
                 An Agent works in a Space of its own, marked in the footer, and never in yours
-                unless you let it.
+                unless you let it. Any agent that can run a shell command drives it with
+                <code>omaweb space new</code>, <code>open</code>, <code>look</code> and
+                <code>do</code>, once you turn on Allow agents.
                 <a
                   href="https://github.com/villekivela/omaweb/blob/main/docs/adr/0051-hand-the-browser-to-an-agent.md"
                   >How Agents work</a
@@ -577,7 +591,7 @@ Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</cod
             </g>
           </svg>
         </span>
-        <span>Web navigation system. Free and open source under MPL 2.0.</span>
+        <span>Free and open source under MPL 2.0.</span>
         <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
       </div>
     </footer>

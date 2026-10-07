@@ -52,16 +52,23 @@ useradd --create-home --shell /bin/bash builder
 chown -R builder /src
 chmod 0777 /film
 su builder -c 'scripts/bootstrap_content_blocker.sh'
-su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb'
+# The film's build takes the one verb its recording needs, `film-hover`, which no shipped build has.
+su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb \
+    -DOMAWEB_FILM_HOOKS=ON'
 scripts/check_omaweb_engine.sh build/ci
-su builder -c 'cmake --build --preset ci --target omaweb'
+# The browser as the runtime budget builds it: since the client and the browser are two programs
+# (#565), `omaweb` in the build tree is the client alone. The film's verb is tested here, in the
+# one build that has it.
+su builder -c 'cmake --build --preset ci --target omaweb-browser omaweb-translations \
+    omaweb-agent-command-tests omaweb-agent-control-tests'
+su builder -c "ctest --preset ci -R '^omaweb-agent-(command|control)$'"
 
 # Cage runs the recording as its one program, as it runs the runtime budget, and the status is
 # carried out through a file because the answer that matters is the script's, not cage's.
 cat > /tmp/record.sh <<'SCRIPT'
 #!/bin/sh
 cd /src
-python3 scripts/record_film.py record --browser build/ci/omaweb --out /film
+python3 scripts/record_film.py record --browser build/ci/omaweb-browser --out /film
 echo $? > /film/record.status
 SCRIPT
 chmod 0755 /tmp/record.sh

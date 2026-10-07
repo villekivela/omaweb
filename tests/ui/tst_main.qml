@@ -6283,6 +6283,34 @@ TestCase {
         verify(browser.deleteSpace(workId, "Work"));
     }
 
+    // The introductory film has no pointer, so its recording holds a Space's
+    // name on show through the button's own hover state, and draws a cursor
+    // where the window says the button is (scripts/record_film.py).
+    function test_theFilmHoldsASpacesNameOnShow() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const workId = browser.createSpace("Work");
+        const workButton = findChild(sidebar, "space-" + workId);
+        const note = findChild(workButton, "spaceNote-" + workId);
+        verify(!note.visible);
+
+        const held = window.holdSpaceNote(workId);
+        const corner = workButton.mapToItem(window.contentItem, 0, 0);
+        verify(held.ok);
+        tryCompare(note, "visible", true);
+        verify(workButton.hot);
+        compare(held.x, corner.x);
+        compare(held.y, corner.y);
+        compare(held.width, workButton.width);
+        compare(held.height, workButton.height);
+        compare(held.windowWidth, window.contentItem.width);
+        compare(held.windowHeight, window.contentItem.height);
+
+        verify(window.holdSpaceNote("").ok);
+        tryCompare(note, "visible", false);
+        verify(!window.holdSpaceNote("no-such-space").ok);
+        verify(browser.deleteSpace(workId, "Work"));
+    }
+
     // Agent Spaces follow the reader's squares, each the Agent mark, small:
     // muted while no Agent uses it, the Agent accent while one is attached,
     // and named on hover. One made before a Space of the reader's leaves that

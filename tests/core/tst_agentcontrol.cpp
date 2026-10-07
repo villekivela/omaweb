@@ -343,6 +343,7 @@ private slots:
     void answersASocketsRequestsInTheOrderAsked();
     void switchesSpaceAndSelectsATabWithAllowAgentsOff();
     void runsOnlyThePublicCommandsInTheWindow();
+    void holdsASpacesNameOnlyForTheFilm();
     void decidesEveryCommandOfTheRegistry();
     void reportsWhatEachAgentTabsAgentIsDoing();
     void uploadsOnlyInAnAgentSpace();
@@ -2025,6 +2026,44 @@ void AgentControlTest::runsOnlyThePublicCommandsInTheWindow()
     // A window that says nothing has not run it.
     windowAnswer = {};
     QCOMPARE(failure(run(QStringLiteral("reload"))), QStringLiteral("failed"));
+}
+
+// The introductory film's recording has no pointer, so a browser built for it
+// takes `film-hover`, which the window answers by holding a Space's name on
+// show. A browser built to ship has no such verb.
+void AgentControlTest::holdsASpacesNameOnlyForTheFilm()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    const auto script = QStringLiteral("film");
+    QList<QVariantMap> asked;
+    connect(&control, &AgentControl::commandRequested, &control,
+        [&](int requestId, const QVariantMap &request) {
+            asked.append(request);
+            control.answerCommand(requestId, {{QStringLiteral("ok"), true}});
+        });
+
+    const auto hover = ask(control, script, QStringLiteral("film-hover"),
+        {{QStringLiteral("space"), QStringLiteral("work")}});
+#ifdef OMAWEB_FILM_HOOKS
+    QVERIFY(succeeded(hover));
+    QCOMPARE(asked.size(), 1);
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("verb")).toString(), QStringLiteral("film-hover"));
+    QCOMPARE(asked.constLast().value(QStringLiteral("spaceId")).toString(), QStringLiteral("work"));
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("film-hover"))));
+    QCOMPARE(asked.constLast().value(QStringLiteral("spaceId")).toString(), QString());
+    QCOMPARE(failure(ask(control, script, QStringLiteral("film-hover"),
+                 {{QStringLiteral("space"), QStringLiteral("nowhere")}})),
+        QStringLiteral("not-found"));
+    QCOMPARE(asked.size(), 2);
+#else
+    QCOMPARE(failure(hover), QStringLiteral("unknown-verb"));
+    QVERIFY(asked.isEmpty());
+#endif
 }
 
 // A command added to the registry is decided here, public or kept in, rather
