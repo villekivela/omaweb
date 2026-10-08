@@ -2,10 +2,15 @@
 
 #include <QDir>
 #include <QFile>
+#include <QLockFile>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QThread>
+
+#include <atomic>
+#include <memory>
 
 using omaweb::SettingsFile;
 
@@ -22,6 +27,7 @@ private slots:
     void readsABadValueAsItsDefaultAndNamesIt();
     void followsAnEditMadeWhileItRuns();
     void keepsBothOfTwoWritesAtOnce();
+    void takesItsTurnBesideABusyWriter();
     void offersOnlyTheLimitsSettingsOffers();
     void offersTheTwoAppIcons();
     void leavesAKeyWithoutADefaultUndefined();
@@ -257,6 +263,40 @@ void SettingsFileTest::followsAnEditMadeWhileItRuns()
 
     writeFile(path, R"({"version": 1, "glance": false, "https-only": true})");
     QTRY_COMPARE(settings.value(QStringLiteral("https-only")), QJsonValue(true));
+}
+
+// A reader clicking through Settings while Sync restores keeps the file's lock
+// busy, giving it up only for a moment between writes. A write waiting beside
+// them takes the lock in one of those moments, not only if it happens to look
+// at the right one of a few.
+void SettingsFileTest::takesItsTurnBesideABusyWriter()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto lockPath = root.filePath(QStringLiteral("settings.json.lock"));
+    std::atomic_bool done = false;
+    std::atomic_bool holding = false;
+    std::unique_ptr<QThread> busy(QThread::create([lockPath, &done, &holding] {
+        QLockFile lock(lockPath);
+        // A slow disk's writes, a millisecond apart, for longer than the
+        // waiting write is allowed.
+        for (int round = 0; !done && round < 200; ++round) {
+            lock.lock();
+            holding = true;
+            QThread::msleep(40);
+            lock.unlock();
+            QThread::msleep(1);
+        }
+    }));
+    busy->start();
+    const auto stop = qScopeGuard([&done, &busy] {
+        done = true;
+        busy->wait(30000);
+    });
+    QTRY_VERIFY(holding);
+
+    SettingsFile settings(root.path());
+    QVERIFY(settings.set(QStringLiteral("glance"), false));
 }
 
 // Two writers on one file, as Sync's restore and the Settings page are, each

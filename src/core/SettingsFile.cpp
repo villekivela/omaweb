@@ -1,5 +1,6 @@
 #include "SettingsFile.h"
 
+#include <QDeadlineTimer>
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
@@ -9,6 +10,7 @@
 #include <QLockFile>
 #include <QMutex>
 #include <QSaveFile>
+#include <QThread>
 
 #include <algorithm>
 #include <functional>
@@ -503,9 +505,18 @@ bool SettingsFile::change(const std::function<bool(QJsonObject &, Order *)> &edi
     // Read again under the lock rather than written from what this instance
     // last read, so a key another writer set in between is kept.
     QLockFile lock(path() + QStringLiteral(".lock"));
-    if (!lock.tryLock(5000)) {
-        qWarning("Omaweb could not lock %s to write a setting", qPrintable(path()));
-        return false;
+    // QLockFile's own wait doubles its sleep each time it finds the lock
+    // taken, so in five seconds it looks only six times. Another writer that
+    // keeps the lock busy, as the Settings page clicked through during a Sync
+    // restore does on a slow disk, can hold it at every one of those looks.
+    // Looking every millisecond takes the lock in the first gap.
+    const QDeadlineTimer deadline(5000);
+    while (!lock.tryLock(0)) {
+        if (lock.error() != QLockFile::LockFailedError || deadline.hasExpired()) {
+            qWarning("Omaweb could not lock %s to write a setting", qPrintable(path()));
+            return false;
+        }
+        QThread::msleep(1);
     }
     Contents contents;
     QFile existing(path());
