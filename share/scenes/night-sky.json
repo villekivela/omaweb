@@ -1,5 +1,5 @@
 {
-  "description": "The night sky: a still star field behind the Start page, after Netscape Navigator's throbber, over a dark planet whose limb stands low below the Omnibar, its glow pulsing, with comets and shooting stars falling from the upper right and going out behind the limb, a larger comet now and then falling in front of the planet, and streaks falling thick and fast from a commit until the page paints (#590, #629). The browser draws it (src/ui/NightSky.qml); the website does not. Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, face, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. A [from, span] range is scattered from `from` to `from + span`. `crt` is the CRT glass the sky declares, which the host draws, with the road's amounts. `rest` is where the Omnibar rests, as a share of the height. `planet` is the dark planet rising from the bottom, after Navigator's globe: its top, the glow along its limb included, stands `share` of the way from the resting Omnibar's bottom edge, whatever it holds, to the scene's bottom. The browser hands that edge in as `omnibarReach` below where the Omnibar rests, at the theme's type size here. Where `share` would leave the limb's ends less than `edgeClear` CSS pixels above the bottom, where the Shortcut sheet's cue stands, the planet stands higher, but never less than `gap` CSS pixels below the Omnibar. Its `radius` is a share of the width, its face the ground darkened by `face`, its limb a line `width` CSS pixels wide (at `unlit` alpha of the light in a Private window, where it has no glow), and the glow along it `reach` CSS pixels out, its opacity pulsing down to `pulse.low` of its peak and back every `pulse.every` seconds. `comets` fall in slots of `every` seconds: a slot whose scatter is over `chance` holds a group, one to three by the cumulative shares in `together`, each starting `apart` after the one before, up to `most` in the sky at once. Each falls `slope` down the diagonal from the upper right toward the lower left, placed by where it goes out behind the limb, `out` along the width, and appears `run` of the width up the diagonal from there, fading in over `fadeIn` of its fall. It falls `speed` of the width a second until its tail of `length` has gone out too. A kind's `share` is the cumulative share of comets of that kind, its tail `width` CSS pixels wide at the head, its `head` and `halo` CSS pixels across. `head` and `halo` at the top are their colours. `still` is the one comet reduced motion holds, `at` of the way down its run. `front` is the comet that falls in front of the planet, in slot `at` of every `every`, with no other comet in that slot: `after` seconds into it, it comes in from the right edge at the planet's crest, or lower where the diagonal from there would leave the bottom edge less than `exit` of the width from the left, and leaves through the bottom edge `lasts` seconds later, its trail fading over `fades` seconds. A slot the streaks fell in keeps no front comet. Its `length`, `width`, `head` and `halo` are as a comet kind's. As it crosses, `flare` lights the planet up to `peak`, the face drawn as `flare.face` and the glow along the limb with `flare.glow`. `glint` is the light a passing comet casts on the Omnibar's rim, as the road's `light` is the sun's: an ellipse centred on the head of the comet above the limb nearest where the Omnibar rests, `across` of the Omnibar's width and `reach` CSS pixels down, and the bloom over it. `streaks` fall down the comets' diagonal from a commit until the page paints.",
+  "description": "The night sky: a still star field behind the Start page, after Netscape Navigator's throbber, over a dark planet whose limb stands low below the Omnibar, its glow pulsing, with comets and shooting stars falling from the upper right and going out behind the limb, a larger comet now and then falling in front of the planet, and streaks falling thick and fast from a commit until the page paints (#590, #629). The browser draws it (src/ui/NightSky.qml); the website does not. Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, face, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. A [from, span] range is scattered from `from` to `from + span`. `crt` is the CRT glass the sky declares, which the host draws, with the road's amounts. `rest` is where the Omnibar rests, as a share of the height. `omnibar` is how wide it stands where the browser hands in no width, as a thumbnail has it: `widest` CSS pixels at most, `inset` narrower than the scene. `planet` is the dark planet rising from the bottom, after Navigator's globe: its top, the glow along its limb included, stands `share` of the way from the resting Omnibar's bottom edge, whatever it holds, to the scene's bottom. The browser hands that edge in as `omnibarReach` below where the Omnibar rests, at the theme's type size here. Where `share` would leave the limb's ends less than `edgeClear` CSS pixels above the bottom, where the Shortcut sheet's cue stands, the planet stands higher, but never less than `gap` CSS pixels below the Omnibar. Its `radius` is a share of the width, its face the ground darkened by `face`, its limb a line `width` CSS pixels wide (at `unlit` alpha of the light in a Private window, where it has no glow), and the glow along it `reach` CSS pixels out, its opacity pulsing down to `pulse.low` of its peak and back every `pulse.every` seconds. `comets` fall in slots of `every` seconds: a slot whose scatter is over `chance` holds a group, one to three by the cumulative shares in `together`, each starting `apart` after the one before, up to `most` in the sky at once. Each falls `slope` down the diagonal from the upper right toward the lower left, placed by where it goes out behind the limb, `out` along the width, and appears `run` of the width up the diagonal from there, fading in over `fadeIn` of its fall. It falls `speed` of the width a second until its tail of `length` has gone out too. A kind's `share` is the cumulative share of comets of that kind, its tail `width` CSS pixels wide at the head, its `head` and `halo` CSS pixels across. `head` and `halo` at the top are their colours. `still` is the one comet reduced motion holds, `at` of the way down its run. `front` is the comet that falls in front of the planet, in slot `at` of every `every`, with no other comet in that slot: `after` seconds into it, it comes in from the right edge on the diagonal that passes `pass` CSS pixels below the resting Omnibar's right end, where its light catches the rim, or lower where that diagonal would leave the bottom edge less than `exit` of the width from the left, and leaves through the bottom edge `lasts` seconds later, its trail fading over `fades` seconds. A slot the streaks fell in keeps no front comet. Its `length`, `width`, `head` and `halo` are as a comet kind's. As it crosses, `flare` lights the planet up to `peak`, the face drawn as `flare.face` and the glow along the limb with `flare.glow`. `glint` is the light a passing comet casts on the Omnibar's rim, as the road's `light` is the sun's: an ellipse centred on the head of the comet in front of the planet while it crosses, else of the comet above the limb nearest where the Omnibar rests, `across` of the Omnibar's width and `reach` CSS pixels down, and the bloom over it. `streaks` fall down the comets' diagonal from a commit until the page paints.",
   "id": "night-sky",
   "name": "Night sky",
   "pitch": 4,
@@ -21,6 +21,7 @@
   },
   "options": {},
   "rest": 0.5,
+  "omnibar": { "widest": 720, "inset": 32 },
   "night": {
     "lightThemeGround": 0.45,
     "deep": 0.45,
@@ -61,8 +62,8 @@
     }
   },
   "comets": {
-    "every": 12,
-    "chance": 0.45,
+    "every": 10,
+    "chance": 0.2,
     "most": 3,
     "together": [0.25, 0.6, 1],
     "apart": [0.4, 0.8],
@@ -94,12 +95,13 @@
     "still": { "kind": 0, "out": 0.3, "run": 0.4, "at": 0.5 }
   },
   "front": {
-    "every": 5,
-    "at": 4,
+    "every": 3,
+    "at": 2,
     "after": 1,
-    "lasts": 3,
+    "lasts": 4,
+    "pass": 32,
     "fades": 2,
-    "exit": 0.15,
+    "exit": 0.02,
     "length": 0.45,
     "width": 10,
     "head": 10,

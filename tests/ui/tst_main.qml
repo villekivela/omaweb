@@ -13145,13 +13145,18 @@ TestCase {
             verify(ends < cueTop - 8, "the limb's ends at " + ends + ", the cue at " + cueTop);
             verify(ends < sky.drawHeight, ends);
 
-            // The comet that falls in front of the planet passes clear of the
-            // cue on its way out through the bottom edge, its tail on the
-            // same diagonal behind it.
+            // The comet that falls in front of the planet passes close enough
+            // to the resting Omnibar for its light to catch the rim, clear of
+            // the field, and clear of the cue on its way out through the
+            // bottom edge, its tail on the same diagonal behind it.
             const clear = sky.front.halo / 2 + 8;
             const cueLeft = cue.mapToItem(scene, 0, 0).x;
+            compare(sky.omnibarWidth, panel.restWidth);
+            const field = panel.mapToItem(scene, panel.restX, panel.restY);
+            const fieldBottom = field.y + panel.restReach + panel.horizonBelowTop;
             const time = scene.time;
             let crossed = 0;
+            let nearRim = 0;
             for (let t = 0; t < 70; t += 1 / 30) {
                 scene.time = t;
                 if (!sky.frontShown)
@@ -13161,9 +13166,17 @@ TestCase {
                 verify(head.x < cueLeft - clear || head.x > cueLeft + cue.width + clear || head.y
                        < cueTop - clear || head.y > cueTop + cue.height + clear, "the comet at "
                        + head + " over the cue at " + cueLeft + ", " + cueTop);
+                verify(head.x < field.x - clear || head.x > field.x + panel.restWidth + clear
+                       || head.y < field.y - clear || head.y > fieldBottom + clear, "the comet at "
+                       + head + " on the Omnibar at " + field + " to " + fieldBottom);
+                const dx = Math.max(field.x - head.x, 0, head.x - field.x - panel.restWidth);
+                const dy = Math.max(field.y - head.y, 0, head.y - fieldBottom);
+                if (dx < panel.restWidth * sky.light.across && dy < sky.light.reach)
+                    nearRim += 1;
             }
             scene.time = time;
             verify(crossed > 0, "no comet fell in front of the planet");
+            verify(nearRim > 0, "the comet in front of the planet never caught the rim");
         } finally {
             leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
             fontSettings.resetInterfaceFontSize();

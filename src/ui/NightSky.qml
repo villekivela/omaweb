@@ -46,6 +46,10 @@ Item {
     // picture of the sky with no Omnibar over it, such as a thumbnail, keeps
     // the reach at the theme's type size.
     property real omnibarReach: root.parameters.planet.omnibarReach
+    // How wide the resting Omnibar stands, centred. Without one handed in,
+    // the width the Omnibar takes in a page area this wide.
+    property real omnibarWidth: Math.min(root.parameters.omnibar.widest, root.drawWidth
+                                         - root.parameters.omnibar.inset)
 
     // ---- what it declares
 
@@ -210,10 +214,11 @@ Item {
     // ---- the comet in front of the planet
     //
     // In one of every `every` slots, with no other comet in the sky, a large
-    // comet comes in from the right edge at the planet's crest, sweeps down
-    // the diagonal across the planet's face in front of it, and leaves
-    // through the bottom edge `lasts` seconds later, lighting the planet up
-    // as it passes. Its trail fades over `fades` seconds once it has gone.
+    // comet comes in from the right edge and sweeps down the diagonal `pass`
+    // below the resting Omnibar's right end, catching its rim, then across
+    // the planet's face in front of it, and leaves through the bottom edge
+    // `lasts` seconds later, lighting the planet up as it passes. Its trail
+    // fades over `fades` seconds once it has gone.
     // It never falls under reduced motion, in a Private window, or while a
     // commit's streaks fall.
 
@@ -239,14 +244,17 @@ Item {
     readonly property bool frontShown: root.frontRun >= 0
     readonly property point frontHead: {
         const f = root.front;
-        // In a window taller than it is wide, the diagonal from the crest
-        // would leave through the left edge: the comet comes in lower.
+        // The diagonal passes below the Omnibar's right end. In a window
+        // taller than it is wide, that diagonal would leave through the left
+        // edge: the comet comes in lower.
         const x = root.drawWidth + f.halo / 2;
+        const passX = (root.drawWidth + root.omnibarWidth) / 2;
+        const passY = root.horizonY + root.omnibarReach + f.pass;
         const lowest = root.drawHeight + f.halo / 2 - (x - f.exit * root.drawWidth)
               * root.comets.slope;
 
 
-        const from = Qt.point(x, Math.max(root.crestY, lowest));
+        const from = Qt.point(x, Math.max(passY - (x - passX) * root.comets.slope, lowest));
         const across = (root.drawHeight + f.halo / 2 - from.y) / root.fallStep.y;
         const fallen = across * Math.max(0, root.frontRun) / f.lasts;
         return Qt.point(from.x + root.fallStep.x * fallen, from.y + root.fallStep.y * fallen);
@@ -426,7 +434,11 @@ Item {
         }
         return nearest;
     }
-    readonly property point glintCentre: root.glinting !== null ? root.glinting.head : root.nowhere
+    // The comet in front of the planet glints while it crosses, with no
+    // other comet in the sky.
+    readonly property bool frontGlints: root.frontShown && root.frontRun < root.front.lasts
+    readonly property point glintCentre: root.frontGlints ? root.frontHead : root.glinting !== null
+                                                            ? root.glinting.head : root.nowhere
     readonly property point nowhere: Qt.point(root.drawWidth / 2, -1e5)
     readonly property var light: {
         const g = root.parameters.glint;

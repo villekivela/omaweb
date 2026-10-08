@@ -42,6 +42,9 @@ Item {
     // sky's planet, the vector terrain's mountains and the radar's blips keep
     // clear.
     property real omnibarReach: 2
+    // How wide the resting Omnibar stands, which the night sky's comet in
+    // front of its planet passes the end of.
+    property real omnibarWidth: 720
     // The Settings interface section's CRT glass over the Scene.
     property bool glassEnabled: true
     // The reader asked for less motion: the Scene holds one still frame, with
@@ -151,6 +154,13 @@ Item {
         property: "omnibarReach"
         value: root.omnibarReach
         when: !!host.sceneItem && host.sceneItem.omnibarReach !== undefined
+    }
+
+    Binding {
+        target: host.sceneItem
+        property: "omnibarWidth"
+        value: root.omnibarWidth
+        when: !!host.sceneItem && host.sceneItem.omnibarWidth !== undefined
     }
 
     // A Scene that declares `leaving` hears when the Start page fades out

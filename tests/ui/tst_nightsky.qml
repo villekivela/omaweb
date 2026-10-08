@@ -307,6 +307,26 @@ TestCase {
         verify(quiet > 30 * 120, "only " + quiet / 30 + " quiet seconds in ten minutes");
     }
 
+    // The quiet stretches between comets and shooting stars are about half
+    // as long as the 22 seconds they once averaged, and there still are some.
+    function test_quietStretchesBetweenComets() {
+        const sky = makeSky();
+        const stretches = [];
+        let quiet = 0;
+        drive(sky, 3600, function () {
+            if (shown(sky).length === 0) {
+                quiet += 1;
+            } else if (quiet > 0) {
+                stretches.push(quiet / 30);
+                quiet = 0;
+            }
+        });
+        const mean = stretches.reduce(function (sum, seconds) {
+            return sum + seconds;
+        }, 0) / stretches.length;
+        verify(mean > 6 && mean < 13, "quiet for " + mean + " seconds at a time");
+    }
+
     // Every comet and shooting star goes out behind the planet's limb rather
     // than stopping short in the sky.
     function test_everyCometGoesOutBehindTheLimb() {
@@ -452,18 +472,19 @@ TestCase {
         return seen;
     }
 
-    // About once a minute, never while another comet is in the sky, a large
-    // comet comes in from the right edge at about the planet's crest, sweeps
-    // down and left across its face in front of it, and leaves through the
-    // bottom edge. The planet brightens as it passes, and its trail fades
-    // over a couple of seconds once it has gone.
+    // About every 30 seconds, never while another comet is in the sky, a large
+    // comet comes in from the right edge, above the planet in the sky where
+    // the window is wide enough, sweeps down and left across its face in
+    // front of it, and leaves through the bottom edge. The planet brightens
+    // as it passes, and its trail fades over a couple of seconds once it has
+    // gone.
     function test_aCometFallsInFrontOfThePlanet_data() {
         return [
                     {
                         tag: "1200 by 800",
                         width: 1200,
                         height: 800,
-                        atTheCrest: true
+                        inTheSky: true
                     },
                     {
                         // A tiled column, taller than it is wide: the
@@ -472,7 +493,7 @@ TestCase {
                         tag: "560 by 1440",
                         width: 560,
                         height: 1440,
-                        atTheCrest: false
+                        inTheSky: false
                     }
                 ];
     }
@@ -483,20 +504,17 @@ TestCase {
                                 height: data.height / 4
                             });
         const seen = crossings(sky, 600);
-        verify(seen.length >= 9 && seen.length <= 11, seen.length + " in ten minutes");
+        verify(seen.length >= 19 && seen.length <= 21, seen.length + " in ten minutes");
         for (let index = 1; index < seen.length; ++index) {
             const gap = seen[index].from - seen[index - 1].from;
-            verify(gap > 45 && gap < 75, gap + " seconds apart");
+            verify(gap > 25 && gap < 35, gap + " seconds apart");
         }
         for (const crossing of seen) {
             compare(crossing.others, 0, "a comet beside the front comet at " + crossing.from);
             const first = crossing.heads[0];
             verify(first.x >= sky.drawWidth - 16, "came in at " + first.x);
-            verify(first.y > sky.crestY - 48, "came in at " + first.y + ", the crest at "
-                   + sky.crestY);
-            if (data.atTheCrest)
-                verify(first.y < sky.crestY + 48, "came in at " + first.y + ", the crest at "
-                       + sky.crestY);
+            if (data.inTheSky)
+                verify(first.y > 0 && first.y < sky.crestY, "came in at " + first.y);
             let over = 0;
             let out = -1;
             for (let frame = 0; frame < crossing.heads.length; ++frame) {
@@ -526,7 +544,7 @@ TestCase {
                                 width: 1200 / 4,
                                 height: 800 / 4
                             });
-        drive(sky, 50);
+        drive(sky, 23);
         verify(sky.frontShown, "no comet in front of the planet at " + sky.time);
         sky.navigating = 1;
         drive(sky, 1);
@@ -536,7 +554,45 @@ TestCase {
             verify(!sky.frontShown, "back in front of the planet at " + sky.time);
         });
         // The next one falls as ever.
-        verify(crossings(sky, 60).length === 1);
+        compare(crossings(sky, 30).length, 1);
+    }
+
+    // On its way to the planet's face the comet in front of it passes just
+    // below the resting Omnibar's right end, close enough for its light to
+    // catch the rim and clear of the field itself. The field is 720 wide,
+    // centred, from 50 above where the Omnibar rests to its bottom edge 50
+    // below.
+    function test_theFrontCometCatchesTheRim() {
+        const sky = makeSky({
+                                width: 1200 / 4,
+                                height: 800 / 4,
+                                omnibarReach: 50,
+                                omnibarWidth: 720
+                            });
+        const field = Qt.rect(240, sky.horizonY - 50, 720, 100);
+        const clear = sky.front.halo / 2 + 8;
+        let near = -1;
+        let face = -1;
+        let frame = 0;
+        drive(sky, 60, function () {
+            if (!sky.frontShown)
+                return;
+            frame += 1;
+            const head = sky.frontHead;
+            const dx = Math.max(field.x - head.x, 0, head.x - field.x - field.width);
+            const dy = Math.max(field.y - head.y, 0, head.y - field.y - field.height);
+            verify(Math.hypot(dx, dy) > clear, "the comet at " + head + " on the field");
+            if (head.y < sky.drawHeight) {
+                fuzzyCompare(sky.light.centre.x, head.x, 0.01);
+                fuzzyCompare(sky.light.centre.y, head.y, 0.01);
+            }
+            if (near < 0 && dx < field.width * sky.light.across && dy < sky.light.reach)
+                near = frame;
+            if (face < 0 && behindTheLimb(sky, head))
+                face = frame;
+        });
+        verify(near > 0, "the comet never came near the field");
+        verify(face > near, "it reached the face at frame " + face + ", the field at " + near);
     }
 
     // What the host draws where the front comet's head crosses the planet's
@@ -697,7 +753,7 @@ TestCase {
                             < 0.01;
 
                 }), "a glint on no comet's head at " + sky.time);
-            } else if (shown(sky).length === 0) {
+            } else if (shown(sky).length === 0 && !sky.frontShown) {
                 between += 1;
                 verify(!lightFalls(sky), "a glint with no comet at " + sky.time);
             }

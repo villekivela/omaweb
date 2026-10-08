@@ -3717,6 +3717,7 @@ ApplicationWindow {
                     ease: window.chromeEase
                     sceneId: window.sceneSettingsWindow.startPageScene
                     omnibarReach: omnibar.restReach
+                    omnibarWidth: omnibar.restWidth
                     glassEnabled: window.sceneSettingsWindow.startPageGlass
                     reducedMotion: window.reducedMotion
                     windowActive: window.active && window.visible && window.visibility
