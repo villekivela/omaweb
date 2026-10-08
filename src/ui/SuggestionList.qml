@@ -37,7 +37,7 @@ Omarchy.BorderSurface {
     readonly property real maxWidth: 480
     readonly property real rowHeight: Style.spacing.popupRowHeight
     readonly property var popupBorderSpec: Border.surfaceSpec("popups", "border",
-                                                              Color.popups.border,
+                                                              ShellColor.popups.border,
                                                               Style.normalBorderWidth)
 
     signal accepted(int index)
@@ -76,7 +76,7 @@ Omarchy.BorderSurface {
     height: implicitHeight
     padding: Style.spacing.hairline
     radius: Style.cornerRadius
-    color: Color.popups.background
+    color: ShellColor.popups.background
     borderSpec: root.popupBorderSpec
 
     Accessible.role: Accessible.List
@@ -130,7 +130,7 @@ Omarchy.BorderSurface {
                     y: Style.spacing.sm
                     width: parent.width - 2 * Style.spacing.controlPaddingX
                     height: Style.spacing.hairline
-                    color: Color.popups.border
+                    color: ShellColor.popups.border
                 }
 
                 Rectangle {
@@ -139,8 +139,9 @@ Omarchy.BorderSurface {
                     width: parent.width
                     height: parent.height - row.dividerSpace
                     color: (row.current && !row.note) || row.hot ? Style.hoverFillFor(
-                                                                       Color.popups.text,
-                                                                       Color.accent) : "transparent"
+                                                                       ShellColor.popups.text,
+                                                                       ShellColor.accent) :
+                                                                   "transparent"
                 }
 
                 Text {
@@ -155,9 +156,10 @@ Omarchy.BorderSurface {
                                                                  root.pixelRatio)
                     textFormat: Text.StyledText
                     text: root.markup(row.modelData)
-                    color: row.note ? Color.muted : row.current ? Style.hoverStateColor(Color.popups.text,
-                                                                                        Color.accent) :
-                                                                  Color.popups.text
+                    color: row.note ? ShellColor.muted : row.current ? Style.hoverStateColor(
+                                                                           ShellColor.popups.text,
+                                                                           ShellColor.accent) :
+                                                                       ShellColor.popups.text
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     elide: Text.ElideRight
@@ -174,8 +176,8 @@ Omarchy.BorderSurface {
                     anchors.top: label.bottom
                     textFormat: Text.PlainText
                     text: row.detail
-                    color: row.current ? Style.hoverStateColor(Color.muted, Color.accent) :
-                                         Color.muted
+                    color: row.current ? Style.hoverStateColor(ShellColor.muted, ShellColor.accent) :
+                                         ShellColor.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight
