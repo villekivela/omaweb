@@ -342,11 +342,13 @@ namespace {
         return fromOklab(at(low));
     }
 
-    // The six Space colours Omaweb owns, in hue order. A theme moves only the
-    // lightness, so a Space is the same orange or teal on every desktop, and a
-    // hue only where the theme's own urgent, Private or Agent colour sits on it.
-    // The lightness is the one each starts from on a dark ground: yellow is
-    // only yellow when light, and blue and violet go pale before they read.
+    // The six Space colours Omaweb owns, in hue order. Each has the same hue and
+    // chroma on every desktop, so a Space is the same orange or teal wherever it
+    // is drawn. A theme changes its lightness, until it reads on the theme's
+    // grounds, and turns its hue only when the theme's urgent, Private or Agent
+    // colour is too close to it. The lightness here is where that search starts,
+    // chosen for a dark ground: yellow reads as yellow only when it is light,
+    // and blue and violet have to be pale before they read.
     struct SpaceHue {
         QLatin1StringView name;
         double hue;
@@ -426,21 +428,25 @@ namespace {
                 taken, [hue](double other) { return hueDistance(hue, other) >= spaceHueGap; });
         };
         QVariantMap spaces;
-        // Where no turn clears, which nine 20° gaps around the circle make
-        // possible only for a theme that crowds its accents into the six's
-        // way, the colour keeps its own hue.
+        // At most eight hues are taken when a colour is placed, three accents
+        // and five Space colours. Each blocks 40° of the circle, 320° at most
+        // together, so a clear hue always exists. Only rounding the drawn
+        // colour to 8 bits can move its hue back inside a gap. If that happens
+        // at every turn, the colour keeps its own hue.
         for (const auto &space : spaceHues) {
             auto chosen = spaceColourAt(space, space.hue, grounds);
-            for (auto turn = 0; turn <= 180; ++turn) {
-                const auto ahead = spaceColourAt(space, space.hue + turn, grounds);
-                if (clears(ahead)) {
-                    chosen = ahead;
-                    break;
-                }
-                const auto behind = spaceColourAt(space, space.hue - turn, grounds);
-                if (clears(behind)) {
-                    chosen = behind;
-                    break;
+            if (!clears(chosen)) {
+                for (auto turn = 1; turn <= 180; ++turn) {
+                    const auto ahead = spaceColourAt(space, space.hue + turn, grounds);
+                    if (clears(ahead)) {
+                        chosen = ahead;
+                        break;
+                    }
+                    const auto behind = spaceColourAt(space, space.hue - turn, grounds);
+                    if (clears(behind)) {
+                        chosen = behind;
+                        break;
+                    }
                 }
             }
             taken.append(oklchHue(chosen));

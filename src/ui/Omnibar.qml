@@ -1336,7 +1336,7 @@ Item {
                                                               modelData.spaceId) < 0
                             anchors.verticalCenter: parent.verticalCenter
                             visible: row.spaceName.length > 0
-                            spacing: 6
+                            spacing: Style.spacing.sm
 
                             Rectangle {
                                 objectName: "omnibarRowSpaceMark"

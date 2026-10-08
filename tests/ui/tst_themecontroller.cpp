@@ -310,6 +310,7 @@ double hueDistance(double one, double other)
 // The six in the order Settings offers them, and the gap ThemeController keeps
 // between them and from the theme's urgent, Private and Agent colours. A grey
 // has no hue to keep a gap from, so an accent below the chroma floor is exempt.
+// The 20° gap is the one docs/product/requirements.md states for Space colours.
 const QStringList spaceColourNames {QStringLiteral("orange"), QStringLiteral("yellow"),
     QStringLiteral("green"), QStringLiteral("teal"), QStringLiteral("blue"),
     QStringLiteral("violet")};

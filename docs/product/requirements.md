@@ -400,13 +400,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The Omnibar searches every Space's open tabs. The active Space's tab rows come before any other
   Space's, however weakly they hold the typed text, and the other Spaces' follow in Space order. A
   tab row from another Space names its Space as its label at the right edge, in the text colour,
-  beside a small square in the Space colour, or for an Agent Space in the Agent accent while an
-  Agent is attached and muted otherwise. Colour carries no text there, so it needs only 3:1. With
-  Space colour off, the name and the square are muted, and the name turns to the text colour on the
-  selected row. Committing it switches to that Space with the tab on show as one action: a tab the
-  Space no longer holds leaves the reader where they were. The rows are read from what the session
-  keeps of each Space, so listing them resumes, loads or thaws no page. A Private window lists only
-  its own tabs.
+  beside a small square. The square is in the Space colour, or for an Agent Space in the Agent
+  accent while an Agent is attached and muted otherwise. Colour carries no text there, so it needs
+  only 3:1. With Space colour off, the name and the square are muted, and the name turns to the text
+  colour on the selected row. Committing it switches to that Space with the tab on show as one
+  action: a tab the Space no longer holds leaves the reader where they were. The rows are read from
+  what the session keeps of each Space, so listing them resumes, loads or thaws no page. A Private
+  window lists only its own tabs.
 - Engine suggestions, an installation-wide setting in Settings' network section, are off by default
   and stay out of Sync. With them on, the Omnibar asks a search engine for Engine suggestions only
   when Return on the current text would search: never for an address such as `github.com/foo` or

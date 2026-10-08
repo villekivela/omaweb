@@ -3430,10 +3430,6 @@ Päivitykset osoitteesta %3</translation>
         <translation>Yritä uudelleen</translation>
     </message>
     <message>
-        <source>Draw each Space in its own colour in the sidebar&apos;s footer and the Omnibar. When off, every Space is drawn in the quiet text colour, and each keeps its colour for when it is back on. Only on this machine.</source>
-        <translation>Piirrä jokainen tila omalla värillään sivupalkin alaosaan ja Omnibariin. Kun asetus on pois päältä, jokainen tila piirretään hillityn tekstin värillä, ja kukin säilyttää värinsä siihen asti, kun asetus palaa päälle. Vain tällä koneella.</translation>
-    </message>
-    <message>
         <source>No saved addresses</source>
         <translation>Ei tallennettuja osoitteita</translation>
     </message>
@@ -3625,6 +3621,10 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Space colour</source>
         <translation>Tilan väri</translation>
+    </message>
+    <message>
+        <source>Draw each Space in its own colour in the sidebar&apos;s footer and the Omnibar. When off, every Space is drawn in the muted text colour, and each keeps its colour for when it is back on. Only on this machine.</source>
+        <translation>Piirrä jokainen tila omalla värillään sivupalkin alaosaan ja Omnibariin. Kun asetus on pois päältä, jokainen tila piirretään hillityn tekstin värillä, ja kukin säilyttää värinsä siihen asti, kun asetus palaa päälle. Vain tällä koneella.</translation>
     </message>
     <message>
         <source>New Space</source>

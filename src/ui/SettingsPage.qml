@@ -2868,7 +2868,7 @@ Rectangle {
                         colors: root.colors
                         title: qsTr("Space colour")
                         note: qsTr(
-                                  "Draw each Space in its own colour in the sidebar's footer and the Omnibar. When off, every Space is drawn in the quiet text colour, and each keeps its colour for when it is back on. Only on this machine.")
+                                  "Draw each Space in its own colour in the sidebar's footer and the Omnibar. When off, every Space is drawn in the muted text colour, and each keeps its colour for when it is back on. Only on this machine.")
                         accessibleName: qsTr("Space colour")
                         checked: root.spaceColours
                         onClicked: root.spaceColoursToggled(!checked)
