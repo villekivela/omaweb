@@ -15,7 +15,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
 ## Required browsing model
 
 - One persistent ordinary main window with no title bar or visible window controls. Omaweb does not
-  detach tabs or create additional ordinary browser windows.
+  create additional ordinary browser windows. A tab can pop out into a Tab window of its own and
+  stays a tab of its Space, listed in the main window's sidebar
+  ([ADR 0062](../adr/0062-pop-a-tab-out-instead-of-opening-windows.md)).
 - Any number of named Spaces. Each Space isolates logins, cookies, site data, permissions, history,
   sessions, ordinary tabs, and pinned tabs.
 - Only the active Space keeps live pages by default. A Pinned tab with Keep active enabled continues

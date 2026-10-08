@@ -145,6 +145,12 @@ as an ordinary tab, page and all. _Avoid_: Peek, preview, popup, quick look, ove
 such as authentication or payment. It inherits the browsing identity of its opener and is not an
 ordinary Omaweb browsing window. _Avoid_: Browser window, pop-up tab
 
+**Tab window**: A window of its own that shows one tab of a Space instead of the main window, so a
+page can sit on another monitor. The tab stays listed, saved and synced with its Space, keeps
+running whichever Space the main window shows, and comes back in its Tab window after a restart.
+Popping a tab out opens one; putting it back, or closing the window, returns the tab to the main
+window. _Avoid_: Torn-off tab, detached tab, floating tab, second browser window
+
 **Keyboard navigation**: An optional first-party command layer for controlling Omaweb and the active
 page without a pointer. It provides the same user-facing commands with every engine and lets sites
 receive selected conflicting keys. _Avoid_: Vim mode, Vimium extension
