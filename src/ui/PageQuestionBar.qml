@@ -37,6 +37,7 @@ Item {
     }
 
     PageBackdrop {
+        id: backdrop
         objectName: "pageBarBackdrop"
         anchors.fill: parent
         source: root.backdropSource
@@ -44,7 +45,13 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: root.colors.overlay
+        color: groundDither.fill
+
+        GroundDither {
+            id: groundDither
+            ground: root.colors.overlay
+            overDesktop: !backdrop.sampling
+        }
 
         Rectangle {
             anchors.left: parent.left

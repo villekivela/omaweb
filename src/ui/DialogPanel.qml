@@ -61,10 +61,15 @@ FocusScope {
         anchors.top: parent.top
         anchors.topMargin: Math.max(80, parent.height * 0.14)
         radius: 3
-        color: root.colors.overlay
+        color: panelDither.fill
         border.width: 1
         border.color: root.edge
         clip: true
+
+        GroundDither {
+            id: panelDither
+            ground: root.colors.overlay
+        }
 
         // The rows and rules stop at the border rather than running under it,
         // where a highlighted row would paint over the panel's own edge.

@@ -60,9 +60,14 @@ Item {
         anchors.fill: parent
         radius: Style.cornerRadius
         padding: Style.spacing.md
-        color: root.colors.overlay
+        color: surfaceDither.fill
         borderSpec: Border.controlSpec("normal", root.colors.accent, root.colors.accent)
         implicitHeight: contentTopInset + Style.spacing.controlHeight + contentBottomInset
+
+        GroundDither {
+            id: surfaceDither
+            ground: root.colors.overlay
+        }
 
         Text {
             id: mark

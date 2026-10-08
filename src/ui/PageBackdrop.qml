@@ -77,6 +77,13 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: root.radius
-        color: root.tint
+        color: tintDither.fill
+
+        GroundDither {
+            id: tintDither
+            objectName: "backdropDither"
+            ground: root.tint
+            overDesktop: !root.sampling
+        }
     }
 }

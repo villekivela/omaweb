@@ -434,7 +434,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Themes reload at runtime from versioned JSON. A theme defines type as well as colour: font
   families, sizes and label spacing, and the tinting of tab tiles. Semantic opacity values control
   transparent surfaces, which fall back to an opaque color where accessibility settings require it.
-  Blurring the desktop behind them is the window system's and is not required for them to read.
+  Blurring the desktop behind them is the window system's and is not required for them to read. A
+  surface the desktop shows through carries a still dither of one output level, added after its own
+  opacity, so a blurred wallpaper's gradient seen through it does not band. The dither averages to
+  the theme's colour, and an opaque surface or the empty window background has none.
 - The sidebar's opacity is the theme's until the reader sets it. Settings' interface section has a
   Sidebar opacity slider from 50% to 100% in steps of 5%, with a reset that returns to the theme's
   value, and it can be moved with the arrow keys. It is the reader's override of the theme's
