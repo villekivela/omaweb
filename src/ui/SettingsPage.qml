@@ -3084,9 +3084,14 @@ Rectangle {
                 // ---- agents -------------------------------------------------
 
                 Column {
+                    id: agentsSection
                     width: pane.width
                     visible: root.section === 11
                     spacing: 0
+
+                    readonly property bool setupShown: !!root.agentControl
+                                                       && root.agentControl.allowAgents
+                                                       && root.agentControl.hasAgentSetup
 
                     // It opens the section, so it takes only the sliver a tall
                     // glyph paints above its box, as privacy's does.
@@ -3112,6 +3117,52 @@ Rectangle {
                         onClicked: {
                             if (root.agentControl)
                                 root.agentControl.allowAgents = !checked;
+                        }
+                    }
+
+                    // What the switch or a button below last did for the
+                    // reader's agents, and what it left as it was.
+                    Text {
+                        objectName: "agentSetupNote"
+                        width: pane.width
+                        visible: agentsSection.setupShown && text.length > 0
+                        topPadding: Style.spacing.md
+                        bottomPadding: Style.spacing.md
+                        text: root.agentControl ? root.agentControl.agentSetupNote : ""
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
+                    SettingRow {
+                        objectName: "agentSetupRow"
+                        visible: agentsSection.setupShown
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Agent setup")
+                        note: qsTr(
+                                  "Add skill links the Omaweb skill for each agent installed now. "
+                                  + "Add MCP server registers omaweb mcp with Claude Code and "
+                                  + "Codex, for a client that cannot run the omaweb command.")
+
+                        Row {
+                            spacing: Style.spacing.md
+
+                            ActionButton {
+                                objectName: "addSkill"
+                                colors: root.colors
+                                label: qsTr("Add skill")
+                                onClicked: root.agentControl.addSkill()
+                            }
+
+                            ActionButton {
+                                objectName: "addMcpServer"
+                                visible: !!root.agentControl && root.agentControl.mcpAgentPresent
+                                colors: root.colors
+                                label: qsTr("Add MCP server")
+                                onClicked: root.agentControl.addMcpServer()
+                            }
                         }
                     }
 

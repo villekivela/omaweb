@@ -703,6 +703,11 @@ TestCase {
 
         property bool allowAgents: false
         property string agentCommand: "claude"
+        property bool hasAgentSetup: true
+        property string agentSetupNote: ""
+        property bool mcpAgentPresent: true
+        property int skillsAdded: 0
+        property int mcpServersAdded: 0
         property var grantedSpaces: [
             {
                 "spaceId": "work",
@@ -710,6 +715,14 @@ TestCase {
             }
         ]
         property var revoked: []
+
+        function addSkill() {
+            skillsAdded += 1;
+        }
+
+        function addMcpServer() {
+            mcpServersAdded += 1;
+        }
 
         function revokeGrant(spaceId) {
             revoked = revoked.concat([spaceId]);
@@ -917,6 +930,64 @@ TestCase {
         field.text = "claude --model sonnet";
         field.editingFinished();
         compare(agentControlStub.agentCommand, "claude --model sonnet");
+        page.agentControl = null;
+    }
+
+    // Setting agents up shows only while Agents are allowed: a caption saying
+    // what was last done, and the two buttons that do it again.
+    function test_theAgentSetupRowShowsWhileAgentsAreAllowed() {
+        const page = makePage();
+        agentControlStub.allowAgents = false;
+        agentControlStub.agentSetupNote = "";
+        agentControlStub.skillsAdded = 0;
+        agentControlStub.mcpServersAdded = 0;
+        page.agentControl = agentControlStub;
+        page.section = page.sections.indexOf("agents");
+
+        const row = findChild(page, "agentSetupRow");
+        const note = findChild(page, "agentSetupNote");
+        const addSkill = findChild(page, "addSkill");
+        const addMcpServer = findChild(page, "addMcpServer");
+        verify(row !== null && note !== null && addSkill !== null && addMcpServer !== null);
+        compare(row.visible, false);
+        compare(note.visible, false);
+
+        agentControlStub.allowAgents = true;
+        agentControlStub.agentSetupNote = "Skill added for Claude Code and Codex.";
+        verify(row.visible);
+        compare(row.title, "Agent setup");
+        verify(note.visible);
+        compare(note.text, "Skill added for Claude Code and Codex.");
+        verify(addSkill.visible && addSkill.enabled);
+        verify(addMcpServer.visible && addMcpServer.enabled);
+
+        settleAction(addSkill);
+        mouseClick(addSkill);
+        compare(agentControlStub.skillsAdded, 1);
+        settleAction(addMcpServer);
+        mouseClick(addMcpServer);
+        compare(agentControlStub.mcpServersAdded, 1);
+
+        agentControlStub.agentSetupNote
+                = "MCP server added for Claude Code. Codex already had one.";
+        compare(note.text, "MCP server added for Claude Code. Codex already had one.");
+
+        // With neither agent on PATH there is no server to add.
+        agentControlStub.mcpAgentPresent = false;
+        compare(addMcpServer.visible, false);
+        verify(addSkill.visible);
+        agentControlStub.mcpAgentPresent = true;
+
+        // A build without the packaged skill has nothing to set up.
+        agentControlStub.hasAgentSetup = false;
+        compare(row.visible, false);
+        compare(note.visible, false);
+        agentControlStub.hasAgentSetup = true;
+
+        agentControlStub.allowAgents = false;
+        compare(row.visible, false);
+        compare(note.visible, false);
+        agentControlStub.agentSetupNote = "";
         page.agentControl = null;
     }
 

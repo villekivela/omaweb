@@ -9,6 +9,8 @@
 #include <QAbstractItemModel>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QFutureWatcher>
+#include <QLocale>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -17,6 +19,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 #include <memory>
@@ -37,6 +40,9 @@ namespace {
     const auto defaultAgentSpaceName = QStringLiteral("Agent");
 
     constexpr QLatin1StringView agentCommandKey("agent-command");
+    // Set once the first start with a setup has linked the skill for a reader
+    // who allowed Agents before Omaweb could.
+    constexpr QLatin1StringView skillLinkedAtStartKey("skill-linked-at-start");
     const auto defaultAgentCommand = QStringLiteral("claude");
 
     // What the reader's agent is first told: the tab is the reader's own, so
@@ -329,6 +335,16 @@ void AgentControl::setAllowAgents(bool allowed)
     }
     AgentsFile::write(m_configRoot, allowAgentsKey, allowed);
     apply(allowed);
+    // The reader's own switch is the consent the skill waits for.
+    if (!m_agentSetup) {
+        return;
+    }
+    if (allowed) {
+        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
+    } else {
+        m_agentSetup->unlinkSkill();
+        noteAgentSetup({});
+    }
 }
 
 QString AgentControl::agentCommand() const { return m_agentCommand; }
@@ -393,6 +409,106 @@ QVariantMap AgentControl::askAgent(const QString &tabId, const QString &words)
         return failed(QStringLiteral("not-started"), m_terminalProgram);
     }
     return {{QStringLiteral("ok"), true}};
+}
+
+void AgentControl::setAgentSetup(AgentSetup setup)
+{
+    m_agentSetup = std::move(setup);
+    emit agentSetupChanged();
+    if (AgentsFile::read(m_configRoot, skillLinkedAtStartKey).toBool(false)) {
+        return;
+    }
+    if (m_allowAgents) {
+        m_agentSetup->linkSkill();
+    }
+    AgentsFile::write(m_configRoot, skillLinkedAtStartKey, true);
+}
+
+bool AgentControl::hasAgentSetup() const { return m_agentSetup.has_value(); }
+
+QString AgentControl::agentSetupNote() const { return m_agentSetupNote; }
+
+bool AgentControl::mcpAgentPresent() const { return m_agentSetup && AgentSetup::mcpAgentPresent(); }
+
+void AgentControl::addSkill()
+{
+    if (m_agentSetup) {
+        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
+    }
+}
+
+void AgentControl::addMcpServer()
+{
+    if (!m_agentSetup || m_addingMcpServer) {
+        return;
+    }
+    m_addingMcpServer = true;
+    auto *watcher = new QFutureWatcher<AgentSetup::Outcome>(this);
+    connect(watcher, &QFutureWatcher<AgentSetup::Outcome>::finished, this, [this, watcher] {
+        m_addingMcpServer = false;
+        noteAgentSetup(mcpServerNote(watcher->result()));
+        watcher->deleteLater();
+    });
+    watcher->setFuture(QtConcurrent::run([setup = *m_agentSetup] { return setup.addMcpServer(); }));
+}
+
+QString AgentControl::agentNames(const QStringList &names)
+{
+    // `~/.agents/skills` is read by whichever agents look there, which the
+    // reader may have more of than Omaweb names.
+    auto named = names;
+    if (named.removeAll(QString()) > 0) {
+        named.append(tr("other agents"));
+    }
+    return QLocale().createSeparatedList(named);
+}
+
+QString AgentControl::skillNote(const AgentSetup::Outcome &outcome)
+{
+    QStringList sentences;
+    if (!outcome.changed.isEmpty()) {
+        sentences.append(tr("Skill added for %1.").arg(agentNames(outcome.changed)));
+        if (!outcome.kept.isEmpty()) {
+            sentences.append(tr("%1 already had one.").arg(agentNames(outcome.kept)));
+        }
+    } else if (!outcome.kept.isEmpty()) {
+        sentences.append(tr("%1 already had the skill.").arg(agentNames(outcome.kept)));
+    }
+    if (!outcome.failed.isEmpty()) {
+        sentences.append(
+            tr("The skill could not be added for %1.").arg(agentNames(outcome.failed)));
+    }
+    return sentences.join(u' ');
+}
+
+QString AgentControl::mcpServerNote(const AgentSetup::Outcome &outcome)
+{
+    QStringList sentences;
+    if (!outcome.changed.isEmpty()) {
+        sentences.append(tr("MCP server added for %1.").arg(agentNames(outcome.changed)));
+        if (!outcome.kept.isEmpty()) {
+            sentences.append(tr("%1 already had one.").arg(agentNames(outcome.kept)));
+        }
+    } else if (!outcome.kept.isEmpty()) {
+        sentences.append(tr("%1 already had the MCP server.").arg(agentNames(outcome.kept)));
+    }
+    if (!outcome.failed.isEmpty()) {
+        sentences.append(
+            tr("The MCP server could not be added for %1.").arg(agentNames(outcome.failed)));
+    }
+    if (sentences.isEmpty()) {
+        sentences.append(tr("Neither Claude Code nor Codex was found."));
+    }
+    return sentences.join(u' ');
+}
+
+void AgentControl::noteAgentSetup(const QString &note)
+{
+    if (note == m_agentSetupNote) {
+        return;
+    }
+    m_agentSetupNote = note;
+    emit agentSetupNoteChanged();
 }
 
 void AgentControl::setTerminalProgram(const QString &program) { m_terminalProgram = program; }

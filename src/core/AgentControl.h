@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AgentConsole.h"
+#include "AgentSetup.h"
 #include "TabListModel.h"
 
 #include <QElapsedTimer>
@@ -84,6 +85,16 @@ class AgentControl final : public QObject {
     // default.
     Q_PROPERTY(
         QString agentCommand READ agentCommand WRITE setAgentCommand NOTIFY agentCommandChanged)
+    // Whether this browser can give the reader's agents the skill and the MCP
+    // server, which a Linux package can and a build without one cannot.
+    Q_PROPERTY(bool hasAgentSetup READ hasAgentSetup NOTIFY agentSetupChanged)
+    // What the switch, Add skill or Add MCP server last did, for the caption
+    // under the switch. Empty until one of them has run, and again once
+    // Allow agents is off.
+    Q_PROPERTY(QString agentSetupNote READ agentSetupNote NOTIFY agentSetupNoteChanged)
+    // Whether `claude` or `codex` is on `PATH`, asked again whenever Allow
+    // agents changes.
+    Q_PROPERTY(bool mcpAgentPresent READ mcpAgentPresent NOTIFY allowAgentsChanged)
 
 public:
     // The most connection states kept at once. A name costs nothing to invent,
@@ -110,6 +121,24 @@ public:
     bool allowAgents() const;
     // Turning it off detaches every connection from the tab it was driving.
     void setAllowAgents(bool allowed);
+
+    // Gives the reader's agents the skill when Allow agents is turned on, and
+    // takes the links back when it is turned off. Turning it on is the
+    // reader's consent, so nothing else links it, with one exception: the
+    // first start that has a setup links it for a reader who allowed Agents
+    // before this, and records in `agents.json` that it did, so it never runs
+    // again.
+    void setAgentSetup(AgentSetup setup);
+    bool hasAgentSetup() const;
+    QString agentSetupNote() const;
+    bool mcpAgentPresent() const;
+    // Links the skill for every agent installed now, such as one installed
+    // after Allow agents was turned on.
+    Q_INVOKABLE void addSkill();
+    // Registers `omaweb mcp` with each agent on `PATH`, off the interface
+    // thread, and says what it did in `agentSetupNote` when it is done. A
+    // click while one is running is ignored.
+    Q_INVOKABLE void addMcpServer();
 
     // Whether a verb waits for Allow agents.
     static bool gated(const QString &verb);
@@ -237,6 +266,8 @@ signals:
     // `focus --raise` put a tab on show, and the window should come forward with it.
     void windowRequested();
     void agentCommandChanged();
+    void agentSetupChanged();
+    void agentSetupNoteChanged();
     // An Agent closed the Auxiliary window of this id.
     void windowCloseRequested(const QString &windowId);
     // A page verb for the page of `request.tabId`, with `verb`, `spaceId`, the
@@ -441,7 +472,17 @@ private:
     // The Space grants asked for, the one on show first.
     QList<PendingGrant> m_pendingGrants;
     int m_grantAnswerMs = defaultGrantAnswerMs;
+    // What the caption says a link or a registration did, in the reader's
+    // language.
+    static QString agentNames(const QStringList &names);
+    static QString skillNote(const AgentSetup::Outcome &outcome);
+    static QString mcpServerNote(const AgentSetup::Outcome &outcome);
+    void noteAgentSetup(const QString &note);
+
     QString m_agentCommand;
+    std::optional<AgentSetup> m_agentSetup;
+    QString m_agentSetupNote;
+    bool m_addingMcpServer = false;
     // The desktop's way to open the reader's own terminal running a command,
     // which Omarchy configures. Its arguments are the command's own, and no
     // shell reads them.

@@ -23,6 +23,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Agent tab         | Agentin välilehti     | The tab an Agent is attached to.                                                                |
 | Allow agents      | Salli agentit         | The setting that lets Agents read and act in pages.                                             |
 | Agent command     | Agentin komento       | What `:ask` runs in the reader's terminal.                                                      |
+| Skill             | Taito                 | The Agent skill that teaches an agent the CLI. The agent's name follows a colon, uninflected.   |
 | Project directory | Projektikansio        | The folder a Space is for, which `omaweb dev` opens. "Projekti" for the project as a whole.     |
 | Start page        | Aloitussivu           |                                                                                                 |
 | Scene             | Maisema               | The drawing behind the Start page: the night road, the night sky, the Game of Life and so on.   |

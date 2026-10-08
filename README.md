@@ -121,9 +121,20 @@ and sites can keep selected conflicting keys. See the
 
 ## Agents
 
-A coding agent on the same computer can use Omaweb through the `omaweb` CLI. Link the skill the
-package installs into your agent's skills directory, then turn on Allow agents in Settings, under
-agents:
+A coding agent on the same computer can use Omaweb through the `omaweb` CLI. Install `omaweb-cli`,
+then turn on Allow agents in Settings, under agents. Omaweb links the skill the package installs,
+which teaches your agent the CLI, into `~/.agents/skills` and into the skills directory of Claude
+Code, Codex, pi and Hermes, whichever you have. It leaves an `omaweb` skill of your own as it is,
+and turning Allow agents off removes only the links it made. For an agent you install later, press
+Add skill there.
+
+An agent that cannot run shell commands can use `omaweb mcp`, a stdio MCP server with the same
+verbs. Add MCP server registers it with Claude Code and Codex through their own `mcp add`. Prefer
+the CLI where your agent can run it: the server's tool list costs every conversation about 1,500
+tokens.
+
+In a container or on another host, where Omaweb cannot reach the agent's home, link the skill by
+hand:
 
 ```sh
 ln -s /usr/share/omaweb/skills/omaweb ~/.claude/skills/omaweb

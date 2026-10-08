@@ -206,6 +206,30 @@ constexpr const char *browsedTab = "https://afterdark.example/night-drive";
 // builds its blocker without the defaults, since seeding them fetches, and
 // a list updated less than a day ago with its file present is one the
 // blocker does not fetch.
+// A home of the lab's own, with Claude Code and Codex installed and both on
+// `PATH`, answering as their own `mcp` commands would, so Settings' caption is
+// the one a reader reads and nothing of the reader's is touched.
+void setUpLabAgents(omaweb::AgentControl &agentControl, const QDir &dataRoot)
+{
+    const QDir home(dataRoot.filePath(QStringLiteral("home")));
+    const auto skill = dataRoot.filePath(QStringLiteral("share/omaweb/skills/omaweb"));
+    const auto bin = dataRoot.filePath(QStringLiteral("bin"));
+    for (const auto &path : {home.filePath(QStringLiteral(".claude")),
+             home.filePath(QStringLiteral(".codex")), skill, bin}) {
+        QDir().mkpath(path);
+    }
+    for (const auto *name : {"claude", "codex"}) {
+        QFile agent(QDir(bin).filePath(QString::fromLatin1(name)));
+        if (agent.open(QIODevice::WriteOnly)) {
+            agent.write("#!/bin/sh\n[ \"$2\" = get ] && exit 1\nexit 0\n");
+            agent.close();
+            agent.setPermissions(agent.permissions() | QFileDevice::ExeOwner);
+        }
+    }
+    qputenv("PATH", (bin + u':' + qEnvironmentVariable("PATH")).toUtf8());
+    agentControl.setAgentSetup(omaweb::AgentSetup(home.path(), skill));
+}
+
 void writeSampleLists(const QDir &dataRoot)
 {
     const auto folder = dataRoot.filePath(QStringLiteral("content-blocking"));
@@ -704,7 +728,13 @@ int main(int argc, char *argv[])
     const auto agentsAway = agentsGrant || arguments.contains(QStringLiteral("--agents-away"));
     const auto agentsWindow = arguments.contains(QStringLiteral("--agents-window"));
     const auto agentsTakenOver = arguments.contains(QStringLiteral("--agents-taken-over"));
-    const auto agents = agentsAway || agentsWindow || agentsTakenOver
+    // `--agents-setup off`, `linked` or `mcp` stands Settings' agents section
+    // with Allow agents off, just turned on, or after Add MCP server.
+    const auto agentsSetupIndex = arguments.indexOf(QStringLiteral("--agents-setup"));
+    const auto agentsSetup = agentsSetupIndex >= 0 && agentsSetupIndex + 1 < arguments.size()
+        ? arguments.at(agentsSetupIndex + 1)
+        : QString();
+    const auto agents = agentsAway || agentsWindow || agentsTakenOver || !agentsSetup.isEmpty()
         || arguments.contains(QStringLiteral("--agents"));
     std::optional<omaweb::AgentControl> agentControl;
     const auto agentName = QStringLiteral("claude-code");
@@ -712,6 +742,9 @@ int main(int argc, char *argv[])
     QString agentSpaceId;
     if (agents) {
         agentControl.emplace(&browser, dataRoot.filePath(QStringLiteral("config")));
+        if (!agentsSetup.isEmpty()) {
+            setUpLabAgents(*agentControl, dataRoot);
+        }
         agentControl->setAllowAgents(true);
         const auto made = agentControl->answer({
             {QStringLiteral("verb"), QStringLiteral("space new")},
@@ -748,6 +781,11 @@ int main(int argc, char *argv[])
                      "Benchmarks", "Triage"}) {
                 browser.createAgentSpace(QString::fromUtf8(name), agentName);
             }
+        }
+        if (agentsSetup == u"off") {
+            agentControl->setAllowAgents(false);
+        } else if (agentsSetup == u"mcp") {
+            agentControl->addMcpServer();
         }
         engine.rootContext()->setContextProperty(
             QStringLiteral("agentControl"), &agentControl.value());

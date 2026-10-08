@@ -357,6 +357,8 @@ add_library(omaweb-core STATIC
     src/core/AgentActivityLog.h
     src/core/AgentControl.cpp
     src/core/AgentControl.h
+    src/core/AgentSetup.cpp
+    src/core/AgentSetup.h
     src/core/BrowserStateExchange.cpp
     src/core/BrowserStateExchange.h
     src/core/BrowserController.cpp
@@ -1105,6 +1107,15 @@ if(OMAWEB_BUILD_BROWSER)
         # the plugin's request for that SONAME is already answered.
         set_target_properties(omaweb-browser PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/lib")
 
+        # The skill `omaweb-cli` installs, which Allow agents links into the
+        # reader's agents. Relative to the binary for the reason the runpath
+        # is, and a build run from its own tree finds no skill there and
+        # offers none.
+        file(RELATIVE_PATH omaweb_agent_skill_from_browser
+            "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb" "${CMAKE_INSTALL_FULL_DATADIR}/omaweb/skills/omaweb")
+        target_compile_definitions(omaweb-browser PRIVATE
+            OMAWEB_AGENT_SKILL_FROM_BROWSER="${omaweb_agent_skill_from_browser}")
+
         # Off the PATH: `omaweb` there is the small client, which hands
         # everything that is not a verb to this.
         install(TARGETS omaweb-browser RUNTIME DESTINATION "${CMAKE_INSTALL_LIBDIR}/omaweb")
@@ -1673,6 +1684,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-webrtc-policy-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-webrtc-policy-tests)
     add_test(NAME omaweb-webrtc-policy COMMAND omaweb-webrtc-policy-tests)
+
+    qt_add_executable(omaweb-agent-setup-tests tests/core/tst_agentsetup.cpp)
+    target_link_libraries(omaweb-agent-setup-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-agent-setup-tests)
+    add_test(NAME omaweb-agent-setup COMMAND omaweb-agent-setup-tests)
 
     qt_add_executable(omaweb-settings-file-tests tests/core/tst_settingsfile.cpp)
     target_link_libraries(omaweb-settings-file-tests PRIVATE omaweb-core Qt6::Test)
