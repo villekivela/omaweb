@@ -117,7 +117,7 @@ Item {
     readonly property real reach: Math.hypot(root.drawWidth / 2, Math.max(root.horizonY,
                                                                           root.drawHeight
                                                                           - root.horizonY))
-    // The resting Omnibar's field and hint row, which the blips keep clear.
+    // The resting Omnibar, which the blips keep clear.
     readonly property rect field: {
         const f = root.parameters.field;
         const width = Math.min(root.drawWidth - 2 * f.margin, f.widest);

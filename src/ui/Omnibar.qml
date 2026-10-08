@@ -184,10 +184,10 @@ Item {
                                            * panel.border.width - 8 - 24 - hints.implicitHeight
     readonly property real restHeight: header.height + body.height + hints.height + 2
                                        * panel.border.width
-    // How far the field and its hint row reach below the horizon at rest,
-    // which the Start page's sky keeps clear: its planet crests below them.
-    readonly property real restReach: header.height + hints.height + 2 * panel.border.width
-                                      - horizonBelowTop
+    // How far the resting Omnibar reaches below the horizon, whatever it
+    // holds, which the Start page's Scenes keep clear: the field alone at
+    // rest, with no hint row.
+    readonly property real restReach: header.height + 2 * panel.border.width - horizonBelowTop
     NumberAnimation {
         id: arrivalEase
         target: root
@@ -924,10 +924,10 @@ Item {
                                                                                     !== null ? qsTr(
                                                                                                    "search %1").arg(
                                                                                                    root.engine.engineName) :
-                                                                                               (root.newTabIntent
-                                                                                                ? qsTr("Where to? \u00b7 opens in a new tab") :
-                                                                                                  qsTr("Where to?")))
+                                                                                               qsTr("Where to?"))
                 placeholderTextColor: root.colors.mutedText
+                // How far the placeholder reaches, which the shortcuts cue follows.
+                readonly property real placeholderWidth: placeholderMetrics.advanceWidth
                 readonly property real caretWidth: Math.round(input.font.pixelSize * 0.55)
                 font.family: Style.font.family
                 font.pixelSize: 17
@@ -1036,6 +1036,44 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.accept()
+                }
+            }
+
+            TextMetrics {
+                id: placeholderMetrics
+                font: input.font
+                text: input.placeholderText
+            }
+
+            // The empty field's cue for the Shortcut sheet, after the
+            // placeholder: `?` typed into the empty field opens it. It goes
+            // once the reader types, and where the field has no room for it.
+            Row {
+                id: fieldCue
+                objectName: "omnibarFieldCue"
+                x: input.x + input.placeholderWidth + 16
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.resting && !root.commandScope && root.engine === null
+                         && input.text.length === 0 && x + width <= input.x + input.width
+                spacing: 6
+                Accessible.role: Accessible.StaticText
+                Accessible.name: qsTr("Question mark shows the keyboard shortcuts")
+
+                KeyCap {
+                    anchors.verticalCenter: parent.verticalCenter
+                    colors: root.colors
+                    text: "?"
+                    plate: root.colors.overlayOpaque
+                }
+
+                Text {
+                    objectName: "startPageHintWord"
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("shortcuts")
+                    color: root.colors.mutedText
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    Accessible.ignored: true
                 }
             }
 
@@ -1365,8 +1403,8 @@ Item {
         }
 
         // The keys that work the list, under the results as the website's dash
-        // has them, and `?` at its end. At rest, with no results, the row is
-        // the Start page's hint for the Shortcut sheet and nothing else.
+        // has them, and `?` at its end. With no results there is no row: at
+        // rest the empty field cues the Shortcut sheet itself.
         OmnibarHints {
             id: hints
             anchors.left: parent.left
@@ -1374,12 +1412,11 @@ Item {
             anchors.top: body.bottom
             anchors.leftMargin: panel.border.width
             anchors.rightMargin: panel.border.width
-            visible: root.rows.length > 0 || root.shownResting
+            visible: root.rows.length > 0
             colors: root.colors
             keymap: root.keymap
             iconFontFamily: root.iconFontFamily
             commandScope: root.commandScope
-            listed: root.rows.length > 0
         }
     }
 

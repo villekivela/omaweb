@@ -4,8 +4,8 @@ import qs.Commons
 // The line under the Omnibar's results that names the keys working its list, as
 // the website's dash does: each key as a key cap and what it does in 11 px dim
 // text, over a rule. Its words follow the scope the field is in. At its right
-// end it always holds `?` and its word, the Start page's way to the Shortcut
-// sheet, so the row is the same row with results and without. Another item can
+// end it holds `?` and its word, the way to the Shortcut sheet. The Omnibar
+// shows the row only while there are results to work. Another item can
 // join it there by being declared inside it, as the website's Radio toggle
 // sits beside its keys.
 Item {
@@ -17,8 +17,6 @@ Item {
     // The Material Symbols family, where the window has loaded it.
     property string iconFontFamily: ""
     property bool commandScope: false
-    // There are results to work: without them the row holds `?` alone.
-    property bool listed: true
     property color plate: root.colors ? root.colors.overlayOpaque : "black"
     // Items for the row's right end.
     default property alias trailing: trailingSlot.data
@@ -79,7 +77,7 @@ Item {
         spacing: 18
 
         Repeater {
-            model: root.listed ? root.groups : []
+            model: root.groups
 
             Row {
                 id: group

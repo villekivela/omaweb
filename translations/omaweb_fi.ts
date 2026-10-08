@@ -2024,10 +2024,6 @@
         <translation>hae: %1</translation>
     </message>
     <message>
-        <source>Where to? · opens in a new tab</source>
-        <translation>Minne haluaisit? · avautuu uuteen välilehteen</translation>
-    </message>
-    <message>
         <source>Where to?</source>
         <translation>Minne haluaisit?</translation>
     </message>
@@ -2042,6 +2038,14 @@
     <message>
         <source>Go</source>
         <translation>Siirry</translation>
+    </message>
+    <message>
+        <source>Question mark shows the keyboard shortcuts</source>
+        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
+    </message>
+    <message>
+        <source>shortcuts</source>
+        <translation>pikanäppäimet</translation>
     </message>
     <message>
         <source>Command</source>

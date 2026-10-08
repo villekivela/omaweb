@@ -5059,46 +5059,59 @@ TestCase {
         compare(label.font.family, Style.font.family, name);
     }
 
-    // The Start page's `?` hint is the Omnibar's hint row's: at rest, with no
-    // results, the row holds `? shortcuts` as the website's key cap and its
-    // word, and nothing is drawn as a line of its own under the field. With
-    // results the row keeps its keys and the same hint stays at its right end.
-    function test_theHintRowHoldsTheShortcutsHintAtRest() {
+    // At rest, with no results, the Omnibar holds the field alone: no hint row
+    // under it. The `?` hint for the Shortcut sheet stands in the empty field
+    // after the placeholder, as a key cap and its word, and goes once text is
+    // typed. With results the hint row returns, `? shortcuts` at its right end.
+    function test_theEmptyFieldCuesTheShortcutsAtRest() {
         const hints = findChild(window.contentItem, "omnibarHints");
         const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting caps");
-        tryVerify(function () {
-            return hints.visible;
-        });
         verify(findChild(window.contentItem, "startPageHint") === null);
-        const hint = findChild(hints, "omnibarShortcutsHint");
-        verify(hint.visible);
-        const cap = findChild(hint, "keycap");
-        compare(cap.text, "?");
-        checkKeycap(cap, "hint");
-        compare(findChild(hint, "startPageHintWord").text, "shortcuts");
-        compare(childrenNamed(hints, "omnibarHintWord").length, 0);
-        compare(hints.height, hints.implicitHeight);
+        verify(!hints.visible);
+        compare(hints.height, 0);
         compare(findChild(window.contentItem, "omnibarFrame").height, panel.restHeight);
+        compare(panel.restReach, panel.restHeight - panel.horizonBelowTop);
+        const cue = findChild(window.contentItem, "omnibarFieldCue");
+        verify(cue !== null);
+        verify(cue.visible);
+        const cap = findChild(cue, "keycap");
+        compare(cap.text, "?");
+        checkKeycap(cap, "cue");
+        compare(findChild(cue, "startPageHintWord").text, "shortcuts");
+        compare(input.placeholderText, "Where to?");
+        const placeholderEnd = input.x + input.placeholderWidth;
+        verify(cue.x >= placeholderEnd + 8, "cue at " + cue.x + ", placeholder ends "
+               + placeholderEnd);
+
+
+        verify(cue.mapToItem(input, cue.width, 0).x <= input.width);
+
+        input.text = "x";
+        verify(!cue.visible);
+        input.text = "";
+        tryVerify(function () {
+            return cue.visible;
+        });
 
         browser.recordVisit("https://hint-rest.example/", "Hint rest");
         input.text = "hint rest";
         tryVerify(function () {
             return panel.rows.length > 0;
         });
+        verify(!cue.visible);
+        verify(hints.visible);
+        const hint = findChild(hints, "omnibarShortcutsHint");
         verify(hint.visible);
+        compare(findChild(hint, "keycap").text, "?");
+        compare(findChild(hint, "startPageHintWord").text, "shortcuts");
         compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
             return word.text;
         }).join(), "select,go");
         const keys = childrenNamed(hints, "omnibarHintWord")[1];
         verify(hint.mapToItem(hints, 0, 0).x > keys.mapToItem(hints, 0, 0).x + keys.width);
-        const arrow = childrenNamed(hints, "keycap").filter(function (cap) {
-            return cap.visible && cap.text.length > 0;
-        })[0];
-        compare(hint.mapToItem(hints, 0, hint.height / 2).y, arrow.mapToItem(hints, 0, arrow.height
-                                                                             / 2).y);
         verify(hint.mapToItem(hints, hint.width, 0).x <= hints.width);
         input.text = "";
         leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
@@ -11553,7 +11566,7 @@ TestCase {
         tryCompare(panel, "visible", false);
 
         window.openOmnibar(true);
-        compare(input.placeholderText, "Where to? \u00b7 opens in a new tab");
+        compare(input.placeholderText, "Where to?");
         compare(input.Accessible.name, "Address, search, tabs and Spaces");
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
@@ -12798,7 +12811,7 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting sheet");
         tryVerify(function () {
-            return findChild(window.contentItem, "omnibarShortcutsHint").visible;
+            return findChild(window.contentItem, "omnibarFieldCue").visible;
         });
 
         keyClick("?");
@@ -12953,7 +12966,7 @@ TestCase {
     }
 
     // The sky's planet lies wholly under the resting Omnibar: its top, the
-    // glow along its limb included, stands a small gap below the hint row's
+    // glow along its limb included, stands a small gap below the Omnibar's
     // bottom edge, at any window size and type size, so its curve shows whole.
     // The Omnibar keeps the place it has over the road.
     function test_theSkysPlanetStaysBelowTheOmnibar(data) {
@@ -13203,7 +13216,7 @@ TestCase {
     }
 
     // The terrain's mountains stand wholly under the resting Omnibar, the
-    // highest peak a small gap below the hint row's bottom edge, at any
+    // highest peak a small gap below the Omnibar's bottom edge, at any
     // window size and type size. The Omnibar keeps the place it has over the
     // road.
     function test_theTerrainsPeaksStayBelowTheOmnibar_data() {

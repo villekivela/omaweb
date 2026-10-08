@@ -1167,6 +1167,7 @@ int main(int argc, char *argv[])
             {QStringLiteral("space-settled"), {}},
             {QStringLiteral("omnibar-step"), {}},
             {QStringLiteral("omnibar-settled"), {}},
+            {QStringLiteral("newtab-settled"), {}},
             {QStringLiteral("tab-step"), {}},
             {QStringLiteral("tab-settled"), {}},
             {QStringLiteral("settings-step"), {}},
@@ -1374,7 +1375,13 @@ int main(int argc, char *argv[])
                 } else if (what == QLatin1String("settings")) {
                     QMetaObject::invokeMethod(root, "requestSettings");
                 } else {
-                    QMetaObject::invokeMethod(root, "openOmnibar", Q_ARG(QVariant, false));
+                    const auto forNewTab = what == QLatin1String("newtab");
+                    if (forNewTab) {
+                        // A new tab is asked over a page, so step off the
+                        // Start page the lab opens on first.
+                        QMetaObject::invokeMethod(root, "stepTab", Q_ARG(QVariant, 1));
+                    }
+                    QMetaObject::invokeMethod(root, "openOmnibar", Q_ARG(QVariant, forNewTab));
                     if (query.isEmpty()) {
                         return;
                     }

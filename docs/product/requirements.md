@@ -143,8 +143,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   behind it. The Start page is the Omnibar at rest above the Scene's horizon, centred in the page
   area, focused, over the Scene the reader chose. The field is the website's dash:
   `min(page area width - 32 px, 720 px)` wide, its top edge 50 px above the horizon, which lies at
-  half the page area's height, with a 50 px field and 16 px of padding. The Omnibar's hint row,
-  under the field, holds `?` as a key cap with the word "shortcuts", the way to the Shortcut sheet.
+  half the page area's height, with a 50 px field and 16 px of padding. At rest with no results the
+  panel holds the field alone, with no hint row under it; the empty field cues the Shortcut sheet
+  instead.
 - Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life,
   Vector terrain, Radar, Hyperspace, or None, which leaves the Omnibar over the sidebar's fill. It
   is a grid of small thumbnails, four to a row, in that order, each a still of its Scene drawn by
@@ -169,14 +170,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   always night, a light theme's night drawn from its dark text. A dark planet rises from the bottom,
   after Navigator's globe: its face from the palette's dark, a thin glow in the palette along its
   curved limb. The planet lies wholly under the resting Omnibar: its top, the glow included, stands
-  a small gap below the hint row, so the curve shows whole. The Omnibar keeps the place it has over
-  the road. Over it a still star field, and a comet or a shooting star now and then on a slow
-  diagonal, falling above the limb and going out behind it. There is no mark: the Omnibar is the one
-  thing in the middle. A comet passing near the field briefly catches the Omnibar's rim. On commit
-  stars fall thick and fast as streaks until the page paints, then the page takes over as it does
-  from the road. Reduced motion holds one frame, the star field and one comet part way across, with
-  no glint. A Private window's sky has its lights out: the planet and its limb stay, with no glow,
-  stars, comets or glint, even on commit.
+  a small gap below it, so the curve shows whole. The Omnibar keeps the place it has over the road.
+  Over it a still star field, and a comet or a shooting star now and then on a slow diagonal,
+  falling above the limb and going out behind it. There is no mark: the Omnibar is the one thing in
+  the middle. A comet passing near the field briefly catches the Omnibar's rim. On commit stars fall
+  thick and fast as streaks until the page paints, then the page takes over as it does from the
+  road. Reduced motion holds one frame, the star field and one comet part way across, with no glint.
+  A Private window's sky has its lights out: the planet and its limb stay, with no glow, stars,
+  comets or glint, even on commit.
 - The Game of Life is Conway's, drawn from the palette in the same way and always night, a light
   theme's ground drawn from its dark text. Each cell is one of the Scene's square pixels, and the
   board wraps at its edges. Live cells are the accent, and a cell that has just died leaves a short
@@ -190,16 +191,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   cells dimmed and without trails, even on commit.
 - The vector terrain is after Battlezone and the vector arcade games, drawn from the palette in the
   same way and always night. Wireframe mountains stand on a horizon below the Omnibar, no peak
-  higher than a small gap below the hint row, as the sky's planet, and each hides what stands behind
-  it. A perspective grid lies on the ground before them, and a wireframe crescent moon hangs low in
-  the sky beside the Omnibar, or just above it where the page area has no room beside it. Its lines
-  are thin, the mountains and the grid in the accent, the farther ridge dimmer, the moon in the
-  theme's light, each with a vector monitor's glow. At rest the ridges drift by in slow parallax,
-  the nearer faster, and the grid holds still. On commit the grid's lines rush toward the reader
-  while the mountains hold the horizon, until the page paints, then the page takes over as it does
-  from the road. It casts no light on the Omnibar. Reduced motion holds one frame of the mountains,
-  the grid and the moon. A Private window's terrain is the wireframe alone, its lines the theme's
-  light dimmed, with no moon and no glow, and it holds still, even on commit.
+  higher than a small gap below it, as the sky's planet, and each hides what stands behind it. A
+  perspective grid lies on the ground before them, and a wireframe crescent moon hangs low in the
+  sky beside the Omnibar, or just above it where the page area has no room beside it. Its lines are
+  thin, the mountains and the grid in the accent, the farther ridge dimmer, the moon in the theme's
+  light, each with a vector monitor's glow. At rest the ridges drift by in slow parallax, the nearer
+  faster, and the grid holds still. On commit the grid's lines rush toward the reader while the
+  mountains hold the horizon, until the page paints, then the page takes over as it does from the
+  road. It casts no light on the Omnibar. Reduced motion holds one frame of the mountains, the grid
+  and the moon. A Private window's terrain is the wireframe alone, its lines the theme's light
+  dimmed, with no moon and no glow, and it holds still, even on commit.
 - The radar is after a plan-position display, drawn from the palette in the same way and always
   night. The whole page area is its face, with faint range rings and spokes running out past its
   edges from a centre behind the Omnibar's field. A phosphor sweep in the accent turns clockwise
@@ -337,16 +338,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The Omnibar field is drawn as the website's dash: the Omaweb mark as its prompt in the palette's
   accent, drawn 32 px across as the website draws it, the typed text and a blinking block caret, and
   a `→` go mark that commits as `Return` does. In command scope the mark gives way to `:`. The field
-  asks "Where to?", as the website's does, and "Where to? · opens in a new tab" for a new tab;
-  command scope and an engine keyword keep their own prompts. The label at the field's right end,
-  before the arrow, says where Return goes: "This Tab", "New Tab" or "Command", muted and at the
-  size of the rows' own labels, in title case in English and as plain words in Finnish. A screen
-  reader hears what the field takes, "Address, search, tabs and Spaces", rather than the prompt. The
-  typed text and the caret carry no glow, rim light, blur or shadow, and the text clears 4.5:1
-  against the field's glass in every theme, over the darkest and the lightest the road can put
-  behind it. Over the road the glass blurs it heavily under a nearly opaque tint of the overlay, so
-  the rows read cleanly, and over a page it blurs the page. The sun's light on the field's edge is
-  drawn at half the website's strength.
+  asks "Where to?", as the website's does, for a new tab too, since the label at its right end says
+  "New Tab". While the field is empty at rest, the placeholder is followed by a gap, a `?` key cap
+  and "shortcuts" in the muted text, the way to the Shortcut sheet, which `?` typed into the empty
+  field opens; both go with the placeholder once the reader types. Command scope and an engine
+  keyword keep their own prompts. The label at the field's right end, before the arrow, says where
+  Return goes: "This Tab", "New Tab" or "Command", muted and at the size of the rows' own labels, in
+  title case in English and as plain words in Finnish. A screen reader hears what the field takes,
+  "Address, search, tabs and Spaces", rather than the prompt. The typed text and the caret carry no
+  glow, rim light, blur or shadow, and the text clears 4.5:1 against the field's glass in every
+  theme, over the darkest and the lightest the road can put behind it. Over the road the glass blurs
+  it heavily under a nearly opaque tint of the overlay, so the rows read cleanly, and over a page it
+  blurs the page. The sun's light on the field's edge is drawn at half the website's strength.
 - `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
   after the user commits a destination. Choosing an open tab from it switches to that tab and
   creates none. `Escape` brings back the page that was on show; in a Space at rest it releases the
@@ -355,13 +358,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   give the field back. In a split the Start page covers both panes, where the committed tab lands,
   and `Escape` brings the split back. While the Start page is on show, `Primary+L` and `o` focus its
   Omnibar.
-- Under the Omnibar's field a hint row, over a rule, holds `?` and "shortcuts" at its right end and,
-  while there are results, names the keys that work the list, as the website's dash does: `↑↓` as
-  key caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope says "run" for
-  `↵` and adds `⌫` and "back", which leaves the scope. The field answers the keys the key map names
-  for the Omnibar, and the row names the same keys, so a key the row shows is a key the field
-  answers. The words are translated. With no results the row is shown only at rest, on the Start
-  page, and holds `?` alone. An item can join it beside `?`.
+- While there are results, a hint row under the Omnibar's field, over a rule, names the keys that
+  work the list, as the website's dash does, with `?` and "shortcuts" at its right end: `↑↓` as key
+  caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope says "run" for `↵`
+  and adds `⌫` and "back", which leaves the scope. The field answers the keys the key map names for
+  the Omnibar, and the row names the same keys, so a key the row shows is a key the field answers.
+  The words are translated. With no results there is no row. An item can join it beside `?`.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
   search keywords, and browser commands in one list. The tab on show is never a row, and a Private
   window lists no Spaces and no history.
