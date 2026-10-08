@@ -7,6 +7,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <memory>
+
 using omaweb::followOmarchyTheme;
 using omaweb::OmarchyTemplateOutcome;
 using omaweb::OmarchyThemePaths;
@@ -63,9 +65,21 @@ private slots:
 
 private:
     QByteArray m_path;
+    std::unique_ptr<QTemporaryDir> m_stub;
 };
 
-void OmarchyThemeTest::init() { m_path = qgetenv("PATH"); }
+void OmarchyThemeTest::init()
+{
+    m_path = qgetenv("PATH");
+    // On an Omarchy desktop the real `omarchy` is on the path, and a slot that
+    // installs a template would set the desktop's theme. Each slot sees a
+    // stand-in that does nothing, unless it puts its own ahead of it.
+    m_stub = std::make_unique<QTemporaryDir>();
+    write(m_stub->filePath(QStringLiteral("omarchy")), QByteArray("#!/bin/sh\n"));
+    QVERIFY(QFile::setPermissions(m_stub->filePath(QStringLiteral("omarchy")),
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    qputenv("PATH", m_stub->path().toLocal8Bit() + ':' + m_path);
+}
 
 void OmarchyThemeTest::cleanup()
 {

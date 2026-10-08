@@ -59,6 +59,9 @@ ApplicationWindow {
     // thing telling them apart, however well it sits in a palette, so tinting
     // is the reader's to ask for rather than the default.
     property bool tintFavicons: false
+    // Which icon the launcher shows: the package's, or the Omarchy theme's.
+    // The browser applies it; the window only shows and saves the choice.
+    property string appIcon: "black-and-white"
     // The reader owns the sidebar's width. It is clamped rather than free: too
     // narrow and a tab row stops being readable, too wide and the page it is
     // an outline of loses the window.
@@ -2018,6 +2021,16 @@ ApplicationWindow {
         window.spaceColours = window.windowBrowser.preference("space-colours", "true") === "true";
     }
 
+    function restoreAppIcon() {
+        window.appIcon = window.windowBrowser.preference("app-icon", "black-and-white") === "theme"
+                ? "theme" : "black-and-white";
+    }
+
+    function setAppIcon(icon) {
+        window.appIcon = icon;
+        window.windowBrowser.setPreference("app-icon", icon);
+    }
+
     function setSidebarSide(side) {
         window.sidebarSide = side;
         window.windowBrowser.setPreference("sidebar-side", side);
@@ -2082,6 +2095,8 @@ ApplicationWindow {
             if (name === "floating-controls" || name === "glance" || name === "start-page-scene" || name
                     === "start-page-glass" || name === "sidebar-side" || name === "space-colours")
                 window.restoreChromeAppearance();
+            else if (name === "app-icon")
+                window.restoreAppIcon();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
         }
@@ -4344,6 +4359,7 @@ ApplicationWindow {
                             pageSource: window.pagelessViewport ? null : engineLoader
                             useFavicons: window.useFavicons
                             tintFavicons: window.tintFavicons
+                            appIcon: window.appIcon
                             floatingControls: window.floatingControls
                             sidebarSide: window.sidebarSide
                             glanceEnabled: window.glanceEnabled
@@ -4414,6 +4430,9 @@ ApplicationWindow {
                             }
                             onTintFaviconsToggled: function (enabled) {
                                 window.setTintFavicons(enabled);
+                            }
+                            onAppIconChosen: function (icon) {
+                                window.setAppIcon(icon);
                             }
                             onFloatingControlsToggled: function (enabled) {
                                 window.setFloatingControls(enabled);
@@ -4852,6 +4871,7 @@ ApplicationWindow {
         window.restoreDeveloperToolsWidth();
         window.restoreTabAppearance();
         window.restoreChromeAppearance();
+        window.restoreAppIcon();
         // The notes an upgrade owes the reader, which the watch opens once,
         // behind the page on show and in a Space of the reader's own. A
         // Private window says nothing about this installation, so it never
