@@ -112,7 +112,8 @@ class TwoPackages(unittest.TestCase):
 
 class EngineAndCapability(unittest.TestCase):
     def assert_engine_matches_option(self, pkgbuild: str) -> None:
-        on_patched_engine = ENGINE in depends(pkgbuild)
+        engine = re.compile(rf"{ENGINE}([<>=].*)?")
+        on_patched_engine = any(engine.fullmatch(name) for name in depends(pkgbuild))
         reports_extensions = FLAG in configure_arguments(pkgbuild)
         # Both directions fail a reader. Without the option the patched engine's
         # extensions are never offered; with it on the system engine they are
@@ -128,6 +129,13 @@ class EngineAndCapability(unittest.TestCase):
 
     def test_the_release_package(self) -> None:
         self.assert_engine_matches_option(release_pkgbuild())
+
+    def test_the_engine_hosts_an_offscreen_document(self) -> None:
+        # Engine 6.11.2-5 crashed the moment a Known extension made an offscreen
+        # document (#646), and pacman upgrades Omaweb without the engine unless
+        # the dependency asks for a newer one.
+        for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
+            self.assertIn(f"{ENGINE}>=6.11.2-6", depends(pkgbuild))
 
     def test_the_option_is_one_cmake_declares(self) -> None:
         # A misspelt or renamed option is accepted by CMake with a warning

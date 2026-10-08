@@ -34,7 +34,10 @@ if pacman -Si "$engine" > /dev/null 2>&1; then
     echo "==> $engine is available, so the dependency is resolved for real"
 else
     makepkg_dep_flags="-d"
-    pacman_dep_flags="--assume-installed $engine"
+    # At the version the PKGBUILD asks for: pacman refuses a bare assumed
+    # package for a versioned dependency.
+    floor=$(sed -n "s/^[[:space:]]*'$engine>=\([^']*\)'.*/\1/p" "$repo_root/packaging/PKGBUILD")
+    pacman_dep_flags="--assume-installed $engine${floor:+=$floor}"
     echo "==> $engine is in no configured repository, so it is assumed"
     echo "==> This run checks packaging and not that the browser can start"
 fi
