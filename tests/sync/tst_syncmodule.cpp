@@ -717,7 +717,7 @@ void SyncModuleTest::restoresTheRestBesideASettingsFileItCannotRead()
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(false));
 }
 
-// Releases up to 0.12.1 seeded keybindings.json read-only, from a Qt resource.
+// Earlier releases seeded keybindings.json read-only, from a Qt resource.
 // A restore that has nothing to change in it must not fail on the write.
 void SyncModuleTest::leavesAReadOnlyKeybindingsFileAloneWhenItMatches()
 {
