@@ -13187,6 +13187,27 @@ TestCase {
                         larger: 0
                     },
                     {
+                        tag: "2400 x 760",
+                        width: 2400,
+                        height: 760,
+                        larger: 0,
+                        higher: true
+                    },
+                    {
+                        tag: "1280 x 560",
+                        width: 1280,
+                        height: 560,
+                        larger: 0
+                    },
+                    {
+                        // A page area 751 wide, not a whole number of the
+                        // Scene's pixels, with an Omnibar narrower than 720.
+                        tag: "1043 x 700",
+                        width: 1043,
+                        height: 700,
+                        larger: 0
+                    },
+                    {
                         tag: "larger type",
                         width: 1360,
                         height: 860,
@@ -13238,9 +13259,11 @@ TestCase {
     }
 
     // The sky's planet lies wholly under the resting Omnibar: its top, the
-    // glow along its limb included, stands a small gap below the Omnibar's
-    // bottom edge, at any window size and type size, so its curve shows whole.
-    // The Omnibar keeps the place it has over the road.
+    // glow along its limb included, stands a third of the way from the
+    // Omnibar's bottom edge to the page area's, at any window size and type
+    // size, and its curve shows whole. The Shortcut sheet's cue in the lower
+    // right corner stands on the planet's face, clear of the limb and its
+    // glow. The Omnibar keeps the place it has over the road.
     function test_theSkysPlanetStaysBelowTheOmnibar(data) {
         const width = window.width;
         const height = window.height;
@@ -13264,11 +13287,84 @@ TestCase {
             const top = function () {
                 return scene.mapToItem(panel, 0, sky.planetTop).y;
             };
+            const third = function () {
+                const sceneBottom = scene.mapToItem(panel, 0, sky.drawHeight).y;
+                return bottom() + (sceneBottom - bottom()) / 3;
+            };
             tryVerify(function () {
-                return top() > bottom() + 4;
-            }, 1000, "planet's top " + top() + ", Omnibar's bottom " + bottom());
-            verify(top() < bottom() + 24, "planet's top " + top() + ", Omnibar's bottom " + bottom(
+                return Math.abs(sky.drawWidth - scene.width) < sky.pitch;
+            }, 2000, "the sky drawn " + sky.drawWidth + " wide in a host " + scene.width + " wide");
+            // The Start page slides in to the page area the Omnibar rests
+            // over, and the Scene is measured against the Omnibar once there.
+            tryVerify(function () {
+                return Math.abs(scene.mapToItem(panel, 0, 0).x - panel.restArea.x) < 0.5;
+            }, 2000, "the Start page at " + scene.mapToItem(panel, 0, 0).x + ", its area at "
+            + panel.restArea.x);
+            // A window this wide for its height would take the limb's ends
+            // onto the cue from a third of the way down, so the planet stands
+            // higher.
+            if (data.higher)
+                verify(top() < third() - 8, "planet's top " + top() + ", a third " + third());
+            else
+                verify(Math.abs(top() - third()) < 1, "planet's top " + top() + ", a third " + third(
+                           ));
+            verify(top() > bottom() + 4, "planet's top " + top() + ", Omnibar's bottom " + bottom(
                        ));
+
+            // The limb is lowest at its ends, and they stand above the cue's
+            // top, so it lies on the face; the glow is above the limb.
+            const cue = findChild(window.contentItem, "omnibarCornerCue");
+            verify(cue !== null && cue.visible);
+            const cueTop = cue.mapToItem(scene, 0, 0).y;
+            const r = sky.planetRadius;
+            const half = sky.drawWidth / 2;
+            const ends = sky.planetCentre.y - Math.sqrt(r * r - half * half);
+            verify(ends < cueTop - 8, "the limb's ends at " + ends + ", the cue at " + cueTop);
+            verify(ends < sky.drawHeight, ends);
+
+            // The comet that falls in front of the planet passes close enough
+            // to the resting Omnibar for its light to catch the rim, clear of
+            // the field, and clear of the cue on its way out through the
+            // bottom edge, its tail on the same diagonal behind it.
+            const clear = sky.front.halo / 2 + 8;
+            const cueLeft = cue.mapToItem(scene, 0, 0).x;
+            compare(sky.omnibarWidth, panel.restWidth);
+            const field = panel.mapToItem(scene, panel.restX, panel.restY);
+            const fieldBottom = field.y + panel.restReach + panel.horizonBelowTop;
+            const time = scene.time;
+            const crossings = [];
+            // The first three crossings, a frame at a time: each comes in
+            // `after` seconds into a front slot and is gone `lasts` and
+            // `fades` later.
+            const front = sky.front;
+            const slot = sky.comets.every;
+            for (let k = 0; k < 3; ++k) {
+                const from = ((k * front.every + front.at) * slot) + front.after;
+                crossings.push(0);
+                for (let t = from; t < from + front.lasts + front.fades; t += 1 / 30) {
+                    scene.time = t;
+                    if (!sky.frontShown)
+                        continue;
+                    const head = sky.frontHead;
+                    verify(head.x < cueLeft - clear || head.x > cueLeft + cue.width + clear
+                           || head.y < cueTop - clear || head.y > cueTop + cue.height + clear,
+                           "the comet at " + head + " over the cue at " + cueLeft + ", " + cueTop);
+                    // Its glow keeps 16 px off the Omnibar's panel.
+                    const dx = Math.max(field.x - head.x, 0, head.x - field.x - panel.restWidth);
+                    const dy = Math.max(field.y - head.y, 0, head.y - fieldBottom);
+                    verify(Math.hypot(dx, dy) >= sky.front.halo / 2 + 16, "the comet at " + head
+                           + " " + Math.hypot(dx, dy).toFixed(1) + " from the Omnibar at " + field);
+                    // Its light's brighter half falls on the rim.
+                    if (Math.hypot(dx / (panel.restWidth * sky.light.across), dy / sky.light.reach)
+                            < 0.5)
+                        crossings[crossings.length - 1] += 1;
+                }
+            }
+            scene.time = time;
+            verify(crossings.length >= 3, crossings.length + " comets fell in front of the planet");
+            verify(crossings.every(function (near) {
+                return near > 0;
+            }), "a comet in front of the planet never caught the rim: " + crossings);
         } finally {
             leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
             fontSettings.resetInterfaceFontSize();
