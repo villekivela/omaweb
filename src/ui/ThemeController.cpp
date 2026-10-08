@@ -15,8 +15,10 @@
 #include <QMap>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
+#include <numbers>
 
 namespace omaweb {
 namespace {
@@ -97,7 +99,7 @@ namespace {
         };
     }
 
-    QColor fromOklab(const Oklab &colour)
+    std::array<double, 3> linearRgb(const Oklab &colour)
     {
         const auto cubed = [](double value) { return value * value * value; };
         const auto long_ = cubed(
@@ -106,11 +108,16 @@ namespace {
             colour.lightness - 0.1055613458 * colour.greenRed - 0.0638541728 * colour.blueYellow);
         const auto short_ = cubed(
             colour.lightness - 0.0894841775 * colour.greenRed - 1.2914855480 * colour.blueYellow);
+        return {4.0767416621 * long_ - 3.3077115913 * medium + 0.2309699292 * short_,
+            -1.2684380046 * long_ + 2.6097574011 * medium - 0.3413193965 * short_,
+            -0.0041960863 * long_ - 0.7034186147 * medium + 1.7076147010 * short_};
+    }
+
+    QColor fromOklab(const Oklab &colour)
+    {
         // Out of gamut clamps per channel, as an sRGB display does with it.
-        return QColor::fromRgb(
-            fromLinear(4.0767416621 * long_ - 3.3077115913 * medium + 0.2309699292 * short_),
-            fromLinear(-1.2684380046 * long_ + 2.6097574011 * medium - 0.3413193965 * short_),
-            fromLinear(-0.0041960863 * long_ - 0.7034186147 * medium + 1.7076147010 * short_));
+        const auto [red, green, blue] = linearRgb(colour);
+        return QColor::fromRgb(fromLinear(red), fromLinear(green), fromLinear(blue));
     }
 
     QColor mixedPerceptually(const QColor &from, const QColor &to, double amount)
@@ -286,6 +293,168 @@ namespace {
         return repaired.isValid() ? repaired : best;
     }
 
+    // OKLCH, OKLab's polar form, in which a Space colour is defined: a hue
+    // that names it, a chroma that sets how vivid it is, and a lightness that
+    // is the one thing a theme moves.
+    double oklchChroma(const QColor &colour)
+    {
+        const auto oklab = toOklab(colour);
+        return std::hypot(oklab.greenRed, oklab.blueYellow);
+    }
+
+    double oklchHue(const QColor &colour)
+    {
+        const auto oklab = toOklab(colour);
+        const auto degrees
+            = std::atan2(oklab.blueYellow, oklab.greenRed) * 180.0 / std::numbers::pi;
+        return degrees < 0.0 ? degrees + 360.0 : degrees;
+    }
+
+    double hueDistance(double one, double other)
+    {
+        const auto apart = std::fmod(std::abs(one - other), 360.0);
+        return std::min(apart, 360.0 - apart);
+    }
+
+    // The colour at this lightness and hue with as much of the chroma as sRGB
+    // can show there. Clamping a channel instead would turn the hue, which is
+    // what a Space colour is told apart by.
+    QColor fromOklch(double lightness, double chroma, double hue)
+    {
+        const auto radians = hue * std::numbers::pi / 180.0;
+        const auto at = [&](double amount) {
+            return Oklab {lightness, amount * std::cos(radians), amount * std::sin(radians)};
+        };
+        const auto inGamut = [](const Oklab &colour) {
+            constexpr auto tolerance = 1e-6;
+            return std::ranges::all_of(linearRgb(colour),
+                [](double channel) { return channel >= -tolerance && channel <= 1.0 + tolerance; });
+        };
+        if (inGamut(at(chroma))) {
+            return fromOklab(at(chroma));
+        }
+        auto low = 0.0;
+        auto high = chroma;
+        for (auto step = 0; step < 24; ++step) {
+            const auto middle = (low + high) / 2.0;
+            (inGamut(at(middle)) ? low : high) = middle;
+        }
+        return fromOklab(at(low));
+    }
+
+    // The six Space colours Omaweb owns, in hue order. Each has the same hue and
+    // chroma on every desktop, so a Space is the same orange or teal wherever it
+    // is drawn. A theme changes its lightness, until it reads on the theme's
+    // grounds, and turns its hue only when the theme's urgent, Private or Agent
+    // colour is too close to it. The lightness here is where that search starts,
+    // chosen for a dark ground: yellow reads as yellow only when it is light,
+    // and blue and violet have to be pale before they read.
+    struct SpaceHue {
+        QLatin1StringView name;
+        double hue;
+        double chroma;
+        double lightness;
+    };
+
+    constexpr std::array spaceHues {
+        SpaceHue {QLatin1StringView("orange"), 55.0, 0.14, 0.76},
+        SpaceHue {QLatin1StringView("yellow"), 95.0, 0.14, 0.86},
+        SpaceHue {QLatin1StringView("green"), 145.0, 0.14, 0.78},
+        SpaceHue {QLatin1StringView("teal"), 185.0, 0.12, 0.78},
+        SpaceHue {QLatin1StringView("blue"), 250.0, 0.13, 0.72},
+        SpaceHue {QLatin1StringView("violet"), 300.0, 0.14, 0.72},
+    };
+
+    // How far apart in hue two Space colours, or a Space colour and an accent,
+    // are kept: far enough that the footer's small squares are told apart at a
+    // glance, and close enough that six fit around the circle beside three
+    // accents however a theme places them.
+    constexpr auto spaceHueGap = 20.0;
+    // Below this an accent is a grey, whose hue is rounding noise and says
+    // nothing a Space colour could be mistaken for.
+    constexpr auto chromaticFloor = 0.03;
+    // A Space colour is a square and a mark, never text.
+    constexpr auto minimumSpaceContrast = 3.0;
+
+    // The lightness nearest the one the colour starts from that clears 3:1 on
+    // every ground, or where none does, the one that reads best on its worst.
+    QColor spaceColourAt(const SpaceHue &space, double hue, const QList<QColor> &grounds)
+    {
+        const auto worstContrast = [&grounds](const QColor &candidate) {
+            auto worst = std::numeric_limits<double>::max();
+            for (const auto &ground : grounds) {
+                worst = std::min(worst, contrastRatio(candidate, ground));
+            }
+            return worst;
+        };
+        auto best = fromOklch(space.lightness, space.chroma, hue);
+        auto bestWorst = worstContrast(best);
+        constexpr auto steps = 256;
+        for (auto step = 0; step <= steps; ++step) {
+            for (const auto direction : {1.0, -1.0}) {
+                const auto lightness = space.lightness + direction * step / steps;
+                if (lightness <= 0.0 || lightness >= 1.0) {
+                    continue;
+                }
+                const auto candidate = fromOklch(lightness, space.chroma, hue);
+                const auto worst = worstContrast(candidate);
+                if (worst >= minimumSpaceContrast) {
+                    return candidate;
+                }
+                if (worst > bestWorst) {
+                    best = candidate;
+                    bestWorst = worst;
+                }
+            }
+        }
+        return best;
+    }
+
+    // Each of the six at its own hue where that is clear of the accents and of
+    // the Space colours placed before it, and otherwise turned the least that
+    // makes it clear. The hue is measured on the colour as drawn, after its
+    // lightness and gamut have moved it.
+    QVariantMap resolvedSpaceColours(const QList<QColor> &grounds, const QList<QColor> &accents)
+    {
+        QList<double> taken;
+        for (const auto &accent : accents) {
+            if (accent.isValid() && oklchChroma(accent) >= chromaticFloor) {
+                taken.append(oklchHue(accent));
+            }
+        }
+        const auto clears = [&taken](const QColor &candidate) {
+            const auto hue = oklchHue(candidate);
+            return std::ranges::all_of(
+                taken, [hue](double other) { return hueDistance(hue, other) >= spaceHueGap; });
+        };
+        QVariantMap spaces;
+        // At most eight hues are taken when a colour is placed, three accents
+        // and five Space colours. Each blocks 40° of the circle, 320° at most
+        // together, so a clear hue always exists. Only rounding the drawn
+        // colour to 8 bits can move its hue back inside a gap. If that happens
+        // at every turn, the colour keeps its own hue.
+        for (const auto &space : spaceHues) {
+            auto chosen = spaceColourAt(space, space.hue, grounds);
+            if (!clears(chosen)) {
+                for (auto turn = 1; turn <= 180; ++turn) {
+                    const auto ahead = spaceColourAt(space, space.hue + turn, grounds);
+                    if (clears(ahead)) {
+                        chosen = ahead;
+                        break;
+                    }
+                    const auto behind = spaceColourAt(space, space.hue - turn, grounds);
+                    if (clears(behind)) {
+                        chosen = behind;
+                        break;
+                    }
+                }
+            }
+            taken.append(oklchHue(chosen));
+            spaces.insert(QString(space.name), chosen.name(QColor::HexRgb));
+        }
+        return spaces;
+    }
+
 } // namespace
 
 ThemeController::ThemeController(QString themePath, QObject *parent)
@@ -428,10 +597,6 @@ QVariantMap ThemeController::fallbackPalette() const
         // the page frame and the footer mark of what an Agent is driving,
         // and says nothing is wrong, as `urgent` would.
         {QStringLiteral("agentAccent"), QStringLiteral("#56b6c2")},
-        // What each Space is drawn in, by the palette name the Space keeps.
-        // Six of a terminal's colours, and none that says something else
-        // already: red is urgent, magenta Private, cyan an Agent.
-        {QStringLiteral("spaces"), defaultSpaceColours()},
         {QStringLiteral("font"), defaultFont()},
         {QStringLiteral("opacity"), defaultOpacity()},
         {QStringLiteral("syntax"), defaultSyntax()},
@@ -456,18 +621,6 @@ QVariantMap ThemeController::defaultSyntax()
         {QStringLiteral("variable"), QStringLiteral("#e06c75")},
         {QStringLiteral("function"), QStringLiteral("#61afef")},
         {QStringLiteral("type"), QStringLiteral("#56b6c2")},
-    };
-}
-
-QVariantMap ThemeController::defaultSpaceColours()
-{
-    return {
-        {QStringLiteral("green"), QStringLiteral("#98c379")},
-        {QStringLiteral("yellow"), QStringLiteral("#e5c07b")},
-        {QStringLiteral("blue"), QStringLiteral("#61afef")},
-        {QStringLiteral("bright_green"), QStringLiteral("#b5e890")},
-        {QStringLiteral("bright_yellow"), QStringLiteral("#f0d197")},
-        {QStringLiteral("bright_blue"), QStringLiteral("#8cc8ff")},
     };
 }
 
@@ -773,48 +926,23 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
                 .name(QColor::HexRgb));
     }
 
-    // A Space's colour is read as well as seen: the Omnibar writes a Space's
-    // name in it, and the footer and Settings draw it on the sidebar and the
-    // sheet. So, as with the Agent accent, each keeps its hue and changes
-    // lightness only until it clears 4.5:1 on every ground, a Private
-    // window's too. A name the theme gives that is not one of the six is
-    // dropped, and one it leaves out is Omaweb's own.
-    const auto themeSpaces = palette.value(QStringLiteral("spaces")).toMap();
-    const auto spaceGrounds = coloursFor({QStringLiteral("window"), QStringLiteral("sidebar"),
-        QStringLiteral("overlay"), QStringLiteral("sheet"), QStringLiteral("privateWindow"),
-        QStringLiteral("privateSidebar"), QStringLiteral("privateOverlay"),
-        QStringLiteral("privateSheet")});
-    QVariantMap spaces;
-    const auto spaceDefaults = defaultSpaceColours();
-    for (auto it = spaceDefaults.cbegin(); it != spaceDefaults.cend(); ++it) {
-        const QColor named(themeSpaces.value(it.key()).toString());
-        auto colour = named.isValid() ? named : QColor(it.value().toString());
-        if (text.isValid() && !spaceGrounds.isEmpty()) {
-            constexpr auto minimumSpaceContrast = 4.5;
-            colour = adjustedForContrast(
-                colour, text, spaceGrounds, minimumSpaceContrast, /*preserveHue=*/true);
-        }
-        spaces.insert(it.key(), colour.name(QColor::HexRgb));
-    }
-    // Repaired for a light ground, each bright colour lands on its plain twin
-    // or near enough that two Spaces could not be told apart, so a light theme
-    // offers the three plain ones and draws a bright one as its twin. Light is
-    // text darker than the sidebar it is read on.
-    QStringList spaceColourNames {
-        QStringLiteral("green"), QStringLiteral("yellow"), QStringLiteral("blue")};
-    const QColor sidebar(palette.value(QStringLiteral("sidebar")).toString());
-    const auto lightTheme = text.isValid() && sidebar.isValid()
-        && relativeLuminance(text) < relativeLuminance(sidebar);
-    for (const auto &plain : QStringList(spaceColourNames)) {
-        const auto bright = QStringLiteral("bright_") + plain;
-        if (lightTheme) {
-            spaces.insert(bright, spaces.value(plain));
-        } else {
-            spaceColourNames.append(bright);
-        }
-    }
-    palette.insert(QStringLiteral("spaces"), spaces);
+    // Omaweb's own six, resolved against this theme: a theme's `spaces` are
+    // not read. A Space colour is drawn on every ground but a hover fill, a
+    // Private window's too, and kept clear of urgent, Private and Agent, which
+    // are final by now.
+    palette.insert(QStringLiteral("spaces"),
+        resolvedSpaceColours(coloursFor({QStringLiteral("window"), QStringLiteral("sidebar"),
+                                 QStringLiteral("overlay"), QStringLiteral("sheet"),
+                                 QStringLiteral("privateWindow"), QStringLiteral("privateSidebar"),
+                                 QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")}),
+            {QColor(palette.value(QStringLiteral("urgent")).toString()),
+                QColor(palette.value(QStringLiteral("privateAccent")).toString()),
+                QColor(palette.value(QStringLiteral("agentAccent")).toString())}));
     // The colours Settings offers, in the order it offers them.
+    QStringList spaceColourNames;
+    for (const auto &space : spaceHues) {
+        spaceColourNames.append(QString(space.name));
+    }
     palette.insert(QStringLiteral("spaceColourNames"), spaceColourNames);
 
     // The grounds a border is actually drawn on, which is every Omaweb surface

@@ -2627,18 +2627,6 @@
         <translation>Sininen</translation>
     </message>
     <message>
-        <source>Bright green</source>
-        <translation>Kirkas vihreä</translation>
-    </message>
-    <message>
-        <source>Bright yellow</source>
-        <translation>Kirkas keltainen</translation>
-    </message>
-    <message>
-        <source>Bright blue</source>
-        <translation>Kirkas sininen</translation>
-    </message>
-    <message>
         <source>size unavailable</source>
         <translation>koko ei saatavilla</translation>
     </message>
@@ -3520,6 +3508,18 @@ Päivitykset osoitteesta %3</translation>
         <translation>Työpöytä ei tarjoa salaisuusvarastoa, joten Omaweb ei säilytä maksukortteja.</translation>
     </message>
     <message>
+        <source>Orange</source>
+        <translation>Oranssi</translation>
+    </message>
+    <message>
+        <source>Teal</source>
+        <translation>Sinivihreä</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Violetti</translation>
+    </message>
+    <message>
         <source>Cards are kept in the desktop&apos;s keyring and offered in forms in every Space, never in a Private window. The security code is never kept.</source>
         <translation>Kortit säilytetään työpöydän avainnipussa, ja niitä tarjotaan lomakkeissa jokaisessa tilassa, ei koskaan yksityisessä ikkunassa. Turvakoodia ei koskaan säilytetä.</translation>
     </message>
@@ -3617,6 +3617,14 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>The keyring stayed locked, so the card was not saved. Saving it again asks the desktop to unlock it.</source>
         <translation>Avainnippu pysyi lukittuna, joten korttia ei tallennettu. Uusi tallennus pyytää työpöytää avaamaan sen.</translation>
+    </message>
+    <message>
+        <source>Space colour</source>
+        <translation>Tilan väri</translation>
+    </message>
+    <message>
+        <source>Draw each Space in its own colour in the sidebar&apos;s footer and the Omnibar. When off, every Space is drawn in the muted text colour, and each keeps its colour for when it is back on. Only on this machine.</source>
+        <translation>Piirrä jokainen tila omalla värillään sivupalkin alaosaan ja Omnibariin. Kun asetus on pois päältä, jokainen tila piirretään hillityn tekstin värillä, ja kukin säilyttää värinsä siihen asti, kun asetus palaa päälle. Vain tällä koneella.</translation>
     </message>
     <message>
         <source>New Space</source>

@@ -74,6 +74,7 @@ namespace {
             {QLatin1StringView("glance"), Kind::Switch, true},
             {QLatin1StringView("start-page-scene"), Kind::Text, QStringLiteral("crt-road")},
             {QLatin1StringView("start-page-glass"), Kind::Switch, true},
+            {QLatin1StringView("space-colours"), Kind::Switch, true},
             // The limits Settings offers, from never to a week.
             {QLatin1StringView("put-away-unused-tabs-after"), Kind::Number, 12 * 60 * 60,
                 {0, 60 * 60, 12 * 60 * 60, 24 * 60 * 60, 7 * 24 * 60 * 60}},

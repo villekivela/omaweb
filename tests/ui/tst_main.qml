@@ -276,6 +276,8 @@ TestCase {
             window.setStartPageScene("crt-road");
         if (!window.startPageGlass)
             window.setStartPageGlass(true);
+        if (!window.spaceColours)
+            window.setSpaceColours(true);
         if (fontSettings.interfaceFontSizeOverridden)
             fontSettings.resetInterfaceFontSize();
         // Whatever the last test pressed, this one starts from the pointer and
@@ -6736,12 +6738,12 @@ TestCase {
         // A theme change redraws both from the new theme.
         const changed = Object.assign({}, window.colors);
         changed.spaces = {
-            "green": "#00aa44",
+            "orange": "#cc6622",
             "yellow": "#aa8800",
+            "green": "#00aa44",
+            "teal": "#00aa99",
             "blue": "#0044aa",
-            "bright_green": "#22cc66",
-            "bright_yellow": "#ccaa22",
-            "bright_blue": "#2266cc"
+            "violet": "#7744cc"
         };
         window.colors = changed;
         verify(Qt.colorEqual(personal.color, changed.spaces[personalColour]));
@@ -6751,9 +6753,144 @@ TestCase {
         });
 
         // The reader's choice, from Settings or anywhere else.
-        verify(browser.setSpaceColour(workId, "bright_blue"));
-        verify(Qt.colorEqual(work.color, window.colors.spaces.bright_blue));
+        verify(browser.setSpaceColour(workId, "violet"));
+        verify(Qt.colorEqual(work.color, window.colors.spaces.violet));
         verify(browser.deleteSpace(workId, "Work"));
+    }
+
+    // With Space colour off in Settings, on this machine alone, the reader's
+    // Spaces are drawn in the muted text colour: the footer's squares, the
+    // Agent's mark standing in for one, the menu of the Spaces left out, and
+    // the Omnibar's squares and names. The Space on show is still the larger
+    // square and hovering still names it, an Agent Space is drawn as it was,
+    // and each Space keeps its colour for when colour comes back.
+    function test_spaceColourOffMutesTheReadersSpaces() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        const personalId = browser.activeSpaceId;
+        const workId = browser.createSpace("Work");
+        const agentId = agentSpaceProbe.create("Crawler", "claude-code", false);
+        const personal = findChild(sidebar, "spaceMark-" + personalId);
+        const work = findChild(sidebar, "spaceMark-" + workId);
+        const workColour = spaceColourName(workId);
+        verify(window.spaceColours);
+        verify(Qt.colorEqual(work.color, window.colors.spaces[workColour]));
+
+        window.settingsOpen = true;
+        settings.section = settings.sections.indexOf("spaces");
+        const toggle = findChild(settings, "spaceColours");
+        verify(toggle !== null);
+        verify(toggle.checked);
+        toggle.clicked();
+        compare(browser.preference("space-colours", "true"), "false");
+        verify(!window.spaceColours);
+        verify(!toggle.checked);
+        window.settingsOpen = false;
+        tryCompare(settings, "visible", false);
+
+        verify(Qt.colorEqual(personal.color, window.colors.mutedText));
+        verify(Qt.colorEqual(work.color, window.colors.mutedText));
+        tryVerify(function () {
+            return personal.width > work.width;
+        });
+        const workButton = findChild(sidebar, "space-" + workId);
+        const note = findChild(workButton, "spaceNote-" + workId);
+        mouseMove(workButton, workButton.width / 2, workButton.height / 2);
+        tryCompare(note, "visible", true);
+        compare(note.text, "Work");
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        tryCompare(note, "visible", false);
+
+        // An Agent at work in one of the reader's Spaces, and in its own.
+        const control = agentActivityComponent.createObject(testCase);
+        const activity = {};
+        activity["work-tab"] = {
+            "spaceId": workId,
+            "name": "claude-code",
+            "act": "",
+            "busy": false
+        };
+        activity["crawler-tab"] = {
+            "spaceId": agentId,
+            "name": "claude-code",
+            "act": "",
+            "busy": false
+        };
+        control.agentActivity = activity;
+        findChild(window.contentItem, "engineLoader").agentControl = control;
+        const workMark = findChild(sidebar, "spaceAgentMark-" + workId);
+        verify(workMark.visible);
+        verify(Qt.colorEqual(workMark.color, window.colors.mutedText));
+        verify(Qt.colorEqual(findChild(sidebar, "spaceAgentMark-" + agentId).color,
+                             window.colors.agentAccent));
+        findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
+        control.destroy();
+
+        window.openSpaceOverflowMenu([
+                                         {
+                                             "spaceId": workId,
+                                             "spaceName": "Work",
+                                             "spaceColor": workColour,
+                                             "active": false,
+                                             "agentMade": false,
+                                             "attached": false
+                                         },
+                                         {
+                                             "spaceId": personalId,
+                                             "spaceName": "Personal",
+                                             "spaceColor": spaceColourName(personalId),
+                                             "active": true,
+                                             "agentMade": false,
+                                             "attached": true
+                                         }
+                                     ], Qt.rect(0, window.height - 30, 20, 20));
+        const menu = findChild(window.contentItem, "spaceOverflowMenu");
+        verify(Qt.colorEqual(menu.items[0].swatch, window.colors.mutedText));
+        verify(Qt.colorEqual(menu.items[1].glyphColor, window.colors.mutedText));
+        window.spaceOverflowMenuOpen = false;
+
+        window.openOmnibar(false);
+        input.text = "work";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "space").length >= 1;
+        });
+        const spaceRow = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]));
+        verify(Qt.colorEqual(findChild(spaceRow, "omnibarRowSpaceColor").color,
+                             window.colors.mutedText));
+        window.closeOmnibar();
+
+        // Back on, each Space is in the colour it kept.
+        compare(spaceColourName(workId), workColour);
+        browser.setPreference("space-colours", "true");
+        verify(window.spaceColours);
+        verify(Qt.colorEqual(work.color, window.colors.spaces[workColour]));
+        verify(browser.deleteSpace(agentId, "Crawler"));
+        verify(browser.deleteSpace(workId, "Work"));
+    }
+
+    // With Space colour off, another Space's tab names its Space in the muted
+    // text colour beside a muted square.
+    function test_spaceColourOffMutesTheOmnibarsSpaceNames() {
+        const opened = openTabsInOtherSpaces();
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        browser.setPreference("space-colours", "false");
+        window.openOmnibar(false);
+        input.text = "orbit";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "tab").length === 3;
+        });
+        panel.selected = -1;
+        const away = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[1]));
+        verify(Qt.colorEqual(findChild(away, "omnibarRowSpace").color, window.colors.mutedText));
+        verify(Qt.colorEqual(findChild(away, "omnibarRowSpaceMark").color,
+                             window.colors.mutedText));
+        browser.setPreference("space-colours", "true");
+        closeTabsInOtherSpaces(opened);
     }
 
     // The introductory film has no pointer, so its recording holds a Space's
@@ -9551,11 +9688,19 @@ TestCase {
         tryVerify(function () {
             return omnibarRowsOf(panel, "tab").length === 1;
         });
-        // The label is the Space's colour until the row is the selected one.
+        // The name is text, and the square beside it is drawn as the footer
+        // draws the Space.
         panel.selected = -1;
         const suffix = findChild(tabRow(), "omnibarRowSpace");
         compare(suffix.text, "Crawler");
-        verify(Qt.colorEqual(suffix.color, window.colors.mutedText));
+        verify(Qt.colorEqual(suffix.color, window.colors.text));
+        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpaceMark").color,
+                             window.colors.mutedText));
+        // Space colour is the reader's Spaces', so turning it off leaves an
+        // Agent Space as it was.
+        window.setSpaceColours(false);
+        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color, window.colors.text));
+        window.setSpaceColours(true);
         input.text = "crawler";
         tryVerify(function () {
             return omnibarRowsOf(panel, "space").length === 1;
@@ -9581,9 +9726,8 @@ TestCase {
             return omnibarRowsOf(panel, "tab").length === 1;
         });
         panel.selected = -1;
-        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color,
+        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpaceMark").color,
                              window.colors.agentAccent));
-        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
         verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color, window.colors.text));
         findChild(window.contentItem, "engineLoader").agentControl = window.agentControlSource;
         control.destroy();
@@ -9635,28 +9779,41 @@ TestCase {
         const spaces = browser.spaces;
         const alphaRow = spaces.index(spaces.rowCount() - 2, 0);
         compare(spaces.data(alphaRow, Qt.UserRole + 2), "Alpha");
-        // In the colour the theme gives the Space's palette name, which
-        // differs from the next Space's, and both follow a theme change.
+        // The name in the text colour, beside a square in the colour the
+        // theme gives the Space's, which differs from the next Space's, and
+        // both follow a theme change.
         const alphaColour = spaces.data(alphaRow, Qt.UserRole + 3);
         const betaColour = spaces.data(spaces.index(spaces.rowCount() - 1, 0), Qt.UserRole + 3);
-        verify(Qt.colorEqual(suffix.color, window.colors.spaces[alphaColour]));
+        verify(Qt.colorEqual(suffix.color, window.colors.text));
+        const mark = findChild(away, "omnibarRowSpaceMark");
+        verify(mark.visible);
+        verify(Qt.colorEqual(mark.color, window.colors.spaces[alphaColour]));
+        compare(mark.width, mark.height);
+        verify(mark.width < suffix.font.pixelSize);
+        const markRight = mark.mapToItem(away, mark.width, 0).x;
+        verify(markRight <= suffix.mapToItem(away, 0, 0).x);
+        verify(suffix.mapToItem(away, 0, 0).x - markRight < 12);
+        verify(Math.abs(mark.mapToItem(away, 0, mark.height / 2).y - suffix.mapToItem(away, 0,
+                                                                                      suffix.height
+                                                                                      / 2).y) <= 1);
         const beta = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[2]));
         const betaSuffix = findChild(beta, "omnibarRowSpace");
+        const betaMark = findChild(beta, "omnibarRowSpaceMark");
         compare(betaSuffix.text, "Beta");
-        verify(Qt.colorEqual(betaSuffix.color, window.colors.spaces[betaColour]));
-        verify(!Qt.colorEqual(betaSuffix.color, suffix.color));
+        verify(Qt.colorEqual(betaMark.color, window.colors.spaces[betaColour]));
+        verify(!Qt.colorEqual(betaMark.color, mark.color));
         const changed = Object.assign({}, window.colors);
         changed.spaces = {
-            "green": "#00aa44",
+            "orange": "#cc6622",
             "yellow": "#aa8800",
+            "green": "#00aa44",
+            "teal": "#00aa99",
             "blue": "#0044aa",
-            "bright_green": "#22cc66",
-            "bright_yellow": "#ccaa22",
-            "bright_blue": "#2266cc"
+            "violet": "#7744cc"
         };
         window.colors = changed;
-        verify(Qt.colorEqual(suffix.color, changed.spaces[alphaColour]));
-        verify(Qt.colorEqual(betaSuffix.color, changed.spaces[betaColour]));
+        verify(Qt.colorEqual(mark.color, changed.spaces[alphaColour]));
+        verify(Qt.colorEqual(betaMark.color, changed.spaces[betaColour]));
         window.colors = Qt.binding(function () {
             return theme.palette;
         });
@@ -9672,7 +9829,7 @@ TestCase {
         compare(suffix.font.pixelSize, findChild(away, "omnibarRowAction").font.pixelSize);
         compare(suffix.width, suffix.implicitWidth);
         verify(!findChild(away, "omnibarRowAction").visible);
-        verify(suffix.mapToItem(away, 0, 0).x >= awayTitle.mapToItem(away, awayTitle.width, 0).x);
+        verify(mark.mapToItem(away, 0, 0).x >= awayTitle.mapToItem(away, awayTitle.width, 0).x);
         verify(suffix.mapToItem(away, suffix.width, 0).x <= away.width);
         verify(findChild(away, "omnibarRowGo").visible);
         panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[1]);

@@ -858,9 +858,17 @@ void BrowserController::settleSpaces()
     auto spaces = m_spaces.items();
     std::ranges::stable_partition(
         spaces, [this](const SpaceState &space) { return !m_agentSpaces.contains(space.id); });
-    // Each Space without a palette name takes one in footer order, counted
-    // among the reader's Spaces that have one by then.
+    // A name from before Omaweb owned the six is renamed first, so it keeps
+    // the place it had rather than being counted as no name at all.
     auto changed = false;
+    for (auto &space : spaces) {
+        if (const auto renamed = renamedSpaceColour(space.color); !renamed.isEmpty()) {
+            space.color = renamed;
+            changed = true;
+        }
+    }
+    // Each Space without a Space colour takes one in footer order, counted
+    // among the reader's Spaces that have one by then.
     for (auto &space : spaces) {
         if (isSpaceColourName(space.color)) {
             continue;

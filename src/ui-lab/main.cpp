@@ -1077,6 +1077,12 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--tint-favicons")) && !engine.rootObjects().isEmpty()) {
         engine.rootObjects().constFirst()->setProperty("tintFavicons", true);
     }
+    // `--space-colours-off` turns Space colour off, as Settings' Spaces section
+    // does, so the muted footer can be reviewed.
+    if (arguments.contains(QStringLiteral("--space-colours-off"))
+        && !engine.rootObjects().isEmpty()) {
+        engine.rootObjects().constFirst()->setProperty("spaceColours", false);
+    }
     // `--active-pin` puts the first pin on show, so its mark can be seen.
     if (arguments.contains(QStringLiteral("--active-pin"))) {
         if (const auto pin = tabIdAt(browser.pinnedTabs(), 0); !pin.isEmpty()) {

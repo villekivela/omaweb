@@ -47,7 +47,6 @@ private:
     static QVariantMap defaultOpacity();
     static QVariantMap defaultFont();
     static QVariantMap defaultSyntax();
-    static QVariantMap defaultSpaceColours();
     // The face the host would actually draw for the first candidate it has. A
     // theme names the families it prefers; Qt has to be handed one that
     // exists, because a missing family costs a full font-alias sweep and then
