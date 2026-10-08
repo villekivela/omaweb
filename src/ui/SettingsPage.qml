@@ -157,6 +157,7 @@ Rectangle {
     readonly property var pageFontsMap: fontSettings ? fontSettings.pageFontsMap : ({})
     property bool useFavicons: true
     property bool tintFavicons: false
+    property string appIcon: "black-and-white"
     property bool floatingControls: true
     property string sidebarSide: "left"
     property bool glanceEnabled: true
@@ -432,6 +433,7 @@ Rectangle {
     signal knownExtensionToggled(string key, bool enabled)
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
+    signal appIconChosen(string icon)
     signal floatingControlsToggled(bool enabled)
     signal sidebarSideChosen(string side)
     signal glanceToggled(bool enabled)
@@ -1013,6 +1015,39 @@ Rectangle {
                         enabled: root.settingsWritable && root.useFavicons
                         checked: root.tintFavicons
                         onClicked: root.tintFaviconsToggled(!checked)
+                    }
+
+                    // The launcher entry and the Theme icon are a Linux
+                    // desktop's. Theme takes effect where Omarchy renders it.
+                    SettingRow {
+                        width: pane.width
+                        visible: Qt.platform.os === "linux"
+                        colors: root.colors
+                        title: qsTr("App icon")
+                        note: qsTr(
+                                  "The icon the launcher shows Omaweb under. Theme draws it in the Omarchy theme's colours.")
+
+                        SettingChoice {
+                            objectName: "appIcon"
+                            enabled: root.settingsWritable
+                            colors: root.colors
+                            options: [
+                                {
+                                    value: "black-and-white",
+                                    label: qsTr("Black and white", "app icon: the installed icon")
+                                },
+                                {
+                                    value: "theme",
+                                    label: qsTr("Theme",
+                                                "app icon: drawn in the Omarchy theme's colours")
+                                }
+                            ]
+                            value: root.appIcon
+                            accessibleName: qsTr("App icon")
+                            onChanged: function (icon) {
+                                root.appIconChosen(icon);
+                            }
+                        }
                     }
 
                     // The label and the list it heads are one block: the label

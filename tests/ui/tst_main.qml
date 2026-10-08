@@ -14489,6 +14489,45 @@ TestCase {
         return null;
     }
 
+    // The launcher's icon is the reader's, chosen beside the tab artwork. A
+    // fresh profile has the black and white icon the package installs, and
+    // the choice is a setting the browser applies as soon as it is saved. The
+    // Theme icon is Omarchy's, so the row is there only on Linux.
+    function test_tabsChoosesTheAppIcon() {
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("tabs");
+        const appIcon = findChild(settings, "appIcon");
+        verify(appIcon !== null);
+        if (Qt.platform.os !== "linux") {
+            verify(!appIcon.visible);
+            window.settingsOpen = false;
+            return;
+        }
+        verify(appIcon.visible);
+        compare(appIcon.value, "black-and-white");
+
+        const theme = chipLabelled(appIcon, "Theme");
+        verify(theme !== null);
+        settleActions(theme);
+        const missed = clickReportingAMiss(theme, function () {
+            return window.appIcon === "theme";
+        });
+        verify(missed.length === 0, missed);
+        compare(appIcon.value, "theme");
+        compare(browser.preference("app-icon", ""), "theme");
+
+        // What the next start reads.
+        window.appIcon = "black-and-white";
+        window.restoreAppIcon();
+        compare(window.appIcon, "theme");
+
+        // Another window, or Sync, choosing the icon shows in this one.
+        browser.setPreference("app-icon", "black-and-white");
+        compare(appIcon.value, "black-and-white");
+        window.settingsOpen = false;
+    }
+
     // The side is the reader's, chosen in Interface. It moves the sidebar at
     // once, without a restart, and comes back on the next start.
     function test_interfaceChoosesTheSidebarsSide() {

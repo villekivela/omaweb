@@ -25,3 +25,14 @@ post_upgrade() {
     # has no other prompt.
     _window_rule_notice
 }
+
+# A reader who chose the Theme app icon has a desktop entry of Omaweb's in
+# their home, and Omarchy's menu lists it whether or not the browser is still
+# installed: it does not read the entry's TryExec. The package cannot reach
+# into a home, so it says where the entry is.
+post_remove() {
+    cat <<'NOTICE'
+If you chose the Theme app icon in Omaweb's Settings, delete
+~/.local/share/applications/omaweb.desktop so the menu stops listing Omaweb.
+NOTICE
+}

@@ -1,11 +1,13 @@
 #include "OmarchyTheme.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTimer>
 
 namespace omaweb {
 
@@ -17,38 +19,38 @@ namespace {
         return configured.isEmpty() ? QDir::home().filePath(fallback) : configured;
     }
 
-    QByteArray contentsOf(const QString &path)
-    {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly)) {
-            return {};
-        }
-        return file.readAll();
-    }
-
-    // The template Omaweb ships can come out of the binary's own read-only
-    // resources, so it is written rather than copied: a copy would carry the
-    // resource's permissions onto disk and hand the reader a file they cannot edit.
-    bool write(const QString &path, const QByteArray &contents)
-    {
-        if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
-            return false;
-        }
-        QSaveFile file(path);
-        if (!file.open(QIODevice::WriteOnly)) {
-            return false;
-        }
-        if (file.write(contents) != contents.size() || !file.commit()) {
-            return false;
-        }
-        // A saved file keeps the private permissions of the temporary it was
-        // written through, and this one is the reader's to edit.
-        return QFile::setPermissions(path,
-            QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup
-                | QFileDevice::ReadOther);
-    }
-
 } // namespace
+
+QByteArray readFile(const QString &path)
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return file.readAll();
+}
+
+bool writeReaderFile(const QString &path, const QByteArray &contents)
+{
+    if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
+        return false;
+    }
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    if (file.write(contents) != contents.size() || !file.commit()) {
+        return false;
+    }
+    // A saved file keeps the private permissions of the temporary it was
+    // written through, and this one is the reader's to edit.
+    return QFile::setPermissions(path,
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup
+            | QFileDevice::ReadOther);
+}
 
 OmarchyThemePaths OmarchyThemePaths::fromEnvironment()
 {
@@ -71,6 +73,37 @@ QString OmarchyThemePaths::renderedTheme() const
     return QDir(state).filePath(QStringLiteral("current/theme/omaweb.json"));
 }
 
+void renderActiveOmarchyTheme()
+{
+    // Every template Omaweb installs on one start asks for a render, and one
+    // `theme set` renders them all. Each is a whole theme switch on the
+    // desktop, so the requests made before the event loop next runs are one.
+    static bool requested = false;
+    if (requested) {
+        return;
+    }
+    requested = true;
+    QTimer::singleShot(0, QCoreApplication::instance(), [] {
+        requested = false;
+        const auto omarchy = QStandardPaths::findExecutable(QStringLiteral("omarchy"));
+        if (omarchy.isEmpty()) {
+            return;
+        }
+        // Detached, because Omarchy re-renders every template a desktop has
+        // and Omaweb is not waiting for a window to appear. Whatever was
+        // rendered is watched for, so it is picked up whenever it lands. A
+        // shell because the theme to set is the one Omarchy reports as
+        // current, and `$1` is the executable already found rather than a
+        // second path lookup. Skipping the background, because `theme set`
+        // otherwise advances the reader's wallpaper to the theme's next one.
+        QProcess::startDetached(QStringLiteral("/bin/sh"),
+            {QStringLiteral("-c"),
+                QStringLiteral(
+                    R"SH(OMARCHY_THEME_SKIP_BACKGROUND=1 "$1" theme set "$("$1" theme current)")SH"),
+                QStringLiteral("sh"), omarchy});
+    });
+}
+
 OmarchyTemplateOutcome followOmarchyTheme(
     const OmarchyThemePaths &paths, const QString &shippedTemplate)
 {
@@ -84,7 +117,7 @@ OmarchyTemplateOutcome followOmarchyTheme(
         return OmarchyTemplateOutcome::Absent;
     }
 
-    const auto shipped = contentsOf(shippedTemplate);
+    const auto shipped = readFile(shippedTemplate);
     if (shipped.isEmpty()) {
         qWarning("Omaweb could not read its own Omarchy theme template at %s.",
             qPrintable(shippedTemplate));
@@ -94,7 +127,7 @@ OmarchyTemplateOutcome followOmarchyTheme(
     auto outcome = OmarchyTemplateOutcome::Kept;
     const auto installed = paths.userTemplate();
     if (!QFileInfo::exists(installed)) {
-        if (!write(installed, shipped)) {
+        if (!writeReaderFile(installed, shipped)) {
             qWarning("Omaweb could not install its Omarchy theme template at %s. "
                      "Following the desktop's theme needs it, or set "
                      "OMAWEB_NO_OMARCHY_TEMPLATE to stop asking.",
@@ -106,7 +139,7 @@ OmarchyTemplateOutcome followOmarchyTheme(
               "yourself.",
             qPrintable(installed));
         outcome = OmarchyTemplateOutcome::Installed;
-    } else if (contentsOf(installed) != shipped) {
+    } else if (readFile(installed) != shipped) {
         // Someone's customisation, or a theme's. It is the palette Omaweb is
         // asked to draw in, and an upgrade does not overrule it — but a reader
         // chasing a colour the new template names deserves to know why it is
@@ -123,20 +156,8 @@ OmarchyTemplateOutcome followOmarchyTheme(
     // disk was rendered from a template that is no longer there.
     const auto wantsRender
         = outcome == OmarchyTemplateOutcome::Installed || !QFileInfo::exists(paths.renderedTheme());
-    const auto omarchy = QStandardPaths::findExecutable(QStringLiteral("omarchy"));
-    if (wantsRender && !omarchy.isEmpty()) {
-        // Detached, because Omarchy re-renders every template a desktop has
-        // and Omaweb is not waiting for a window to appear. The palette is
-        // watched for, so it is picked up whenever it lands. A shell because
-        // the theme to set is the one Omarchy reports as current, and `$1` is
-        // the executable already found rather than a second path lookup.
-        // Skipping the background, because `theme set` otherwise advances the
-        // reader's wallpaper to the theme's next one.
-        QProcess::startDetached(QStringLiteral("/bin/sh"),
-            {QStringLiteral("-c"),
-                QStringLiteral(
-                    R"SH(OMARCHY_THEME_SKIP_BACKGROUND=1 "$1" theme set "$("$1" theme current)")SH"),
-                QStringLiteral("sh"), omarchy});
+    if (wantsRender) {
+        renderActiveOmarchyTheme();
     }
     return outcome;
 }

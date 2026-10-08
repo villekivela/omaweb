@@ -24,6 +24,35 @@ to take the shipped template again.
 Nothing is written where Omarchy is not installed — the state directory above is the evidence that
 it is — so the macOS build and every other desktop are unaffected.
 
+## The app icon
+
+The launcher shows Omaweb under the black and white icon the package installs. Settings' tabs
+section offers a second, Theme, which is the same mark in the Omarchy theme's accent on its
+background. The choice is synced, and each machine applies it when Omaweb starts there.
+
+Choosing Theme installs `omaweb-icon.svg.tpl` from this directory beside the palette's template,
+under the same rules: a template already there stands, and the decision is logged when it differs.
+Omarchy renders it on every theme switch to:
+
+```text
+~/.local/state/omarchy/current/theme/omaweb-icon.svg
+```
+
+Omaweb then writes `~/.local/share/applications/omaweb.desktop`, which outranks the installed entry.
+It is the installed entry with `TryExec=omaweb` added and `Icon=` naming a copy of the rendered icon
+under `~/.local/share/omaweb/app-icon/`. The copy is named by its contents because Omarchy's menu
+caches an icon by its path, and the rendered icon keeps one path across theme switches. While Omaweb
+runs it makes a new copy after every switch and points the entry at it. A switch made while Omaweb
+is closed shows in the menu on its next start. The entry is rebuilt from the installed one on every
+start, so a change the package makes to its entry still arrives.
+
+Choosing Black and white removes that entry and the copies, and removes the template only while it
+is still the one Omaweb shipped. An `omaweb.desktop` in that directory that Omaweb did not write is
+never changed or removed, and the decision is logged.
+
+Omarchy's menu lists the entry whether or not the browser is installed, because it does not read
+`TryExec`. Removing the package prints a reminder to delete the entry.
+
 ## The desktop's window opacity
 
 Omarchy washes every window slightly. Its defaults tag all of them and then apply an opacity to the
@@ -126,7 +155,9 @@ alone.
 ## Overrides
 
 Set `OMAWEB_NO_OMARCHY_TEMPLATE` to any value to stop Omaweb writing into `~/.config/omarchy` at
-all, for a configuration directory you generate or track yourself. The manual install is then:
+all, for a configuration directory you generate or track yourself. That includes the app icon's
+template: the Theme icon then shows only if your own setup renders `omaweb-icon.svg`, and the
+launcher keeps the installed icon otherwise. The manual install is then:
 
 ```sh
 mkdir -p ~/.config/omarchy/themed

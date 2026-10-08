@@ -2,10 +2,15 @@
 
 #include <QDir>
 #include <QFile>
+#include <QLockFile>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QThread>
+
+#include <atomic>
+#include <memory>
 
 using omaweb::SettingsFile;
 
@@ -22,7 +27,9 @@ private slots:
     void readsABadValueAsItsDefaultAndNamesIt();
     void followsAnEditMadeWhileItRuns();
     void keepsBothOfTwoWritesAtOnce();
+    void takesItsTurnBesideABusyWriter();
     void offersOnlyTheLimitsSettingsOffers();
+    void offersTheTwoAppIcons();
     void leavesAKeyWithoutADefaultUndefined();
     void keepsASidebarOpacityBetweenHalfAndOne();
     void readsASidebarOpacityOutOfRangeAsTheThemes();
@@ -258,6 +265,40 @@ void SettingsFileTest::followsAnEditMadeWhileItRuns()
     QTRY_COMPARE(settings.value(QStringLiteral("https-only")), QJsonValue(true));
 }
 
+// A reader clicking through Settings while Sync restores keeps the file's lock
+// busy, giving it up only for a moment between writes. A write waiting beside
+// them takes the lock in one of those moments, not only if it happens to look
+// at the right one of a few.
+void SettingsFileTest::takesItsTurnBesideABusyWriter()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto lockPath = root.filePath(QStringLiteral("settings.json.lock"));
+    std::atomic_bool done = false;
+    std::atomic_bool holding = false;
+    std::unique_ptr<QThread> busy(QThread::create([lockPath, &done, &holding] {
+        QLockFile lock(lockPath);
+        // A slow disk's writes, a millisecond apart, for longer than the
+        // waiting write is allowed.
+        for (int round = 0; !done && round < 200; ++round) {
+            lock.lock();
+            holding = true;
+            QThread::msleep(40);
+            lock.unlock();
+            QThread::msleep(1);
+        }
+    }));
+    busy->start();
+    const auto stop = qScopeGuard([&done, &busy] {
+        done = true;
+        busy->wait(30000);
+    });
+    QTRY_VERIFY(holding);
+
+    SettingsFile settings(root.path());
+    QVERIFY(settings.set(QStringLiteral("glance"), false));
+}
+
 // Two writers on one file, as Sync's restore and the Settings page are, each
 // with an instance of its own. Neither may write from a copy that misses the
 // other's key.
@@ -306,6 +347,17 @@ void SettingsFileTest::offersOnlyTheLimitsSettingsOffers()
     for (const int offered : {0, 3600, 43200, 86400, 604800}) {
         QVERIFY(SettingsFile::accepts(QStringLiteral("put-away-unused-tabs-after"), offered));
     }
+}
+
+// The app icon is one of two, and a fresh profile has the black and white one
+// the package installs.
+void SettingsFileTest::offersTheTwoAppIcons()
+{
+    const auto key = QStringLiteral("app-icon");
+    QCOMPARE(SettingsFile::defaultValue(key), QJsonValue(QStringLiteral("black-and-white")));
+    QVERIFY(SettingsFile::accepts(key, QStringLiteral("black-and-white")));
+    QVERIFY(SettingsFile::accepts(key, QStringLiteral("theme")));
+    QVERIFY(!SettingsFile::accepts(key, QStringLiteral("green")));
 }
 
 // A key whose default is not Omaweb's to state reads as undefined while the

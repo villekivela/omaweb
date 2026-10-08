@@ -4,6 +4,7 @@
 #include "AgentClient.h"
 #include "AgentMcp.h"
 #include "AgentProtocol.h"
+#include "AppIcon.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
@@ -450,6 +451,26 @@ int main(int argc, char *argv[])
     // The reader's settings file as Settings shows it: where it is and what
     // went wrong reading it.
     omaweb::SettingsFile settingsFile(configRoot());
+#if defined(Q_OS_LINUX)
+    // The launcher's icon, applied on every start, which is when a choice
+    // Sync brought from another machine first reaches this one, and again
+    // whenever it changes.
+    omaweb::AppIconLauncher appIcon(omaweb::AppIconPaths::fromEnvironment(dataRoot()),
+        QStringLiteral(OMAWEB_OMARCHY_ICON_TEMPLATE_PATH));
+    const auto followAppIcon = [&appIcon, &settingsFile] {
+        appIcon.setChoice(
+            settingsFile.value(QStringLiteral("app-icon")).toString() == QLatin1String("theme")
+                ? omaweb::AppIcon::Theme
+                : omaweb::AppIcon::BlackAndWhite);
+    };
+    QObject::connect(&settingsFile, &omaweb::SettingsFile::changed, &appIcon,
+        [followAppIcon](const QStringList &keys) {
+            if (keys.contains(QStringLiteral("app-icon"))) {
+                followAppIcon();
+            }
+        });
+    followAppIcon();
+#endif
     omaweb::WindowManager windowManager(configRoot(), launch.privateWindowsAvailable);
     const auto developmentSyncModule = QStringLiteral(OMAWEB_SYNC_MODULE_PATH);
     const auto syncModulePath = QFileInfo::exists(developmentSyncModule)
