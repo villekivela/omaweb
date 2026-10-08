@@ -55,10 +55,6 @@ Item {
     anchors.rightMargin: root.rightInset
     anchors.bottomMargin: root.bottomInset
 
-    function headroom(channel: real): real {
-        return Math.max(0, Math.min(1 / 255, channel, root.ground.a - channel));
-    }
-
     Loader {
         id: loader
         anchors.fill: parent
@@ -66,6 +62,7 @@ Item {
         active: root.drawn && root.visible
 
         sourceComponent: ShaderEffect {
+            id: effect
 
             property size itemSize: Qt.size(width, height)
             property real radius: root.surface ? Math.max(0, root.surface.radius - Math.max(
@@ -75,14 +72,18 @@ Item {
             property vector4d premultiplied: Qt.vector4d(root.ground.r * root.ground.a, root.ground.g
                                                          * root.ground.a, root.ground.b
                                                          * root.ground.a, root.ground.a)
-            // How far the noise reaches on each premultiplied channel: one
-            // output level, or less where the channel is nearer 0 or the
-            // ground's alpha. A premultiplied channel past the alpha is not a
-            // colour: Qt's unpremultiply wraps it past 255 to 0, a speckle (#647).
-            // A straight channel at 255 has no room and is not dithered.
-            property vector3d amplitude: Qt.vector3d(root.headroom(premultiplied.x), root.headroom(
-                                                         premultiplied.y), root.headroom(
-                                                         premultiplied.z))
+            // The noise's amplitude on each premultiplied channel: one output
+            // level, or less where the channel is nearer 0 or the ground's
+            // alpha. A premultiplied channel past the alpha is not a colour:
+            // Qt's unpremultiply wraps it past 255 to 0, a speckle (#647). So a
+            // straight channel at 255, or at 0, is not dithered.
+            property vector3d amplitude: Qt.vector3d(effect.amplitudeOf(premultiplied.x),
+                                                     effect.amplitudeOf(premultiplied.y),
+                                                     effect.amplitudeOf(premultiplied.z))
+
+            function amplitudeOf(channel: real): real {
+                return Math.max(0, Math.min(1 / 255, channel, premultiplied.w - channel));
+            }
 
             fragmentShader: "qrc:/omaweb/shaders/dither.frag.qsb"
         }

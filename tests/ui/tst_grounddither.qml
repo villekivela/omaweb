@@ -67,17 +67,20 @@ TestCase {
         fuzzyCompare(shader.premultiplied.w, 0.92, 0.003);
     }
 
-    // The dither reaches one output level either way on each channel, less
-    // where the channel has less room before 0 or the ground's alpha: a
-    // premultiplied channel above the alpha is not a colour, and Qt's
-    // unpremultiply wraps it to a dark speckle (#647's reopen). A straight
-    // channel at 255 is premultiplied to the alpha itself and is not dithered.
+    // No premultiplied channel leaves the range from 0 to the ground's alpha
+    // (#647's reopen): the dither reaches one output level either way, less
+    // where a channel has less room, and none at a straight 255 or 0.
     function test_theDitherKeepsEachChannelWithinTheGroundsAlpha_data() {
         return [
                     {
                         tag: "light overlay, blue at 255",
                         ground: Qt.rgba(251 / 255, 250 / 255, 1, 0.96),
                         amplitude: [1 / 255, 1 / 255, 0]
+                    },
+                    {
+                        tag: "sheet, red at 255",
+                        ground: Qt.rgba(1, 251 / 255, 246 / 255, 0.92),
+                        amplitude: [0, 1 / 255, 1 / 255]
                     },
                     {
                         tag: "red at 254",

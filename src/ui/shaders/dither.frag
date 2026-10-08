@@ -56,5 +56,8 @@ void main()
     vec3 second = hash(pixel + vec2(1013.0, 2011.0));
     vec3 noise = (first + second - 1.0) * amplitude;
 
-    fragColor = vec4(premultiplied.rgb + noise, premultiplied.a) * coverage * qt_Opacity;
+    // The amplitude keeps the channels at or under the alpha; the min holds
+    // that against the rounding of the uniforms from QML's doubles.
+    vec3 colour = min(premultiplied.rgb + noise, vec3(premultiplied.a));
+    fragColor = vec4(colour, premultiplied.a) * coverage * qt_Opacity;
 }
