@@ -82,6 +82,26 @@ TestCase {
         compare(surface.dither.shader, null);
     }
 
+    // A border a child draws before the dither, as the kit's gradient border
+    // is, would be painted over, so that surface fills itself.
+    function test_aBorderDrawnByAnEarlierChildKeepsTheSurfacesFill() {
+        const surface = createTemporaryObject(surfaceComponent, testCase);
+        surface.dither.overlaidBorder = true;
+        verify(!surface.dither.drawn);
+        compare(surface.color, surface.dither.ground);
+        compare(surface.dither.shader, null);
+    }
+
+    // A ground over a blurred page has Omaweb's own pixels behind it rather
+    // than the desktop, so it is not dithered.
+    function test_aGroundOverAPageIsNotDithered() {
+        const surface = createTemporaryObject(surfaceComponent, testCase);
+        surface.dither.overDesktop = false;
+        verify(!surface.dither.drawn);
+        compare(surface.color, surface.dither.ground);
+        compare(surface.dither.shader, null);
+    }
+
     // A renderer without shaders, as the software one, cannot draw the
     // dither, so the surface keeps its own fill.
     function test_noShadersLeaveTheGroundToTheSurface() {
