@@ -4608,12 +4608,13 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Taito lisätty: %1.</translation>
     </message>
     <message>
-        <source>%1 already had one.</source>
-        <translation>Valmiina jo: %1.</translation>
-    </message>
-    <message>
         <source>Adding the MCP server…</source>
         <translation>Lisätään MCP-palvelinta…</translation>
+    </message>
+    <message>
+        <source>%1 already had one.</source>
+        <comment>the skill or MCP server the sentence before added</comment>
+        <translation>Valmiina jo: %1.</translation>
     </message>
     <message>
         <source>%1 already had the skill.</source>
@@ -4622,6 +4623,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>The skill could not be added for %1.</source>
         <translation>Taitoa ei voitu lisätä: %1.</translation>
+    </message>
+    <message>
+        <source>Your own omaweb skill for %1 was left alone.</source>
+        <translation>Oma omaweb-taitosi jätettiin ennalleen: %1.</translation>
     </message>
     <message>
         <source>MCP server added for %1.</source>

@@ -143,14 +143,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   whose home exists: Claude Code, Codex, pi and Hermes. No directory is made for an agent that is
   not installed. Turning it off removes only the links that point at the packaged skill. An `omaweb`
   entry that is anything else, such as a directory or a link to a checkout, is the reader's and is
-  never replaced. A reader who had Allow agents on before this is linked once, at the first start
-  that can, and never again. While Allow agents is on, a muted caption under the switch says what
-  the switch or a button last added, for which agent, and what it left alone, and an Agent setup row
-  offers Add skill and Add MCP server. Add skill links the skill for an agent installed since. Add
-  MCP server runs `claude mcp add -s user omaweb -- omaweb mcp` and
-  `codex mcp add omaweb -- omaweb mcp` for whichever is on the `PATH`, after the agent says it has
-  no server named `omaweb`, and is hidden when neither is. Turning Allow agents off leaves the
-  registration in place.
+  never replaced. A reader who already had Allow agents on when Omaweb began offering the skill is
+  linked once, at the first start of that version, and never again. While Allow agents is on, a
+  muted caption under the switch says what the switch or a button last added, for which agent, and
+  what it left alone, and an Agent setup row offers Add skill and Add MCP server. Add skill links
+  the skill for an agent installed since. Add MCP server runs
+  `claude mcp add -s user omaweb -- omaweb mcp` and `codex mcp add omaweb -- omaweb mcp` for
+  whichever is on the `PATH`, after the agent says it has no server named `omaweb`, and is hidden
+  when neither is. Turning Allow agents off leaves the registration in place.
 - A tab with no address to load shows the Start page in place of a webpage, never an empty viewport.
   That covers a Space at rest and an `about:blank` the reader navigated to, and no engine is spent
   behind it. The Start page is the Omnibar at rest above the Scene's horizon, centred in the page

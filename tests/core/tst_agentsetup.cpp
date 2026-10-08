@@ -2,6 +2,7 @@
 #include "AgentSetup.h"
 #include "AgentsFile.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -89,7 +90,12 @@ private slots:
     void saysWhatAddMcpServerAddedAndLeftAlone();
     void linksNothingWithoutASetup();
     void turningAgentsOffInTheFileUnlinksTheSkill();
-    void triesTheOneTimeLinkAgainAfterItFailed();
+    void linksNothingWhenTheFileAllowsAgents();
+    void recordsTheOneTimeLinkEvenWhenItFails();
+    void findsPiByItsAgentDirectory();
+    void unlinksADanglingLinkToThePackagedSkill();
+    void saysWhatItLeftAlone();
+    void dropsAnMcpServerRunWhenAgentsAreTurnedOff();
     void stopsAnAgentCommandWhenCancelled();
     void quitsWithoutWaitingOnAnAgentCommand();
     void saysItIsAddingTheMcpServer();
@@ -135,7 +141,7 @@ void AgentSetupTest::cleanup() { qputenv("PATH", m_path); }
 void AgentSetupTest::linksTheSkillForEachAgentThatIsInstalled()
 {
     QVERIFY(QDir().mkpath(home(QStringLiteral(".claude"))));
-    QVERIFY(QDir().mkpath(home(QStringLiteral(".pi"))));
+    QVERIFY(QDir().mkpath(home(QStringLiteral(".pi/agent"))));
 
     const auto outcome = setup().linkSkill();
 
@@ -170,13 +176,27 @@ void AgentSetupTest::leavesTheReadersOwnSkillEntriesAlone()
     QVERIFY(QDir().mkpath(home(QStringLiteral(".codex/skills"))));
     const auto checkout = home(QStringLiteral("code/omaweb/integrations/agent/omaweb"));
     QVERIFY(QFile::link(checkout, home(QStringLiteral(".codex/skills/omaweb"))));
+    // A file of the reader's in the skill's place.
+    QVERIFY(QDir().mkpath(home(QStringLiteral(".hermes/skills"))));
+    QFile file(home(QStringLiteral(".hermes/skills/omaweb")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("mine");
+    file.close();
 
     const auto outcome = setup().linkSkill();
 
     QVERIFY(QFileInfo(own).isDir() && !QFileInfo(own).isSymLink());
     QCOMPARE(linkTarget(home(QStringLiteral(".codex/skills/omaweb"))), checkout);
+    QVERIFY(QFileInfo(file.fileName()).isFile() && !QFileInfo(file.fileName()).isSymLink());
     QCOMPARE(outcome.changed, QStringList {QString()});
-    QCOMPARE(outcome.kept, (QStringList {QStringLiteral("Claude Code"), QStringLiteral("Codex")}));
+    QVERIFY(outcome.kept.isEmpty());
+    QCOMPARE(outcome.leftAlone,
+        (QStringList {
+            QStringLiteral("Claude Code"), QStringLiteral("Codex"), QStringLiteral("Hermes")}));
+
+    const auto off = setup().unlinkSkill();
+    QVERIFY(QFileInfo(file.fileName()).isFile());
+    QCOMPARE(off.changed, QStringList {QString()});
 }
 
 void AgentSetupTest::unlinksOnlyLinksToThePackagedSkill()
@@ -355,7 +375,20 @@ void AgentSetupTest::turningAgentsOffInTheFileUnlinksTheSkill()
     QVERIFY(agents->agentSetupNote().isEmpty());
 }
 
-void AgentSetupTest::triesTheOneTimeLinkAgainAfterItFailed()
+// Only the reader's switch links the skill; a file that turns Agents on is not
+// the consent the decision waits for.
+void AgentSetupTest::linksNothingWhenTheFileAllowsAgents()
+{
+    const auto agents = control();
+
+    QVERIFY(AgentsFile::write(config(), QLatin1StringView("allow-agents"), true));
+
+    QTRY_VERIFY(agents->allowAgents());
+    QVERIFY(!present(home(QStringLiteral(".agents"))));
+}
+
+// The first start records that it ran, linked or not, and never runs again.
+void AgentSetupTest::recordsTheOneTimeLinkEvenWhenItFails()
 {
     QVERIFY(AgentsFile::write(config(), QLatin1StringView("allow-agents"), true));
     // A file where the shared skills directory goes.
@@ -367,7 +400,76 @@ void AgentSetupTest::triesTheOneTimeLinkAgainAfterItFailed()
 
     QVERIFY(blocking.remove());
     control();
-    QCOMPARE(linkTarget(home(QStringLiteral(".agents/skills/omaweb"))), m_skill);
+    QVERIFY(!present(home(QStringLiteral(".agents"))));
+}
+
+// pi keeps its skills under ~/.pi/agent, which an installed pi has.
+void AgentSetupTest::findsPiByItsAgentDirectory()
+{
+    QVERIFY(QDir().mkpath(home(QStringLiteral(".pi"))));
+
+    const auto outcome = setup().linkSkill();
+
+    QVERIFY(!present(home(QStringLiteral(".pi/agent"))));
+    QCOMPARE(outcome.changed, QStringList {QString()});
+}
+
+// The package was removed, and the link it leaves still goes when Agents do.
+void AgentSetupTest::unlinksADanglingLinkToThePackagedSkill()
+{
+    QVERIFY(QDir().mkpath(home(QStringLiteral(".claude"))));
+    setup().linkSkill();
+    QVERIFY(QDir(m_skill).removeRecursively());
+    QVERIFY(!QFileInfo::exists(home(QStringLiteral(".claude/skills/omaweb"))));
+
+    const auto outcome = setup().unlinkSkill();
+
+    QVERIFY(!present(home(QStringLiteral(".claude/skills/omaweb"))));
+    QVERIFY(!present(home(QStringLiteral(".agents/skills/omaweb"))));
+    QCOMPARE(outcome.changed, (QStringList {QString(), QStringLiteral("Claude Code")}));
+}
+
+void AgentSetupTest::saysWhatItLeftAlone()
+{
+    QVERIFY(QDir().mkpath(home(QStringLiteral(".claude/skills/omaweb"))));
+    const auto agents = control();
+
+    agents->setAllowAgents(true);
+
+    QCOMPARE(agents->agentSetupNote(),
+        QStringLiteral(
+            "Skill added for other agents. Your own omaweb skill for Claude Code was left alone."));
+}
+
+// A server still being added when Agents are turned off is stopped, and what
+// it found does not replace the caption the switch wrote after it.
+void AgentSetupTest::dropsAnMcpServerRunWhenAgentsAreTurnedOff()
+{
+    QFile script(QDir(m_bin->path()).filePath(QStringLiteral("claude")));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write("#!/bin/sh\nexec /bin/sleep 30\n");
+    script.close();
+    QVERIFY(script.setPermissions(script.permissions() | QFileDevice::ExeOwner));
+    const auto agents = control();
+    agents->setAllowAgents(true);
+    agents->addMcpServer();
+    QTest::qWait(200);
+
+    QElapsedTimer clock;
+    clock.start();
+    agents->setAllowAgents(false);
+    agents->setAllowAgents(true);
+    QVERIFY(QThreadPool::globalInstance()->waitForDone(5000));
+    QCoreApplication::processEvents();
+
+    QVERIFY2(clock.elapsed() < 5000, qPrintable(QString::number(clock.elapsed())));
+    QCOMPARE(agents->agentSetupNote(), QStringLiteral("Skill added for other agents."));
+
+    // The next click runs again.
+    writeAgent(m_bin->path(), QStringLiteral("claude"),
+        QDir(m_bin->path()).filePath(QStringLiteral("claude.log")), 1);
+    agents->addMcpServer();
+    QTRY_COMPARE(agents->agentSetupNote(), QStringLiteral("MCP server added for Claude Code."));
 }
 
 // An agent that has stopped answering, whose command is still waited on when

@@ -128,9 +128,9 @@ public:
     // Gives the reader's agents the skill when Allow agents is turned on, and
     // takes the links back when it is turned off. Turning it on is the
     // reader's consent, so nothing else links it, with one exception: the
-    // first start that has a setup links it for a reader who allowed Agents
-    // before this, and records in `agents.json` that it did, so it never runs
-    // again.
+    // first start that has a setup links it for a reader who had already
+    // allowed Agents, and records in `agents.json` that it ran, linked or
+    // not, so it never runs again.
     void setAgentSetup(AgentSetup setup);
     bool hasAgentSetup() const;
     QString agentSetupNote() const;
@@ -488,14 +488,15 @@ private:
     static QString skillNote(const AgentSetup::Outcome &outcome);
     static QString mcpServerNote(const AgentSetup::Outcome &outcome);
     void noteAgentSetup(const QString &note);
+    void cancelMcpServer();
 
     QString m_agentCommand;
     std::optional<AgentSetup> m_agentSetup;
     QString m_agentSetupNote;
-    bool m_addingMcpServer = false;
-    // Shared with a running Add MCP server, which stops its agent command
-    // once this is gone.
-    std::shared_ptr<std::atomic_bool> m_mcpCancelled = std::make_shared<std::atomic_bool>(false);
+    // Shared with the running Add MCP server, if any, which stops its agent
+    // command and is not heard from once this is set: when Allow agents goes
+    // off, and when this is gone.
+    std::shared_ptr<std::atomic_bool> m_mcpRun;
     // The desktop's way to open the reader's own terminal running a command,
     // which Omarchy configures. Its arguments are the command's own, and no
     // shell reads them.

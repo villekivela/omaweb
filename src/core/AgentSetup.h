@@ -23,8 +23,11 @@ public:
     struct Outcome {
         // Linked, unlinked or registered by this call.
         QStringList changed;
-        // Already in place, or the reader's own and left alone.
+        // Already linked to the packaged skill, or already registered.
         QStringList kept;
+        // An `omaweb` skill entry of the reader's own: a directory, a file,
+        // or a link anywhere but the packaged skill.
+        QStringList leftAlone;
         // Could not be done: a directory that could not be made, or an
         // agent command that failed or took too long.
         QStringList failed;
@@ -34,8 +37,6 @@ public:
     // installs the skill to. Agents are found by their home directory and
     // their commands on `PATH`.
     AgentSetup(QString home, QString skillPath);
-
-    QString skillPath() const;
 
     // Links the skill into `~/.agents/skills` and into the skills directory
     // of every agent whose home exists. No home is made for an agent that is

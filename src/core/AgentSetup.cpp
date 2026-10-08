@@ -14,7 +14,8 @@
 namespace omaweb {
 namespace {
 
-    const auto skillName = QStringLiteral("omaweb");
+    // The skill's directory, the MCP server's name and the program it runs.
+    const auto omawebName = QStringLiteral("omaweb");
 
     struct SkillHome {
         QString name;
@@ -33,7 +34,7 @@ namespace {
             {QStringLiteral("Claude Code"), QStringLiteral(".claude"),
                 QStringLiteral(".claude/skills")},
             {QStringLiteral("Codex"), QStringLiteral(".codex"), QStringLiteral(".codex/skills")},
-            {QStringLiteral("pi"), QStringLiteral(".pi"), QStringLiteral(".pi/agent/skills")},
+            {QStringLiteral("pi"), QStringLiteral(".pi/agent"), QStringLiteral(".pi/agent/skills")},
             {QStringLiteral("Hermes"), QStringLiteral(".hermes"), QStringLiteral(".hermes/skills")},
         };
         return homes;
@@ -50,17 +51,23 @@ namespace {
         static const QList<McpAgent> agents {
             {QStringLiteral("Claude Code"), QStringLiteral("claude"),
                 {QStringLiteral("mcp"), QStringLiteral("add"), QStringLiteral("-s"),
-                    QStringLiteral("user"), skillName, QStringLiteral("--"), skillName,
+                    QStringLiteral("user"), omawebName, QStringLiteral("--"), omawebName,
                     QStringLiteral("mcp")}},
             {QStringLiteral("Codex"), QStringLiteral("codex"),
-                {QStringLiteral("mcp"), QStringLiteral("add"), skillName, QStringLiteral("--"),
-                    skillName, QStringLiteral("mcp")}},
+                {QStringLiteral("mcp"), QStringLiteral("add"), omawebName, QStringLiteral("--"),
+                    omawebName, QStringLiteral("mcp")}},
         };
         return agents;
     }
 
     // An entry is there when it is a link, even one whose target is gone.
     bool entryPresent(const QFileInfo &entry) { return entry.isSymLink() || entry.exists(); }
+
+    // A link to the packaged skill, whether or not the package is still there.
+    bool linksTo(const QFileInfo &entry, const QString &skillPath)
+    {
+        return entry.isSymLink() && QDir::cleanPath(entry.readSymLink()) == skillPath;
+    }
 
     // A command is looked in on this often to see whether it was cancelled.
     constexpr int cancelCheckMs = 100;
@@ -101,8 +108,6 @@ AgentSetup::AgentSetup(QString home, QString skillPath)
 {
 }
 
-QString AgentSetup::skillPath() const { return m_skillPath; }
-
 AgentSetup::Outcome AgentSetup::linkSkill() const
 {
     Outcome outcome;
@@ -112,9 +117,13 @@ AgentSetup::Outcome AgentSetup::linkSkill() const
             continue;
         }
         const QDir skills(home.filePath(agent.skills));
-        const QFileInfo entry(skills.filePath(skillName));
-        if (entryPresent(entry)) {
+        const QFileInfo entry(skills.filePath(omawebName));
+        if (linksTo(entry, m_skillPath)) {
             outcome.kept.append(agent.name);
+            continue;
+        }
+        if (entryPresent(entry)) {
+            outcome.leftAlone.append(agent.name);
             continue;
         }
         if (!skills.mkpath(QStringLiteral(".")) || !QFile::link(m_skillPath, entry.filePath())) {
@@ -131,8 +140,8 @@ AgentSetup::Outcome AgentSetup::unlinkSkill() const
     Outcome outcome;
     const QDir home(m_home);
     for (const auto &agent : skillHomes()) {
-        const QFileInfo entry(QDir(home.filePath(agent.skills)).filePath(skillName));
-        if (!entry.isSymLink() || QDir::cleanPath(entry.readSymLink()) != m_skillPath) {
+        const QFileInfo entry(QDir(home.filePath(agent.skills)).filePath(omawebName));
+        if (!linksTo(entry, m_skillPath)) {
             continue;
         }
         if (QFile::remove(entry.filePath())) {
@@ -161,7 +170,7 @@ AgentSetup::Outcome AgentSetup::addMcpServer(int timeoutMs, const std::atomic_bo
         // `mcp get` answers 0 for a server the agent has under that name, in
         // any scope.
         const auto existing
-            = run(program, {QStringLiteral("mcp"), QStringLiteral("get"), skillName}, m_home,
+            = run(program, {QStringLiteral("mcp"), QStringLiteral("get"), omawebName}, m_home,
                 timeoutMs, cancelled);
         if (!existing) {
             outcome.failed.append(agent.name);

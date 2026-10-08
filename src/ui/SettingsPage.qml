@@ -3126,8 +3126,8 @@ Rectangle {
                         objectName: "agentSetupNote"
                         width: pane.width
                         visible: agentsSection.setupShown && text.length > 0
-                        topPadding: Style.spacing.md
-                        bottomPadding: Style.spacing.md
+                        topPadding: Style.spacing.lg
+                        bottomPadding: Style.spacing.lg
                         text: root.agentControl ? root.agentControl.agentSetupNote : ""
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
@@ -3147,7 +3147,7 @@ Rectangle {
                                   + "Codex, for a client that cannot run the omaweb command.")
 
                         Row {
-                            spacing: Style.spacing.md
+                            spacing: Style.spacing.lg
 
                             ActionButton {
                                 objectName: "addSkill"

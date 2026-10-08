@@ -327,7 +327,15 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
     reload();
 }
 
-AgentControl::~AgentControl() { *m_mcpCancelled = true; }
+AgentControl::~AgentControl() { cancelMcpServer(); }
+
+void AgentControl::cancelMcpServer()
+{
+    if (m_mcpRun) {
+        *m_mcpRun = true;
+        m_mcpRun.reset();
+    }
+}
 
 bool AgentControl::allowAgents() const { return m_allowAgents; }
 
@@ -338,6 +346,11 @@ void AgentControl::setAllowAgents(bool allowed)
     }
     AgentsFile::write(m_configRoot, allowAgentsKey, allowed);
     apply(allowed);
+    // The reader's own switch is the consent the skill waits for, so only it
+    // links the skill. Turning Agents off any way takes the links back.
+    if (m_agentSetup && allowed) {
+        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
+    }
 }
 
 QString AgentControl::agentCommand() const { return m_agentCommand; }
@@ -412,9 +425,8 @@ void AgentControl::setAgentSetup(AgentSetup setup)
     if (AgentsFile::read(m_configRoot, skillLinkedAtStartKey).toBool(false)) {
         return;
     }
-    // A link that could not be made is tried again at the next start.
-    if (m_allowAgents && !m_agentSetup->linkSkill().failed.isEmpty()) {
-        return;
+    if (m_allowAgents) {
+        m_agentSetup->linkSkill();
     }
     AgentsFile::write(m_configRoot, skillLinkedAtStartKey, true);
 }
@@ -434,19 +446,23 @@ void AgentControl::addSkill()
 
 void AgentControl::addMcpServer()
 {
-    if (!m_agentSetup || m_addingMcpServer) {
+    if (!m_agentSetup || m_mcpRun) {
         return;
     }
-    m_addingMcpServer = true;
+    const auto run = std::make_shared<std::atomic_bool>(false);
+    m_mcpRun = run;
     noteAgentSetup(tr("Adding the MCP server…"));
     auto *watcher = new QFutureWatcher<AgentSetup::Outcome>(this);
-    connect(watcher, &QFutureWatcher<AgentSetup::Outcome>::finished, this, [this, watcher] {
-        m_addingMcpServer = false;
-        noteAgentSetup(mcpServerNote(watcher->result()));
+    connect(watcher, &QFutureWatcher<AgentSetup::Outcome>::finished, this, [this, watcher, run] {
         watcher->deleteLater();
+        if (*run) {
+            return;
+        }
+        m_mcpRun.reset();
+        noteAgentSetup(mcpServerNote(watcher->result()));
     });
-    watcher->setFuture(QtConcurrent::run([setup = *m_agentSetup, cancelled = m_mcpCancelled] {
-        return setup.addMcpServer(AgentSetup::defaultMcpTimeoutMs, cancelled.get());
+    watcher->setFuture(QtConcurrent::run([setup = *m_agentSetup, run] {
+        return setup.addMcpServer(AgentSetup::defaultMcpTimeoutMs, run.get());
     }));
 }
 
@@ -469,7 +485,9 @@ QString AgentControl::outcomeNote(const AgentSetup::Outcome &outcome, const Outc
     if (!outcome.changed.isEmpty()) {
         sentences.append(words.changed.arg(agentNames(outcome.changed)));
         if (!outcome.kept.isEmpty()) {
-            sentences.append(tr("%1 already had one.").arg(agentNames(outcome.kept)));
+            sentences.append(
+                tr("%1 already had one.", "the skill or MCP server the sentence before added")
+                    .arg(agentNames(outcome.kept)));
         }
     } else if (!outcome.kept.isEmpty()) {
         sentences.append(words.keptAll.arg(agentNames(outcome.kept)));
@@ -482,9 +500,15 @@ QString AgentControl::outcomeNote(const AgentSetup::Outcome &outcome, const Outc
 
 QString AgentControl::skillNote(const AgentSetup::Outcome &outcome)
 {
-    return outcomeNote(outcome,
+    QStringList sentences {outcomeNote(outcome,
         {tr("Skill added for %1."), tr("%1 already had the skill."),
-            tr("The skill could not be added for %1.")});
+            tr("The skill could not be added for %1.")})};
+    if (!outcome.leftAlone.isEmpty()) {
+        sentences.append(
+            tr("Your own omaweb skill for %1 was left alone.").arg(agentNames(outcome.leftAlone)));
+    }
+    sentences.removeAll(QString());
+    return sentences.join(u' ');
 }
 
 QString AgentControl::mcpServerNote(const AgentSetup::Outcome &outcome)
@@ -526,11 +550,8 @@ void AgentControl::apply(bool allowed)
         return;
     }
     m_allowAgents = allowed;
-    // Allow agents is the reader's consent to the skill, however they gave
-    // it, in Settings or in `agents.json`.
-    if (m_agentSetup && allowed) {
-        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
-    } else if (m_agentSetup) {
+    if (m_agentSetup && !allowed) {
+        cancelMcpServer();
         m_agentSetup->unlinkSkill();
         noteAgentSetup({});
     }

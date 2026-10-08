@@ -734,6 +734,12 @@ int main(int argc, char *argv[])
     const auto agentsSetup = agentsSetupIndex >= 0 && agentsSetupIndex + 1 < arguments.size()
         ? arguments.at(agentsSetupIndex + 1)
         : QString();
+    if (agentsSetupIndex >= 0
+        && !QStringList {QStringLiteral("off"), QStringLiteral("linked"), QStringLiteral("mcp")}
+            .contains(agentsSetup)) {
+        qCritical("--agents-setup takes off, linked or mcp, not %s", qPrintable(agentsSetup));
+        return 1;
+    }
     const auto agents = agentsAway || agentsWindow || agentsTakenOver || !agentsSetup.isEmpty()
         || arguments.contains(QStringLiteral("--agents"));
     std::optional<omaweb::AgentControl> agentControl;

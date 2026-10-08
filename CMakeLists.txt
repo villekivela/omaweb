@@ -1108,9 +1108,9 @@ if(OMAWEB_BUILD_BROWSER)
         set_target_properties(omaweb-browser PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/lib")
 
         # The skill `omaweb-cli` installs, which Allow agents links into the
-        # reader's agents. Relative to the binary for the reason the runpath
-        # is, and a build run from its own tree finds no skill there and
-        # offers none.
+        # reader's agents. Relative to the binary, because a package sets its
+        # own prefix when it installs, and a build run from its own tree finds
+        # no skill there and offers none.
         file(RELATIVE_PATH omaweb_agent_skill_from_browser
             "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb" "${CMAKE_INSTALL_FULL_DATADIR}/omaweb/skills/omaweb")
         target_compile_definitions(omaweb-browser PRIVATE
