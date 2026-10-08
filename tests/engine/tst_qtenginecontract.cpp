@@ -294,6 +294,10 @@ private slots:
     void qtSendsAPagesPlainAddressOverHttps();
     void qtUpgradesOnlyWhatArrivesAtAPagesOwnAddress();
     void qtAttachesBlockingToTheProfileQmlCreates();
+    void qtSendsNoEngineTokenInTheUserAgent_data();
+    void qtSendsNoEngineTokenInTheUserAgent();
+    void qtReportsTheHeaderUserAgentToThePage_data();
+    void qtReportsTheHeaderUserAgentToThePage();
     void qtTellsEverySiteNotToSellTheReadersData_data();
     void qtTellsEverySiteNotToSellTheReadersData();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
@@ -5209,6 +5213,88 @@ void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
 
     QObject notAProfile;
     QVERIFY(!engineContentBlocker.attachToProfile(&notAProfile, QStringLiteral("space-1")));
+}
+
+void QtEngineContractTest::qtSendsNoEngineTokenInTheUserAgent_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// Sites such as WhatsApp Web refuse a user agent that names `QtWebEngine/x.y.z`
+// and answer with their "update your browser" page. The token goes, along with
+// the space that separated it, and the rest is the engine's own default so an
+// engine update reports its own Chrome version.
+void QtEngineContractTest::qtSendsNoEngineTokenInTheUserAgent()
+{
+    QFETCH(bool, privateWindow);
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("privateBrowsing"), privateWindow},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    auto *profile = host->property("profile").value<QObject *>();
+    QVERIFY(profile);
+    const auto agent = profile->property("httpUserAgent").toString();
+    QVERIFY2(!agent.contains(QStringLiteral("QtWebEngine")), qPrintable(agent));
+    QVERIFY2(agent.contains(QRegularExpression(QStringLiteral("Chrome/\\d+\\.\\d+\\.\\d+\\.\\d+"))),
+        qPrintable(agent));
+    QVERIFY2(!agent.contains(QStringLiteral("  ")), qPrintable(agent));
+    QVERIFY2(agent == agent.trimmed(), qPrintable(agent));
+}
+
+void QtEngineContractTest::qtReportsTheHeaderUserAgentToThePage_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// The header and `navigator.userAgent` are one string, so a site that checks
+// either reads the same browser.
+void QtEngineContractTest::qtReportsTheHeaderUserAgentToThePage()
+{
+    QFETCH(bool, privateWindow);
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>document.title = navigator.userAgent;</script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("privateBrowsing"), privateWindow},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    auto *profile = host->property("profile").value<QObject *>();
+    QVERIFY(profile);
+    const auto agent = profile->property("httpUserAgent").toString();
+
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), QVariant::fromValue(profile)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), agent, 15000);
+    QVERIFY2(!agent.contains(QStringLiteral("QtWebEngine")), qPrintable(agent));
+    QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("User-Agent")), agent);
 }
 
 void QtEngineContractTest::qtTellsEverySiteNotToSellTheReadersData_data()

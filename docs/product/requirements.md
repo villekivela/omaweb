@@ -761,6 +761,12 @@ The default page commands include:
   windows send it alike. The privacy section of Settings shows the setting and turns it off, which
   turns off both the header and the property, and the choice survives a restart. Omaweb sends no Do
   Not Track header and offers no per-site exception.
+- Every Engine profile, in a Space, a Private window or an Agent Space, sends the engine's default
+  user agent without its `QtWebEngine/<version>` token and the space before it, on every site. Sites
+  such as WhatsApp Web answer that token with an "update your browser" page. The rest of the string
+  is the engine's own, so an engine update reports its own Chrome version, and `navigator.userAgent`
+  matches the header. Client hints stay as the engine sets them. There is no per-site override and
+  no setting.
 - HTTPS-only mode is on by default and browser-wide. Every top-level `http:` navigation, typed,
   followed from a link, redirected to or opened from another application, is sent as `https:` before
   it leaves the browser; subresources stay with the engine's mixed-content policy, and the addresses

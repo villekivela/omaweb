@@ -513,6 +513,15 @@ QtObject {
         root.downloadRefused(download.url, fileName, rule ? rule.origin : "");
     }
 
+    // Sites such as WhatsApp Web answer a user agent that names QtWebEngine with
+    // their "update your browser" page. The token and the space before it go; the
+    // rest stays the engine's own default, read at run time so an engine update
+    // still reports its own Chrome version. Client hints are left as the engine
+    // sets them.
+    function dropEngineToken(engineProfile) {
+        engineProfile.httpUserAgent = engineProfile.httpUserAgent.replace(/ ?QtWebEngine\/\S+/, "");
+    }
+
     Component.onCompleted: {
         // The prototype builds the profile when it is completed, which is
         // before this.
@@ -521,6 +530,8 @@ QtObject {
         // already using, where a declared profile went ahead and shared it.
         if (!root.builtProfile)
             console.warn("Engine profile not built for", root.profilePath);
+        else
+            root.dropEngineToken(root.builtProfile);
         // A Known extension is loaded once per Engine profile, which is once
         // per Space, so each Space keeps the extension's own storage apart and
         // a vault is unlocked where it is used. The engine loads a package
