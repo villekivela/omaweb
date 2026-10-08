@@ -72,7 +72,10 @@ Item {
         GroundDither {
             id: surfaceDither
             ground: root.colors.overlay
-            overlaidBorder: fade.usesOverlayBorder
+            leftInset: fade.borderLeft
+            topInset: fade.borderTop
+            rightInset: fade.borderRight
+            bottomInset: fade.borderBottom
         }
 
         Behavior on opacity {

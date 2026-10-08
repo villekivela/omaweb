@@ -35,13 +35,13 @@ Rectangle {
     color: groundDither.fill
     border.width: 1
     border.color: colors.border
+    Accessible.role: Accessible.StaticText
+    Accessible.name: name.text
 
     GroundDither {
         id: groundDither
         ground: root.colors.overlay
     }
-    Accessible.role: Accessible.StaticText
-    Accessible.name: name.text
 
     Text {
         id: name

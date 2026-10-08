@@ -67,7 +67,10 @@ Item {
         GroundDither {
             id: surfaceDither
             ground: root.colors.overlay
-            overlaidBorder: surface.usesOverlayBorder
+            leftInset: surface.borderLeft
+            topInset: surface.borderTop
+            rightInset: surface.borderRight
+            bottomInset: surface.borderBottom
         }
 
         Text {

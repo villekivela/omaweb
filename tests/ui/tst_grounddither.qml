@@ -82,14 +82,22 @@ TestCase {
         compare(surface.dither.shader, null);
     }
 
-    // A border a child draws before the dither, as the kit's gradient border
-    // is, would be painted over, so that surface fills itself.
-    function test_aBorderDrawnByAnEarlierChildKeepsTheSurfacesFill() {
+    // A border a child draws over the surface's edges, as the kit's gradient
+    // or per-side border is, has its own width on each side; the dither keeps
+    // inside it rather than painting over it.
+    function test_theDitherKeepsInsideABorderDrawnPerSide() {
         const surface = createTemporaryObject(surfaceComponent, testCase);
-        surface.dither.overlaidBorder = true;
-        verify(!surface.dither.drawn);
-        compare(surface.color, surface.dither.ground);
-        compare(surface.dither.shader, null);
+        const dither = surface.dither;
+        dither.leftInset = 4;
+        dither.topInset = 2;
+        dither.rightInset = 3;
+        dither.bottomInset = 1;
+        verify(dither.drawn);
+        const shader = dither.shader;
+        compare(shader.mapToItem(surface, 0, 0), Qt.point(4, 2));
+        compare(shader.width, 293);
+        compare(shader.height, 197);
+        compare(shader.radius, 2);
     }
 
     // A ground over a blurred page has Omaweb's own pixels behind it rather

@@ -29,27 +29,32 @@ Item {
     // Whether the desktop is what shows through. A ground over a blurred page
     // has Omaweb's own pixels behind it, which are not the desktop's to band.
     property bool overDesktop: true
-    // Whether the surface's border is drawn by a child declared before this
-    // one, as the kit's BorderOverlay is, which the dither would paint over.
-    property bool overlaidBorder: false
     // Whether the renderer runs shaders; the software one does not.
     property bool shaders: GraphicsInfo.shaderType === GraphicsInfo.RhiShader
 
-    readonly property bool drawn: root.shaders && root.overDesktop && !root.overlaidBorder
-                                  && root.ground.a > 0 && root.ground.a < 1
-    // What the surface fills itself with.
+    readonly property bool drawn: root.shaders && root.overDesktop && root.ground.a > 0
+                                  && root.ground.a < 1
     readonly property color fill: root.drawn ? "transparent" : root.ground
 
     // The shader drawing the ground, while there is one.
     readonly property Item shader: loader.item
 
     readonly property Rectangle surface: root.parent as Rectangle
-    readonly property real inset: root.surface ? root.surface.border.width : 0
+    // How far in from each edge the ground starts: inside the surface's
+    // border. The kit's gradient or per-side border is drawn by a child of its
+    // own, declared before this one, so a surface with one passes its widths.
+    property real leftInset: root.surface ? root.surface.border.width : 0
+    property real topInset: root.leftInset
+    property real rightInset: root.leftInset
+    property real bottomInset: root.leftInset
 
-    anchors.fill: parent
     // Drawn before the surface's other children by being declared first. A
     // negative z drew nothing on a surface with no fill of its own.
-    anchors.margins: root.inset
+    anchors.fill: parent
+    anchors.leftMargin: root.leftInset
+    anchors.topMargin: root.topInset
+    anchors.rightMargin: root.rightInset
+    anchors.bottomMargin: root.bottomInset
 
     Loader {
         id: loader
@@ -60,7 +65,10 @@ Item {
             objectName: "groundDither"
 
             property size itemSize: Qt.size(width, height)
-            property real radius: root.surface ? Math.max(0, root.surface.radius - root.inset) : 0
+            property real radius: root.surface ? Math.max(0, root.surface.radius - Math.max(
+                                                              root.leftInset, root.topInset,
+                                                              root.rightInset, root.bottomInset)) :
+                                                 0
             property vector4d premultiplied: Qt.vector4d(root.ground.r * root.ground.a, root.ground.g
                                                          * root.ground.a, root.ground.b
                                                          * root.ground.a, root.ground.a)
