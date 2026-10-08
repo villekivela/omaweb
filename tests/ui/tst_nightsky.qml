@@ -457,10 +457,30 @@ TestCase {
     // down and left across its face in front of it, and leaves through the
     // bottom edge. The planet brightens as it passes, and its trail fades
     // over a couple of seconds once it has gone.
-    function test_aCometFallsInFrontOfThePlanet() {
+    function test_aCometFallsInFrontOfThePlanet_data() {
+        return [
+                    {
+                        tag: "1200 by 800",
+                        width: 1200,
+                        height: 800,
+                        atTheCrest: true
+                    },
+                    {
+                        // A tiled column, taller than it is wide: the
+                        // diagonal from the crest would leave through the
+                        // left edge, so the comet comes in lower.
+                        tag: "560 by 1440",
+                        width: 560,
+                        height: 1440,
+                        atTheCrest: false
+                    }
+                ];
+    }
+
+    function test_aCometFallsInFrontOfThePlanet(data) {
         const sky = makeSky({
-                                width: 1200 / 4,
-                                height: 800 / 4
+                                width: data.width / 4,
+                                height: data.height / 4
                             });
         const seen = crossings(sky, 600);
         verify(seen.length >= 9 && seen.length <= 11, seen.length + " in ten minutes");
@@ -472,8 +492,11 @@ TestCase {
             compare(crossing.others, 0, "a comet beside the front comet at " + crossing.from);
             const first = crossing.heads[0];
             verify(first.x >= sky.drawWidth - 16, "came in at " + first.x);
-            verify(Math.abs(first.y - sky.crestY) < 48, "came in at " + first.y + ", the crest at "
+            verify(first.y > sky.crestY - 48, "came in at " + first.y + ", the crest at "
                    + sky.crestY);
+            if (data.atTheCrest)
+                verify(first.y < sky.crestY + 48, "came in at " + first.y + ", the crest at "
+                       + sky.crestY);
             let over = 0;
             let out = -1;
             for (let frame = 0; frame < crossing.heads.length; ++frame) {
@@ -494,6 +517,26 @@ TestCase {
             verify(fading > 1.5 && fading < 2.5, "faded over " + fading + " seconds");
             verify(crossing.trails[crossing.trails.length - 1] < 0.1);
         }
+    }
+
+    // A commit while the front comet crosses puts it out with the streaks,
+    // and it does not come back part way across once they have gone.
+    function test_theStreaksPutTheFrontCometOut() {
+        const sky = makeSky({
+                                width: 1200 / 4,
+                                height: 800 / 4
+                            });
+        drive(sky, 50);
+        verify(sky.frontShown, "no comet in front of the planet at " + sky.time);
+        sky.navigating = 1;
+        drive(sky, 1);
+        verify(!sky.frontShown);
+        sky.navigating = 0;
+        drive(sky, 9, function () {
+            verify(!sky.frontShown, "back in front of the planet at " + sky.time);
+        });
+        // The next one falls as ever.
+        verify(crossings(sky, 60).length === 1);
     }
 
     // What the host draws where the front comet's head crosses the planet's

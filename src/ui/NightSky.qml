@@ -127,8 +127,10 @@ Item {
     // The diagonal comets and streaks fall down, in degrees.
     readonly property real fallAngle: Math.atan(root.comets.slope) * 180 / Math.PI
     // The way down the diagonal, as a unit step.
-    readonly property point fallStep: Qt.point(-Math.cos(root.fallAngle * Math.PI / 180), Math.sin(
-                                                   root.fallAngle * Math.PI / 180))
+    readonly property point fallStep: {
+        const length = Math.hypot(1, root.comets.slope);
+        return Qt.point(-1 / length, root.comets.slope / length);
+    }
     readonly property int cometSlot: Math.floor(root.time / root.comets.every)
 
     // Where on the limb a comet `across` of the width along goes out.
@@ -147,8 +149,22 @@ Item {
         return Qt.point(out.x - root.fallStep.x * back, out.y - root.fallStep.y * back);
     }
 
+    // A comet in the sky, as `fallen` lists it.
+    function cometOf(slot, index, kind, head, shown) {
+        return {
+            slot: slot,
+            index: index,
+            kind: kind,
+            head: head,
+            shown: shown
+        };
+    }
+
     // The comet `index` of the group falling in `slot`, or null where it is
-    // not in the sky at `time`.
+    // not in the sky at `time`. Each slot scatters from 32 indices of its
+    // own: whether it falls, how many fall together, then four each for when
+    // a comet starts, its kind, its run and where it goes out, so a group
+    // holds four at most.
     function cometAt(slot, index, time) {
         const c = root.comets;
         const seed = slot * 32;
@@ -169,32 +185,22 @@ Item {
         const fallen = (time - start) * measure.speed;
         if (fallen < 0 || fallen > run + measure.length)
             return null;
-        return {
-            slot: slot,
-            index: index,
-            kind: kind,
-            head: root.headOf(root.limbAt(root.spread(c.out, seed + 16 + index)), run, fallen),
-            shown: Math.min(1, fallen / ((run + measure.length) * c.fadeIn))
-        };
+        const out = root.limbAt(root.spread(c.out, seed + 16 + index));
+        const shown = Math.min(1, fallen / ((run + measure.length) * c.fadeIn));
+        return root.cometOf(slot, index, kind, root.headOf(out, run, fallen), shown);
     }
 
     // The comets in the sky now, one place for each of the most there can be,
     // null where none falls.
     readonly property var fallen: {
         const c = root.comets;
+        const still = root.headOf(root.limbAt(c.still.out), c.still.run, c.still.run * c.still.at);
         const places = [];
         for (let index = 0; index < c.most; ++index) {
             if (root.unlit)
                 places.push(null);
             else if (root.reducedMotion)
-                places.push(index > 0 ? null : {
-                                            slot: -1,
-                                            index: 0,
-                                            kind: c.still.kind,
-                                            head: root.headOf(root.limbAt(c.still.out), c.still.run,
-                                                              c.still.run * c.still.at),
-                                            shown: 1
-                                        });
+                places.push(index > 0 ? null : root.cometOf(-1, 0, c.still.kind, still, 1));
             else
                 places.push(root.cometAt(root.cometSlot, index, root.time));
         }
@@ -217,10 +223,14 @@ Item {
         return slot % root.front.every === root.front.at;
     }
 
+    // The last slot the streaks fell in. Its front comet goes out as they
+    // come and does not come back part way across once they have gone.
+    property int streakSlot: -1
+
     // Seconds since the front comet came in, or -1 with none in the sky.
     readonly property real frontRun: {
         const f = root.front;
-        if (root.reducedMotion || root.unlit || root.rushShown > 0 || !root.frontSlot(
+        if (root.reducedMotion || root.unlit || root.streakSlot === root.cometSlot || !root.frontSlot(
                     root.cometSlot))
             return -1;
         const run = root.time - root.cometSlot * root.comets.every - f.after;
@@ -229,7 +239,14 @@ Item {
     readonly property bool frontShown: root.frontRun >= 0
     readonly property point frontHead: {
         const f = root.front;
-        const from = Qt.point(root.drawWidth + f.halo / 2, root.crestY);
+        // In a window taller than it is wide, the diagonal from the crest
+        // would leave through the left edge: the comet comes in lower.
+        const x = root.drawWidth + f.halo / 2;
+        const lowest = root.drawHeight + f.halo / 2 - (x - f.exit * root.drawWidth)
+              * root.comets.slope;
+
+
+        const from = Qt.point(x, Math.max(root.crestY, lowest));
         const across = (root.drawHeight + f.halo / 2 - from.y) / root.fallStep.y;
         const fallen = across * Math.max(0, root.frontRun) / f.lasts;
         return Qt.point(from.x + root.fallStep.x * fallen, from.y + root.fallStep.y * fallen);
@@ -318,51 +335,58 @@ Item {
         }
     }
 
+    // A haze along the planet's limb, `reach` out, in gradient `stops`.
+    function drawHaze(context, stops) {
+        const reach = root.parameters.planet.glow.reach;
+        const c = root.planetCentre;
+        const r = root.planetRadius;
+        const haze = context.createRadialGradient(c.x, c.y, r, c.x, c.y, r + reach);
+        for (const stop of stops)
+            haze.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop[2]));
+        context.fillStyle = haze;
+        context.fillRect(0, root.crestY - reach, root.drawWidth, root.drawHeight);
+    }
+
+    // The planet's disc, for a fill and the limb's line.
+    function tracePlanet(context) {
+        const c = root.planetCentre;
+        context.beginPath();
+        context.arc(c.x, c.y, root.planetRadius, 0, Math.PI * 2, false);
+    }
+
+    // The limb's thin line, its glow's colour lit and the light's unlit.
+    function strokeLimb(context) {
+        const limb = root.parameters.planet.limb;
+        context.lineWidth = limb.width;
+        context.strokeStyle = root.limbGlows ? Colour.css(root.colour(limb.colour)) : Colour.css(
+                                                   root.roles.light, limb.unlit);
+        context.stroke();
+    }
+
     // The glow along the planet's limb, over what moves, so a comet goes out
     // behind it.
     function drawGlow(context) {
-        const p = root.parameters.planet;
-        const c = root.planetCentre;
-        const r = root.planetRadius;
-        const haze = context.createRadialGradient(c.x, c.y, r, c.x, c.y, r + p.glow.reach);
-        for (const stop of p.glow.stops)
-            haze.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop[2]));
-        context.fillStyle = haze;
-        context.fillRect(0, root.crestY - p.glow.reach, root.drawWidth, root.drawHeight);
+        root.drawHaze(context, root.parameters.planet.glow.stops);
     }
 
     // The planet lit up by the comet passing in front of it: its face
     // brighter, and the glow along its limb.
     function drawFlare(context) {
-        const p = root.parameters.planet;
         const f = root.front.flare;
-        const c = root.planetCentre;
-        const r = root.planetRadius;
-        const haze = context.createRadialGradient(c.x, c.y, r, c.x, c.y, r + p.glow.reach);
-        for (const stop of f.glow)
-            haze.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop[2]));
-        context.fillStyle = haze;
-        context.fillRect(0, root.crestY - p.glow.reach, root.drawWidth, root.drawHeight);
-        context.beginPath();
-        context.arc(c.x, c.y, r, 0, Math.PI * 2, false);
+        root.drawHaze(context, f.glow);
+        root.tracePlanet(context);
         context.fillStyle = Colour.css(root.colour(f.face));
         context.fill();
+        root.strokeLimb(context);
     }
 
     // The planet over the glow: the face, and the limb's thin line. Unlit,
     // the planet and its limb stay without the glow.
     function drawPlanet(context) {
-        const p = root.parameters.planet;
-        const c = root.planetCentre;
-        const r = root.planetRadius;
-        context.beginPath();
-        context.arc(c.x, c.y, r, 0, Math.PI * 2, false);
+        root.tracePlanet(context);
         context.fillStyle = Colour.css(root.roles.face);
         context.fill();
-        context.lineWidth = p.limb.width;
-        context.strokeStyle = root.limbGlows ? Colour.css(root.colour(p.limb.colour)) : Colour.css(
-                                                   root.roles.light, p.limb.unlit);
-        context.stroke();
+        root.strokeLimb(context);
     }
 
     SceneLayer {
@@ -443,6 +467,8 @@ Item {
         const step = Math.max(0, Math.min(st.longestStep, root.time - root.last));
         root.last = root.time;
         root.rush += (root.navigating - root.rush) * Math.min(1, step * st.ease);
+        if (root.rushShown > 0)
+            root.streakSlot = root.cometSlot;
     }
 
     onTimeChanged: root.move()
