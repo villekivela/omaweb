@@ -34,6 +34,13 @@ public:
     // the shipped defaults. Owned here rather than by the startup path,
     // because this class already owns what the file means.
     static bool adoptDefaults(const QString &configurationPath, const QString &defaultsPath);
+    // Seeds the file from the defaults on the first run. A copy out of a Qt
+    // resource is read-only, and Sync and the Settings page write the file
+    // later, so the seeded file is the reader's to write.
+    static bool seedDefaults(const QString &configurationPath, const QString &defaultsPath);
+    // An earlier release left the seeded file read-only. Makes it writable by
+    // its owner again, once, and leaves a file the owner can write alone.
+    static void restoreOwnerWrite(const QString &configurationPath);
     Q_INVOKABLE QVariantMap configurationForUrl(const QUrl &url) const;
 
 signals:

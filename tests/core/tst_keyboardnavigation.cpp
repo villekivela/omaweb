@@ -1,8 +1,11 @@
 #include "KeyboardNavigation.h"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSaveFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -27,6 +30,8 @@ private slots:
     void replacesRetiredDefaultWithoutChangingCustomBindings();
     void movesTheShippedOpenFileKeyToJumpBack();
     void offersTheShippedJumpForwardKeyOnce();
+    void seedsAFileTheOwnerCanWrite();
+    void makesAReadOnlyFileWritableAgain();
 };
 
 static QString writeConfiguration(const QString &directory, const QByteArray &contents)
@@ -438,6 +443,41 @@ void KeyboardNavigationTest::movesTheShippedOpenFileKeyToJumpBack()
         QVERIFY(navigation.valid());
         QCOMPARE(navigation.errorMessage(), QString {});
     }
+}
+
+// The shipped defaults are a Qt resource, and a copy out of one is read-only.
+// A source set read-only stands in for it.
+void KeyboardNavigationTest::seedsAFileTheOwnerCanWrite()
+{
+    QTemporaryDir root;
+    const auto defaults = writeConfiguration(root.path(), R"JSON({"version": 1})JSON");
+    QVERIFY(QFile::setPermissions(
+        defaults, QFileDevice::ReadOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther));
+    const auto path = QDir(root.path()).filePath(QStringLiteral("seeded.json"));
+
+    QVERIFY(KeyboardNavigation::seedDefaults(path, defaults));
+
+    const auto permissions = QFileInfo(path).permissions();
+    QVERIFY(permissions.testFlag(QFileDevice::ReadOwner));
+    QVERIFY(permissions.testFlag(QFileDevice::WriteOwner));
+    QSaveFile rewrite(path);
+    QVERIFY(rewrite.open(QIODevice::WriteOnly));
+}
+
+// Releases that seeded from the resource left the file read-only.
+void KeyboardNavigationTest::makesAReadOnlyFileWritableAgain()
+{
+    QTemporaryDir root;
+    const auto path = writeConfiguration(root.path(), R"JSON({"version": 1})JSON");
+    QVERIFY(QFile::setPermissions(
+        path, QFileDevice::ReadOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther));
+
+    KeyboardNavigation::restoreOwnerWrite(path);
+
+    QVERIFY(QFileInfo(path).permissions().testFlag(QFileDevice::WriteOwner));
+    QFile contents(path);
+    QVERIFY(contents.open(QIODevice::ReadOnly));
+    QCOMPARE(contents.readAll(), QByteArray(R"JSON({"version": 1})JSON"));
 }
 
 // A file an earlier release wrote, with a ledger that never offered

@@ -300,6 +300,7 @@ private slots:
     void syncsOnlyTheApprovedConfiguration();
     void restoresSettingsBesideASettingsPageWrite();
     void restoresTheRestBesideASettingsFileItCannotRead();
+    void leavesAReadOnlyKeybindingsFileAloneWhenItMatches();
     void capturesNoSettingWhoseValueCannotBeRead();
     void dropsTheRetiredChromeEaseSetting();
     void leavesTheRemoteUntouchedWhenNothingChanged();
@@ -714,6 +715,53 @@ void SyncModuleTest::restoresTheRestBesideASettingsFileItCannotRead()
     OMAWEB_VERIFY_SYNC(settle(fixed, secondStore));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(false));
+}
+
+// Releases up to 0.12.1 seeded keybindings.json read-only, from a Qt resource.
+// A restore that has nothing to change in it must not fail on the write.
+void SyncModuleTest::leavesAReadOnlyKeybindingsFileAloneWhenItMatches()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'u');
+    const auto keybindings = QByteArrayLiteral(R"({"version":1,"bindings":{"j":"scroll-down"}})");
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(writeFile(firstConfigRoot.filePath(QStringLiteral("keybindings.json")), keybindings));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    const auto localPath = secondConfigRoot.filePath(QStringLiteral("keybindings.json"));
+    QVERIFY(writeFile(localPath, keybindings));
+    QVERIFY(QFile::setPermissions(
+        localPath, QFileDevice::ReadOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther));
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QFile local(localPath);
+    QVERIFY(local.open(QIODevice::ReadOnly));
+    QCOMPARE(local.readAll(), keybindings);
 }
 
 // A synced setting the reader wrote a value into that cannot be read is not
