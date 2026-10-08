@@ -125,8 +125,8 @@ Item {
     // them never moves.
     readonly property int chipSize: Math.round(Style.font.caption * 1.6)
     readonly property int chipInset: Style.space(8)
-    // Where the close button and the Agent mark end: 12 px inside the edge the
-    // row's wash reaches, which for an ordinary row is the sidebar's. Out in
+    // Where the close button and the Agent mark end: 12 px, scaled with the
+    // interface font, inside the edge the row's wash reaches, which for an ordinary row is the sidebar's. Out in
     // the margin, so the glyph does not stand far in from a hover that runs to
     // the sidebar's edge, but not so far that it crowds it.
     readonly property int endGap: Style.space(12)
@@ -353,7 +353,7 @@ Item {
         anchors.left: tile.right
         anchors.leftMargin: Style.space(9)
         anchors.right: parent.right
-        anchors.rightMargin: root.endGap - root.reachRight + closeButton.width + 6
+        anchors.rightMargin: root.endGap - root.reachRight + closeButton.width + Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
         color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText

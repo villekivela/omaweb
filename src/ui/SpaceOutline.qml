@@ -1038,7 +1038,7 @@ Rectangle {
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(9)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 3
+                spacing: Style.space(3)
                 visible: root.refusalTally > 0
 
                 Text {

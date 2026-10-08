@@ -13130,11 +13130,11 @@ TestCase {
         try {
             for (const larger of [-4, 0, 6]) {
                 fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + larger);
-                const address = findChild(window.contentItem, "addressButton");
                 tryVerify(function () {
                     return findChild(window.contentItem, "tab-" + tabId) !== null;
                 });
                 const row = findChild(window.contentItem, "tab-" + tabId);
+                const address = findChild(window.contentItem, "addressButton");
                 verify(address !== null);
                 tryCompare(address, "height", row.height);
                 heights.push(address.height);
