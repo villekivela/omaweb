@@ -13120,6 +13120,33 @@ TestCase {
         }
     }
 
+    // The address field is as tall as an ordinary tab row at every interface
+    // font size, and both grow with the font.
+    function test_theAddressFieldIsAsTallAsATabRow() {
+        browser.openInputInBackground("https://sized.example");
+        const tabId = browser.tabs.data(browser.tabs.index(browser.tabs.rowCount() - 1, 0),
+                                        Qt.UserRole + 1);
+        const heights = [];
+        try {
+            for (const larger of [-4, 0, 6]) {
+                fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + larger);
+                tryVerify(function () {
+                    return findChild(window.contentItem, "tab-" + tabId) !== null;
+                });
+                const row = findChild(window.contentItem, "tab-" + tabId);
+                const address = findChild(window.contentItem, "addressButton");
+                verify(address !== null);
+                tryCompare(address, "height", row.height);
+                heights.push(address.height);
+            }
+        } finally {
+            fontSettings.resetInterfaceFontSize();
+        }
+        verify(heights[0] < heights[1], heights.join());
+        verify(heights[1] < heights[2], heights.join());
+        compare(heights[1], 36);
+    }
+
     // A reader who has not chosen a Scene is on the road. Settings moved the
     // road's old switch into the Scene when the settings moved to their file
     // (tst_settingsmigration), so the chrome reads the Scene alone.
