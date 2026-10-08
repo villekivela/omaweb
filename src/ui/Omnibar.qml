@@ -1051,8 +1051,8 @@ Item {
             Row {
                 id: fieldCue
                 objectName: "omnibarFieldCue"
-                x: input.x + input.placeholderWidth + 16
-                anchors.verticalCenter: parent.verticalCenter
+                x: DevicePixels.snap(input.x + input.placeholderWidth + 16, root.pixelRatio)
+                y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
                 visible: root.resting && !root.commandScope && root.engine === null
                          && input.text.length === 0 && x + width <= input.x + input.width
                 spacing: 6

@@ -5086,7 +5086,6 @@ TestCase {
         verify(cue.x >= placeholderEnd + 8, "cue at " + cue.x + ", placeholder ends "
                + placeholderEnd);
 
-
         verify(cue.mapToItem(input, cue.width, 0).x <= input.width);
 
         input.text = "x";
