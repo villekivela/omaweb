@@ -126,9 +126,10 @@ Item {
     readonly property int chipSize: Math.round(Style.font.caption * 1.6)
     readonly property int chipInset: Style.space(8)
     // Where the close button and the Agent mark end: 12 px, scaled with the
-    // interface font, inside the edge the row's wash reaches, which for an ordinary row is the sidebar's. Out in
-    // the margin, so the glyph does not stand far in from a hover that runs to
-    // the sidebar's edge, but not so far that it crowds it.
+    // interface font, inside the edge the row's wash reaches, which for an
+    // ordinary row is the sidebar's. Out in the margin, so the glyph does not
+    // stand far in from a hover that runs to the sidebar's edge, but not so far
+    // that it crowds it.
     readonly property int endGap: Style.space(12)
 
     signal activated(string tabId)
