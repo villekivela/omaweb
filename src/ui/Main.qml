@@ -2016,6 +2016,9 @@ ApplicationWindow {
                 === "true";
         window.sidebarSide = window.windowBrowser.preference("sidebar-side", "left") === "right"
                 ? "right" : "left";
+    }
+
+    function restoreAppIcon() {
         window.appIcon = window.windowBrowser.preference("app-icon", "black-and-white") === "theme"
                 ? "theme" : "black-and-white";
     }
@@ -2082,8 +2085,10 @@ ApplicationWindow {
 
         function onPreferenceChanged(name) {
             if (name === "floating-controls" || name === "glance" || name === "start-page-scene" || name
-                    === "start-page-glass" || name === "sidebar-side" || name === "app-icon")
+                    === "start-page-glass" || name === "sidebar-side")
                 window.restoreChromeAppearance();
+            else if (name === "app-icon")
+                window.restoreAppIcon();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
         }
@@ -4852,6 +4857,7 @@ ApplicationWindow {
         window.restoreDeveloperToolsWidth();
         window.restoreTabAppearance();
         window.restoreChromeAppearance();
+        window.restoreAppIcon();
         // The notes an upgrade owes the reader, which the watch opens once,
         // behind the page on show and in a Space of the reader's own. A
         // Private window says nothing about this installation, so it never

@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -79,8 +80,11 @@ private slots:
 
     void themePointsTheLauncherAtTheRenderedIcon();
     void themeInstallsTheTemplateAndAsksOmarchyToRenderIt();
+    void themeAsksAgainForATemplateNeverRendered();
+    void asksForOneRenderWithThePalettesTemplate();
     void themeKeepsATemplateTheReaderChanged();
     void themeFollowsAThemeSwitch();
+    void themeKeepsTheIconWhileAThemeSwitchIsHalfDone();
     void blackAndWhiteTakesTheLauncherBack();
     void blackAndWhiteKeepsATemplateTheReaderChanged();
     void leavesAnEntryTheReaderWrote();
@@ -89,6 +93,7 @@ private slots:
     void declinedUsesAnIconTheReaderRendered();
     void writesNothingWhereOmarchyIsNotInstalled();
     void writesNoEntryWithoutAnInstalledOne();
+    void namesTheIconByItsAbsolutePath();
     void readsTheDirectoriesTheDesktopStandardNames();
 
 private:
@@ -187,6 +192,40 @@ void AppIconTest::themeInstallsTheTemplateAndAsksOmarchyToRenderIt()
     QTRY_VERIFY(contentsOf(m_home->filePath(QStringLiteral("bin/asked"))).startsWith("theme"));
 }
 
+// A template installed on a start that had no `omarchy` to ask, or whose
+// render failed, is no icon yet. Every choice of Theme asks again while there
+// is none, as the palette's template does.
+void AppIconTest::themeAsksAgainForATemplateNeverRendered()
+{
+    const auto layout = paths();
+    write(layout.iconTemplate(), contentsOf(shippedTemplate()));
+    AppIconLauncher launcher(layout, shippedTemplate());
+
+    launcher.setChoice(AppIcon::Theme);
+
+    QTRY_VERIFY(contentsOf(m_home->filePath(QStringLiteral("bin/asked"))).startsWith("theme"));
+}
+
+// The first start with Theme chosen installs both of Omaweb's templates, and
+// each wants a render. One `omarchy theme set` renders every template, and
+// each is a full theme switch, so the desktop is asked once.
+void AppIconTest::asksForOneRenderWithThePalettesTemplate()
+{
+    const auto layout = paths();
+    AppIconLauncher launcher(layout, shippedTemplate());
+
+    QCOMPARE(
+        omaweb::followOmarchyTheme(layout.omarchy, QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH)),
+        omaweb::OmarchyTemplateOutcome::Installed);
+    launcher.setChoice(AppIcon::Theme);
+
+    const auto asked = m_home->filePath(QStringLiteral("bin/asked"));
+    QTRY_VERIFY(contentsOf(asked).contains("theme set"));
+    // Long enough for a second request to have run as well.
+    QTest::qWait(500);
+    QCOMPARE(contentsOf(asked).count("theme set"), 1);
+}
+
 // A template already there is a customisation, the reader's or a theme's, and
 // choosing Theme does not overrule it. Saying so is how a reader learns why the
 // icon is not the one this version ships.
@@ -226,6 +265,33 @@ void AppIconTest::themeFollowsAThemeSwitch()
     QTRY_COMPARE(contentsOf(entryIcon(layout.userEntry)), gruvbox);
     QVERIFY(entryIcon(layout.userEntry) != before);
     QVERIFY(!QFileInfo::exists(before));
+}
+
+// Omarchy deletes the current theme before it renames the next one into its
+// place, and the watch can fire in between. A theme half switched is not a
+// theme without an icon: the launcher keeps the one it shows until the next
+// render lands.
+void AppIconTest::themeKeepsTheIconWhileAThemeSwitchIsHalfDone()
+{
+    const auto layout = paths();
+    write(layout.renderedIcon(), tokyoNight);
+    AppIconLauncher launcher(layout, shippedTemplate());
+    launcher.setChoice(AppIcon::Theme);
+    const auto before = entryIcon(layout.userEntry);
+    const auto theme = QFileInfo(layout.renderedIcon()).absolutePath();
+    const auto next = m_home->filePath(QStringLiteral(".local/state/omarchy/current/next-theme"));
+    write(QDir(next).filePath(QStringLiteral("omaweb-icon.svg")), gruvbox);
+
+    QVERIFY(QDir(theme).removeRecursively());
+    // Long enough for the watch to report the removal, which the switch's
+    // own rename otherwise follows at once.
+    QTest::qWait(500);
+
+    QCOMPARE(entryIcon(layout.userEntry), before);
+    QCOMPARE(contentsOf(before), tokyoNight);
+
+    QVERIFY(QDir().rename(next, theme));
+    QTRY_COMPARE(contentsOf(entryIcon(layout.userEntry)), gruvbox);
 }
 
 // Black and white is the installed entry's own icon, so everything Theme put
@@ -366,6 +432,26 @@ void AppIconTest::writesNoEntryWithoutAnInstalledOne()
 
     QVERIFY(!QFileInfo::exists(layout.userEntry));
     QVERIFY(QDir(layout.iconDirectory).isEmpty());
+}
+
+// `OMAWEB_DATA_ROOT` may be relative to where Omaweb was started. A launcher
+// reads `Icon=` from anywhere, so it names the copy by its absolute path, and
+// the entry is still recognised as Omaweb's on the next start.
+void AppIconTest::namesTheIconByItsAbsolutePath()
+{
+    auto layout = paths();
+    write(layout.renderedIcon(), tokyoNight);
+    const auto started = QDir::currentPath();
+    QVERIFY(QDir::setCurrent(m_home->path()));
+    const auto restore = qScopeGuard([started] { QDir::setCurrent(started); });
+    layout.iconDirectory = QStringLiteral("relative/app-icon");
+    AppIconLauncher launcher(layout, shippedTemplate());
+
+    launcher.setChoice(AppIcon::Theme);
+    QVERIFY(QFileInfo(entryIcon(layout.userEntry)).isAbsolute());
+
+    launcher.setChoice(AppIcon::BlackAndWhite);
+    QVERIFY(!QFileInfo::exists(layout.userEntry));
 }
 
 // The entries are the desktop's, so they are found the way every launcher

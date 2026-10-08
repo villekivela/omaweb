@@ -5,8 +5,8 @@
     assets/icons/omaweb-mono-rounded.svg, the icon the package installs, in the
     colours of the Omarchy theme: the mark in its accent, on its background.
     Omarchy renders this into ~/.local/state/omarchy/current/theme/omaweb-icon.svg
-    on every theme switch, and Omaweb points its launcher entry there when the
-    reader chooses the Theme app icon.
+    on every theme switch. When the reader chooses the Theme app icon, Omaweb
+    points its launcher entry at a copy of that file named by its contents.
   -->
   <path
     transform="translate(8 20.343) scale(1.26884) translate(-19.451561 -97.088945)"

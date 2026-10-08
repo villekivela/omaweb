@@ -1916,6 +1916,7 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-app-icon-tests PRIVATE omaweb-platform Qt6::Test)
     target_compile_definitions(omaweb-app-icon-tests PRIVATE
         OMAWEB_OMARCHY_ICON_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb-icon.svg.tpl"
+        OMAWEB_OMARCHY_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb.json.tpl"
     )
     omaweb_strict_target(omaweb-app-icon-tests)
     add_test(NAME omaweb-app-icon COMMAND omaweb-app-icon-tests)

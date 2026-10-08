@@ -40,6 +40,9 @@ enum class OmarchyTemplateOutcome {
     Failed,
 };
 
+// A file's contents, or none for a path that is empty or cannot be read.
+QByteArray readFile(const QString &path);
+
 // Writes a file Omaweb puts in the reader's home, such as a template it ships
 // into their Omarchy configuration, readable by everyone and theirs to edit. A
 // shipped template can come out of the binary's own read-only resources, so it
@@ -48,7 +51,9 @@ enum class OmarchyTemplateOutcome {
 bool writeReaderFile(const QString &path, const QByteArray &contents);
 
 // Asks Omarchy to render the theme that is already active, which is what turns
-// a template just installed into a file. Does nothing without Omarchy.
+// a template just installed into a file. The render starts when the event loop
+// next runs, and every request made before then is that one render. Does
+// nothing without Omarchy.
 void renderActiveOmarchyTheme();
 
 // Put Omaweb's theme template where Omarchy renders templates from, and ask

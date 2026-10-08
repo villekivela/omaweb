@@ -14237,6 +14237,11 @@ TestCase {
         compare(appIcon.value, "theme");
         compare(browser.preference("app-icon", ""), "theme");
 
+        // What the next start reads.
+        window.appIcon = "black-and-white";
+        window.restoreAppIcon();
+        compare(window.appIcon, "theme");
+
         // Another window, or Sync, choosing the icon shows in this one.
         browser.setPreference("app-icon", "black-and-white");
         compare(appIcon.value, "black-and-white");

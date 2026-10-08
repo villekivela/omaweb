@@ -11,21 +11,10 @@ namespace omaweb {
 
 namespace {
 
-    QByteArray contentsOf(const QString &path)
-    {
-        if (path.isEmpty()) {
-            return {};
-        }
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly)) {
-            return {};
-        }
-        return file.readAll();
-    }
-
-    // The installed entry with `Icon=` naming `icon` and `TryExec=` naming the
-    // browser, in the application's own group alone: an action's group keeps
-    // the icon it names.
+    // The installed entry with `Icon=` naming `icon` and `TryExec=omaweb`, in
+    // the application's own group alone: an action's group keeps the icon it
+    // names. `omaweb` is the command the entry's `Exec=` runs, which the
+    // omaweb-cli package installs.
     QByteArray launcherEntry(const QByteArray &installed, const QString &icon)
     {
         QByteArrayList lines;
@@ -90,9 +79,11 @@ AppIconLauncher::AppIconLauncher(AppIconPaths paths, QString shippedTemplate, QO
 {
     // Omarchy builds the next theme beside the current one, removes the
     // current one and renames the next into its place, so the theme's own
-    // directory is a new one after every switch. Its parent stays.
+    // directory is a new one after every switch. Its parent stays. Between the
+    // removal and the rename there is no render at all, and the launcher keeps
+    // the icon it shows until the next one lands.
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this] {
-        if (m_choice == AppIcon::Theme) {
+        if (m_choice == AppIcon::Theme && QFileInfo::exists(m_paths.renderedIcon())) {
             apply();
         }
     });
@@ -118,13 +109,14 @@ void AppIconLauncher::setChoice(AppIcon choice)
 // (ADR 0002): a template already there stands.
 void AppIconLauncher::installTemplate()
 {
-    const auto shipped = contentsOf(m_shippedTemplate);
+    const auto shipped = readFile(m_shippedTemplate);
     if (shipped.isEmpty()) {
         qWarning("Omaweb could not read its own Omarchy icon template at %s.",
             qPrintable(m_shippedTemplate));
         return;
     }
     const auto installed = m_paths.iconTemplate();
+    auto justInstalled = false;
     if (!QFileInfo::exists(installed)) {
         if (!writeReaderFile(installed, shipped)) {
             qWarning("Omaweb could not install its Omarchy icon template at %s, so the "
@@ -135,11 +127,17 @@ void AppIconLauncher::installTemplate()
         qInfo("Omaweb installed its Omarchy icon template at %s, so the launcher shows the "
               "theme's icon.",
             qPrintable(installed));
-        renderActiveOmarchyTheme();
-    } else if (contentsOf(installed) != shipped) {
+        justInstalled = true;
+    } else if (readFile(installed) != shipped) {
         qInfo("Omaweb kept the Omarchy icon template already at %s, which differs from the one "
               "this version ships. Delete it to take the shipped template.",
             qPrintable(installed));
+    }
+    // As for the palette: a template just installed always wants rendering,
+    // and so does one that has never been rendered, because no `omarchy` was
+    // there to ask or its render failed.
+    if (justInstalled || !QFileInfo::exists(m_paths.renderedIcon())) {
+        renderActiveOmarchyTheme();
     }
 }
 
@@ -151,7 +149,7 @@ void AppIconLauncher::removeTemplate()
     if (!QFileInfo::exists(installed)) {
         return;
     }
-    if (contentsOf(installed) != contentsOf(m_shippedTemplate)) {
+    if (readFile(installed) != readFile(m_shippedTemplate)) {
         qInfo("Omaweb left the Omarchy icon template at %s, which differs from the one this "
               "version ships. Delete it if nothing else uses it.",
             qPrintable(installed));
@@ -168,7 +166,7 @@ bool AppIconLauncher::ownsUserEntry() const
         return true;
     }
     const auto prefix = "Icon=" + QDir(m_paths.iconDirectory).absolutePath().toUtf8() + '/';
-    for (const auto &line : contentsOf(m_paths.userEntry).split('\n')) {
+    for (const auto &line : readFile(m_paths.userEntry).split('\n')) {
         if (line.startsWith(prefix)) {
             return true;
         }
@@ -190,8 +188,8 @@ void AppIconLauncher::apply()
         removeCopiesBut({});
         return;
     }
-    const auto rendered = contentsOf(m_paths.renderedIcon());
-    const auto installed = contentsOf(m_paths.installedEntry);
+    const auto rendered = readFile(m_paths.renderedIcon());
+    const auto installed = readFile(m_paths.installedEntry);
     if (m_choice != AppIcon::Theme || rendered.isEmpty() || installed.isEmpty()) {
         QFile::remove(m_paths.userEntry);
         removeCopiesBut({});
@@ -201,7 +199,7 @@ void AppIconLauncher::apply()
     // path: a theme's colours under a path the menu has drawn before would
     // show the colours it drew then.
     const auto copy = QDir(m_paths.iconDirectory)
-                          .filePath(QStringLiteral("omaweb-%1.svg")
+                          .absoluteFilePath(QStringLiteral("omaweb-%1.svg")
                                   .arg(QString::fromLatin1(
                                       QCryptographicHash::hash(rendered, QCryptographicHash::Sha256)
                                           .toHex()
@@ -214,8 +212,11 @@ void AppIconLauncher::apply()
     // entry outranks the installed one, so a change the package makes to its
     // entry reaches the reader only through here, on the next start.
     const auto entry = launcherEntry(installed, copy);
-    if (contentsOf(m_paths.userEntry) != entry) {
-        writeReaderFile(m_paths.userEntry, entry);
+    if (readFile(m_paths.userEntry) != entry && !writeReaderFile(m_paths.userEntry, entry)) {
+        qWarning("Omaweb could not write the desktop entry at %s, so the launcher keeps the icon "
+                 "it shows.",
+            qPrintable(m_paths.userEntry));
+        return;
     }
     removeCopiesBut(copy);
 }
