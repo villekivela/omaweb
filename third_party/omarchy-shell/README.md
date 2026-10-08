@@ -52,9 +52,13 @@ nobody opened.
 The pin is not on `quattro` yet. Qt 6.12 added a `Color` singleton to `QtQuick`,
 which hides the kit's `qs.Commons` `Color` in every file that imports `QtQuick`
 (#659). Upstream's fix, [omacom/omarchy#14511][fix], renames it `ShellColor`,
-and the pin is that pull request's head, one commit on top of `quattro`. Until
-the rename reaches `quattro`, the drift check lists the renamed files. Sync back
-to `quattro` once it has the rename.
+and the pin is that pull request's head, one commit on top of `quattro`.
+`MANIFEST.json` still names `quattro` as the branch, because the sync script
+records the branch it follows. Until the rename reaches `quattro`, the weekly
+drift issue lists the renamed files and suggests syncing to `quattro`'s head. Do
+not run that sync: it restores `Color.qml`, and the kit tests fail on Qt 6.12.
+Sync back to `quattro` once it has the rename, under whatever name upstream
+settles on.
 
 [repo]: https://github.com/omacom/omarchy
 [ui]: https://github.com/omacom/omarchy/tree/quattro/shell/Ui
