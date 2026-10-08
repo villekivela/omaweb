@@ -154,13 +154,56 @@ Item {
     }
 
     // A comet in the sky, as `fallen` lists it.
-    function cometOf(slot, index, kind, head, shown) {
+    function cometOf(slot, index, kind, head, shown, steered) {
         return {
             slot: slot,
             index: index,
             kind: kind,
             head: head,
-            shown: shown
+            shown: shown,
+            steered: steered
+        };
+    }
+
+    // The Omnibar's resting field: `omnibarWidth` wide, centred, from
+    // `above` over where it rests to `omnibarReach` below.
+    readonly property rect field: Qt.rect((root.drawWidth - root.omnibarWidth) / 2, root.horizonY
+                                          - root.parameters.omnibar.above, root.omnibarWidth,
+                                          root.parameters.omnibar.above + root.omnibarReach)
+
+    // How far out in a comet's light at `head` the Omnibar's rim stands: 0
+    // at the light's centre, 1 at the edge of its ellipse.
+    function rimDistance(head) {
+        const g = root.parameters.glint;
+        const f = root.field;
+        const dx = Math.max(f.x - head.x, 0, head.x - f.x - f.width);
+        const dy = Math.max(f.y - head.y, 0, head.y - f.y - f.height);
+        return Math.hypot(dx / (f.width * g.across), dy / g.reach);
+    }
+
+    // Where a comet of `measure` steered past the field's lower right corner
+    // goes out, and how far up the diagonal it appears: its line passes the
+    // corner with its glow `clear` off the field and a Scene pixel more, and
+    // it appears `beyond` of the width before it gets there. Null where that
+    // line misses the planet.
+    function steerPast(measure, beyond) {
+        const d = root.fallStep;
+        const reachOff = root.comets.steer.clear + measure.halo / 2 + root.pitch;
+        const f = root.field;
+        // Off the corner, square to the line, below and to the right.
+        const foot = Qt.point(f.x + f.width + d.y * reachOff, f.y + f.height - d.x * reachOff);
+        const c = root.planetCentre;
+        const b = d.x * (foot.x - c.x) + d.y * (foot.y - c.y);
+        const rest = (foot.x - c.x) * (foot.x - c.x) + (foot.y - c.y) * (foot.y - c.y)
+              - root.planetRadius * root.planetRadius;
+        if (b * b - rest < 0)
+            return null;
+        const along = -b - Math.sqrt(b * b - rest);
+        if (along <= 0)
+            return null;
+        return {
+            out: Qt.point(foot.x + d.x * along, foot.y + d.y * along),
+            run: along / root.drawWidth + beyond
         };
     }
 
@@ -168,7 +211,9 @@ Item {
     // not in the sky at `time`. Each slot scatters from 32 indices of its
     // own: whether it falls, how many fall together, then four each for when
     // a comet starts, its kind, its run and where it goes out, so a group
-    // holds four at most. The comet in front of the planet takes 20 and 21.
+    // holds four at most. The comet in front of the planet takes 20 and 21,
+    // and whether a comet is steered past the Omnibar and how far before it
+    // it appears take four each from 24.
     function cometAt(slot, index, time) {
         const c = root.comets;
         const seed = slot * 32;
@@ -183,15 +228,31 @@ Item {
         let start = slot * c.every;
         for (let before = 1; before <= index; ++before)
             start += root.spread(c.apart, seed + 2 + before);
+        // One that started before the sky was last shown stays out of
+        // sight rather than popping in part way across.
+        if (start < root.revealedAt)
+            return null;
         const kind = root.hash(seed + 8 + index) < c.kinds[0].share ? 0 : 1;
         const measure = c.kinds[kind];
-        const run = root.spread(measure.run, seed + 12 + index);
+        let run = root.spread(measure.run, seed + 12 + index);
+        let out = root.limbAt(root.spread(c.out, seed + 16 + index));
+        // Some are steered past the Omnibar, where their light catches its
+        // rim, while their fall still ends before the slot does.
+        let steered = root.hash(seed + 24 + index) < c.steer.share;
+        if (steered) {
+            const path = root.steerPast(measure, root.spread(c.steer.beyond, seed + 28 + index));
+            const lasts = path !== null ? (path.run + measure.length) / measure.speed : Infinity;
+            steered = start - slot * c.every + lasts < c.every;
+            if (steered) {
+                run = path.run;
+                out = path.out;
+            }
+        }
         const fallen = (time - start) * measure.speed;
         if (fallen < 0 || fallen > run + measure.length)
             return null;
-        const out = root.limbAt(root.spread(c.out, seed + 16 + index));
-        const shown = Math.min(1, fallen / ((run + measure.length) * c.fadeIn));
-        return root.cometOf(slot, index, kind, root.headOf(out, run, fallen), shown);
+        const shown = Math.min(1, (time - start) / c.fadeIn);
+        return root.cometOf(slot, index, kind, root.headOf(out, run, fallen), shown, steered);
     }
 
     // The comets in the sky now, one place for each of the most there can be,
@@ -204,7 +265,7 @@ Item {
             if (root.unlit)
                 places.push(null);
             else if (root.reducedMotion)
-                places.push(index > 0 ? null : root.cometOf(-1, 0, c.still.kind, still, 1));
+                places.push(index > 0 ? null : root.cometOf(-1, 0, c.still.kind, still, 1, false));
             else
                 places.push(root.cometAt(root.cometSlot, index, root.time));
         }
@@ -238,8 +299,9 @@ Item {
         if (root.reducedMotion || root.unlit || root.streakSlot === root.cometSlot || !root.frontSlot(
                     root.cometSlot))
             return -1;
-        const run = root.time - root.cometSlot * root.comets.every - f.after;
-        return run >= 0 && run < f.lasts + f.fades ? run : -1;
+        const start = root.cometSlot * root.comets.every + f.after;
+        const run = root.time - start;
+        return start >= root.revealedAt && run >= 0 && run < f.lasts + f.fades ? run : -1;
     }
     readonly property bool frontShown: root.frontRun >= 0
     // Each crossing falls at an angle of its own, `angles` [from, span]
@@ -249,16 +311,16 @@ Item {
         const f = root.front;
         const a = root.frontAngle * Math.PI / 180;
         // The line passes the Omnibar's lower right corner with its glow
-        // `clear` off the panel, a Scene pixel more for the glow drawn in
-        // whole ones, and up to `wander` further, scattered for each crossing.
-        // That corner is where the line comes closest to the panel. In a
+        // the steered comets' `clear` off the panel and a Scene pixel more
+        // for the glow drawn in whole ones, close enough for its light to
+        // catch the rim. That corner is where the line comes closest to the
+        // panel. In a
         // window taller than it is wide, the line would leave through the
         // left edge, so the comet comes in lower, further from the panel.
         const x = root.drawWidth + f.halo / 2;
         const corner = Qt.point((root.drawWidth + root.omnibarWidth) / 2, root.horizonY
                                 + root.omnibarReach);
-        const distance = f.clear + f.halo / 2 + root.pitch + f.wander * root.hash(root.cometSlot * 32
-                                                                                  + 21);
+        const distance = root.comets.steer.clear + f.halo / 2 + root.pitch;
         const passing = corner.y + distance / Math.cos(a) - (x - corner.x) * Math.tan(a);
         const lowest = root.drawHeight + f.halo / 2 - (x - f.exit * root.drawWidth) * Math.tan(a);
         const fromY = Math.max(passing, lowest);
@@ -433,7 +495,7 @@ Item {
         for (const comet of root.fallen) {
             if (comet === null || root.behindLimb(comet.head))
                 continue;
-            const d = Math.hypot(comet.head.x - root.drawWidth / 2, comet.head.y - root.horizonY);
+            const d = root.rimDistance(comet.head);
             if (d < distance) {
                 nearest = comet;
                 distance = d;
@@ -475,8 +537,19 @@ Item {
     readonly property real rushShown: root.rush > root.falling.from ? root.rush : 0
     property real last: -1
 
+    // The clock's time the sky was last shown afresh: on its first frame,
+    // after the clock jumped, and after it changed size or Omnibar. No comet
+    // that started before then is drawn.
+    property real revealedAt: 0
+
+    function reveal() {
+        root.revealedAt = root.time;
+    }
+
     function move() {
         const st = root.falling;
+        if (root.last < 0 || root.time < root.last || root.time - root.last > st.longestStep)
+            root.reveal();
         if (root.reducedMotion) {
             root.rush = 0;
             return;
@@ -491,6 +564,10 @@ Item {
     }
 
     onTimeChanged: root.move()
+    onDrawWidthChanged: root.reveal()
+    onDrawHeightChanged: root.reveal()
+    onOmnibarReachChanged: root.reveal()
+    onOmnibarWidthChanged: root.reveal()
     onReducedMotionChanged: root.move()
     Component.onCompleted: root.move()
 

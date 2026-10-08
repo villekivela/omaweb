@@ -198,6 +198,22 @@ TestCase {
                 < sky.planetRadius;
     }
 
+    // How far out in the sky's light the Omnibar's rim stands with the light
+    // on `head`: 0 at its centre, 1 at the edge of its ellipse, which is
+    // `across` of the field's width wide and `reach` tall. The rim catches
+    // the light's brighter half below 0.5.
+    function lightOnRim(sky, head, field) {
+        const dx = Math.max(field.x - head.x, 0, head.x - field.x - field.width);
+        const dy = Math.max(field.y - head.y, 0, head.y - field.y - field.height);
+        return Math.hypot(dx / (field.width * sky.light.across), dy / sky.light.reach);
+    }
+
+    // The resting Omnibar of a 1200 by 800 sky: 720 wide, centred, from 50
+    // above where it rests to its bottom edge 50 below.
+    function fieldOf(sky) {
+        return Qt.rect(240, sky.horizonY - 50, 720, 100);
+    }
+
     // The comets in the sky now, each with its head, its kind and the slot
     // and place in it that name it.
     function shown(sky) {
@@ -599,7 +615,7 @@ TestCase {
                 fuzzyCompare(sky.light.centre.x, head.x, 0.01);
                 fuzzyCompare(sky.light.centre.y, head.y, 0.01);
             }
-            if (crossing.near < 0 && dx < field.width * sky.light.across && dy < sky.light.reach)
+            if (crossing.near < 0 && lightOnRim(sky, head, field) < 0.5)
                 crossing.near = frame;
             if (crossing.face < 0 && behindTheLimb(sky, head))
                 crossing.face = frame;
@@ -608,7 +624,7 @@ TestCase {
         const angles = [];
         const entries = [];
         for (const one of seen) {
-            verify(one.near >= 0, "a comet never came near the field");
+            verify(one.near >= 0, "a comet never caught the rim");
             verify(one.face > one.near, "it reached the face at frame " + one.face
                    + ", the field at " + one.near);
             const a = one.heads[0];
@@ -623,6 +639,99 @@ TestCase {
         };
         verify(spread(angles) > 6, "angles within " + spread(angles) + " degrees");
         verify(spread(entries) > 40, "comes in within " + spread(entries) + " px");
+    }
+
+    // No comet or shooting star pops into view: each fades in from where it
+    // starts, and one already part way across when the clock jumps or the
+    // sky changes size stays out of sight. The comet in front of the planet
+    // comes in from beyond the right edge.
+    function test_noCometPopsIntoView() {
+        const sky = makeSky({
+                                width: 1200 / 4,
+                                height: 800 / 4
+                            });
+        const quiet = function (why) {
+            for (const comet of shown(sky))
+                verify(comet.shown <= 0.2, "a comet popped in " + why + " at " + sky.time + ", "
+                       + comet.shown + " shown");
+            verify(!sky.frontShown || sky.frontHead.x > sky.drawWidth, "the front comet popped in "
+                   + why + " at " + sky.time + ", " + sky.frontHead);
+        };
+        let seen = {};
+        drive(sky, 300, function () {
+            const now = {};
+            for (const comet of shown(sky)) {
+                const name = comet.slot + "/" + comet.index;
+                now[name] = true;
+                if (!seen[name])
+                    verify(comet.shown <= 0.2, "comet " + name + " came in " + comet.shown
+                           + " shown");
+            }
+            seen = now;
+        });
+        for (let t = 3; t < 300; t += 7.3) {
+            sky.time = t;
+            quiet("after the clock jumped");
+            drive(sky, 1);
+        }
+        let full = false;
+        for (let t = 300; t < 600 && !full; t += 1 / 30) {
+            sky.time = t;
+            full = shown(sky).some(function (comet) {
+                return comet.shown === 1;
+            });
+        }
+        verify(full, "no comet in full view");
+        sky.width = 250;
+        quiet("after a resize");
+    }
+
+    // About one comet in three is steered past the Omnibar's lower right
+    // corner, its glow 16 px off the panel and its light on the rim. Others
+    // catch it now and then on their own.
+    function test_aThirdOfTheCometsCatchTheRim() {
+        const sky = makeSky({
+                                width: 1200 / 4,
+                                height: 800 / 4,
+                                omnibarReach: 50,
+                                omnibarWidth: 720
+                            });
+        const field = fieldOf(sky);
+        const comets = {};
+        drive(sky, 3600, function () {
+            for (const comet of shown(sky)) {
+                const name = comet.slot + "/" + comet.index;
+                const seen = comets[name] || {
+                    steered: comet.steered,
+                    rim: Infinity
+                };
+                comets[name] = seen;
+                const rim = lightOnRim(sky, comet.head, field);
+                seen.rim = Math.min(seen.rim, rim);
+                if (comet.steered) {
+                    const dx = Math.max(field.x - comet.head.x, 0, comet.head.x - field.x
+                                        - field.width);
+                    const dy = Math.max(field.y - comet.head.y, 0, comet.head.y - field.y
+                                        - field.height);
+                    const glow = sky.comets.kinds[comet.kind].halo / 2;
+                    verify(Math.hypot(dx, dy) >= glow + 16, "a steered comet at " + comet.head);
+                }
+            }
+        });
+        const all = Object.keys(comets).map(function (name) {
+            return comets[name];
+        });
+        const steered = all.filter(function (comet) {
+            return comet.steered;
+        });
+        const share = steered.length / all.length;
+        verify(share > 0.25 && share < 0.42, steered.length + " of " + all.length + " steered");
+        for (const comet of steered)
+            verify(comet.rim < 0.5, "a steered comet missed the rim: " + comet.rim);
+        const caught = all.filter(function (comet) {
+            return comet.rim < 0.5;
+        }).length;
+        verify(caught / all.length >= share, caught + " of " + all.length + " caught the rim");
     }
 
     // What the host draws where the front comet's head crosses the planet's
