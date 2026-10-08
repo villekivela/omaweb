@@ -277,7 +277,7 @@ public:
     // Space does not hold is refused before the Space on show changes.
     Q_INVOKABLE bool activateTabInSpace(const QString &spaceId, const QString &tabId);
     Q_INVOKABLE bool renameSpace(const QString &spaceId, const QString &name);
-    // One of spaceColourNames(), whichever other Space has it already.
+    // One of spaceColourNames(), even one another Space already has.
     Q_INVOKABLE bool setSpaceColour(const QString &spaceId, const QString &colour);
     Q_INVOKABLE bool deleteSpace(const QString &spaceId, const QString &confirmationName);
     // The order Spaces are listed in is the reader's, like the order of tabs
@@ -856,8 +856,9 @@ private:
     QString nextSpaceColour(const QString &excludedId = {}) const;
     QString createSpaceRecord(const QString &name, bool agentMade);
     // Puts the list in footer order, the reader's Spaces before the Agent
-    // Spaces, and gives a palette name to each Space that holds none, as one
-    // stored before Spaces had colours does. Writes back only what changed.
+    // Spaces, renames a Space colour from before Omaweb owned the six, and
+    // gives a Space colour to each Space that holds none, as one stored before
+    // Spaces had colours does. Writes back only what changed.
     void settleSpaces();
     // How many Spaces the list holds before the first Agent Space.
     qsizetype readerSpaceCount() const;

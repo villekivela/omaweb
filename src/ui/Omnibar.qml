@@ -4,6 +4,7 @@ import QtQuick.Shapes
 import Omaweb
 import qs.Commons
 import "DevicePixels.mjs" as DevicePixels
+import "SpaceColour.mjs" as SpaceColour
 
 Item {
     id: root
@@ -122,9 +123,12 @@ Item {
     property var agentSpaceIds: []
     property var agentActivity: ({})
 
-    // A Space of the reader's is drawn in the theme's colour for its palette
-    // name. An Agent Space has none on screen: the Agent accent while an Agent
-    // is attached to one of its tabs, muted while none is.
+    // Whether the reader's Spaces are drawn in their colours, which Settings
+    // turns off for the muted text colour.
+    property bool spaceColours: true
+
+    // An Agent Space has no Space colour on screen: the Agent accent while an
+    // Agent is attached to one of its tabs, muted while none is.
     function spaceColourOf(spaceId, colourName) {
         if (agentSpaceIds.indexOf(spaceId) >= 0) {
             for (const tabId in agentActivity) {
@@ -133,8 +137,7 @@ Item {
             }
             return colors.mutedText;
         }
-        const spaces = colors.spaces;
-        return spaces && spaces[colourName] ? spaces[colourName] : colors.accent;
+        return SpaceColour.drawn(colors, colourName, spaceColours);
     }
 
     // The engine a typed keyword selected, drawn as a chip ahead of the terms
@@ -1322,17 +1325,37 @@ Item {
                         }
 
                         // Another Space's tab says which Space committing it
-                        // takes the reader to, in that Space's colour until the
-                        // row is the one Return would commit.
-                        Text {
-                            objectName: "omnibarRowSpace"
+                        // takes the reader to: its name, beside a square in
+                        // its colour. Colour carries no text, so the name is
+                        // the text colour, muted with the square while Space
+                        // colour is off, except an Agent Space's.
+                        Row {
+                            id: spaceLabel
+                            readonly property bool muted: !root.spaceColours && !row.isSelected
+                                                          && root.agentSpaceIds.indexOf(
+                                                              modelData.spaceId) < 0
                             anchors.verticalCenter: parent.verticalCenter
                             visible: row.spaceName.length > 0
-                            text: row.spaceName
-                            color: row.isSelected ? root.colors.text : root.spaceColourOf(
-                                                        modelData.spaceId, modelData.spaceColor)
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.body
+                            spacing: Style.spacing.sm
+
+                            Rectangle {
+                                objectName: "omnibarRowSpaceMark"
+                                y: DevicePixels.snap((spaceLabel.height - height) / 2,
+                                                     root.pixelRatio)
+                                width: 8
+                                height: 8
+                                radius: 2
+                                color: root.spaceColourOf(modelData.spaceId, modelData.spaceColor)
+                            }
+
+                            Text {
+                                objectName: "omnibarRowSpace"
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: row.spaceName
+                                color: spaceLabel.muted ? root.colors.mutedText : root.colors.text
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.body
+                            }
                         }
 
                         // What committing the row does, as an arrow in a key

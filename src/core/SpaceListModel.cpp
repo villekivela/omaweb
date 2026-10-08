@@ -1,15 +1,27 @@
 #include "SpaceListModel.h"
 
+#include <QHash>
+
 #include <algorithm>
 
 namespace omaweb {
 
 const QStringList &spaceColourNames()
 {
-    static const QStringList names {QStringLiteral("green"), QStringLiteral("yellow"),
-        QStringLiteral("blue"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow"),
-        QStringLiteral("bright_blue")};
+    static const QStringList names {QStringLiteral("orange"), QStringLiteral("yellow"),
+        QStringLiteral("green"), QStringLiteral("teal"), QStringLiteral("blue"),
+        QStringLiteral("violet")};
     return names;
+}
+
+QString renamedSpaceColour(const QString &name)
+{
+    static const QHash<QString, QString> renamed {
+        {QStringLiteral("bright_yellow"), QStringLiteral("orange")},
+        {QStringLiteral("bright_green"), QStringLiteral("teal")},
+        {QStringLiteral("bright_blue"), QStringLiteral("violet")},
+    };
+    return renamed.value(name);
 }
 
 bool isSpaceColourName(const QString &name) { return spaceColourNames().contains(name); }

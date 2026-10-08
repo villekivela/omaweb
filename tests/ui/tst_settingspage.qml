@@ -43,15 +43,15 @@ TestCase {
                                               },
                                               themeSidebarOpacity: 0.8,
                                               spaces: {
-                                                  green: "#98c379",
-                                                  yellow: "#e5c07b",
-                                                  blue: "#61afef",
-                                                  bright_green: "#b5e890",
-                                                  bright_yellow: "#f0d197",
-                                                  bright_blue: "#8cc8ff"
+                                                  orange: "#e0915a",
+                                                  yellow: "#d6b85a",
+                                                  green: "#8cc47a",
+                                                  teal: "#4fc4b4",
+                                                  blue: "#7aa8ef",
+                                                  violet: "#b897ef"
                                               },
-                                              spaceColourNames: ["green", "yellow", "blue",
-                                                  "bright_green", "bright_yellow", "bright_blue"]
+                                              spaceColourNames: ["orange", "yellow", "green", "teal",
+                                                  "blue", "violet"]
                                           })
 
     // The content-blocking section only offers the default lists back when
@@ -582,13 +582,13 @@ TestCase {
     }
 
     // Each of the reader's Spaces offers the six colours as small squares, in
-    // the theme's values, the Space's own larger, as the footer draws the
-    // Space on show. Any of them may be chosen, one another Space has
-    // included. An Agent Space has no colour on screen, so its row offers
-    // none.
+    // hue order and the values the theme resolves, the Space's own larger, as
+    // the footer draws the Space on show. Any of them may be chosen, one
+    // another Space has included. An Agent Space has no colour on screen, so
+    // its row offers none.
     function test_eachSpaceRowOffersTheSixColours() {
-        const names = ["green", "yellow", "blue", "bright_green", "bright_yellow", "bright_blue"];
-        const spoken = ["Green", "Yellow", "Blue", "Bright green", "Bright yellow", "Bright blue"];
+        const names = ["orange", "yellow", "green", "teal", "blue", "violet"];
+        const spoken = ["Orange", "Yellow", "Green", "Teal", "Blue", "Violet"];
         browserStub.agentSpaceIds = ["reading"];
         const page = makeSpacesPage();
         for (let index = 0; index < names.length; ++index) {
@@ -608,7 +608,7 @@ TestCase {
                > findChild(findChild(page, "spaceSwatch-work-green"), "spaceSwatchFill").width);
         // Before Rename, on the same line.
         const rename = settleAction(findChild(page, "renameSpace-work")).mapToItem(page, 0, 0);
-        const last = findChild(page, "spaceSwatch-work-bright_blue").mapToItem(page, 0, 0);
+        const last = findChild(page, "spaceSwatch-work-violet").mapToItem(page, 0, 0);
         verify(last.x < rename.x);
         verify(Math.abs(last.y - rename.y) < 8);
         compare(findChild(page, "spaceSwatch-reading-green"), null);
@@ -623,24 +623,39 @@ TestCase {
         });
     }
 
-    // A light theme offers the three plain colours, since each bright one is
-    // repaired onto its twin there. A Space set to a bright one is drawn as
-    // the twin, so that is the square marked as its own.
-    function test_aLightThemeOffersThePlainColours() {
+    // The section opens on the switch for Space colour, which reflects the
+    // window's choice and hands a click back to it. While colour is off the
+    // rows offer no squares, and each Space keeps the colour it has.
+    function test_theSpaceColourSwitchHidesTheSquares() {
         const page = makeSpacesPage();
-        const light = Object.assign({}, colorsFixture);
-        light.spaceColourNames = ["green", "yellow", "blue"];
-        page.colors = light;
-        verify(browserStub.setSpaceColour("work", "bright_blue"));
+        const toggle = findChild(page, "spaceColours");
+        verify(toggle !== null);
+        verify(toggle.visible);
+        verify(toggle.checked);
+        compare(toggle.accessibleName, "Space colour");
+        const firstRow = findChild(page, "settingsSpace-personal");
         tryVerify(function () {
-            return findChild(page, "spaceSwatch-work-bright_blue") === null;
+            return toggle.mapToItem(page, 0, toggle.height).y <= firstRow.mapToItem(page, 0, 0).y;
         });
-        for (const name of ["green", "yellow", "blue"])
-            verify(findChild(page, "spaceSwatch-work-" + name) !== null, name);
-        compare(findChild(page, "spaceSwatch-work-bright_green"), null);
-        verify(findChild(page, "spaceSwatch-work-blue").checked);
-        verify(!findChild(page, "spaceSwatch-work-green").checked);
-        resetSpacesFixture();
+        const chosen = [];
+        const record = function (enabled) {
+            chosen.push(enabled);
+        };
+        page.spaceColoursToggled.connect(record);
+        toggle.clicked();
+        page.spaceColoursToggled.disconnect(record);
+        compare(chosen, [false]);
+
+        page.spaceColours = false;
+        verify(!toggle.checked);
+        const swatch = findChild(page, "spaceSwatch-work-yellow");
+        verify(swatch === null || !swatch.visible);
+        verify(findChild(page, "renameSpace-work").visible);
+        page.spaceColours = true;
+        tryVerify(function () {
+            const back = findChild(page, "spaceSwatch-work-yellow");
+            return back !== null && back.visible && back.checked;
+        });
     }
 
     // The reader's Spaces come before the Agent Spaces, and a move does not

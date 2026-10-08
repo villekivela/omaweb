@@ -4,6 +4,7 @@ import QtQuick.Effects
 import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
+import "SpaceColour.mjs" as SpaceColour
 
 Rectangle {
     id: root
@@ -142,10 +143,12 @@ Rectangle {
                                                    spaceOverflow.height));
     }
 
-    // What a Space's palette name is drawn in under the theme on show.
+    // Whether the reader's Spaces are drawn in their colours, which Settings
+    // turns off for the muted text colour.
+    property bool spaceColours: true
+
     function spaceColour(name) {
-        const spaces = root.colors ? root.colors.spaces : null;
-        return spaces && spaces[name] ? spaces[name] : root.colors.accent;
+        return SpaceColour.drawn(root.colors, name, root.spaceColours);
     }
 
     function agentOf(tabId) {

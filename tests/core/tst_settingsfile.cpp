@@ -16,6 +16,7 @@ private slots:
     void readsTheReadersTypedValues();
     void rewritesTheFileAsTheReaderLaidItOut();
     void writesOnlyWhatDiffersFromTheDefault();
+    void keepsSpaceColourOnUnlessTheReaderTurnsItOff();
     void keepsTheLastGoodValuesWhileTheFileCannotBeRead();
     void startsOnTheDefaultsFromAFileOfAnotherVersion();
     void readsABadValueAsItsDefaultAndNamesIt();
@@ -126,6 +127,23 @@ void SettingsFileTest::writesOnlyWhatDiffersFromTheDefault()
     QVERIFY(!settings.set(QStringLiteral("glance"), QStringLiteral("no")));
     QVERIFY(!settings.set(QStringLiteral("not-a-setting"), true));
     QCOMPARE(readFile(path), QByteArray("{\n  \"version\": 1,\n  \"tint-favicons\": true\n}\n"));
+}
+
+// Space colour is a switch in the file, on by default, as the Scene is.
+void SettingsFileTest::keepsSpaceColourOnUnlessTheReaderTurnsItOff()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("settings.json"));
+    SettingsFile settings(root.path());
+
+    QVERIFY(SettingsFile::keys().contains(QStringLiteral("space-colours")));
+    QCOMPARE(settings.value(QStringLiteral("space-colours")), QJsonValue(true));
+    QVERIFY(settings.set(QStringLiteral("space-colours"), false));
+    QCOMPARE(readFile(path), QByteArray("{\n  \"version\": 1,\n  \"space-colours\": false\n}\n"));
+    QVERIFY(!settings.set(QStringLiteral("space-colours"), QStringLiteral("off")));
+    QVERIFY(settings.set(QStringLiteral("space-colours"), true));
+    QVERIFY(!settings.isSet(QStringLiteral("space-colours")));
 }
 
 // A file the reader is halfway through editing is not a file of defaults:
