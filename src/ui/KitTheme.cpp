@@ -40,7 +40,7 @@ KitTheme::KitTheme(
         connect(m_fonts, &FontSettings::interfaceFontSizeChanged, this, &KitTheme::apply);
     }
     m_color = engine->singletonInstance<QObject *>(
-        QStringLiteral("qs.Commons"), QStringLiteral("Color"));
+        QStringLiteral("qs.Commons"), QStringLiteral("ShellColor"));
     m_style = engine->singletonInstance<QObject *>(
         QStringLiteral("qs.Commons"), QStringLiteral("Style"));
     // `Omaweb.SystemMotion` is a platform type this library does not link, so it is found the way
@@ -55,7 +55,7 @@ KitTheme::KitTheme(
 
     // The kit reads a theme's `colors.toml` and `shell.toml` once and expects a
     // running shell to be handed new values over IPC when the desktop switches
-    // theme -- `Color.qml` says so, and sets `watchChanges: false` on both.
+    // theme. `ShellColor.qml` says so, and sets `watchChanges: false` on both.
     // Omaweb is not that shell and has no such channel, so a completed theme
     // reload is the signal: the kit is asked to read them again before
     // Omaweb's own values go back on top. A reload is deliberately distinct

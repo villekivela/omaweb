@@ -101,6 +101,14 @@ class IssueBody(unittest.TestCase):
 
         self.assertIn("No vendored file changed", body)
 
+    # A pin off the branch, such as a fix upstream has not merged yet (#659), is explained in the
+    # kit's README, and syncing to the branch head would drop that fix.
+    def test_it_sends_the_reader_to_the_pin_notes_before_the_sync_command(self):
+        body = self.body()
+
+        notes = body.index("third_party/omarchy-shell/README.md")
+        self.assertLess(notes, body.index("--sync --ref"))
+
     def test_it_carries_the_marker_that_finds_the_issue_again(self):
         self.assertIn(report.MARKER, self.body())
 

@@ -3,7 +3,7 @@ import Quickshell
 import QtQuick
 
 // Shared utility helpers used across plugins. Pure functions only — no
-// state. Anything stateful belongs on Color, Style, or a service.
+// state. Anything stateful belongs on ShellColor, Style, or a service.
 QtObject {
   id: root
 
