@@ -30,13 +30,12 @@ Item {
     // has Omaweb's own pixels behind it, which are not the desktop's to band.
     property bool overDesktop: true
     // Whether the renderer runs shaders; the software one does not.
-    property bool shaders: GraphicsInfo.shaderType === GraphicsInfo.RhiShader
+    property bool runsShaders: GraphicsInfo.shaderType === GraphicsInfo.RhiShader
 
-    readonly property bool drawn: root.shaders && root.overDesktop && root.ground.a > 0
+    readonly property bool drawn: root.runsShaders && root.overDesktop && root.ground.a > 0
                                   && root.ground.a < 1
     readonly property color fill: root.drawn ? "transparent" : root.ground
 
-    // The shader drawing the ground, while there is one.
     readonly property Item shader: loader.item
 
     readonly property Rectangle surface: root.parent as Rectangle
@@ -59,10 +58,10 @@ Item {
     Loader {
         id: loader
         anchors.fill: parent
-        active: root.drawn
+        // Nothing is drawn on a hidden surface.
+        active: root.drawn && root.visible
 
         sourceComponent: ShaderEffect {
-            objectName: "groundDither"
 
             property size itemSize: Qt.size(width, height)
             property real radius: root.surface ? Math.max(0, root.surface.radius - Math.max(

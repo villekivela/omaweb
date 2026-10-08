@@ -1451,7 +1451,21 @@ TestCase {
         const sidebar = findChild(window.contentItem, "sidebar");
         const dither = findChild(sidebar, "sidebarDither");
         verify(dither !== null);
-        dither.shaders = true;
+        dither.runsShaders = true;
+        try {
+            sidebarIsDithered(sidebar, dither);
+        } finally {
+            // The window lives on through the suite, so the dither goes back to
+            // asking the renderer.
+            dither.runsShaders = Qt.binding(function () {
+                return dither.GraphicsInfo.shaderType === GraphicsInfo.RhiShader;
+            });
+            sidebarOpacity.reset();
+        }
+        verify(!dither.runsShaders, "the offscreen renderer runs no shaders");
+    }
+
+    function sidebarIsDithered(sidebar, dither) {
         const themes = Qt.color(window.colors.sidebar).a;
         verify(themes > 0 && themes < 1, "the theme's sidebar opacity: " + themes);
         verify(dither.drawn);

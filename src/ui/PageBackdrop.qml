@@ -81,7 +81,6 @@ Item {
 
         GroundDither {
             id: tintDither
-            objectName: "backdropDither"
             ground: root.tint
             overDesktop: !root.sampling
         }

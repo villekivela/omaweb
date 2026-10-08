@@ -191,7 +191,12 @@ Grid {
                     Rectangle {
                         anchors.fill: parent
                         visible: !option.modelData.scene
-                        color: root.colors.sidebar
+                        color: thumbnailDither.fill
+
+                        GroundDither {
+                            id: thumbnailDither
+                            ground: root.colors.sidebar
+                        }
                     }
 
                     // A still: no clock, and the frame a reader who asked

@@ -17,6 +17,15 @@ TestCase {
     name: "GroundDither"
     when: windowShown
 
+    // A TestCase is not visible itself, and a hidden surface draws no dither,
+    // so the surfaces stand in a window of their own.
+    Window {
+        id: stage
+        width: 400
+        height: 300
+        visible: true
+    }
+
     Component {
         id: surfaceComponent
 
@@ -32,7 +41,7 @@ TestCase {
 
             Omaweb.GroundDither {
                 id: dither
-                shaders: true
+                runsShaders: true
                 ground: Qt.rgba(0.2, 0.4, 0.6, 0.92)
             }
         }
@@ -42,7 +51,7 @@ TestCase {
     // rounded corners, from the ground's own colour premultiplied by its
     // alpha, as the surface's fill would have been.
     function test_aTranslucentGroundIsDrawnByTheDither() {
-        const surface = createTemporaryObject(surfaceComponent, testCase);
+        const surface = createTemporaryObject(surfaceComponent, stage.contentItem);
         const dither = surface.dither;
         verify(dither.drawn);
         compare(surface.color, Qt.rgba(0, 0, 0, 0));
@@ -75,7 +84,7 @@ TestCase {
     }
 
     function test_anOpaqueOrClearGroundIsNotDithered(data) {
-        const surface = createTemporaryObject(surfaceComponent, testCase);
+        const surface = createTemporaryObject(surfaceComponent, stage.contentItem);
         surface.dither.ground = data.ground;
         verify(!surface.dither.drawn);
         compare(surface.color, data.ground);
@@ -86,7 +95,7 @@ TestCase {
     // or per-side border is, has its own width on each side; the dither keeps
     // inside it rather than painting over it.
     function test_theDitherKeepsInsideABorderDrawnPerSide() {
-        const surface = createTemporaryObject(surfaceComponent, testCase);
+        const surface = createTemporaryObject(surfaceComponent, stage.contentItem);
         const dither = surface.dither;
         dither.leftInset = 4;
         dither.topInset = 2;
@@ -103,18 +112,28 @@ TestCase {
     // A ground over a blurred page has Omaweb's own pixels behind it rather
     // than the desktop, so it is not dithered.
     function test_aGroundOverAPageIsNotDithered() {
-        const surface = createTemporaryObject(surfaceComponent, testCase);
+        const surface = createTemporaryObject(surfaceComponent, stage.contentItem);
         surface.dither.overDesktop = false;
         verify(!surface.dither.drawn);
         compare(surface.color, surface.dither.ground);
         compare(surface.dither.shader, null);
     }
 
+    // A hidden surface draws nothing, so its dither has no shader in the
+    // scene, and it is back as the surface shows again.
+    function test_aHiddenSurfaceHasNoShader() {
+        const surface = createTemporaryObject(surfaceComponent, stage.contentItem);
+        surface.visible = false;
+        compare(surface.dither.shader, null);
+        surface.visible = true;
+        verify(surface.dither.shader !== null);
+    }
+
     // A renderer without shaders, as the software one, cannot draw the
     // dither, so the surface keeps its own fill.
     function test_noShadersLeaveTheGroundToTheSurface() {
-        const surface = createTemporaryObject(surfaceComponent, testCase);
-        surface.dither.shaders = false;
+        const surface = createTemporaryObject(surfaceComponent, stage.contentItem);
+        surface.dither.runsShaders = false;
         verify(!surface.dither.drawn);
         compare(surface.color, surface.dither.ground);
         compare(surface.dither.shader, null);
