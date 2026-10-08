@@ -236,6 +236,7 @@ private slots:
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
+    void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
     void qtTranslatesEachSecurityKeyStep_data();
     void qtTranslatesEachSecurityKeyStep();
@@ -1032,6 +1033,82 @@ void QtEngineContractTest::qtSpaceProfilesAreBuiltInTheirOwnDirectories()
     QVERIFY(ownObject);
     QCOMPARE(ownObject->property("persistentStoragePath").toString(), ownPath);
     QCOMPARE(ownObject->property("offTheRecord").toBool(), false);
+}
+
+// Bitwarden makes an offscreen document, which the engine hosts in contents
+// with no view delegate. Engine 6.11.2-5 dereferenced that missing delegate when
+// it hid the document's first frame, so the browser died the moment a Known
+// extension asked for one. The reader saw it as a crash on resume from suspend
+// (#646). Only Omaweb's own engine hosts a Known extension, so a build against
+// any other skips.
+void QtEngineContractTest::qtHostsAKnownExtensionThatMakesAnOffscreenDocument()
+{
+#if OMAWEB_KNOWN_EXTENSIONS
+    QTemporaryDir root;
+    QDir extension(root.filePath(QStringLiteral("offscreen")));
+    QVERIFY(extension.mkpath(QStringLiteral(".")));
+    // Outside any macro: moc misreads a raw string with quotes in a macro's
+    // arguments.
+    const QList<std::pair<QString, QByteArray>> files {
+        {QStringLiteral("manifest.json"),
+            R"JSON({"manifest_version": 3, "name": "offscreen", "version": "1",
+                "permissions": ["offscreen"]})JSON"},
+        {QStringLiteral("page.html"),
+            R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML"},
+        {QStringLiteral("page.js"), R"JS(
+            chrome.runtime.onMessage.addListener((message) => {
+                if (message === "offscreen ready")
+                    document.title = "offscreen ready";
+            });
+            chrome.offscreen.createDocument({
+                url: "offscreen.html", reasons: ["CLIPBOARD"], justification: "test"
+            }).catch((error) => document.title = "failed: " + error.message);
+        )JS"},
+        {QStringLiteral("offscreen.html"),
+            R"HTML(<!doctype html><script src="offscreen.js"></script>)HTML"},
+        {QStringLiteral("offscreen.js"), R"JS(chrome.runtime.sendMessage("offscreen ready");)JS"},
+    };
+    for (const auto &[name, contents] : files) {
+        QFile file(extension.filePath(name));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(contents), contents.size());
+    }
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("knownExtensions"),
+            QVariantList {QVariantMap {
+                {QStringLiteral("key"), QStringLiteral("offscreen")},
+                {QStringLiteral("name"), QStringLiteral("offscreen")},
+                {QStringLiteral("path"), extension.path()},
+            }}},
+    }));
+    QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+    const auto hosted = [&spaceHost] { return spaceHost->property("hostedExtensions").toList(); };
+    QTRY_COMPARE(hosted().size(), 1);
+    const auto id = hosted().constFirst().toMap().value(QStringLiteral("id")).toString();
+    QVERIFY(!id.isEmpty());
+
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+    }));
+    QVERIFY2(view, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(view->setProperty(
+        "currentUrl", QUrl(QStringLiteral("chrome-extension://%1/page.html").arg(id))));
+    QTRY_COMPARE(view->property("pageTitle").toString(), QStringLiteral("offscreen ready"));
+#else
+    QSKIP("Only Omaweb's own engine hosts a Known extension.");
+#endif
 }
 
 void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()

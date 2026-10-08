@@ -434,7 +434,15 @@ That delegate's `CreateTab` is `Q_UNREACHABLE`
 (`qt/src/core/extensions/extension_host_delegate_qt.cpp:10-22`), which an offscreen document never
 calls.
 
-Bucket: **compile with delegate**, with nothing to write until a test says otherwise.
+Bucket: **compile with delegate**, with nothing to write until a test says otherwise. One fix to
+Qt's own code turned out to be needed, below.
+
+A test said otherwise (#646). `createDocument` crashed engine 6.11.2-5, and stock 6.11.2, every
+time. An offscreen document's views have no delegate, because its contents have no
+`WebContentsAdapter`, and `RenderWidgetHostViewQt::Hide()` dereferenced the missing one when
+Chromium hid the document's first speculative frame. Engine patch 0019 handles the missing delegate
+as `ShowWithVisibility()` already did, and `qtHostsAKnownExtensionThatMakesAnOffscreenDocument` in
+the engine contract tests holds it.
 
 ### permissions
 
