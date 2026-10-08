@@ -10,6 +10,7 @@
 #include <QDateTime>
 #include <QCryptographicHash>
 #include <QFileInfo>
+#include <QLoggingCategory>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -27,6 +28,9 @@
 namespace omaweb {
 
 namespace {
+
+    // The plugin's category, by name: this library cannot see the plugin's definition.
+    Q_LOGGING_CATEGORY(syncLog, "omaweb.sync")
 
     constexpr auto encryptedRecordHeader = "OMAWEB-SYNC\0";
     constexpr auto recoveryAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -57,6 +61,13 @@ namespace {
         if (destination) {
             *destination = message;
         }
+    }
+
+    // The reader is shown why a restore stopped; the journal also says what it stopped on.
+    void logRestoreFailure(const QString &subject, const QString *message)
+    {
+        qCWarning(syncLog).noquote() << QStringLiteral("Sync could not restore %1: %2")
+                                            .arg(subject, message ? *message : QString {});
     }
 
     QByteArray compactJson(const QJsonObject &object)
@@ -931,6 +942,7 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
             QDir directory(QDir(checkoutRoot()).filePath(kind));
             for (const auto &name : directory.entryList({QStringLiteral("*.sync")}, QDir::Files)) {
                 const auto id = name.chopped(5);
+                const auto record = QStringLiteral("%1 record %2").arg(kind, id);
                 QFile encryptedFile(directory.filePath(name));
                 if (encryptedFile.open(QIODevice::ReadOnly)
                     && encryptedVersion(encryptedFile.readAll()) > contractVersion) {
@@ -939,6 +951,7 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
                 const auto plainText
                     = readEncryptedRecord(kind, id, directory.filePath(name), errorMessage);
                 if (plainText.isEmpty()) {
+                    logRestoreFailure(record, errorMessage);
                     return false;
                 }
                 QJsonParseError parseError;
@@ -947,6 +960,7 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
                     setError(errorMessage,
                         QCoreApplication::translate(
                             "SyncModule", "A Sync record contains invalid data"));
+                    logRestoreFailure(record, errorMessage);
                     return false;
                 }
                 const auto object = document.object();
@@ -956,6 +970,7 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
                     setError(errorMessage,
                         QCoreApplication::translate(
                             "SyncModule", "A Sync record does not match its identity"));
+                    logRestoreFailure(record, errorMessage);
                     return false;
                 }
             }
@@ -1010,33 +1025,41 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
         spaces.append(std::move(space.state));
     }
     const auto replacementSpaceId = spaces.isEmpty() ? QString {} : spaces.constFirst().id;
-    for (const auto &localSpace : store.loadSpaces()) {
-        const auto absentFromReplacement
-            = (m_options.intent == SyncIntent::AdoptRemote || m_remoteEpochAdvanced)
-            && std::ranges::none_of(spaces,
-                [&localSpace](const SpaceState &space) { return space.id == localSpace.id; });
-        if ((deletedSpaceIds.contains(localSpace.id) || absentFromReplacement)
-            && !store.deleteSpace(
-                localSpace.id, localSpace.active ? replacementSpaceId : QString {})) {
-            setError(errorMessage,
-                QCoreApplication::translate(
-                    "SyncModule", "Could not apply a deleted remote Space"));
-            return false;
-        }
-    }
-
+    const auto removed = [this, &deletedSpaceIds, &spaces](const SpaceState &localSpace) {
+        return deletedSpaceIds.contains(localSpace.id)
+            || ((m_options.intent == SyncIntent::AdoptRemote || m_remoteEpochAdvanced)
+                && std::ranges::none_of(spaces,
+                    [&localSpace](const SpaceState &space) { return space.id == localSpace.id; }));
+    };
     if (std::ranges::none_of(spaces, [&localActiveSpaceId](const SpaceState &space) {
             return space.id == localActiveSpaceId;
         })) {
         localActiveSpaceId = replacementSpaceId;
     }
+    // The remote Spaces are stored before any local one goes, so a removed active Space hands over
+    // to one that is already there. Its deletion makes the replacement active, so a deletion that
+    // fails leaves the removed Space the only active one.
+    const auto activeRemoved = std::ranges::any_of(localSpaces,
+        [&removed](const SpaceState &space) { return space.active && removed(space); });
     for (auto &space : spaces) {
-        space.active = space.id == localActiveSpaceId;
+        space.active = !activeRemoved && space.id == localActiveSpaceId;
     }
     if (!spaces.isEmpty() && !store.saveSpaces(spaces)) {
         setError(errorMessage,
             QCoreApplication::translate("SyncModule", "Could not apply remote Space order"));
+        logRestoreFailure(QStringLiteral("the Space order"), errorMessage);
         return false;
+    }
+    for (const auto &localSpace : localSpaces) {
+        if (removed(localSpace)
+            && !store.deleteSpace(
+                localSpace.id, localSpace.active ? replacementSpaceId : QString {})) {
+            setError(errorMessage,
+                QCoreApplication::translate(
+                    "SyncModule", "Could not apply a deleted remote Space"));
+            logRestoreFailure(QStringLiteral("Space %1").arg(localSpace.id), errorMessage);
+            return false;
+        }
     }
     for (qsizetype index = 0; index < spaces.size(); ++index) {
         auto tabs = tabsBySpace.take(spaces[index].id);
@@ -1065,6 +1088,8 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
         if (!store.saveTabs(spaces[index].id, states, activeTabId)) {
             setError(errorMessage,
                 QCoreApplication::translate("SyncModule", "Could not apply remote browser state"));
+            logRestoreFailure(
+                QStringLiteral("the tabs of Space %1").arg(spaces[index].id), errorMessage);
             return false;
         }
     }

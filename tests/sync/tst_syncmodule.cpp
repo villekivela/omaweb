@@ -297,6 +297,9 @@ class SyncModuleTest : public QObject {
 private slots:
     void writesEncryptedBrowserStateToAGitRemote();
     void restoresBrowserStateOnASecondMachine();
+    void adoptingReplacesAUsedLocalSpaceWithTheRemoteOnes();
+    void skipsADeletedRemoteSpaceThisMachineNeverHad();
+    void logsTheRecordARestoreFailedOn();
     void syncsOnlyTheApprovedConfiguration();
     void restoresSettingsBesideASettingsPageWrite();
     void restoresTheRestBesideASettingsFileItCannotRead();
@@ -457,6 +460,208 @@ void SyncModuleTest::restoresBrowserStateOnASecondMachine()
     QCOMPARE(tabs.at(1).id, QStringLiteral("tab-ordinary"));
     QCOMPARE(tabs.at(1).muted, true);
     QCOMPARE(tabs.at(1).zoom, 1.25);
+}
+
+void SyncModuleTest::adoptingReplacesAUsedLocalSpaceWithTheRemoteOnes()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key
+        = QByteArray::fromHex("606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f");
+
+    // The repository holds live Spaces and the tombstones of Spaces deleted before this machine
+    // ever saw them.
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpaces({
+        SpaceState {
+            QStringLiteral("space-work"), QStringLiteral("Work"), QStringLiteral("blue"), true},
+        SpaceState {
+            QStringLiteral("space-home"), QStringLiteral("Home"), QStringLiteral("green"), false},
+        SpaceState {
+            QStringLiteral("space-gone"), QStringLiteral("Gone"), QStringLiteral("red"), false},
+        SpaceState {
+            QStringLiteral("space-read"), QStringLiteral("Read"), QStringLiteral("yellow"), false},
+    }));
+    QVERIFY(firstStore.saveTabs(QStringLiteral("space-home"),
+        {TabState {.id = QStringLiteral("tab-home"),
+            .spaceId = QStringLiteral("space-home"),
+            .url = QUrl(QStringLiteral("https://home.example")),
+            .title = QStringLiteral("Home")}},
+        QStringLiteral("tab-home")));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    QVERIFY(firstStore.deleteSpace(QStringLiteral("space-gone")));
+    SyncModule deleting({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(deleting.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(deleting, firstStore));
+
+    // This machine has been used before it connects, so its Space is not the pristine default.
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    QVERIFY(secondStore.saveSpace(SpaceState {
+        QStringLiteral("space-local"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
+    QVERIFY(secondStore.saveTabs(QStringLiteral("space-local"),
+        {TabState {.id = QStringLiteral("tab-local"),
+            .spaceId = QStringLiteral("space-local"),
+            .url = QUrl(QStringLiteral("https://local.example")),
+            .title = QStringLiteral("Local")}},
+        QStringLiteral("tab-local")));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .intent = SyncIntent::AdoptRemote});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    const auto spaces = secondStore.loadSpaces();
+    QCOMPARE(spaces.size(), 3);
+    QCOMPARE(spaces.at(0).id, QStringLiteral("space-work"));
+    QCOMPARE(spaces.at(1).id, QStringLiteral("space-home"));
+    QCOMPARE(spaces.at(2).id, QStringLiteral("space-read"));
+    QCOMPARE(std::ranges::count_if(spaces, &SpaceState::active), 1);
+    QVERIFY(spaces.at(0).active);
+    QCOMPARE(secondStore.loadTabs(QStringLiteral("space-home")).constFirst().id,
+        QStringLiteral("tab-home"));
+}
+
+void SyncModuleTest::skipsADeletedRemoteSpaceThisMachineNeverHad()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key
+        = QByteArray::fromHex("808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f");
+    const auto pass = [&remote, &key](const QString &dataRoot, const QString &configRoot,
+                          const QString &machineId, omaweb::SessionStore &store) {
+        SyncModule sync({.dataRoot = dataRoot,
+            .configRoot = configRoot,
+            .remoteUrl = remote,
+            .machineId = machineId});
+        if (const auto opened = sync.open({.recoveryKey = key})) {
+            return opened;
+        }
+        return settle(sync, store);
+    };
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-work"), QStringLiteral("Work"), QStringLiteral("blue"), true}));
+    OMAWEB_VERIFY_SYNC(pass(
+        firstDataRoot.path(), firstConfigRoot.path(), QStringLiteral("machine-a"), firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    OMAWEB_VERIFY_SYNC(pass(
+        secondDataRoot.path(), secondConfigRoot.path(), QStringLiteral("machine-b"), secondStore));
+
+    // The first machine makes a Space and deletes it before the second machine syncs again, so
+    // the second only ever sees its tombstone.
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-brief"), QStringLiteral("Brief"), QStringLiteral("red"), false}));
+    OMAWEB_VERIFY_SYNC(pass(
+        firstDataRoot.path(), firstConfigRoot.path(), QStringLiteral("machine-a"), firstStore));
+    QVERIFY(firstStore.deleteSpace(QStringLiteral("space-brief")));
+    OMAWEB_VERIFY_SYNC(pass(
+        firstDataRoot.path(), firstConfigRoot.path(), QStringLiteral("machine-a"), firstStore));
+
+    OMAWEB_VERIFY_SYNC(pass(
+        secondDataRoot.path(), secondConfigRoot.path(), QStringLiteral("machine-b"), secondStore));
+    const auto spaces = secondStore.loadSpaces();
+    QCOMPARE(spaces.size(), 1);
+    QCOMPARE(spaces.constFirst().id, QStringLiteral("space-work"));
+    QVERIFY(spaces.constFirst().active);
+}
+
+void SyncModuleTest::logsTheRecordARestoreFailedOn()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QTemporaryDir inspectionRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key
+        = QByteArray::fromHex("0f0e0d0c0b0a09080706050403020100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-work"), QStringLiteral("Work"), QStringLiteral("blue"), true}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    // A record filed under an identity it was not written for cannot be restored.
+    const auto checkout = inspectionRoot.filePath(QStringLiteral("checkout"));
+    QVERIFY2(runGit(inspectionRoot.path(),
+                 {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
+        qPrintable(error));
+    QVERIFY(QFile::copy(checkout + QStringLiteral("/spaces/space-work.sync"),
+        checkout + QStringLiteral("/spaces/space-misfiled.sync")));
+    QVERIFY2(runGit(checkout, {QStringLiteral("add"), QStringLiteral("--all")}, &error),
+        qPrintable(error));
+    QVERIFY2(runGit(checkout,
+                 {QStringLiteral("-c"), QStringLiteral("user.name=Test"), QStringLiteral("-c"),
+                     QStringLiteral("user.email=test@example.com"), QStringLiteral("commit"),
+                     QStringLiteral("-m"), QStringLiteral("misfile a record")},
+                 &error),
+        qPrintable(error));
+    QVERIFY2(runGit(checkout,
+                 {QStringLiteral("push"), QStringLiteral("origin"), QStringLiteral("HEAD:main")},
+                 &error),
+        qPrintable(error));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .intent = SyncIntent::AdoptRemote});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    QTest::ignoreMessage(QtWarningMsg,
+        QRegularExpression(QStringLiteral("could not restore spaces record space-misfiled")));
+    const auto restored = settle(second, secondStore);
+    QVERIFY(restored.failure != SyncFailure::None);
 }
 
 void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
