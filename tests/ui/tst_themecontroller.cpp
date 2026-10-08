@@ -15,6 +15,7 @@
 #include <QTest>
 
 #include <cmath>
+#include <numbers>
 #include <utility>
 
 using omaweb::ThemeController;
@@ -36,9 +37,10 @@ private slots:
     void namesOneColourForSomethingBeingWrong();
     void keepsTheAgentAccentLegibleAndApartFromTheAccent();
     void fillsTheAgentAccentFromTheDesktopsCyan();
-    void namesTheSixSpaceColoursAndKeepsThemLegible();
-    void fillsTheSpaceColoursFromTheDesktopsPalette();
-    void offersOnlyThePlainSpaceColoursOnALightTheme();
+    void drawsTheSixSpaceColoursOmawebOwns();
+    void keepsTheSpaceColoursApartInEveryStockTheme_data();
+    void keepsTheSpaceColoursApartInEveryStockTheme();
+    void movesASpaceColourJustClearOfAnAccent();
     void keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBundledTheme();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
@@ -289,6 +291,53 @@ double chroma(const QColor &colour)
 {
     const auto value = oklab(colour);
     return std::sqrt(value.greenRed * value.greenRed + value.blueYellow * value.blueYellow);
+}
+
+// OKLCH's hue, in degrees, and how far apart two hues are around the circle.
+double hue(const QColor &colour)
+{
+    const auto value = oklab(colour);
+    const auto degrees = std::atan2(value.blueYellow, value.greenRed) * 180.0 / std::numbers::pi;
+    return degrees < 0.0 ? degrees + 360.0 : degrees;
+}
+
+double hueDistance(double one, double other)
+{
+    const auto apart = std::fmod(std::abs(one - other), 360.0);
+    return std::min(apart, 360.0 - apart);
+}
+
+// The six in the order Settings offers them, and the gap ThemeController keeps
+// between them and from the theme's urgent, Private and Agent colours. A grey
+// has no hue to keep a gap from, so an accent below the chroma floor is exempt.
+const QStringList spaceColourNames {QStringLiteral("orange"), QStringLiteral("yellow"),
+    QStringLiteral("green"), QStringLiteral("teal"), QStringLiteral("blue"),
+    QStringLiteral("violet")};
+constexpr auto spaceHueGap = 20.0;
+constexpr auto chromaticFloor = 0.03;
+
+// What a Space colour is drawn on: every ground but a hover fill, a Private
+// window's too.
+const QStringList spaceGrounds {QStringLiteral("windowOpaque"), QStringLiteral("sidebarOpaque"),
+    QStringLiteral("overlayOpaque"), QStringLiteral("sheetOpaque"),
+    QStringLiteral("privateWindowOpaque"), QStringLiteral("privateSidebarOpaque"),
+    QStringLiteral("privateOverlayOpaque"), QStringLiteral("privateSheetOpaque")};
+
+// What a reader's machine renders from the template Omarchy ships, for a theme
+// with these colours. A token the palette does not draw Spaces from is filled
+// with the muted colour.
+QString renderedOmarchyTheme(const QHash<QString, QString> &colours)
+{
+    QFile shipped(QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
+    if (!shipped.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    auto rendered = QString::fromUtf8(shipped.readAll());
+    for (auto it = colours.cbegin(); it != colours.cend(); ++it) {
+        rendered.replace(QStringLiteral("{{ %1 }}").arg(it.key()), it.value());
+    }
+    static const QRegularExpression token(QStringLiteral("\\{\\{ [a-z_]+ \\}\\}"));
+    return rendered.replace(token, colours.value(QStringLiteral("muted")));
 }
 
 // What the reader actually sees where a control is drawn at reduced opacity:
@@ -1583,65 +1632,268 @@ void ThemeControllerTest::fillsTheAgentAccentFromTheDesktopsCyan()
         QColor(QStringLiteral("#2ac3de")));
 }
 
-// A Space is drawn in one of six palette names and never in red, magenta or
-// cyan, which say urgent, Private and Agent. A colour a dark terminal names
-// keeps its hue on a light theme and darkens until a Space's name written in
-// it reads on every ground it is drawn on, in a Private window too.
-void ThemeControllerTest::namesTheSixSpaceColoursAndKeepsThemLegible()
+// Omaweb owns the six, so a theme's own `spaces` are not read: a palette that
+// names them gets the same six as one that does not. Settings offers them in
+// hue order, and each is drawn at 3:1 on every ground a Space colour is on.
+void ThemeControllerTest::drawsTheSixSpaceColoursOmawebOwns()
 {
-    const QStringList names {QStringLiteral("green"), QStringLiteral("yellow"),
-        QStringLiteral("blue"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow"),
-        QStringLiteral("bright_blue")};
     QTemporaryDir root;
-    QFile dark(root.filePath(QStringLiteral("dark.json")));
-    QVERIFY(dark.open(QIODevice::WriteOnly));
-    dark.write(R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa",
-        "spaces": { "green": "#98c379", "red": "#e06c75" } })JSON");
-    dark.close();
-    const auto darkSpaces
-        = ThemeController(dark.fileName()).palette().value(QStringLiteral("spaces")).toMap();
-    auto keys = darkSpaces.keys();
+    const auto write = [&root](const QString &name, const QByteArray &json) {
+        QFile file(root.filePath(name));
+        if (!file.open(QIODevice::WriteOnly)) {
+            return QString();
+        }
+        file.write(json);
+        return file.fileName();
+    };
+    const auto plain = write(QStringLiteral("plain.json"),
+        R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa" })JSON");
+    const auto named = write(QStringLiteral("named.json"),
+        R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa",
+        "spaces": { "green": "#ff0000", "bright_blue": "#00ff00", "red": "#e06c75" } })JSON");
+    const auto palette = ThemeController(plain).palette();
+    QCOMPARE(palette.value(QStringLiteral("spaceColourNames")).toStringList(), spaceColourNames);
+    const auto spaces = palette.value(QStringLiteral("spaces")).toMap();
+    auto keys = spaces.keys();
     keys.sort();
-    auto expected = names;
+    auto expected = spaceColourNames;
     expected.sort();
     QCOMPARE(keys, expected);
-    QCOMPARE(QColor(darkSpaces.value(QStringLiteral("green")).toString()),
-        QColor(QStringLiteral("#98c379")));
-    for (const auto &name : names) {
-        QVERIFY2(QColor(darkSpaces.value(name).toString()).isValid(), qPrintable(name));
-    }
+    QCOMPARE(ThemeController(named).palette().value(QStringLiteral("spaces")).toMap(), spaces);
 
-    const auto light = QString::fromUtf8(R"JSON({
-        "window": "#ffffff",
-        "sidebar": "#f4f4f4",
-        "overlay": "#eeeeee",
-        "text": "#1a1a1a",
-        "accent": "#3b6fd6",
-        "spaces": {
-            "green": "#98c379", "yellow": "#e5c07b", "blue": "#61afef",
-            "bright_green": "#b5e890", "bright_yellow": "#f0d197", "bright_blue": "#8cc8ff"
+    for (const auto &theme : {plain,
+             write(QStringLiteral("light.json"),
+                 R"JSON({ "window": "#ffffff", "sidebar": "#f4f4f4", "overlay": "#eeeeee",
+                 "text": "#1a1a1a", "accent": "#3b6fd6" })JSON")}) {
+        const auto drawn = ThemeController(theme).palette();
+        const auto colours = drawn.value(QStringLiteral("spaces")).toMap();
+        for (const auto &name : spaceColourNames) {
+            const QColor colour(colours.value(name).toString());
+            QVERIFY2(colour.isValid(), qPrintable(name));
+            for (const auto &key : spaceGrounds) {
+                const QColor ground(drawn.value(key).toString());
+                QVERIFY2(ground.isValid(), qPrintable(key));
+                QVERIFY2(contrastRatio(colour, ground) >= minimumGraphicContrast,
+                    qPrintable(theme + u' ' + name + u' ' + key));
+            }
         }
-    })JSON");
-    QFile lightFile(root.filePath(QStringLiteral("light.json")));
-    QVERIFY(lightFile.open(QIODevice::WriteOnly));
-    lightFile.write(light.toUtf8());
-    lightFile.close();
-    const auto palette = ThemeController(lightFile.fileName()).palette();
-    const auto named = QJsonDocument::fromJson(light.toUtf8())
-                           .object()
-                           .value(QStringLiteral("spaces"))
-                           .toObject();
+    }
+}
+
+// Every theme Omarchy ships, as its template renders it, gives six Space
+// colours a reader can tell apart: each at 3:1 on the Space grounds, no two
+// within the gap of each other, and none within the gap of urgent, Private or
+// Agent. Copied from Omarchy 4.0.4's `themes/*/colors.toml`, the colours the
+// template draws grounds, text and those three from.
+void ThemeControllerTest::keepsTheSpaceColoursApartInEveryStockTheme_data()
+{
+    QTest::addColumn<QStringList>("colours");
+    const QList<std::pair<const char *, QStringList>> themes {
+        {"catppuccin",
+            QStringList {QStringLiteral("#101019"), QStringLiteral("#161622"),
+                QStringLiteral("#313244"), QStringLiteral("#585b70"), QStringLiteral("#cdd6f4"),
+                QStringLiteral("#6c7086"), QStringLiteral("#89b4fa"), QStringLiteral("#f38ba8"),
+                QStringLiteral("#f5c2e7"), QStringLiteral("#94e2d5")}},
+        {"catppuccin-latte",
+            QStringList {QStringLiteral("#d7d8dc"), QStringLiteral("#e3e4e8"),
+                QStringLiteral("#dce0e8"), QStringLiteral("#acb0be"), QStringLiteral("#4c4f69"),
+                QStringLiteral("#9ca0b0"), QStringLiteral("#1e66f5"), QStringLiteral("#d20f39"),
+                QStringLiteral("#ea76cb"), QStringLiteral("#179299")}},
+        {"ethereal",
+            QStringList {QStringLiteral("#030610"), QStringLiteral("#040816"),
+                QStringLiteral("#131a3a"), QStringLiteral("#6d7db6"), QStringLiteral("#ffcead"),
+                QStringLiteral("#6d7db6"), QStringLiteral("#7d82d9"), QStringLiteral("#ed5b5a"),
+                QStringLiteral("#c89dc1"), QStringLiteral("#a3bfd1")}},
+        {"everforest",
+            QStringList {QStringLiteral("#181d20"), QStringLiteral("#21272c"),
+                QStringLiteral("#343f44"), QStringLiteral("#475258"), QStringLiteral("#d3c6aa"),
+                QStringLiteral("#4f585e"), QStringLiteral("#7fbbb3"), QStringLiteral("#e67e80"),
+                QStringLiteral("#d699b6"), QStringLiteral("#83c092")}},
+        {"flexoki-light",
+            QStringList {QStringLiteral("#e5e2d8"), QStringLiteral("#f2efe4"),
+                QStringLiteral("#e6e4d9"), QStringLiteral("#b7b5ac"), QStringLiteral("#100f0f"),
+                QStringLiteral("#878580"), QStringLiteral("#205ea6"), QStringLiteral("#d14d41"),
+                QStringLiteral("#ce5d97"), QStringLiteral("#3aa99f")}},
+        {"gruvbox",
+            QStringList {QStringLiteral("#161616"), QStringLiteral("#1e1e1e"),
+                QStringLiteral("#3c3836"), QStringLiteral("#665c54"), QStringLiteral("#d4be98"),
+                QStringLiteral("#7c6f64"), QStringLiteral("#7daea3"), QStringLiteral("#ea6962"),
+                QStringLiteral("#d3869b"), QStringLiteral("#89b482")}},
+        {"hackerman",
+            QStringList {QStringLiteral("#06060c"), QStringLiteral("#080910"),
+                QStringLiteral("#151828"), QStringLiteral("#2d3450"), QStringLiteral("#ddf7ff"),
+                QStringLiteral("#6a6e95"), QStringLiteral("#82fb9c"), QStringLiteral("#50f872"),
+                QStringLiteral("#86a7df"), QStringLiteral("#7cf8f7")}},
+        {"kanagawa",
+            QStringList {QStringLiteral("#111116"), QStringLiteral("#17171e"),
+                QStringLiteral("#223249"), QStringLiteral("#54546d"), QStringLiteral("#dcd7ba"),
+                QStringLiteral("#727169"), QStringLiteral("#dcd7ba"), QStringLiteral("#c34043"),
+                QStringLiteral("#957fb8"), QStringLiteral("#6a9589")}},
+        {"last-horizon",
+            QStringList {QStringLiteral("#060606"), QStringLiteral("#090809"),
+                QStringLiteral("#0c0b0c"), QStringLiteral("#584e51"), QStringLiteral("#fafcfb"),
+                QStringLiteral("#584e51"), QStringLiteral("#b59790"), QStringLiteral("#c38b7b"),
+                QStringLiteral("#c4d8e2"), QStringLiteral("#a5a0b6")}},
+        {"lumon",
+            QStringList {QStringLiteral("#0b1216"), QStringLiteral("#101b21"),
+                QStringLiteral("#1b2d40"), QStringLiteral("#304860"), QStringLiteral("#d6e2ee"),
+                QStringLiteral("#4d86b0"), QStringLiteral("#8bc9eb"), QStringLiteral("#4d86b0"),
+                QStringLiteral("#8bc9eb"), QStringLiteral("#b4e4f6")}},
+        {"lupine",
+            QStringList {QStringLiteral("#dedede"), QStringLiteral("#ececec"),
+                QStringLiteral("#f5f5f5"), QStringLiteral("#9e9e9e"), QStringLiteral("#212121"),
+                QStringLiteral("#757575"), QStringLiteral("#3264eb"), QStringLiteral("#c900c4"),
+                QStringLiteral("#8a4ad7"), QStringLiteral("#0c67de")}},
+        {"matte-black",
+            QStringList {QStringLiteral("#090909"), QStringLiteral("#0d0d0d"),
+                QStringLiteral("#1e1e1e"), QStringLiteral("#333333"), QStringLiteral("#bebebe"),
+                QStringLiteral("#555555"), QStringLiteral("#e68e0d"), QStringLiteral("#d35f5f"),
+                QStringLiteral("#d35f5f"), QStringLiteral("#bebebe")}},
+        {"miasma",
+            QStringList {QStringLiteral("#121212"), QStringLiteral("#191919"),
+                QStringLiteral("#2c2c2c"), QStringLiteral("#666666"), QStringLiteral("#c2c2b0"),
+                QStringLiteral("#555555"), QStringLiteral("#78824b"), QStringLiteral("#685742"),
+                QStringLiteral("#bb7744"), QStringLiteral("#c9a554")}},
+        {"nord",
+            QStringList {QStringLiteral("#191c23"), QStringLiteral("#222730"),
+                QStringLiteral("#3b4252"), QStringLiteral("#4c566a"), QStringLiteral("#d8dee9"),
+                QStringLiteral("#667080"), QStringLiteral("#81a1c1"), QStringLiteral("#bf616a"),
+                QStringLiteral("#b48ead"), QStringLiteral("#88c0d0")}},
+        {"osaka-jade",
+            QStringList {QStringLiteral("#090f0d"), QStringLiteral("#0c1512"),
+                QStringLiteral("#23372b"), QStringLiteral("#53685b"), QStringLiteral("#c1c497"),
+                QStringLiteral("#81b8a8"), QStringLiteral("#509475"), QStringLiteral("#ff5345"),
+                QStringLiteral("#d2689c"), QStringLiteral("#2dd5b7")}},
+        {"retro-82",
+            {QStringLiteral("#020c17"), QStringLiteral("#031222"), QStringLiteral("#0a2540"),
+                QStringLiteral("#2a6b78"), QStringLiteral("#f6dcac"), QStringLiteral("#3f8f8a"),
+                QStringLiteral("#faa968"), QStringLiteral("#f85525"), QStringLiteral("#3f8f8a"),
+                QStringLiteral("#8cbfb8")}},
+        {"ristretto",
+            QStringList {QStringLiteral("#181414"), QStringLiteral("#211b1b"),
+                QStringLiteral("#3d2f2a"), QStringLiteral("#72696a"), QStringLiteral("#e6d9db"),
+                QStringLiteral("#72696a"), QStringLiteral("#f38d70"), QStringLiteral("#fd6883"),
+                QStringLiteral("#a8a9eb"), QStringLiteral("#85dacc")}},
+        {"rose-pine",
+            QStringList {QStringLiteral("#e1dbd5"), QStringLiteral("#ede7e1"),
+                QStringLiteral("#f2e9e1"), QStringLiteral("#cecacd"), QStringLiteral("#575279"),
+                QStringLiteral("#9893a5"), QStringLiteral("#56949f"), QStringLiteral("#b4637a"),
+                QStringLiteral("#907aa9"), QStringLiteral("#d7827e")}},
+        {"solitude",
+            QStringList {QStringLiteral("#080a0b"), QStringLiteral("#0c0e10"),
+                QStringLiteral("#101315"), QStringLiteral("#4b4e55"), QStringLiteral("#cacccc"),
+                QStringLiteral("#4b4e55"), QStringLiteral("#798186"), QStringLiteral("#565d60"),
+                QStringLiteral("#aeaeae"), QStringLiteral("#707070")}},
+        {"tokyo-night",
+            QStringList {QStringLiteral("#0e0e14"), QStringLiteral("#13141c"),
+                QStringLiteral("#24283b"), QStringLiteral("#414868"), QStringLiteral("#a9b1d6"),
+                QStringLiteral("#565f89"), QStringLiteral("#7aa2f7"), QStringLiteral("#f7768e"),
+                QStringLiteral("#ad8ee6"), QStringLiteral("#449dab")}},
+        {"vantablack",
+            QStringList {QStringLiteral("#070707"), QStringLiteral("#090909"),
+                QStringLiteral("#1a1a1a"), QStringLiteral("#7a7a7a"), QStringLiteral("#ffffff"),
+                QStringLiteral("#505050"), QStringLiteral("#8d8d8d"), QStringLiteral("#a4a4a4"),
+                QStringLiteral("#9b9b9b"), QStringLiteral("#b0b0b0")}},
+        {"white",
+            QStringList {QStringLiteral("#e8e8e8"), QStringLiteral("#f5f5f5"),
+                QStringLiteral("#c0c0c0"), QStringLiteral("#808080"), QStringLiteral("#000000"),
+                QStringLiteral("#c0c0c0"), QStringLiteral("#6e6e6e"), QStringLiteral("#2a2a2a"),
+                QStringLiteral("#2e2e2e"), QStringLiteral("#3e3e3e")}},
+    };
+    for (const auto &[name, colours] : themes) {
+        QTest::newRow(name) << colours;
+    }
+}
+
+void ThemeControllerTest::keepsTheSpaceColoursApartInEveryStockTheme()
+{
+    QFETCH(QStringList, colours);
+    const QStringList keys {QStringLiteral("darker_background"), QStringLiteral("dark_background"),
+        QStringLiteral("lighter_background"), QStringLiteral("muted"), QStringLiteral("foreground"),
+        QStringLiteral("dark_foreground"), QStringLiteral("accent"), QStringLiteral("red"),
+        QStringLiteral("magenta"), QStringLiteral("cyan")};
+    QCOMPARE(colours.size(), keys.size());
+    QHash<QString, QString> terminal;
+    for (qsizetype index = 0; index < keys.size(); ++index) {
+        terminal.insert(keys.at(index), colours.at(index));
+    }
+    const auto rendered = renderedOmarchyTheme(terminal);
+    QVERIFY(!rendered.isEmpty());
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("omaweb.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(rendered.toUtf8());
+    theme.close();
+    const auto palette = ThemeController(theme.fileName()).palette();
     const auto spaces = palette.value(QStringLiteral("spaces")).toMap();
-    for (const auto &name : names) {
-        const QColor colour(spaces.value(name).toString());
-        for (const auto *key : {"windowOpaque", "sidebarOpaque", "overlayOpaque",
-                 "privateWindowOpaque", "privateSidebarOpaque", "privateOverlayOpaque"}) {
-            const QColor ground(palette.value(QString::fromLatin1(key)).toString());
-            QVERIFY2(ground.isValid(), key);
-            QVERIFY2(contrastRatio(colour, ground) >= 4.5, qPrintable(name + u' ' + key));
+
+    QList<double> accents;
+    for (const auto *key : {"urgent", "privateAccent", "agentAccent"}) {
+        const QColor accent(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(accent.isValid(), key);
+        if (chroma(accent) >= chromaticFloor) {
+            accents.append(hue(accent));
         }
-        QVERIFY2(std::abs(colour.hslHueF() - QColor(named.value(name).toString()).hslHueF()) < 0.02,
-            qPrintable(name));
+    }
+    QList<double> placed;
+    for (const auto &name : spaceColourNames) {
+        const QColor colour(spaces.value(name).toString());
+        QVERIFY2(colour.isValid(), qPrintable(name));
+        for (const auto &key : spaceGrounds) {
+            const QColor ground(palette.value(key).toString());
+            QVERIFY2(contrastRatio(colour, ground) >= minimumGraphicContrast,
+                qPrintable(name + u' ' + key + u' ' + colour.name()));
+        }
+        const auto own = hue(colour);
+        for (const auto accent : accents) {
+            QVERIFY2(hueDistance(own, accent) >= spaceHueGap,
+                qPrintable(QStringLiteral("%1 at %2 is near an accent at %3")
+                        .arg(name)
+                        .arg(own)
+                        .arg(accent)));
+        }
+        for (const auto other : placed) {
+            QVERIFY2(hueDistance(own, other) >= spaceHueGap,
+                qPrintable(QStringLiteral("%1 at %2 is near another Space colour at %3")
+                        .arg(name)
+                        .arg(own)
+                        .arg(other)));
+        }
+        placed.append(own);
+    }
+}
+
+// A Space colour that lands inside the gap of an accent turns just far enough
+// to clear it, and the others keep the hue they have without it.
+void ThemeControllerTest::movesASpaceColourJustClearOfAnAccent()
+{
+    QTemporaryDir root;
+    const auto spacesFor = [&root](const QString &privateAccent) {
+        QFile file(root.filePath(privateAccent.mid(1) + QStringLiteral(".json")));
+        if (!file.open(QIODevice::WriteOnly)) {
+            return QVariantMap();
+        }
+        file.write(QString::fromUtf8(R"({ "window": "#16151d", "sidebar": "#1d1b29",
+            "text": "#f3f1fa", "urgent": "#808080", "agentAccent": "#909090",
+            "privateAccent": "%1" })")
+                .arg(privateAccent)
+                .toUtf8());
+        file.close();
+        return ThemeController(file.fileName()).palette().value(QStringLiteral("spaces")).toMap();
+    };
+    // A grey Private accent is no hue to keep clear of.
+    const auto clear = spacesFor(QStringLiteral("#8a8a8a"));
+    const auto violet = hue(QColor(clear.value(QStringLiteral("violet")).toString()));
+    // A Private accent at violet's own hue.
+    const auto clashing
+        = spacesFor(QColor(clear.value(QStringLiteral("violet")).toString()).name(QColor::HexRgb));
+    const auto moved = hue(QColor(clashing.value(QStringLiteral("violet")).toString()));
+    QVERIFY2(hueDistance(moved, violet) >= spaceHueGap, qPrintable(QString::number(moved)));
+    QVERIFY2(hueDistance(moved, violet) <= spaceHueGap + 3.0, qPrintable(QString::number(moved)));
+    for (const auto &name : spaceColourNames) {
+        if (name != QStringLiteral("violet")) {
+            QCOMPARE(clashing.value(name), clear.value(name));
+        }
     }
 }
 
@@ -1669,7 +1921,7 @@ void ThemeControllerTest::keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBund
     QFile css(QStringLiteral(OMAWEB_BUNDLED_THEMES_CSS));
     QVERIFY(css.open(QIODevice::ReadOnly));
     const auto sheet = QString::fromUtf8(css.readAll());
-    QRegularExpression block(QStringLiteral(R"RE(\[data-theme="([^"]+)"\] \{([^}]*)\})RE"));
+    QRegularExpression block(QStringLiteral("\\[data-theme=\"([^\"]+)\"\\] \\{([^}]*)\\}"));
     QRegularExpression role(QStringLiteral(R"RE(--(\w+): var\(--omaweb-\w+, (#[0-9a-f]{6})\))RE"));
     auto blocks = block.globalMatch(sheet);
     int bundled = 0;
@@ -1715,83 +1967,6 @@ void ThemeControllerTest::keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBund
                     qPrintable(theme.name + u' ' + field + u' ' + behind.name()));
             }
         }
-    }
-}
-
-// Repaired to read on a light ground, each bright colour comes out as its
-// plain twin, so a light theme offers three: a Space set to a bright one is
-// drawn in the plain one. A dark theme offers all six, each its own.
-void ThemeControllerTest::offersOnlyThePlainSpaceColoursOnALightTheme()
-{
-    const QStringList six {QStringLiteral("green"), QStringLiteral("yellow"),
-        QStringLiteral("blue"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow"),
-        QStringLiteral("bright_blue")};
-    const QStringList plain {
-        QStringLiteral("green"), QStringLiteral("yellow"), QStringLiteral("blue")};
-    QTemporaryDir root;
-    QFile light(root.filePath(QStringLiteral("light.json")));
-    QVERIFY(light.open(QIODevice::WriteOnly));
-    light.write(R"JSON({
-        "window": "#dce0e8", "sidebar": "#e6e9ef", "overlay": "#e6e9ef", "text": "#4c4f69",
-        "spaces": {
-            "green": "#40a02b", "yellow": "#df8e1d", "blue": "#1e66f5",
-            "bright_green": "#5fb84a", "bright_yellow": "#e9a64a", "bright_blue": "#4d86f7"
-        }
-    })JSON");
-    light.close();
-    const auto palette = ThemeController(light.fileName()).palette();
-    QCOMPARE(palette.value(QStringLiteral("spaceColourNames")).toStringList(), plain);
-    const auto spaces = palette.value(QStringLiteral("spaces")).toMap();
-    for (const auto &name : plain) {
-        QCOMPARE(spaces.value(QStringLiteral("bright_") + name), spaces.value(name));
-    }
-
-    QFile dark(root.filePath(QStringLiteral("dark.json")));
-    QVERIFY(dark.open(QIODevice::WriteOnly));
-    dark.write(R"JSON({ "window": "#16151d", "sidebar": "#1d1b29", "text": "#f3f1fa" })JSON");
-    dark.close();
-    const auto darkPalette = ThemeController(dark.fileName()).palette();
-    QCOMPARE(darkPalette.value(QStringLiteral("spaceColourNames")).toStringList(), six);
-    const auto darkSpaces = darkPalette.value(QStringLiteral("spaces")).toMap();
-    for (const auto &name : plain) {
-        QVERIFY(darkSpaces.value(QStringLiteral("bright_") + name) != darkSpaces.value(name));
-    }
-}
-
-// Omarchy renders each Space colour from the terminal colour of the same name,
-// so a desktop theme's Spaces are drawn in hues it already draws.
-void ThemeControllerTest::fillsTheSpaceColoursFromTheDesktopsPalette()
-{
-    QFile shipped(QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
-    QVERIFY(shipped.open(QIODevice::ReadOnly));
-    auto rendered = QString::fromUtf8(shipped.readAll());
-    const QHash<QString, QString> terminal {{QStringLiteral("green"), QStringLiteral("#9ece6a")},
-        {QStringLiteral("yellow"), QStringLiteral("#e0af68")},
-        {QStringLiteral("blue"), QStringLiteral("#7aa2f7")},
-        {QStringLiteral("bright_green"), QStringLiteral("#73daca")},
-        {QStringLiteral("bright_yellow"), QStringLiteral("#ff9e64")},
-        {QStringLiteral("bright_blue"), QStringLiteral("#7dcfff")}};
-    for (auto it = terminal.cbegin(); it != terminal.cend(); ++it) {
-        const auto token = QStringLiteral("{{ %1 }}").arg(it.key());
-        QVERIFY2(rendered.contains(QStringLiteral("\"%1\": \"%2\"").arg(it.key(), token)),
-            qPrintable(it.key()));
-        rendered.replace(token, it.value());
-    }
-    rendered.replace(QStringLiteral("{{ darker_background }}"), QStringLiteral("#16161e"));
-    rendered.replace(QStringLiteral("{{ dark_background }}"), QStringLiteral("#1a1b26"));
-    rendered.replace(QStringLiteral("{{ foreground }}"), QStringLiteral("#c0caf5"));
-    static const QRegularExpression token(QStringLiteral("\\{\\{ [a-z_]+ \\}\\}"));
-    rendered.replace(token, QStringLiteral("#565f89"));
-
-    QTemporaryDir root;
-    QFile theme(root.filePath(QStringLiteral("omaweb.json")));
-    QVERIFY(theme.open(QIODevice::WriteOnly));
-    theme.write(rendered.toUtf8());
-    theme.close();
-    const auto spaces
-        = ThemeController(theme.fileName()).palette().value(QStringLiteral("spaces")).toMap();
-    for (auto it = terminal.cbegin(); it != terminal.cend(); ++it) {
-        QCOMPARE(QColor(spaces.value(it.key()).toString()), QColor(it.value()));
     }
 }
 

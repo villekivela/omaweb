@@ -9,19 +9,23 @@ namespace omaweb {
 struct SpaceState {
     QString id;
     QString name;
-    // A palette name from spaceColourNames(), which the theme resolves: the
-    // Space is drawn in the theme's own value for it and follows a theme
-    // change. A store from before Spaces had one holds a hex value here until
-    // the controller replaces it at start.
+    // A name from spaceColourNames(), which the theme controller resolves
+    // against the theme on show, so the Space follows a theme change. A store
+    // from before Spaces had one holds a hex value here, and one from before
+    // Omaweb owned the six a `bright_` name, until the controller replaces it
+    // at start.
     QString color;
     bool active = false;
 };
 
-// The palette names a Space may be drawn in, in the order a new Space is
-// offered them. Red, magenta and cyan are not among them: they say urgent,
-// Private and Agent.
+// The names a Space may be drawn in, in hue order, which is the order Settings
+// offers them and a new Space is given them. Red, magenta and cyan are not
+// among them: they say urgent, Private and Agent.
 const QStringList &spaceColourNames();
 bool isSpaceColourName(const QString &name);
+// What a name from before Omaweb owned the six is called now, or an empty
+// string for any other. Each bright twin became the colour that took its place.
+QString renamedSpaceColour(const QString &name);
 // The name fewest of these Spaces use, the earliest in spaceColourNames() on a
 // tie. A Space that holds no palette name counts towards none.
 QString leastUsedSpaceColour(const QVector<SpaceState> &spaces);

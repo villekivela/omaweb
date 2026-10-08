@@ -51,6 +51,7 @@ private slots:
     void listsAgentSpacesAfterTheReaders();
     void movesASpaceTakenOverToTheEndOfTheReaders();
     void coloursASessionFromBeforeSpaceColours();
+    void renamesTheBrightColours();
 };
 
 // A Space's colour is a palette name the theme resolves, never a colour of its
@@ -63,11 +64,11 @@ void SpaceColoursTest::givesEachNewSpaceTheLeastUsedColour()
     QVERIFY2(browser.ready(), qPrintable(browser.errorMessage()));
 
     const auto personal = browser.activeSpaceId();
-    QCOMPARE(colourOf(browser, personal), QStringLiteral("green"));
+    QCOMPARE(colourOf(browser, personal), QStringLiteral("orange"));
     const auto work = browser.createSpace(QStringLiteral("Work"));
     QCOMPARE(colourOf(browser, work), QStringLiteral("yellow"));
     const auto home = browser.createSpace(QStringLiteral("Home"));
-    QCOMPARE(colourOf(browser, home), QStringLiteral("blue"));
+    QCOMPARE(colourOf(browser, home), QStringLiteral("green"));
 }
 
 // Any of the six, including one another Space already has, and it is still
@@ -80,32 +81,33 @@ void SpaceColoursTest::keepsTheColourTheReaderSets()
         BrowserController browser(SpaceStorage(root.path(), QStringLiteral("test")));
         const auto personal = browser.activeSpaceId();
         work = browser.createSpace(QStringLiteral("Work"));
-        for (const auto *name : {"green", "yellow", "blue", "bright_green", "bright_yellow"}) {
+        for (const auto *name : {"orange", "yellow", "green", "teal", "blue"}) {
             QVERIFY2(browser.setSpaceColour(work, QString::fromLatin1(name)), name);
             QCOMPARE(colourOf(browser, work), QString::fromLatin1(name));
         }
-        QVERIFY(browser.setSpaceColour(work, QStringLiteral("bright_blue")));
-        QVERIFY(browser.setSpaceColour(personal, QStringLiteral("bright_blue")));
-        QCOMPARE(colourOf(browser, personal), QStringLiteral("bright_blue"));
+        QVERIFY(browser.setSpaceColour(work, QStringLiteral("violet")));
+        QVERIFY(browser.setSpaceColour(personal, QStringLiteral("violet")));
+        QCOMPARE(colourOf(browser, personal), QStringLiteral("violet"));
         QVERIFY(!browser.setSpaceColour(QStringLiteral("no-such-space"), QStringLiteral("blue")));
     }
     BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
-    QCOMPARE(colourOf(restored, work), QStringLiteral("bright_blue"));
-    QCOMPARE(colourOf(restored, restored.activeSpaceId()), QStringLiteral("bright_blue"));
+    QCOMPARE(colourOf(restored, work), QStringLiteral("violet"));
+    QCOMPARE(colourOf(restored, restored.activeSpaceId()), QStringLiteral("violet"));
 }
 
-// Red, magenta and cyan say urgent, Private and Agent, and a colour of the
-// Space's own would not follow the theme.
+// Red, magenta and cyan say urgent, Private and Agent, a colour of the Space's
+// own would not follow the theme, and the bright names are gone.
 void SpaceColoursTest::refusesAColourOutsideTheSix()
 {
     QTemporaryDir root;
     BrowserController browser(SpaceStorage(root.path(), QStringLiteral("test")));
     const auto personal = browser.activeSpaceId();
-    for (const auto *name : {"red", "magenta", "cyan", "bright_red", "bright_magenta",
-             "bright_cyan", "#7c6cff", "", "Green"}) {
+    for (const auto *name :
+        {"red", "magenta", "cyan", "bright_red", "bright_magenta", "bright_cyan", "bright_green",
+            "bright_yellow", "bright_blue", "#7c6cff", "", "Orange"}) {
         QVERIFY2(!browser.setSpaceColour(personal, QString::fromLatin1(name)), name);
     }
-    QCOMPARE(colourOf(browser, personal), QStringLiteral("green"));
+    QCOMPARE(colourOf(browser, personal), QStringLiteral("orange"));
 }
 
 // The Space list is the footer's order and `select-space` counts along it: the
@@ -128,7 +130,7 @@ void SpaceColoursTest::listsAgentSpacesAfterTheReaders()
         expected = {personal, work, home, signup, research};
         QCOMPARE(spaceOrder(browser), expected);
         QCOMPARE(colourOf(browser, work), QStringLiteral("yellow"));
-        QCOMPARE(colourOf(browser, home), QStringLiteral("blue"));
+        QCOMPARE(colourOf(browser, home), QStringLiteral("green"));
 
         // A move stays on its own side.
         QVERIFY(!browser.moveSpaceBy(home, 1));
@@ -197,8 +199,8 @@ void SpaceColoursTest::coloursASessionFromBeforeSpaceColours()
 
     const QStringList footer {QStringLiteral("personal"), QStringLiteral("work"),
         QStringLiteral("travel"), QStringLiteral("home"), QStringLiteral("signup")};
-    const QStringList colours {QStringLiteral("yellow"), QStringLiteral("blue"),
-        QStringLiteral("green"), QStringLiteral("bright_green"), QStringLiteral("bright_yellow")};
+    const QStringList colours {QStringLiteral("orange"), QStringLiteral("yellow"),
+        QStringLiteral("green"), QStringLiteral("teal"), QStringLiteral("blue")};
     {
         auto browser = fixture.createController();
         QCOMPARE(spaceOrder(*browser), footer);
@@ -207,6 +209,54 @@ void SpaceColoursTest::coloursASessionFromBeforeSpaceColours()
         }
     }
     // Written down, so the next start has nothing to replace.
+    SqliteSessionStore store(fixture.dataRoot());
+    QVERIFY(store.open());
+    const auto stored = store.loadSpaces();
+    QCOMPARE(stored.size(), footer.size());
+    for (qsizetype index = 0; index < footer.size(); ++index) {
+        QCOMPARE(stored.at(index).id, footer.at(index));
+        QCOMPARE(stored.at(index).color, colours.at(index));
+    }
+}
+
+// The six were green, yellow, blue and their bright twins before Omaweb owned
+// them. Each bright twin is renamed to the colour that took its place, an Agent
+// Space's too, rather than given whichever colour fewest Spaces have, so a
+// reader's Spaces stay as far apart as they were.
+void SpaceColoursTest::renamesTheBrightColours()
+{
+    const auto space = [](const QString &id, const QString &colour) {
+        return SpaceSpec {.id = id,
+            .name = id,
+            .color = colour,
+            .tabs = {TabSpec {.id = id + QStringLiteral("-tab"),
+                .url = QUrl(QStringLiteral("https://example.com/"))}}};
+    };
+    SessionFixture fixture(SessionSpec {
+        .spaces = {space(QStringLiteral("personal"), QStringLiteral("bright_yellow")),
+            space(QStringLiteral("work"), QStringLiteral("bright_green")),
+            space(QStringLiteral("travel"), QStringLiteral("bright_blue")),
+            space(QStringLiteral("home"), QStringLiteral("green")),
+            space(QStringLiteral("signup"), QStringLiteral("bright_blue"))},
+        .activeSpaceId = QStringLiteral("personal"),
+    });
+    QVERIFY_SESSION_READY(fixture);
+    {
+        SqliteSessionStore store(fixture.dataRoot());
+        QVERIFY(store.open());
+        QVERIFY(store.saveAgentSpace(QStringLiteral("signup"), QStringLiteral("codex"), false));
+    }
+
+    const QStringList footer {QStringLiteral("personal"), QStringLiteral("work"),
+        QStringLiteral("travel"), QStringLiteral("home"), QStringLiteral("signup")};
+    const QStringList colours {QStringLiteral("orange"), QStringLiteral("teal"),
+        QStringLiteral("violet"), QStringLiteral("green"), QStringLiteral("violet")};
+    {
+        auto browser = fixture.createController();
+        for (qsizetype index = 0; index < footer.size(); ++index) {
+            QCOMPARE(colourOf(*browser, footer.at(index)), colours.at(index));
+        }
+    }
     SqliteSessionStore store(fixture.dataRoot());
     QVERIFY(store.open());
     const auto stored = store.loadSpaces();

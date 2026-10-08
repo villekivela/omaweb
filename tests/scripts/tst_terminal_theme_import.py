@@ -116,16 +116,9 @@ class AgentAccent(unittest.TestCase):
 
 
 class SpaceColours(unittest.TestCase):
-    def test_takes_the_terminals_colours_of_the_same_names(self):
-        # Omarchy's template fills each Space colour from the terminal colour
-        # it is named for, and never from red, magenta or cyan.
-        slots = {"green": 2, "yellow": 3, "blue": 4,
-                 "bright_green": 10, "bright_yellow": 11, "bright_blue": 12}
-        spaces = derive()["spaces"]
-        self.assertEqual(set(spaces), set(slots))
-        for name, slot in slots.items():
-            with self.subTest(name=name):
-                self.assertEqual(spaces[name], TOKYO_NIGHT["palette"][slot])
+    def test_names_none(self):
+        # Omaweb owns the six Space colours, and a theme's are not read.
+        self.assertNotIn("spaces", derive())
 
 
 class BuiltTheme(unittest.TestCase):

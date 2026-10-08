@@ -142,8 +142,15 @@ Rectangle {
                                                    spaceOverflow.height));
     }
 
-    // What a Space's palette name is drawn in under the theme on show.
+    // Whether the reader's Spaces are drawn in their colours, which Settings
+    // turns off for the muted text colour.
+    property bool spaceColours: true
+
+    // What a Space colour's name is drawn in under the theme on show, or the
+    // muted text colour while Space colour is off.
     function spaceColour(name) {
+        if (!root.spaceColours)
+            return root.colors.mutedText;
         const spaces = root.colors ? root.colors.spaces : null;
         return spaces && spaces[name] ? spaces[name] : root.colors.accent;
     }

@@ -87,16 +87,29 @@ reports the gap and remains experimental rather than imitating behavior it canno
   command-scope buttons first, followed by back, forward, and reload. The footer contains the
   Spaces, active Download mark, and settings. Private windows replace the Spaces with a mask. New
   tabs remain available through the Omnibar and keyboard commands rather than a sidebar button.
-- Each Space has a Space colour, one of six palette names: green, yellow, blue, bright green, bright
-  yellow and bright blue. It is drawn in the theme's own value for that name, with the contrast
-  repair the theme's other colours get, so it follows a theme change. Red, magenta and cyan stay
-  with urgent, Private and Agent. A new Space, the reader's or an Agent's, takes the colour fewest
-  of the reader's Spaces have, and taking an Agent Space over gives it one the same way. The reader
-  sets any of the six in Settings' Spaces section, where each of the reader's Spaces offers them as
-  small squares, the chosen one larger, and two Spaces may share one. Repaired to read on a light
-  theme, each bright colour lands on its plain twin, so a light theme offers only green, yellow and
-  blue and draws a Space set to a bright colour in its plain one. The colour is part of the Space in
-  Sync. A Space stored before Spaces had colours is given one at start, in footer order.
+- Each Space has a Space colour, one of six that Omaweb owns: orange, yellow, green, teal, blue and
+  violet. A theme does not choose them, and a theme's `spaces` are not read. Each is a fixed hue and
+  chroma in OKLCH, and per theme only its lightness moves, until it reaches 3:1 against every ground
+  a Space colour is drawn on, so it follows a theme change. Each also keeps a 20° OKLCH hue gap from
+  the theme's urgent, Private and Agent colours and from the other five: one that lands too near is
+  turned just far enough to clear it, so every theme offers six. A grey accent has no hue to keep
+  clear of. A new Space, the reader's or an Agent's, takes the colour fewest of the reader's Spaces
+  have, the first in hue order on a tie, and taking an Agent Space over gives it one the same way.
+  The reader sets any of the six in Settings' Spaces section, where each of the reader's Spaces
+  offers them in hue order as small squares, the chosen one larger, and two Spaces may share one.
+  There is no custom colour. The colour is part of the Space in Sync. A Space stored before Spaces
+  had colours is given one at start, in footer order, and one stored as `bright_yellow`,
+  `bright_green` or `bright_blue` is renamed `orange`, `teal` or `violet`. An older build gives a
+  name it does not know one of its own and Sync carries that back, so the release notes ask readers
+  to update every machine they sync.
+- A switch at the top of Settings' Spaces section turns Space colour off. It is on by default and
+  local to the machine, as the Scene choice is. With it off, the footer's squares, the Agent mark
+  standing in for one of the reader's Spaces, the menu of the Spaces left out, and the Omnibar's
+  Space squares and names are drawn in the muted text colour, and Settings hides the Spaces' colour
+  squares. The Space on show is still the larger square and hovering a Space still names it. Agent
+  Spaces are drawn as they are with colour on. Each Space keeps its colour while colour is off, and
+  a new Space still takes the colour fewest Spaces have, so turning colour on shows Spaces already
+  told apart.
 - The footer draws each of the reader's Spaces as a small square in its colour, with no letter, and
   the Space on show as the larger square, with no plate or border around it. Agent Spaces follow as
   small Agent marks. One of the reader's Spaces with an Agent attached is drawn as the Agent mark in
@@ -385,12 +398,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   window lists no Spaces and no history.
 - The Omnibar searches every Space's open tabs. The active Space's tab rows come before any other
   Space's, however weakly they hold the typed text, and the other Spaces' follow in Space order. A
-  tab row from another Space names its Space as its label at the right edge, in the Space colour, or
-  for an Agent Space in the Agent accent while an Agent is attached and muted otherwise, turning to
-  the text colour on the selected row, and committing it switches to that Space with the tab on show
-  as one action: a tab the Space no longer holds leaves the reader where they were. The rows are
-  read from what the session keeps of each Space, so listing them resumes, loads or thaws no page. A
-  Private window lists only its own tabs.
+  tab row from another Space names its Space as its label at the right edge, in the text colour,
+  beside a small square in the Space colour, or for an Agent Space in the Agent accent while an
+  Agent is attached and muted otherwise. Colour carries no text there, so it needs only 3:1. With
+  Space colour off, the name and the square are muted, and the name turns to the text colour on the
+  selected row. Committing it switches to that Space with the tab on show as one action: a tab the
+  Space no longer holds leaves the reader where they were. The rows are read from what the session
+  keeps of each Space, so listing them resumes, loads or thaws no page. A Private window lists only
+  its own tabs.
 - Engine suggestions, an installation-wide setting in Settings' network section, are off by default
   and stay out of Sync. With them on, the Omnibar asks a search engine for Engine suggestions only
   when Return on the current text would search: never for an address such as `github.com/foo` or

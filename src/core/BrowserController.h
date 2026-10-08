@@ -277,7 +277,7 @@ public:
     // Space does not hold is refused before the Space on show changes.
     Q_INVOKABLE bool activateTabInSpace(const QString &spaceId, const QString &tabId);
     Q_INVOKABLE bool renameSpace(const QString &spaceId, const QString &name);
-    // One of spaceColourNames(), whichever other Space has it already.
+    // One of spaceColourNames(), one another Space has already included.
     Q_INVOKABLE bool setSpaceColour(const QString &spaceId, const QString &colour);
     Q_INVOKABLE bool deleteSpace(const QString &spaceId, const QString &confirmationName);
     // The order Spaces are listed in is the reader's, like the order of tabs

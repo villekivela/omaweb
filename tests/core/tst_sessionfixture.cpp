@@ -103,7 +103,7 @@ void SessionFixtureTest::restoresOrderedSpacesSelectionsAndSpaceAtRest()
             SpaceSpec {
                 .id = QStringLiteral("work"),
                 .name = QStringLiteral("Work"),
-                .color = QStringLiteral("bright_blue"),
+                .color = QStringLiteral("violet"),
                 .tabs = {
                     TabSpec {
                         .id = QStringLiteral("work-one"),
@@ -132,7 +132,7 @@ void SessionFixtureTest::restoresOrderedSpacesSelectionsAndSpaceAtRest()
         QStringLiteral("work"));
     QCOMPARE(
         controller->spaces()->data(controller->spaces()->index(1, 0), SpaceListModel::ColorRole),
-        QStringLiteral("bright_blue"));
+        QStringLiteral("violet"));
     QCOMPARE(controller->activeSpaceId(), QStringLiteral("work"));
     QCOMPARE(controller->activeTabId(), QStringLiteral("work-two"));
     QCOMPARE(controller->activeTitle(), QStringLiteral("Two"));

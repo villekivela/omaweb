@@ -389,6 +389,9 @@ ApplicationWindow {
     // has asked for tabs instead. One Glance at a time: the engine drawing its
     // page, and the tab it stands over, which is the tab it ends with.
     property bool glanceEnabled: true
+    // Whether the reader's Spaces are drawn in their colours or in the muted
+    // text colour. Local to the machine, as the Scene is.
+    property bool spaceColours: true
     property var glanceEngine: null
     property string glanceTabId: ""
     // Whether the Glance on show is an extension's popup rather than a page.
@@ -950,10 +953,12 @@ ApplicationWindow {
         window.spaceOverflowMenuItems = spaces.map(function (space) {
             // Each drawn as the footer draws it: an Agent Space as the Agent's
             // mark, one of the reader's as its square, or as the mark in its
-            // own colour while an Agent is attached.
+            // own colour while an Agent is attached, muted while Space colour
+            // is off.
             const palette = window.colors.spaces;
-            const colour = palette && palette[space.spaceColor] ? palette[space.spaceColor] :
-                                                                  window.colors.accent;
+            const colour = !window.spaceColours ? window.colors.mutedText : palette && palette[space.spaceColor]
+                                                  ? palette[space.spaceColor] :
+                                                    window.colors.accent;
             const marked = space.agentMade || space.attached;
             return {
                 "label": space.spaceName,
@@ -2013,6 +2018,7 @@ ApplicationWindow {
                 === "true";
         window.sidebarSide = window.windowBrowser.preference("sidebar-side", "left") === "right"
                 ? "right" : "left";
+        window.spaceColours = window.windowBrowser.preference("space-colours", "true") === "true";
     }
 
     function setSidebarSide(side) {
@@ -2033,6 +2039,11 @@ ApplicationWindow {
     function setStartPageGlass(enabled) {
         window.startPageGlass = enabled;
         window.windowBrowser.setPreference("start-page-glass", enabled ? "true" : "false");
+    }
+
+    function setSpaceColours(enabled) {
+        window.spaceColours = enabled;
+        window.windowBrowser.setPreference("space-colours", enabled ? "true" : "false");
     }
 
     function setGlanceEnabled(enabled) {
@@ -2072,7 +2083,7 @@ ApplicationWindow {
 
         function onPreferenceChanged(name) {
             if (name === "floating-controls" || name === "glance" || name === "start-page-scene" || name
-                    === "start-page-glass" || name === "sidebar-side")
+                    === "start-page-glass" || name === "sidebar-side" || name === "space-colours")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
@@ -3108,6 +3119,7 @@ ApplicationWindow {
                 keyLabelsShown: PrimaryHold.held && !window.settingsOpen
                 agentActivity: window.agentTabActivity
                 agentSpaceIds: window.agentSpaceIds
+                spaceColours: window.spaceColours
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
@@ -4337,6 +4349,7 @@ ApplicationWindow {
                             floatingControls: window.floatingControls
                             sidebarSide: window.sidebarSide
                             glanceEnabled: window.glanceEnabled
+                            spaceColours: window.spaceColours
                             startPageScene: window.sceneSettingsWindow.startPageScene
                             startPageGlass: window.sceneSettingsWindow.startPageGlass
                             retainedTabs: window.visibleRetainedTabs
@@ -4391,6 +4404,9 @@ ApplicationWindow {
                             }
                             onGlanceToggled: function (enabled) {
                                 window.setGlanceEnabled(enabled);
+                            }
+                            onSpaceColoursToggled: function (enabled) {
+                                window.setSpaceColours(enabled);
                             }
                             onStartPageSceneChosen: function (scene) {
                                 window.sceneSettingsWindow.setStartPageScene(scene);
@@ -5308,6 +5324,7 @@ ApplicationWindow {
         browser: window.windowBrowser
         agentSpaceIds: window.agentSpaceIds
         agentActivity: window.agentTabActivity
+        spaceColours: window.spaceColours
         iconFontFamily: materialSymbols.name
         useFavicons: window.useFavicons
         tintFavicons: window.tintFavicons

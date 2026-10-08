@@ -1256,14 +1256,14 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
     QVERIFY(browser.renameSpace(workSpace, QStringLiteral("Projects")));
     QTRY_COMPARE(changed.count(), 1);
 
-    // A Space's colour is a palette name, and it is part of the Space.
+    // A Space's colour is one of Omaweb's six names, and it is part of the Space.
     changed.clear();
-    QVERIFY(browser.setSpaceColour(workSpace, QStringLiteral("bright_blue")));
+    QVERIFY(browser.setSpaceColour(workSpace, QStringLiteral("violet")));
     QTRY_COMPARE(changed.count(), 1);
     const auto recoloured = exchange.capture({});
     const auto work = std::ranges::find(recoloured.spaces, workSpace, &omaweb::SpaceState::id);
     QVERIFY(work != recoloured.spaces.cend());
-    QCOMPARE(work->color, QStringLiteral("bright_blue"));
+    QCOMPARE(work->color, QStringLiteral("violet"));
 }
 
 void SyncModuleTest::localSyncStateRefusesIneligibleBrowserState()

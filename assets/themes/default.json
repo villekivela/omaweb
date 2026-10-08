@@ -12,14 +12,6 @@
   "urgent": "#e06c75",
   "privateAccent": "#c678dd",
   "agentAccent": "#56b6c2",
-  "spaces": {
-    "green": "#98c379",
-    "yellow": "#e5c07b",
-    "blue": "#61afef",
-    "bright_green": "#b5e890",
-    "bright_yellow": "#f0d197",
-    "bright_blue": "#8cc8ff"
-  },
   "syntax": {
     "keyword": "#c678dd",
     "string": "#98c379",
