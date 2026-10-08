@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -303,6 +304,23 @@ bool KeyboardNavigation::load()
                                              "Ignored bindings this build does not know: %1")
                                              .arg(ignored.join(QStringLiteral(", ")));
     return true;
+}
+
+bool KeyboardNavigation::seedDefaults(const QString &configurationPath, const QString &defaultsPath)
+{
+    // Qt resources are read-only, and a copy keeps that mode.
+    return QFile::copy(defaultsPath, configurationPath)
+        && QFile::setPermissions(configurationPath,
+            QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup
+                | QFileDevice::ReadOther);
+}
+
+void KeyboardNavigation::restoreOwnerWrite(const QString &configurationPath)
+{
+    const QFileInfo info(configurationPath);
+    if (info.isFile() && !info.permission(QFileDevice::WriteOwner)) {
+        QFile::setPermissions(configurationPath, info.permissions() | QFileDevice::WriteOwner);
+    }
 }
 
 // A file written before a section existed — "browser", say — reads as "no

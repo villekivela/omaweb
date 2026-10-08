@@ -1274,13 +1274,20 @@ bool SyncModule::restoreConfiguration(QString *errorMessage)
                     "SyncModule", "The synced keybindings are not valid JSON"));
             return false;
         }
-        QSaveFile file(destination);
-        if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size()
-            || !file.commit()) {
-            setError(errorMessage,
-                QCoreApplication::translate(
-                    "SyncModule", "Could not apply the synced keybindings"));
-            return false;
+        // Nothing to apply when the file already holds these bytes. A file an
+        // earlier release seeded read-only would refuse the write otherwise.
+        QFile local(destination);
+        const auto unchanged = local.open(QIODevice::ReadOnly) && local.readAll() == contents;
+        local.close();
+        if (!unchanged) {
+            QSaveFile file(destination);
+            if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size()
+                || !file.commit()) {
+                setError(errorMessage,
+                    QCoreApplication::translate(
+                        "SyncModule", "Could not apply the synced keybindings"));
+                return false;
+            }
         }
     }
 

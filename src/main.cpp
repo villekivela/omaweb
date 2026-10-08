@@ -148,13 +148,16 @@ QString keybindingsPath()
         const auto legacy = QDir(QDir(dataRoot()).filePath(QStringLiteral("settings")))
                                 .filePath(QStringLiteral("keybindings.json"));
         if (QFileInfo::exists(legacy) && QFile::rename(legacy, path)) {
+            omaweb::KeyboardNavigation::restoreOwnerWrite(path);
             omaweb::KeyboardNavigation::adoptDefaults(
                 path, QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
             return path;
         }
-        QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), path);
+        omaweb::KeyboardNavigation::seedDefaults(
+            path, QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
         return path;
     }
+    omaweb::KeyboardNavigation::restoreOwnerWrite(path);
     omaweb::KeyboardNavigation::adoptDefaults(
         path, QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
     return path;
