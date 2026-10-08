@@ -314,9 +314,9 @@ Item {
         // the steered comets' `clear` off the panel and a Scene pixel more
         // for the glow drawn in whole ones, close enough for its light to
         // catch the rim. That corner is where the line comes closest to the
-        // panel. In a
-        // window taller than it is wide, the line would leave through the
-        // left edge, so the comet comes in lower, further from the panel.
+        // panel. In a window taller than it is wide, the line would leave
+        // through the left edge, so the comet comes in lower, further from
+        // the panel.
         const x = root.drawWidth + f.halo / 2;
         const corner = Qt.point((root.drawWidth + root.omnibarWidth) / 2, root.horizonY
                                 + root.omnibarReach);
@@ -538,8 +538,9 @@ Item {
     property real last: -1
 
     // The clock's time the sky was last shown afresh: on its first frame,
-    // after the clock jumped, and after it changed size or Omnibar. No comet
-    // that started before then is drawn.
+    // after the clock jumped, after reduced motion was turned on or off, and
+    // after it changed size or Omnibar. No comet that started before then is
+    // drawn.
     property real revealedAt: 0
 
     function reveal() {
@@ -550,14 +551,13 @@ Item {
         const st = root.falling;
         if (root.last < 0 || root.time < root.last || root.time - root.last > st.longestStep)
             root.reveal();
+        const step = root.last < 0 ? 0 : Math.max(0, Math.min(st.longestStep, root.time
+                                                              - root.last));
+        root.last = root.time;
         if (root.reducedMotion) {
             root.rush = 0;
             return;
         }
-        if (root.last < 0)
-            root.last = root.time;
-        const step = Math.max(0, Math.min(st.longestStep, root.time - root.last));
-        root.last = root.time;
         root.rush += (root.navigating - root.rush) * Math.min(1, step * st.ease);
         if (root.rushShown > 0)
             root.streakSlot = root.cometSlot;
@@ -568,7 +568,10 @@ Item {
     onDrawHeightChanged: root.reveal()
     onOmnibarReachChanged: root.reveal()
     onOmnibarWidthChanged: root.reveal()
-    onReducedMotionChanged: root.move()
+    onReducedMotionChanged: {
+        root.reveal();
+        root.move();
+    }
     Component.onCompleted: root.move()
 
     // ---- what moves, in logical pixels scaled to the Scene's

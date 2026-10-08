@@ -643,8 +643,8 @@ TestCase {
 
     // No comet or shooting star pops into view: each fades in from where it
     // starts, and one already part way across when the clock jumps or the
-    // sky changes size stays out of sight. The comet in front of the planet
-    // comes in from beyond the right edge.
+    // sky changes size or leaves reduced motion stays out of sight. The comet
+    // in front of the planet comes in from beyond the right edge.
     function test_noCometPopsIntoView() {
         const sky = makeSky({
                                 width: 1200 / 4,
@@ -674,21 +674,31 @@ TestCase {
             quiet("after the clock jumped");
             drive(sky, 1);
         }
-        let full = false;
-        for (let t = 300; t < 600 && !full; t += 1 / 30) {
-            sky.time = t;
-            full = shown(sky).some(function (comet) {
-                return comet.shown === 1;
-            });
-        }
-        verify(full, "no comet in full view");
+        // Drives on to a comet in full view.
+        const untilOneIsFull = function () {
+            const until = sky.time + 300;
+            let full = false;
+            while (sky.time < until && !full) {
+                drive(sky, 1 / 30);
+                full = shown(sky).some(function (comet) {
+                    return comet.shown === 1;
+                });
+            }
+            verify(full, "no comet in full view");
+        };
+        untilOneIsFull();
         sky.width = 250;
         quiet("after a resize");
+        untilOneIsFull();
+        sky.reducedMotion = true;
+        sky.reducedMotion = false;
+        quiet("after reduced motion");
     }
 
     // About one comet in three is steered past the Omnibar's lower right
     // corner, its glow 16 px off the panel and its light on the rim. Others
-    // catch it now and then on their own.
+    // catch it now and then on their own. With several in the sky, the light
+    // falls from the one whose light reaches furthest over the field.
     function test_aThirdOfTheCometsCatchTheRim() {
         const sky = makeSky({
                                 width: 1200 / 4,
@@ -699,6 +709,17 @@ TestCase {
         const field = fieldOf(sky);
         const comets = {};
         drive(sky, 3600, function () {
+            const above = shown(sky).filter(function (comet) {
+                return !behindTheLimb(sky, comet.head);
+            });
+            if (above.length > 1 && !sky.frontShown) {
+                const nearest = above.reduce(function (best, comet) {
+                    return lightOnRim(sky, comet.head, field) < lightOnRim(sky, best.head, field)
+                            ? comet : best;
+                });
+                fuzzyCompare(sky.light.centre.x, nearest.head.x, 0.01);
+                fuzzyCompare(sky.light.centre.y, nearest.head.y, 0.01);
+            }
             for (const comet of shown(sky)) {
                 const name = comet.slot + "/" + comet.index;
                 const seen = comets[name] || {
