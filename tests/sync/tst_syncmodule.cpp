@@ -617,7 +617,7 @@ void SyncModuleTest::logsTheRecordARestoreFailedOn()
         qPrintable(error));
     const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
     const auto key
-        = QByteArray::fromHex("a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf");
+        = QByteArray::fromHex("0f0e0d0c0b0a09080706050403020100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
 
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
@@ -660,7 +660,8 @@ void SyncModuleTest::logsTheRecordARestoreFailedOn()
     OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
     QTest::ignoreMessage(QtWarningMsg,
         QRegularExpression(QStringLiteral("could not restore spaces record space-misfiled")));
-    QVERIFY(settle(second, secondStore));
+    const auto restored = settle(second, secondStore);
+    QVERIFY(restored.failure != SyncFailure::None);
 }
 
 void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
