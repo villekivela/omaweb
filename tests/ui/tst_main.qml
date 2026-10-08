@@ -5103,36 +5103,58 @@ TestCase {
         compare(label.font.family, Style.font.family, name);
     }
 
-    // The Start page's `?` hint is the Omnibar's hint row's: at rest, with no
-    // results, the row holds `? shortcuts` as the website's key cap and its
-    // word, and nothing is drawn as a line of its own under the field. With
-    // results the row keeps its keys and the same hint stays at its right end.
-    function test_theHintRowHoldsTheShortcutsHintAtRest() {
+    // At rest, with no results, the Omnibar holds the field alone: no hint row
+    // under it, and no cue in the field. The `?` hint for the Shortcut sheet
+    // stands in the Start page's lower right corner, 24 px in from the page
+    // area's edges, as a key cap and its word, and goes once text is typed or
+    // when the Omnibar is summoned over a page. With results the hint row
+    // returns, `? shortcuts` at its right end.
+    function test_theCornerCuesTheShortcutsAtRest() {
         const hints = findChild(window.contentItem, "omnibarHints");
         const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting caps");
-        tryVerify(function () {
-            return hints.visible;
-        });
         verify(findChild(window.contentItem, "startPageHint") === null);
-        const hint = findChild(hints, "omnibarShortcutsHint");
-        verify(hint.visible);
-        const cap = findChild(hint, "keycap");
-        compare(cap.text, "?");
-        checkKeycap(cap, "hint");
-        compare(findChild(hint, "startPageHintWord").text, "shortcuts");
-        compare(childrenNamed(hints, "omnibarHintWord").length, 0);
-        compare(hints.height, hints.implicitHeight);
+        verify(findChild(window.contentItem, "omnibarFieldCue") === null);
+        verify(!hints.visible);
+        compare(hints.height, 0);
         compare(findChild(window.contentItem, "omnibarFrame").height, panel.restHeight);
+        compare(panel.restReach, panel.restHeight - panel.horizonBelowTop);
+        const cue = findChild(window.contentItem, "omnibarCornerCue");
+        verify(cue !== null);
+        tryVerify(function () {
+            return cue.visible;
+        });
+        const cap = findChild(cue, "keycap");
+        compare(cap.text, "?");
+        checkKeycap(cap, "cue");
+        compare(findChild(cue, "shortcutsCueWord").text, "shortcuts");
+        compare(input.placeholderText, "Where to?");
+        const area = panel.restArea;
+        const corner = cue.mapToItem(panel, cue.width, cue.height);
+        verify(Math.abs(area.x + area.width - 24 - corner.x) <= 0.5, "right edge " + corner.x);
+        verify(Math.abs(area.y + area.height - 24 - corner.y) <= 0.5, "bottom edge " + corner.y);
+        verify(cue.mapToItem(panel, 0, 0).x > findChild(window.contentItem, "sidebar").width);
+
+        input.text = "x";
+        verify(!cue.visible);
+        input.text = "";
+        tryVerify(function () {
+            return cue.visible;
+        });
 
         browser.recordVisit("https://hint-rest.example/", "Hint rest");
         input.text = "hint rest";
         tryVerify(function () {
             return panel.rows.length > 0;
         });
+        verify(!cue.visible);
+        verify(hints.visible);
+        const hint = findChild(hints, "omnibarShortcutsHint");
         verify(hint.visible);
+        compare(findChild(hint, "keycap").text, "?");
+        compare(findChild(hint, "shortcutsCueWord").text, "shortcuts");
         compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
             return word.text;
         }).join(), "select,go");
@@ -5146,6 +5168,26 @@ TestCase {
         verify(hint.mapToItem(hints, hint.width, 0).x <= hints.width);
         input.text = "";
         leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
+    }
+
+    // Summoned over a page, the Omnibar's empty field has no cue anywhere: the
+    // corner's is the Start page's alone.
+    function test_theCornerCueIsTheStartPagesAlone() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const cue = findChild(window.contentItem, "omnibarCornerCue");
+        openPage("https://no-cue-over-a-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryVerify(function () {
+            return panel.visible && panel.open;
+        });
+        // The field holds the page's address; emptied, it still has no cue.
+        const input = findChild(window.contentItem, "omnibarInput");
+        input.text = "";
+        verify(!panel.shownResting);
+        verify(!cue.visible);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
     }
 
     // Holding Primary on its own labels the chrome with the keys that run it.
@@ -11597,7 +11639,7 @@ TestCase {
         tryCompare(panel, "visible", false);
 
         window.openOmnibar(true);
-        compare(input.placeholderText, "Where to? \u00b7 opens in a new tab");
+        compare(input.placeholderText, "Where to?");
         compare(input.Accessible.name, "Address, search, tabs and Spaces");
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
@@ -12842,7 +12884,7 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting sheet");
         tryVerify(function () {
-            return findChild(window.contentItem, "omnibarShortcutsHint").visible;
+            return findChild(window.contentItem, "omnibarCornerCue").visible;
         });
 
         keyClick("?");
@@ -12996,8 +13038,50 @@ TestCase {
                 ];
     }
 
+    // What a Scene assumes of the resting Omnibar before the browser hands in
+    // its own reach, as a Settings thumbnail and a lab capture have it, is
+    // the reach it has: the field alone.
+    function test_theScenesDefaultReachIsTheRestingOmnibars_data() {
+        return [
+                    {
+                        "tag": "night sky",
+                        "scene": "night-sky",
+                        "item": "nightSky",
+                        "part": "planet"
+                    },
+                    {
+                        "tag": "vector terrain",
+                        "scene": "vector-terrain",
+                        "item": "vectorTerrain",
+                        "part": "peaks"
+                    },
+                    {
+                        "tag": "radar",
+                        "scene": "radar",
+                        "item": "radar",
+                        "part": "field"
+                    }
+                ];
+    }
+
+    function test_theScenesDefaultReachIsTheRestingOmnibars(data) {
+        const panel = findChild(window.contentItem, "omnibar");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting reach");
+        try {
+            window.setStartPageScene(data.scene);
+            const item = findChild(scene, data.item);
+            verify(item !== null);
+            compare(item.parameters[data.part].omnibarReach, panel.restReach);
+            compare(scene.sceneItem.omnibarReach, panel.restReach);
+        } finally {
+            leaveSpace(homeSpaceId, restingSpaceId, "Resting reach");
+        }
+    }
+
     // The sky's planet lies wholly under the resting Omnibar: its top, the
-    // glow along its limb included, stands a small gap below the hint row's
+    // glow along its limb included, stands a small gap below the Omnibar's
     // bottom edge, at any window size and type size, so its curve shows whole.
     // The Omnibar keeps the place it has over the road.
     function test_theSkysPlanetStaysBelowTheOmnibar(data) {
@@ -13247,7 +13331,7 @@ TestCase {
     }
 
     // The terrain's mountains stand wholly under the resting Omnibar, the
-    // highest peak a small gap below the hint row's bottom edge, at any
+    // highest peak a small gap below the Omnibar's bottom edge, at any
     // window size and type size. The Omnibar keeps the place it has over the
     // road.
     function test_theTerrainsPeaksStayBelowTheOmnibar_data() {

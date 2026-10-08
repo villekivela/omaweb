@@ -2024,10 +2024,6 @@
         <translation>hae: %1</translation>
     </message>
     <message>
-        <source>Where to? · opens in a new tab</source>
-        <translation>Minne haluaisit? · avautuu uuteen välilehteen</translation>
-    </message>
-    <message>
         <source>Where to?</source>
         <translation>Minne haluaisit?</translation>
     </message>
@@ -2097,14 +2093,6 @@
     <message>
         <source>back</source>
         <translation>takaisin</translation>
-    </message>
-    <message>
-        <source>Question mark shows the keyboard shortcuts</source>
-        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
-    </message>
-    <message>
-        <source>shortcuts</source>
-        <translation>pikanäppäimet</translation>
     </message>
 </context>
 <context>
@@ -3939,6 +3927,17 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Close shortcuts</source>
         <translation>Sulje pikanäppäimet</translation>
+    </message>
+</context>
+<context>
+    <name>ShortcutsCue</name>
+    <message>
+        <source>Question mark shows the keyboard shortcuts</source>
+        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
+    </message>
+    <message>
+        <source>shortcuts</source>
+        <translation>pikanäppäimet</translation>
     </message>
 </context>
 <context>

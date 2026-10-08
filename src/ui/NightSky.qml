@@ -149,7 +149,7 @@ Item {
     //
     // A circle centred below the page, its radius the page area's width
     // times `radius`. Its top, the glow over its limb included, stands `gap`
-    // below the resting Omnibar's hint row, so the planet lies wholly under
+    // below the resting Omnibar's bottom edge, so the planet lies wholly under
     // the Omnibar and its curve shows whole. Unlit, it has no glow and stands
     // in the same place.
 

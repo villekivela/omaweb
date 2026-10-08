@@ -100,9 +100,9 @@ void TranslationsTests::theRegionlessCatalogueAnswersARegionalLocale()
     QVERIFY(translator != nullptr);
     QCOMPARE(QFileInfo(translator->filePath()).fileName(), QStringLiteral("omaweb_fi.qm"));
     QCOMPARE(
-        QCoreApplication::translate("OmnibarHints", "shortcuts"), QStringLiteral("pikanäppäimet"));
+        QCoreApplication::translate("ShortcutsCue", "shortcuts"), QStringLiteral("pikanäppäimet"));
     delete translator;
-    QCOMPARE(QCoreApplication::translate("OmnibarHints", "shortcuts"), QStringLiteral("shortcuts"));
+    QCOMPARE(QCoreApplication::translate("ShortcutsCue", "shortcuts"), QStringLiteral("shortcuts"));
 }
 
 void TranslationsTests::theFirstDirectoryWithACatalogueWins()
@@ -128,7 +128,7 @@ void TranslationsTests::aLocaleWithoutACatalogueInstallsNothing()
     QVERIFY(omaweb::installCatalogue(
                 QCoreApplication::instance(), QLocale(QStringLiteral("de_DE")), {directory.path()})
         == nullptr);
-    QCOMPARE(QCoreApplication::translate("OmnibarHints", "shortcuts"), QStringLiteral("shortcuts"));
+    QCOMPARE(QCoreApplication::translate("ShortcutsCue", "shortcuts"), QStringLiteral("shortcuts"));
 }
 
 void TranslationsTests::theInstalledDirectoryComesBeforeTheBuildTree()

@@ -7,7 +7,7 @@ import qs.Commons
 // destination yet. It is the Omnibar at rest over the Scene the reader chose:
 // the night road, the night sky, the Game of Life, the vector terrain, the
 // radar or hyperspace. The Omnibar itself is the window's own, drawn resting on the Scene's
-// horizon, and its hint row names the Shortcut sheet; the page is the Scene
+// horizon, and the Start page's corner names the Shortcut sheet; the page is the Scene
 // under it.
 //
 // It costs no engine. The Scene moves only while the page is on show and the
@@ -41,7 +41,7 @@ Item {
     // How far the resting Omnibar reaches below the horizon, which the night
     // sky's planet, the vector terrain's mountains and the radar's blips keep
     // clear.
-    property real omnibarReach: 40
+    property real omnibarReach: 2
     // The Settings interface section's CRT glass over the Scene.
     property bool glassEnabled: true
     // The reader asked for less motion: the Scene holds one still frame, with

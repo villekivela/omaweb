@@ -825,6 +825,7 @@ set(omaweb_ui_files
     src/ui/KeyLabel.qml
     src/ui/NavigationCluster.qml
     src/ui/OmnibarHints.qml
+    src/ui/ShortcutsCue.qml
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
     src/ui/AgentMark.qml
