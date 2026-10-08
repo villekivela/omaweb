@@ -13037,6 +13037,12 @@ TestCase {
                         higher: true
                     },
                     {
+                        tag: "1280 x 560",
+                        width: 1280,
+                        height: 560,
+                        larger: 0
+                    },
+                    {
                         tag: "larger type",
                         width: 1360,
                         height: 860,
@@ -13155,28 +13161,34 @@ TestCase {
             const field = panel.mapToItem(scene, panel.restX, panel.restY);
             const fieldBottom = field.y + panel.restReach + panel.horizonBelowTop;
             const time = scene.time;
-            let crossed = 0;
-            let nearRim = 0;
-            for (let t = 0; t < 70; t += 1 / 30) {
+            const crossings = [];
+            let was = false;
+            for (let t = 0; t < 100; t += 1 / 30) {
                 scene.time = t;
-                if (!sky.frontShown)
+                if (!sky.frontShown) {
+                    was = false;
                     continue;
-                crossed += 1;
+                }
+                if (!was)
+                    crossings.push(0);
+                was = true;
                 const head = sky.frontHead;
                 verify(head.x < cueLeft - clear || head.x > cueLeft + cue.width + clear || head.y
                        < cueTop - clear || head.y > cueTop + cue.height + clear, "the comet at "
                        + head + " over the cue at " + cueLeft + ", " + cueTop);
-                verify(head.x < field.x - clear || head.x > field.x + panel.restWidth + clear
-                       || head.y < field.y - clear || head.y > fieldBottom + clear, "the comet at "
-                       + head + " on the Omnibar at " + field + " to " + fieldBottom);
+                // Its glow keeps 16 px off the Omnibar's panel.
                 const dx = Math.max(field.x - head.x, 0, head.x - field.x - panel.restWidth);
                 const dy = Math.max(field.y - head.y, 0, head.y - fieldBottom);
+                verify(Math.hypot(dx, dy) >= sky.front.halo / 2 + 16, "the comet at " + head + " "
+                       + Math.hypot(dx, dy).toFixed(1) + " from the Omnibar at " + field);
                 if (dx < panel.restWidth * sky.light.across && dy < sky.light.reach)
-                    nearRim += 1;
+                    crossings[crossings.length - 1] += 1;
             }
             scene.time = time;
-            verify(crossed > 0, "no comet fell in front of the planet");
-            verify(nearRim > 0, "the comet in front of the planet never caught the rim");
+            verify(crossings.length >= 3, crossings.length + " comets fell in front of the planet");
+            verify(crossings.every(function (near) {
+                return near > 0;
+            }), "a comet in front of the planet never caught the rim: " + crossings);
         } finally {
             leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
             fontSettings.resetInterfaceFontSize();

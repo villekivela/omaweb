@@ -168,7 +168,7 @@ Item {
     // not in the sky at `time`. Each slot scatters from 32 indices of its
     // own: whether it falls, how many fall together, then four each for when
     // a comet starts, its kind, its run and where it goes out, so a group
-    // holds four at most.
+    // holds four at most. The comet in front of the planet takes 20 and 21.
     function cometAt(slot, index, time) {
         const c = root.comets;
         const seed = slot * 32;
@@ -242,22 +242,29 @@ Item {
         return run >= 0 && run < f.lasts + f.fades ? run : -1;
     }
     readonly property bool frontShown: root.frontRun >= 0
+    // Each crossing falls at an angle of its own, `angles` [from, span]
+    // degrees below the horizontal.
+    readonly property real frontAngle: root.spread(root.front.angles, root.cometSlot * 32 + 20)
     readonly property point frontHead: {
         const f = root.front;
-        // The diagonal passes below the Omnibar's right end. In a window
-        // taller than it is wide, that diagonal would leave through the left
-        // edge: the comet comes in lower.
+        const a = root.frontAngle * Math.PI / 180;
+        // The line passes the Omnibar's lower right corner with its glow
+        // `clear` off the panel, a Scene pixel more for the glow drawn in
+        // whole ones, and up to `wander` further, scattered for each crossing.
+        // That corner is where the line comes closest to the panel. In a
+        // window taller than it is wide, the line would leave through the
+        // left edge, so the comet comes in lower, further from the panel.
         const x = root.drawWidth + f.halo / 2;
-        const passX = (root.drawWidth + root.omnibarWidth) / 2;
-        const passY = root.horizonY + root.omnibarReach + f.pass;
-        const lowest = root.drawHeight + f.halo / 2 - (x - f.exit * root.drawWidth)
-              * root.comets.slope;
-
-
-        const from = Qt.point(x, Math.max(passY - (x - passX) * root.comets.slope, lowest));
-        const across = (root.drawHeight + f.halo / 2 - from.y) / root.fallStep.y;
+        const corner = Qt.point((root.drawWidth + root.omnibarWidth) / 2, root.horizonY
+                                + root.omnibarReach);
+        const distance = f.clear + f.halo / 2 + root.pitch + f.wander * root.hash(root.cometSlot * 32
+                                                                                  + 21);
+        const passing = corner.y + distance / Math.cos(a) - (x - corner.x) * Math.tan(a);
+        const lowest = root.drawHeight + f.halo / 2 - (x - f.exit * root.drawWidth) * Math.tan(a);
+        const fromY = Math.max(passing, lowest);
+        const across = (root.drawHeight + f.halo / 2 - fromY) / Math.sin(a);
         const fallen = across * Math.max(0, root.frontRun) / f.lasts;
-        return Qt.point(from.x + root.fallStep.x * fallen, from.y + root.fallStep.y * fallen);
+        return Qt.point(x - Math.cos(a) * fallen, fromY + Math.sin(a) * fallen);
     }
     // How much of its trail is left: whole while it crosses, fading once it
     // has gone.
@@ -500,6 +507,8 @@ Item {
         property real tailWidth
         property real headSize
         property real haloSize
+        // How far below the horizontal it falls, in degrees.
+        property real angle: root.fallAngle
 
         Shape {
             id: tail
@@ -511,7 +520,7 @@ Item {
             x: comet.head.x
             y: comet.head.y
             transformOrigin: Item.TopLeft
-            rotation: -root.fallAngle
+            rotation: -comet.angle
             antialiasing: true
 
             ShapePath {
@@ -722,6 +731,7 @@ Item {
             tailWidth: root.front.width
             headSize: root.front.head
             haloSize: root.front.halo
+            angle: root.frontAngle
         }
     }
 }

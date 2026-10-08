@@ -198,17 +198,19 @@ reports the gap and remains experimental rather than imitating behavior it canno
   toward white, its tail a streak that tapers and fades into the sky, and each falls until it goes
   out behind the limb. There is no mark: the Omnibar is the one thing in the middle. A comet passing
   near the field briefly catches the Omnibar's rim. About every 30 seconds, never while another
-  comet is in the sky, a larger comet with a longer tail comes in from the right edge and passes
-  just below the resting Omnibar's right end, close enough to catch its rim and clear of the field.
-  It sweeps down and left across the planet's face in front of it and leaves through the bottom
-  edge, clear of the cue. In a window taller than it is wide it comes in lower, so that it still
-  leaves through the bottom. As it passes the face and the glow brighten, and its trail fades over
-  about two seconds. On commit stars fall thick and fast as streaks, down the same diagonal, until
-  the page paints, then the page takes over as it does from the road. The pulse runs on through a
-  commit, and no comet falls in front of the planet in a moment the streaks fall in. Reduced motion
-  holds one frame: the star field, one comet part way down its run, and the glow still at its peak,
-  with no glint and no comet in front of the planet. A Private window's sky has its lights out: the
-  planet and its limb stay, with no glow, stars, comets or glint, even on commit.
+  comet is in the sky, a larger comet with a longer tail comes in from the right edge and passes the
+  resting Omnibar's right end close enough to catch its rim, its glow never within 16 px of the
+  panel. Each one comes in at a place and an angle of its own, 20 to 32 degrees below the
+  horizontal. It sweeps down and left across the planet's face in front of it and leaves through the
+  bottom edge, clear of the cue. In a window taller than it is wide it comes in lower, so that it
+  still leaves through the bottom. As it passes the face and the glow brighten, and its trail fades
+  over about two seconds. On commit stars fall thick and fast as streaks, down the same diagonal,
+  until the page paints, then the page takes over as it does from the road. The pulse runs on
+  through a commit, and no comet falls in front of the planet in a moment the streaks fall in.
+  Reduced motion holds one frame: the star field, one comet part way down its run, and the glow
+  still at its peak, with no glint and no comet in front of the planet. A Private window's sky has
+  its lights out: the planet and its limb stay, with no glow, stars, comets or glint, even on
+  commit.
 - The Game of Life is Conway's, drawn from the palette in the same way and always night, a light
   theme's ground drawn from its dark text. Each cell is one of the Scene's square pixels, and the
   board wraps at its edges. Live cells are the accent, and a cell that has just died leaves a short

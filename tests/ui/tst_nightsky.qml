@@ -557,11 +557,12 @@ TestCase {
         compare(crossings(sky, 30).length, 1);
     }
 
-    // On its way to the planet's face the comet in front of it passes just
-    // below the resting Omnibar's right end, close enough for its light to
-    // catch the rim and clear of the field itself. The field is 720 wide,
+    // On its way to the planet's face the comet in front of it passes the
+    // resting Omnibar's right end close enough for its light to catch the
+    // rim, its glow never within 16 px of the field. The field is 720 wide,
     // centred, from 50 above where the Omnibar rests to its bottom edge 50
-    // below.
+    // below. Each crossing comes in at a place and an angle of its own,
+    // between 20 and 32 degrees below the horizontal.
     function test_theFrontCometCatchesTheRim() {
         const sky = makeSky({
                                 width: 1200 / 4,
@@ -570,29 +571,58 @@ TestCase {
                                 omnibarWidth: 720
                             });
         const field = Qt.rect(240, sky.horizonY - 50, 720, 100);
-        const clear = sky.front.halo / 2 + 8;
-        let near = -1;
-        let face = -1;
-        let frame = 0;
-        drive(sky, 60, function () {
-            if (!sky.frontShown)
+        const clear = sky.front.halo / 2 + 16;
+        const seen = [];
+        let crossing = null;
+        drive(sky, 300, function () {
+            if (!sky.frontShown) {
+                crossing = null;
                 return;
-            frame += 1;
-            const head = sky.frontHead;
+            }
+            const head = Qt.point(sky.frontHead.x, sky.frontHead.y);
+            if (crossing === null) {
+                crossing = {
+                    heads: [],
+                    near: -1,
+                    face: -1
+                };
+                seen.push(crossing);
+            }
+            const frame = crossing.heads.length;
+            crossing.heads.push(head);
             const dx = Math.max(field.x - head.x, 0, head.x - field.x - field.width);
             const dy = Math.max(field.y - head.y, 0, head.y - field.y - field.height);
-            verify(Math.hypot(dx, dy) > clear, "the comet at " + head + " on the field");
+            verify(Math.hypot(dx, dy) >= clear, "the comet at " + head + " " + Math.hypot(dx,
+                                                                                          dy).toFixed(
+                       1) + " from the field");
             if (head.y < sky.drawHeight) {
                 fuzzyCompare(sky.light.centre.x, head.x, 0.01);
                 fuzzyCompare(sky.light.centre.y, head.y, 0.01);
             }
-            if (near < 0 && dx < field.width * sky.light.across && dy < sky.light.reach)
-                near = frame;
-            if (face < 0 && behindTheLimb(sky, head))
-                face = frame;
+            if (crossing.near < 0 && dx < field.width * sky.light.across && dy < sky.light.reach)
+                crossing.near = frame;
+            if (crossing.face < 0 && behindTheLimb(sky, head))
+                crossing.face = frame;
         });
-        verify(near > 0, "the comet never came near the field");
-        verify(face > near, "it reached the face at frame " + face + ", the field at " + near);
+        verify(seen.length >= 9, seen.length + " crossings");
+        const angles = [];
+        const entries = [];
+        for (const one of seen) {
+            verify(one.near >= 0, "a comet never came near the field");
+            verify(one.face > one.near, "it reached the face at frame " + one.face
+                   + ", the field at " + one.near);
+            const a = one.heads[0];
+            const b = one.heads[1];
+            const angle = Math.atan2(b.y - a.y, a.x - b.x) * 180 / Math.PI;
+            verify(angle >= 19.9 && angle <= 32.1, angle + " degrees");
+            angles.push(angle);
+            entries.push(a.y);
+        }
+        const spread = function (values) {
+            return Math.max.apply(null, values) - Math.min.apply(null, values);
+        };
+        verify(spread(angles) > 6, "angles within " + spread(angles) + " degrees");
+        verify(spread(entries) > 40, "comes in within " + spread(entries) + " px");
     }
 
     // What the host draws where the front comet's head crosses the planet's
