@@ -5247,6 +5247,14 @@ void QtEngineContractTest::qtSendsNoEngineTokenInTheUserAgent()
         qPrintable(agent));
     QVERIFY2(!agent.contains(QStringLiteral("  ")), qPrintable(agent));
     QVERIFY2(agent == agent.trimmed(), qPrintable(agent));
+
+    // The rest is the engine's own default, read from a profile nobody has
+    // touched, so a hard-coded string would not pass.
+    QWebEngineProfile untouched;
+    auto expected = untouched.httpUserAgent();
+    expected.remove(QRegularExpression(QStringLiteral(" ?QtWebEngine/\\S+")));
+    QVERIFY(expected != untouched.httpUserAgent());
+    QCOMPARE(agent, expected);
 }
 
 void QtEngineContractTest::qtReportsTheHeaderUserAgentToThePage_data()
@@ -5262,7 +5270,10 @@ void QtEngineContractTest::qtReportsTheHeaderUserAgentToThePage()
 {
     QFETCH(bool, privateWindow);
     PageServer server(R"HTML(<!doctype html><html><body>
-        <script>document.title = navigator.userAgent;</script>
+        <script>
+            document.title = navigator.userAgent + "|"
+                + navigator.userAgentData.brands.map(brand => brand.brand).join(",");
+        </script>
     </body></html>)HTML");
     QVERIFY(server.listen(QHostAddress::LocalHost));
     QTemporaryDir root;
@@ -5292,8 +5303,14 @@ void QtEngineContractTest::qtReportsTheHeaderUserAgentToThePage()
 
     QVERIFY(adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), agent, 15000);
-    QVERIFY2(!agent.contains(QStringLiteral("QtWebEngine")), qPrintable(agent));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString().contains(QLatin1Char('|')), 15000);
+    const auto reported = adapter->property("pageTitle").toString().split(QLatin1Char('|'));
+    QCOMPARE(reported.value(0), agent);
+    QVERIFY2(
+        !reported.value(0).contains(QStringLiteral("QtWebEngine")), qPrintable(reported.value(0)));
+    // Client hints stay as the engine sets them.
+    QVERIFY2(reported.value(1).contains(QStringLiteral("Chromium")), qPrintable(reported.value(1)));
     QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("User-Agent")), agent);
 }
 
