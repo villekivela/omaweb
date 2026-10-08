@@ -7,8 +7,8 @@
 //
 // The noise is a hash of the pixel's place in the window: it holds still while
 // the window is idle and needs no frame of its own. Each channel takes the
-// sum of two uniform values, a triangular spread of up to one output level
-// either way, which averages to nothing.
+// sum of two uniform values, a triangular spread of one output level either
+// way, which averages to nothing away from the ends of the channel's range.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -22,9 +22,6 @@ layout(std140, binding = 0) uniform buf {
     float radius;
     // The ground's colour, premultiplied by its alpha.
     vec4 premultiplied;
-    // How far the noise reaches on each channel, so that no channel leaves
-    // the range from 0 to the ground's alpha.
-    vec3 amplitude;
 };
 
 // Distance from a rounded rectangle's edge, negative inside.
@@ -54,10 +51,15 @@ void main()
     vec2 pixel = floor(gl_FragCoord.xy);
     vec3 first = hash(pixel);
     vec3 second = hash(pixel + vec2(1013.0, 2011.0));
-    vec3 noise = (first + second - 1.0) * amplitude;
+    vec3 noise = (first + second - 1.0) / 255.0;
 
-    // The amplitude keeps the channels at or under the alpha; the min holds
-    // that against the rounding of the uniforms from QML's doubles.
-    vec3 colour = min(premultiplied.rgb + noise, vec3(premultiplied.a));
+    // A premultiplied channel stays between 0 and the alpha: past the alpha
+    // it is not a colour, and Qt's unpremultiply wraps it past 255 to 0, a
+    // speckle (#647). Noise that would leave the range is folded back inside,
+    // so a channel at either end, a straight 255 or 0, is still dithered, at
+    // the cost of a third of a level off its mean. The max catches an alpha
+    // under one level, which folds past both ends.
+    vec3 colour = abs(premultiplied.rgb + noise);
+    colour = max(premultiplied.a - abs(premultiplied.a - colour), 0.0);
     fragColor = vec4(colour, premultiplied.a) * coverage * qt_Opacity;
 }
