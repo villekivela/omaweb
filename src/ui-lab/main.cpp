@@ -42,6 +42,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <QJSValue>
 #include <QQmlComponent>
 #include <QAbstractItemModel>
@@ -1118,12 +1119,23 @@ int main(int argc, char *argv[])
     // `--scene-start <seconds>` starts the Start page's Scene's clock at that
     // time and lets it run, so a live review reaches a moment that comes
     // rarely, such as the night sky's comet in front of its planet, without
-    // waiting for it.
+    // waiting for it. With `--scene-time` as well, the held frame wins, since
+    // a capture asks for one moment.
     const auto sceneStartIndex = arguments.indexOf(QStringLiteral("--scene-start"));
-    if (sceneStartIndex >= 0 && sceneStartIndex + 1 < arguments.size()
-        && !engine.rootObjects().isEmpty()) {
+    if (sceneStartIndex >= 0 && sceneTimeIndex >= 0) {
+        qWarning("--scene-time holds the Scene still, so --scene-start is ignored");
+    } else if (sceneStartIndex >= 0 && !engine.rootObjects().isEmpty()) {
+        auto ok = false;
+        const auto given = sceneStartIndex + 1 < arguments.size()
+            ? arguments.at(sceneStartIndex + 1)
+            : QString();
+        const auto start = given.toDouble(&ok);
+        if (!ok || !std::isfinite(start) || start < 0) {
+            qCritical("--scene-start takes a number of seconds, 0 or more, not \"%s\"",
+                qPrintable(given));
+            return 1;
+        }
         auto *window = engine.rootObjects().constFirst();
-        const auto start = arguments.at(sceneStartIndex + 1).toDouble();
         QTimer::singleShot(0, window, [window, start] {
             if (auto *host = window->findChild<QObject *>(QStringLiteral("startPageScene"))) {
                 host->setProperty("time", start);

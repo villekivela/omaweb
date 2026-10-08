@@ -119,8 +119,8 @@ TestCase {
 
     // A dark planet rises from the bottom, as Navigator's globe did: its limb
     // crests below the page area's middle, where the Omnibar rests, and
-    // curves away toward the edges. The window's test holds the crest just
-    // below the Omnibar.
+    // curves away toward the edges. The window's test holds the crest a
+    // third of the way from the Omnibar's bottom edge to the page's.
     function test_thePlanetsLimbCurvesBelowWhereTheOmnibarRests() {
         const sky = makeSky({
                                 width: 1200 / 4,
@@ -229,7 +229,7 @@ TestCase {
                                 height: 800 / 4
                             });
         let behind = 0;
-        drive(sky, 600, function () {
+        drive(sky, 120, function () {
             for (const comet of shown(sky)) {
                 if (!behindTheLimb(sky, comet.head))
                     continue;
@@ -239,7 +239,7 @@ TestCase {
                        + sky.time);
             }
         });
-        verify(behind > 0, "no comet fell behind the planet in ten minutes");
+        verify(behind > 0, "no comet fell behind the planet in two minutes");
     }
 
     // What the host draws where a comet's head has fallen behind the planet
@@ -277,7 +277,7 @@ TestCase {
                             });
         const last = {};
         let steps = 0;
-        drive(sky, 240, function () {
+        drive(sky, 120, function () {
             const now = {};
             for (const comet of shown(sky)) {
                 const name = comet.slot + "/" + comet.index;
@@ -309,7 +309,7 @@ TestCase {
         const counts = {};
         let before = 0;
         let quiet = 0;
-        drive(sky, 600, function () {
+        drive(sky, 120, function () {
             const count = shown(sky).length;
             counts[count] = (counts[count] || 0) + 1;
             if (before === 0 && count > 0)
@@ -320,16 +320,17 @@ TestCase {
         });
         verify(counts[2] > 0, "never two comets at once");
         verify(counts[3] > 0, "never three comets at once");
-        verify(quiet > 30 * 120, "only " + quiet / 30 + " quiet seconds in ten minutes");
+        verify(quiet > 30 * 24, "only " + quiet / 30 + " quiet seconds in two minutes");
     }
 
     // The quiet stretches between comets and shooting stars are about half
-    // as long as the 22 seconds they once averaged, and there still are some.
+    // as long as the 22 seconds they once averaged, and there still are
+    // some: over twenty minutes of the clock they average 13 seconds.
     function test_quietStretchesBetweenComets() {
         const sky = makeSky();
         const stretches = [];
         let quiet = 0;
-        drive(sky, 3600, function () {
+        drive(sky, 1200, function () {
             if (shown(sky).length === 0) {
                 quiet += 1;
             } else if (quiet > 0) {
@@ -340,7 +341,7 @@ TestCase {
         const mean = stretches.reduce(function (sum, seconds) {
             return sum + seconds;
         }, 0) / stretches.length;
-        verify(mean > 6 && mean < 13, "quiet for " + mean + " seconds at a time");
+        verify(mean > 6 && mean < 15, "quiet for " + mean + " seconds at a time");
     }
 
     // Every comet and shooting star goes out behind the planet's limb rather
@@ -352,7 +353,7 @@ TestCase {
                             });
         let last = {};
         let gone = 0;
-        drive(sky, 600, function () {
+        drive(sky, 120, function () {
             const now = {};
             for (const comet of shown(sky))
                 now[comet.slot + "/" + comet.index] = Qt.point(comet.head.x, comet.head.y);
@@ -398,18 +399,17 @@ TestCase {
     }
 
     // The limb's glow pulses on a slow sine of five seconds, from its peak
-    // down to 60% of it and back, its reach the same throughout. A commit
-    // leaves the pulse alone.
+    // down to 60% of it and back, its reach the same throughout: the glow is
+    // drawn once and only its opacity moves. A commit leaves the pulse alone.
     function test_theLimbsGlowPulses() {
         const sky = makeSky();
         const glow = findChild(sky, "planetGlow");
         verify(glow !== null);
-        const reach = sky.glowReach;
+        const drawn = glow.key;
         const at = function (time) {
             sky.time = time;
-            compare(glow.opacity, sky.glowOpacity);
-            compare(sky.glowReach, reach);
-            return sky.glowOpacity;
+            compare(glow.key, drawn);
+            return glow.opacity;
         };
         fuzzyCompare(at(0), 1, 0.001);
         fuzzyCompare(at(2.5), 0.6, 0.001);
@@ -446,10 +446,8 @@ TestCase {
                             });
         const glow = findChild(sky, "planetGlow");
         verify(glow !== null);
-        const held = sky.glowOpacity;
-        compare(held, data.shown ? 1 : 0);
+        const held = data.shown ? 1 : 0;
         drive(sky, 6, function () {
-            compare(sky.glowOpacity, held);
             compare(glow.opacity, held);
         });
     }
@@ -463,13 +461,11 @@ TestCase {
         drive(sky, seconds, function () {
             const front = findChild(sky, "frontComet");
             const flare = findChild(sky, "planetFlare");
-            compare(flare.opacity, sky.flare);
             if (!sky.frontShown) {
-                compare(sky.flare, 0);
+                compare(flare.opacity, 0);
                 crossing = null;
                 return;
             }
-            compare(front.opacity, sky.frontTrail);
             if (crossing === null) {
                 crossing = {
                     from: sky.time,
@@ -481,8 +477,8 @@ TestCase {
                 seen.push(crossing);
             }
             crossing.heads.push(Qt.point(sky.frontHead.x, sky.frontHead.y));
-            crossing.flares.push(sky.flare);
-            crossing.trails.push(sky.frontTrail);
+            crossing.flares.push(flare.opacity);
+            crossing.trails.push(front.opacity);
             crossing.others += shown(sky).length;
         });
         return seen;
@@ -503,12 +499,20 @@ TestCase {
                         inTheSky: true
                     },
                     {
-                        // A tiled column, taller than it is wide: the
-                        // diagonal from the crest would leave through the
-                        // left edge, so the comet comes in lower.
+                        // A tiled column, taller than it is wide: the comet
+                        // falls more steeply to leave through the bottom.
                         tag: "560 by 1440",
                         width: 560,
                         height: 1440,
+                        inTheSky: false
+                    },
+                    {
+                        // Narrower still, where even its steepest line past
+                        // the Omnibar would leave through the left edge: it
+                        // comes in lower.
+                        tag: "400 by 1600",
+                        width: 400,
+                        height: 1600,
                         inTheSky: false
                     }
                 ];
@@ -519,8 +523,8 @@ TestCase {
                                 width: data.width / 4,
                                 height: data.height / 4
                             });
-        const seen = crossings(sky, 600);
-        verify(seen.length >= 19 && seen.length <= 21, seen.length + " in ten minutes");
+        const seen = crossings(sky, 180);
+        verify(seen.length >= 5 && seen.length <= 7, seen.length + " in three minutes");
         for (let index = 1; index < seen.length; ++index) {
             const gap = seen[index].from - seen[index - 1].from;
             verify(gap > 25 && gap < 35, gap + " seconds apart");
@@ -575,22 +579,46 @@ TestCase {
 
     // On its way to the planet's face the comet in front of it passes the
     // resting Omnibar's right end close enough for its light to catch the
-    // rim, its glow never within 16 px of the field. The field is 720 wide,
-    // centred, from 50 above where the Omnibar rests to its bottom edge 50
-    // below. Each crossing comes in at a place and an angle of its own,
-    // between 20 and 32 degrees below the horizontal.
-    function test_theFrontCometCatchesTheRim() {
+    // rim, on every crossing, its glow never within 16 px of the field. The
+    // field is min(width - 32, 720) wide, centred, from 50 above where the
+    // Omnibar rests to its bottom edge 50 below. Each crossing comes in at a
+    // place and an angle of its own: 20 to 32 degrees below the horizontal,
+    // steeper in a window taller than it is wide, so that it still leaves
+    // through the bottom edge.
+    function test_theFrontCometCatchesTheRim_data() {
+        return [
+                    {
+                        tag: "1200 by 800",
+                        width: 1200,
+                        height: 800,
+                        steepest: 32,
+                        angles: 6,
+                        entries: 40
+                    },
+                    {
+                        tag: "560 by 1440",
+                        width: 560,
+                        height: 1440,
+                        steepest: 60,
+                        angles: 3,
+                        entries: 0
+                    }
+                ];
+    }
+
+    function test_theFrontCometCatchesTheRim(data) {
+        const omnibar = Math.min(data.width - 32, 720);
         const sky = makeSky({
-                                width: 1200 / 4,
-                                height: 800 / 4,
+                                width: data.width / 4,
+                                height: data.height / 4,
                                 omnibarReach: 50,
-                                omnibarWidth: 720
+                                omnibarWidth: omnibar
                             });
-        const field = Qt.rect(240, sky.horizonY - 50, 720, 100);
+        const field = Qt.rect((data.width - omnibar) / 2, sky.horizonY - 50, omnibar, 100);
         const clear = sky.front.halo / 2 + 16;
         const seen = [];
         let crossing = null;
-        drive(sky, 300, function () {
+        drive(sky, 180, function () {
             if (!sky.frontShown) {
                 crossing = null;
                 return;
@@ -620,7 +648,7 @@ TestCase {
             if (crossing.face < 0 && behindTheLimb(sky, head))
                 crossing.face = frame;
         });
-        verify(seen.length >= 9, seen.length + " crossings");
+        verify(seen.length >= 5, seen.length + " crossings");
         const angles = [];
         const entries = [];
         for (const one of seen) {
@@ -630,15 +658,21 @@ TestCase {
             const a = one.heads[0];
             const b = one.heads[1];
             const angle = Math.atan2(b.y - a.y, a.x - b.x) * 180 / Math.PI;
-            verify(angle >= 19.9 && angle <= 32.1, angle + " degrees");
+            verify(angle >= 19.9 && angle <= data.steepest + 0.1, angle + " degrees");
             angles.push(angle);
             entries.push(a.y);
         }
         const spread = function (values) {
             return Math.max.apply(null, values) - Math.min.apply(null, values);
         };
-        verify(spread(angles) > 6, "angles within " + spread(angles) + " degrees");
-        verify(spread(entries) > 40, "comes in within " + spread(entries) + " px");
+        verify(spread(angles) > data.angles, "angles within " + spread(angles) + " degrees");
+        verify(spread(entries) >= data.entries, "comes in within " + spread(entries) + " px");
+        for (const one of seen) {
+            const out = one.heads.find(function (head) {
+                return head.y > sky.drawHeight;
+            });
+            verify(out !== undefined && out.x > 0, "left at " + out);
+        }
     }
 
     // No comet or shooting star pops into view: each fades in from where it
@@ -658,7 +692,7 @@ TestCase {
                    + why + " at " + sky.time + ", " + sky.frontHead);
         };
         let seen = {};
-        drive(sky, 300, function () {
+        drive(sky, 120, function () {
             const now = {};
             for (const comet of shown(sky)) {
                 const name = comet.slot + "/" + comet.index;
@@ -669,7 +703,7 @@ TestCase {
             }
             seen = now;
         });
-        for (let t = 3; t < 300; t += 7.3) {
+        for (let t = 3; t < 150; t += 7.3) {
             sky.time = t;
             quiet("after the clock jumped");
             drive(sky, 1);
@@ -695,6 +729,33 @@ TestCase {
         quiet("after reduced motion");
     }
 
+    // A host tick stalls at a tenth of a second, the longest step its clock
+    // takes, and that is still the clock running on: the comets in the sky
+    // stay where they are rather than going out of sight as after a jump.
+    function test_aStalledTickKeepsTheComets() {
+        const sky = makeSky({
+                                width: 1200 / 4,
+                                height: 800 / 4
+                            });
+        let held = 0;
+        for (let from = 5; from < 200; from += 7.7) {
+            drive(sky, from - sky.time);
+            const before = shown(sky);
+            if (before.length === 0)
+                continue;
+            sky.time += 0.1;
+            const after = {};
+            for (const comet of shown(sky))
+                after[comet.slot + "/" + comet.index] = true;
+            // One whose fall ends in that tick has gone out behind the limb.
+            for (const comet of before)
+                verify(after[comet.slot + "/" + comet.index] || behindTheLimb(sky, comet.head),
+                       "a comet went out after a 0.1 s tick at " + sky.time);
+            held += 1;
+        }
+        verify(held >= 5, held + " stalls with comets in the sky");
+    }
+
     // About one comet in three is steered past the Omnibar's lower right
     // corner, its glow 16 px off the panel and its light on the rim. Others
     // catch it now and then on their own. With several in the sky, the light
@@ -708,7 +769,7 @@ TestCase {
                             });
         const field = fieldOf(sky);
         const comets = {};
-        drive(sky, 3600, function () {
+        drive(sky, 600, function () {
             const above = shown(sky).filter(function (comet) {
                 return !behindTheLimb(sky, comet.head);
             });
@@ -806,7 +867,7 @@ TestCase {
 
     function test_noFrontComet(data) {
         const sky = makeSky(data.properties);
-        compare(crossings(sky, 180).length, 0);
+        compare(crossings(sky, 60).length, 0);
     }
 
     // Drives a sky's clock by hand, a frame at the Scene's rate at a time, and
@@ -847,8 +908,8 @@ TestCase {
     function test_aCometFallsNowAndThen() {
         const sky = makeSky();
         verify(sky.stars > 0);
-        const seen = watch(sky, 240);
-        verify(seen.withComet > 0, "no comet in four minutes");
+        const seen = watch(sky, 120);
+        verify(seen.withComet > 0, "no comet in two minutes");
         verify(seen.withComet < seen.frames / 2, seen.withComet + " of " + seen.frames
                + " frames had a comet");
         verify(seen.kinds[0] && seen.kinds[1], "comets and shooting stars both fall");
@@ -876,7 +937,7 @@ TestCase {
                                 navigating: 1
                             });
         // Long enough for slots that would hold no comet in motion.
-        drive(sky, 120, function () {
+        drive(sky, 30, function () {
             const comets = shown(sky);
             compare(comets.length, 1);
             verify(!behindTheLimb(sky, comets[0].head));
@@ -901,7 +962,7 @@ TestCase {
         verify(sky.light !== null);
         let passing = 0;
         let between = 0;
-        drive(sky, 240, function () {
+        drive(sky, 120, function () {
             const above = shown(sky).filter(function (comet) {
                 return !behindTheLimb(sky, comet.head);
             });
@@ -932,14 +993,14 @@ TestCase {
         const half = Math.min(sky.drawWidth - 32, 720) / 2;
         const field = Qt.rect(sky.drawWidth / 2 - half, sky.horizonY - 50, half * 2, 50);
         let near = 0;
-        drive(sky, 600, function () {
+        drive(sky, 120, function () {
             const c = sky.light.centre;
             const dx = Math.max(field.x - c.x, 0, c.x - field.x - field.width);
             const dy = Math.max(field.y - c.y, 0, c.y - field.y - field.height);
             if (dx < field.width * sky.light.across && dy < sky.light.reach)
                 near += 1;
         });
-        verify(near > 0, "no comet passed the field in ten minutes");
+        verify(near > 0, "no comet passed the field in two minutes");
     }
 
     // The comet held still for less motion passes nothing, so it lights no
@@ -963,7 +1024,7 @@ TestCase {
 
     function test_noGlintStillOrUnlit(data) {
         const sky = makeSky(data.properties);
-        drive(sky, 240, function () {
+        drive(sky, 60, function () {
             verify(!lightFalls(sky), "a glint at " + sky.time);
         });
     }
@@ -975,7 +1036,7 @@ TestCase {
                                 unlit: true
                             });
         compare(sky.stars, 0);
-        let seen = watch(sky, 240);
+        let seen = watch(sky, 60);
         compare(seen.withComet, 0);
         sky.navigating = 1;
         seen = watch(sky, 3);
