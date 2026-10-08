@@ -41,7 +41,7 @@
     "face": 0.06
   },
   "field": {
-    "omnibarReach": 40,
+    "omnibarReach": 2,
     "above": 50,
     "widest": 720,
     "margin": 16

@@ -94,6 +94,10 @@ Item {
     // something is typed.
     readonly property bool pageFocusRest: open && shownResting && !commandScope && engine === null
                                           && input.text.length === 0
+    // `?` typed into the empty field opens the Shortcut sheet, and the field's
+    // cue names it, wherever the field is at rest on the Start page and holds
+    // no scope. `shownResting` keeps it through the fade out.
+    readonly property bool shortcutsKeyOpen: shownResting && !commandScope && engine === null
     // What the reader steps through, ranked against the typed text. In
     // command scope that is the commands alone.
     property var rows: []
@@ -981,8 +985,7 @@ Item {
                     // refreshes.
                     if (root.takeScope() || root.takeKeyword())
                         return;
-                    if (root.resting && !root.commandScope && root.engine === null && text
-                            === "?") {
+                    if (root.shortcutsKeyOpen && text === "?") {
                         text = "";
                         root.shortcutsRequested();
                         return;
@@ -1047,34 +1050,17 @@ Item {
 
             // The empty field's cue for the Shortcut sheet, after the
             // placeholder: `?` typed into the empty field opens it. It goes
-            // once the reader types, and where the field has no room for it.
-            Row {
+            // once the reader types or composes, and where the field has no
+            // room for it.
+            ShortcutsCue {
                 id: fieldCue
                 objectName: "omnibarFieldCue"
                 x: DevicePixels.snap(input.x + input.placeholderWidth + 16, root.pixelRatio)
                 y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
-                visible: root.resting && !root.commandScope && root.engine === null
-                         && input.text.length === 0 && x + width <= input.x + input.width
-                spacing: 6
-                Accessible.role: Accessible.StaticText
-                Accessible.name: qsTr("Question mark shows the keyboard shortcuts")
-
-                KeyCap {
-                    anchors.verticalCenter: parent.verticalCenter
-                    colors: root.colors
-                    text: "?"
-                    plate: root.colors.overlayOpaque
-                }
-
-                Text {
-                    objectName: "startPageHintWord"
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("shortcuts")
-                    color: root.colors.mutedText
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.bodySmall
-                    Accessible.ignored: true
-                }
+                visible: root.shortcutsKeyOpen && input.text.length === 0
+                         && input.preeditText.length === 0 && x + width <= input.x + input.width
+                colors: root.colors
+                plate: root.colors.overlayOpaque
             }
 
             // Where Return goes, in the muted word and size the rows' own

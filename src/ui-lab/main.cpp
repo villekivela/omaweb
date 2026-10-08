@@ -805,7 +805,7 @@ int main(int argc, char *argv[])
             return 1;
         }
         auto *word = engine.rootObjects().constFirst()->findChild<QObject *>(
-            QStringLiteral("startPageHintWord"));
+            QStringLiteral("shortcutsCueWord"));
         if (word == nullptr) {
             qCritical("The Start page has no hint");
             return 1;
@@ -1358,7 +1358,11 @@ int main(int argc, char *argv[])
         }
         if (requested.endsWith(QLatin1String("-step"))
             || requested.endsWith(QLatin1String("-settled"))) {
-            const auto delay = requested.endsWith(QLatin1String("-step")) ? 620 : 300;
+            // A new tab's summon is the longest movement here, so it starts
+            // early enough to have settled when the frame is taken.
+            const auto delay = requested.endsWith(QLatin1String("-step")) ? 620
+                : requested.startsWith(QLatin1String("newtab"))           ? 100
+                                                                          : 300;
             const auto what = requested.section(QLatin1Char('-'), 0, 0);
             // `--omnibar-query` types into the Omnibar once it is open, so a
             // capture shows the matches a query finds rather than the address

@@ -116,33 +116,15 @@ Item {
     }
 
     // The Shortcut sheet is summoned, not shown, so the row names the key.
-    Row {
+    ShortcutsCue {
         id: shortcutsHint
         objectName: "omnibarShortcutsHint"
         anchors.right: parent.right
         anchors.rightMargin: 16
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: 0.5
-        spacing: 6
-        Accessible.role: Accessible.StaticText
-        Accessible.name: qsTr("Question mark shows the keyboard shortcuts")
-
-        KeyCap {
-            anchors.verticalCenter: parent.verticalCenter
-            colors: root.colors
-            text: "?"
-            plate: root.plate
-        }
-
-        Text {
-            objectName: "startPageHintWord"
-            anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("shortcuts")
-            color: root.colors.mutedText
-            font.family: Style.font.family
-            font.pixelSize: Style.font.bodySmall
-            Accessible.ignored: true
-        }
+        colors: root.colors
+        plate: root.plate
     }
 
     Row {

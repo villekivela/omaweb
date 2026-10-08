@@ -5080,7 +5080,7 @@ TestCase {
         const cap = findChild(cue, "keycap");
         compare(cap.text, "?");
         checkKeycap(cap, "cue");
-        compare(findChild(cue, "startPageHintWord").text, "shortcuts");
+        compare(findChild(cue, "shortcutsCueWord").text, "shortcuts");
         compare(input.placeholderText, "Where to?");
         const placeholderEnd = input.x + input.placeholderWidth;
         verify(cue.x >= placeholderEnd + 8, "cue at " + cue.x + ", placeholder ends "
@@ -5106,12 +5106,17 @@ TestCase {
         const hint = findChild(hints, "omnibarShortcutsHint");
         verify(hint.visible);
         compare(findChild(hint, "keycap").text, "?");
-        compare(findChild(hint, "startPageHintWord").text, "shortcuts");
+        compare(findChild(hint, "shortcutsCueWord").text, "shortcuts");
         compare(childrenNamed(hints, "omnibarHintWord").map(function (word) {
             return word.text;
         }).join(), "select,go");
         const keys = childrenNamed(hints, "omnibarHintWord")[1];
         verify(hint.mapToItem(hints, 0, 0).x > keys.mapToItem(hints, 0, 0).x + keys.width);
+        const arrow = childrenNamed(hints, "keycap").filter(function (cap) {
+            return cap.visible && cap.text.length > 0;
+        })[0];
+        compare(hint.mapToItem(hints, 0, hint.height / 2).y, arrow.mapToItem(hints, 0, arrow.height
+                                                                             / 2).y);
         verify(hint.mapToItem(hints, hint.width, 0).x <= hints.width);
         input.text = "";
         leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
@@ -12963,6 +12968,48 @@ TestCase {
                         larger: 6
                     }
                 ];
+    }
+
+    // What a Scene assumes of the resting Omnibar before the browser hands in
+    // its own reach, as a Settings thumbnail and a lab capture have it, is
+    // the reach it has: the field alone.
+    function test_theScenesDefaultReachIsTheRestingOmnibars_data() {
+        return [
+                    {
+                        "tag": "night sky",
+                        "scene": "night-sky",
+                        "item": "nightSky",
+                        "part": "planet"
+                    },
+                    {
+                        "tag": "vector terrain",
+                        "scene": "vector-terrain",
+                        "item": "vectorTerrain",
+                        "part": "peaks"
+                    },
+                    {
+                        "tag": "radar",
+                        "scene": "radar",
+                        "item": "radar",
+                        "part": "field"
+                    }
+                ];
+    }
+
+    function test_theScenesDefaultReachIsTheRestingOmnibars(data) {
+        const panel = findChild(window.contentItem, "omnibar");
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting reach");
+        try {
+            window.setStartPageScene(data.scene);
+            const item = findChild(scene, data.item);
+            verify(item !== null);
+            compare(item.parameters[data.part].omnibarReach, panel.restReach);
+            compare(scene.sceneItem.omnibarReach, panel.restReach);
+        } finally {
+            leaveSpace(homeSpaceId, restingSpaceId, "Resting reach");
+        }
     }
 
     // The sky's planet lies wholly under the resting Omnibar: its top, the

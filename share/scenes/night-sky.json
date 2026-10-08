@@ -45,7 +45,7 @@
   },
   "planet": {
     "radius": 1.5,
-    "omnibarReach": 40,
+    "omnibarReach": 2,
     "gap": 12,
     "face": 0.5,
     "limb": { "width": 4, "colour": { "mix": ["glow", "white", 0.35] }, "unlit": 0.25 },

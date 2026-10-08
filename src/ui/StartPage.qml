@@ -41,7 +41,7 @@ Item {
     // How far the resting Omnibar reaches below the horizon, which the night
     // sky's planet, the vector terrain's mountains and the radar's blips keep
     // clear.
-    property real omnibarReach: 40
+    property real omnibarReach: 2
     // The Settings interface section's CRT glass over the Scene.
     property bool glassEnabled: true
     // The reader asked for less motion: the Scene holds one still frame, with

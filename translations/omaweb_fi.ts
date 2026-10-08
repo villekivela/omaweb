@@ -2040,14 +2040,6 @@
         <translation>Siirry</translation>
     </message>
     <message>
-        <source>Question mark shows the keyboard shortcuts</source>
-        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
-    </message>
-    <message>
-        <source>shortcuts</source>
-        <translation>pikanäppäimet</translation>
-    </message>
-    <message>
         <source>Command</source>
         <translation>Komento</translation>
     </message>
@@ -2101,14 +2093,6 @@
     <message>
         <source>back</source>
         <translation>takaisin</translation>
-    </message>
-    <message>
-        <source>Question mark shows the keyboard shortcuts</source>
-        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
-    </message>
-    <message>
-        <source>shortcuts</source>
-        <translation>pikanäppäimet</translation>
     </message>
 </context>
 <context>
@@ -3943,6 +3927,17 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Close shortcuts</source>
         <translation>Sulje pikanäppäimet</translation>
+    </message>
+</context>
+<context>
+    <name>ShortcutsCue</name>
+    <message>
+        <source>Question mark shows the keyboard shortcuts</source>
+        <translation>Kysymysmerkki näyttää pikanäppäimet</translation>
+    </message>
+    <message>
+        <source>shortcuts</source>
+        <translation>pikanäppäimet</translation>
     </message>
 </context>
 <context>
