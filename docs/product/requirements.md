@@ -721,6 +721,9 @@ The default page commands include:
   or automatic crash upload.
 - Sync is an optional Linux Feature module. Its forge login is an identity, not an Omaweb Account,
   and a daily-driver build remains local-only until the reader connects it.
+- A machine that connects Sync to a repository already holding Spaces takes the repository's Spaces
+  and their tabs. Its own Spaces are replaced, whether or not they were used, and the repository's
+  first Space becomes active.
 - Every automatic network request is documented.
 - Every build refuses to start when its command line or `QTWEBENGINE_CHROMIUM_FLAGS` disables the
   renderer sandbox. On Linux, a failed sandbox prerequisite stops startup with a diagnostic that
