@@ -13030,6 +13030,13 @@ TestCase {
                         larger: 0
                     },
                     {
+                        tag: "2400 x 760",
+                        width: 2400,
+                        height: 760,
+                        larger: 0,
+                        higher: true
+                    },
+                    {
                         tag: "larger type",
                         width: 1360,
                         height: 860,
@@ -13081,9 +13088,11 @@ TestCase {
     }
 
     // The sky's planet lies wholly under the resting Omnibar: its top, the
-    // glow along its limb included, stands a small gap below the Omnibar's
-    // bottom edge, at any window size and type size, so its curve shows whole.
-    // The Omnibar keeps the place it has over the road.
+    // glow along its limb included, stands a third of the way from the
+    // Omnibar's bottom edge to the page area's, at any window size and type
+    // size, and its curve shows whole. The Shortcut sheet's cue in the lower
+    // right corner stands on the planet's face, clear of the limb and its
+    // glow. The Omnibar keeps the place it has over the road.
     function test_theSkysPlanetStaysBelowTheOmnibar(data) {
         const width = window.width;
         const height = window.height;
@@ -13107,11 +13116,54 @@ TestCase {
             const top = function () {
                 return scene.mapToItem(panel, 0, sky.planetTop).y;
             };
+            const third = function () {
+                const sceneBottom = scene.mapToItem(panel, 0, sky.drawHeight).y;
+                return bottom() + (sceneBottom - bottom()) / 3;
+            };
             tryVerify(function () {
-                return top() > bottom() + 4;
-            }, 1000, "planet's top " + top() + ", Omnibar's bottom " + bottom());
-            verify(top() < bottom() + 24, "planet's top " + top() + ", Omnibar's bottom " + bottom(
+                return Math.abs(sky.drawWidth - scene.width) < sky.pitch;
+            }, 2000, "the sky drawn " + sky.drawWidth + " wide in a host " + scene.width + " wide");
+            // A window this wide for its height would take the limb's ends
+            // onto the cue from a third of the way down, so the planet stands
+            // higher.
+            if (data.higher)
+                verify(top() < third() - 8, "planet's top " + top() + ", a third " + third());
+            else
+                verify(Math.abs(top() - third()) < 1, "planet's top " + top() + ", a third " + third(
+                           ));
+            verify(top() > bottom() + 4, "planet's top " + top() + ", Omnibar's bottom " + bottom(
                        ));
+
+            // The limb is lowest at its ends, and they stand above the cue's
+            // top, so it lies on the face; the glow is above the limb.
+            const cue = findChild(window.contentItem, "omnibarCornerCue");
+            verify(cue !== null && cue.visible);
+            const cueTop = cue.mapToItem(scene, 0, 0).y;
+            const r = sky.planetRadius;
+            const half = sky.drawWidth / 2;
+            const ends = sky.planetCentre.y - Math.sqrt(r * r - half * half);
+            verify(ends < cueTop - 8, "the limb's ends at " + ends + ", the cue at " + cueTop);
+            verify(ends < sky.drawHeight, ends);
+
+            // The comet that falls in front of the planet passes clear of the
+            // cue on its way out through the bottom edge, its tail on the
+            // same diagonal behind it.
+            const clear = sky.front.halo / 2 + 8;
+            const cueLeft = cue.mapToItem(scene, 0, 0).x;
+            const time = scene.time;
+            let crossed = 0;
+            for (let t = 0; t < 70; t += 1 / 30) {
+                scene.time = t;
+                if (!sky.frontShown)
+                    continue;
+                crossed += 1;
+                const head = sky.frontHead;
+                verify(head.x < cueLeft - clear || head.x > cueLeft + cue.width + clear || head.y
+                       < cueTop - clear || head.y > cueTop + cue.height + clear, "the comet at "
+                       + head + " over the cue at " + cueLeft + ", " + cueTop);
+            }
+            scene.time = time;
+            verify(crossed > 0, "no comet fell in front of the planet");
         } finally {
             leaveSpace(homeSpaceId, restingSpaceId, "Resting planet");
             fontSettings.resetInterfaceFontSize();

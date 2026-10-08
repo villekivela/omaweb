@@ -1,13 +1,15 @@
 import QtQuick
+import QtQuick.Shapes
 import Omaweb
 import "SceneColour.mjs" as Colour
 
 // The night sky, the Start page's second Scene, after Netscape Navigator's
-// throbber: a still star field over a dark planet whose limb crests just
-// below the Omnibar, a comet or a shooting star falling now and then on a slow
-// diagonal and going out behind the limb, and streaks falling thick and fast
-// while the reader navigates. There is no mark: the Omnibar is the one thing
-// in the middle.
+// throbber: a still star field over a dark planet standing low below the
+// Omnibar, its limb's glow pulsing, comets and shooting stars falling from the
+// upper right and going out behind the limb, a larger comet now and then
+// falling in front of the planet and lighting it up, and streaks falling thick
+// and fast while the reader navigates. There is no mark: the Omnibar is the
+// one thing in the middle.
 //
 // It keeps NightRoad.qml's contract with SceneHost.qml: it receives `colors`,
 // `dark`, `time`, `navigating`, `beat`, `options`, `reducedMotion` and
@@ -65,14 +67,9 @@ Item {
 
     readonly property int stars: root.unlit ? 0 : root.parameters.stars.count
     readonly property bool limbGlows: !root.unlit
-    readonly property bool cometShown: !root.unlit && (root.reducedMotion || root.cometFalls
-                                                       && root.cometRun < 1)
-    // 0 for a comet, 1 for a shooting star: the index of its kind.
-    readonly property int cometKind: {
-        if (root.reducedMotion)
-            return root.comets.still.kind;
-        return root.hash(root.cometSlot + 3) < root.comets.kinds[0].share ? 0 : 1;
-    }
+    readonly property bool cometShown: root.fallen.some(function (comet) {
+        return comet !== null;
+    })
     readonly property int streaks: root.unlit ? 0 : Math.ceil(root.falling.count * root.rushShown)
 
     // ---- palette
@@ -117,46 +114,166 @@ Item {
 
     // ---- the comets
     //
-    // In some of the clock's slots a comet or a shooting star falls on a slow
-    // diagonal from a place the slot scatters. A reader who asked for less
-    // motion gets one comet held part way across.
+    // In some of the clock's slots a group of comets and shooting stars
+    // falls, one first and up to `most` in the sky at once, each from the
+    // upper right toward the lower left on the same diagonal. Each is placed
+    // by where it goes out behind the planet's limb: it appears `run` up the
+    // diagonal from there and falls until its tail has gone out too, so none
+    // stops short in the sky. A slot's group has gone before the next slot
+    // begins. A reader who asked for less motion gets one comet held part
+    // way down its run.
 
     readonly property var comets: root.parameters.comets
     // The diagonal comets and streaks fall down, in degrees.
     readonly property real fallAngle: Math.atan(root.comets.slope) * 180 / Math.PI
+    // The way down the diagonal, as a unit step.
+    readonly property point fallStep: Qt.point(-Math.cos(root.fallAngle * Math.PI / 180), Math.sin(
+                                                   root.fallAngle * Math.PI / 180))
     readonly property int cometSlot: Math.floor(root.time / root.comets.every)
-    // Whether a comet falls in this slot at all.
-    readonly property bool cometFalls: root.hash(root.cometSlot) > root.comets.chance
-    readonly property var cometMeasure: root.comets.kinds[root.cometKind]
-    // How far through its fall the comet is, from 0 to 1.
-    readonly property real cometRun: {
-        if (root.reducedMotion)
-            return root.comets.still.run;
-        return (root.time - root.cometSlot * root.comets.every) / root.cometMeasure.lasts;
+
+    // Where on the limb a comet `across` of the width along goes out.
+    function limbAt(across) {
+        const x = across * root.drawWidth;
+        const dx = x - root.planetCentre.x;
+        return Qt.point(x, root.planetCentre.y - Math.sqrt(Math.max(0, root.planetRadius
+                                                                    * root.planetRadius - dx
+                                                                    * dx)));
     }
-    // Its head, in logical pixels.
-    readonly property point cometHead: {
+
+    // A comet's head `fallen` of the width down its diagonal, which starts
+    // `run` of the width up from where it goes out.
+    function headOf(out, run, fallen) {
+        const back = (run - fallen) * root.drawWidth;
+        return Qt.point(out.x - root.fallStep.x * back, out.y - root.fallStep.y * back);
+    }
+
+    // The comet `index` of the group falling in `slot`, or null where it is
+    // not in the sky at `time`.
+    function cometAt(slot, index, time) {
         const c = root.comets;
-        const still = root.reducedMotion;
-        const across = still ? c.still.across : root.spread(c.across, root.cometSlot + 1);
-        const high = still ? c.still.height : root.spread(c.height, root.cometSlot + 2);
-        const travel = root.cometMeasure.travel * root.drawWidth * root.cometRun;
-        const x = across * root.drawWidth + travel;
-        return Qt.point(x, high * root.drawHeight + travel * c.slope);
+        const seed = slot * 32;
+        if (root.frontSlot(slot) || root.hash(seed) <= c.chance)
+            return null;
+        const pick = root.hash(seed + 1);
+        const together = c.together.findIndex(function (share) {
+            return pick < share;
+        }) + 1;
+        if (index >= together)
+            return null;
+        let start = slot * c.every;
+        for (let before = 1; before <= index; ++before)
+            start += root.spread(c.apart, seed + 2 + before);
+        const kind = root.hash(seed + 8 + index) < c.kinds[0].share ? 0 : 1;
+        const measure = c.kinds[kind];
+        const run = root.spread(measure.run, seed + 12 + index);
+        const fallen = (time - start) * measure.speed;
+        if (fallen < 0 || fallen > run + measure.length)
+            return null;
+        return {
+            slot: slot,
+            index: index,
+            kind: kind,
+            head: root.headOf(root.limbAt(root.spread(c.out, seed + 16 + index)), run, fallen),
+            shown: Math.min(1, fallen / ((run + measure.length) * c.fadeIn))
+        };
+    }
+
+    // The comets in the sky now, one place for each of the most there can be,
+    // null where none falls.
+    readonly property var fallen: {
+        const c = root.comets;
+        const places = [];
+        for (let index = 0; index < c.most; ++index) {
+            if (root.unlit)
+                places.push(null);
+            else if (root.reducedMotion)
+                places.push(index > 0 ? null : {
+                                            slot: -1,
+                                            index: 0,
+                                            kind: c.still.kind,
+                                            head: root.headOf(root.limbAt(c.still.out), c.still.run,
+                                                              c.still.run * c.still.at),
+                                            shown: 1
+                                        });
+            else
+                places.push(root.cometAt(root.cometSlot, index, root.time));
+        }
+        return places;
+    }
+
+    // ---- the comet in front of the planet
+    //
+    // In one of every `every` slots, with no other comet in the sky, a large
+    // comet comes in from the right edge at the planet's crest, sweeps down
+    // the diagonal across the planet's face in front of it, and leaves
+    // through the bottom edge `lasts` seconds later, lighting the planet up
+    // as it passes. Its trail fades over `fades` seconds once it has gone.
+    // It never falls under reduced motion, in a Private window, or while a
+    // commit's streaks fall.
+
+    readonly property var front: root.parameters.front
+
+    function frontSlot(slot) {
+        return slot % root.front.every === root.front.at;
+    }
+
+    // Seconds since the front comet came in, or -1 with none in the sky.
+    readonly property real frontRun: {
+        const f = root.front;
+        if (root.reducedMotion || root.unlit || root.rushShown > 0 || !root.frontSlot(
+                    root.cometSlot))
+            return -1;
+        const run = root.time - root.cometSlot * root.comets.every - f.after;
+        return run >= 0 && run < f.lasts + f.fades ? run : -1;
+    }
+    readonly property bool frontShown: root.frontRun >= 0
+    readonly property point frontHead: {
+        const f = root.front;
+        const from = Qt.point(root.drawWidth + f.halo / 2, root.crestY);
+        const across = (root.drawHeight + f.halo / 2 - from.y) / root.fallStep.y;
+        const fallen = across * Math.max(0, root.frontRun) / f.lasts;
+        return Qt.point(from.x + root.fallStep.x * fallen, from.y + root.fallStep.y * fallen);
+    }
+    // How much of its trail is left: whole while it crosses, fading once it
+    // has gone.
+    readonly property real frontTrail: {
+        const f = root.front;
+        if (!root.frontShown)
+            return 0;
+        return Math.min(1, 1 - (root.frontRun - f.lasts) / f.fades);
+    }
+    // How far the planet has lit up: most with the comet half way down from
+    // the crest, none once it has left through the bottom.
+    readonly property real flare: {
+        if (!root.frontShown)
+            return 0;
+        const down = (root.frontHead.y - root.crestY) / (root.drawHeight - root.crestY);
+        return down > 0 && down < 1 ? root.front.flare.peak * Math.sin(Math.PI * down) : 0;
     }
 
     // ---- the planet
     //
     // A circle centred below the page, its radius the page area's width
-    // times `radius`. Its top, the glow over its limb included, stands `gap`
-    // below the resting Omnibar's bottom edge, so the planet lies wholly under
-    // the Omnibar and its curve shows whole. Unlit, it has no glow and stands
-    // in the same place.
+    // times `radius`. Its top, the glow over its limb included, stands
+    // `share` of the way from the resting Omnibar's bottom edge to the
+    // Scene's, so it falls with the window's height. Where that would take
+    // the limb's ends lower than `edgeClear` above the bottom, off the page or
+    // onto the lower right corner the Shortcut sheet's cue holds, it stands
+    // higher, but never closer to the Omnibar than `gap`. Unlit, it has no
+    // glow and stands in the same place.
 
     readonly property real planetRadius: root.drawWidth * root.parameters.planet.radius
     readonly property real glowReach: root.parameters.planet.glow.reach
-    readonly property real crestY: root.horizonY + root.omnibarReach + root.parameters.planet.gap
-                                   + root.glowReach
+    readonly property real crestY: {
+        const p = root.parameters.planet;
+        const omnibarBottom = root.horizonY + root.omnibarReach;
+        const r = root.planetRadius;
+        const half = root.drawWidth / 2;
+        const sag = r - Math.sqrt(r * r - half * half);
+        const low = omnibarBottom + p.share * (root.drawHeight - omnibarBottom) + root.glowReach;
+        const whole = root.drawHeight - p.edgeClear - sag;
+        return Math.max(omnibarBottom + p.gap + root.glowReach, Math.min(low, whole));
+    }
     // The planet's highest point, the glow over its limb included.
     readonly property real planetTop: root.crestY - (root.limbGlows ? root.glowReach : 0)
     readonly property point planetCentre: Qt.point(root.drawWidth / 2, root.crestY
@@ -201,20 +318,43 @@ Item {
         }
     }
 
-    // The planet over what moves, so a comet goes out behind its limb: the
-    // glow along the limb, the face, and the limb's thin line. Unlit, the
-    // planet and its limb stay without the glow.
+    // The glow along the planet's limb, over what moves, so a comet goes out
+    // behind it.
+    function drawGlow(context) {
+        const p = root.parameters.planet;
+        const c = root.planetCentre;
+        const r = root.planetRadius;
+        const haze = context.createRadialGradient(c.x, c.y, r, c.x, c.y, r + p.glow.reach);
+        for (const stop of p.glow.stops)
+            haze.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop[2]));
+        context.fillStyle = haze;
+        context.fillRect(0, root.crestY - p.glow.reach, root.drawWidth, root.drawHeight);
+    }
+
+    // The planet lit up by the comet passing in front of it: its face
+    // brighter, and the glow along its limb.
+    function drawFlare(context) {
+        const p = root.parameters.planet;
+        const f = root.front.flare;
+        const c = root.planetCentre;
+        const r = root.planetRadius;
+        const haze = context.createRadialGradient(c.x, c.y, r, c.x, c.y, r + p.glow.reach);
+        for (const stop of f.glow)
+            haze.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop[2]));
+        context.fillStyle = haze;
+        context.fillRect(0, root.crestY - p.glow.reach, root.drawWidth, root.drawHeight);
+        context.beginPath();
+        context.arc(c.x, c.y, r, 0, Math.PI * 2, false);
+        context.fillStyle = Colour.css(root.colour(f.face));
+        context.fill();
+    }
+
+    // The planet over the glow: the face, and the limb's thin line. Unlit,
+    // the planet and its limb stay without the glow.
     function drawPlanet(context) {
         const p = root.parameters.planet;
         const c = root.planetCentre;
         const r = root.planetRadius;
-        if (root.limbGlows) {
-            const haze = context.createRadialGradient(c.x, c.y, r, c.x, c.y, r + p.glow.reach);
-            for (const stop of p.glow.stops)
-                haze.addColorStop(stop[0], Colour.css(root.colour(stop[1]), stop[2]));
-            context.fillStyle = haze;
-            context.fillRect(0, root.crestY - p.glow.reach, root.drawWidth, root.drawHeight);
-        }
         context.beginPath();
         context.arc(c.x, c.y, r, 0, Math.PI * 2, false);
         context.fillStyle = Colour.css(root.roles.face);
@@ -239,14 +379,30 @@ Item {
     // ---- the light it casts
     //
     // A passing comet catches the Omnibar's rim as it crosses near the field:
-    // the light is centred on its head, and its ellipse reaches the rim only
+    // the light is centred on the head of the comet above the limb nearest
+    // where the Omnibar rests, and its ellipse reaches the rim only
     // from close by. With no comet passing, or once it has gone behind the
     // planet, the light stands far above the picture, where it reaches
     // nothing, so there is no glint at rest, under reduced motion or in a
     // Private window.
-    readonly property bool cometGlints: root.cometShown && !root.reducedMotion && !root.behindLimb(
-                                            root.cometHead)
-    readonly property point glintCentre: root.cometGlints ? root.cometHead : root.nowhere
+    // Of the comets above the limb, the one nearest where the Omnibar rests.
+    readonly property var glinting: {
+        if (root.reducedMotion)
+            return null;
+        let nearest = null;
+        let distance = Infinity;
+        for (const comet of root.fallen) {
+            if (comet === null || root.behindLimb(comet.head))
+                continue;
+            const d = Math.hypot(comet.head.x - root.drawWidth / 2, comet.head.y - root.horizonY);
+            if (d < distance) {
+                nearest = comet;
+                distance = d;
+            }
+        }
+        return nearest;
+    }
+    readonly property point glintCentre: root.glinting !== null ? root.glinting.head : root.nowhere
     readonly property point nowhere: Qt.point(root.drawWidth / 2, -1e5)
     readonly property var light: {
         const g = root.parameters.glint;
@@ -295,6 +451,97 @@ Item {
 
     // ---- what moves, in logical pixels scaled to the Scene's
 
+    // A comet as Navigator's throbber drew one: a white head in a glow of
+    // the palette, and a tail that tapers and fades into the sky up the
+    // diagonal from it.
+    component Comet: Item {
+        id: comet
+
+        property point head
+        property real length
+        property real tailWidth
+        property real headSize
+        property real haloSize
+
+        Shape {
+            id: tail
+            objectName: "cometTail"
+
+            readonly property real headWidth: comet.tailWidth
+            readonly property real endWidth: 0
+
+            x: comet.head.x
+            y: comet.head.y
+            transformOrigin: Item.TopLeft
+            rotation: -root.fallAngle
+            antialiasing: true
+
+            ShapePath {
+                strokeWidth: -1
+                strokeColor: "transparent"
+                fillGradient: LinearGradient {
+                    x1: 0
+                    y1: 0
+                    x2: comet.length
+                    y2: 0
+                    GradientStop {
+                        position: 0
+                        color: root.colour(root.comets.head)
+                    }
+                    GradientStop {
+                        position: 0.15
+                        color: root.colour(root.comets.halo)
+                    }
+                    GradientStop {
+                        position: 1
+                        color: Colour.withAlpha(root.colour(root.comets.halo), 0)
+                    }
+                }
+                startX: 0
+                startY: -tail.headWidth / 2
+                PathLine {
+                    x: comet.length
+                    y: -tail.endWidth / 2
+                }
+                PathLine {
+                    x: comet.length
+                    y: tail.endWidth / 2
+                }
+                PathLine {
+                    x: 0
+                    y: tail.headWidth / 2
+                }
+                PathLine {
+                    x: 0
+                    y: -tail.headWidth / 2
+                }
+            }
+        }
+
+        Rectangle {
+            objectName: "cometHalo"
+            x: comet.head.x - width / 2
+            y: comet.head.y - height / 2
+            width: comet.haloSize
+            height: comet.haloSize
+            radius: width / 2
+            opacity: 0.5
+            antialiasing: true
+            color: root.colour(root.comets.halo)
+        }
+
+        Rectangle {
+            objectName: "cometHead"
+            x: comet.head.x - width / 2
+            y: comet.head.y - height / 2
+            width: comet.headSize
+            height: comet.headSize
+            radius: width / 2
+            antialiasing: true
+            color: root.colour(root.comets.head)
+        }
+    }
+
     Item {
         id: moving
 
@@ -320,86 +567,123 @@ Item {
                 readonly property real run: Colour.fraction(root.time / lasts + phase)
                 readonly property real travel: st.travel * root.drawWidth * run
                 readonly property real headX: root.spread(st.across, index + 303) * root.drawWidth
-                                              + travel
+                                              - travel
                 readonly property real headY: root.spread(st.height, index + 404) * root.drawHeight
                                               + travel * root.comets.slope
 
-                x: headX - width
+                x: headX
                 y: headY - height / 2
                 width: root.drawWidth * root.spread(st.length, index + 505) * root.rush
                 height: st.width
-                transformOrigin: Item.Right
-                rotation: root.fallAngle
+                transformOrigin: Item.Left
+                rotation: -root.fallAngle
                 antialiasing: true
                 opacity: Math.min(1, root.rush * 2) * Math.sin(Math.PI * run)
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop {
                         position: 0
-                        color: Colour.withAlpha(root.roles.light, 0)
-                    }
-                    GradientStop {
-                        position: 1
                         color: root.colour(root.falling.colour)
                     }
-                }
-            }
-        }
-
-        // The comet: its tail trailing up the diagonal from its head, the
-        // two fading in as it appears and out as it goes.
-        Item {
-            id: comet
-
-            readonly property real tail: root.drawWidth * root.cometMeasure.length
-            readonly property real shown: Math.max(0, Math.min(1, root.cometRun * 6, (1 - root.cometRun)
-                                                               * 4))
-
-            visible: root.cometShown
-            opacity: root.reducedMotion ? 1 : shown
-
-            Rectangle {
-                x: root.cometHead.x - width
-                y: root.cometHead.y - height / 2
-                width: comet.tail
-                height: root.cometMeasure.width
-                transformOrigin: Item.Right
-                rotation: root.fallAngle
-                antialiasing: true
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop {
-                        position: 0
-                        color: Colour.withAlpha(root.colour(root.comets.tail), 0)
-                    }
                     GradientStop {
                         position: 1
-                        color: root.colour(root.comets.head)
+                        color: Colour.withAlpha(root.roles.light, 0)
                     }
                 }
             }
+        }
 
-            Rectangle {
-                readonly property real size: root.cometMeasure.head
+        // The comets, their tails trailing up the diagonal from their heads,
+        // each fading in as it appears.
+        Repeater {
+            model: root.comets.most
 
-                visible: size > 0
-                x: root.cometHead.x - size / 2
-                y: root.cometHead.y - size / 2
-                width: size
-                height: size
-                color: root.colour(root.comets.head)
+            Comet {
+                required property int index
+
+                readonly property var comet: root.fallen[index]
+                readonly property var measure: root.comets.kinds[comet !== null ? comet.kind : 0]
+
+                visible: comet !== null
+                opacity: comet !== null ? comet.shown : 0
+                head: comet !== null ? comet.head : Qt.point(0, 0)
+                length: root.drawWidth * measure.length
+                tailWidth: measure.width
+                headSize: measure.head
+                haloSize: measure.halo
             }
         }
+    }
+
+    // The limb's glow pulses on a slow sine, down to `low` of its peak and
+    // back every `every` seconds, its reach the same throughout. Reduced
+    // motion holds it at its peak; unlit, there is none.
+    readonly property real glowOpacity: {
+        if (!root.limbGlows)
+            return 0;
+        if (root.reducedMotion)
+            return 1;
+        const pulse = root.parameters.planet.glow.pulse;
+        return pulse.low + (1 - pulse.low) * (1 + Math.cos(2 * Math.PI * root.time / pulse.every))
+                / 2;
+    }
+
+    SceneLayer {
+        id: glow
+        objectName: "planetGlow"
+
+        readonly property string key: [root.width, root.height, root.roles.glow, root.unlit,
+            root.omnibarReach].join("/")
+
+        visible: root.limbGlows
+        opacity: root.glowOpacity
+        pitch: root.pitch
+        paintWith: root.drawGlow
+        onKeyChanged: draw()
     }
 
     SceneLayer {
         id: planet
 
         readonly property string key: [root.width, root.height, root.roles.face, root.roles.light,
-            root.roles.glow, root.unlit].join("/")
+            root.roles.glow, root.unlit, root.omnibarReach].join("/")
 
         pitch: root.pitch
         paintWith: root.drawPlanet
         onKeyChanged: draw()
+    }
+
+    SceneLayer {
+        id: flare
+        objectName: "planetFlare"
+
+        readonly property string key: [root.width, root.height, root.roles.face, root.roles.glow,
+            root.unlit, root.omnibarReach].join("/")
+
+        visible: root.flare > 0
+        opacity: root.flare
+        pitch: root.pitch
+        paintWith: root.drawFlare
+        onKeyChanged: draw()
+    }
+
+    Item {
+        width: root.drawWidth
+        height: root.drawHeight
+        transform: Scale {
+            xScale: 1 / root.pitch
+            yScale: 1 / root.pitch
+        }
+
+        Comet {
+            objectName: "frontComet"
+            visible: root.frontShown
+            opacity: root.frontTrail
+            head: root.frontHead
+            length: root.drawWidth * root.front.length
+            tailWidth: root.front.width
+            headSize: root.front.head
+            haloSize: root.front.halo
+        }
     }
 }

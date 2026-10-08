@@ -172,15 +172,28 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The night sky is drawn from the palette in the same way and follows a live theme change, and it is
   always night, a light theme's night drawn from its dark text. A dark planet rises from the bottom,
   after Navigator's globe: its face from the palette's dark, a thin glow in the palette along its
-  curved limb. The planet lies wholly under the resting Omnibar: its top, the glow included, stands
-  a small gap below it, so the curve shows whole. The Omnibar keeps the place it has over the road.
-  Over it a still star field, and a comet or a shooting star now and then on a slow diagonal,
-  falling above the limb and going out behind it. There is no mark: the Omnibar is the one thing in
-  the middle. A comet passing near the field briefly catches the Omnibar's rim. On commit stars fall
-  thick and fast as streaks until the page paints, then the page takes over as it does from the
-  road. Reduced motion holds one frame, the star field and one comet part way across, with no glint.
-  A Private window's sky has its lights out: the planet and its limb stay, with no glow, stars,
-  comets or glint, even on commit.
+  curved limb. The planet stands low, its top, the glow included, about a third of the way from the
+  resting Omnibar's bottom edge to the bottom of the page area, so it falls with the window's
+  height. Its curve shows whole, and the Shortcut sheet's cue in the lower right corner stands on
+  its face: where a third of the way would take the limb's ends that low, the planet stands higher,
+  never closer to the Omnibar than a small gap. The Omnibar keeps the place it has over the road.
+  The limb's glow pulses on a slow sine of about five seconds, down to about 60% of its peak and
+  back, its reach the same throughout. Over the planet a still star field. Now and then comets and
+  shooting stars fall as in Navigator's throbber, from the upper right toward the lower left about
+  25 degrees below the horizontal, one first and then up to three in the sky at once, with quiet
+  stretches between them. Each head is white in a glow of the accent lifted toward white, its tail a
+  streak that tapers and fades into the sky, and each falls until it goes out behind the limb. There
+  is no mark: the Omnibar is the one thing in the middle. A comet passing near the field briefly
+  catches the Omnibar's rim. About once a minute, never while another comet is in the sky, a larger
+  comet with a longer tail comes in from the right edge at about the planet's crest, sweeps down and
+  left across the planet's face in front of it, and leaves through the bottom edge clear of the cue.
+  As it passes the face and the glow brighten, and its trail fades over about two seconds. On commit
+  stars fall thick and fast as streaks, down the same diagonal, until the page paints, then the page
+  takes over as it does from the road. The pulse runs on through a commit, and no comet falls in
+  front of the planet while the streaks fall. Reduced motion holds one frame: the star field, one
+  comet part way down its run, and the glow still at its peak, with no glint and no comet in front
+  of the planet. A Private window's sky has its lights out: the planet and its limb stay, with no
+  glow, stars, comets or glint, even on commit.
 - The Game of Life is Conway's, drawn from the palette in the same way and always night, a light
   theme's ground drawn from its dark text. Each cell is one of the Scene's square pixels, and the
   board wraps at its edges. Live cells are the accent, and a cell that has just died leaves a short
