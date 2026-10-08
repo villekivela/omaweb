@@ -95,8 +95,8 @@ Item {
     readonly property bool pageFocusRest: open && shownResting && !commandScope && engine === null
                                           && input.text.length === 0
     // `?` typed into the empty field opens the Shortcut sheet, and the field's
-    // cue names it, wherever the field is at rest on the Start page and holds
-    // no scope. `shownResting` keeps it through the fade out.
+    // corner cue names it, wherever the field is at rest on the Start page and
+    // holds no scope. `shownResting` keeps it through the fade out.
     readonly property bool shortcutsKeyOpen: shownResting && !commandScope && engine === null
     // What the reader steps through, ranked against the typed text. In
     // command scope that is the commands alone.
@@ -930,8 +930,6 @@ Item {
                                                                                                    root.engine.engineName) :
                                                                                                qsTr("Where to?"))
                 placeholderTextColor: root.colors.mutedText
-                // How far the placeholder reaches, which the shortcuts cue follows.
-                readonly property real placeholderWidth: placeholderMetrics.advanceWidth
                 readonly property real caretWidth: Math.round(input.font.pixelSize * 0.55)
                 font.family: Style.font.family
                 font.pixelSize: 17
@@ -1040,27 +1038,6 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.accept()
                 }
-            }
-
-            TextMetrics {
-                id: placeholderMetrics
-                font: input.font
-                text: input.placeholderText
-            }
-
-            // The empty field's cue for the Shortcut sheet, after the
-            // placeholder: `?` typed into the empty field opens it. It goes
-            // once the reader types or composes, and where the field has no
-            // room for it.
-            ShortcutsCue {
-                id: fieldCue
-                objectName: "omnibarFieldCue"
-                x: DevicePixels.snap(input.x + input.placeholderWidth + 16, root.pixelRatio)
-                y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
-                visible: root.shortcutsKeyOpen && input.text.length === 0
-                         && input.preeditText.length === 0 && x + width <= input.x + input.width
-                colors: root.colors
-                plate: root.colors.overlayOpaque
             }
 
             // Where Return goes, in the muted word and size the rows' own
@@ -1404,6 +1381,20 @@ Item {
             iconFontFamily: root.iconFontFamily
             commandScope: root.commandScope
         }
+    }
+
+    // The Start page's cue for the Shortcut sheet: `?` typed into the empty
+    // field opens it. It stands in the page area's lower right corner, clear
+    // of the sidebar, and goes once the reader types or composes. A summoned
+    // Omnibar over a page is not at rest, so it has none.
+    ShortcutsCue {
+        objectName: "omnibarCornerCue"
+        x: DevicePixels.snap(restArea.x + restArea.width - 24 - width, root.pixelRatio)
+        y: DevicePixels.snap(restArea.y + restArea.height - 24 - height, root.pixelRatio)
+        visible: root.shortcutsKeyOpen && input.text.length === 0 && input.preeditText.length === 0
+                 && root.rows.length === 0
+        colors: root.colors
+        plate: root.colors.overlayOpaque
     }
 
     // The sun's light on the panel's rim, from where the road's sun stands,

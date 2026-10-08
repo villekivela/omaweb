@@ -2,8 +2,8 @@ import QtQuick
 import qs.Commons
 
 // The Start page's way to the Shortcut sheet: `?` as a key cap and its word.
-// The Omnibar's empty field holds it after the placeholder, and its hint row at
-// the right end beside the results' keys.
+// The Start page's lower right corner holds it while the Omnibar rests, and the
+// Omnibar's hint row at the right end beside the results' keys.
 Row {
     id: root
 

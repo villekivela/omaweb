@@ -144,8 +144,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   area, focused, over the Scene the reader chose. The field is the website's dash:
   `min(page area width - 32 px, 720 px)` wide, its top edge 50 px above the horizon, which lies at
   half the page area's height, with a 50 px field and 16 px of padding. At rest with no results the
-  panel holds the field alone, with no hint row under it; the empty field cues the Shortcut sheet
-  instead.
+  panel holds the field alone, with no hint row under it, and the empty field holds only its
+  placeholder and, at its right end, where Return goes. A muted `?` key cap and "shortcuts" stand in
+  the page area's lower right corner, 24 px in from its edges and clear of the sidebar, while the
+  Omnibar rests on the Start page with an empty field. They go once the reader types, and an Omnibar
+  summoned over a page has none. `?` typed into the empty field opens the Shortcut sheet.
 - Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life,
   Vector terrain, Radar, Hyperspace, or None, which leaves the Omnibar over the sidebar's fill. It
   is a grid of small thumbnails, four to a row, in that order, each a still of its Scene drawn by

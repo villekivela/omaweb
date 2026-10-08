@@ -5060,34 +5060,38 @@ TestCase {
     }
 
     // At rest, with no results, the Omnibar holds the field alone: no hint row
-    // under it. The `?` hint for the Shortcut sheet stands in the empty field
-    // after the placeholder, as a key cap and its word, and goes once text is
-    // typed. With results the hint row returns, `? shortcuts` at its right end.
-    function test_theEmptyFieldCuesTheShortcutsAtRest() {
+    // under it, and no cue in the field. The `?` hint for the Shortcut sheet
+    // stands in the Start page's lower right corner, 24 px in from the page
+    // area's edges, as a key cap and its word, and goes once text is typed or
+    // when the Omnibar is summoned over a page. With results the hint row
+    // returns, `? shortcuts` at its right end.
+    function test_theCornerCuesTheShortcutsAtRest() {
         const hints = findChild(window.contentItem, "omnibarHints");
         const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting caps");
         verify(findChild(window.contentItem, "startPageHint") === null);
+        verify(findChild(window.contentItem, "omnibarFieldCue") === null);
         verify(!hints.visible);
         compare(hints.height, 0);
         compare(findChild(window.contentItem, "omnibarFrame").height, panel.restHeight);
         compare(panel.restReach, panel.restHeight - panel.horizonBelowTop);
-        const cue = findChild(window.contentItem, "omnibarFieldCue");
+        const cue = findChild(window.contentItem, "omnibarCornerCue");
         verify(cue !== null);
-        verify(cue.visible);
+        tryVerify(function () {
+            return cue.visible;
+        });
         const cap = findChild(cue, "keycap");
         compare(cap.text, "?");
         checkKeycap(cap, "cue");
         compare(findChild(cue, "shortcutsCueWord").text, "shortcuts");
         compare(input.placeholderText, "Where to?");
-        const placeholderEnd = input.x + input.placeholderWidth;
-        verify(cue.x >= placeholderEnd + 8, "cue at " + cue.x + ", placeholder ends "
-               + placeholderEnd);
-
-
-        verify(cue.mapToItem(input, cue.width, 0).x <= input.width);
+        const area = panel.restArea;
+        const corner = cue.mapToItem(panel, cue.width, cue.height);
+        verify(Math.abs(area.x + area.width - 24 - corner.x) <= 0.5, "right edge " + corner.x);
+        verify(Math.abs(area.y + area.height - 24 - corner.y) <= 0.5, "bottom edge " + corner.y);
+        verify(cue.mapToItem(panel, 0, 0).x > findChild(window.contentItem, "sidebar").width);
 
         input.text = "x";
         verify(!cue.visible);
@@ -5120,6 +5124,26 @@ TestCase {
         verify(hint.mapToItem(hints, hint.width, 0).x <= hints.width);
         input.text = "";
         leaveSpace(homeSpaceId, restingSpaceId, "Resting caps");
+    }
+
+    // Summoned over a page, the Omnibar's empty field has no cue anywhere: the
+    // corner's is the Start page's alone.
+    function test_theCornerCueIsTheStartPagesAlone() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const cue = findChild(window.contentItem, "omnibarCornerCue");
+        openPage("https://no-cue-over-a-page.example/");
+        activateWindow();
+        window.openOmnibar(false);
+        tryVerify(function () {
+            return panel.visible && panel.open;
+        });
+        // The field holds the page's address; emptied, it still has no cue.
+        const input = findChild(window.contentItem, "omnibarInput");
+        input.text = "";
+        verify(!panel.shownResting);
+        verify(!cue.visible);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
     }
 
     // Holding Primary on its own labels the chrome with the keys that run it.
@@ -12816,7 +12840,7 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting sheet");
         tryVerify(function () {
-            return findChild(window.contentItem, "omnibarFieldCue").visible;
+            return findChild(window.contentItem, "omnibarCornerCue").visible;
         });
 
         keyClick("?");
