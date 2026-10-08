@@ -1037,9 +1037,9 @@ void QtEngineContractTest::qtSpaceProfilesAreBuiltInTheirOwnDirectories()
 
 // Bitwarden makes an offscreen document, which the engine hosts in contents
 // with no view delegate. Engine 6.11.2-5 dereferenced that missing delegate when
-// it hid the document's first frame, and the browser died the moment a Known
-// extension asked for one, which on the reader's laptop was on resume from
-// suspend (#646). Only Omaweb's own engine carries the fix, so a build against
+// it hid the document's first frame, so the browser died the moment a Known
+// extension asked for one. The reader saw it as a crash on resume from suspend
+// (#646). Only Omaweb's own engine hosts a Known extension, so a build against
 // any other skips.
 void QtEngineContractTest::qtHostsAKnownExtensionThatMakesAnOffscreenDocument()
 {
@@ -1088,13 +1088,9 @@ void QtEngineContractTest::qtHostsAKnownExtensionThatMakesAnOffscreenDocument()
             }}},
     }));
     QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
-    QTRY_COMPARE(spaceHost->property("hostedExtensions").toList().size(), 1);
-    const auto id = spaceHost->property("hostedExtensions")
-                        .toList()
-                        .constFirst()
-                        .toMap()
-                        .value(QStringLiteral("id"))
-                        .toString();
+    const auto hosted = [&spaceHost] { return spaceHost->property("hostedExtensions").toList(); };
+    QTRY_COMPARE(hosted().size(), 1);
+    const auto id = hosted().constFirst().toMap().value(QStringLiteral("id")).toString();
     QVERIFY(!id.isEmpty());
 
     QQmlComponent viewComponent(
