@@ -105,10 +105,12 @@ Space it made is on show with the tab it is driving, which it has just clicked i
 Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
 `--agents-window` has the Agent's page open an Auxiliary window and captures that window.
 `--agents-grant` has the Agent ask for the reader's page on show, so the grant prompt stands over
-it. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` six more Agent
-Spaces, so the footer counts the ones it has no room for; `--narrow` puts the sidebar at its minimum
-width, `--sidebar-right` stands it against the window's right edge, and `--space-overflow` opens the
-menu of the Spaces left out. `--tint-favicons` turns site colour on. With `--tabs`,
+it. `--agents-setup off`, `linked` or `mcp` stands `--show settings:agents` with Allow agents off,
+just turned on, or after Add MCP server, against a home and stand-in `claude` and `codex` in the
+lab's data root. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` six more
+Agent Spaces, so the footer counts the ones it has no room for; `--narrow` puts the sidebar at its
+minimum width, `--sidebar-right` stands it against the window's right edge, and `--space-overflow`
+opens the menu of the Spaces left out. `--tint-favicons` turns site colour on. With `--tabs`,
 `--sidebar-cursor <rows>` hands the sidebar the keyboard and steps the Sidebar cursor that many rows
 from the tab on show, `--active-pin` puts the first pin on show, and `--show split` pairs the last
 two tabs, with `--split-partner` putting the other half on show. `--agents-taken-over` has the
@@ -504,16 +506,18 @@ the socket for as long as it runs, so the current tab carries from call to call 
 Space lasts until the Agent stops the server. When no browser answers, the first tool call starts
 one and waits up to 30 seconds for its socket. A browser that runs with its socket closed would only
 come forward, so one started that never answers is not started again, and later calls say so.
-Register it with Claude Code:
+Settings' Add MCP server registers it with Claude Code and Codex. By hand:
 
 ```sh
-claude mcp add omaweb -- omaweb mcp
+claude mcp add -s user omaweb -- omaweb mcp
 ```
 
 The tool list costs about 1,400 tokens of schema and the server's instructions 130 more, which every
 conversation the server is registered in pays. An Agent that runs shell commands can use the CLI
 instead, taught by the skill the `omaweb-cli` package installs under
-`/usr/share/omaweb/skills/omaweb`. Link it into the Agent's skills directory:
+`/usr/share/omaweb/skills/omaweb`. Turning on Allow agents links it into each installed agent's
+skills directory. A build run from its own tree finds no packaged skill and offers no setup, so link
+it by hand there:
 
 ```sh
 ln -s /usr/share/omaweb/skills/omaweb ~/.claude/skills/omaweb

@@ -3671,6 +3671,22 @@ Päivitykset osoitteesta %3</translation>
         <translation>Antaa tämän tietokoneen koodausagentin luoda Agenttitiloja sekä lukea ja toimia niiden sivuilla, ja kysyä kerran jokaisesta Tilastasi, jota se haluaa käyttää. Agentin välilehti pysyy piirrettynä, kun Agentti on liitetty siihen, mikä kuluttaa muistia ja GPU:ta. Kytkeminen pois irrottaa jokaisen Agentin.</translation>
     </message>
     <message>
+        <source>Agent setup</source>
+        <translation>Agenttien käyttöönotto</translation>
+    </message>
+    <message>
+        <source>Add skill links the Omaweb skill for each agent installed now. Add MCP server registers omaweb mcp with Claude Code and Codex, for a client that cannot run the omaweb command.</source>
+        <translation>Lisää taito linkittää Omawebin taidon jokaiselle nyt asennetulle agentille. Lisää MCP-palvelin rekisteröi omaweb mcp:n Claude Codelle ja Codexille asiakasohjelmaa varten, joka ei voi ajaa omaweb-komentoa.</translation>
+    </message>
+    <message>
+        <source>Add skill</source>
+        <translation>Lisää taito</translation>
+    </message>
+    <message>
+        <source>Add MCP server</source>
+        <translation>Lisää MCP-palvelin</translation>
+    </message>
+    <message>
         <source>Agent command</source>
         <translation>Agentin komento</translation>
     </message>
@@ -4579,6 +4595,54 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Close %1</source>
         <translation>Sulje %1</translation>
+    </message>
+</context>
+<context>
+    <name>omaweb::AgentControl</name>
+    <message>
+        <source>other agents</source>
+        <translation>muut agentit</translation>
+    </message>
+    <message>
+        <source>Skill added for %1.</source>
+        <translation>Taito lisätty: %1.</translation>
+    </message>
+    <message>
+        <source>Adding the MCP server…</source>
+        <translation>Lisätään MCP-palvelinta…</translation>
+    </message>
+    <message>
+        <source>%1 already had one.</source>
+        <comment>the skill or MCP server the sentence before added</comment>
+        <translation>Valmiina jo: %1.</translation>
+    </message>
+    <message>
+        <source>%1 already had the skill.</source>
+        <translation>Taito oli jo valmiina: %1.</translation>
+    </message>
+    <message>
+        <source>The skill could not be added for %1.</source>
+        <translation>Taitoa ei voitu lisätä: %1.</translation>
+    </message>
+    <message>
+        <source>Your own omaweb skill for %1 was left alone.</source>
+        <translation>Oma omaweb-taitosi jätettiin ennalleen: %1.</translation>
+    </message>
+    <message>
+        <source>MCP server added for %1.</source>
+        <translation>MCP-palvelin lisätty: %1.</translation>
+    </message>
+    <message>
+        <source>%1 already had the MCP server.</source>
+        <translation>MCP-palvelin oli jo valmiina: %1.</translation>
+    </message>
+    <message>
+        <source>The MCP server could not be added for %1.</source>
+        <translation>MCP-palvelinta ei voitu lisätä: %1.</translation>
+    </message>
+    <message>
+        <source>Neither Claude Code nor Codex was found.</source>
+        <translation>Claude Codea tai Codexia ei löytynyt.</translation>
     </message>
 </context>
 <context>
