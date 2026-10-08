@@ -9696,6 +9696,11 @@ TestCase {
         verify(Qt.colorEqual(suffix.color, window.colors.text));
         verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpaceMark").color,
                              window.colors.mutedText));
+        // Space colour is the reader's Spaces', so turning it off leaves an
+        // Agent Space as it was.
+        window.setSpaceColours(false);
+        verify(Qt.colorEqual(findChild(tabRow(), "omnibarRowSpace").color, window.colors.text));
+        window.setSpaceColours(true);
         input.text = "crawler";
         tryVerify(function () {
             return omnibarRowsOf(panel, "space").length === 1;

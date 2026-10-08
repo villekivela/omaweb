@@ -4,6 +4,7 @@ import QtQuick.Shapes
 import Omaweb
 import qs.Commons
 import "DevicePixels.mjs" as DevicePixels
+import "SpaceColour.mjs" as SpaceColour
 
 Item {
     id: root
@@ -126,10 +127,8 @@ Item {
     // turns off for the muted text colour.
     property bool spaceColours: true
 
-    // A Space of the reader's is drawn in the colour the theme resolves for
-    // its name, or muted while Space colour is off. An Agent Space has none on
-    // screen: the Agent accent while an Agent is attached to one of its tabs,
-    // muted while none is.
+    // An Agent Space has no Space colour on screen: the Agent accent while an
+    // Agent is attached to one of its tabs, muted while none is.
     function spaceColourOf(spaceId, colourName) {
         if (agentSpaceIds.indexOf(spaceId) >= 0) {
             for (const tabId in agentActivity) {
@@ -138,10 +137,7 @@ Item {
             }
             return colors.mutedText;
         }
-        if (!spaceColours)
-            return colors.mutedText;
-        const spaces = colors.spaces;
-        return spaces && spaces[colourName] ? spaces[colourName] : colors.accent;
+        return SpaceColour.drawn(colors, colourName, spaceColours);
     }
 
     // The engine a typed keyword selected, drawn as a chip ahead of the terms
@@ -1331,16 +1327,21 @@ Item {
                         // Another Space's tab says which Space committing it
                         // takes the reader to: its name, beside a square in
                         // its colour. Colour carries no text, so the name is
-                        // the text colour, or muted with the square while
-                        // Space colour is off.
+                        // the text colour, muted with the square while Space
+                        // colour is off, except an Agent Space's.
                         Row {
+                            id: spaceLabel
+                            readonly property bool muted: !root.spaceColours && !row.isSelected
+                                                          && root.agentSpaceIds.indexOf(
+                                                              modelData.spaceId) < 0
                             anchors.verticalCenter: parent.verticalCenter
                             visible: row.spaceName.length > 0
                             spacing: 6
 
                             Rectangle {
                                 objectName: "omnibarRowSpaceMark"
-                                anchors.verticalCenter: parent.verticalCenter
+                                y: DevicePixels.snap((spaceLabel.height - height) / 2,
+                                                     root.pixelRatio)
                                 width: 8
                                 height: 8
                                 radius: 2
@@ -1351,8 +1352,7 @@ Item {
                                 objectName: "omnibarRowSpace"
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: row.spaceName
-                                color: row.isSelected || root.spaceColours ? root.colors.text :
-                                                                             root.colors.mutedText
+                                color: spaceLabel.muted ? root.colors.mutedText : root.colors.text
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.body
                             }

@@ -54,7 +54,7 @@ private slots:
     void renamesTheBrightColours();
 };
 
-// A Space's colour is a palette name the theme resolves, never a colour of its
+// A Space's colour is a name the theme resolves, never a colour of its
 // own. The reader's first Space takes the first of the six, and each Space made
 // after it the one fewest Spaces have, so two Spaces made in turn differ.
 void SpaceColoursTest::givesEachNewSpaceTheLeastUsedColour()
@@ -170,7 +170,7 @@ void SpaceColoursTest::movesASpaceTakenOverToTheEndOfTheReaders()
 }
 
 // Every Space stored before Spaces had colours holds the one hex value they
-// were all given. The first start replaces each with a palette name, along the
+// were all given. The first start replaces each with a Space colour, along the
 // footer: the reader's Spaces in their order, then the Agent Spaces. A Space
 // that already holds a name keeps it.
 void SpaceColoursTest::coloursASessionFromBeforeSpaceColours()

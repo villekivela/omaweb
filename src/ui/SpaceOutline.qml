@@ -4,6 +4,7 @@ import QtQuick.Effects
 import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
+import "SpaceColour.mjs" as SpaceColour
 
 Rectangle {
     id: root
@@ -146,13 +147,8 @@ Rectangle {
     // turns off for the muted text colour.
     property bool spaceColours: true
 
-    // What a Space colour's name is drawn in under the theme on show, or the
-    // muted text colour while Space colour is off.
     function spaceColour(name) {
-        if (!root.spaceColours)
-            return root.colors.mutedText;
-        const spaces = root.colors ? root.colors.spaces : null;
-        return spaces && spaces[name] ? spaces[name] : root.colors.accent;
+        return SpaceColour.drawn(root.colors, name, root.spaceColours);
     }
 
     function agentOf(tabId) {

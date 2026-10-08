@@ -686,7 +686,8 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QVERIFY(firstStore.open(&error));
     QVERIFY(writeSettings(firstConfigRoot.path(),
         {{QStringLiteral("floating-controls"), false}, {QStringLiteral("use-favicons"), false},
-            {QStringLiteral("tint-favicons"), true}, {QStringLiteral("glance"), false}}));
+            {QStringLiteral("tint-favicons"), true}, {QStringLiteral("glance"), false},
+            {QStringLiteral("space-colours"), false}}));
     QVERIFY(firstStore.savePreference(QStringLiteral("ease-sidebar"), QStringLiteral("false")));
     QVERIFY(firstStore.savePreference(QStringLiteral("sidebar-width"), QStringLiteral("500")));
     QVERIFY(firstStore.savePreference(
@@ -729,6 +730,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/sidebar-width.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/start-page-road.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/glance.json")));
+    QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/space-colours.json")));
     QVERIFY(!filesBelow(checkout).contains("settings.json"));
     QVERIFY(!filesBelow(checkout).contains("visited.example"));
     QVERIFY(!filesBelow(checkout).contains("private.example"));
@@ -761,6 +763,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("tint-favicons")), QJsonValue(true));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(true));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("space-colours")), QJsonValue(true));
     QVERIFY(secondStore.preference(QStringLiteral("floating-controls")).isEmpty());
     QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
     QCOMPARE(secondStore.preference(QStringLiteral("sidebar-width")), QStringLiteral("311"));

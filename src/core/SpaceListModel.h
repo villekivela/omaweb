@@ -27,7 +27,7 @@ bool isSpaceColourName(const QString &name);
 // string for any other. Each bright twin became the colour that took its place.
 QString renamedSpaceColour(const QString &name);
 // The name fewest of these Spaces use, the earliest in spaceColourNames() on a
-// tie. A Space that holds no palette name counts towards none.
+// tie. A Space that holds no Space colour counts towards none.
 QString leastUsedSpaceColour(const QVector<SpaceState> &spaces);
 
 class SpaceListModel final : public QAbstractListModel {

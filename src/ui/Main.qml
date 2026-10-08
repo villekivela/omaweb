@@ -6,6 +6,7 @@ import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
 import "DevicePixels.mjs" as DevicePixels
+import "SpaceColour.mjs" as SpaceColour
 import "SettingsAttention.mjs" as SettingsAttention
 
 ApplicationWindow {
@@ -953,12 +954,8 @@ ApplicationWindow {
         window.spaceOverflowMenuItems = spaces.map(function (space) {
             // Each drawn as the footer draws it: an Agent Space as the Agent's
             // mark, one of the reader's as its square, or as the mark in its
-            // own colour while an Agent is attached, muted while Space colour
-            // is off.
-            const palette = window.colors.spaces;
-            const colour = !window.spaceColours ? window.colors.mutedText : palette && palette[space.spaceColor]
-                                                  ? palette[space.spaceColor] :
-                                                    window.colors.accent;
+            // own colour while an Agent is attached.
+            const colour = SpaceColour.drawn(window.colors, space.spaceColor, window.spaceColours);
             const marked = space.agentMade || space.attached;
             return {
                 "label": space.spaceName,

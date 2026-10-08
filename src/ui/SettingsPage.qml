@@ -160,7 +160,6 @@ Rectangle {
     property bool floatingControls: true
     property string sidebarSide: "left"
     property bool glanceEnabled: true
-    // Whether the reader's Spaces are drawn in their colours.
     property bool spaceColours: true
     // The Start page's Scene, by its id, or "none".
     property string startPageScene: "crt-road"
@@ -2952,9 +2951,9 @@ Rectangle {
                                         spacing: 4
 
                                         Repeater {
-                                            model: spaceRow.agentMade || !root.spaceColours ? [] :
-                                                                                              root.colors.spaceColourNames
-                                                                                              || []
+                                            model: spaceRow.agentMade ? [] :
+                                                                        root.colors.spaceColourNames
+                                                                        || []
 
                                             AbstractButton {
                                                 id: swatch

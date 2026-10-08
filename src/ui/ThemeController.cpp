@@ -420,15 +420,18 @@ namespace {
                 taken.append(oklchHue(accent));
             }
         }
+        const auto clears = [&taken](const QColor &candidate) {
+            const auto hue = oklchHue(candidate);
+            return std::ranges::all_of(
+                taken, [hue](double other) { return hueDistance(hue, other) >= spaceHueGap; });
+        };
         QVariantMap spaces;
+        // Where no turn clears, which nine 20° gaps around the circle make
+        // possible only for a theme that crowds its accents into the six's
+        // way, the colour keeps its own hue.
         for (const auto &space : spaceHues) {
             auto chosen = spaceColourAt(space, space.hue, grounds);
             for (auto turn = 0; turn <= 180; ++turn) {
-                const auto clears = [&taken](const QColor &candidate) {
-                    const auto hue = oklchHue(candidate);
-                    return std::ranges::all_of(taken,
-                        [hue](double other) { return hueDistance(hue, other) >= spaceHueGap; });
-                };
                 const auto ahead = spaceColourAt(space, space.hue + turn, grounds);
                 if (clears(ahead)) {
                     chosen = ahead;

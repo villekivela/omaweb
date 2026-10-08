@@ -867,7 +867,7 @@ void BrowserController::settleSpaces()
             changed = true;
         }
     }
-    // Each Space without a palette name takes one in footer order, counted
+    // Each Space without a Space colour takes one in footer order, counted
     // among the reader's Spaces that have one by then.
     for (auto &space : spaces) {
         if (isSpaceColourName(space.color)) {

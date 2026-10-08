@@ -90,18 +90,19 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Each Space has a Space colour, one of six that Omaweb owns: orange, yellow, green, teal, blue and
   violet. A theme does not choose them, and a theme's `spaces` are not read. Each is a fixed hue and
   chroma in OKLCH, and per theme only its lightness moves, until it reaches 3:1 against every ground
-  a Space colour is drawn on, so it follows a theme change. Each also keeps a 20° OKLCH hue gap from
-  the theme's urgent, Private and Agent colours and from the other five: one that lands too near is
-  turned just far enough to clear it, so every theme offers six. A grey accent has no hue to keep
-  clear of. A new Space, the reader's or an Agent's, takes the colour fewest of the reader's Spaces
-  have, the first in hue order on a tie, and taking an Agent Space over gives it one the same way.
-  The reader sets any of the six in Settings' Spaces section, where each of the reader's Spaces
-  offers them in hue order as small squares, the chosen one larger, and two Spaces may share one.
-  There is no custom colour. The colour is part of the Space in Sync. A Space stored before Spaces
-  had colours is given one at start, in footer order, and one stored as `bright_yellow`,
-  `bright_green` or `bright_blue` is renamed `orange`, `teal` or `violet`. An older build gives a
-  name it does not know one of its own and Sync carries that back, so the release notes ask readers
-  to update every machine they sync.
+  a Space colour is drawn on, so it follows a theme change. Where sRGB cannot show that chroma at
+  that lightness, the colour takes as much of it as sRGB can, keeping its hue. Each also keeps a 20°
+  OKLCH hue gap from the theme's urgent, Private and Agent colours and from the other five: one that
+  lands too near is turned just far enough to clear it, so every theme offers six. A grey accent has
+  no hue to keep clear of. A new Space, the reader's or an Agent's, takes the colour fewest of the
+  reader's Spaces have, the first in hue order on a tie, and taking an Agent Space over gives it one
+  the same way. The reader sets any of the six in Settings' Spaces section, where each of the
+  reader's Spaces offers them in hue order as small squares, the chosen one larger, and two Spaces
+  may share one. There is no custom colour. The colour is part of the Space in Sync. A Space stored
+  before Spaces had colours is given one at start, in footer order, and one stored as
+  `bright_yellow`, `bright_green` or `bright_blue` is renamed `orange`, `teal` or `violet`. An older
+  build gives a name it does not know one of its own and Sync carries that back, so the release
+  notes ask readers to update every machine they sync.
 - A switch at the top of Settings' Spaces section turns Space colour off. It is on by default and
   local to the machine, as the Scene choice is. With it off, the footer's squares, the Agent mark
   standing in for one of the reader's Spaces, the menu of the Spaces left out, and the Omnibar's
