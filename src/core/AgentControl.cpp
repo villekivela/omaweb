@@ -9,12 +9,12 @@
 #include <QAbstractItemModel>
 #include <QCoreApplication>
 #include <QDateTime>
-#include <QFutureWatcher>
-#include <QLocale>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QJsonArray>
+#include <QLocale>
 #include <QMetaMethod>
 #include <QProcess>
 #include <QRegularExpression>
@@ -312,6 +312,7 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
     // Only an explicit `true` lets Agents in.
     m_allowAgents = AgentsFile::read(m_configRoot, allowAgentsKey).toBool(false);
     m_agentCommand = storedAgentCommand(m_configRoot);
+    connect(this, &AgentControl::allowAgentsChanged, this, &AgentControl::mcpAgentPresentChanged);
     if (m_configRoot.isEmpty()) {
         return;
     }
@@ -326,6 +327,8 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
     reload();
 }
 
+AgentControl::~AgentControl() { *m_mcpCancelled = true; }
+
 bool AgentControl::allowAgents() const { return m_allowAgents; }
 
 void AgentControl::setAllowAgents(bool allowed)
@@ -335,16 +338,6 @@ void AgentControl::setAllowAgents(bool allowed)
     }
     AgentsFile::write(m_configRoot, allowAgentsKey, allowed);
     apply(allowed);
-    // The reader's own switch is the consent the skill waits for.
-    if (!m_agentSetup) {
-        return;
-    }
-    if (allowed) {
-        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
-    } else {
-        m_agentSetup->unlinkSkill();
-        noteAgentSetup({});
-    }
 }
 
 QString AgentControl::agentCommand() const { return m_agentCommand; }
@@ -415,11 +408,13 @@ void AgentControl::setAgentSetup(AgentSetup setup)
 {
     m_agentSetup = std::move(setup);
     emit agentSetupChanged();
+    emit mcpAgentPresentChanged();
     if (AgentsFile::read(m_configRoot, skillLinkedAtStartKey).toBool(false)) {
         return;
     }
-    if (m_allowAgents) {
-        m_agentSetup->linkSkill();
+    // A link that could not be made is tried again at the next start.
+    if (m_allowAgents && !m_agentSetup->linkSkill().failed.isEmpty()) {
+        return;
     }
     AgentsFile::write(m_configRoot, skillLinkedAtStartKey, true);
 }
@@ -443,13 +438,16 @@ void AgentControl::addMcpServer()
         return;
     }
     m_addingMcpServer = true;
+    noteAgentSetup(tr("Adding the MCP server…"));
     auto *watcher = new QFutureWatcher<AgentSetup::Outcome>(this);
     connect(watcher, &QFutureWatcher<AgentSetup::Outcome>::finished, this, [this, watcher] {
         m_addingMcpServer = false;
         noteAgentSetup(mcpServerNote(watcher->result()));
         watcher->deleteLater();
     });
-    watcher->setFuture(QtConcurrent::run([setup = *m_agentSetup] { return setup.addMcpServer(); }));
+    watcher->setFuture(QtConcurrent::run([setup = *m_agentSetup, cancelled = m_mcpCancelled] {
+        return setup.addMcpServer(AgentSetup::defaultMcpTimeoutMs, cancelled.get());
+    }));
 }
 
 QString AgentControl::agentNames(const QStringList &names)
@@ -463,43 +461,38 @@ QString AgentControl::agentNames(const QStringList &names)
     return QLocale().createSeparatedList(named);
 }
 
-QString AgentControl::skillNote(const AgentSetup::Outcome &outcome)
+// What was done, then what was left as it was, then what failed, each as a
+// sentence of its own so a translation orders the words within it.
+QString AgentControl::outcomeNote(const AgentSetup::Outcome &outcome, const OutcomeWords &words)
 {
     QStringList sentences;
     if (!outcome.changed.isEmpty()) {
-        sentences.append(tr("Skill added for %1.").arg(agentNames(outcome.changed)));
+        sentences.append(words.changed.arg(agentNames(outcome.changed)));
         if (!outcome.kept.isEmpty()) {
             sentences.append(tr("%1 already had one.").arg(agentNames(outcome.kept)));
         }
     } else if (!outcome.kept.isEmpty()) {
-        sentences.append(tr("%1 already had the skill.").arg(agentNames(outcome.kept)));
+        sentences.append(words.keptAll.arg(agentNames(outcome.kept)));
     }
     if (!outcome.failed.isEmpty()) {
-        sentences.append(
-            tr("The skill could not be added for %1.").arg(agentNames(outcome.failed)));
+        sentences.append(words.failed.arg(agentNames(outcome.failed)));
     }
     return sentences.join(u' ');
 }
 
+QString AgentControl::skillNote(const AgentSetup::Outcome &outcome)
+{
+    return outcomeNote(outcome,
+        {tr("Skill added for %1."), tr("%1 already had the skill."),
+            tr("The skill could not be added for %1.")});
+}
+
 QString AgentControl::mcpServerNote(const AgentSetup::Outcome &outcome)
 {
-    QStringList sentences;
-    if (!outcome.changed.isEmpty()) {
-        sentences.append(tr("MCP server added for %1.").arg(agentNames(outcome.changed)));
-        if (!outcome.kept.isEmpty()) {
-            sentences.append(tr("%1 already had one.").arg(agentNames(outcome.kept)));
-        }
-    } else if (!outcome.kept.isEmpty()) {
-        sentences.append(tr("%1 already had the MCP server.").arg(agentNames(outcome.kept)));
-    }
-    if (!outcome.failed.isEmpty()) {
-        sentences.append(
-            tr("The MCP server could not be added for %1.").arg(agentNames(outcome.failed)));
-    }
-    if (sentences.isEmpty()) {
-        sentences.append(tr("Neither Claude Code nor Codex was found."));
-    }
-    return sentences.join(u' ');
+    const auto note = outcomeNote(outcome,
+        {tr("MCP server added for %1."), tr("%1 already had the MCP server."),
+            tr("The MCP server could not be added for %1.")});
+    return note.isEmpty() ? tr("Neither Claude Code nor Codex was found.") : note;
 }
 
 void AgentControl::noteAgentSetup(const QString &note)
@@ -533,6 +526,14 @@ void AgentControl::apply(bool allowed)
         return;
     }
     m_allowAgents = allowed;
+    // Allow agents is the reader's consent to the skill, however they gave
+    // it, in Settings or in `agents.json`.
+    if (m_agentSetup && allowed) {
+        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
+    } else if (m_agentSetup) {
+        m_agentSetup->unlinkSkill();
+        noteAgentSetup({});
+    }
     if (!allowed) {
         while (!m_pendingGrants.isEmpty()) {
             finishGrant(m_pendingGrants.constFirst().spaceId, GrantAnswer::Withdrawn);

@@ -3,12 +3,16 @@
 #include "AgentsFile.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QLocale>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QThreadPool>
+
+#include <atomic>
 
 #include <memory>
 
@@ -84,6 +88,12 @@ private slots:
     void saysWhenAddSkillFindsEverythingInPlace();
     void saysWhatAddMcpServerAddedAndLeftAlone();
     void linksNothingWithoutASetup();
+    void turningAgentsOffInTheFileUnlinksTheSkill();
+    void triesTheOneTimeLinkAgainAfterItFailed();
+    void stopsAnAgentCommandWhenCancelled();
+    void quitsWithoutWaitingOnAnAgentCommand();
+    void saysItIsAddingTheMcpServer();
+    void asksForMcpAgentsAgainWithASetup();
 
 private:
     std::unique_ptr<QTemporaryDir> m_home;
@@ -328,6 +338,102 @@ void AgentSetupTest::linksNothingWithoutASetup()
     agents.setAllowAgents(true);
     agents.addSkill();
     QVERIFY(!present(home(QStringLiteral(".agents"))));
+}
+
+// However Allow agents is turned off, the links go with it.
+void AgentSetupTest::turningAgentsOffInTheFileUnlinksTheSkill()
+{
+    const auto agents = control();
+    agents->setAllowAgents(true);
+    const auto shared = home(QStringLiteral(".agents/skills/omaweb"));
+    QCOMPARE(linkTarget(shared), m_skill);
+
+    QVERIFY(AgentsFile::write(config(), QLatin1StringView("allow-agents"), false));
+
+    QTRY_VERIFY(!agents->allowAgents());
+    QVERIFY(!present(shared));
+    QVERIFY(agents->agentSetupNote().isEmpty());
+}
+
+void AgentSetupTest::triesTheOneTimeLinkAgainAfterItFailed()
+{
+    QVERIFY(AgentsFile::write(config(), QLatin1StringView("allow-agents"), true));
+    // A file where the shared skills directory goes.
+    QFile blocking(home(QStringLiteral(".agents")));
+    QVERIFY(blocking.open(QIODevice::WriteOnly));
+    blocking.close();
+
+    control();
+
+    QVERIFY(blocking.remove());
+    control();
+    QCOMPARE(linkTarget(home(QStringLiteral(".agents/skills/omaweb"))), m_skill);
+}
+
+// An agent that has stopped answering, whose command is still waited on when
+// the browser quits.
+void AgentSetupTest::stopsAnAgentCommandWhenCancelled()
+{
+    QFile script(QDir(m_bin->path()).filePath(QStringLiteral("claude")));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write("#!/bin/sh\nexec /bin/sleep 30\n");
+    script.close();
+    QVERIFY(script.setPermissions(script.permissions() | QFileDevice::ExeOwner));
+    const std::atomic_bool cancelled = true;
+
+    QElapsedTimer clock;
+    clock.start();
+    const auto outcome = setup().addMcpServer(AgentSetup::defaultMcpTimeoutMs, &cancelled);
+
+    QVERIFY2(clock.elapsed() < 5000, qPrintable(QString::number(clock.elapsed())));
+    QCOMPARE(outcome.failed, QStringList {QStringLiteral("Claude Code")});
+}
+
+void AgentSetupTest::quitsWithoutWaitingOnAnAgentCommand()
+{
+    QFile script(QDir(m_bin->path()).filePath(QStringLiteral("claude")));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write("#!/bin/sh\nexec /bin/sleep 30\n");
+    script.close();
+    QVERIFY(script.setPermissions(script.permissions() | QFileDevice::ExeOwner));
+    auto agents = control();
+    agents->setAllowAgents(true);
+    agents->addMcpServer();
+    QTest::qWait(200);
+
+    QElapsedTimer clock;
+    clock.start();
+    agents.reset();
+    QThreadPool::globalInstance()->waitForDone();
+
+    QVERIFY2(clock.elapsed() < 5000, qPrintable(QString::number(clock.elapsed())));
+}
+
+void AgentSetupTest::saysItIsAddingTheMcpServer()
+{
+    writeAgent(m_bin->path(), QStringLiteral("claude"),
+        QDir(m_bin->path()).filePath(QStringLiteral("claude.log")), 1);
+    const auto agents = control();
+    agents->setAllowAgents(true);
+
+    agents->addMcpServer();
+
+    QCOMPARE(agents->agentSetupNote(), QStringLiteral("Adding the MCP server…"));
+    QTRY_COMPARE(agents->agentSetupNote(), QStringLiteral("MCP server added for Claude Code."));
+}
+
+void AgentSetupTest::asksForMcpAgentsAgainWithASetup()
+{
+    writeAgent(m_bin->path(), QStringLiteral("codex"),
+        QDir(m_bin->path()).filePath(QStringLiteral("codex.log")), 1);
+    AgentControl agents(nullptr, config());
+    QVERIFY(!agents.mcpAgentPresent());
+    QSignalSpy asked(&agents, &AgentControl::mcpAgentPresentChanged);
+
+    agents.setAgentSetup(setup());
+
+    QCOMPARE(asked.count(), 1);
+    QVERIFY(agents.mcpAgentPresent());
 }
 
 QTEST_GUILESS_MAIN(AgentSetupTest)

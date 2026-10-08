@@ -4612,6 +4612,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Valmiina jo: %1.</translation>
     </message>
     <message>
+        <source>Adding the MCP server…</source>
+        <translation>Lisätään MCP-palvelinta…</translation>
+    </message>
+    <message>
         <source>%1 already had the skill.</source>
         <translation>Taito oli jo valmiina: %1.</translation>
     </message>

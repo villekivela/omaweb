@@ -200,12 +200,6 @@ QVariantMap securityKeyStep(const QString &step)
 // is under `.example`, reserved for this, so the page is nobody's real site.
 constexpr const char *browsedTab = "https://afterdark.example/night-drive";
 
-// The two filter lists a first run subscribes to, written into the lab's
-// content-blocking settings as the browser would leave them after updating:
-// seeded, enabled, current as of now, with a list file on disk. The lab
-// builds its blocker without the defaults, since seeding them fetches, and
-// a list updated less than a day ago with its file present is one the
-// blocker does not fetch.
 // A home of the lab's own, with Claude Code and Codex installed and both on
 // `PATH`, answering as their own `mcp` commands would, so Settings' caption is
 // the one a reader reads and nothing of the reader's is touched.
@@ -230,6 +224,12 @@ void setUpLabAgents(omaweb::AgentControl &agentControl, const QDir &dataRoot)
     agentControl.setAgentSetup(omaweb::AgentSetup(home.path(), skill));
 }
 
+// The two filter lists a first run subscribes to, written into the lab's
+// content-blocking settings as the browser would leave them after updating:
+// seeded, enabled, current as of now, with a list file on disk. The lab
+// builds its blocker without the defaults, since seeding them fetches, and
+// a list updated less than a day ago with its file present is one the
+// blocker does not fetch.
 void writeSampleLists(const QDir &dataRoot)
 {
     const auto folder = dataRoot.filePath(QStringLiteral("content-blocking"));

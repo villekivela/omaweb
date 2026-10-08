@@ -15,7 +15,9 @@
 #include <QTimer>
 #include <QVariantMap>
 
+#include <atomic>
 #include <functional>
+#include <memory>
 #include <optional>
 
 namespace omaweb {
@@ -94,7 +96,7 @@ class AgentControl final : public QObject {
     Q_PROPERTY(QString agentSetupNote READ agentSetupNote NOTIFY agentSetupNoteChanged)
     // Whether `claude` or `codex` is on `PATH`, asked again whenever Allow
     // agents changes.
-    Q_PROPERTY(bool mcpAgentPresent READ mcpAgentPresent NOTIFY allowAgentsChanged)
+    Q_PROPERTY(bool mcpAgentPresent READ mcpAgentPresent NOTIFY mcpAgentPresentChanged)
 
 public:
     // The most connection states kept at once. A name costs nothing to invent,
@@ -117,6 +119,7 @@ public:
     // the file, so the reader turning it off there detaches every connection
     // without a restart.
     AgentControl(BrowserController *browser, QString configRoot, QObject *parent = nullptr);
+    ~AgentControl() override;
 
     bool allowAgents() const;
     // Turning it off detaches every connection from the tab it was driving.
@@ -268,6 +271,7 @@ signals:
     void agentCommandChanged();
     void agentSetupChanged();
     void agentSetupNoteChanged();
+    void mcpAgentPresentChanged();
     // An Agent closed the Auxiliary window of this id.
     void windowCloseRequested(const QString &windowId);
     // A page verb for the page of `request.tabId`, with `verb`, `spaceId`, the
@@ -475,6 +479,12 @@ private:
     // What the caption says a link or a registration did, in the reader's
     // language.
     static QString agentNames(const QStringList &names);
+    struct OutcomeWords {
+        QString changed;
+        QString keptAll;
+        QString failed;
+    };
+    static QString outcomeNote(const AgentSetup::Outcome &outcome, const OutcomeWords &words);
     static QString skillNote(const AgentSetup::Outcome &outcome);
     static QString mcpServerNote(const AgentSetup::Outcome &outcome);
     void noteAgentSetup(const QString &note);
@@ -483,6 +493,9 @@ private:
     std::optional<AgentSetup> m_agentSetup;
     QString m_agentSetupNote;
     bool m_addingMcpServer = false;
+    // Shared with a running Add MCP server, which stops its agent command
+    // once this is gone.
+    std::shared_ptr<std::atomic_bool> m_mcpCancelled = std::make_shared<std::atomic_bool>(false);
     // The desktop's way to open the reader's own terminal running a command,
     // which Omarchy configures. Its arguments are the command's own, and no
     // shell reads them.

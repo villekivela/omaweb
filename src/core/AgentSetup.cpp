@@ -1,5 +1,6 @@
 #include "AgentSetup.h"
 
+#include <QDeadlineTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -61,20 +62,30 @@ namespace {
     // An entry is there when it is a link, even one whose target is gone.
     bool entryPresent(const QFileInfo &entry) { return entry.isSymLink() || entry.exists(); }
 
+    // A command is looked in on this often to see whether it was cancelled.
+    constexpr int cancelCheckMs = 100;
+
     // Exit status of a command that finished, or nothing for one that did
-    // not start or ran past `timeoutMs`.
+    // not start, ran past `timeoutMs` or was cancelled.
     std::optional<int> run(const QString &program, const QStringList &arguments,
-        const QString &directory, int timeoutMs)
+        const QString &directory, int timeoutMs, const std::atomic_bool *cancelled)
     {
         QProcess process;
         process.setWorkingDirectory(directory);
         process.setProcessChannelMode(QProcess::MergedChannels);
         process.setStandardInputFile(QProcess::nullDevice());
         process.start(program, arguments);
-        if (!process.waitForFinished(timeoutMs)) {
-            process.kill();
-            process.waitForFinished();
+        if (!process.waitForStarted()) {
             return std::nullopt;
+        }
+        const QDeadlineTimer deadline(timeoutMs);
+        while (!process.waitForFinished(cancelCheckMs)) {
+            if (process.state() == QProcess::NotRunning || deadline.hasExpired()
+                || (cancelled && *cancelled)) {
+                process.kill();
+                process.waitForFinished();
+                return std::nullopt;
+            }
         }
         if (process.exitStatus() != QProcess::NormalExit) {
             return std::nullopt;
@@ -139,7 +150,7 @@ bool AgentSetup::mcpAgentPresent()
         [](const auto &agent) { return !QStandardPaths::findExecutable(agent.program).isEmpty(); });
 }
 
-AgentSetup::Outcome AgentSetup::addMcpServer(int timeoutMs) const
+AgentSetup::Outcome AgentSetup::addMcpServer(int timeoutMs, const std::atomic_bool *cancelled) const
 {
     Outcome outcome;
     for (const auto &agent : mcpAgents()) {
@@ -149,8 +160,9 @@ AgentSetup::Outcome AgentSetup::addMcpServer(int timeoutMs) const
         }
         // `mcp get` answers 0 for a server the agent has under that name, in
         // any scope.
-        const auto existing = run(
-            program, {QStringLiteral("mcp"), QStringLiteral("get"), skillName}, m_home, timeoutMs);
+        const auto existing
+            = run(program, {QStringLiteral("mcp"), QStringLiteral("get"), skillName}, m_home,
+                timeoutMs, cancelled);
         if (!existing) {
             outcome.failed.append(agent.name);
             continue;
@@ -159,7 +171,7 @@ AgentSetup::Outcome AgentSetup::addMcpServer(int timeoutMs) const
             outcome.kept.append(agent.name);
             continue;
         }
-        const auto added = run(program, agent.add, m_home, timeoutMs);
+        const auto added = run(program, agent.add, m_home, timeoutMs, cancelled);
         if (added == 0) {
             outcome.changed.append(agent.name);
         } else {

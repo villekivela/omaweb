@@ -3,6 +3,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <atomic>
+
 namespace omaweb {
 
 // What a reader's coding agents are given so they can use Omaweb: the Agent
@@ -51,7 +53,10 @@ public:
     // as long as the agents take, up to `timeoutMs` for each command, so it is
     // called off the interface thread. The commands run at home, where no
     // project's own MCP configuration answers for the reader's.
-    Outcome addMcpServer(int timeoutMs = defaultMcpTimeoutMs) const;
+    // A command still running when `cancelled` turns true is stopped and
+    // counted as failed, so a browser that quits does not wait on it.
+    Outcome addMcpServer(
+        int timeoutMs = defaultMcpTimeoutMs, const std::atomic_bool *cancelled = nullptr) const;
 
     static constexpr int defaultMcpTimeoutMs = 30000;
 
