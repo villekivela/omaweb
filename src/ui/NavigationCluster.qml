@@ -30,9 +30,14 @@ Rectangle {
     radius: 2
     // With a backdrop the tint goes on top of the blur instead, so the strip
     // itself stays clear.
-    color: blurActive ? "transparent" : colors.overlay
+    color: groundDither.fill
     border.width: 1
     border.color: colors.border
+
+    GroundDither {
+        id: groundDither
+        ground: root.blurActive ? "transparent" : root.colors.overlay
+    }
 
     HoverHandler {
         id: hover

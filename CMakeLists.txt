@@ -585,6 +585,7 @@ qt_add_shaders(omaweb-ui "omaweb_shaders"
     BASE "src/ui/shaders"
     FILES
         "src/ui/shaders/crtglass.frag"
+        "src/ui/shaders/dither.frag"
         "src/ui/shaders/rimlight.frag"
 )
 
@@ -872,6 +873,7 @@ set(omaweb_ui_files
     src/ui/Radar.qml
     src/ui/Hyperspace.qml
     src/ui/RimLight.qml
+    src/ui/GroundDither.qml
     src/ui/SceneHost.qml
     src/ui/SceneLayer.qml
     src/ui/ScenePicker.qml

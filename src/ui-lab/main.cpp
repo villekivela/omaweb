@@ -526,7 +526,8 @@ int main(int argc, char *argv[])
     }
     omaweb::ContentBlocker contentBlocker(dataRootPath, omaweb::ContentBlocker::DefaultLists::None);
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
-    QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
+    omaweb::KeyboardNavigation::seedDefaults(
+        keybindingsPath, QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
     omaweb::KeyboardNavigation keyboardNavigation(
         keybindingsPath, QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     // The lab reviews chrome, and chrome is drawn in a palette, so it honours

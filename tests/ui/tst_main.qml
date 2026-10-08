@@ -1442,6 +1442,50 @@ TestCase {
         sidebarOpacity.reset();
     }
 
+    // The sidebar's ground lets the desktop through at the theme's opacity, so
+    // it carries a dither against the bands a blurred wallpaper shows through it;
+    // at the reader's 100% nothing is behind it to band, and no dither is in the
+    // scene (#647). The offscreen suite has no shaders, so the test says the
+    // renderer has them.
+    function test_theSidebarIsDitheredWhileItLetsTheDesktopThrough() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const dither = findChild(sidebar, "sidebarDither");
+        verify(dither !== null);
+        dither.runsShaders = true;
+        try {
+            sidebarIsDithered(sidebar, dither);
+        } finally {
+            // The window lives on through the suite, so the dither goes back to
+            // asking the renderer.
+            dither.runsShaders = Qt.binding(function () {
+                return dither.GraphicsInfo.shaderType === GraphicsInfo.RhiShader;
+            });
+            sidebarOpacity.reset();
+        }
+        verify(!dither.runsShaders, "the offscreen renderer runs no shaders");
+    }
+
+    function sidebarIsDithered(sidebar, dither) {
+        const themes = Qt.color(window.colors.sidebar).a;
+        verify(themes > 0 && themes < 1, "the theme's sidebar opacity: " + themes);
+        verify(dither.drawn);
+        verify(dither.shader !== null);
+        compare(sidebar.color, Qt.rgba(0, 0, 0, 0));
+        fuzzyCompare(dither.shader.premultiplied.w, themes, 0.003);
+
+        sidebarOpacity.set(1.0);
+        tryVerify(function () {
+            return !dither.drawn;
+        }, 5000, "a dither under an opaque sidebar");
+        compare(dither.shader, null);
+        compare(Qt.color(sidebar.color).a, 1.0);
+
+        sidebarOpacity.reset();
+        tryVerify(function () {
+            return dither.drawn;
+        });
+    }
+
     // The reader's sidebar opacity is drawn as it moves, in an ordinary window
     // and in a Private one, and reset gives the sidebar back to the theme's (#643).
     function test_theReadersSidebarOpacityDrawsTheSidebarLiveInEveryWindow() {

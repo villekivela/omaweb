@@ -439,7 +439,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Themes reload at runtime from versioned JSON. A theme defines type as well as colour: font
   families, sizes and label spacing, and the tinting of tab tiles. Semantic opacity values control
   transparent surfaces, which fall back to an opaque color where accessibility settings require it.
-  Blurring the desktop behind them is the window system's and is not required for them to read.
+  Blurring the desktop behind them is the window system's and is not required for them to read. A
+  Transparent surface carries a still dither of one output level, added after its own opacity, so a
+  blurred wallpaper's gradient seen through it does not band. The dither averages to the theme's
+  colour, and an opaque surface or the empty window background has none.
 - The sidebar's opacity is the theme's until the reader sets it. Settings' interface section has a
   Sidebar opacity slider from 50% to 100% in steps of 5%, with a reset that returns to the theme's
   value, and it can be moved with the arrow keys. It is the reader's override of the theme's
@@ -766,6 +769,12 @@ The default page commands include:
   windows send it alike. The privacy section of Settings shows the setting and turns it off, which
   turns off both the header and the property, and the choice survives a restart. Omaweb sends no Do
   Not Track header and offers no per-site exception.
+- Every Engine profile, in a Space, a Private window or an Agent Space, sends the engine's default
+  user agent without its `QtWebEngine/<version>` token and the space before it, on every site. Sites
+  such as WhatsApp Web answer that token with an "update your browser" page. The rest of the string
+  is the engine's own, so an engine update reports its own Chrome version, and `navigator.userAgent`
+  matches the header. Client hints stay as the engine sets them. There is no per-site override and
+  no setting.
 - HTTPS-only mode is on by default and browser-wide. Every top-level `http:` navigation, typed,
   followed from a link, redirected to or opened from another application, is sent as `https:` before
   it leaves the browser; subresources stay with the engine's mixed-content policy, and the addresses

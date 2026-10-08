@@ -32,11 +32,16 @@ Rectangle {
     width: name.implicitWidth + 32
     height: name.implicitHeight + 14
     radius: 2
-    color: colors.overlay
+    color: groundDither.fill
     border.width: 1
     border.color: colors.border
     Accessible.role: Accessible.StaticText
     Accessible.name: name.text
+
+    GroundDither {
+        id: groundDither
+        ground: root.colors.overlay
+    }
 
     Text {
         id: name

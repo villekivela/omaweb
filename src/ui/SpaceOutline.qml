@@ -762,8 +762,14 @@ Rectangle {
         event.accepted = true;
     }
 
-    color: floating ? "transparent" : colors.sidebar
+    color: sidebarDither.fill
     clip: true
+
+    GroundDither {
+        id: sidebarDither
+        objectName: "sidebarDither"
+        ground: root.floating ? "transparent" : root.colors.sidebar
+    }
 
     Connections {
         target: root.browser ? root.browser.pinnedTabs : null
@@ -1682,9 +1688,14 @@ Rectangle {
             distance: 8
         }
         opacity: detailLift.progress
-        color: root.colors.overlay
+        color: detailDither.fill
         border.width: 1
         border.color: root.colors.accent
+
+        GroundDither {
+            id: detailDither
+            ground: root.colors.overlay
+        }
 
         Column {
             id: detailLines

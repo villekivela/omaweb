@@ -17,7 +17,12 @@ Rectangle {
     property var spaceOptions: []
 
     visible: open
-    color: root.colors.sheet
+    color: groundDither.fill
+
+    GroundDither {
+        id: groundDither
+        ground: root.colors.sheet
+    }
 
     function refresh() {
         if (!activity) {
