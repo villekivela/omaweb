@@ -4,7 +4,7 @@
 // adapters in src/ui (see docs/adr/0017-vendor-the-omarchy-component-kit.md
 // and 0018-drive-the-kit-from-the-theme-palette.md).
 //
-// Kit components read colour and type from the `qs.Commons` `Color` and `Style`
+// Kit components read colour and type from the `qs.Commons` `ShellColor` and `Style`
 // singletons, which resolve an Omarchy theme from `~/.local/state/omarchy`,
 // `~/.config/omarchy/shell.toml` and `hyprctl`. Omaweb's theme palette is its
 // source of truth instead, so this pushes the palette into those singletons
