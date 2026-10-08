@@ -124,12 +124,12 @@ Item {
     // same box, so the two never sit in different places and the title beside
     // them never moves.
     readonly property int chipSize: Math.round(Style.font.caption * 1.6)
-    readonly property int chipInset: 8
+    readonly property int chipInset: Style.space(8)
     // Where the close button and the Agent mark end: 12 px inside the edge the
     // row's wash reaches, which for an ordinary row is the sidebar's. Out in
     // the margin, so the glyph does not stand far in from a hover that runs to
     // the sidebar's edge, but not so far that it crowds it.
-    readonly property int endGap: 12
+    readonly property int endGap: Style.space(12)
 
     signal activated(string tabId)
     signal closeRequested(string tabId)
@@ -176,7 +176,7 @@ Item {
         }
     }
 
-    height: pinned ? 44 : 36
+    height: Style.space(pinned ? 44 : 36)
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
     Accessible.name: (pinned ? qsTr("Pinned: %1").arg(tabTitle) : tabTitle) + (tabBeside ? " "
@@ -351,7 +351,7 @@ Item {
     Text {
         visible: !root.pinned
         anchors.left: tile.right
-        anchors.leftMargin: 9
+        anchors.leftMargin: Style.space(9)
         anchors.right: parent.right
         anchors.rightMargin: root.endGap - root.reachRight + closeButton.width + 6
         anchors.verticalCenter: parent.verticalCenter
