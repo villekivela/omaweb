@@ -1277,10 +1277,9 @@ bool SyncModule::restoreConfiguration(QString *errorMessage)
         // Nothing to apply when the file already holds these bytes. A file an
         // earlier release seeded read-only would refuse the write otherwise.
         QFile local(destination);
-        if (local.open(QIODevice::ReadOnly) && local.readAll() == contents) {
-            local.close();
-        } else {
-            local.close();
+        const auto unchanged = local.open(QIODevice::ReadOnly) && local.readAll() == contents;
+        local.close();
+        if (!unchanged) {
             QSaveFile file(destination);
             if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size()
                 || !file.commit()) {

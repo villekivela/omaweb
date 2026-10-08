@@ -38,8 +38,9 @@ public:
     // resource is read-only, and Sync and the Settings page write the file
     // later, so the seeded file is the reader's to write.
     static bool seedDefaults(const QString &configurationPath, const QString &defaultsPath);
-    // An earlier release left the seeded file read-only. Makes it writable by
-    // its owner again, once, and leaves a file the owner can write alone.
+    // An earlier release left the seeded file read-only. Runs at every start:
+    // makes such a file writable by its owner again, and does nothing to a
+    // file the owner can already write.
     static void restoreOwnerWrite(const QString &configurationPath);
     Q_INVOKABLE QVariantMap configurationForUrl(const QUrl &url) const;
 
