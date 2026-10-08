@@ -37,7 +37,8 @@ namespace {
     constexpr auto recoveryKeyBytes = 32;
     constexpr auto recoveryChecksumBytes = 4;
     const QStringList syncedPreferences {QStringLiteral("floating-controls"),
-        QStringLiteral("use-favicons"), QStringLiteral("tint-favicons")};
+        QStringLiteral("use-favicons"), QStringLiteral("tint-favicons"),
+        QStringLiteral("app-icon")};
     // Settings an earlier version carried and this one no longer has. A
     // repository still holding one has it taken away on the next capture, so
     // no machine reads it back and nobody reads it in the repository.
@@ -47,12 +48,11 @@ namespace {
 
     // A synced setting's record holds its value as text, as every version of
     // the record has; settings.json holds it typed.
-    QByteArray settingRecord(const QString &name, bool value)
+    QByteArray settingRecord(const QString &name, const QJsonValue &value)
     {
         return QJsonDocument(QJsonObject {{QStringLiteral("version"), SyncModule::contractVersion},
                                  {QStringLiteral("key"), name},
-                                 {QStringLiteral("value"),
-                                     value ? QStringLiteral("true") : QStringLiteral("false")}})
+                                 {QStringLiteral("value"), SettingsFile::text(value)}})
             .toJson(QJsonDocument::Indented);
     }
 
@@ -1130,7 +1130,8 @@ bool SyncModule::writeAppliedRecordInventory(QString *errorMessage) const
              QStringLiteral("settings/content-blocking.json"),
              QStringLiteral("settings/floating-controls.json"),
              QStringLiteral("settings/use-favicons.json"),
-             QStringLiteral("settings/tint-favicons.json")}) {
+             QStringLiteral("settings/tint-favicons.json"),
+             QStringLiteral("settings/app-icon.json")}) {
         QFile file(QDir(checkoutRoot()).filePath(relativePath));
         if (file.open(QIODevice::ReadOnly)) {
             configuration.insert(relativePath, digest(file.readAll()));
@@ -1185,7 +1186,7 @@ bool SyncModule::writeLocalBaselineInventory(SessionStore &store, QString *error
     for (const auto &name : syncedPreferences) {
         if (settings.isSet(name)) {
             configuration.insert(QStringLiteral("settings/%1.json").arg(name),
-                digest(settingRecord(name, settings.value(name).toBool())));
+                digest(settingRecord(name, settings.value(name))));
         }
     }
     QFile keybindings(QDir(m_options.configRoot).filePath(QStringLiteral("keybindings.json")));
@@ -1250,15 +1251,16 @@ bool SyncModule::restoreConfiguration(QString *errorMessage)
         if (record.isEmpty()) {
             continue;
         }
-        const auto value = record.value(QStringLiteral("value")).toString();
+        const auto value
+            = SettingsFile::fromText(name, record.value(QStringLiteral("value")).toString());
         if (record.value(QStringLiteral("version")).toInt() != contractVersion
-            || record.value(QStringLiteral("key")).toString() != name
-            || (value != QLatin1String("true") && value != QLatin1String("false"))) {
+            || record.value(QStringLiteral("key")).toString() != name || value.isNull()
+            || value.isUndefined() || !SettingsFile::accepts(name, value)) {
             setError(errorMessage,
                 QCoreApplication::translate("SyncModule", "A synced Setting is not valid"));
             return false;
         }
-        synced.insert(name, value == QLatin1String("true"));
+        synced.insert(name, value);
     }
     // Merged into the file through the one writer the Settings page uses too,
     // which reads it again under its lock, so neither write drops the other.
@@ -1372,7 +1374,7 @@ bool SyncModule::captureConfiguration(QString *errorMessage)
             continue;
         }
         if (!stageConfigurationFile(
-                path, settingRecord(name, settings.value(name).toBool()), errorMessage)) {
+                path, settingRecord(name, settings.value(name)), errorMessage)) {
             return false;
         }
     }

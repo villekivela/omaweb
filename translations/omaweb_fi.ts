@@ -3524,6 +3524,24 @@ Päivitykset osoitteesta %3</translation>
         <translation>Kortit säilytetään työpöydän avainnipussa, ja niitä tarjotaan lomakkeissa jokaisessa tilassa, ei koskaan yksityisessä ikkunassa. Turvakoodia ei koskaan säilytetä.</translation>
     </message>
     <message>
+        <source>App icon</source>
+        <translation>Sovelluskuvake</translation>
+    </message>
+    <message>
+        <source>The icon the launcher shows Omaweb under. Theme draws it in the Omarchy theme&apos;s colours.</source>
+        <translation>Kuvake, jolla käynnistin näyttää Omawebin. Teema piirtää sen Omarchy-teeman väreillä.</translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <comment>app icon: the installed icon</comment>
+        <translation>Mustavalkoinen</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <comment>app icon: drawn in the Omarchy theme&apos;s colours</comment>
+        <translation>Teema</translation>
+    </message>
+    <message>
         <source>Sidebar side</source>
         <translation>Sivupalkin puoli</translation>
     </message>

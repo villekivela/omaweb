@@ -718,6 +718,8 @@ if(OMAWEB_BUILD_BROWSER)
 endif()
 
 add_library(omaweb-platform STATIC
+    src/platform/AppIcon.cpp
+    src/platform/AppIcon.h
     src/platform/DefaultBrowser.cpp
     src/platform/DefaultBrowser.h
     src/platform/ExternalProtocolHandler.cpp
@@ -983,6 +985,7 @@ function(omaweb_configure_qml target engine_view engine_profile engine_module)
             OMAWEB_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_profile}"
             OMAWEB_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
             OMAWEB_OMARCHY_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb.json.tpl"
+            OMAWEB_OMARCHY_ICON_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb-icon.svg.tpl"
             OMAWEB_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
             OMAWEB_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
@@ -1016,12 +1019,13 @@ function(omaweb_configure_qml target engine_view engine_profile engine_module)
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/themes"
             FILES assets/themes/default.json
         )
-        # The Omarchy theme template travels in the binary, because the reader's
-        # copy of it is written on the first start of a new install.
+        # The Omarchy templates travel in the binary, because the reader's
+        # copies of them are written by the browser: the theme's on the first
+        # start of a new install, the icon's when the reader chooses it.
         qt_add_resources(${target} "omaweb_omarchy_template"
             PREFIX "/omaweb/omarchy"
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy"
-            FILES integrations/omarchy/omaweb.json.tpl
+            FILES integrations/omarchy/omaweb.json.tpl integrations/omarchy/omaweb-icon.svg.tpl
         )
         qt_add_resources(${target} "omaweb_fonts"
             PREFIX "/omaweb/fonts"
@@ -1045,6 +1049,7 @@ function(omaweb_configure_qml target engine_view engine_profile engine_module)
             OMAWEB_ENGINE_PROFILE_URL="qrc:/qt/qml/${engine_module_path}/EngineProfile.qml"
             OMAWEB_THEME_PATH=":/omaweb/themes/default.json"
             OMAWEB_OMARCHY_TEMPLATE_PATH=":/omaweb/omarchy/omaweb.json.tpl"
+            OMAWEB_OMARCHY_ICON_TEMPLATE_PATH=":/omaweb/omarchy/omaweb-icon.svg.tpl"
             OMAWEB_ICON_FONT_URL="qrc:/omaweb/fonts/material-symbols-rounded.ttf"
             OMAWEB_DEFAULT_KEYBINDINGS_PATH=":/omaweb/keybindings/default.json"
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH=":/omaweb/engine-api/keyboard-navigation.js"
@@ -1906,6 +1911,14 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-omarchy-theme-tests)
     add_test(NAME omaweb-omarchy-theme COMMAND omaweb-omarchy-theme-tests)
+
+    qt_add_executable(omaweb-app-icon-tests tests/platform/tst_appicon.cpp)
+    target_link_libraries(omaweb-app-icon-tests PRIVATE omaweb-platform Qt6::Test)
+    target_compile_definitions(omaweb-app-icon-tests PRIVATE
+        OMAWEB_OMARCHY_ICON_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb-icon.svg.tpl"
+    )
+    omaweb_strict_target(omaweb-app-icon-tests)
+    add_test(NAME omaweb-app-icon COMMAND omaweb-app-icon-tests)
 
     qt_add_executable(omaweb-favicon-tint-tests tests/ui/tst_favicontint.cpp)
     target_link_libraries(omaweb-favicon-tint-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)

@@ -68,6 +68,9 @@ namespace {
         static const QList<Key> keys {
             {QLatin1StringView("use-favicons"), Kind::Switch, true},
             {QLatin1StringView("tint-favicons"), Kind::Switch, false},
+            // The launcher's icon on Omarchy: the package's, or the theme's.
+            {QLatin1StringView("app-icon"), Kind::Text, QStringLiteral("black-and-white"),
+                {QStringLiteral("black-and-white"), QStringLiteral("theme")}},
             {QLatin1StringView("sidebar-side"), Kind::Text, QStringLiteral("left"),
                 {QStringLiteral("left"), QStringLiteral("right")}},
             {QLatin1StringView("floating-controls"), Kind::Switch, true},

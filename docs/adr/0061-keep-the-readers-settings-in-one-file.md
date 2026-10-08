@@ -56,13 +56,12 @@ not know is kept in the file and listed as ignored. Every case is logged to stde
 
 ## Sync
 
-Sync carries the same three settings as before (`floating-controls`, `use-favicons`,
-`tint-favicons`) as the same per-key records, with the conflict rule of
-[0039](0039-sync-configuration-through-a-git-remote.md). Restore merges them into `settings.json`
-and the browser's watch applies them, and capture reads them from the file. A record still holds its
-value as text, as every version of the record has. A key taken out of the file is a change to sync
-only where this machine applied or captured a value for it before. A machine that never chose one
-has nothing to tell the others.
+Sync carries the settings [0039](0039-sync-configuration-through-a-git-remote.md) names as the same
+per-key records, with the conflict rule of [0039](0039-sync-configuration-through-a-git-remote.md).
+Restore merges them into `settings.json` and the browser's watch applies them, and capture reads
+them from the file. A record still holds its value as text, as every version of the record has. A
+key taken out of the file is a change to sync only where this machine applied or captured a value
+for it before. A machine that never chose one has nothing to tell the others.
 
 ## Migration
 

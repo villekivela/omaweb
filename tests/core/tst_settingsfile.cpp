@@ -22,6 +22,7 @@ private slots:
     void followsAnEditMadeWhileItRuns();
     void keepsBothOfTwoWritesAtOnce();
     void offersOnlyTheLimitsSettingsOffers();
+    void offersTheTwoAppIcons();
     void leavesAKeyWithoutADefaultUndefined();
     void keepsASidebarOpacityBetweenHalfAndOne();
     void readsASidebarOpacityOutOfRangeAsTheThemes();
@@ -288,6 +289,17 @@ void SettingsFileTest::offersOnlyTheLimitsSettingsOffers()
     for (const int offered : {0, 3600, 43200, 86400, 604800}) {
         QVERIFY(SettingsFile::accepts(QStringLiteral("put-away-unused-tabs-after"), offered));
     }
+}
+
+// The app icon is one of two, and a fresh profile has the black and white one
+// the package installs.
+void SettingsFileTest::offersTheTwoAppIcons()
+{
+    const auto key = QStringLiteral("app-icon");
+    QCOMPARE(SettingsFile::defaultValue(key), QJsonValue(QStringLiteral("black-and-white")));
+    QVERIFY(SettingsFile::accepts(key, QStringLiteral("black-and-white")));
+    QVERIFY(SettingsFile::accepts(key, QStringLiteral("theme")));
+    QVERIFY(!SettingsFile::accepts(key, QStringLiteral("green")));
 }
 
 // A key whose default is not Omaweb's to state reads as undefined while the

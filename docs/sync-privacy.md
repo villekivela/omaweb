@@ -36,10 +36,11 @@ read them.
 
 ### Readable in the repository
 
-Your whole `keybindings.json`, your filter subscription addresses, and three settings:
-`floating-controls`, `use-favicons` and `tint-favicons`. These are stored as plain text, so anyone
-who can read the repository, GitHub included, can read them. A repository an earlier version wrote
-`ease-sidebar` into loses that file on the next sync, since the setting no longer exists.
+Your whole `keybindings.json`, your filter subscription addresses, and four settings:
+`floating-controls`, `use-favicons`, `tint-favicons` and `app-icon`. These are stored as plain text,
+so anyone who can read the repository, GitHub included, can read them. A repository an earlier
+version wrote `ease-sidebar` into loses that file on the next sync, since the setting no longer
+exists.
 
 ### Never synced
 
