@@ -55,6 +55,10 @@ Item {
     anchors.rightMargin: root.rightInset
     anchors.bottomMargin: root.bottomInset
 
+    function headroom(channel: real): real {
+        return Math.max(0, Math.min(1 / 255, channel, root.ground.a - channel));
+    }
+
     Loader {
         id: loader
         anchors.fill: parent
@@ -71,6 +75,14 @@ Item {
             property vector4d premultiplied: Qt.vector4d(root.ground.r * root.ground.a, root.ground.g
                                                          * root.ground.a, root.ground.b
                                                          * root.ground.a, root.ground.a)
+            // How far the noise reaches on each premultiplied channel: one
+            // output level, or less where the channel is nearer 0 or the
+            // ground's alpha. A premultiplied channel past the alpha is not a
+            // colour: Qt's unpremultiply wraps it past 255 to 0, a speckle (#647).
+            // A straight channel at 255 has no room and is not dithered.
+            property vector3d amplitude: Qt.vector3d(root.headroom(premultiplied.x), root.headroom(
+                                                         premultiplied.y), root.headroom(
+                                                         premultiplied.z))
 
             fragmentShader: "qrc:/omaweb/shaders/dither.frag.qsb"
         }

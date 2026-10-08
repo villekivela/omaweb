@@ -7,8 +7,8 @@
 //
 // The noise is a hash of the pixel's place in the window: it holds still while
 // the window is idle and needs no frame of its own. Each channel takes the
-// sum of two uniform values, a triangular spread of one output level either
-// way, which averages to nothing.
+// sum of two uniform values, a triangular spread of up to one output level
+// either way, which averages to nothing.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -22,6 +22,9 @@ layout(std140, binding = 0) uniform buf {
     float radius;
     // The ground's colour, premultiplied by its alpha.
     vec4 premultiplied;
+    // How far the noise reaches on each channel, so that no channel leaves
+    // the range from 0 to the ground's alpha.
+    vec3 amplitude;
 };
 
 // Distance from a rounded rectangle's edge, negative inside.
@@ -51,7 +54,7 @@ void main()
     vec2 pixel = floor(gl_FragCoord.xy);
     vec3 first = hash(pixel);
     vec3 second = hash(pixel + vec2(1013.0, 2011.0));
-    vec3 noise = (first + second - 1.0) / 255.0;
+    vec3 noise = (first + second - 1.0) * amplitude;
 
     fragColor = vec4(premultiplied.rgb + noise, premultiplied.a) * coverage * qt_Opacity;
 }
