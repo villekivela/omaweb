@@ -89,6 +89,7 @@ Item {
     }
 
     PageBackdrop {
+        id: backdrop
         objectName: "pageBarBackdrop"
         anchors.fill: ground
         source: root.backdropSource
@@ -101,7 +102,13 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         height: panel.implicitHeight + 24
-        color: root.colors.overlay
+        color: groundDither.fill
+
+        GroundDither {
+            id: groundDither
+            ground: root.colors.overlay
+            overDesktop: !backdrop.sampling
+        }
 
         Column {
             id: panel

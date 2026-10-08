@@ -3247,7 +3247,13 @@ ApplicationWindow {
                 width: chromeRow.pageWidth
                 height: parent.height
                 visible: sidebar.arriving
-                color: window.pagelessViewport ? window.colors.sheet : window.colors.windowOpaque
+                color: arrivalDither.fill
+
+                GroundDither {
+                    id: arrivalDither
+                    ground: window.pagelessViewport ? window.colors.sheet :
+                                                      window.colors.windowOpaque
+                }
             }
 
             Item {

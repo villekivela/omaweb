@@ -115,9 +115,14 @@ Item {
         y: root.anchorY + height + 8 < root.height ? root.anchorY + 6 : Math.max(8, root.anchorTop
                                                                                  - height - 6)
         radius: 3
-        color: root.colors.overlay
+        color: panelDither.fill
         border.width: 1
         border.color: root.colors.accent
+
+        GroundDither {
+            id: panelDither
+            ground: root.colors.overlay
+        }
 
         // A highlighted row stops at the border instead of painting over it.
         Column {

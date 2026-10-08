@@ -207,12 +207,17 @@ FocusScope {
         height: root.lerp(root.fromHeight, root.restHeight)
         opacity: root.fromOrigin ? 1 : root.arrival
         radius: 3
-        color: root.colors.overlay
+        color: panelDither.fill
         // One logical pixel, rounded to whole pixels of the display, so the
         // page inside it starts on one.
         border.width: DevicePixels.snap(1, root.pixelRatio)
         border.color: root.colors.accent
         clip: true
+
+        GroundDither {
+            id: panelDither
+            ground: root.colors.overlay
+        }
 
         // A click on the panel's own edge is not a click outside it.
         MouseArea {

@@ -59,7 +59,7 @@ Item {
         opacity: 0
         radius: Style.cornerRadius
         padding: Style.spacing.lg
-        color: root.colors.overlay
+        color: surfaceDither.fill
         borderSpec: Border.controlSpec("normal", root.colors.accent, root.colors.accent)
 
         implicitWidth: contentLeftInset + body.implicitWidth + contentRightInset
@@ -68,6 +68,15 @@ Item {
         Accessible.role: Accessible.AlertMessage
         Accessible.name: root.detail.length > 0 ? qsTr("%1. %2").arg(root.message).arg(root.detail) :
                                                   root.message
+
+        GroundDither {
+            id: surfaceDither
+            ground: root.colors.overlay
+            leftInset: fade.borderLeft
+            topInset: fade.borderTop
+            rightInset: fade.borderRight
+            bottomInset: fade.borderBottom
+        }
 
         Behavior on opacity {
             NumberAnimation {
