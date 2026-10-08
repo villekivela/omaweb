@@ -12,11 +12,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QJsonArray>
+#include <QLocale>
 #include <QMetaMethod>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 #include <memory>
@@ -37,6 +40,9 @@ namespace {
     const auto defaultAgentSpaceName = QStringLiteral("Agent");
 
     constexpr QLatin1StringView agentCommandKey("agent-command");
+    // Set once the first start with a setup has linked the skill for a reader
+    // who allowed Agents before Omaweb could.
+    constexpr QLatin1StringView skillLinkedAtStartKey("skill-linked-at-start");
     const auto defaultAgentCommand = QStringLiteral("claude");
 
     // What the reader's agent is first told: the tab is the reader's own, so
@@ -306,6 +312,7 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
     // Only an explicit `true` lets Agents in.
     m_allowAgents = AgentsFile::read(m_configRoot, allowAgentsKey).toBool(false);
     m_agentCommand = storedAgentCommand(m_configRoot);
+    connect(this, &AgentControl::allowAgentsChanged, this, &AgentControl::mcpAgentPresentChanged);
     if (m_configRoot.isEmpty()) {
         return;
     }
@@ -320,6 +327,16 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
     reload();
 }
 
+AgentControl::~AgentControl() { cancelMcpServer(); }
+
+void AgentControl::cancelMcpServer()
+{
+    if (m_mcpRun) {
+        *m_mcpRun = true;
+        m_mcpRun.reset();
+    }
+}
+
 bool AgentControl::allowAgents() const { return m_allowAgents; }
 
 void AgentControl::setAllowAgents(bool allowed)
@@ -329,6 +346,11 @@ void AgentControl::setAllowAgents(bool allowed)
     }
     AgentsFile::write(m_configRoot, allowAgentsKey, allowed);
     apply(allowed);
+    // The reader's own switch is the consent the skill waits for, so only it
+    // links the skill. Turning Agents off any way takes the links back.
+    if (m_agentSetup && allowed) {
+        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
+    }
 }
 
 QString AgentControl::agentCommand() const { return m_agentCommand; }
@@ -395,6 +417,117 @@ QVariantMap AgentControl::askAgent(const QString &tabId, const QString &words)
     return {{QStringLiteral("ok"), true}};
 }
 
+void AgentControl::setAgentSetup(AgentSetup setup)
+{
+    m_agentSetup = std::move(setup);
+    emit agentSetupChanged();
+    emit mcpAgentPresentChanged();
+    if (AgentsFile::read(m_configRoot, skillLinkedAtStartKey).toBool(false)) {
+        return;
+    }
+    if (m_allowAgents) {
+        m_agentSetup->linkSkill();
+    }
+    AgentsFile::write(m_configRoot, skillLinkedAtStartKey, true);
+}
+
+bool AgentControl::hasAgentSetup() const { return m_agentSetup.has_value(); }
+
+QString AgentControl::agentSetupNote() const { return m_agentSetupNote; }
+
+bool AgentControl::mcpAgentPresent() const { return m_agentSetup && AgentSetup::mcpAgentPresent(); }
+
+void AgentControl::addSkill()
+{
+    if (m_agentSetup) {
+        noteAgentSetup(skillNote(m_agentSetup->linkSkill()));
+    }
+}
+
+void AgentControl::addMcpServer()
+{
+    if (!m_agentSetup || m_mcpRun) {
+        return;
+    }
+    const auto run = std::make_shared<std::atomic_bool>(false);
+    m_mcpRun = run;
+    noteAgentSetup(tr("Adding the MCP server…"));
+    auto *watcher = new QFutureWatcher<AgentSetup::Outcome>(this);
+    connect(watcher, &QFutureWatcher<AgentSetup::Outcome>::finished, this, [this, watcher, run] {
+        watcher->deleteLater();
+        if (*run) {
+            return;
+        }
+        m_mcpRun.reset();
+        noteAgentSetup(mcpServerNote(watcher->result()));
+    });
+    watcher->setFuture(QtConcurrent::run([setup = *m_agentSetup, run] {
+        return setup.addMcpServer(AgentSetup::defaultMcpTimeoutMs, run.get());
+    }));
+}
+
+QString AgentControl::agentNames(const QStringList &names)
+{
+    // `~/.agents/skills` is read by whichever agents look there, which the
+    // reader may have more of than Omaweb names.
+    auto named = names;
+    if (named.removeAll(QString()) > 0) {
+        named.append(tr("other agents"));
+    }
+    return QLocale().createSeparatedList(named);
+}
+
+// What was done, then what was left as it was, then what failed, each as a
+// sentence of its own so a translation orders the words within it.
+QString AgentControl::outcomeNote(const AgentSetup::Outcome &outcome, const OutcomeWords &words)
+{
+    QStringList sentences;
+    if (!outcome.changed.isEmpty()) {
+        sentences.append(words.changed.arg(agentNames(outcome.changed)));
+        if (!outcome.kept.isEmpty()) {
+            sentences.append(
+                tr("%1 already had one.", "the skill or MCP server the sentence before added")
+                    .arg(agentNames(outcome.kept)));
+        }
+    } else if (!outcome.kept.isEmpty()) {
+        sentences.append(words.keptAll.arg(agentNames(outcome.kept)));
+    }
+    if (!outcome.failed.isEmpty()) {
+        sentences.append(words.failed.arg(agentNames(outcome.failed)));
+    }
+    return sentences.join(u' ');
+}
+
+QString AgentControl::skillNote(const AgentSetup::Outcome &outcome)
+{
+    QStringList sentences {outcomeNote(outcome,
+        {tr("Skill added for %1."), tr("%1 already had the skill."),
+            tr("The skill could not be added for %1.")})};
+    if (!outcome.leftAlone.isEmpty()) {
+        sentences.append(
+            tr("Your own omaweb skill for %1 was left alone.").arg(agentNames(outcome.leftAlone)));
+    }
+    sentences.removeAll(QString());
+    return sentences.join(u' ');
+}
+
+QString AgentControl::mcpServerNote(const AgentSetup::Outcome &outcome)
+{
+    const auto note = outcomeNote(outcome,
+        {tr("MCP server added for %1."), tr("%1 already had the MCP server."),
+            tr("The MCP server could not be added for %1.")});
+    return note.isEmpty() ? tr("Neither Claude Code nor Codex was found.") : note;
+}
+
+void AgentControl::noteAgentSetup(const QString &note)
+{
+    if (note == m_agentSetupNote) {
+        return;
+    }
+    m_agentSetupNote = note;
+    emit agentSetupNoteChanged();
+}
+
 void AgentControl::setTerminalProgram(const QString &program) { m_terminalProgram = program; }
 
 void AgentControl::reload()
@@ -417,6 +550,11 @@ void AgentControl::apply(bool allowed)
         return;
     }
     m_allowAgents = allowed;
+    if (m_agentSetup && !allowed) {
+        cancelMcpServer();
+        m_agentSetup->unlinkSkill();
+        noteAgentSetup({});
+    }
     if (!allowed) {
         while (!m_pendingGrants.isEmpty()) {
             finishGrant(m_pendingGrants.constFirst().spaceId, GrantAnswer::Withdrawn);

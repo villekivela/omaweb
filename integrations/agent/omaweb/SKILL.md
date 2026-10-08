@@ -13,6 +13,10 @@ done, 1 refused (the reason is on stderr), 2 a malformed command, 3 no browser a
 reader can start the browser or turn on Allow agents; ask them when a command says either is
 missing.
 
+`omaweb mcp` serves the same commands as MCP tools, for a client that cannot run shell commands.
+Where you can run `omaweb`, use it rather than the MCP tools: the CLI costs the conversation nothing
+until you call it.
+
 ## The loop
 
 Page commands work in an Agent Space. Make one for the task and pass its id, which `space new`

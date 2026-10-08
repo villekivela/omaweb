@@ -326,6 +326,15 @@ int main(int argc, char *argv[])
     // temporary Agent Space a crash left behind is gone before anything shows
     // it. A check of the QML is not a browser anything should reach.
     omaweb::AgentControl agentControl(&browser, configRoot());
+#ifdef OMAWEB_AGENT_SKILL_FROM_BROWSER
+    {
+        const auto skill = QDir::cleanPath(QDir(QCoreApplication::applicationDirPath())
+                .filePath(QStringLiteral(OMAWEB_AGENT_SKILL_FROM_BROWSER)));
+        if (!validatingQml && QFileInfo(skill).isDir()) {
+            agentControl.setAgentSetup(omaweb::AgentSetup(QDir::homePath(), skill));
+        }
+    }
+#endif
     agentControl.setShotDirectory(
         QFileInfo(omaweb::agentSocketPath()).dir().filePath(QStringLiteral("shots")));
     // Opened before the socket, so the week-old lines are gone before the

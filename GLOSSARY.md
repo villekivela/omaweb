@@ -191,6 +191,12 @@ credentials; the Agent is always the reader's own. A connection names itself for
 and the markers, but the name is not an identity. _Avoid_: Bot, assistant, automation, Diagnostics
 client
 
+**Agent skill**: The skill the `omaweb-cli` package installs under
+`/usr/share/omaweb/skills/omaweb`, which teaches a coding agent the `omaweb` CLI. Turning on Allow
+agents links it into each installed coding agent's skills directory. A coding agent is the program,
+such as Claude Code or Codex; it is an Agent once it connects to the socket. _Avoid_: plugin, MCP
+server (`omaweb mcp` is a second way in, not the skill)
+
 **Agent Space**: A Space an Agent created, which Agents may use without a Space grant. It is marked
 as an Agent's, and the reader can take it over, which removes the mark and keeps the Space. A
 temporary Agent Space is deleted with its Engine profile when the connection that created it closes.
