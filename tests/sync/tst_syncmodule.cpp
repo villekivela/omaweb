@@ -687,7 +687,8 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QVERIFY(firstStore.open(&error));
     QVERIFY(writeSettings(firstConfigRoot.path(),
         {{QStringLiteral("floating-controls"), false}, {QStringLiteral("use-favicons"), false},
-            {QStringLiteral("tint-favicons"), true}, {QStringLiteral("glance"), false}}));
+            {QStringLiteral("tint-favicons"), true}, {QStringLiteral("glance"), false},
+            {QStringLiteral("space-colours"), false}}));
     QVERIFY(firstStore.savePreference(QStringLiteral("ease-sidebar"), QStringLiteral("false")));
     QVERIFY(firstStore.savePreference(QStringLiteral("sidebar-width"), QStringLiteral("500")));
     QVERIFY(firstStore.savePreference(
@@ -730,6 +731,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/sidebar-width.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/start-page-road.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/glance.json")));
+    QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/space-colours.json")));
     QVERIFY(!filesBelow(checkout).contains("settings.json"));
     QVERIFY(!filesBelow(checkout).contains("visited.example"));
     QVERIFY(!filesBelow(checkout).contains("private.example"));
@@ -762,6 +764,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("tint-favicons")), QJsonValue(true));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(true));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("space-colours")), QJsonValue(true));
     QVERIFY(secondStore.preference(QStringLiteral("floating-controls")).isEmpty());
     QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
     QCOMPARE(secondStore.preference(QStringLiteral("sidebar-width")), QStringLiteral("311"));
@@ -1299,14 +1302,14 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
     QVERIFY(browser.renameSpace(workSpace, QStringLiteral("Projects")));
     QTRY_COMPARE(changed.count(), 1);
 
-    // A Space's colour is a palette name, and it is part of the Space.
+    // A Space's colour is one of Omaweb's six names, and it is part of the Space.
     changed.clear();
-    QVERIFY(browser.setSpaceColour(workSpace, QStringLiteral("bright_blue")));
+    QVERIFY(browser.setSpaceColour(workSpace, QStringLiteral("violet")));
     QTRY_COMPARE(changed.count(), 1);
     const auto recoloured = exchange.capture({});
     const auto work = std::ranges::find(recoloured.spaces, workSpace, &omaweb::SpaceState::id);
     QVERIFY(work != recoloured.spaces.cend());
-    QCOMPARE(work->color, QStringLiteral("bright_blue"));
+    QCOMPARE(work->color, QStringLiteral("violet"));
 }
 
 void SyncModuleTest::localSyncStateRefusesIneligibleBrowserState()

@@ -4,6 +4,7 @@ import QtQuick.Effects
 import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
+import "SpaceColour.mjs" as SpaceColour
 
 Rectangle {
     id: root
@@ -142,10 +143,12 @@ Rectangle {
                                                    spaceOverflow.height));
     }
 
-    // What a Space's palette name is drawn in under the theme on show.
+    // Whether the reader's Spaces are drawn in their colours, which Settings
+    // turns off for the muted text colour.
+    property bool spaceColours: true
+
     function spaceColour(name) {
-        const spaces = root.colors ? root.colors.spaces : null;
-        return spaces && spaces[name] ? spaces[name] : root.colors.accent;
+        return SpaceColour.drawn(root.colors, name, root.spaceColours);
     }
 
     function agentOf(tabId) {
@@ -958,7 +961,7 @@ Rectangle {
             property string accessibleName: qsTr("Search or enter address")
             readonly property bool focused: root.siteInformationOpen || addressButton.activeFocus
             width: parent.width
-            height: 34
+            height: Style.space(36)
             radius: 2
             color: Style.controlFill(addressButton.focused, addressMouse.containsMouse,
                                      root.colors.text, root.colors.accent)
@@ -983,7 +986,7 @@ Rectangle {
                 objectName: "keyLabel-addressButton"
                 iconFontFamily: root.iconFontFamily
                 anchors.right: parent.right
-                anchors.rightMargin: 4
+                anchors.rightMargin: Style.space(4)
                 anchors.verticalCenter: parent.verticalCenter
                 keys: root.keyLabelsShown ? root.labelFor("open-address") : ""
                 shown: root.keyLabelsShown
@@ -996,9 +999,9 @@ Rectangle {
                 id: securityGlyph
                 objectName: "securityIndicator"
                 anchors.left: parent.left
-                anchors.leftMargin: 8
+                anchors.leftMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
-                width: 18
+                width: Style.space(18)
                 horizontalAlignment: Text.AlignHCenter
                 text: root.certificateError ? "warning" : (root.secure ? "lock" : "lock_open")
                 color: root.certificateError ? root.colors.urgent : root.colors.mutedText
@@ -1020,9 +1023,9 @@ Rectangle {
 
             Text {
                 anchors.left: securityGlyph.right
-                anchors.leftMargin: 9
+                anchors.leftMargin: Style.space(9)
                 anchors.right: blockedCount.left
-                anchors.rightMargin: 8
+                anchors.rightMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.blank ? qsTr("search or enter address") : String(root.activeUrl).replace(
                                        /^[a-z]+:\/\//, "")
@@ -1036,9 +1039,9 @@ Rectangle {
                 id: blockedCount
                 objectName: "blockedRequestIndicator"
                 anchors.right: parent.right
-                anchors.rightMargin: 9
+                anchors.rightMargin: Style.space(9)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 3
+                spacing: Style.space(3)
                 visible: root.refusalTally > 0
 
                 Text {

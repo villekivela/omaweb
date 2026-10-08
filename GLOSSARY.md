@@ -21,9 +21,10 @@ _Avoid_: Trusted site, Project site
 and tabs. Switching Spaces does not expose one Space's browsing identity to another. _Avoid_:
 Workspace, container, profile (a Space is a browsing identity, not an Engine profile)
 
-**Space colour**: A palette name from the theme that a Space is drawn in: green, yellow, blue,
-bright green, bright yellow or bright blue. The theme resolves it, so the Space follows a theme
-change. _Avoid_: Space hex, accent
+**Space colour**: One of six colours Omaweb owns that a Space is drawn in: orange, yellow, green,
+teal, blue or violet. Each is a fixed OKLCH hue and chroma whose lightness the theme moves, so the
+Space follows a theme change, and the reader may turn Space colour off for muted Spaces. _Avoid_:
+Space hex, accent, palette name
 
 **Project directory**: The folder on this machine a Space is for, with the address its app is served
 at. `omaweb dev` sets it from the folder it runs in, and finds the Space again from that folder or

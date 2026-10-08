@@ -161,6 +161,7 @@ Rectangle {
     property bool floatingControls: true
     property string sidebarSide: "left"
     property bool glanceEnabled: true
+    property bool spaceColours: true
     // The Start page's Scene, by its id, or "none".
     property string startPageScene: "crt-road"
     property bool startPageGlass: true
@@ -372,18 +373,18 @@ Rectangle {
     // What a Space's colour is called to a screen reader.
     function colourName(colour) {
         switch (colour) {
-        case "green":
-            return qsTr("Green");
+        case "orange":
+            return qsTr("Orange");
         case "yellow":
             return qsTr("Yellow");
+        case "green":
+            return qsTr("Green");
+        case "teal":
+            return qsTr("Teal");
         case "blue":
             return qsTr("Blue");
-        case "bright_green":
-            return qsTr("Bright green");
-        case "bright_yellow":
-            return qsTr("Bright yellow");
-        case "bright_blue":
-            return qsTr("Bright blue");
+        case "violet":
+            return qsTr("Violet");
         default:
             return colour;
         }
@@ -436,6 +437,7 @@ Rectangle {
     signal floatingControlsToggled(bool enabled)
     signal sidebarSideChosen(string side)
     signal glanceToggled(bool enabled)
+    signal spaceColoursToggled(bool enabled)
     signal startPageSceneChosen(string scene)
     signal startPageGlassToggled(bool enabled)
 
@@ -2893,6 +2895,20 @@ Rectangle {
                     visible: root.section === 10
                     spacing: pane.spacing
 
+                    SettingToggle {
+                        objectName: "spaceColours"
+                        enabled: root.settingsWritable
+                        visible: root.browser ? !root.browser.privateBrowsing : false
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Space colour")
+                        note: qsTr(
+                                  "Draw each Space in its own colour in the sidebar's footer and the Omnibar. When off, every Space is drawn in the muted text colour, and each keeps its colour for when it is back on. Only on this machine.")
+                        accessibleName: qsTr("Space colour")
+                        checked: root.spaceColours
+                        onClicked: root.spaceColoursToggled(!checked)
+                    }
+
                     ActionButton {
                         objectName: "newSpaceButton"
                         colors: root.colors
@@ -2949,7 +2965,8 @@ Rectangle {
 
                                 Flow {
                                     id: spaceActions
-                                    width: Math.min(pane.width * 0.7, spaceSwatches.width
+                                    width: Math.min(pane.width * 0.7, (spaceSwatches.visible
+                                                                       ? spaceSwatches.width : 0)
                                                     + renameSpace.width + deleteSpace.width
                                                     + moveSpaceUp.width + moveSpaceDown.width
                                                     + spacing * 4 + (forgetProject.visible
@@ -2958,17 +2975,17 @@ Rectangle {
                                     spacing: Style.spacing.sm
 
                                     // The six colours a Space may be drawn in,
-                                    // each in the theme's own value. The
-                                    // Space's own is the larger square. Two
-                                    // Spaces may share a colour.
+                                    // in hue order, each as the theme resolves
+                                    // it. The Space's own is the larger square.
+                                    // Two Spaces may share a colour. None is
+                                    // offered while Space colour is off.
                                     Row {
                                         id: spaceSwatches
+                                        visible: root.spaceColours
                                         height: 26
                                         spacing: 4
 
                                         Repeater {
-                                            // The theme says which: a light theme
-                                            // offers only the plain three.
                                             model: spaceRow.agentMade ? [] :
                                                                         root.colors.spaceColourNames
                                                                         || []
@@ -2983,12 +3000,7 @@ Rectangle {
                                                 width: 22
                                                 height: 26
                                                 checkable: false
-                                                checked: spaceRow.spaceColor === modelData || (
-                                                             spaceRow.spaceColor === "bright_"
-                                                             + modelData && (
-                                                                 root.colors.spaceColourNames
-                                                                 || []).indexOf(
-                                                                 spaceRow.spaceColor) < 0)
+                                                checked: spaceRow.spaceColor === modelData
                                                 activeFocusOnTab: true
                                                 focusPolicy: Qt.StrongFocus
                                                 Accessible.role: Accessible.RadioButton
