@@ -1136,7 +1136,6 @@ Rectangle {
                 x: root.arrivalOffset * listLayer.width
             }
             readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
-            readonly property int columns: Math.min(root.pinnedCount, capacity)
             spacing: 4
 
             Repeater {
@@ -1146,12 +1145,8 @@ Rectangle {
                     id: pinnedRow
                     required property int index
                     placeInSection: index
-                    readonly property int rowStart: Math.floor(index / pinnedSection.capacity)
-                                                    * pinnedSection.capacity
-                    readonly property int tabsInRow: Math.min(pinnedSection.capacity,
-                                                              root.pinnedCount - rowStart)
-                    width: (pinnedSection.width - pinnedSection.spacing * (tabsInRow - 1))
-                           / tabsInRow
+                    width: (pinnedSection.width - pinnedSection.spacing * (pinnedSection.capacity
+                                                                           - 1)) / pinnedSection.capacity
                     colors: root.colors
                     iconFontFamily: root.iconFontFamily
                     useFavicons: root.useFavicons

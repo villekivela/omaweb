@@ -4179,6 +4179,59 @@ TestCase {
         browser.toggleActivePinned();
     }
 
+    // Every pin is one column wide, so a partial row leaves its columns empty
+    // instead of stretching the pins on it (#654). A full row looks as it did:
+    // its pins fill the list from edge to edge.
+    function test_pinsKeepTheColumnGridOnAPartialRow() {
+        const list = findChild(window.contentItem, "pinnedList");
+        const ids = [];
+        const total = list.capacity + 2;
+        for (let i = 0; i < total; ++i) {
+            openPageInNewTab("https://grid-pin-" + i + ".example");
+            ids.push(browser.activeTabId);
+            browser.toggleActivePinned();
+        }
+        compare(browser.pinnedTabs.rowCount(), total);
+        compare(new Set(ids).size, total);
+
+        tryVerify(function () {
+            return list.height > 44;
+        });
+        const column = (list.width - list.spacing * (list.capacity - 1)) / list.capacity;
+        const fullRow = [];
+        for (const id of ids) {
+            tryVerify(function () {
+                return findChild(window.contentItem, "pinned-" + id) !== null;
+            });
+            const pin = findChild(window.contentItem, "pinned-" + id);
+            fuzzyCompare(pin.width, column, 0.01, "a pin is one column wide");
+            const at = pin.mapToItem(list, 0, 0);
+            const columnIndex = Math.round(at.x / (column + list.spacing));
+            verify(columnIndex < list.capacity, "a pin sits in a column");
+            fuzzyCompare(at.x, columnIndex * (column + list.spacing), 0.01,
+                         "a pin sits on its column");
+            if (at.y === 0)
+                fullRow.push({
+                                 "x": at.x,
+                                 "width": pin.width
+                             });
+        }
+        compare(fullRow.length, list.capacity);
+        fullRow.sort(function (a, b) {
+            return a.x - b.x;
+        });
+        compare(fullRow[0].x, 0);
+        fuzzyCompare(fullRow[fullRow.length - 1].x + fullRow[fullRow.length - 1].width, list.width,
+                     0.01, "the full row reaches the list's right edge");
+
+        // A pin does not close, so each tab is unpinned first.
+        for (const id of ids) {
+            browser.activateTab(id);
+            browser.toggleActivePinned();
+            browser.closeTab(id);
+        }
+    }
+
     function test_layoutKeepsChromeOutOfThePagesWay() {
         const settledSidebar = findChild(window.contentItem, "sidebar");
         window.sidebarCollapsed = false;
@@ -4223,9 +4276,9 @@ TestCase {
         const pinnedList = findChild(window.contentItem, "pinnedList");
         verify(pinnedList.capacity >= 3);
         verify(pinnedList.capacity <= 5);
-        compare(pinnedList.columns, Math.min(pinnedList.capacity, browser.pinnedTabs.rowCount()));
         compare(pinnedRow.x, 0);
-        compare(pinnedRow.width, pinnedList.width);
+        compare(pinnedRow.width, (pinnedList.width - pinnedList.spacing * (pinnedList.capacity - 1))
+                / pinnedList.capacity);
         compare(pinnedRow.height, 44);
 
         const tabRow = findChild(window.contentItem, "tab-" + browser.activeTabId);
