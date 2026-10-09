@@ -769,14 +769,15 @@ Window {
         anchors.fill: parent
         color: root.colors ? root.colors.windowOpaque : "transparent"
 
-        // The strip: the Space, what the connection is, and the address.
+        // The strip: the Space, what the connection is, and the address, on
+        // the chrome's 8 px grid with 4 as the half step.
         Rectangle {
             id: strip
             objectName: "tabWindowStrip"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: root.stripShown ? 34 : 0
+            height: root.stripShown ? 32 : 0
             visible: root.stripShown
             color: root.colors ? root.colors.sidebarOpaque : "transparent"
 
@@ -784,9 +785,9 @@ Window {
                 id: spaceName
                 objectName: "tabWindowSpace"
                 anchors.left: parent.left
-                anchors.leftMargin: Style.space(10)
+                anchors.leftMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(6)
+                spacing: Style.space(4)
 
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
@@ -815,7 +816,7 @@ Window {
                 readonly property bool secure: state === "secure"
                 readonly property bool certificateError: state === "certificate-error"
                 anchors.left: spaceName.right
-                anchors.leftMargin: Style.space(14)
+                anchors.leftMargin: Style.space(16)
                 anchors.verticalCenter: parent.verticalCenter
                 text: certificateError ? "warning" : (secure ? "lock" : "lock_open")
                 color: root.colors ? (certificateError ? root.colors.urgent :
@@ -838,9 +839,9 @@ Window {
                 id: address
                 objectName: "tabWindowAddress"
                 anchors.left: securityGlyph.right
-                anchors.leftMargin: Style.space(9)
+                anchors.leftMargin: Style.space(8)
                 anchors.right: parent.right
-                anchors.rightMargin: Style.space(12)
+                anchors.rightMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 text: String(root.pageUrl).replace(/^[a-z]+:\/\//, "")
                 color: root.colors ? root.colors.text : "white"

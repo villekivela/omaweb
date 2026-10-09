@@ -15781,6 +15781,37 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // The strip keeps to the chrome's 8 px grid, with 4 as the half step:
+    // 32 tall, 8 in from either edge, 16 between the Space and the lock, 8
+    // between the lock and the address, and 4 between the Space's dot and
+    // its name.
+    function test_theTabWindowStripSitsOnTheChromeGrid() {
+        openPage("https://grid.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const strip = findChild(tabWindow.contentItem, "tabWindowStrip");
+        const space = findChild(tabWindow.contentItem, "tabWindowSpace");
+        const lock = findChild(tabWindow.contentItem, "tabWindowSiteInformation");
+        const address = findChild(tabWindow.contentItem, "tabWindowAddress");
+
+        compare(strip.height, 32);
+        compare(space.x, 8);
+        compare(space.spacing, 4);
+        compare(lock.x - (space.x + space.width), 16);
+        compare(address.x - (lock.x + lock.width), 8);
+        compare(strip.width - (address.x + address.width), 8);
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // A link that asks for a new tab follows the main window's rule inside a
     // Tab window. In the foreground with Glance on, a Glance over its page.
     function test_aTabWindowsForegroundRequestOpensAGlanceThere() {
