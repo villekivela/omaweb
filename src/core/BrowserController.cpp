@@ -780,18 +780,25 @@ Downloads *BrowserController::downloads() const { return m_downloads; }
 
 QString BrowserController::permissionOrigin(const QUrl &url) const { return normalizedOrigin(url); }
 
-int BrowserController::automaticDownloadDecision(const QString &origin) const
+// Answered in the Space of the page that asked, which a Tab window's page can
+// have away from the one on show.
+int BrowserController::automaticDownloadDecision(
+    const QString &origin, const QString &spaceId) const
 {
-    const auto key = sessionPermissionKey(origin, QStringLiteral("automatic-downloads"));
+    const auto space = spaceId.isEmpty() ? m_activeSpaceId : spaceId;
+    const auto key
+        = omaweb::sessionPermissionKey(space, origin, QStringLiteral("automatic-downloads"));
     const auto session = m_sessionPermissionDecisions->value(key, Ask);
-    return session != Ask ? session
-                          : m_store->permissionDecision(
-                                m_activeSpaceId, origin, QStringLiteral("automatic-downloads"));
+    return session != Ask
+        ? session
+        : m_store->permissionDecision(space, origin, QStringLiteral("automatic-downloads"));
 }
 
-bool BrowserController::rememberAutomaticDownloadDecision(const QString &origin, int decision)
+bool BrowserController::rememberAutomaticDownloadDecision(
+    const QString &origin, int decision, const QString &spaceId)
 {
-    return setPermissionDecision(QUrl(origin), QStringLiteral("automatic-downloads"), decision);
+    return setPermissionDecision(
+        QUrl(origin), QStringLiteral("automatic-downloads"), decision, spaceId);
 }
 
 bool BrowserController::agentSpace(const QString &spaceId) const

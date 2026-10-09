@@ -33,12 +33,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
   window mark, saved and synced as any tab, and is never the main window's active tab: popping out
   the tab on show shows the next one, and selecting its row raises the Tab window. Its page never
   freezes or is put away, and a page that asks for fullscreen fills the Tab window, never the main
-  window. Its prompts show in the Tab window and its downloads count in the main window's Download
-  mark. A link that asks for a new tab opens a Glance there, or a new Tab window in the same Space
-  with Glance off or when the Glance is kept; a background request opens a tab in that Space's
-  sidebar. Closing the window or `put-back-tab` returns the tab to the sidebar, live; close-tab
-  closes it. Being popped out, and the strip's state, are kept on this machine and never synced, and
-  a restart brings the window back without its position or size.
+  window. Its prompts show in the Tab window, answered in its own Space as its site's downloads are,
+  and its downloads count in the main window's Download mark. A link that asks for a new tab opens a
+  Glance there, or a new Tab window in the same Space with Glance off or when the Glance is kept; a
+  background request opens a tab in that Space's sidebar. Closing the window or `put-back-tab`
+  returns the tab to the sidebar, live; close-tab closes it. Being popped out, and the strip's
+  state, are kept on this machine and never synced, and a restart brings the window back without its
+  position or size.
 - Private browsing uses separate frameless windows and one temporary identity shared until the last
   Private window closes.
 - Site-requested Auxiliary windows are allowed for authentication, payment, and similar flows. A

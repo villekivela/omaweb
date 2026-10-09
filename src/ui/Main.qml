@@ -2843,7 +2843,7 @@ ApplicationWindow {
             host.downloadHeld.connect(function (token, disposition, origin, sourceUrl, fileName,
                                                 risk) {
                 window.downloads.hold(host.downloadNamespace, token, disposition, origin, sourceUrl,
-                                      fileName, risk);
+                                      fileName, risk, host.spaceId);
             });
             host.downloadRefused.connect(function (sourceUrl, fileName, origin) {
                 window.showNotice("block", qsTr("Download refused"), qsTr(

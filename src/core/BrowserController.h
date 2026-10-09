@@ -249,8 +249,9 @@ public:
     void reloadSyncedState();
 
     QString permissionOrigin(const QUrl &url) const override;
-    int automaticDownloadDecision(const QString &origin) const override;
-    bool rememberAutomaticDownloadDecision(const QString &origin, int decision) override;
+    int automaticDownloadDecision(const QString &origin, const QString &spaceId) const override;
+    bool rememberAutomaticDownloadDecision(
+        const QString &origin, int decision, const QString &spaceId) override;
 
     Q_INVOKABLE void activateTab(const QString &tabId);
     // The next or previous stop in the tab list, wrapping at either end. A

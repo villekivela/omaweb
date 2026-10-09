@@ -23,9 +23,11 @@ public:
     virtual QString permissionOrigin(const QUrl &url) const = 0;
     virtual bool originInteracted(const QUrl &url) const = 0;
     // The standing answer to "may this origin download by itself", in the
-    // controller's PermissionDecision values.
-    virtual int automaticDownloadDecision(const QString &origin) const = 0;
-    virtual bool rememberAutomaticDownloadDecision(const QString &origin, int decision) = 0;
+    // controller's PermissionDecision values, in the Space of the page that
+    // asked: the one on show where none is named.
+    virtual int automaticDownloadDecision(const QString &origin, const QString &spaceId) const = 0;
+    virtual bool rememberAutomaticDownloadDecision(
+        const QString &origin, int decision, const QString &spaceId) = 0;
 };
 
 // One window's downloads: the ones running now and the Download records its
@@ -82,10 +84,12 @@ public:
     // one automatic rather than asked for.
     int activeCount(const QUrl &origin) const;
 
-    // What Omaweb decides about a request before it starts. A file name that
-    // is already taken still returns SaveDownloadAs.
+    // What Omaweb decides about a request before it starts, answered in
+    // `spaceId`, the Space of the page that asked. A file name that is
+    // already taken still returns SaveDownloadAs.
     Q_INVOKABLE QVariantMap disposition(const QUrl &origin, const QString &fileName,
-        const QString &mimeType, const QString &directory, bool answered = false) const;
+        const QString &mimeType, const QString &directory, bool answered = false,
+        const QString &spaceId = {}) const;
 
     // What becomes of a download an Agent tab's page asked for (ADR 0051). It
     // lands in `directory`, the connection's own, under a name nothing there
@@ -94,7 +98,8 @@ public:
     // to confirm, until `answered`, and an origin the reader blocked from
     // downloading stays blocked. A directory that cannot be made refuses.
     Q_INVOKABLE QVariantMap agentDisposition(const QUrl &origin, const QString &fileName,
-        const QString &mimeType, const QString &directory, bool answered = false) const;
+        const QString &mimeType, const QString &directory, bool answered = false,
+        const QString &spaceId = {}) const;
 
     // Intake. The runtime id is `namespace + ":" + id`, and the namespace is
     // how a cancel or a retry finds the engine profile that started it.
@@ -104,9 +109,11 @@ public:
         qint64 totalBytes, const QString &error);
 
     // A download the engine is holding, waiting for the reader. The queue spans
-    // engine profiles, so it carries the namespace with the engine's token.
+    // engine profiles, so it carries the namespace with the engine's token, and
+    // the Space whose answer the reader gives.
     Q_INVOKABLE void hold(const QString &downloadNamespace, const QString &token, int disposition,
-        const QString &origin, const QUrl &sourceUrl, const QString &fileName, const QString &risk);
+        const QString &origin, const QUrl &sourceUrl, const QString &fileName, const QString &risk,
+        const QString &spaceId = {});
     // Answers the question on screen and presents the next one, if any.
     Q_INVOKABLE void answer(bool keep, const QString &path, int permissionDecision);
 
@@ -177,6 +184,7 @@ private:
         QUrl sourceUrl;
         QString fileName;
         QString risk;
+        QString spaceId;
     };
 
     static QString fileNameOf(const QString &path);
