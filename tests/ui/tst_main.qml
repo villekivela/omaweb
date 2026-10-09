@@ -15877,6 +15877,9 @@ TestCase {
         tryVerify(function () {
             return String(opened.engine.currentUrl) === "https://asked-for.example/";
         });
+        // The page took the request itself, so what opened it can reach it.
+        verify(opened.engine.acceptedRequest !== null);
+        compare(String(opened.engine.acceptedRequest.requestedUrl), "https://asked-for.example/");
         compare(opened.engine.browserProfile, engine.browserProfile);
         compare(tabWindow.glanceEngine, null);
         compare(browser.activeTabId, readingTabId);
