@@ -217,10 +217,9 @@ class Install(unittest.TestCase):
 
                 self.assertEqual(machine.conf.read_text(encoding="utf-8"), PACMAN_CONF + BLOCK)
                 [update] = [line for line in machine.log if line.startswith("omarchy ")]
-                self.assertTrue(update.startswith("omarchy update"), update)
+                self.assertEqual(update, "omarchy update -y")
                 install = "pacman -S --needed --noconfirm omaweb"
                 self.assertEqual(machine.log[-1], install)
-                self.assertLess(machine.log.index(update), len(machine.log) - 1)
                 self.assertFalse(any("-Syu" in line for line in machine.log), machine.log)
                 self.assertNotIn("-Syu omaweb", result.stdout)
                 self.assertIn("omarchy update", result.stdout)

@@ -106,10 +106,10 @@ main() {
     say "     $FINGERPRINT"
     say ""
     if on_omarchy; then
-        say "3. Upgrade the whole system with Omarchy's own updater, which Omarchy requires, then"
+        say "3. Upgrade the whole system with Omarchy's own updater, which its pacman hook requires, then"
         say "   install Omaweb from the databases it has just synced, taking pacman's default"
         say "   answer to anything it would ask:"
-        say "     omarchy update -y"
+        say "     omarchy update -y    (-y: the question above stands in for Omarchy's own)"
         say "     pacman -S --needed --noconfirm omaweb"
     else
         say "3. Upgrade the whole system and install Omaweb, taking pacman's default answer to"
