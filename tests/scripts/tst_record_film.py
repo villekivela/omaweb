@@ -13,6 +13,7 @@ from __future__ import annotations
 import http.client
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -170,6 +171,12 @@ class FixtureServerTest(unittest.TestCase):
             [{"customer": "Kiln Coffee", "amount": "640.00", "due": "31 Oct 2026",
               "note": "<i>thanks"}],
         )
+
+
+def shared_memory(megabytes):
+    """`os.statvfs` of a `/dev/shm` this many megabytes in size, as a tmpfs gives it."""
+    return os.statvfs_result((4096, 4096, megabytes * 256, megabytes * 256, megabytes * 256,
+                              0, 0, 0, 0, 255))
 
 
 def spaces(on_show, *others):
@@ -410,6 +417,17 @@ class BeatChecks(unittest.TestCase):
         why = self.assertMissed("Sites", film.expect_sites_on_loopback,
                                 lambda host: "192.0.2.7" if host == "kestrel.test" else "127.0.0.1")
         self.assertIn("kestrel.test", why)
+
+    def test_a_gigabyte_of_shared_memory_sets_the_stage(self):
+        film.expect_shared_memory("Sites", lambda path: shared_memory(1024))
+
+    def test_dockers_default_shared_memory_stops_the_film_before_it_starts(self):
+        # In 64 MB the renderer of the film's fifth tab, the magazine, was killed (#672).
+        why = self.assertMissed("Sites", film.expect_shared_memory,
+                                lambda path: shared_memory(64))
+        self.assertIn("/dev/shm", why)
+        self.assertIn("64 MB", why)
+        self.assertIn("--shm-size", why)
 
     def test_a_missed_beat_fails_the_command_and_says_which(self):
         missed = film.BeatMissed("Sidebar", "/docs/api/ on quillstack.test did not widen")

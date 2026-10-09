@@ -48,6 +48,11 @@ fails with "Landlock ruleset could not be applied". The script installs as CI do
 the sandbox off; on OrbStack, set `DisableSandboxFilesystem` in the container's `/etc/pacman.conf`
 yourself before the install, or record on a Linux host.
 
+The script gives the container 1 GB of `/dev/shm`, where the browser's processes share their pages.
+Docker's default is 64 MB, and in it the magazine's renderer is killed with exit code 9 at its first
+load. The recording checks the size before the browser starts, so a container run without the
+`--shm-size` stops with a sentence that names it.
+
 Each beat is checked as it plays, and a beat that did not happen stops the run before anything is
 encoded: a Space not on show, a tab at the wrong address, a page that did not widen, an ad that was
 fetched, link hints that never came up, chrome that kept its colour, or an Agent command that

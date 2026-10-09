@@ -362,6 +362,20 @@ def expect_sites_on_loopback(beat: str, resolve=socket.gethostbyname) -> None:
         raise BeatMissed(beat, f"/etc/hosts does not send {', '.join(lost)} to 127.0.0.1")
 
 
+def expect_shared_memory(beat: str, statvfs=os.statvfs) -> None:
+    """`/dev/shm` holds what the browser shares between its processes, before the browser starts.
+
+    Docker gives a container 64 MB unless `docker run` says otherwise. The film's tabs share more
+    than that, and in 64 MB the magazine's renderer was killed with exit code 9 at its first load
+    (#672). `record_film.sh` asks for `SHARED_MEMORY_MB`.
+    """
+    found = statvfs("/dev/shm")
+    megabytes = found.f_blocks * found.f_frsize // (1024 * 1024)
+    if megabytes < SHARED_MEMORY_MB:
+        raise BeatMissed(beat, f"/dev/shm is {megabytes} MB, not the {SHARED_MEMORY_MB} MB the "
+                               f"film needs: run the container with --shm-size")
+
+
 def expect_within(beat: str, paths: list[Path], limit: int) -> None:
     total = sum(path.stat().st_size for path in paths)
     if total > limit:
@@ -468,6 +482,10 @@ FADE = 0.4
 FLASH_CEILING = 120
 FLASH_JUMP = 18
 FLASH_WINDOW = 6
+
+# The `/dev/shm` the container is given, in megabytes. The browser used up to 163 MB of it across a
+# whole film on Qt 6.12, and tmpfs holds only what is written, so the margin costs nothing.
+SHARED_MEMORY_MB = 1024
 
 # What the film may weigh, per file, which together stay under the 5 MB the page can afford.
 BUDGET = {"omaweb.webm": 2_000_000, "omaweb.mp4": 2_600_000, "poster.webp": 250_000}
@@ -885,6 +903,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
 def record(browser: Path, out: Path) -> None:
     """Runs under the compositor: the browser, the beats and the raw recording, and the marks."""
     expect_sites_on_loopback("Sites")
+    expect_shared_memory("Sites")
     root = Path(tempfile.mkdtemp(prefix="omaweb-film-"))
     server = FixtureServer(("127.0.0.1", 80))
     server.start()
