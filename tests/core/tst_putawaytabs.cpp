@@ -85,6 +85,7 @@ private slots:
     void neverPutsAwayThePageOnShow();
     void neverPutsAwayAPinnedTab();
     void neverPutsAwayAKeepActiveTab();
+    void neverPutsAwayAPoppedOutTab();
     void neverPutsAwayATabMakingSound();
     void neverPutsAwayAnAgentTabWhileAnAgentIsAttached();
     void neverPutsAwayEitherTabOfASplit();
@@ -214,6 +215,29 @@ void PutAwayTabsTest::neverPutsAwayAKeepActiveTab()
     QCOMPARE(tabUrls(*controller),
         QStringList({QStringLiteral("https://kept-active.example"),
             QStringLiteral("https://reading.example")}));
+}
+
+// A tab shown in a Tab window is on show there, in its own Space or while
+// another is, however long it has been out of the main window.
+void PutAwayTabsTest::neverPutsAwayAPoppedOutTab()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    controller->openInput(QStringLiteral("https://dashboard.example"), false);
+    const auto dashboard = controller->activeTabId();
+    controller->openInput(QStringLiteral("https://reading.example"), true);
+    QVERIFY(controller->popOutTab(dashboard));
+    checkADayLater(*controller);
+    QCOMPARE(tabUrls(*controller),
+        QStringList({QStringLiteral("https://dashboard.example"),
+            QStringLiteral("https://reading.example")}));
+
+    const auto awayId = controller->createSpace(QStringLiteral("Away"));
+    QVERIFY(controller->switchSpace(awayId));
+    controller->setNowForTests(start + 72 * 3600 * 1000LL);
+    controller->putAwayUnusedTabs();
+    QVERIFY(controller->tabPoppedOut(dashboard));
+    QVERIFY(controller->findTab(dashboard).has_value());
 }
 
 // The Sounding tab is the one the reader is listening to. Once it is quiet it

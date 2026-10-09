@@ -429,7 +429,8 @@ QtObject {
                 const rule = root.downloads ? root.downloads.disposition(pageUrl, fileName,
                                                                          download.mimeType,
                                                                          root.downloadDirectory,
-                                                                         answered) : null;
+                                                                         answered, root.spaceId) :
+                                              null;
                 const disposition = rule ? rule.disposition : BrowserController.AcceptDownload;
                 if (disposition === BrowserController.RefuseDownload) {
                     download.cancel();
@@ -482,7 +483,8 @@ QtObject {
                                                                 download.suggestedFileName;
         const rule = root.downloads ? root.downloads.agentDisposition(pageUrl, fileName,
                                                                       download.mimeType, directory,
-                                                                      answered) : null;
+                                                                      answered, root.spaceId) :
+                                      null;
         const disposition = rule ? rule.disposition : BrowserController.RefuseDownload;
         if (disposition === BrowserController.AcceptDownload) {
             const path = String(rule.path);

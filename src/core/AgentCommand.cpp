@@ -686,11 +686,17 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         positionals.clear();
     } else if (verb == u"run") {
         if (positionals.isEmpty() || positionals.size() > 2) {
-            command.error = QStringLiteral(
-                "`run` takes a command, and a position for select-tab and select-space.");
+            command.error = QStringLiteral("`run` takes a command, and a position for select-tab "
+                                           "and select-space or a tab for the others.");
             return command;
         }
-        if (positionals.size() == 2) {
+        const auto positioned = positionals.constFirst() == u"select-tab"
+            || positionals.constFirst() == u"select-space";
+        // Any other command's argument is a tab, by its id, which the browser
+        // checks against the command.
+        if (positionals.size() == 2 && !positioned) {
+            request.insert(QStringLiteral("argument"), positionals.at(1));
+        } else if (positionals.size() == 2) {
             bool number = false;
             const auto position = positionals.at(1).toInt(&number);
             if (!number) {

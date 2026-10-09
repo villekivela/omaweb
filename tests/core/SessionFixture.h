@@ -28,6 +28,8 @@ struct TabSpec {
     // When the tab was last on show, in milliseconds since the epoch, or 0
     // for a tab stored before Omaweb kept the time.
     qint64 lastShownAt = 0;
+    // Shown in a Tab window rather than the main window.
+    bool poppedOut = false;
 };
 
 struct SpaceSpec {

@@ -66,7 +66,8 @@ QtObject {
         let chosenPath = answered && answer.length > 0 ? answer : "";
         if (chosenPath.length === 0) {
             const rule = downloads ? downloads.disposition(pageUrl, fileName, mimeType,
-                                                           downloadDirectory, answered) : null;
+                                                           downloadDirectory, answered, spaceId) :
+                                     null;
             const disposition = rule ? rule.disposition : BrowserController.AcceptDownload;
             if (disposition === BrowserController.RefuseDownload) {
                 downloadRefused(sourceUrl, fileName, rule.origin);

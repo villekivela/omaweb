@@ -44,12 +44,13 @@ public:
         return interacted.contains(permissionOrigin(url));
     }
 
-    int automaticDownloadDecision(const QString &origin) const override
+    int automaticDownloadDecision(const QString &origin, const QString &) const override
     {
         return decisions.value(origin, BrowserController::Ask);
     }
 
-    bool rememberAutomaticDownloadDecision(const QString &origin, int decision) override
+    bool rememberAutomaticDownloadDecision(
+        const QString &origin, int decision, const QString &) override
     {
         decisions.insert(origin, decision);
         remembered += 1;
@@ -85,6 +86,7 @@ private slots:
     void takesAPermissionForAutomaticAndMultipleDownloads();
     void sendsAConflictingNameToTheSaveDialog();
     void landsAnAgentsDownloadInItsOwnDirectory();
+    void answersADownloadInTheSpaceOfThePageThatAsked();
 };
 
 void DownloadsTest::holdsRunningAndRecordedDownloadsInOneList()
@@ -318,7 +320,7 @@ void DownloadsTest::asksOneHeldQuestionAtATimeAcrossEngineProfiles()
     QCOMPARE(discarded.first().at(2).toString(), QStringLiteral("setup.sh"));
     QVERIFY(downloads.question().isEmpty());
     QCOMPARE(host.remembered, 1);
-    QCOMPARE(host.automaticDownloadDecision(QStringLiteral("https://b.example")),
+    QCOMPARE(host.automaticDownloadDecision(QStringLiteral("https://b.example"), {}),
         static_cast<int>(BrowserController::Block));
 
     // Nothing is on screen, so answering again answers nothing.
@@ -643,6 +645,48 @@ void DownloadsTest::landsAnAgentsDownloadInItsOwnDirectory()
                  .value(QStringLiteral("disposition"))
                  .toInt(),
         BrowserController::RefuseDownload);
+}
+
+// A page in a Tab window can belong to a Space that is not on show. Whether
+// its site may download by itself is that Space's answer, both what is asked
+// and what the reader answers, never the answer of the Space on show.
+void DownloadsTest::answersADownloadInTheSpaceOfThePageThatAsked()
+{
+    QTemporaryDir root;
+    QTemporaryDir directory;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalId = controller.activeSpaceId();
+    const auto workId = controller.createSpace(QStringLiteral("Work"));
+    const QUrl origin(QStringLiteral("https://files.example/page"));
+    const auto disposition = [&](const QString &spaceId) {
+        return controller.downloads()
+            ->disposition(origin, QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"),
+                directory.path(), false, spaceId)
+            .value(QStringLiteral("disposition"))
+            .toInt();
+    };
+    QVERIFY(controller.setPermissionDecision(
+        origin, QStringLiteral("automatic-downloads"), BrowserController::Block, workId));
+    QCOMPARE(disposition(workId), BrowserController::RefuseDownload);
+    QCOMPARE(disposition(personalId), BrowserController::AskDownloadPermission);
+    QCOMPARE(controller.downloads()
+                 ->agentDisposition(origin, QStringLiteral("a.pdf"),
+                     QStringLiteral("application/pdf"), directory.path(), false, workId)
+                 .value(QStringLiteral("disposition"))
+                 .toInt(),
+        BrowserController::RefuseDownload);
+
+    // The reader's answer to a held download goes to the asking page's Space.
+    const QUrl other(QStringLiteral("https://other.example/page"));
+    controller.downloads()->hold(QStringLiteral("work"), QStringLiteral("token-1"),
+        BrowserController::AskDownloadPermission, controller.permissionOrigin(other), other,
+        QStringLiteral("a.pdf"), {}, workId);
+    controller.downloads()->answer(false, {}, BrowserController::Block);
+    QCOMPARE(controller.permissionDecision(other, QStringLiteral("automatic-downloads"), workId),
+        static_cast<int>(BrowserController::Block));
+    QCOMPARE(
+        controller.permissionDecision(other, QStringLiteral("automatic-downloads"), personalId),
+        static_cast<int>(BrowserController::Ask));
 }
 
 #include "tst_downloads.moc"

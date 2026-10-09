@@ -67,7 +67,7 @@ omaweb close [--tab <id>]
 omaweb space <id|name>
 omaweb focus [--raise] <tab id|part of an address>
 omaweb commands
-omaweb run <command> [position]
+omaweb run <command> [position|tab id]
 omaweb space new [name] [--temporary]
 omaweb space delete <id|name>
 omaweb dev [address] [--agent <command>]
@@ -103,8 +103,9 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 - `eval` runs JavaScript in an isolated world: it sees the DOM, not the page's own variables.
 - `space`, `focus` and `run` change what the reader sees: another Space, another tab, or a browser
   command such as `toggle-sidebar`. Use them only when the reader asks for that. `commands` lists
-  what `run` can run now. `focus --raise` also pulls the window in front of whatever the reader is
-  doing, so leave `--raise` to the reader.
+  what `run` can run now. `run pop-out-tab <tab id>` puts a tab in a window of its own, and
+  `put-back-tab` returns it to the sidebar. `focus --raise` also pulls the window in front of
+  whatever the reader is doing, so leave `--raise` to the reader.
 - `dev` is the reader's command for their own project: it opens the Space for the folder it runs in
   and brings the window forward. Run it only when the reader asks. It grants you nothing, so a page
   command in that Space still asks the reader once.

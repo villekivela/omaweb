@@ -33,16 +33,19 @@ public:
         EngineSuggestions,
         // Removing what has been kept.
         ClearBrowsingData,
+        // Popping a tab out into a Tab window of its own. A Tab window stays on
+        // after a restart, and a Private window keeps nothing to bring it back.
+        TabWindows,
     };
 
     static constexpr WindowCapabilities mainWindow()
     {
-        return WindowCapabilities(true, true, true, true, true);
+        return WindowCapabilities(true, true, true, true, true, true);
     }
 
     static constexpr WindowCapabilities privateWindow()
     {
-        return WindowCapabilities(false, false, false, false, false);
+        return WindowCapabilities(false, false, false, false, false, false);
     }
 
     constexpr bool allows(Capability capability) const
@@ -58,18 +61,21 @@ public:
             return m_engineSuggestions;
         case Capability::ClearBrowsingData:
             return m_clearBrowsingData;
+        case Capability::TabWindows:
+            return m_tabWindows;
         }
         return false;
     }
 
 private:
     constexpr WindowCapabilities(bool spaces, bool pinnedTabs, bool historySearch,
-        bool engineSuggestions, bool clearBrowsingData)
+        bool engineSuggestions, bool clearBrowsingData, bool tabWindows)
         : m_spaces(spaces)
         , m_pinnedTabs(pinnedTabs)
         , m_historySearch(historySearch)
         , m_engineSuggestions(engineSuggestions)
         , m_clearBrowsingData(clearBrowsingData)
+        , m_tabWindows(tabWindows)
     {
     }
 
@@ -78,6 +84,7 @@ private:
     bool m_historySearch;
     bool m_engineSuggestions;
     bool m_clearBrowsingData;
+    bool m_tabWindows;
 };
 
 } // namespace omaweb

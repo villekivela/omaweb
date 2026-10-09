@@ -108,6 +108,7 @@ QtObject {
                             "title": kept.title,
                             "url": kept.url,
                             "inspected": kept.inspected === true,
+                            "poppedOut": kept.poppedOut === true,
                             "running": engine !== undefined && engine !== null,
                             "residentBytes": engine ? ProcessResources.residentBytes(
                                                           engine.renderProcessPid) : 0

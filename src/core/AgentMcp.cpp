@@ -127,10 +127,13 @@ namespace {
                     .required = {}},
                 {.name = QStringLiteral("run"),
                     .verb = QStringLiteral("run"),
-                    .description = QStringLiteral("Run a browser command in the window. position "
-                                                  "is for select-tab and select-space, from 1."),
+                    .description
+                    = QStringLiteral("Run a browser command in the window. position "
+                                     "is for select-tab and select-space, from 1; tab "
+                                     "is a tab's id for pop-out-tab and put-back-tab."),
                     .properties = {property(QStringLiteral("command"), string),
-                        property(QStringLiteral("position"), integer, QStringLiteral("argument"))},
+                        property(QStringLiteral("position"), integer, QStringLiteral("argument")),
+                        property(QStringLiteral("tab"), string, QStringLiteral("argument"))},
                     .required = {QStringLiteral("command")}},
                 {.name = QStringLiteral("space_new"),
                     .verb = QStringLiteral("space new"),

@@ -33,6 +33,7 @@
 #include "Scenes.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
+#include "WindowAppId.h"
 #include "WindowManager.h"
 
 #include <QColor>
@@ -450,6 +451,7 @@ public slots:
         omaweb::registerMediaAnnouncer();
         omaweb::registerProcessResources();
         omaweb::registerSavedDownload();
+        omaweb::registerWindowAppId();
         qmlRegisterSingletonType<SystemMotionProbe>("Omaweb", 1, 0, "SystemMotion",
             [](QQmlEngine *, QJSEngine *) -> QObject * { return new SystemMotionProbe; });
         qmlRegisterSingletonType<DefaultBrowserProbe>("Omaweb", 1, 0, "DefaultBrowser",
