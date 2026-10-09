@@ -173,9 +173,9 @@ class FixtureServerTest(unittest.TestCase):
         )
 
 
-def shared_memory(megabytes):
-    """`os.statvfs` of a `/dev/shm` this many megabytes in size, as a tmpfs gives it."""
-    return os.statvfs_result((4096, 4096, megabytes * 256, megabytes * 256, megabytes * 256,
+def shared_memory(megabytes, free):
+    """`os.statvfs` of a `/dev/shm` this many megabytes in size with `free` of them free."""
+    return os.statvfs_result((4096, 4096, megabytes * 256, free * 256, free * 256,
                               0, 0, 0, 0, 255))
 
 
@@ -418,16 +418,29 @@ class BeatChecks(unittest.TestCase):
                                 lambda host: "192.0.2.7" if host == "kestrel.test" else "127.0.0.1")
         self.assertIn("kestrel.test", why)
 
-    def test_a_gigabyte_of_shared_memory_sets_the_stage(self):
-        film.expect_shared_memory("Sites", lambda path: shared_memory(1024))
+    def test_room_in_shared_memory_sets_the_stage(self):
+        film.expect_shared_memory("Stage", lambda path: shared_memory(1024, free=1024))
+        # Less than `record_film.sh` asks for, and still twice what the film was seen to use.
+        film.expect_shared_memory("Stage", lambda path: shared_memory(512, free=512))
 
     def test_dockers_default_shared_memory_stops_the_film_before_it_starts(self):
-        # In 64 MB the renderer of the film's fifth tab, the magazine, was killed (#672).
-        why = self.assertMissed("Sites", film.expect_shared_memory,
-                                lambda path: shared_memory(64))
+        # In 64 MB the renderer of the fourth tab the Stage loads, the magazine, was killed (#672).
+        why = self.assertMissed("Stage", film.expect_shared_memory,
+                                lambda path: shared_memory(64, free=64))
         self.assertIn("/dev/shm", why)
         self.assertIn("64 MB", why)
         self.assertIn("--shm-size", why)
+
+    def test_shared_memory_another_run_has_filled_stops_the_film(self):
+        why = self.assertMissed("Stage", film.expect_shared_memory,
+                                lambda path: shared_memory(1024, free=100))
+        self.assertIn("100 MB", why)
+
+    def test_a_machine_without_dev_shm_is_not_stopped(self):
+        def statvfs(path):
+            raise FileNotFoundError(path)
+
+        film.expect_shared_memory("Stage", statvfs)
 
     def test_a_missed_beat_fails_the_command_and_says_which(self):
         missed = film.BeatMissed("Sidebar", "/docs/api/ on quillstack.test did not widen")

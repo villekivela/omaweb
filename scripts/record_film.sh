@@ -18,8 +18,7 @@ cd "$(dirname "$0")/.."
 
 if [ "${1:-}" != "--inside" ]; then
     mkdir -p build/film
-    # The browser's processes share their pages through `/dev/shm`, which Docker would make 64 MB:
-    # too little for the film's tabs (#672). `SHARED_MEMORY_MB` in `record_film.py` checks it.
+    # Docker's 64 MB of `/dev/shm` is too little for the browser: `expect_shared_memory` says why.
     # shellcheck disable=SC2086 # OMAWEB_FILM_DOCKER is a list of arguments.
     git archive --format=tar HEAD | docker run --rm -i --shm-size 1g ${OMAWEB_FILM_DOCKER:-} \
         -v "$PWD/build/film:/film" "${OMAWEB_FILM_IMAGE:-archlinux:base-devel}" \
