@@ -43,14 +43,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Built in the same container CI checks the package in, so what a
-          # release carries is what was already checked to install, upgrade and
-          # remove.
+          # Built in the same image CI checks the package in, so what a release
+          # carries was already checked to install, upgrade and remove. CI
+          # installs from Arch's current mirror and this from the stable one.
           - arch: x86_64
             runner: ubuntu-latest
             container: archlinux:base-devel
             minutes: 30
             pacman-flags: ""
+            # Built against the Qt readers have, not Arch's current one: Omarchy
+            # machines install from this delayed snapshot of Arch, and a binary
+            # built against a newer Qt than theirs does not start (ADR 0063).
+            mirror: https://stable-mirror.omarchy.org/$repo/os/$arch
           # Pinned by digest, unlike the official image above, because this one
           # is a community rebuild of Arch Linux ARM rather than a distribution
           # image. The tag it was taken from is `base-devel-20260915`, which is
@@ -69,6 +73,17 @@ jobs:
             # exists for one job and is thrown away with it.
             pacman-flags: "--disable-sandbox"
     steps:
+      # Before anything is installed, so nothing comes from Arch's newer Qt.
+      # `-yy` because pacman keeps a database newer than the mirror's, which the
+      # image's is, and then asks the mirror for packages it never had. `-uu`
+      # so the container is the snapshot rather than half of the image.
+      - name: Install from the readers' mirror
+        if: matrix.mirror
+        env:
+          MIRROR: ${{ matrix.mirror }}
+        run: |
+          echo "Server = $MIRROR" > /etc/pacman.d/mirrorlist
+          pacman -Syyuu --noconfirm
       # Before the checkout, because `actions/checkout` without git in the
       # container falls back to the REST API, and a downloaded tarball carries
       # no tags for the package to take its version from.
@@ -175,6 +190,38 @@ jobs:
                 exit 1
                 ;;
             esac
+          done
+
+      # A binary that needs a newer Qt than readers have does not start for
+      # them. v0.13.0 needed Qt_6.12 and was released to readers on 6.11.2
+      # (#674). The readers' Qt is read from the mirror with a database of its
+      # own, not from this container, whose Qt is the one that linked the
+      # binaries and so always passes: a build that missed the mirror fails
+      # here. Without a mirror the container is the readers' distribution.
+      - name: Check the packages need no Qt newer than readers have
+        env:
+          MIRROR: ${{ matrix.mirror }}
+        run: |
+          if [ -n "$MIRROR" ]; then
+            db=$(mktemp -d)
+            conf=$(mktemp)
+            # Only a version is read, so no database signature is asked for.
+            # There is none, and a bare configuration asking for one failed the
+            # sync on the mirror's 404 page, larger than pacman accepts.
+            printf '%s\n' '[options]' 'Architecture = auto' \
+              'SigLevel = Required DatabaseNever' '[extra]' "Server = $MIRROR" > "$conf"
+            pacman --config "$conf" --dbpath "$db" -Sy > /dev/null
+            qt=$(pacman --config "$conf" --dbpath "$db" -Si qt6-base \
+              | sed -n 's/^Version *: \([0-9][0-9.]*\)-.*/\1/p')
+          else
+            qt=$(qmake6 -query QT_VERSION)
+          fi
+          echo "readers have Qt $qt"
+          for package in artifacts/*.pkg.tar.*; do
+            tree=$(mktemp -d)
+            tar -xf "$package" -C "$tree"
+            echo "$(basename "$package"):"
+            scripts/check_qt_symbol_versions.sh "$tree" "$qt"
           done
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

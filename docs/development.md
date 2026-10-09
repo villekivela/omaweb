@@ -871,6 +871,15 @@ Arch Linux ARM image pinned by digest. What that image costs and what it buys is
 for the release rather than per package, because what it records is written down in this repository
 and does not depend on the machine that built anything.
 
+Both are built against the Qt readers have, which on `x86_64` is Omarchy's stable mirror rather than
+Arch's current `[extra]`: a binary built against an older Qt runs on a newer one, and not the other
+way round ([ADR 0063](adr/0063-build-release-packages-against-the-readers-qt.md)). The `x86_64` job
+points pacman at `stable-mirror.omarchy.org` before it installs anything, and
+`scripts/check_qt_symbol_versions.sh` fails the release when a packaged binary needs a `Qt_6.x`
+symbol version newer than the Qt the mirror serves. That version is read from the mirror apart from
+the build's own pacman, so a build that missed the mirror fails rather than checking itself. CI's
+other jobs stay on Arch's current Qt.
+
 The two legs are the same steps with a different runner, and the `aarch64` one runs nowhere else, so
 the workflow can be run by hand from a branch:
 

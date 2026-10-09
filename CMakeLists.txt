@@ -1387,6 +1387,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_omaweb_engine.py
         )
+        # What the Release workflow reads to know a package starts on the Qt it was built
+        # against, rather than needing a newer one readers do not have yet (#674).
+        add_test(NAME omaweb-check-qt-symbol-versions
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_qt_symbol_versions.py
+        )
         add_test(NAME omaweb-security-baseline
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
