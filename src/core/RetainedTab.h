@@ -6,9 +6,10 @@
 
 namespace omaweb {
 
-// A tab still running in a Space that is not the one on show, and why. Only two
-// things earn it: a Pinned tab the reader marked Keep active, and the tab an
-// inspector is attached to. Nothing else outlives its Space's suspension.
+// A tab still running in a Space that is not the one on show, and why. Only
+// three things earn it: a Pinned tab the reader marked Keep active, a tab shown
+// in a Tab window, and the tab an inspector is attached to. Nothing else
+// outlives its Space's suspension.
 //
 // A type rather than a map of strings because three places answer questions
 // about these — which tab a notification may come from, which Space's store to
@@ -27,6 +28,9 @@ struct RetainedTab {
     // asked for it. The interface says which, and refuses to stop the one the
     // reader did not choose to keep.
     bool inspected = false;
+    // Retained because a Tab window shows it. Closing that window is how it
+    // stops, so the interface refuses to stop it from the list.
+    bool poppedOut = false;
 
     bool operator==(const RetainedTab &) const = default;
 
@@ -41,6 +45,7 @@ struct RetainedTab {
             {QStringLiteral("zoom"), zoom},
             {QStringLiteral("muted"), muted},
             {QStringLiteral("inspected"), inspected},
+            {QStringLiteral("poppedOut"), poppedOut},
         };
     }
 };

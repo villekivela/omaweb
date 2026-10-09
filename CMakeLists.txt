@@ -1474,6 +1474,16 @@ if(BUILD_TESTING)
     omaweb_declarative_fixture_target(omaweb-put-away-tabs-tests)
     add_test(NAME omaweb-put-away-tabs COMMAND omaweb-put-away-tabs-tests)
 
+    qt_add_executable(omaweb-tab-windows-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_tabwindows.cpp"
+    )
+    target_link_libraries(omaweb-tab-windows-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-tab-windows-tests)
+    omaweb_declarative_fixture_target(omaweb-tab-windows-tests)
+    add_test(NAME omaweb-tab-windows COMMAND omaweb-tab-windows-tests)
+
     qt_add_executable(omaweb-agent-control-tests
         "tests/core/SessionFixture.cpp"
         "tests/core/SessionFixture.h"

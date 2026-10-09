@@ -253,6 +253,13 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
+    // The live half of the Tab window list follows the tabs on show.
+    connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshTabWindows(); });
+    connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshTabWindows(); });
+    connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshTabWindows(); });
+    // A Tab window names its Space and wears its colour.
+    connect(&m_spaces, &QAbstractItemModel::modelReset, this, [this] { refreshTabWindows(); });
+    connect(&m_spaces, &QAbstractItemModel::dataChanged, this, [this] { refreshTabWindows(); });
     // The split on show is the active tab's, so every route to a new active
     // tab, a tab opened, reopened or duplicated as much as one selected, is a
     // route to a new answer.
@@ -540,9 +547,10 @@ void BrowserController::loadPutAwayTabs()
 bool BrowserController::tabInUse(
     const TabState &tab, const QString &spaceActiveTabId, bool audible) const
 {
-    return isBlank(tab.url) || tab.pinned || tab.keepActive || !tab.splitPartnerId.isEmpty()
-        || tab.id == spaceActiveTabId || audible || m_agentTabIds.contains(tab.id)
-        || tab.id == m_draggedTabId || tab.id == m_developerToolsTabId;
+    return isBlank(tab.url) || tab.pinned || tab.keepActive || tab.poppedOut
+        || !tab.splitPartnerId.isEmpty() || tab.id == spaceActiveTabId || audible
+        || m_agentTabIds.contains(tab.id) || tab.id == m_draggedTabId
+        || tab.id == m_developerToolsTabId;
 }
 
 void BrowserController::putAwayUnusedTabs()
@@ -704,8 +712,8 @@ QStringList BrowserController::splittableTabIds() const
 {
     QStringList ids;
     for (const auto &tab : m_tabs.items()) {
-        if (!tab.pinned && tab.splitPartnerId.isEmpty() && tab.id != m_activeTabId
-            && tab.url != agentActivityAddress()) {
+        if (!tab.pinned && selectable(tab) && tab.splitPartnerId.isEmpty()
+            && tab.id != m_activeTabId && tab.url != agentActivityAddress()) {
             ids.append(tab.id);
         }
     }
@@ -1270,6 +1278,7 @@ bool BrowserController::navigateTab(const QString &tabId, const QUrl &url, const
     if (tabId == m_developerToolsTabId) {
         closeDeveloperTools();
     }
+    refreshRetainedTabs();
     emit awayTabDiscarded(tabId);
     return true;
 }
@@ -1328,6 +1337,7 @@ bool BrowserController::closeTabInSpace(const QString &tabId, const QString &spa
     if (tabId == m_developerToolsTabId) {
         closeDeveloperTools();
     }
+    refreshRetainedTabs();
     emit awayTabDiscarded(tabId);
     return true;
 }
@@ -1349,7 +1359,14 @@ bool BrowserController::saveAwayTabs(const QString &spaceId, QVector<TabState> t
 
 void BrowserController::activateTab(const QString &tabId)
 {
-    if (tabId == m_activeTabId || !m_tabs.find(tabId)) {
+    const auto *tab = m_tabs.find(tabId);
+    if (tabId == m_activeTabId || !tab) {
+        return;
+    }
+    // A tab shown in its own window is raised there, and the main window goes
+    // on showing what it showed.
+    if (!selectable(*tab)) {
+        emit tabWindowRaiseRequested(tabId);
         return;
     }
     setActiveTab(tabId);
@@ -1364,7 +1381,8 @@ void BrowserController::stepTab(int delta)
     const auto &items = m_tabs.items();
     for (qsizetype row = 0; row < items.size(); ++row) {
         const auto &tab = items.at(row);
-        if (!tab.splitPartnerId.isEmpty() && tabRow(tab.splitPartnerId) < row) {
+        if (!selectable(tab)
+            || (!tab.splitPartnerId.isEmpty() && tabRow(tab.splitPartnerId) < row)) {
             continue;
         }
         if (tab.id == m_activeTabId || tab.splitPartnerId == m_activeTabId) {
@@ -1386,7 +1404,16 @@ bool BrowserController::jumpForward() { return jumpBy(1); }
 bool BrowserController::jumpBy(int delta)
 {
     auto &list = settledTabJumpList();
-    const auto next = list.position + delta;
+    // An entry for a tab shown in its own window is passed over, and kept for
+    // when it is back.
+    auto next = list.position + delta;
+    while (next >= 0 && next < list.entries.size()) {
+        const auto *tab = m_tabs.find(list.entries.at(next));
+        if (tab && selectable(*tab)) {
+            break;
+        }
+        next += delta;
+    }
     if (list.position < 0 || next < 0 || next >= list.entries.size()) {
         return false;
     }
@@ -1475,8 +1502,8 @@ bool BrowserController::addSplit(const QString &tabId)
         pairTabs(leftTabId, blank.id);
     } else {
         const auto *partner = m_tabs.find(tabId);
-        if (!partner || partner->pinned || !partner->splitPartnerId.isEmpty()
-            || partner->url == agentActivityAddress()) {
+        if (!partner || partner->pinned || !selectable(*partner)
+            || !partner->splitPartnerId.isEmpty() || partner->url == agentActivityAddress()) {
             return false;
         }
         const auto partnerRow = tabRow(tabId);
@@ -1948,7 +1975,8 @@ bool BrowserController::requestTabMoveToSpace(
     if (!m_capabilities.allows(Capability::Spaces)) {
         return false;
     }
-    if (!m_tabs.find(tabId) || destinationSpaceId == m_activeSpaceId) {
+    const auto *tab = m_tabs.find(tabId);
+    if (!tab || tab->poppedOut || destinationSpaceId == m_activeSpaceId) {
         return false;
     }
     for (const auto &space : m_spaces.items()) {
@@ -1970,7 +1998,7 @@ bool BrowserController::confirmTabMoveToSpace(
         return false;
     }
     const auto *sourceTab = m_tabs.find(tabId);
-    if (!sourceTab || destinationSpaceId == m_activeSpaceId) {
+    if (!sourceTab || sourceTab->poppedOut || destinationSpaceId == m_activeSpaceId) {
         return false;
     }
     bool destinationExists = false;
@@ -2529,10 +2557,10 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
         return false;
     }
     // A retained tab of the Space on show is simply one of its tabs.
-    if (m_tabs.find(tabId)) {
-        return setTabKeepActive(tabId, false);
+    if (const auto *tab = m_tabs.find(tabId)) {
+        return !tab->poppedOut && setTabKeepActive(tabId, false);
     }
-    if (const auto *retained = findRetainedTab(tabId)) {
+    if (const auto *retained = findRetainedTab(tabId); retained && !retained->poppedOut) {
         const auto spaceId = retained->spaceId;
         auto tabs = m_store->loadTabs(spaceId);
         QString activeTabId;
@@ -2557,6 +2585,202 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
     return false;
 }
 
+bool BrowserController::selectable(const TabState &tab) { return !tab.poppedOut; }
+
+QString BrowserController::successorOf(const QString &tabId) const
+{
+    const auto &items = m_tabs.items();
+    const auto row = tabRow(tabId);
+    if (row < 0) {
+        return {};
+    }
+    const auto &tab = items.at(row);
+    if (const auto *partner
+        = tab.splitPartnerId.isEmpty() ? nullptr : m_tabs.find(tab.splitPartnerId);
+        partner && selectable(*partner)) {
+        return partner->id;
+    }
+    for (auto above = row - 1; above >= 0; --above) {
+        if (selectable(items.at(above))) {
+            return items.at(above).id;
+        }
+    }
+    for (auto below = row + 1; below < items.size(); ++below) {
+        if (selectable(items.at(below))) {
+            return items.at(below).id;
+        }
+    }
+    return {};
+}
+
+bool BrowserController::popOutTab(const QString &tabId)
+{
+    if (!m_capabilities.allows(Capability::TabWindows)) {
+        return false;
+    }
+    const auto *found = m_tabs.find(tabId);
+    if (!found || found->poppedOut || isBlank(found->url)) {
+        return false;
+    }
+    // Closing a split's half would show the half beside it, so that is the
+    // tab shown in its place, once the split has ended.
+    auto successor = successorOf(tabId);
+    if (!found->splitPartnerId.isEmpty()) {
+        unpairTab(tabId);
+    }
+    auto *tab = m_tabs.find(tabId);
+    tab->poppedOut = true;
+    m_tabs.notifyChanged(tabId, {TabListModel::PoppedOutRole});
+    if (tabId == m_activeTabId) {
+        if (successor.isEmpty()) {
+            // Nothing else is left to show, so the Space comes to rest, as it
+            // does when its last page is closed.
+            auto blank = makeBlankTab(m_activeSpaceId);
+            blank.active = false;
+            successor = blank.id;
+            m_tabs.append(blank);
+        }
+        setActiveTab(successor);
+    }
+    persistTabs();
+    refreshSplit();
+    refreshTabWindows();
+    return true;
+}
+
+bool BrowserController::putBackTab(const QString &tabId, bool show)
+{
+    if (!m_capabilities.allows(Capability::TabWindows)) {
+        return false;
+    }
+    if (auto *tab = m_tabs.find(tabId)) {
+        if (!tab->poppedOut) {
+            return false;
+        }
+        tab->poppedOut = false;
+        m_tabs.notifyChanged(tabId, {TabListModel::PoppedOutRole});
+        persistTabs();
+        refreshTabWindows();
+        if (show) {
+            activateTab(tabId);
+        }
+        return true;
+    }
+    QString spaceId;
+    const auto changed = updateAwayTab(tabId, [&spaceId](TabState &tab) {
+        if (!tab.poppedOut) {
+            return false;
+        }
+        tab.poppedOut = false;
+        spaceId = tab.spaceId;
+        return true;
+    });
+    if (!changed) {
+        return false;
+    }
+    refreshRetainedTabs();
+    if (show) {
+        activateTabInSpace(spaceId, tabId);
+    }
+    return true;
+}
+
+bool BrowserController::tabPoppedOut(const QString &tabId) const
+{
+    for (const auto &entry : m_tabWindows) {
+        if (entry.toMap().value(QStringLiteral("tabId")).toString() == tabId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BrowserController::setTabStripHidden(const QString &tabId, bool hidden)
+{
+    if (auto *tab = m_tabs.find(tabId)) {
+        if (!tab->poppedOut) {
+            return false;
+        }
+        if (tab->stripHidden != hidden) {
+            tab->stripHidden = hidden;
+            persistTabs();
+            refreshTabWindows();
+        }
+        return true;
+    }
+    const auto changed = updateAwayTab(tabId, [hidden](TabState &tab) {
+        if (!tab.poppedOut) {
+            return false;
+        }
+        tab.stripHidden = hidden;
+        return true;
+    });
+    return changed;
+}
+
+bool BrowserController::updateAwayTab(
+    const QString &tabId, const std::function<bool(TabState &)> &change)
+{
+    if (m_privateBrowsing || m_tabs.find(tabId)) {
+        return false;
+    }
+    const auto found = findTab(tabId);
+    if (!found) {
+        return false;
+    }
+    auto tabs = m_store->loadTabs(found->spaceId);
+    for (auto &tab : tabs) {
+        if (tab.id != tabId) {
+            continue;
+        }
+        tab.spaceId = found->spaceId;
+        if (!change(tab)) {
+            return false;
+        }
+        if (!saveAwayTabs(found->spaceId, std::move(tabs))) {
+            return false;
+        }
+        refreshRetainedTabs();
+        return true;
+    }
+    return false;
+}
+
+QVariantList BrowserController::tabWindows() const { return m_tabWindows; }
+
+// The Space on show answers from its live tabs, and every other Space from
+// what refreshRetainedTabs last read of its store.
+void BrowserController::refreshTabWindows()
+{
+    QVariantList windows;
+    if (m_capabilities.allows(Capability::TabWindows)) {
+        for (const auto &space : m_spaces.items()) {
+            const auto tabs
+                = space.id == m_activeSpaceId ? m_tabs.items() : m_awayTabWindows.value(space.id);
+            for (const auto &tab : tabs) {
+                if (!tab.poppedOut) {
+                    continue;
+                }
+                windows.append(QVariantMap {
+                    {QStringLiteral("tabId"), tab.id},
+                    {QStringLiteral("spaceId"), space.id},
+                    {QStringLiteral("spaceName"), space.name},
+                    {QStringLiteral("spaceColor"), space.color},
+                    {QStringLiteral("url"), tab.url},
+                    {QStringLiteral("title"), tab.title},
+                    {QStringLiteral("pinned"), tab.pinned},
+                    {QStringLiteral("stripHidden"), tab.stripHidden},
+                });
+            }
+        }
+    }
+    if (windows == m_tabWindows) {
+        return;
+    }
+    m_tabWindows = std::move(windows);
+    emit tabWindowsChanged();
+}
+
 bool BrowserController::tabPinned(const QString &tabId) const
 {
     const auto *tab = m_tabs.find(tabId);
@@ -2575,9 +2799,9 @@ bool BrowserController::toggleActiveKeepActive()
     return tab && setTabKeepActive(m_activeTabId, !tab->keepActive);
 }
 
-// The two exceptions to suspension: the reader's standing request, and the
-// inspector's. An inspected tab that stopped would leave the frontend attached
-// to a page that cannot answer.
+// The exceptions to suspension: the reader's standing request, a Tab window
+// showing the page, and the inspector. An inspected tab that stopped would
+// leave the frontend attached to a page that cannot answer.
 bool BrowserController::retains(const TabState &tab, const QString &developerToolsTabId)
 {
     // A page with no address is not running, so there is nothing about it to
@@ -2585,7 +2809,7 @@ bool BrowserController::retains(const TabState &tab, const QString &developerToo
     if (isBlank(tab.url)) {
         return false;
     }
-    return (tab.pinned && tab.keepActive) || tab.id == developerToolsTabId;
+    return (tab.pinned && tab.keepActive) || tab.poppedOut || tab.id == developerToolsTabId;
 }
 
 QStringList BrowserController::retainedTabIds() const
@@ -2606,11 +2830,15 @@ QStringList BrowserController::retainedTabIds() const
 void BrowserController::refreshRetainedTabs()
 {
     QVector<RetainedTab> retained;
+    m_awayTabWindows.clear();
     for (const auto &space : m_spaces.items()) {
         if (space.id == m_activeSpaceId) {
             continue;
         }
         for (const auto &tab : m_store->loadTabs(space.id)) {
+            if (tab.poppedOut && m_capabilities.allows(Capability::TabWindows)) {
+                m_awayTabWindows[space.id].append(tab);
+            }
             if (!retains(tab, m_developerToolsTabId)) {
                 continue;
             }
@@ -2623,9 +2851,11 @@ void BrowserController::refreshRetainedTabs()
                 .zoom = tab.zoom,
                 .muted = tab.muted,
                 .inspected = tab.id == m_developerToolsTabId,
+                .poppedOut = tab.poppedOut,
             });
         }
     }
+    refreshTabWindows();
     if (retained == m_retainedTabs) {
         return;
     }
@@ -2781,6 +3011,7 @@ void BrowserController::reportTabPageState(const QString &tabId, const QUrl &url
 {
     auto *tab = m_tabs.find(tabId);
     if (!tab) {
+        reportAwayTabWindowPageState(tabId, url, title, loading);
         return;
     }
 
@@ -2838,6 +3069,50 @@ void BrowserController::reportTabPageState(const QString &tabId, const QUrl &url
     }
     if (loadFinished) {
         recordVisit(url, title);
+    }
+}
+
+// Only a page shown in a Tab window goes on browsing while its Space is away,
+// and its tab keeps what a tab in the sidebar would: the address, the title,
+// and a visit in its own Space's History once a load finishes.
+void BrowserController::reportAwayTabWindowPageState(
+    const QString &tabId, const QUrl &url, const QString &title, bool loading)
+{
+    const auto *window = [this, &tabId]() -> const TabState * {
+        for (const auto &tabs : std::as_const(m_awayTabWindows)) {
+            for (const auto &tab : tabs) {
+                if (tab.id == tabId) {
+                    return &tab;
+                }
+            }
+        }
+        return nullptr;
+    }();
+    if (!window) {
+        return;
+    }
+    const auto spaceId = window->spaceId;
+    const auto wasLoading = m_awayTabWindowLoads.contains(tabId);
+    if (loading) {
+        m_awayTabWindowLoads.insert(tabId);
+    } else {
+        m_awayTabWindowLoads.remove(tabId);
+    }
+    if (!url.isEmpty()) {
+        const auto normalizedTitle = title.isEmpty()
+            ? (url.host().isEmpty() ? QStringLiteral("New tab") : url.host())
+            : title;
+        if (window->url != url || window->title != normalizedTitle) {
+            updateAwayTab(tabId, [&url, &normalizedTitle](TabState &tab) {
+                tab.url = url;
+                tab.title = normalizedTitle;
+                return true;
+            });
+        }
+    }
+    if (wasLoading && !loading && !isBlank(url) && url.scheme() != QStringLiteral("about")
+        && !normalizedOrigin(url).isEmpty()) {
+        m_store->recordVisit(spaceId, url, title.isEmpty() ? url.host() : title);
     }
 }
 
@@ -2958,7 +3233,18 @@ void BrowserController::toggleTabMuted(const QString &tabId)
 void BrowserController::setTabZoom(const QString &tabId, double zoom)
 {
     auto *tab = m_tabs.find(tabId);
-    if (!tab || qFuzzyCompare(tab->zoom, zoom)) {
+    if (!tab) {
+        // A Tab window's page is zoomed while its Space is away.
+        updateAwayTab(tabId, [zoom](TabState &away) {
+            if (!away.poppedOut || qFuzzyCompare(away.zoom, zoom)) {
+                return false;
+            }
+            away.zoom = zoom;
+            return true;
+        });
+        return;
+    }
+    if (qFuzzyCompare(tab->zoom, zoom)) {
         return;
     }
     tab->zoom = zoom;
@@ -4292,6 +4578,7 @@ void BrowserController::initialize()
     loadPutAwayTabs();
     // A Pinned tab marked Keep active is running before its Space is ever
     // selected, so what the session restores is known from the first moment.
+    // So is a Tab window, which comes back with its tab.
     refreshRetainedTabs();
     loadSearchEngines();
     m_ready = true;
@@ -4674,12 +4961,13 @@ bool BrowserController::isBlank(const QUrl &url)
 }
 
 // Pinned tabs are the Space's own furniture and say nothing about whether the
-// reader has opened anything, so rest is decided on the ordinary tabs alone.
+// reader has opened anything, so rest is decided on the ordinary tabs alone. A
+// tab shown in its own window leaves nothing in the main window to show.
 bool BrowserController::restingOnBlankTab() const
 {
     const TabState *ordinary = nullptr;
     for (const auto &tab : m_tabs.items()) {
-        if (tab.pinned) {
+        if (tab.pinned || tab.poppedOut) {
             continue;
         }
         if (ordinary) {

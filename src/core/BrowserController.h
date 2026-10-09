@@ -25,6 +25,7 @@
 #include <QUrl>
 #include <QVariantList>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -124,6 +125,11 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // to. Nothing else outlives its Space's suspension, and what does is named
     // here so the reader can see what is holding a renderer they cannot see.
     Q_PROPERTY(QVariantList retainedTabs READ retainedTabs NOTIFY retainedTabsChanged)
+    // Every tab shown in a Tab window, in every Space, each as its `tabId`,
+    // `spaceId`, `spaceName`, `spaceColor`, `url`, `title`, `pinned` and
+    // `stripHidden`. The windows are built from this list, which is what
+    // brings them back after a restart. Never anything in a Private window.
+    Q_PROPERTY(QVariantList tabWindows READ tabWindows NOTIFY tabWindowsChanged)
     // The address of the Agent activity page, which the interface draws itself
     // and no engine loads.
     Q_PROPERTY(QUrl agentActivityAddress READ agentActivityAddress CONSTANT)
@@ -219,6 +225,7 @@ public:
     int putAwayAfterSeconds() const;
     bool putAwayNotice() const;
     QVariantList retainedTabs() const;
+    QVariantList tabWindows() const;
     double activeTabZoom() const;
     bool activeTabBlank() const;
     bool atRest() const;
@@ -359,6 +366,18 @@ public:
     // Space that is not on show, so its Space's store is where the setting
     // lives rather than the tab model, which holds one Space at a time.
     Q_INVOKABLE bool releaseRetainedTab(const QString &tabId);
+    // Pops an ordinary or Pinned tab of the Space on show out into a Tab
+    // window (ADR 0062). A split's tab leaves its split. The tab stays where
+    // it is in the list and is never the active tab while it is out: popping
+    // out the active tab shows the tab closing it would, or the Space at rest.
+    // A blank tab has no page to pop out, and a Private window none at all.
+    Q_INVOKABLE bool popOutTab(const QString &tabId);
+    // Returns a popped-out tab of any Space to the main window's sidebar.
+    // With `show`, the main window switches to its Space and selects it.
+    Q_INVOKABLE bool putBackTab(const QString &tabId, bool show);
+    Q_INVOKABLE bool tabPoppedOut(const QString &tabId) const;
+    // Hides or shows the strip of a popped-out tab's Tab window, in any Space.
+    Q_INVOKABLE bool setTabStripHidden(const QString &tabId, bool hidden);
     // The tabs of the Space on show that will keep running once it is put
     // away. The interface hands this to the engine host at suspension, which
     // is the only moment the answer is about a Space that is still active.
@@ -692,6 +711,10 @@ signals:
     void knownExtensionFailed(const QString &key, const QString &reason);
     void downloadDirectoryChanged();
     void retainedTabsChanged();
+    void tabWindowsChanged();
+    // The reader selected a popped-out tab in the main window, which raises
+    // its Tab window and leaves the main window as it was.
+    void tabWindowRaiseRequested(const QString &tabId);
     // The Space being put away, and the tabs inside it that keep running
     // anyway. Named together because the exceptions are only knowable while
     // that Space is still the active one.
@@ -788,6 +811,20 @@ private:
     void loadClosedTabs();
     void persistClosedTabs();
     void refreshRetainedTabs();
+    // Composes the list from the live tabs and what refreshRetainedTabs last
+    // read of the other Spaces.
+    void refreshTabWindows();
+    // Whether the main window may show the tab: one shown in a Tab window is
+    // never its active tab.
+    static bool selectable(const TabState &tab);
+    // The tab shown in place of one leaving the main window's show, as closing
+    // it would choose, passing over the tabs it cannot show; nothing when no
+    // tab is left to show.
+    QString successorOf(const QString &tabId) const;
+    void reportAwayTabWindowPageState(
+        const QString &tabId, const QUrl &url, const QString &title, bool loading);
+    // Changes a tab of a Space not on show in that Space's store.
+    bool updateAwayTab(const QString &tabId, const std::function<bool(TabState &)> &change);
     qint64 now() const;
     // Stamps the tabs on show, and the ones that were until this moment, with
     // the time: a tab is counted as unused from when it left show.
@@ -941,6 +978,13 @@ private:
     QString m_draggedTabId;
     QSet<QString> m_agentTabIds;
     QVector<RetainedTab> m_retainedTabs;
+    QVariantList m_tabWindows;
+    // The popped-out tabs of each Space not on show, as last read from its
+    // store.
+    QHash<QString, QVector<TabState>> m_awayTabWindows;
+    // The away Tab windows whose page is loading, so a finished load is
+    // recorded once.
+    QSet<QString> m_awayTabWindowLoads;
     QHash<QString, LivePageState> m_livePageStates;
     // The name this window's store answers stored favicons under.
     QString m_faviconSource;
