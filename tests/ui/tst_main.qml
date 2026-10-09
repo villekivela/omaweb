@@ -16109,6 +16109,111 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // An Agent goes on driving a popped-out tab: an address the core gives
+    // the tab from outside reaches the page in the Tab window. The page's own
+    // reports of where it went are not sent back to it.
+    function test_anAddressGivenToAPoppedOutTabReachesItsTabWindow() {
+        const engine = openPage("https://driven.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+
+        engine.currentUrl = "https://driven.example/by-the-page";
+        tryCompare(browser.tabWindows[0], "url", "https://driven.example/by-the-page");
+        compare(String(engine.currentUrl), "https://driven.example/by-the-page");
+
+        tabWindow.entry = Object.assign({}, tabWindow.entry, {
+                                            "url": "https://driven.example/by-the-agent"
+                                        });
+        compare(String(engine.currentUrl), "https://driven.example/by-the-agent");
+        tabWindow.entry = Object.assign({}, tabWindow.entry, {
+                                            "title": "Only the title changed"
+                                        });
+        compare(String(engine.currentUrl), "https://driven.example/by-the-agent");
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A strip hidden before a restart still comes back when the page moves to
+    // another site.
+    function test_aStripHiddenBeforeARestartComesBackOnAnotherSite() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        openPage("https://hidden-strip.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const before = tabWindowOf(tabId);
+        verify(before.run("toggle-tab-window-strip", -1));
+        before.quitting = true;
+        before.close();
+        before.release();
+        before.destroy();
+        window.tabWindows = ({});
+        engineLoader.discardEngine(tabId);
+
+        window.reconcileTabWindows();
+        const after = tabWindowOf(tabId);
+        const strip = findChild(after.contentItem, "tabWindowStrip");
+        compare(strip.visible, false);
+        after.engine.currentUrl = "https://another-site.example/";
+        tryCompare(strip, "visible", true);
+
+        after.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A sign-in window a Tab window's page opens belongs to that Tab window:
+    // it stands over it, and asks its questions there.
+    function test_anAuxiliaryWindowFromATabWindowBelongsToIt() {
+        const engine = openPage("https://signing-in.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+
+        engine.simulateNewWindowRequest("https://sign-in.example/", true);
+        let auxiliary = null;
+        tryVerify(function () {
+            auxiliary = findChild(tabWindow, "auxiliaryWindow");
+            return auxiliary !== null && auxiliary.visible;
+        });
+        compare(auxiliary.transientParent, tabWindow);
+        const auxiliaryEngine = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        tryVerify(function () {
+            return auxiliaryEngine.item !== null;
+        });
+        auxiliaryEngine.item.simulateSitePermission("https://sign-in.example", "camera");
+        const bar = findChild(tabWindow.contentItem, "tabWindowPermissionBar");
+        tryCompare(bar, "open", true);
+        compare(window.permissionOpen, false);
+        tabWindow.respondToPermission(3, false);
+
+        auxiliary.close();
+        tryVerify(function () {
+            return findChild(tabWindow, "auxiliaryWindow") === null || !findChild(tabWindow,
+                                                                                  "auxiliaryWindow").visible;
+        });
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // pop-out-tab and put-back-tab are in the Command scope and the tab menu,
     // and `omaweb run` reaches them by a tab's id.
     function test_tabWindowCommandsRunFromTheScopeTheMenuAndOutside() {
@@ -16148,7 +16253,7 @@ TestCase {
         });
         compare(browser.activeTabId, tabId);
 
-        const publicCommands = ["pop-out-tab", "put-back-tab", "toggle-tab-window-strip"];
+        const publicCommands = ["pop-out-tab", "put-back-tab"];
         let answer = window.commands.answerAgent({
                                                      "verb": "run",
                                                      "command": "pop-out-tab",

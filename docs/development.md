@@ -433,11 +433,12 @@ Space's tabs. `tabs --pick` offers them to Omarchy 4's `omarchy-menu-select`, th
 `omarchy-menu-select` is not on the PATH. `commands` lists the command scope's commands that can run
 now, one line each as id and title, and `run` runs one in the ordinary window as the command scope
 would, exiting 0 when it ran. `select-tab` and `select-space` take a position, 1 for the first.
-`pop-out-tab`, `put-back-tab` and `toggle-tab-window-strip` take a tab's id, of any Space, and
-otherwise act on the tab on show or the Tab window used last. Every command of
-`src/ui/BrowserCommands.qml` is public except `private-window`, since a Private window is never an
-Agent's, and the four screenshot commands, which read the page and are `shot`'s. `run` refuses any
-other by name. These four need nothing turned on, so a keybind can use them:
+`pop-out-tab` and `put-back-tab` take a tab's id, of any Space, and otherwise act on the tab on show
+or the Tab window used last. Every command of `src/ui/BrowserCommands.qml` is public except
+`private-window`, since a Private window is never an Agent's, the four screenshot commands, which
+read the page and are `shot`'s, and `toggle-tab-window-strip`, which is the reader's in the Tab
+window. `run` refuses any other by name. These four need nothing turned on, so a keybind can use
+them:
 
 ```sh
 omaweb space Work && omaweb run toggle-sidebar

@@ -841,6 +841,10 @@ private:
     // it would choose, passing over the tabs it cannot show; nothing when no
     // tab is left to show.
     QString successorOf(const QString &tabId) const;
+    // The same choice over any Space's list: the row of the tab beside in a
+    // split, else the nearest above, else below, that the main window can
+    // show; -1 when none is left.
+    static qsizetype successorRow(const QVector<TabState> &tabs, qsizetype row);
     bool popOutAwayTab(const QString &tabId);
     // A popped-out tab of any Space, as the Tab window list names it.
     std::optional<TabState> tabWindowTab(const QString &tabId) const;

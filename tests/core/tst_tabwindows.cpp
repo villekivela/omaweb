@@ -60,6 +60,7 @@ private slots:
     void opensANewTabWindowInTheSpaceOfTheOneThatAsked();
     void popsOutATabOfASpaceNotOnShow();
     void showsAnotherTabWhenTheSessionWasLeftOnAPoppedOutOne();
+    void navigatesATabWindowsPageWithoutTakingIt();
 };
 
 // Popping out the tab on show moves it to a Tab window of its own. It stays a
@@ -641,6 +642,27 @@ void TabWindowsTest::showsAnotherTabWhenTheSessionWasLeftOnAPoppedOutOne()
     QVERIFY(resting->activeTabId() != QStringLiteral("popped"));
     QVERIFY(resting->atRest());
     QCOMPARE(tabWindowIds(*resting), QStringList {QStringLiteral("popped")});
+}
+
+// An Agent goes on driving a tab in a Tab window: an address it opens there
+// reaches the page the window shows, which is never taken down for it, in
+// any Space.
+void TabWindowsTest::navigatesATabWindowsPageWithoutTakingIt()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://agent.example"), false);
+    const auto poppedId = controller.activeTabId();
+    QVERIFY(controller.popOutTab(poppedId));
+    const auto workId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workId));
+
+    QSignalSpy discarded(&controller, &BrowserController::awayTabDiscarded);
+    QVERIFY(controller.navigateTab(poppedId, QUrl(QStringLiteral("https://agent.example/next"))));
+    QCOMPARE(discarded.count(), 0);
+    QCOMPARE(controller.tabWindows().first().toMap().value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://agent.example/next")));
+    QVERIFY(controller.tabPoppedOut(poppedId));
 }
 
 QTEST_GUILESS_MAIN(TabWindowsTest)

@@ -641,7 +641,6 @@ const QStringList &AgentControl::publicCommands()
         QStringLiteral("focus-split-partner"),
         QStringLiteral("pop-out-tab"),
         QStringLiteral("put-back-tab"),
-        QStringLiteral("toggle-tab-window-strip"),
         QStringLiteral("next-space"),
         QStringLiteral("select-space"),
         QStringLiteral("new-space"),
@@ -685,8 +684,7 @@ bool AgentControl::commandTakesPosition(const QString &command)
 
 bool AgentControl::commandTakesTab(const QString &command)
 {
-    return command == u"pop-out-tab" || command == u"put-back-tab"
-        || command == u"toggle-tab-window-strip";
+    return command == u"pop-out-tab" || command == u"put-back-tab";
 }
 
 QVariantMap AgentControl::grantRequest() const

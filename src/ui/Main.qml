@@ -599,6 +599,7 @@ ApplicationWindow {
         TabWindow {}
     }
 
+    // What the tests and the windows' own commands ask a Tab window of.
     function tabWindowFor(tabId) {
         return window.tabWindows[tabId] || null;
     }
@@ -669,11 +670,15 @@ ApplicationWindow {
             window.lastTabWindowId = Object.keys(kept).length > 0 ? Object.keys(kept)[0] : "";
     }
 
+    // The tab a Tab window command names, or `fallback` where it names none.
+    function namedTab(tabId, fallback) {
+        return tabId && String(tabId).length > 0 ? String(tabId) : fallback;
+    }
+
     // The tab on show, or the one named, out of this window and into one of
     // its own.
     function popOutTab(tabId) {
-        const named = tabId && String(tabId).length > 0 ? String(tabId) :
-                                                          window.windowBrowser.activeTabId;
+        const named = window.namedTab(tabId, window.windowBrowser.activeTabId);
         if (window.glanceOpen && named === window.windowBrowser.activeTabId)
             return false;
         return window.windowBrowser.popOutTab(named);
@@ -682,7 +687,7 @@ ApplicationWindow {
     // Back to the sidebar, and shown there: the named tab, or the Tab window
     // the reader was in last.
     function putBackTab(tabId) {
-        const named = tabId && String(tabId).length > 0 ? String(tabId) : window.lastTabWindowId;
+        const named = window.namedTab(tabId, window.lastTabWindowId);
         const tabWindow = window.tabWindows[named];
         if (tabWindow) {
             tabWindow.putBack(true);
@@ -692,7 +697,7 @@ ApplicationWindow {
     }
 
     function toggleTabWindowStrip(tabId) {
-        const named = tabId && String(tabId).length > 0 ? String(tabId) : window.lastTabWindowId;
+        const named = window.namedTab(tabId, window.lastTabWindowId);
         const tabWindow = window.tabWindows[named];
         if (!tabWindow)
             return false;
@@ -820,8 +825,7 @@ ApplicationWindow {
         return {
             "label": qsTr("Pop out into a window"),
             "command": "pop-out-tab",
-            "enabled": !window.windowBrowser.tabPoppedOut(tabId) && !(window.glanceOpen && tabId
-                                                                      === window.windowBrowser.activeTabId)
+            "enabled": !(window.glanceOpen && tabId === window.windowBrowser.activeTabId)
         };
     }
 
@@ -1025,11 +1029,15 @@ ApplicationWindow {
     // An Auxiliary window opened by an Agent tab's page is the Agent's, under
     // the id the core gives it, and the core lists it so it is marked as its
     // tab is.
-    function openAuxiliaryWindow(engine, request, requestedUrl) {
+    //
+    // One opened from a Tab window's page belongs to that Tab window, `owner`:
+    // it stands over it and asks its questions there.
+    function openAuxiliaryWindow(engine, request, requestedUrl, owner) {
         const openerTabId = engineLoader.agentTabIdOf(engine);
         const control = engineLoader.agentControl;
         const windowId = control && openerTabId.length > 0 ? control.attachWindow(openerTabId) : "";
-        return auxiliaryWindowComponent.createObject(window, {
+        return auxiliaryWindowComponent.createObject(owner || window, {
+                                                         "tabWindow": owner || null,
                                                          "openerEngine": engine,
                                                          "request": request,
                                                          "requestedUrl": requestedUrl,
@@ -4879,6 +4887,8 @@ ApplicationWindow {
         id: auxiliaryWindowComponent
 
         AuxiliaryWindow {
+            // The Tab window whose page opened this one, or null.
+            property var tabWindow: null
             engineSource: engineViewSource
             colors: window.colors
             permissionController: window.windowBrowser
@@ -4886,6 +4896,10 @@ ApplicationWindow {
             engineContentBlocker: engineContentBlocker
             cookiePolicy: engineCookiePolicy
             onSitePermissionRequested: function (responder, requestId, origin, permission) {
+                if (tabWindow) {
+                    tabWindow.askPermission(responder, requestId, origin, permission);
+                    return;
+                }
                 window.pendingPermissionRequest = requestId;
                 window.pendingPermissionResponder = responder;
                 window.pendingPermissionOrigin = origin;
@@ -4894,14 +4908,24 @@ ApplicationWindow {
             }
 
             onCertificateErrorRaised: function (responder, requestId, failure) {
-                window.showCertificateError(responder, requestId, failure, true);
+                if (tabWindow)
+                    tabWindow.askAboutCertificate(responder, requestId, failure);
+                else
+                    window.showCertificateError(responder, requestId, failure, true);
             }
 
             onSecurityKeyRequested: function (responder, requestId, step) {
-                window.showSecurityKey(responder, requestId, step, true);
+                if (tabWindow)
+                    tabWindow.showSecurityKey(responder, requestId, step);
+                else
+                    window.showSecurityKey(responder, requestId, step, true);
             }
 
-            onClosing: window.refuseRequestsFrom(pageEngine)
+            onClosing: {
+                if (tabWindow)
+                    tabWindow.refuseRequestsFrom(pageEngine);
+                window.refuseRequestsFrom(pageEngine);
+            }
         }
     }
 
@@ -5036,7 +5060,7 @@ ApplicationWindow {
         window.restoreTabAppearance();
         window.restoreChromeAppearance();
         window.restoreAppIcon();
-        // The Tab windows the session was left with.
+        // A restart brings the Tab windows back from the session.
         window.reconcileTabWindows();
         // The notes an upgrade owes the reader, which the watch opens once,
         // behind the page on show and in a Space of the reader's own. A

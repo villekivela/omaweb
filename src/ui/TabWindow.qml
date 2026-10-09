@@ -113,10 +113,14 @@ Window {
         if (root.engine || root.released || root.tabId.length === 0)
             return;
         root.engine = root.engineHost.lendEngine(root.entry, pageHost);
-        if (root.engine)
-            root.hiddenOnHost = root.hostOf(root.engine.currentUrl);
-        else
+        if (!root.engine) {
             adoptAgain.start();
+            return;
+        }
+        // A page built a moment ago may not have its address yet, and then the
+        // address the tab was saved with is the site the strip was hidden on.
+        const host = root.hostOf(root.engine.currentUrl);
+        root.hiddenOnHost = host.length > 0 ? host : root.hostOf(root.entry.url);
     }
 
     // A page taken from under the window, as a Sync reload takes the pages of
@@ -148,11 +152,7 @@ Window {
     function putBack(show) {
         if (root.released)
             return;
-        root.closeGlance();
-        root.refuseRequestsFrom(root.engine);
-        root.released = true;
-        root.engineHost.reclaimEngine(root.tabId);
-        root.engine = null;
+        root.release();
         root.browser.putBackTab(root.tabId, show);
         if (show) {
             root.mainWindow.raise();
@@ -163,6 +163,8 @@ Window {
     // The tab is no longer this window's: the page, if it is still there, goes
     // back to the main window before the window goes.
     function release() {
+        if (root.released)
+            return;
         root.closeGlance();
         root.refuseRequestsFrom(root.engine);
         root.released = true;
@@ -252,6 +254,20 @@ Window {
         root.mainWindow.raise();
         root.mainWindow.requestActivate();
         return root.commands.run(command, argument);
+    }
+
+    // An address the tab is given from outside, as an Agent gives one, is
+    // loaded in the page here. The page's own reports come back as the same
+    // address and change nothing.
+    property string listedUrl: String(root.entry.url || "")
+    onEntryChanged: {
+        const url = String(root.entry.url || "");
+        if (url === root.listedUrl)
+            return;
+        root.listedUrl = url;
+        if (root.engine && url.length > 0 && url !== "about:blank" && String(
+                    root.engine.currentUrl) !== url)
+            root.engine.currentUrl = url;
     }
 
     // The tab's zoom is kept by the core, and its page follows it.
@@ -384,7 +400,7 @@ Window {
             root.openBackgroundTab(requestedUrl);
         }
         function onAuxiliaryWindowRequested(request, requestedUrl) {
-            root.mainWindow.openAuxiliaryWindow(root.engine, request, requestedUrl);
+            root.mainWindow.openAuxiliaryWindow(root.engine, request, requestedUrl, root);
         }
         function onSitePermissionRequested(requestId, origin, permission) {
             root.askPermission(root.engine, requestId, origin, permission);
@@ -420,7 +436,7 @@ Window {
         // An Agent tab's page opens a window the Agent drives, as it does in
         // the main window.
         if (root.engineHost.agentTabIdOf(opener).length > 0) {
-            root.mainWindow.openAuxiliaryWindow(opener, request, requestedUrl);
+            root.mainWindow.openAuxiliaryWindow(opener, request, requestedUrl, root);
             return;
         }
         const destination = String(requestedUrl).length > 0 ? String(requestedUrl) : "about:blank";
@@ -518,7 +534,7 @@ Window {
             root.openBackgroundTab(requestedUrl);
         }
         function onAuxiliaryWindowRequested(request, requestedUrl) {
-            root.mainWindow.openAuxiliaryWindow(root.glanceEngine, request, requestedUrl);
+            root.mainWindow.openAuxiliaryWindow(root.glanceEngine, request, requestedUrl, root);
         }
         function onUserActivated() {
             root.browser.recordOriginInteraction(root.glanceEngine.currentUrl);
@@ -982,24 +998,24 @@ Window {
             actions: rememberable ? [
                                         {
                                             "label": qsTr("Allow once"),
-                                            "decision": 1
+                                            "decision": BrowserController.AllowOnce
                                         },
                                         {
                                             "label": qsTr("Always allow"),
-                                            "decision": 2
+                                            "decision": BrowserController.AllowPersistently
                                         },
                                         {
                                             "label": qsTr("Block"),
-                                            "decision": 3
+                                            "decision": BrowserController.Block
                                         }
                                     ] : [
                                         {
                                             "label": qsTr("Allow once"),
-                                            "decision": 1
+                                            "decision": BrowserController.AllowOnce
                                         },
                                         {
                                             "label": qsTr("Block"),
-                                            "decision": 3
+                                            "decision": BrowserController.Block
                                         }
                                     ]
 

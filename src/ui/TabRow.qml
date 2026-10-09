@@ -357,7 +357,9 @@ Item {
         objectName: "tabWindowMark-" + root.tabId
         visible: root.poppedOut && (root.pinned || !hoverArea.containsMouse)
         anchors.right: parent.right
-        anchors.rightMargin: root.pinned ? 4 : root.endGap + (closeButton.width - width) / 2
+        anchors.rightMargin: root.pinned ? 4 : DevicePixels.snap(root.endGap + (closeButton.width
+                                                                                - width) / 2,
+                                                                 root.pixelRatio)
         anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
         anchors.top: root.pinned ? parent.top : undefined
         anchors.topMargin: 4

@@ -2136,10 +2136,12 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     // Taking an Agent Space over is the reader's answer to an Agent, and an
     // Agent that could give it would take its own mark off. Asking an agent
     // starts a program on the reader's word, which no Agent may do for itself.
+    // A Tab window's strip is the reader's to hide in that window.
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
         QStringLiteral("private-window"), QStringLiteral("take-over-space"),
-        QStringLiteral("agent-activity"), QStringLiteral("ask")};
+        QStringLiteral("agent-activity"), QStringLiteral("ask"),
+        QStringLiteral("toggle-tab-window-strip")};
     QStringList decided = AgentControl::publicCommands() + keptIn;
     decided.sort();
     registry.sort();

@@ -11,6 +11,11 @@ QtObject {
     property var engineHost
     property var keymap
 
+    // A tab's id, where a command was given one rather than a position.
+    function tabArgument(argument) {
+        return typeof argument === "string" ? argument : "";
+    }
+
     function run(command, argument) {
         switch (command) {
         case "back":
@@ -104,12 +109,12 @@ QtObject {
             return true;
             // A tab named by its id, from `omaweb run`, or the tab on show.
         case "pop-out-tab":
-            return window.popOutTab(typeof argument === "string" ? argument : "");
+            return window.popOutTab(root.tabArgument(argument));
             // A named tab, or the Tab window the reader was in last.
         case "put-back-tab":
-            return window.putBackTab(typeof argument === "string" ? argument : "");
+            return window.putBackTab(root.tabArgument(argument));
         case "toggle-tab-window-strip":
-            return window.toggleTabWindowStrip(typeof argument === "string" ? argument : "");
+            return window.toggleTabWindowStrip(root.tabArgument(argument));
         case "next-space":
             window.stepSpace(1);
             return true;

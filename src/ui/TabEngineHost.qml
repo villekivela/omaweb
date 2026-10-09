@@ -658,8 +658,9 @@ Item {
                                 profile.profile);
     }
 
-    // A detached engine becomes a new Tab window's tab's, page and all. Its
-    // page reports through the Tab window, so nothing is reported here: an
+    // An engine that answered for no tab, a Tab window's Glance or one built
+    // for a page's request, becomes a new popped-out tab's, page and all. Its
+    // page reports through its Tab window, so nothing is reported here: an
     // engine still blank while a request is handed to it would read as the
     // tab losing its address.
     function adoptTabWindowEngine(tabId, engine, spaceId) {
@@ -915,6 +916,14 @@ Item {
         return root.lentTabIds.indexOf(tabId) >= 0;
     }
 
+    function forgetLent(tabId) {
+        if (root.lent(tabId)) {
+            root.lentTabIds = root.lentTabIds.filter(function (lentId) {
+                return lentId !== tabId;
+            });
+        }
+    }
+
     // The engine a Tab window draws for its tab: the one the tab already has,
     // which moves with its page, or one built on the tab's own Space, as a
     // retained tab's is after a restart.
@@ -969,9 +978,7 @@ Item {
     function reclaimEngine(tabId) {
         if (!root.lent(tabId))
             return;
-        root.lentTabIds = root.lentTabIds.filter(function (lentId) {
-            return lentId !== tabId;
-        });
+        root.forgetLent(tabId);
         const engine = root.engines[tabId];
         if (!engine)
             return;
@@ -1012,11 +1019,7 @@ Item {
             departure.stop();
             departure.tabId = "";
         }
-        if (root.lent(tabId)) {
-            root.lentTabIds = root.lentTabIds.filter(function (lentId) {
-                return lentId !== tabId;
-            });
-        }
+        root.forgetLent(tabId);
         root.keepAgentLabels(tabId, engine);
         delete root.engines[tabId];
         delete root.engineSpaces[tabId];

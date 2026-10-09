@@ -1275,6 +1275,12 @@ bool BrowserController::navigateTab(const QString &tabId, const QUrl &url, const
     if (!saveAwayTabs(found->spaceId, std::move(tabs))) {
         return false;
     }
+    // A Tab window's page is on show and running, so it loads the address
+    // where it is rather than being taken down for it.
+    if (found->poppedOut) {
+        refreshRetainedTabs();
+        return true;
+    }
     if (tabId == m_developerToolsTabId) {
         closeDeveloperTools();
     }
@@ -2595,30 +2601,33 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
 
 bool BrowserController::selectable(const TabState &tab) { return !tab.poppedOut; }
 
-QString BrowserController::successorOf(const QString &tabId) const
+qsizetype BrowserController::successorRow(const QVector<TabState> &tabs, qsizetype row)
 {
-    const auto &items = m_tabs.items();
-    const auto row = tabRow(tabId);
-    if (row < 0) {
-        return {};
+    if (row < 0 || row >= tabs.size()) {
+        return -1;
     }
-    const auto &tab = items.at(row);
-    if (const auto *partner
-        = tab.splitPartnerId.isEmpty() ? nullptr : m_tabs.find(tab.splitPartnerId);
-        partner && selectable(*partner)) {
-        return partner->id;
+    const auto &partnerId = tabs.at(row).splitPartnerId;
+    const auto partner = std::ranges::find(tabs, partnerId, &TabState::id);
+    if (!partnerId.isEmpty() && partner != tabs.end() && selectable(*partner)) {
+        return partner - tabs.begin();
     }
     for (auto above = row - 1; above >= 0; --above) {
-        if (selectable(items.at(above))) {
-            return items.at(above).id;
+        if (selectable(tabs.at(above))) {
+            return above;
         }
     }
-    for (auto below = row + 1; below < items.size(); ++below) {
-        if (selectable(items.at(below))) {
-            return items.at(below).id;
+    for (auto below = row + 1; below < tabs.size(); ++below) {
+        if (selectable(tabs.at(below))) {
+            return below;
         }
     }
-    return {};
+    return -1;
+}
+
+QString BrowserController::successorOf(const QString &tabId) const
+{
+    const auto successor = successorRow(m_tabs.items(), tabRow(tabId));
+    return successor < 0 ? QString {} : m_tabs.items().at(successor).id;
 }
 
 bool BrowserController::popOutTab(const QString &tabId)
@@ -2702,6 +2711,8 @@ bool BrowserController::popOutAwayTab(const QString &tabId)
     if (row >= tabs.size()) {
         return false;
     }
+    // Chosen before the split ends, so a half is succeeded by the other.
+    const auto successor = successorRow(tabs, row);
     const auto partnerId = tabs[row].splitPartnerId;
     for (auto &tab : tabs) {
         if (tab.id == tabId || tab.id == partnerId) {
@@ -2712,21 +2723,6 @@ bool BrowserController::popOutAwayTab(const QString &tabId)
     tabs[row].poppedOut = true;
     if (tabs[row].active) {
         tabs[row].active = false;
-        qsizetype successor = -1;
-        const auto partner = std::ranges::find(tabs, partnerId, &TabState::id);
-        if (!partnerId.isEmpty() && partner != tabs.end() && selectable(*partner)) {
-            successor = partner - tabs.begin();
-        }
-        for (auto above = row - 1; successor < 0 && above >= 0; --above) {
-            if (selectable(tabs[above])) {
-                successor = above;
-            }
-        }
-        for (auto below = row + 1; successor < 0 && below < tabs.size(); ++below) {
-            if (selectable(tabs[below])) {
-                successor = below;
-            }
-        }
         if (successor < 0) {
             tabs.append(makeBlankTab(found->spaceId));
         } else {
@@ -3229,16 +3225,7 @@ void BrowserController::reportTabPageState(const QString &tabId, const QUrl &url
 void BrowserController::reportAwayTabWindowPageState(
     const QString &tabId, const QUrl &url, const QString &title, bool loading)
 {
-    const auto *window = [this, &tabId]() -> const TabState * {
-        for (const auto &tabs : std::as_const(m_awayTabWindows)) {
-            for (const auto &tab : tabs) {
-                if (tab.id == tabId) {
-                    return &tab;
-                }
-            }
-        }
-        return nullptr;
-    }();
+    const auto window = tabWindowTab(tabId);
     if (!window) {
         return;
     }
@@ -4788,25 +4775,13 @@ void BrowserController::ensureActiveTab()
     // that knows nothing of Tab windows can leave a Space on a popped-out tab.
     // The main window shows the nearest tab it can, or rests.
     if (!selectable(*active)) {
-        const auto row = active - tabs.cbegin();
-        auto chosen = tabs.cend();
-        for (auto above = row - 1; chosen == tabs.cend() && above >= 0; --above) {
-            if (selectable(tabs.at(above))) {
-                chosen = tabs.cbegin() + above;
-            }
-        }
-        for (auto below = row + 1; chosen == tabs.cend() && below < tabs.size(); ++below) {
-            if (selectable(tabs.at(below))) {
-                chosen = tabs.cbegin() + below;
-            }
-        }
-        if (chosen == tabs.cend()) {
+        const auto successor = successorRow(tabs, active - tabs.cbegin());
+        if (successor < 0) {
             auto blank = makeBlankTab(m_activeSpaceId);
             m_store->saveTab(blank, static_cast<int>(tabs.size()));
             tabs.append(blank);
-            chosen = tabs.cend() - 1;
         }
-        active = chosen;
+        active = tabs.cbegin() + (successor < 0 ? tabs.size() - 1 : successor);
     }
     m_activeTabId = active->id;
     for (auto &tab : tabs) {
