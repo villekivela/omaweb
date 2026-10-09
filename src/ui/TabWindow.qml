@@ -91,8 +91,9 @@ Window {
                                         || root.certificateQuestion !== null
                                         || root.securityKeyResponder !== null || root.browserPrompt
                                         !== null
-    readonly property bool stripShown: root.entry.stripHidden !== true || root.promptShown
-                                       || root.omnibarOpen
+    readonly property bool stripShown: !root.siteFullscreen && (root.entry.stripHidden !== true
+                                                                || root.promptShown
+                                                                || root.omnibarOpen)
     property string hiddenOnHost: ""
     onPageHostChanged: {
         if (root.entry.stripHidden === true && root.pageHost.length > 0 && root.hiddenOnHost.length
@@ -105,6 +106,27 @@ Window {
         if (hide)
             root.hiddenOnHost = root.pageHost;
         root.browser.setTabStripHidden(root.tabId, hide);
+    }
+
+    // A page that asks for the screen, as a video does, fills this window
+    // and the window fills its screen. The main window is left as it is.
+    // The window coming out of fullscreen by any other route tells the page,
+    // so it does not go on drawing for a screen it no longer has.
+    readonly property bool siteFullscreen: root.engine !== null && root.engine.siteFullscreenActive
+    property int windowedVisibility: Window.Windowed
+    onSiteFullscreenChanged: {
+        if (root.siteFullscreen) {
+            if (root.visibility !== Window.FullScreen)
+                root.windowedVisibility = root.visibility;
+            root.visibility = Window.FullScreen;
+            return;
+        }
+        if (root.visibility === Window.FullScreen)
+            root.visibility = root.windowedVisibility;
+    }
+    onVisibilityChanged: {
+        if (root.siteFullscreen && root.visibility !== Window.FullScreen)
+            root.engine.exitSiteFullscreen();
     }
 
     // Built once the engine is lent; a restart may reach this window before
@@ -167,6 +189,8 @@ Window {
             return;
         root.closeGlance();
         root.refuseRequestsFrom(root.engine);
+        if (root.siteFullscreen)
+            root.engine.exitSiteFullscreen();
         root.released = true;
         root.engineHost.reclaimEngine(root.tabId);
         root.engine = null;
@@ -1092,10 +1116,19 @@ Window {
         }
     }
 
+    // Site fullscreen ends with Escape whatever the page does with the key,
+    // as it does in the main window.
+    Shortcut {
+        sequence: "Esc"
+        enabled: root.siteFullscreen && !root.omnibarOpen && !root.promptShown
+        context: Qt.WindowShortcut
+        onActivated: root.engine.exitSiteFullscreen()
+    }
+
     // A Glance closes with Escape whatever its page does with the key.
     Shortcut {
         sequence: "Esc"
-        enabled: root.glanceOpen && !root.omnibarOpen && !root.promptShown
+        enabled: root.glanceOpen && !root.omnibarOpen && !root.promptShown && !root.siteFullscreen
         context: Qt.WindowShortcut
         onActivated: root.closeGlance()
     }

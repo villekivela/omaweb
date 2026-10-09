@@ -15812,6 +15812,103 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // A lent page is the Tab window's size, whatever the main window does:
+    // growing it or folding its sidebar never resizes the page, not even for
+    // a moment, which a page would lay itself out again for.
+    function test_aLentPageKeepsToItsTabWindowsSize() {
+        openPage("https://sized.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const pageHost = findChild(tabWindow.contentItem, "tabWindowPageHost");
+        const engine = tabWindow.engine;
+        tryCompare(engine, "width", pageHost.width);
+        const widths = [];
+        const record = function () {
+            widths.push(engine.width);
+        };
+        engine.widthChanged.connect(record);
+
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const mainWidth = window.width;
+        // Each change waited for by what it does to the main window's page
+        // area, so the page has had every chance to follow it.
+        const changes = function (change) {
+            const before = engineLoader.width;
+            change();
+            tryVerify(function () {
+                return engineLoader.width !== before;
+            });
+        };
+        changes(function () {
+            window.width = mainWidth + 240;
+        });
+        changes(function () {
+            window.width = mainWidth;
+        });
+        changes(function () {
+            verify(window.commands.run("toggle-sidebar", -1));
+        });
+        changes(function () {
+            verify(window.commands.run("toggle-sidebar", -1));
+        });
+        engine.widthChanged.disconnect(record);
+        compare(widths, []);
+        compare(engine.width, pageHost.width);
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A video a Tab window's page shows fullscreen fills that window, with
+    // the strip out of the way, and the main window stays as it is. Escape
+    // or putting the tab back hands the screen back.
+    function test_aTabWindowsPageTakesThatWindowFullscreen() {
+        const engine = openPage("https://video.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const strip = findChild(tabWindow.contentItem, "tabWindowStrip");
+        const pageHost = findChild(tabWindow.contentItem, "tabWindowPageHost");
+        const mainVisibility = window.visibility;
+
+        engine.simulateSiteFullscreen("https://video.example");
+        tryCompare(tabWindow, "visibility", Window.FullScreen);
+        compare(strip.visible, false);
+        tryVerify(function () {
+            return pageHost.height === tabWindow.height && pageHost.width === tabWindow.width;
+        });
+        compare(window.visibility, mainVisibility);
+
+        tabWindow.requestActivate();
+        tryCompare(tabWindow, "active", true);
+        keyClick(Qt.Key_Escape);
+        tryCompare(engine, "siteFullscreenActive", false);
+        tryCompare(tabWindow, "visibility", Window.Windowed);
+        verify(strip.visible);
+
+        engine.simulateSiteFullscreen("https://video.example");
+        tryCompare(tabWindow, "visibility", Window.FullScreen);
+        verify(window.putBackTab(tabId));
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        compare(engine.siteFullscreenActive, false);
+        compare(window.visibility, mainVisibility);
+
+        window.requestActivate();
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // A link that asks for a new tab follows the main window's rule inside a
     // Tab window. In the foreground with Glance on, a Glance over its page.
     function test_aTabWindowsForegroundRequestOpensAGlanceThere() {

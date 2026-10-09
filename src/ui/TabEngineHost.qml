@@ -970,7 +970,12 @@ Item {
         engine.anchors.top = undefined;
         engine.anchors.bottom = undefined;
         engine.transform = [];
+        // The pane's bindings are broken, not left to the anchors: a binding
+        // still set would resize the page each time this window's width
+        // changed, before the anchors put it back. `placeEngine` binds them
+        // again when the page comes back.
         engine.x = 0;
+        engine.width = host.width;
         engine.z = 0;
         engine.parent = host;
         engine.anchors.fill = host;
