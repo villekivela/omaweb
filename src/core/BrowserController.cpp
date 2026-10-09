@@ -43,6 +43,7 @@ using Capability = WindowCapabilities::Capability;
 namespace {
 
     constexpr int persistTabsDelayMilliseconds = 400;
+    constexpr qint64 awayPageStatesLongestWaitMilliseconds = 2000;
     // How many closes a Space remembers. Deep enough that a reader who shut a row
     // of tabs can walk all of them back, bounded so the store does not grow into a
     // second history of everywhere they have been.
@@ -3269,7 +3270,8 @@ void BrowserController::reportAwayTabWindowPageState(
             : title;
         // A page can rewrite its title many times a second. The Tab window
         // shows each one at once, and the Space's store takes where the page
-        // settled, in one write for all of them.
+        // settled, in one write for all of them. A page that never settles,
+        // as a ticking clock does not, is written at least every two seconds.
         if (window->url != url || window->title != normalizedTitle) {
             for (auto &tab : m_awayTabWindows[spaceId]) {
                 if (tab.id == tabId) {
@@ -3278,8 +3280,17 @@ void BrowserController::reportAwayTabWindowPageState(
                 }
             }
             refreshTabWindows();
+            if (m_awayPageStates.isEmpty()) {
+                m_awayPageStatesWaiting.start();
+            }
             m_awayPageStates.insert(tabId);
-            m_awayPageStatesTimer.start();
+            const auto waited = m_awayPageStatesWaiting.elapsed();
+            if (waited >= awayPageStatesLongestWaitMilliseconds) {
+                refreshRetainedTabs();
+            } else {
+                m_awayPageStatesTimer.start(std::min<qint64>(
+                    persistTabsDelayMilliseconds, awayPageStatesLongestWaitMilliseconds - waited));
+            }
         }
     }
     if (wasLoading && !loading && !isBlank(url) && url.scheme() != QStringLiteral("about")

@@ -21,6 +21,7 @@
 #include <QSet>
 #include <QSharedPointer>
 #include <QSortFilterProxyModel>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -1029,10 +1030,11 @@ private:
     // recorded once.
     QSet<QString> m_awayTabWindowLoads;
     // Away Tab windows whose page reported an address or a title not yet in
-    // its Space's store, and the wait that gathers their reports into one
-    // write.
+    // its Space's store, the wait that gathers their reports into one write,
+    // and how long the oldest of them has waited.
     QSet<QString> m_awayPageStates;
     QTimer m_awayPageStatesTimer;
+    QElapsedTimer m_awayPageStatesWaiting;
     QHash<QString, LivePageState> m_livePageStates;
     // The name this window's store answers stored favicons under.
     QString m_faviconSource;

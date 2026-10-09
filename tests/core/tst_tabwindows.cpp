@@ -4,6 +4,7 @@
 #include "SpaceStorage.h"
 #include "TabListModel.h"
 
+#include <QElapsedTimer>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -56,6 +57,7 @@ private slots:
     void namesTheSpaceOfEachTabWindow();
     void keepsWhatAnAwayTabWindowsPageReports();
     void settlesAnAwayTabWindowsReportsBeforeKeepingThem();
+    void keepsAnAwayTabWindowsReportsThatNeverSettle();
     void keepsAPoppedOutTabInItsSpace();
     void answersTheTabWindowsOwnCommandsInAnySpace();
     void keepsATabWindowsPermissionAnswersInItsOwnSpace();
@@ -508,6 +510,32 @@ void TabWindowsTest::settlesAnAwayTabWindowsReportsBeforeKeepingThem()
     QVERIFY(tab.has_value());
     QCOMPARE(tab->title, QStringLiteral("Tick 20"));
     QCOMPARE(tab->url, QUrl(QStringLiteral("https://ticking.example/")));
+}
+
+// A page that retitles faster than its reports settle, as a ticking clock
+// does, still has its Space keep what it shows every couple of seconds rather
+// than only once it stops.
+void TabWindowsTest::keepsAnAwayTabWindowsReportsThatNeverSettle()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://clock.example"), false);
+    const auto poppedId = controller.activeTabId();
+    QVERIFY(controller.popOutTab(poppedId));
+    QVERIFY(controller.switchSpace(controller.createSpace(QStringLiteral("Work"))));
+
+    QSignalSpy retainedSpy(&controller, &BrowserController::retainedTabsChanged);
+    QElapsedTimer ticking;
+    ticking.start();
+    for (int tick = 1; ticking.elapsed() < 3000; ++tick) {
+        controller.reportTabPageState(poppedId, QUrl(QStringLiteral("https://clock.example/")),
+            QStringLiteral("Tick %1").arg(tick), {}, false, false);
+        QTest::qWait(100);
+    }
+    QVERIFY(retainedSpy.count() >= 1);
+    const auto kept = controller.findTab(poppedId);
+    QVERIFY(kept.has_value());
+    QVERIFY(kept->title.startsWith(QStringLiteral("Tick ")));
 }
 
 // Moving a tab to another Space is a main window command about its sidebar,
