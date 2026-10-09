@@ -4162,32 +4162,55 @@ TestCase {
     }
 
     // Every pin is one column wide, so a partial row leaves its columns empty
-    // instead of stretching the pins on it (#654).
+    // instead of stretching the pins on it (#654). A full row looks as it did:
+    // its pins fill the list from edge to edge.
     function test_pinsKeepTheColumnGridOnAPartialRow() {
         const list = findChild(window.contentItem, "pinnedList");
         const ids = [];
-        const total = 7;
+        const total = list.capacity + 2;
         for (let i = 0; i < total; ++i) {
-            openPage("https://grid-pin-" + i + ".example");
+            openPageInNewTab("https://grid-pin-" + i + ".example");
             ids.push(browser.activeTabId);
             browser.toggleActivePinned();
         }
+        compare(browser.pinnedTabs.rowCount(), total);
+        compare(new Set(ids).size, total);
+
+        tryVerify(function () {
+            return list.height > 44;
+        });
         const column = (list.width - list.spacing * (list.capacity - 1)) / list.capacity;
-        for (let i = 0; i < total; ++i) {
-            const id = ids[i];
+        const fullRow = [];
+        for (const id of ids) {
             tryVerify(function () {
                 return findChild(window.contentItem, "pinned-" + id) !== null;
             });
             const pin = findChild(window.contentItem, "pinned-" + id);
-            fuzzyCompare(pin.width, column, 0.01, "pin " + i + " is one column wide");
-            const columnIndex = Math.round(pin.x / (column + list.spacing));
-            verify(columnIndex < list.capacity, "pin " + i + " sits in a column");
-            fuzzyCompare(pin.x, columnIndex * (column + list.spacing), 0.01, "pin " + i
-                         + " sits on its column");
+            fuzzyCompare(pin.width, column, 0.01, "a pin is one column wide");
+            const at = pin.mapToItem(list, 0, 0);
+            const columnIndex = Math.round(at.x / (column + list.spacing));
+            verify(columnIndex < list.capacity, "a pin sits in a column");
+            fuzzyCompare(at.x, columnIndex * (column + list.spacing), 0.01,
+                         "a pin sits on its column");
+            if (at.y === 0)
+                fullRow.push({
+                                 "x": at.x,
+                                 "width": pin.width
+                             });
         }
+        compare(fullRow.length, list.capacity);
+        fullRow.sort(function (a, b) {
+            return a.x - b.x;
+        });
+        compare(fullRow[0].x, 0);
+        fuzzyCompare(fullRow[fullRow.length - 1].x + fullRow[fullRow.length - 1].width, list.width,
+                     0.01, "the full row reaches the list's right edge");
+
+        // A pin does not close, so each tab is unpinned first.
         for (const id of ids) {
             browser.activateTab(id);
             browser.toggleActivePinned();
+            browser.closeTab(id);
         }
     }
 
