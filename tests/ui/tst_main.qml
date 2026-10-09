@@ -16080,6 +16080,35 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // A page taken from under its Tab window, as a Sync reload takes every
+    // page of the Space on show, is built again there rather than leaving the
+    // window empty.
+    function test_aTabWindowBuildsItsPageAgainWhenItIsTaken() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        openPage("https://rebuilt.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const first = tabWindow.engine;
+
+        engineLoader.discardEngine(tabId);
+        tryVerify(function () {
+            return tabWindow.engine !== null && tabWindow.engine !== first;
+        });
+        compare(String(tabWindow.engine.currentUrl), "https://rebuilt.example/");
+        compare(engineLoader.engines[tabId], tabWindow.engine);
+        compare(tabWindow.engine.parent, findChild(tabWindow.contentItem, "tabWindowPageHost"));
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // pop-out-tab and put-back-tab are in the Command scope and the tab menu,
     // and `omaweb run` reaches them by a tab's id.
     function test_tabWindowCommandsRunFromTheScopeTheMenuAndOutside() {

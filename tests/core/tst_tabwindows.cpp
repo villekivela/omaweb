@@ -58,6 +58,8 @@ private slots:
     void answersTheTabWindowsOwnCommandsInAnySpace();
     void keepsATabWindowsPermissionAnswersInItsOwnSpace();
     void opensANewTabWindowInTheSpaceOfTheOneThatAsked();
+    void popsOutATabOfASpaceNotOnShow();
+    void showsAnotherTabWhenTheSessionWasLeftOnAPoppedOutOne();
 };
 
 // Popping out the tab on show moves it to a Tab window of its own. It stays a
@@ -563,6 +565,82 @@ void TabWindowsTest::opensANewTabWindowInTheSpaceOfTheOneThatAsked()
             ->openTabWindow(
                 privateController->activeSpaceId(), QUrl(QStringLiteral("https://private.example")))
             .isEmpty());
+}
+
+// `omaweb run pop-out-tab` names a tab of any Space. One whose Space is not on
+// show pops out where it is, and that Space is left on another tab, as it
+// would be had it been on show.
+void TabWindowsTest::popsOutATabOfASpaceNotOnShow()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalId = controller.activeSpaceId();
+    const auto workId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workId));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    QVERIFY(controller.switchSpace(personalId));
+    const auto shownId = controller.activeTabId();
+
+    QVERIFY(controller.popOutTab(secondId));
+    QCOMPARE(controller.activeSpaceId(), personalId);
+    QCOMPARE(controller.activeTabId(), shownId);
+    QCOMPARE(tabWindowIds(controller), QStringList {secondId});
+    QCOMPARE(controller.retainedTabs().size(), 1);
+    QVERIFY(!controller.popOutTab(secondId));
+
+    QVERIFY(controller.switchSpace(workId));
+    QCOMPARE(controller.activeTabId(), firstId);
+    QVERIFY(controller.tabPoppedOut(secondId));
+}
+
+// A session can name a popped-out tab as its Space's active one, as a Sync
+// apply that knew nothing of Tab windows may leave it. The main window shows
+// another tab, or rests, and the Tab window still has its tab.
+void TabWindowsTest::showsAnotherTabWhenTheSessionWasLeftOnAPoppedOutOne()
+{
+    SessionFixture fixture(SessionSpec {
+        .spaces = {SpaceSpec {
+            .id = QStringLiteral("personal"),
+            .name = QStringLiteral("Personal"),
+            .tabs = {TabSpec {
+                         .id = QStringLiteral("reading"),
+                         .url = QUrl(QStringLiteral("https://reading.example")),
+                     },
+                TabSpec {
+                    .id = QStringLiteral("popped"),
+                    .url = QUrl(QStringLiteral("https://popped.example")),
+                    .poppedOut = true,
+                }},
+            .activeTabId = QStringLiteral("popped"),
+        }},
+        .activeSpaceId = QStringLiteral("personal"),
+    });
+    QVERIFY_SESSION_READY(fixture);
+    const auto controller = fixture.createController();
+    QCOMPARE(controller->activeTabId(), QStringLiteral("reading"));
+    QCOMPARE(tabWindowIds(*controller), QStringList {QStringLiteral("popped")});
+
+    SessionFixture alone(SessionSpec {
+        .spaces = {SpaceSpec {
+            .id = QStringLiteral("personal"),
+            .name = QStringLiteral("Personal"),
+            .tabs = {TabSpec {
+                .id = QStringLiteral("popped"),
+                .url = QUrl(QStringLiteral("https://popped.example")),
+                .poppedOut = true,
+            }},
+            .activeTabId = QStringLiteral("popped"),
+        }},
+        .activeSpaceId = QStringLiteral("personal"),
+    });
+    QVERIFY_SESSION_READY(alone);
+    const auto resting = alone.createController();
+    QVERIFY(resting->activeTabId() != QStringLiteral("popped"));
+    QVERIFY(resting->atRest());
+    QCOMPARE(tabWindowIds(*resting), QStringList {QStringLiteral("popped")});
 }
 
 QTEST_GUILESS_MAIN(TabWindowsTest)

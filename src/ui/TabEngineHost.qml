@@ -272,6 +272,9 @@ Item {
     signal fileSelectionRequested(var engine, string requestId, var selection)
     // A card the reader typed and submitted in a tab's page.
     signal paymentCardSubmitted(var engine, var card, string tabId)
+    // A tab's engine was taken down. A Tab window drawing it builds the page
+    // again, as the tab's row would.
+    signal engineDiscarded(string tabId)
 
     function keyboardConfiguration(url) {
         const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url));
@@ -1020,6 +1023,7 @@ Item {
         delete root.shownTabIds[tabId];
         engine.destroy();
         root.abandonAgentRequests(tabId);
+        root.engineDiscarded(tabId);
         // An Agent tab whose page was taken, because its address changed in a
         // Space not on show, is built again on the address it has now.
         if (root.agentAttached(tabId))

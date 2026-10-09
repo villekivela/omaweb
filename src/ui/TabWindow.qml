@@ -119,6 +119,20 @@ Window {
             adoptAgain.start();
     }
 
+    // A page taken from under the window, as a Sync reload takes the pages of
+    // the Space on show, is built again here. A tab closed or put back takes
+    // the window with it, which is released by then or on its way.
+    Connections {
+        target: root.engineHost
+
+        function onEngineDiscarded(tabId) {
+            if (tabId !== root.tabId || root.released)
+                return;
+            root.engine = null;
+            adoptAgain.start();
+        }
+    }
+
     Timer {
         id: adoptAgain
         interval: 100

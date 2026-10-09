@@ -366,11 +366,11 @@ public:
     // Space that is not on show, so its Space's store is where the setting
     // lives rather than the tab model, which holds one Space at a time.
     Q_INVOKABLE bool releaseRetainedTab(const QString &tabId);
-    // Pops an ordinary or Pinned tab of the Space on show out into a Tab
-    // window (ADR 0062). A split's tab leaves its split. The tab stays where
-    // it is in the list and is never the active tab while it is out: popping
-    // out the active tab shows the tab closing it would, or the Space at rest.
-    // A blank tab has no page to pop out, and a Private window none at all.
+    // Pops an ordinary or Pinned tab of any Space out into a Tab window (ADR
+    // 0062). A split's tab leaves its split. The tab stays where it is in the
+    // list and is never its Space's active tab while it is out: popping out
+    // the active tab shows the tab closing it would, or the Space at rest. A
+    // blank tab has no page to pop out, and a Private window none at all.
     Q_INVOKABLE bool popOutTab(const QString &tabId);
     // Returns a popped-out tab of any Space to the main window's sidebar.
     // With `show`, the main window switches to its Space and selects it.
@@ -841,6 +841,7 @@ private:
     // it would choose, passing over the tabs it cannot show; nothing when no
     // tab is left to show.
     QString successorOf(const QString &tabId) const;
+    bool popOutAwayTab(const QString &tabId);
     // A popped-out tab of any Space, as the Tab window list names it.
     std::optional<TabState> tabWindowTab(const QString &tabId) const;
     void reportAwayTabWindowPageState(

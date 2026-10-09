@@ -2627,7 +2627,10 @@ bool BrowserController::popOutTab(const QString &tabId)
         return false;
     }
     const auto *found = m_tabs.find(tabId);
-    if (!found || found->poppedOut || isBlank(found->url)) {
+    if (!found) {
+        return popOutAwayTab(tabId);
+    }
+    if (found->poppedOut || isBlank(found->url)) {
         return false;
     }
     // Closing a split's half would show the half beside it, so that is the
@@ -2683,6 +2686,58 @@ QString BrowserController::openTabWindow(const QString &spaceId, const QUrl &url
     }
     refreshRetainedTabs();
     return tab.id;
+}
+
+// The same, for a tab of a Space not on show, in that Space's store: the split
+// it was in ends, and a Space left on it is left on the tab closing it would
+// show instead, or rests.
+bool BrowserController::popOutAwayTab(const QString &tabId)
+{
+    const auto found = findTab(tabId);
+    if (!found || found->poppedOut || isBlank(found->url)) {
+        return false;
+    }
+    auto tabs = m_store->loadTabs(found->spaceId);
+    const auto row = std::ranges::find(tabs, tabId, &TabState::id) - tabs.begin();
+    if (row >= tabs.size()) {
+        return false;
+    }
+    const auto partnerId = tabs[row].splitPartnerId;
+    for (auto &tab : tabs) {
+        if (tab.id == tabId || tab.id == partnerId) {
+            tab.splitPartnerId.clear();
+            tab.splitFocused = false;
+        }
+    }
+    tabs[row].poppedOut = true;
+    if (tabs[row].active) {
+        tabs[row].active = false;
+        qsizetype successor = -1;
+        const auto partner = std::ranges::find(tabs, partnerId, &TabState::id);
+        if (!partnerId.isEmpty() && partner != tabs.end() && selectable(*partner)) {
+            successor = partner - tabs.begin();
+        }
+        for (auto above = row - 1; successor < 0 && above >= 0; --above) {
+            if (selectable(tabs[above])) {
+                successor = above;
+            }
+        }
+        for (auto below = row + 1; successor < 0 && below < tabs.size(); ++below) {
+            if (selectable(tabs[below])) {
+                successor = below;
+            }
+        }
+        if (successor < 0) {
+            tabs.append(makeBlankTab(found->spaceId));
+        } else {
+            tabs[successor].active = true;
+        }
+    }
+    if (!saveAwayTabs(found->spaceId, std::move(tabs))) {
+        return false;
+    }
+    refreshRetainedTabs();
+    return true;
 }
 
 bool BrowserController::putBackTab(const QString &tabId, bool show)
@@ -4729,7 +4784,34 @@ void BrowserController::ensureActiveTab()
             break;
         }
     }
+    // A store is only trusted to hand back what it was given, and a writer
+    // that knows nothing of Tab windows can leave a Space on a popped-out tab.
+    // The main window shows the nearest tab it can, or rests.
+    if (!selectable(*active)) {
+        const auto row = active - tabs.cbegin();
+        auto chosen = tabs.cend();
+        for (auto above = row - 1; chosen == tabs.cend() && above >= 0; --above) {
+            if (selectable(tabs.at(above))) {
+                chosen = tabs.cbegin() + above;
+            }
+        }
+        for (auto below = row + 1; chosen == tabs.cend() && below < tabs.size(); ++below) {
+            if (selectable(tabs.at(below))) {
+                chosen = tabs.cbegin() + below;
+            }
+        }
+        if (chosen == tabs.cend()) {
+            auto blank = makeBlankTab(m_activeSpaceId);
+            m_store->saveTab(blank, static_cast<int>(tabs.size()));
+            tabs.append(blank);
+            chosen = tabs.cend() - 1;
+        }
+        active = chosen;
+    }
     m_activeTabId = active->id;
+    for (auto &tab : tabs) {
+        tab.active = tab.id == m_activeTabId;
+    }
     repairSplits(tabs, m_activeTabId);
     m_tabs.reset(std::move(tabs));
     refreshSoundSuppression();
