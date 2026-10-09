@@ -15675,6 +15675,12 @@ TestCase {
             return engineLoader.item === first;
         });
 
+        // The main window has the reader, and selecting the row brings the
+        // Tab window forward to them.
+        const secondWindow = window.tabWindowFor(secondTabId);
+        window.requestActivate();
+        tryCompare(window, "active", true);
+        compare(secondWindow.active, false);
         const raised = raiseSpy;
         raised.target = browser;
         raised.clear();
@@ -15683,9 +15689,12 @@ TestCase {
         mouseClick(row);
         tryCompare(raised, "count", 1);
         compare(raised.signalArguments[0][0], secondTabId);
+        tryCompare(secondWindow, "active", true);
         compare(browser.activeTabId, firstTabId);
         compare(engineLoader.item, first);
         raised.target = null;
+        window.requestActivate();
+        tryCompare(window, "active", true);
 
         // The last page popped out leaves the Space at rest, and its row is
         // still in the sidebar. In a Space of its own, so its only page is
