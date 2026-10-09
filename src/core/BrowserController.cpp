@@ -240,6 +240,9 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     m_persistTabsTimer.setSingleShot(true);
     m_persistTabsTimer.setInterval(persistTabsDelayMilliseconds);
     connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { recordTabs(); });
+    m_awayPageStatesTimer.setSingleShot(true);
+    m_awayPageStatesTimer.setInterval(persistTabsDelayMilliseconds);
+    connect(&m_awayPageStatesTimer, &QTimer::timeout, this, [this] { refreshRetainedTabs(); });
     m_engineSuggestionPause.setSingleShot(true);
     m_engineSuggestionPause.setInterval(engineSuggestionPauseMilliseconds);
     connect(&m_engineSuggestionPause, &QTimer::timeout, this,
@@ -1692,6 +1695,7 @@ bool BrowserController::switchSpace(const QString &spaceId)
     if (spaceId == m_activeSpaceId) {
         return true;
     }
+    landAwayPageStates();
 
     const SpaceState *destination = nullptr;
     for (const auto &space : m_spaces.items()) {
@@ -2880,6 +2884,7 @@ bool BrowserController::updateAwayTab(
     if (m_privateBrowsing || m_tabs.find(tabId)) {
         return false;
     }
+    landAwayPageStates();
     const auto found = findTab(tabId);
     if (!found) {
         return false;
@@ -2990,6 +2995,7 @@ QStringList BrowserController::retainedTabIds() const
 // looking at them, not because anything is being retained for them.
 void BrowserController::refreshRetainedTabs()
 {
+    landAwayPageStates();
     QVector<RetainedTab> retained;
     m_awayTabWindows.clear();
     for (const auto &space : m_spaces.items()) {
@@ -3254,17 +3260,52 @@ void BrowserController::reportAwayTabWindowPageState(
         const auto normalizedTitle = title.isEmpty()
             ? (url.host().isEmpty() ? QStringLiteral("New tab") : url.host())
             : title;
+        // A page can rewrite its title many times a second. The Tab window
+        // shows each one at once, and the Space's store takes where the page
+        // settled, in one write for all of them.
         if (window->url != url || window->title != normalizedTitle) {
-            updateAwayTab(tabId, [&url, &normalizedTitle](TabState &tab) {
-                tab.url = url;
-                tab.title = normalizedTitle;
-                return true;
-            });
+            for (auto &tab : m_awayTabWindows[spaceId]) {
+                if (tab.id == tabId) {
+                    tab.url = url;
+                    tab.title = normalizedTitle;
+                }
+            }
+            refreshTabWindows();
+            m_awayPageStates.insert(tabId);
+            m_awayPageStatesTimer.start();
         }
     }
     if (wasLoading && !loading && !isBlank(url) && url.scheme() != QStringLiteral("about")
         && !normalizedOrigin(url).isEmpty()) {
         m_store->recordVisit(spaceId, url, title.isEmpty() ? url.host() : title);
+    }
+}
+
+void BrowserController::landAwayPageStates()
+{
+    m_awayPageStatesTimer.stop();
+    if (m_awayPageStates.isEmpty()) {
+        return;
+    }
+    const auto pending = std::exchange(m_awayPageStates, {});
+    for (auto windows = m_awayTabWindows.cbegin(); windows != m_awayTabWindows.cend(); ++windows) {
+        QHash<QString, const TabState *> reported;
+        for (const auto &window : windows.value()) {
+            if (pending.contains(window.id)) {
+                reported.insert(window.id, &window);
+            }
+        }
+        if (reported.isEmpty()) {
+            continue;
+        }
+        auto tabs = m_store->loadTabs(windows.key());
+        for (auto &tab : tabs) {
+            if (const auto *window = reported.value(tab.id)) {
+                tab.url = window->url;
+                tab.title = window->title;
+            }
+        }
+        saveAwayTabs(windows.key(), std::move(tabs));
     }
 }
 
@@ -3677,6 +3718,7 @@ void BrowserController::landPendingTabs()
     if (m_persistTabsTimer.isActive()) {
         recordTabs();
     }
+    landAwayPageStates();
 }
 
 bool BrowserController::deleteHistoryVisit(qint64 id)

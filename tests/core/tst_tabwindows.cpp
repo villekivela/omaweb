@@ -55,6 +55,7 @@ private slots:
     void closesTheTabWindowsOfADeletedSpace();
     void namesTheSpaceOfEachTabWindow();
     void keepsWhatAnAwayTabWindowsPageReports();
+    void settlesAnAwayTabWindowsReportsBeforeKeepingThem();
     void keepsAPoppedOutTabInItsSpace();
     void answersTheTabWindowsOwnCommandsInAnySpace();
     void keepsATabWindowsPermissionAnswersInItsOwnSpace();
@@ -473,6 +474,40 @@ void TabWindowsTest::keepsWhatAnAwayTabWindowsPageReports()
     QCOMPARE(tab->title, QStringLiteral("Moved"));
     QCOMPARE(tab->zoom, 1.25);
     QVERIFY(tab->poppedOut);
+}
+
+// A page that rewrites its title over and over, as a clock or a chat does,
+// is shown at once in its Tab window, and its Space takes what it settled on
+// once: the other Spaces' tabs are not read again for each change.
+void TabWindowsTest::settlesAnAwayTabWindowsReportsBeforeKeepingThem()
+{
+    QTemporaryDir root;
+    QString poppedId;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        controller.openInput(QStringLiteral("https://ticking.example"), false);
+        poppedId = controller.activeTabId();
+        QVERIFY(controller.popOutTab(poppedId));
+        QVERIFY(controller.switchSpace(controller.createSpace(QStringLiteral("Work"))));
+
+        QSignalSpy retainedSpy(&controller, &BrowserController::retainedTabsChanged);
+        for (int tick = 1; tick <= 20; ++tick) {
+            controller.reportTabPageState(poppedId,
+                QUrl(QStringLiteral("https://ticking.example/")),
+                QStringLiteral("Tick %1").arg(tick), {}, false, false);
+            QCOMPARE(controller.tabWindows().first().toMap().value(QStringLiteral("title")),
+                QStringLiteral("Tick %1").arg(tick));
+        }
+        QCOMPARE(retainedSpy.count(), 0);
+        QTRY_COMPARE(retainedSpy.count(), 1);
+        QTest::qWait(500);
+        QCOMPARE(retainedSpy.count(), 1);
+    }
+    BrowserController restarted(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto tab = restarted.findTab(poppedId);
+    QVERIFY(tab.has_value());
+    QCOMPARE(tab->title, QStringLiteral("Tick 20"));
+    QCOMPARE(tab->url, QUrl(QStringLiteral("https://ticking.example/")));
 }
 
 // Moving a tab to another Space is a main window command about its sidebar,

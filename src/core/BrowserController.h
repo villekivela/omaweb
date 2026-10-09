@@ -855,6 +855,9 @@ private:
     std::optional<TabState> tabWindowTab(const QString &tabId) const;
     void reportAwayTabWindowPageState(
         const QString &tabId, const QUrl &url, const QString &title, bool loading);
+    // Writes what away Tab windows' pages reported to their Spaces' stores,
+    // before anything reads those stores again.
+    void landAwayPageStates();
     // Changes a tab of a Space not on show in that Space's store.
     bool updateAwayTab(const QString &tabId, const std::function<bool(TabState &)> &change);
     qint64 now() const;
@@ -1024,6 +1027,11 @@ private:
     // The away Tab windows whose page is loading, so a finished load is
     // recorded once.
     QSet<QString> m_awayTabWindowLoads;
+    // Away Tab windows whose page reported an address or a title not yet in
+    // its Space's store, and the wait that gathers their reports into one
+    // write.
+    QSet<QString> m_awayPageStates;
+    QTimer m_awayPageStatesTimer;
     QHash<QString, LivePageState> m_livePageStates;
     // The name this window's store answers stored favicons under.
     QString m_faviconSource;
