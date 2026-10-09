@@ -5,7 +5,9 @@
 #   curl -fsSL https://omaweb.app/install | sh -s -- --yes
 #
 # It says what it will change, asks once, and then makes the README's manual steps with sudo: the
-# [omaweb] block in /etc/pacman.conf, the signing key into pacman's keyring, and the package.
+# [omaweb] block in /etc/pacman.conf, the signing key into pacman's keyring, and the package. On
+# Omarchy the system upgrade goes through `omarchy update`, because Omarchy's pacman hook aborts a
+# direct `pacman -Syu`.
 #
 # Everything is inside main, called on the last line, so a download cut short runs nothing.
 set -eu
@@ -40,6 +42,11 @@ block() {
 # Any [omaweb] section counts, including one the reader wrote by hand: theirs is left alone.
 has_block() {
     grep -q '^[[:space:]]*\[omaweb\][[:space:]]*$' "$CONF"
+}
+
+# Omarchy runs a pacman hook that refuses a system upgrade made outside `omarchy update`.
+on_omarchy() {
+    command -v omarchy >/dev/null 2>&1
 }
 
 main() {
@@ -98,9 +105,17 @@ main() {
     say "   and is the one key it has to be:"
     say "     $FINGERPRINT"
     say ""
-    say "3. Upgrade the whole system and install Omaweb, taking pacman's default answer to"
-    say "   anything it would ask:"
-    say "     pacman -Syu --needed --noconfirm omaweb"
+    if on_omarchy; then
+        say "3. Upgrade the whole system with Omarchy's own updater, which its pacman hook requires, then"
+        say "   install Omaweb from the databases it has just synced, taking pacman's default"
+        say "   answer to anything it would ask:"
+        say "     omarchy update -y    (-y: the question above stands in for Omarchy's own)"
+        say "     pacman -S --needed --noconfirm omaweb"
+    else
+        say "3. Upgrade the whole system and install Omaweb, taking pacman's default answer to"
+        say "   anything it would ask:"
+        say "     pacman -Syu --needed --noconfirm omaweb"
+    fi
     say ""
 
     if [ "$yes" = no ]; then
@@ -136,8 +151,17 @@ main() {
 
     # --needed leaves an up-to-date omaweb alone, which a second run would otherwise reinstall.
     # --noconfirm because the reader has been asked once already, and step 3 said so.
-    $as_root pacman -Syu --needed --noconfirm omaweb </dev/null
-    say "Omaweb is installed. sudo pacman -Syu keeps it current."
+    if on_omarchy; then
+        # Omarchy's hook aborts `pacman -Syu` outside `omarchy update`, which snapshots, refreshes
+        # keyrings and migrates. It runs as the reader and asks sudo itself. The databases it has
+        # just synced make this install a full upgrade's tail, not a partial upgrade.
+        omarchy update -y </dev/null
+        $as_root pacman -S --needed --noconfirm omaweb </dev/null
+        say "Omaweb is installed. omarchy update keeps it current."
+    else
+        $as_root pacman -Syu --needed --noconfirm omaweb </dev/null
+        say "Omaweb is installed. sudo pacman -Syu keeps it current."
+    fi
 }
 
 main "$@"
