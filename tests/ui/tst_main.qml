@@ -15813,7 +15813,7 @@ TestCase {
     }
 
     // A lent page is the Tab window's size, whatever the main window does:
-    // growing it or folding its sidebar never resizes the page, not even for
+    // resizing it or folding its sidebar never resizes the page, not even for
     // a moment, which a page would lay itself out again for.
     function test_aLentPageKeepsToItsTabWindowsSize() {
         openPage("https://sized.example/");
@@ -15843,17 +15843,17 @@ TestCase {
             });
         };
         changes(function () {
-            window.width = mainWidth + 240;
+            window.width = mainWidth - 160;
         });
         changes(function () {
             window.width = mainWidth;
         });
-        changes(function () {
-            verify(window.commands.run("toggle-sidebar", -1));
-        });
-        changes(function () {
-            verify(window.commands.run("toggle-sidebar", -1));
-        });
+        // Folding the sidebar narrows the page area where the sidebar does
+        // not float over it, and changes nothing where it does.
+        verify(window.commands.run("toggle-sidebar", -1));
+        wait(50);
+        verify(window.commands.run("toggle-sidebar", -1));
+        wait(50);
         engine.widthChanged.disconnect(record);
         compare(widths, []);
         compare(engine.width, pageHost.width);
