@@ -101,6 +101,7 @@ Item {
     Component {
         id: tabSlideComponent
         Translate {
+            objectName: "tabSlide"
             property var engine: null
             property string tabId: ""
             readonly property bool arriving: engine !== null && root.onShow(engine)
@@ -840,10 +841,23 @@ Item {
         engine.anchors.top = root.top;
         engine.anchors.bottom = root.bottom;
         root.bindPane(tabId, engine);
+        root.dropSlides(engine);
         engine.transform = [tabSlideComponent.createObject(engine, {
                                                                "engine": engine,
                                                                "tabId": tabId
                                                            })];
+    }
+
+    // A slide is the engine's child, and taking it out of `transform` leaves
+    // it there, so the one an engine has is destroyed before it goes. The
+    // list is copied first, since `transform` reads live.
+    function dropSlides(engine) {
+        const slides = [];
+        for (let index = 0; index < engine.transform.length; ++index)
+            slides.push(engine.transform[index]);
+        engine.transform = [];
+        for (let index = 0; index < slides.length; ++index)
+            slides[index].destroy();
     }
 
     // The engine becomes the named tab's: drawn in the host, keyed to the tab,
@@ -969,7 +983,7 @@ Item {
             root.lentTabIds = root.lentTabIds.concat([tabId]);
         engine.anchors.top = undefined;
         engine.anchors.bottom = undefined;
-        engine.transform = [];
+        root.dropSlides(engine);
         // The pane's bindings are broken, not left to the anchors: a binding
         // still set would resize the page each time this window's width
         // changed, before the anchors put it back. `placeEngine` binds them

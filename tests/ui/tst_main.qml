@@ -16302,6 +16302,56 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // A page keeps one arrival slide while it is drawn in the main window and
+    // none while it is lent: popping it out and putting it back again and
+    // again leaves nothing behind.
+    function test_aPagePoppedOutAndBackKeepsOneSlide() {
+        const engine = openPage("https://sliding.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        const slides = function () {
+            let count = 0;
+            for (let index = 0; index < 3; ++index) {
+                const slide = findChild(engine, "tabSlide");
+                if (!slide)
+                    break;
+                ++count;
+                slide.objectName = "counted";
+            }
+            return count;
+        };
+        const restore = function () {
+            let slide = findChild(engine, "counted");
+            while (slide) {
+                slide.objectName = "tabSlide";
+                slide = findChild(engine, "counted");
+            }
+        };
+        compare(slides(), 1);
+        restore();
+
+        for (let round = 0; round < 2; ++round) {
+            verify(window.commands.run("pop-out-tab", tabId));
+            const tabWindow = tabWindowOf(tabId);
+            tryVerify(function () {
+                const count = slides();
+                restore();
+                return count === 0;
+            });
+            tabWindow.close();
+            tryVerify(function () {
+                return window.tabWindowFor(tabId) === null;
+            });
+            wait(50);
+            compare(slides(), 1);
+            restore();
+        }
+
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // A question the taken page asked goes with it, unanswered: the bar
     // closes, nothing is remembered, and a hidden strip goes back to hidden.
     function test_aTakenTabWindowPagesQuestionGoesWithIt() {
