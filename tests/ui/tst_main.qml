@@ -16249,6 +16249,41 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // A question the taken page asked goes with it, unanswered: the bar
+    // closes, nothing is remembered, and a hidden strip goes back to hidden.
+    function test_aTakenTabWindowPagesQuestionGoesWithIt() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const engine = openPage("https://taken-asking.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const strip = findChild(tabWindow.contentItem, "tabWindowStrip");
+        const bar = findChild(tabWindow.contentItem, "tabWindowPermissionBar");
+        verify(tabWindow.run("toggle-tab-window-strip", -1));
+        tryCompare(strip, "visible", false);
+        engine.simulateSitePermission("https://taken-asking.example", "camera");
+        tryCompare(bar, "open", true);
+        verify(strip.visible);
+
+        engineLoader.discardEngine(tabId);
+        tryVerify(function () {
+            return tabWindow.engine !== null && tabWindow.engine !== engine;
+        });
+        compare(tabWindow.permissionQuestion, null);
+        tryCompare(bar, "open", false);
+        tryCompare(strip, "visible", false);
+        compare(browser.permissionDecision("https://taken-asking.example", "camera"), 0);
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // An Agent goes on driving a popped-out tab: an address the core gives
     // the tab from outside reaches the page in the Tab window. The page's own
     // reports of where it went are not sent back to it.
