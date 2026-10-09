@@ -62,8 +62,8 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
 - The component kit ([#9](https://github.com/villekivela/omaweb/issues/9),
   [#13](https://github.com/villekivela/omaweb/issues/13)) waits on Omarchy.
 - Running Omarchy's web apps in Omaweb with `--app`
-  ([#655](https://github.com/villekivela/omaweb/issues/655)) builds on Tab windows and waits for its
-  design to be settled.
+  ([#655](https://github.com/villekivela/omaweb/issues/655)) is unplanned until more readers ask. It
+  would change only whose logins a web app runs with, and it builds on Tab windows.
 - What a reader could extend in Omaweb's own chrome waits on the command registry question
   ([#175](https://github.com/villekivela/omaweb/issues/175)).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
