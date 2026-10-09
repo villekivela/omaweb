@@ -18,8 +18,9 @@ cd "$(dirname "$0")/.."
 
 if [ "${1:-}" != "--inside" ]; then
     mkdir -p build/film
+    # Docker's 64 MB of `/dev/shm` is too little for the browser: `expect_shared_memory` says why.
     # shellcheck disable=SC2086 # OMAWEB_FILM_DOCKER is a list of arguments.
-    git archive --format=tar HEAD | docker run --rm -i ${OMAWEB_FILM_DOCKER:-} \
+    git archive --format=tar HEAD | docker run --rm -i --shm-size 1g ${OMAWEB_FILM_DOCKER:-} \
         -v "$PWD/build/film:/film" "${OMAWEB_FILM_IMAGE:-archlinux:base-devel}" \
         sh -c 'mkdir -p /src && tar -x -C /src && exec /src/scripts/record_film.sh --inside'
     ls -l build/film/omaweb.webm build/film/omaweb.mp4 build/film/poster.webp

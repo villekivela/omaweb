@@ -362,6 +362,24 @@ def expect_sites_on_loopback(beat: str, resolve=socket.gethostbyname) -> None:
         raise BeatMissed(beat, f"/etc/hosts does not send {', '.join(lost)} to 127.0.0.1")
 
 
+def expect_shared_memory(beat: str, statvfs=os.statvfs) -> None:
+    """`/dev/shm` has room for what the browser's processes share, before the browser is started.
+
+    Docker gives a container 64 MB of it unless `docker run` says otherwise, and in 64 MB the
+    magazine's renderer was killed with exit code 9 at its first load (#672). The film was seen to
+    use up to 163 MB, so `record_film.sh` asks for a gigabyte. A machine with no `/dev/shm` keeps
+    its shared memory elsewhere.
+    """
+    try:
+        shared = statvfs("/dev/shm")
+    except OSError:
+        return
+    free = shared.f_bavail * shared.f_frsize // (1024 * 1024)
+    if free < SHARED_MEMORY_MB:
+        raise BeatMissed(beat, f"/dev/shm has {free} MB free, and the film wants {SHARED_MEMORY_MB} "
+                               "MB: give the container more with --shm-size")
+
+
 def expect_within(beat: str, paths: list[Path], limit: int) -> None:
     total = sum(path.stat().st_size for path in paths)
     if total > limit:
@@ -468,6 +486,9 @@ FADE = 0.4
 FLASH_CEILING = 120
 FLASH_JUMP = 18
 FLASH_WINDOW = 6
+
+# The free `/dev/shm` a recording starts with, in megabytes: `expect_shared_memory` says why.
+SHARED_MEMORY_MB = 256
 
 # What the film may weigh, per file, which together stay under the 5 MB the page can afford.
 BUDGET = {"omaweb.webm": 2_000_000, "omaweb.mp4": 2_600_000, "poster.webp": 250_000}
@@ -885,6 +906,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
 def record(browser: Path, out: Path) -> None:
     """Runs under the compositor: the browser, the beats and the raw recording, and the marks."""
     expect_sites_on_loopback("Sites")
+    expect_shared_memory("Stage")
     root = Path(tempfile.mkdtemp(prefix="omaweb-film-"))
     server = FixtureServer(("127.0.0.1", 80))
     server.start()
