@@ -53,68 +53,6 @@ never changed or removed, and the decision is logged.
 Omarchy's menu lists the entry whether or not the browser is installed, because it does not read
 `TryExec`. Removing the package prints a reminder to delete the entry.
 
-## The desktop's window opacity
-
-Omarchy washes every window slightly. Its defaults tag all of them and then apply an opacity to the
-tag:
-
-```lua
--- $OMARCHY_PATH/default/hypr/windows.lua
-o.window(".*", { tag = "+default-opacity" })
-o.window({ tag = "default-opacity" }, { opacity = "0.985 0.96" })
-```
-
-Hyprland applies that to the whole surface, opaque pixels included, so it reaches the webpage
-viewport that Omaweb deliberately paints opaque. The page comes out 1.5% into the desktop when
-focused and 4% when not. Omarchy already treats this as wrong for a browser and exempts them by
-class in `default/hypr/apps/browser.lua`, but Omaweb carries neither the `chromium-based-browser`
-nor the `firefox-based-browser` tag, so it keeps the generic value.
-
-Note that `decoration:active_opacity` is a different setting. It reads `1.0` on a stock Omarchy
-while this rule is still washing every window, so it is not the thing to check.
-
-Omaweb's window class is `omaweb` on both Wayland and X11 — `main()` states it rather than leaving
-Qt to derive one — so the exemption is one line in `~/.config/hypr/looknfeel.lua`, which is where a
-window's appearance belongs:
-
-```lua
-o.window("omaweb", { tag = "-default-opacity", opacity = "1.0 0.985" })
-```
-
-Then `hyprctl reload`. That is the same shape Omarchy's own `default/hypr/apps/qemu.lua` uses to opt
-a window out.
-
-`1.0 0.985` is the value Omarchy gives Chromium and Firefox in `apps/browser.lua`. The page is
-opaque while focused and washed 1.5% while not, which is what the desktop does to every other
-browser on it.
-
-The rule states that opacity rather than taking Omarchy's `chromium-based-browser` tag, which
-applies the same value. The tag carries more than opacity. `apps/pip.lua` matches it together with a
-`^Meet - .+` title and then floats, pins and shrinks the window to 600 by 338, and an Omaweb window
-is titled after its page, so a Meet call would collapse the browser into a corner overlay. The tag
-forces `tile = true` on every window as well, and it names an engine Omaweb is leaving (ADR 0001).
-
-Order is what makes it work. Omarchy's defaults tag every window, let their `apps/*.lua` opt out,
-and only then apply the opacity to whatever still carries the tag. A user override is loaded after
-all of that — `hyprland.lua` requires Omarchy's defaults before its own files — so the later
-`opacity = "1.0 0.985"` wins. Dropping the tag as well costs nothing and is what the defaults do.
-
-The bottom of `~/.config/hypr/hyprland.lua` works as well, under the "Add any other personal
-Hyprland configuration below" comment it already carries. Either is loaded after Omarchy's defaults,
-which is all the rule needs.
-
-`packaging/omaweb-git.install` prints this rule after an install and after an upgrade, so a reader
-who never opens this file still meets it once.
-
-This is a rule the reader adds, not one Omaweb installs. Omaweb writes into
-`~/.config/omarchy/themed/` because that is a template directory a program is meant to render from;
-`~/.config/hypr/` is the reader's own window management, and a browser that quietly edited it would
-be doing something else entirely. A `default/hypr/apps/omaweb.lua` upstream in Omarchy, carrying the
-same line, is the fix that would reach every install; Omarchy loads that directory with
-`require_all.files`, so the file needs no registration anywhere. It depends on an external pull
-request, tracked in villekivela/omaweb#75, and waits on Omaweb being something an Omarchy user can
-install.
-
 ## Blur behind the browser's surfaces
 
 Omaweb's sidebar, overlays and empty window ground are drawn at the opacity its theme names, so the

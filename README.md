@@ -305,7 +305,7 @@ unset:
 
 Desktop theme following needs no setup. On Omarchy, Omaweb installs its theme template on first
 start so `omarchy theme set` can update the browser without a restart. See the
-[Omarchy integration guide](integrations/omarchy/README.md) for compositor blur and opacity rules.
+[Omarchy integration guide](integrations/omarchy/README.md) for compositor blur.
 
 ## Find tabs from Omarchy's menu
 

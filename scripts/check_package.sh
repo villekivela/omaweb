@@ -157,19 +157,35 @@ install_output=$(pacman -U --noconfirm $pacman_dep_flags "$package" "$client_pac
 printf '%s\n' "$install_output"
 [ -x /usr/bin/omaweb ] || { echo "omaweb is not installed" >&2; exit 1; }
 [ -x /usr/lib/omaweb/omaweb-browser ] || { echo "The browser is not installed" >&2; exit 1; }
-# The window rule is the one thing an Omarchy reader has to do by hand, so the
-# install has to say so. A silent install is the failure this catches.
-if ! printf '%s\n' "$install_output" | grep -q 'tag = "-default-opacity"'; then
-    echo "Installing did not print the Hyprland window rule" >&2
+# Omarchy draws a window opaque unless it opts in, so there is nothing for the
+# reader to add and the install has nothing to print about a window rule.
+if printf '%s\n' "$install_output" | grep -qi 'hyprland\|opacity'; then
+    echo "Installing printed a Hyprland window rule" >&2
     exit 1
 fi
 
 echo "==> Upgrading over itself"
 # shellcheck disable=SC2086
-pacman -U --noconfirm $pacman_dep_flags "$package" "$client_package"
+upgrade_output=$(pacman -U --noconfirm $pacman_dep_flags "$package" "$client_package" 2>&1) || {
+    printf '%s\n' "$upgrade_output" >&2
+    exit 1
+}
+printf '%s\n' "$upgrade_output"
+if printf '%s\n' "$upgrade_output" | grep -qi 'hyprland\|opacity'; then
+    echo "Upgrading printed a Hyprland window rule" >&2
+    exit 1
+fi
 
 echo "==> Removing"
-pacman -R --noconfirm omaweb-git omaweb-cli-git
+remove_output=$(pacman -R --noconfirm omaweb-git omaweb-cli-git 2>&1) || {
+    printf '%s\n' "$remove_output" >&2
+    exit 1
+}
+printf '%s\n' "$remove_output"
+if ! printf '%s\n' "$remove_output" | grep -q 'omaweb.desktop'; then
+    echo "Removing did not remind the reader of the desktop entry" >&2
+    exit 1
+fi
 for left in /usr/bin/omaweb /usr/lib/omaweb/omaweb-browser; do
     if [ -e "$left" ]; then
         echo "Removing the packages left $left behind" >&2

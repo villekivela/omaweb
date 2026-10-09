@@ -705,10 +705,6 @@ desktop-managed theme (Omarchy, on Linux) and then the built-in palette. `OMAWEB
 overrides all three. The order is not resolved once: every candidate is watched, so a file that
 outranks the one in use takes over the moment it appears, without a restart.
 
-On Omarchy, a stock desktop washes every window to 0.985 opacity through a Hyprland window rule, and
-that reaches the webpage viewport Omaweb paints opaque. Omaweb states its window class as `omaweb`
-so the exemption can be written against it; `integrations/omarchy/README.md` has the rule.
-
 On Linux, following the desktop's theme needs no setup. The first start on a machine that has
 Omarchy installs `integrations/omarchy/omaweb.json.tpl` to `~/.config/omarchy/themed/` and asks
 Omarchy to render the active theme through it. A template already there stands. See
