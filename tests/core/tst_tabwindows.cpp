@@ -55,6 +55,9 @@ private slots:
     void namesTheSpaceOfEachTabWindow();
     void keepsWhatAnAwayTabWindowsPageReports();
     void keepsAPoppedOutTabInItsSpace();
+    void answersTheTabWindowsOwnCommandsInAnySpace();
+    void keepsATabWindowsPermissionAnswersInItsOwnSpace();
+    void opensANewTabWindowInTheSpaceOfTheOneThatAsked();
 };
 
 // Popping out the tab on show moves it to a Tab window of its own. It stays a
@@ -148,6 +151,18 @@ void TabWindowsTest::raisesTheTabWindowInsteadOfSelectingItsTab()
     controller.stepTab(1);
     QCOMPARE(controller.activeTabId(), thirdId);
 
+    // Chosen from another Space, as the Omnibar or a notification chooses a
+    // tab, the main window stays on its Space and the Tab window comes up.
+    const auto workId = controller.createSpace(QStringLiteral("Work"));
+    const auto personalId = controller.activeSpaceId();
+    QVERIFY(controller.switchSpace(workId));
+    raiseSpy.clear();
+    QVERIFY(controller.activateTabInSpace(personalId, poppedId));
+    QCOMPARE(controller.activeSpaceId(), workId);
+    QCOMPARE(raiseSpy.count(), 1);
+    QVERIFY(controller.switchSpace(personalId));
+    QCOMPARE(controller.activeTabId(), thirdId);
+
     // A jump back passes over it too.
     QVERIFY(controller.jumpBack());
     QCOMPARE(controller.activeTabId(), firstId);
@@ -173,7 +188,11 @@ void TabWindowsTest::keepsATabWindowsPageRunningWhileAnotherSpaceIsOnShow()
 
     const auto workId = controller.createSpace(QStringLiteral("Work"));
     QSignalSpy suspendedSpy(&controller, &BrowserController::spaceSuspended);
+    // The window stays open through the switch: its tab is never, even for a
+    // moment, missing from the list.
+    QSignalSpy windowsSpy(&controller, &BrowserController::tabWindowsChanged);
     QVERIFY(controller.switchSpace(workId));
+    QCOMPARE(windowsSpy.count(), 0);
     QCOMPARE(suspendedSpy.count(), 1);
     QCOMPARE(suspendedSpy.first().at(1).toStringList(), QStringList {poppedId});
     QCOMPARE(controller.retainedTabs().size(), 1);
@@ -440,6 +459,110 @@ void TabWindowsTest::keepsAPoppedOutTabInItsSpace()
     QVERIFY(!controller.requestTabMoveToSpace(poppedId, workId, false));
     QVERIFY(!controller.confirmTabMoveToSpace(poppedId, workId));
     QVERIFY(controller.tabPoppedOut(poppedId));
+}
+
+// Zoom and the inspector are the Tab window's tab's own, whichever Space the
+// main window shows, and what the Omnibar there opens is the same address it
+// would open in the main window.
+void TabWindowsTest::answersTheTabWindowsOwnCommandsInAnySpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://popped.example"), false);
+    const auto poppedId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://reading.example"), true);
+    const auto readingId = controller.activeTabId();
+    QVERIFY(controller.popOutTab(poppedId));
+
+    controller.stepTabZoom(poppedId, 1);
+    QCOMPARE(controller.tabWindows().first().toMap().value(QStringLiteral("zoom")).toDouble(), 1.1);
+    QCOMPARE(controller.activeTabZoom(), 1.0);
+
+    const auto workId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workId));
+    controller.stepTabZoom(poppedId, 1);
+    QCOMPARE(
+        controller.tabWindows().first().toMap().value(QStringLiteral("zoom")).toDouble(), 1.25);
+    controller.resetTabZoom(poppedId);
+    QCOMPARE(controller.tabWindows().first().toMap().value(QStringLiteral("zoom")).toDouble(), 1.0);
+
+    controller.toggleTabDeveloperTools(poppedId);
+    QCOMPARE(controller.developerToolsTabId(), poppedId);
+    QVERIFY(!controller.activeTabInspected());
+    controller.toggleTabDeveloperTools(poppedId);
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+    // Only a Tab window's tab is inspected this way.
+    controller.toggleTabDeveloperTools(readingId);
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+
+    QCOMPARE(controller.addressFor(QStringLiteral("example.com")),
+        QUrl(QStringLiteral("https://example.com")));
+}
+
+// A Tab window's page may belong to a Space that is not on show. What the
+// reader answers there is that Space's to keep, as Spaces keep their logins
+// apart, and the page is asked of that Space's answers.
+void TabWindowsTest::keepsATabWindowsPermissionAnswersInItsOwnSpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalId = controller.activeSpaceId();
+    const auto workId = controller.createSpace(QStringLiteral("Work"));
+    const QUrl site(QStringLiteral("https://camera.example"));
+
+    QVERIFY(controller.setPermissionDecision(
+        site, QStringLiteral("camera"), BrowserController::Block, workId));
+    QCOMPARE(controller.permissionDecision(site, QStringLiteral("camera")), BrowserController::Ask);
+    QCOMPARE(controller.permissionDecision(site, QStringLiteral("camera"), workId),
+        BrowserController::Block);
+    QCOMPARE(controller.permissionDecision(site, QStringLiteral("camera"), personalId),
+        BrowserController::Ask);
+
+    QVERIFY(controller.switchSpace(workId));
+    QCOMPARE(
+        controller.permissionDecision(site, QStringLiteral("camera")), BrowserController::Block);
+}
+
+// A link in a Tab window that asks for a window of its own gets a new Tab
+// window, in the same Space, and the main window neither switches Space nor
+// changes the tab it shows.
+void TabWindowsTest::opensANewTabWindowInTheSpaceOfTheOneThatAsked()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalId = controller.activeSpaceId();
+    controller.openInput(QStringLiteral("https://reading.example"), false);
+    const auto readingId = controller.activeTabId();
+    const auto workId = controller.createSpace(QStringLiteral("Work"));
+
+    const auto openedHere
+        = controller.openTabWindow(personalId, QUrl(QStringLiteral("https://here.example")));
+    QVERIFY(!openedHere.isEmpty());
+    QCOMPARE(controller.activeTabId(), readingId);
+    QVERIFY(controller.tabPoppedOut(openedHere));
+
+    const auto openedAway
+        = controller.openTabWindow(workId, QUrl(QStringLiteral("https://away.example")));
+    QVERIFY(!openedAway.isEmpty());
+    QCOMPARE(controller.activeSpaceId(), personalId);
+    QCOMPARE(controller.activeTabId(), readingId);
+    QCOMPARE(tabWindowIds(controller), QStringList({openedHere, openedAway}));
+    QCOMPARE(
+        controller.tabWindows().at(1).toMap().value(QStringLiteral("spaceId")).toString(), workId);
+    QCOMPARE(controller.retainedTabs().size(), 1);
+
+    QVERIFY(controller
+            .openTabWindow(
+                QStringLiteral("no-such-space"), QUrl(QStringLiteral("https://nowhere.example")))
+            .isEmpty());
+    QVERIFY(controller.openTabWindow(personalId, QUrl(QStringLiteral("about:blank"))).isEmpty());
+
+    PrivateSessionFixture privateSession;
+    auto privateController = privateSession.createController();
+    QVERIFY(privateController
+            ->openTabWindow(
+                privateController->activeSpaceId(), QUrl(QStringLiteral("https://private.example")))
+            .isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TabWindowsTest)

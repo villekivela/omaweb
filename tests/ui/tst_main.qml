@@ -53,6 +53,13 @@ TestCase {
         signalName: "windowMoveRequested"
     }
 
+    // A popped-out tab's row selected in the main window, which raises its
+    // Tab window.
+    SignalSpy {
+        id: raiseSpy
+        signalName: "tabWindowRaiseRequested"
+    }
+
     // Whether the Space on show changed, even for a moment, while the other
     // Spaces' tabs were only being listed.
     SignalSpy {
@@ -249,6 +256,17 @@ TestCase {
     function init() {
         while (frameWatches.length > 0)
             stopWatching(frameWatches[0]);
+        // A Tab window a failed test left open goes back to the sidebar, and
+        // the keys a test sends reach the main window again, whichever window
+        // had them last.
+        for (const tabId in window.tabWindows)
+            window.tabWindows[tabId].close();
+        if (!window.active) {
+            window.requestActivate();
+            tryVerify(function () {
+                return window.active;
+            });
+        }
         InputOrigin.pointer = false;
         themeAxis.useStatedTheme();
         window.endStartPageDrive();
@@ -15411,6 +15429,717 @@ TestCase {
     }
 
     // ---- Everyday page commands ----------------------------------------
+
+    // The page area takes a Space back a turn after the core has switched to
+    // it, and a page closed before then is kept for the Space it left.
+    function settleSpace() {
+        tryCompare(findChild(window.contentItem, "engineLoader"), "suspended", false);
+    }
+
+    // The Tab window a popped-out tab is shown in, once the window has it.
+    function tabWindowOf(tabId) {
+        let found = null;
+        tryVerify(function () {
+            found = window.tabWindowFor(tabId);
+            return found !== null && found.engine !== null;
+        });
+        return found;
+    }
+
+    // Popping a tab out moves its live page into a Tab window: the same
+    // engine, still holding what the page held, drawn there and running. The
+    // tab's row stays in the sidebar, marked, and the main window goes on
+    // showing what it showed. Closing the window brings the page back, live.
+    function test_aPoppedOutTabTakesItsLivePageIntoATabWindow() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const engine = openPage("https://popped.example");
+        const tabId = browser.activeTabId;
+        engine.pageLocalState = "typed into the page";
+        engine.pageScrollOffset = 320;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const pageHost = findChild(tabWindow.contentItem, "tabWindowPageHost");
+        compare(engine.parent, pageHost);
+        compare(tabWindow.engine, engine);
+        compare(engineLoader.engines[tabId], engine);
+        compare(engine.pageLocalState, "typed into the page");
+        compare(engine.pageScrollOffset, 320);
+        verify(engine.visible);
+        compare(engine.pageFrozen, false);
+        compare(browser.activeTabId, readingTabId);
+        compare(engineLoader.item.currentUrl.toString(), "https://reading.example");
+        const mark = findChild(window.contentItem, "tabWindowMark-" + tabId);
+        verify(mark !== null);
+        verify(mark.visible);
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        verify(!browser.tabPoppedOut(tabId));
+        compare(engineLoader.engines[tabId], engine);
+        compare(engine.parent, engineLoader);
+        compare(engine.pageLocalState, "typed into the page");
+        compare(browser.activeTabId, readingTabId);
+        verify(!mark.visible);
+
+        browser.activateTab(tabId);
+        tryVerify(function () {
+            return engineLoader.item === engine;
+        });
+        verify(engine.visible);
+        browser.closeTab(readingTabId);
+    }
+
+    // A Pinned tab pops out with its pin, and a split's tab pops out of its
+    // split, which ends. A Glance is not a tab, and has to be kept as one
+    // first.
+    function test_aPinOrASplitsTabPopsOutAndAGlanceDoesNot() {
+        openPage("https://pinned.example");
+        const pinnedTabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", pinnedTabId));
+        tabWindowOf(pinnedTabId);
+        verify(browser.tabPinned(pinnedTabId));
+        const pinMark = findChild(window.contentItem, "tabWindowMark-" + pinnedTabId);
+        verify(pinMark !== null);
+        verify(pinMark.visible);
+        compare(browser.activeTabId, readingTabId);
+
+        openPageInNewTab("https://beside.example");
+        const besideTabId = browser.activeTabId;
+        verify(browser.addSplit(readingTabId));
+        verify(browser.splitOnShow);
+        verify(window.commands.run("pop-out-tab", besideTabId));
+        tabWindowOf(besideTabId);
+        verify(!browser.splitOnShow);
+        verify(!browser.tabInSplit(readingTabId));
+        compare(browser.activeTabId, readingTabId);
+
+        browser.activateTab(readingTabId);
+        openGlance("https://glanced.example/page");
+        verify(!window.commands.available("pop-out-tab"));
+        verify(!window.commands.run("pop-out-tab", -1));
+        verify(!browser.tabPoppedOut(readingTabId));
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+
+        window.tabWindowFor(pinnedTabId).close();
+        window.tabWindowFor(besideTabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.activateTab(pinnedTabId);
+        browser.toggleActivePinned();
+        browser.closeTab(pinnedTabId);
+        browser.closeTab(besideTabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // The page of a Tab window keeps running whichever Space the main window
+    // shows: it is never frozen or put away, and Settings names it among the
+    // pages kept running, with no way to stop it there.
+    function test_aTabWindowsPageRunsWhileItsSpaceIsAway() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const personalSpaceId = browser.activeSpaceId;
+        const personalSpaceName = browser.activeSpaceName;
+        const engine = openPage("https://dashboard.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const pageHost = findChild(tabWindow.contentItem, "tabWindowPageHost");
+
+        const awaySpaceId = browser.createSpace("Away");
+        verify(browser.switchSpace(awaySpaceId));
+        settleSpace();
+        wait(50);
+        compare(engine.pageFrozen, false);
+        verify(engine.visible);
+        compare(engine.parent, pageHost);
+        compare(engineLoader.engines[tabId], engine);
+
+        window.requestSettingsSection("tabs");
+        window.refreshRetainedTabs();
+        let listed = null;
+        tryVerify(function () {
+            listed = findChild(window.contentItem, "retainedTab-" + tabId);
+            return listed !== null;
+        });
+        verify(listed.note.indexOf(personalSpaceName) >= 0);
+        verify(listed.note.indexOf("In a Tab window") >= 0);
+        window.settingsOpen = false;
+
+        verify(browser.switchSpace(personalSpaceId));
+
+        settleSpace();
+        wait(50);
+        compare(engine.parent, pageHost);
+        verify(engine.visible);
+        compare(engine.pageFrozen, false);
+        compare(browser.activeTabId, readingTabId);
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        verify(browser.deleteSpace(awaySpaceId, "Away"));
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // Popping out the tab on show shows the tab closing it would have, or the
+    // Space at rest, with the popped-out row still listed. Selecting that row
+    // raises the Tab window and leaves the main window as it was.
+    function test_poppingOutTheTabOnShowShowsTheNextAndItsRowRaisesTheWindow() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const first = openPage("https://first.example");
+        const firstTabId = browser.activeTabId;
+        const second = openPageInNewTab("https://second.example");
+        const secondTabId = browser.activeTabId;
+        // The row above, which closing the tab would show.
+        const tabs = browser.tabs;
+        let above = "";
+        for (let row = 1; row < tabs.rowCount(); ++row) {
+            if (tabs.data(tabs.index(row, 0), Qt.UserRole + 1) === secondTabId)
+                above = tabs.data(tabs.index(row - 1, 0), Qt.UserRole + 1);
+        }
+        verify(above.length > 0);
+
+        verify(window.commands.run("pop-out-tab", -1));
+        tabWindowOf(secondTabId);
+        compare(browser.activeTabId, above);
+        browser.activateTab(firstTabId);
+        tryVerify(function () {
+            return engineLoader.item === first;
+        });
+
+        const raised = raiseSpy;
+        raised.target = browser;
+        raised.clear();
+        const row = findChild(window.contentItem, "tab-" + secondTabId);
+        verify(row !== null);
+        mouseClick(row);
+        tryCompare(raised, "count", 1);
+        compare(raised.signalArguments[0][0], secondTabId);
+        compare(browser.activeTabId, firstTabId);
+        compare(engineLoader.item, first);
+        raised.target = null;
+
+        // The last page popped out leaves the Space at rest, and its row is
+        // still in the sidebar. In a Space of its own, so its only page is
+        // this one.
+        window.tabWindowFor(secondTabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.closeTab(secondTabId);
+        browser.closeTab(firstTabId);
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = browser.createSpace("Resting");
+        verify(browser.switchSpace(restingSpaceId));
+        settleSpace();
+        openPage("https://only.example");
+        const onlyTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", onlyTabId));
+        tabWindowOf(onlyTabId);
+        tryVerify(function () {
+            return browser.atRest;
+        });
+        tryCompare(findChild(window.contentItem, "startPage"), "visible", true);
+        const onlyRow = findChild(window.contentItem, "tab-" + onlyTabId);
+        verify(onlyRow !== null);
+        verify(onlyRow.visible);
+
+        window.tabWindowFor(onlyTabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        verify(browser.switchSpace(homeSpaceId));
+        settleSpace();
+        verify(browser.deleteSpace(restingSpaceId, "Resting"));
+    }
+
+    // put-back-tab returns the tab to the sidebar and shows it there, live,
+    // switching to its Space. Close-tab closes it, onto the recently closed
+    // stack. Deleting its Space closes its window.
+    function test_aTabWindowGoesBackClosesOrGoesWithItsSpace() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const personalSpaceId = browser.activeSpaceId;
+        const engine = openPage("https://returning.example");
+        const tabId = browser.activeTabId;
+        engine.pageLocalState = "still here";
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        tabWindowOf(tabId);
+        const awaySpaceId = browser.createSpace("Elsewhere");
+        verify(browser.switchSpace(awaySpaceId));
+        settleSpace();
+
+        verify(window.commands.run("put-back-tab", tabId));
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        settleSpace();
+        compare(browser.activeSpaceId, personalSpaceId);
+        compare(browser.activeTabId, tabId);
+        tryVerify(function () {
+            return engineLoader.item === engine;
+        });
+        compare(engine.parent, engineLoader);
+        compare(engine.pageLocalState, "still here");
+        verify(engine.visible);
+
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        verify(tabWindow.run("close-tab", -1));
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        verify(engineLoader.engines[tabId] === undefined);
+        // The stack may be at its bound, so it is read by taking the tab back.
+        browser.reopenClosedTab();
+        compare(browser.activeUrl.toString(), "https://returning.example");
+        verify(!browser.tabPoppedOut(browser.activeTabId));
+        browser.closeTab(browser.activeTabId);
+
+        verify(browser.switchSpace(awaySpaceId));
+
+        settleSpace();
+        openPage("https://elsewhere.example");
+        const elsewhereTabId = browser.activeTabId;
+        openPageInNewTab("https://elsewhere-reading.example");
+        verify(window.commands.run("pop-out-tab", elsewhereTabId));
+        tabWindowOf(elsewhereTabId);
+        verify(browser.switchSpace(personalSpaceId));
+        settleSpace();
+        verify(browser.deleteSpace(awaySpaceId, "Elsewhere"));
+        tryVerify(function () {
+            return window.tabWindowFor(elsewhereTabId) === null;
+        });
+        compare(window.tabWindowCount, 0);
+        browser.closeTab(readingTabId);
+    }
+
+    // The strip names the address, what the connection is and the Space.
+    // Hiding it is kept with the tab; a move to another site brings it back
+    // for good, and a prompt brings it back while it stands.
+    function test_theTabWindowStripHidesAndComesBackWhenItMust() {
+        const engine = openPage("https://strip.example/start");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const strip = findChild(tabWindow.contentItem, "tabWindowStrip");
+        const address = findChild(tabWindow.contentItem, "tabWindowAddress");
+        const space = findChild(tabWindow.contentItem, "tabWindowSpace");
+        const siteInformation = findChild(tabWindow.contentItem, "tabWindowSiteInformation");
+        verify(strip.visible);
+        compare(address.text, "strip.example/start");
+        verify(space.visible);
+        compare(space.children[1].text, browser.activeSpaceName);
+        verify(siteInformation.visible);
+        verify(siteInformation.Accessible.name.indexOf("Site information") === 0);
+
+        verify(tabWindow.run("toggle-tab-window-strip", -1));
+        tryCompare(strip, "visible", false);
+        verify(browser.tabWindows[0].stripHidden);
+
+        // A page of the same site keeps it hidden; another site brings it back.
+        engine.currentUrl = "https://strip.example/next";
+        wait(50);
+        compare(strip.visible, false);
+        engine.currentUrl = "https://other-site.example/";
+        tryCompare(strip, "visible", true);
+        verify(!browser.tabWindows[0].stripHidden);
+
+        // A prompt brings it back while it stands.
+        verify(window.commands.run("toggle-tab-window-strip", tabId));
+        tryCompare(strip, "visible", false);
+        engine.simulateSitePermission("https://other-site.example", "camera");
+        tryCompare(strip, "visible", true);
+        const bar = findChild(tabWindow.contentItem, "tabWindowPermissionBar");
+        tryCompare(bar, "open", true);
+        tabWindow.respondToPermission(3);
+        tryCompare(strip, "visible", false);
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A link that asks for a new tab follows the main window's rule inside a
+    // Tab window. In the foreground with Glance on, a Glance over its page.
+    function test_aTabWindowsForegroundRequestOpensAGlanceThere() {
+        window.setGlanceEnabled(true);
+        const engine = openPage("https://opener.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+
+        engine.simulateNewWindowRequest("https://glanced.example/", false);
+        tryVerify(function () {
+            return tabWindow.glanceEngine !== null && String(tabWindow.glanceEngine.currentUrl)
+                    === "https://glanced.example/";
+        });
+        const glance = findChild(tabWindow.contentItem, "tabWindowGlance");
+        tryCompare(glance, "visible", true);
+        compare(window.glanceEngine, null);
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, readingTabId);
+        compare(tabWindow.glanceEngine.browserProfile, engine.browserProfile);
+
+        tabWindow.closeGlance();
+        tryVerify(function () {
+            return tabWindow.glanceEngine === null;
+        });
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // Keeping that Glance opens a new Tab window in the same Space, with the
+    // Glance's page, and the main window stays as it was.
+    function test_keepingATabWindowsGlanceOpensANewTabWindow() {
+        window.setGlanceEnabled(true);
+        const engine = openPage("https://opener.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        engine.simulateNewWindowRequest("https://kept.example/", false);
+        tryVerify(function () {
+            return tabWindow.glanceEngine !== null;
+        });
+        const glanced = tabWindow.glanceEngine;
+        glanced.pageLocalState = "read in the Glance";
+
+        verify(tabWindow.run("glance-to-tab", -1));
+        tryVerify(function () {
+            return browser.tabWindows.length === 2;
+        });
+        const keptTabId = browser.tabWindows[1].tabId;
+        compare(browser.tabWindows[1].spaceId, browser.activeSpaceId);
+        const kept = tabWindowOf(keptTabId);
+        compare(kept.engine, glanced);
+        compare(glanced.pageLocalState, "read in the Glance");
+        compare(tabWindow.glanceEngine, null);
+        compare(browser.activeTabId, readingTabId);
+        tryCompare(browser.tabWindows[1], "url", "https://kept.example/");
+
+        kept.close();
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.closeTab(keptTabId);
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // With Glance off, the same request opens a new Tab window straight away,
+    // in the same Space, holding the page the request asked for.
+    function test_aTabWindowsForegroundRequestWithGlanceOffOpensATabWindow() {
+        window.setGlanceEnabled(false);
+        const engine = openPage("https://opener.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+
+        engine.simulateNewWindowRequest("https://asked-for.example/", false);
+        tryVerify(function () {
+            return browser.tabWindows.length === 2;
+        });
+        const openedTabId = browser.tabWindows[1].tabId;
+        const opened = tabWindowOf(openedTabId);
+        tryVerify(function () {
+            return String(opened.engine.currentUrl) === "https://asked-for.example/";
+        });
+        compare(opened.engine.browserProfile, engine.browserProfile);
+        compare(tabWindow.glanceEngine, null);
+        compare(browser.activeTabId, readingTabId);
+
+        opened.close();
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        window.setGlanceEnabled(true);
+        browser.closeTab(openedTabId);
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A background request is a tab in the main window's sidebar, in the Tab
+    // window's Space, and neither the Space on show nor the tab on show moves.
+    function test_aTabWindowsBackgroundRequestIsATabInItsSpace() {
+        const personalSpaceId = browser.activeSpaceId;
+        const engine = openPage("https://opener.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        tabWindowOf(tabId);
+        const awaySpaceId = browser.createSpace("Elsewhere");
+        verify(browser.switchSpace(awaySpaceId));
+        settleSpace();
+        const awayTabId = browser.activeTabId;
+
+        engine.simulateBackgroundTabRequest("https://background.example/");
+        tryVerify(function () {
+            const listed = browser.awaySpaceTabs();
+            for (let index = 0; index < listed.length; ++index) {
+                if (String(listed[index].url) === "https://background.example/")
+                    return listed[index].spaceId === personalSpaceId;
+            }
+            return false;
+        });
+        compare(browser.activeSpaceId, awaySpaceId);
+        compare(browser.activeTabId, awayTabId);
+        compare(browser.tabWindows.length, 1);
+
+        verify(browser.switchSpace(personalSpaceId));
+        settleSpace();
+        window.tabWindowFor(tabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        verify(browser.deleteSpace(awaySpaceId, "Elsewhere"));
+        const tabs = browser.tabs;
+        for (let row = tabs.rowCount() - 1; row >= 0; --row) {
+            const id = tabs.data(tabs.index(row, 0), Qt.UserRole + 1);
+            const address = String(tabs.data(tabs.index(row, 0), Qt.UserRole + 3));
+            if (id === tabId || id === readingTabId || address === "https://background.example/")
+                browser.closeTab(id);
+        }
+    }
+
+    // A permission the Tab window's page asks for is asked in the Tab window,
+    // answered for its Space, and the main window's bar is not raised. What
+    // the page downloads counts in the main window's Download mark.
+    function test_aTabWindowsPromptsShowThereAndItsDownloadsCountHere() {
+        clearDownloads();
+        const engine = openPage("https://asking.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+
+        const requestId = engine.simulateSitePermission("https://asking.example", "camera");
+        verify(requestId.length > 0);
+        const bar = findChild(tabWindow.contentItem, "tabWindowPermissionBar");
+        tryCompare(bar, "open", true);
+        verify(bar.message.indexOf("asking.example") >= 0);
+        compare(window.permissionOpen, false);
+        tabWindow.respondToPermission(1);
+        compare(engine.permissionAnswers[requestId], 1);
+        tryCompare(bar, "open", false);
+
+        const outline = findChild(window.contentItem, "sidebar");
+        const downloadMark = findChild(outline, "downloadMark");
+        browser.recordOriginInteraction("https://asking.example");
+        const download = engine.sharedProfile.simulateDownloadRequest("https://asking.example",
+                                                                      "https://asking.example/omaweb-test-report.pdf",
+                                                                      "omaweb-test-report.pdf",
+                                                                      "application/pdf");
+        verify(download.length > 0);
+        tryCompare(downloadMark, "running", 1);
+        engine.sharedProfile.simulateDownloadFinished(download);
+        tryCompare(downloadMark, "running", 0);
+        findChild(window.contentItem, "pageNotice").dismiss();
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        clearDownloads();
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A start builds a Tab window for every tab the session lists as popped
+    // out, with a page built on its Space, and a strip hidden before the
+    // restart stays hidden. The browser quitting closes the windows without
+    // putting their tabs back.
+    function test_aTabWindowComesBackFromTheSessionWithItsStrip() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        openPage("https://kept-out.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const before = tabWindowOf(tabId);
+        verify(before.run("toggle-tab-window-strip", -1));
+        tryVerify(function () {
+            return browser.tabWindows[0].stripHidden === true;
+        });
+
+        // What quitting does: the window closes, the tab stays out, and the
+        // process takes the page with it.
+        before.quitting = true;
+        before.close();
+        verify(browser.tabPoppedOut(tabId));
+        before.release();
+        before.destroy();
+        window.tabWindows = ({});
+        engineLoader.discardEngine(tabId);
+        verify(engineLoader.engines[tabId] === undefined);
+
+        window.reconcileTabWindows();
+        const after = tabWindowOf(tabId);
+        verify(after !== before);
+        compare(String(after.engine.currentUrl), "https://kept-out.example/");
+        compare(engineLoader.engines[tabId], after.engine);
+        const strip = findChild(after.contentItem, "tabWindowStrip");
+        compare(strip.visible, false);
+        compare(browser.activeTabId, readingTabId);
+
+        after.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A Tab window's own commands answer for its page: reload, find, zoom,
+    // and the inspector, which docks in the Tab window and not in the main
+    // window. A command about another tab goes to the main window.
+    function test_aTabWindowAnswersForItsOwnPage() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const engine = openPage("https://own-page.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        tryCompare(tabWindow, "title", engine.pageTitle + " · " + browser.activeSpaceName);
+
+        verify(tabWindow.run("zoom-in", -1));
+        tryCompare(engine, "zoomFactor", 1.1);
+        compare(browser.activeTabZoom, 1.0);
+        verify(tabWindow.run("zoom-reset", -1));
+        tryCompare(engine, "zoomFactor", 1.0);
+
+        verify(tabWindow.run("find", -1));
+        const findBar = findChild(tabWindow.contentItem, "tabWindowFindBar");
+        tryCompare(findBar, "open", true);
+        tabWindow.closeFind();
+
+        verify(tabWindow.run("developer-tools", -1));
+        compare(browser.developerToolsTabId, tabId);
+        const dock = findChild(tabWindow.contentItem, "tabWindowDeveloperToolsDock");
+        tryCompare(dock, "visible", true);
+        const mainDock = findChild(window.contentItem, "developerToolsDock");
+        compare(mainDock.developerToolsView, null);
+        verify(tabWindow.run("developer-tools", -1));
+        compare(browser.developerToolsTabId, "");
+        tryCompare(dock, "visible", false);
+
+        // The Omnibar over the Tab window navigates the Tab window's page.
+        verify(tabWindow.run("open-address", -1));
+        verify(tabWindow.omnibarOpen);
+        tabWindow.navigate("own-page.example/next");
+        compare(String(engine.currentUrl), "https://own-page.example/next");
+        verify(!tabWindow.omnibarOpen);
+        compare(engineLoader.item.currentUrl.toString(), "https://reading.example");
+
+        // Next tab is the main window's, and runs there.
+        verify(tabWindow.run("next-tab", -1));
+        verify(browser.activeTabId !== readingTabId || browser.tabs.rowCount() === 2);
+        verify(!browser.tabPoppedOut(browser.activeTabId));
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // pop-out-tab and put-back-tab are in the Command scope and the tab menu,
+    // and `omaweb run` reaches them by a tab's id.
+    function test_tabWindowCommandsRunFromTheScopeTheMenuAndOutside() {
+        openPage("https://menu.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+
+        verify(commandEnabled("pop-out-tab"));
+        verify(!commandEnabled("put-back-tab"));
+        const searched = window.commands.search("pop out");
+        verify(searched.length > 0);
+        compare(searched[0].command, "pop-out-tab");
+
+        window.openTabMenu(tabId, 10, 10);
+        let index = -1;
+        for (let row = 0; row < window.tabMenuItems.length; ++row) {
+            if (window.tabMenuItems[row].command === "pop-out-tab")
+                index = row;
+        }
+        verify(index >= 0);
+        window.runTabMenu(index);
+        tabWindowOf(tabId);
+        compare(browser.activeTabId, readingTabId);
+        verify(commandEnabled("put-back-tab"));
+
+        window.openTabMenu(tabId, 10, 10);
+        index = -1;
+        for (let row = 0; row < window.tabMenuItems.length; ++row) {
+            if (window.tabMenuItems[row].command === "put-back-tab")
+                index = row;
+        }
+        verify(index >= 0);
+        window.runTabMenu(index);
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        compare(browser.activeTabId, tabId);
+
+        const publicCommands = ["pop-out-tab", "put-back-tab", "toggle-tab-window-strip"];
+        let answer = window.commands.answerAgent({
+                                                     "verb": "run",
+                                                     "command": "pop-out-tab",
+                                                     "argument": readingTabId,
+                                                     "commands": publicCommands
+                                                 });
+        verify(answer.ok);
+        tabWindowOf(readingTabId);
+        answer = window.commands.answerAgent({
+                                                 "verb": "run",
+                                                 "command": "put-back-tab",
+                                                 "argument": readingTabId,
+                                                 "commands": publicCommands
+                                             });
+        verify(answer.ok);
+        tryVerify(function () {
+            return window.tabWindowFor(readingTabId) === null;
+        });
+        browser.closeTab(readingTabId);
+    }
 
     function openPageInNewTab(url) {
         const engineHost = findChild(window.contentItem, "engineLoader");

@@ -639,6 +639,9 @@ const QStringList &AgentControl::publicCommands()
         QStringLiteral("add-split"),
         QStringLiteral("separate-split"),
         QStringLiteral("focus-split-partner"),
+        QStringLiteral("pop-out-tab"),
+        QStringLiteral("put-back-tab"),
+        QStringLiteral("toggle-tab-window-strip"),
         QStringLiteral("next-space"),
         QStringLiteral("select-space"),
         QStringLiteral("new-space"),
@@ -678,6 +681,12 @@ const QStringList &AgentControl::publicCommands()
 bool AgentControl::commandTakesPosition(const QString &command)
 {
     return command == u"select-tab" || command == u"select-space";
+}
+
+bool AgentControl::commandTakesTab(const QString &command)
+{
+    return command == u"pop-out-tab" || command == u"put-back-tab"
+        || command == u"toggle-tab-window-strip";
 }
 
 QVariantMap AgentControl::grantRequest() const
@@ -1520,7 +1529,18 @@ QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &requ
         }
         const auto given = request.value(QStringLiteral("argument"));
         auto position = -1;
-        if (commandTakesPosition(command)) {
+        if (commandTakesTab(command) && given.isString()) {
+            const auto tabId = given.toString();
+            if (!m_browser->findTab(tabId)) {
+                return refusal(QStringLiteral("not-found"),
+                    QStringLiteral("No tab is \"%1\". `omaweb tabs` lists their ids.").arg(tabId));
+            }
+            asked.insert(QStringLiteral("command"), command);
+            asked.insert(QStringLiteral("argument"), tabId);
+        } else if (commandTakesTab(command) && !given.isUndefined() && !given.isNull()) {
+            return refusal(QStringLiteral("bad-request"),
+                QStringLiteral("%1 takes a tab, by its id.").arg(command));
+        } else if (commandTakesPosition(command)) {
             const auto number = given.toDouble(0);
             if (!given.isDouble() || number < 1 || number != static_cast<double>(given.toInt())) {
                 return refusal(QStringLiteral("bad-request"),
@@ -1531,8 +1551,10 @@ QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &requ
             return refusal(QStringLiteral("bad-request"),
                 QStringLiteral("%1 takes no argument.").arg(command));
         }
-        asked.insert(QStringLiteral("command"), command);
-        asked.insert(QStringLiteral("argument"), position);
+        if (!asked.contains(QStringLiteral("argument"))) {
+            asked.insert(QStringLiteral("command"), command);
+            asked.insert(QStringLiteral("argument"), position);
+        }
     }
 #ifdef OMAWEB_FILM_HOOKS
     // The introductory film's: the window holds this Space's name on show in
@@ -1629,6 +1651,14 @@ QJsonObject AgentControl::focusTab(const QJsonObject &request)
     if (!tab) {
         return refusal(QStringLiteral("not-found"),
             QStringLiteral("No tab is \"%1\" or has it in its address.").arg(target));
+    }
+    // A tab shown in a Tab window is never the main window's (ADR 0062), so the main window stays
+    // where it is, and raising brings the Tab window forward instead.
+    if (tab->poppedOut) {
+        if (request.value(QStringLiteral("raise")).toBool()) {
+            m_browser->raiseTabWindow(tab->id);
+        }
+        return success({{QStringLiteral("tab"), tab->id}, {QStringLiteral("space"), tab->spaceId}});
     }
     // Through the Space's store, as the Omnibar does: the tab is recorded as the one the Space is
     // left on before it comes on show, so a tab unused for long is not put away on the way in.

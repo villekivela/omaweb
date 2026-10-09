@@ -585,7 +585,7 @@ Rectangle {
     property int permissionsSettledWithoutAsking: 0
     function simulateSitePermission(origin, permission) {
         const decision = root.permissionController ? root.permissionController.permissionDecision(
-                                                         origin, permission) : 0;
+                                                         origin, permission, root.spaceId) : 0;
         if (decision !== 0) {
             root.permissionsSettledWithoutAsking += 1;
             return "";

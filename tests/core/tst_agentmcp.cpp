@@ -276,6 +276,14 @@ void AgentMcpTest::readsEachToolIntoARequest_data()
                {{QStringLiteral("command"), QStringLiteral("select-space")},
                    {QStringLiteral("argument"), 2}})
         << QStringList {QStringLiteral("run"), QStringLiteral("select-space"), QStringLiteral("2")};
+    row("run a command on a tab", QStringLiteral("run"))
+        << QJsonObject {{QStringLiteral("command"), QStringLiteral("pop-out-tab")},
+               {QStringLiteral("tab"), QStringLiteral("a1b2c3")}}
+        << base(QStringLiteral("run"),
+               {{QStringLiteral("command"), QStringLiteral("pop-out-tab")},
+                   {QStringLiteral("argument"), QStringLiteral("a1b2c3")}})
+        << QStringList {
+               QStringLiteral("run"), QStringLiteral("pop-out-tab"), QStringLiteral("a1b2c3")};
     row("space new names the space", QStringLiteral("space_new"))
         << QJsonObject {{QStringLiteral("name"), QStringLiteral("Checks")},
                {QStringLiteral("temporary"), true}}

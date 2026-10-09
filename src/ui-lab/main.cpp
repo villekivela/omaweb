@@ -37,6 +37,7 @@
 #include "SystemNotifier.h"
 #include "ThemeController.h"
 #include "Translations.h"
+#include "WindowAppId.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
 
@@ -593,6 +594,7 @@ int main(int argc, char *argv[])
     omaweb::registerMediaAnnouncer();
     omaweb::registerProcessResources();
     omaweb::registerSavedDownload();
+    omaweb::registerWindowAppId();
     static omaweb::RuntimeSecurity runtimeSecurity({}, {});
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
     // The lab reviews chrome rather than the desktop it runs on, so the report

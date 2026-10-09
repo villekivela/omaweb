@@ -157,6 +157,13 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
                {{QStringLiteral("command"), QStringLiteral("select-tab")},
                    {QStringLiteral("argument"), 3}})
         << false;
+    QTest::newRow("run a command on a tab")
+        << QStringList {QStringLiteral("run"), QStringLiteral("pop-out-tab"),
+               QStringLiteral("a1b2c3")}
+        << base(QStringLiteral("run"),
+               {{QStringLiteral("command"), QStringLiteral("pop-out-tab")},
+                   {QStringLiteral("argument"), QStringLiteral("a1b2c3")}})
+        << false;
     QTest::newRow("look at the whole page")
         << QStringList {QStringLiteral("look"), QStringLiteral("--all")}
         << base(QStringLiteral("look"), {{QStringLiteral("all"), true}}) << false;

@@ -43,6 +43,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Sync              | Synkronointi          | The feature and its settings section. Inflect it: "synkronoinnin".                              |
 | Site information  | Sivuston tiedot       | The card from the address. Its labels are in sentence case, as the English ones are.            |
 | Put away          | Siirtää sivuun        | What Omaweb does with an unused tab. The list is "sivuun siirretyt".                            |
+| Tab window        | Välilehti-ikkuna      | A window of one tab. Popping out is "irrottaa ikkunaan", putting back "palauttaa".              |
 
 Add a row when a batch has to translate a new Omaweb term.
 

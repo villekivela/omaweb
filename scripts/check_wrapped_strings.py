@@ -68,6 +68,11 @@ TOKENS = {
     ("Radar.qml", "white"),
     ("Hyperspace.qml", "white"),
     ("SettingsPage.qml", "claude"),
+    ("TabWindow.qml", "warning"),
+    ("TabWindow.qml", "lock"),
+    # A Tab window's first title, which a compositor rule matches whatever the
+    # chrome's language (ADR 0062).
+    ("TabWindow.qml", "Omaweb tab window"),
 }
 
 

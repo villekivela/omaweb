@@ -1708,6 +1708,7 @@ bool BrowserController::switchSpace(const QString &spaceId)
         emit spaceRestored(m_activeSpaceId);
         return false;
     }
+    m_holdTabWindows = true;
     for (const auto &tab : m_tabs.items()) {
         m_livePageStates.insert(tab.id, {tab.iconUrl, tab.audible});
     }
@@ -1729,6 +1730,7 @@ bool BrowserController::switchSpace(const QString &spaceId)
     // Before the Space is restored, so a tab that has gone unused while it
     // was away is never shown on the way out.
     putAwayUnusedTabs();
+    m_holdTabWindows = false;
     refreshRetainedTabs();
     emit spaceRestored(m_activeSpaceId);
     emit activeSpaceChanged();
@@ -1770,6 +1772,12 @@ QVariantList BrowserController::awaySpaceTabs() const
 
 bool BrowserController::activateTabInSpace(const QString &spaceId, const QString &tabId)
 {
+    // A tab shown in its own window is raised there, from any Space, and the
+    // main window stays where it is.
+    if (const auto window = tabWindowTab(tabId); window && window->spaceId == spaceId) {
+        emit tabWindowRaiseRequested(tabId);
+        return true;
+    }
     if (spaceId != m_activeSpaceId) {
         if (!m_capabilities.allows(Capability::Spaces)) {
             return false;
@@ -2648,6 +2656,35 @@ bool BrowserController::popOutTab(const QString &tabId)
     return true;
 }
 
+QString BrowserController::openTabWindow(const QString &spaceId, const QUrl &url)
+{
+    if (!m_capabilities.allows(Capability::TabWindows) || isBlank(url) || !url.isValid()
+        || m_spaces.rowOf(spaceId) < 0) {
+        return {};
+    }
+    TabState tab;
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = spaceId;
+    tab.url = url;
+    tab.title = addressTitle(url);
+    tab.poppedOut = true;
+    if (spaceId == m_activeSpaceId) {
+        tab.iconUrl = iconToShow(tab, {});
+        m_tabs.append(tab);
+        refreshSoundSuppression();
+        persistTabs();
+        refreshTabWindows();
+        return tab.id;
+    }
+    auto tabs = m_store->loadTabs(spaceId);
+    tabs.append(tab);
+    if (!saveAwayTabs(spaceId, std::move(tabs))) {
+        return {};
+    }
+    refreshRetainedTabs();
+    return tab.id;
+}
+
 bool BrowserController::putBackTab(const QString &tabId, bool show)
 {
     if (!m_capabilities.allows(Capability::TabWindows)) {
@@ -2693,6 +2730,60 @@ bool BrowserController::tabPoppedOut(const QString &tabId) const
         }
     }
     return false;
+}
+
+std::optional<TabState> BrowserController::tabWindowTab(const QString &tabId) const
+{
+    if (const auto *tab = m_tabs.find(tabId)) {
+        return tab->poppedOut ? std::optional<TabState>(*tab) : std::nullopt;
+    }
+    for (const auto &tabs : m_awayTabWindows) {
+        for (const auto &tab : tabs) {
+            if (tab.id == tabId) {
+                return tab;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+void BrowserController::stepTabZoom(const QString &tabId, int direction)
+{
+    if (const auto tab = tabWindowTab(tabId)) {
+        setTabZoom(tabId, steppedZoom(tab->zoom, direction));
+    }
+}
+
+void BrowserController::resetTabZoom(const QString &tabId)
+{
+    if (tabWindowTab(tabId)) {
+        setTabZoom(tabId, 1.0);
+    }
+}
+
+void BrowserController::toggleTabDeveloperTools(const QString &tabId)
+{
+    const auto tab = tabWindowTab(tabId);
+    if (!tab || isBlank(tab->url)) {
+        return;
+    }
+    if (m_developerToolsTabId == tabId) {
+        closeDeveloperTools();
+        return;
+    }
+    setDeveloperToolsTab(tabId, tab->spaceId);
+}
+
+QUrl BrowserController::addressFor(const QString &input) const
+{
+    return resolveConfiguredInput(input);
+}
+
+void BrowserController::raiseTabWindow(const QString &tabId)
+{
+    if (tabPoppedOut(tabId)) {
+        emit tabWindowRaiseRequested(tabId);
+    }
 }
 
 bool BrowserController::setTabStripHidden(const QString &tabId, bool hidden)
@@ -2752,6 +2843,9 @@ QVariantList BrowserController::tabWindows() const { return m_tabWindows; }
 // what refreshRetainedTabs last read of its store.
 void BrowserController::refreshTabWindows()
 {
+    if (m_holdTabWindows) {
+        return;
+    }
     QVariantList windows;
     if (m_capabilities.allows(Capability::TabWindows)) {
         for (const auto &space : m_spaces.items()) {
@@ -2770,6 +2864,8 @@ void BrowserController::refreshTabWindows()
                     {QStringLiteral("title"), tab.title},
                     {QStringLiteral("pinned"), tab.pinned},
                     {QStringLiteral("stripHidden"), tab.stripHidden},
+                    {QStringLiteral("zoom"), tab.zoom},
+                    {QStringLiteral("muted"), tab.muted},
                 });
             }
         }
@@ -3986,8 +4082,10 @@ int BrowserController::permissionPolicy(const QString &permission) const
     return Refused;
 }
 
-int BrowserController::permissionDecision(const QUrl &url, const QString &permission)
+int BrowserController::permissionDecision(
+    const QUrl &url, const QString &permission, const QString &spaceId)
 {
+    const auto space = spaceId.isEmpty() ? m_activeSpaceId : spaceId;
     const auto origin = normalizedOrigin(url);
     const auto normalizedPermission = permission.trimmed().toLower();
     // A capability Omaweb has no policy for is refused before anything else is
@@ -3999,17 +4097,18 @@ int BrowserController::permissionDecision(const QUrl &url, const QString &permis
     if (origin.isEmpty() || policy == AskedEachTime) {
         return Ask;
     }
-    const auto key = sessionPermissionKey(origin, normalizedPermission);
+    const auto key = omaweb::sessionPermissionKey(space, origin, normalizedPermission);
     const auto sessionDecision = m_sessionPermissionDecisions->take(key);
     if (sessionDecision != Ask) {
         return sessionDecision;
     }
-    return m_store->permissionDecision(m_activeSpaceId, origin, normalizedPermission);
+    return m_store->permissionDecision(space, origin, normalizedPermission);
 }
 
 bool BrowserController::setPermissionDecision(
-    const QUrl &url, const QString &permission, int decision)
+    const QUrl &url, const QString &permission, int decision, const QString &spaceId)
 {
+    const auto space = spaceId.isEmpty() ? m_activeSpaceId : spaceId;
     const auto origin = normalizedOrigin(url);
     const auto normalizedPermission = permission.trimmed().toLower();
     if (origin.isEmpty() || normalizedPermission.isEmpty() || decision < AllowOnce
@@ -4028,10 +4127,10 @@ bool BrowserController::setPermissionDecision(
     }
     if (decision == AllowOnce) {
         m_sessionPermissionDecisions->insert(
-            sessionPermissionKey(origin, normalizedPermission), decision);
+            omaweb::sessionPermissionKey(space, origin, normalizedPermission), decision);
         return true;
     }
-    return m_store->savePermissionDecision(m_activeSpaceId, origin, normalizedPermission, decision);
+    return m_store->savePermissionDecision(space, origin, normalizedPermission, decision);
 }
 
 QVariantList BrowserController::sitePermissions(const QUrl &url) const

@@ -21,8 +21,22 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Any number of named Spaces. Each Space isolates logins, cookies, site data, permissions, history,
   sessions, ordinary tabs, and pinned tabs.
 - Only the active Space keeps live pages by default. A Pinned tab with Keep active enabled continues
-  running while its Space is inactive, as does a tab while Developer tools remain attached. Omaweb
-  identifies every retained tab and its resource cost.
+  running while its Space is inactive, as do a tab in a Tab window and a tab while Developer tools
+  remain attached. Omaweb identifies every retained tab and its resource cost.
+- `pop-out-tab` moves an ordinary or Pinned tab's live page into a Tab window, with no reload; a
+  split's tab leaves its split, a Glance is kept as a tab first, and a Private window has none. The
+  Tab window has no sidebar, opens with the Wayland app id `omaweb-tab` where Qt allows it and is
+  first titled "Omaweb tab window". A slim strip shows the address, the site information and the
+  Space; `toggle-tab-window-strip` hides it, and it comes back on a change of site and while a
+  prompt needs it. The tab is listed in its Space's sidebar with a window mark, saved and synced as
+  any tab, and is never the main window's active tab: popping out the tab on show shows the next
+  one, and selecting its row raises the Tab window. Its page never freezes or is put away. Its
+  prompts show in the Tab window and its downloads count in the main window's Download mark. A link
+  that asks for a new tab opens a Glance there, or a new Tab window in the same Space with Glance
+  off or when the Glance is kept; a background request opens a tab in that Space's sidebar. Closing
+  the window or `put-back-tab` returns the tab to the sidebar, live; close-tab closes it. Being
+  popped out, and the strip's state, are kept on this machine and never synced, and a restart brings
+  the window back without its position or size.
 - Private browsing uses separate frameless windows and one temporary identity shared until the last
   Private window closes.
 - Site-requested Auxiliary windows are allowed for authentication, payment, and similar flows. A
@@ -64,17 +78,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   hour, 12 hours, 1 day or 1 week, 12 hours by default) closes into its Space's put-away list. Its
   age is the wall-clock time since it was last on show, counted across sleep, restarts and time in
   other Spaces, and kept with the Space's tabs; a tab stored before the time was kept counts from
-  the first start that finds it. Pinned tabs, Keep active tabs, a tab making sound, an Agent tab
-  while an Agent is attached, both tabs of a split, a tab with Developer tools attached, a row the
-  reader is dragging and each Space's active tab are never put away. Omaweb checks at startup, on a
-  Space switch, before the Space arriving is shown, and every five minutes, across every Space. The
-  list keeps each tab's address, title, zoom and mute for 30 days, is listed newest first in the
-  History sheet's `put away` group, by title, host and age, and is ranked with History in the
-  Omnibar. Reopening one opens a new tab as reopening a closed tab does, and removes it from the
-  list; the recently closed stack holds only the reader's own closes. Clearing a Space's history
-  over a range clears what it put away in that range, and deleting the Space deletes the list. The
-  list and the setting are outside the Sync projection. The first put-away of an installation shows
-  a notice once, with a way to the setting. Private windows never put tabs away and have no list.
+  the first start that finds it. Pinned tabs, Keep active tabs, a tab in a Tab window, a tab making
+  sound, an Agent tab while an Agent is attached, both tabs of a split, a tab with Developer tools
+  attached, a row the reader is dragging and each Space's active tab are never put away. Omaweb
+  checks at startup, on a Space switch, before the Space arriving is shown, and every five minutes,
+  across every Space. The list keeps each tab's address, title, zoom and mute for 30 days, is listed
+  newest first in the History sheet's `put away` group, by title, host and age, and is ranked with
+  History in the Omnibar. Reopening one opens a new tab as reopening a closed tab does, and removes
+  it from the list; the recently closed stack holds only the reader's own closes. Clearing a Space's
+  history over a range clears what it put away in that range, and deleting the Space deletes the
+  list. The list and the setting are outside the Sync projection. The first put-away of an
+  installation shows a notice once, with a way to the setting. Private windows never put tabs away
+  and have no list.
 - Startup restores the last active Space, tabs, Pinned tabs, retained-tab settings, sidebar state,
   zoom, and mute. A command returns the active Space to rest. Private windows never restore.
 

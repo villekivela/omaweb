@@ -126,8 +126,8 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // here so the reader can see what is holding a renderer they cannot see.
     Q_PROPERTY(QVariantList retainedTabs READ retainedTabs NOTIFY retainedTabsChanged)
     // Every tab shown in a Tab window, in every Space, each as its `tabId`,
-    // `spaceId`, `spaceName`, `spaceColor`, `url`, `title`, `pinned` and
-    // `stripHidden`. The windows are built from this list, which is what
+    // `spaceId`, `spaceName`, `spaceColor`, `url`, `title`, `pinned`,
+    // `stripHidden`, `zoom` and `muted`. The windows are built from this list, which is what
     // brings them back after a restart. Never anything in a Private window.
     Q_PROPERTY(QVariantList tabWindows READ tabWindows NOTIFY tabWindowsChanged)
     // The address of the Agent activity page, which the interface draws itself
@@ -375,7 +375,23 @@ public:
     // Returns a popped-out tab of any Space to the main window's sidebar.
     // With `show`, the main window switches to its Space and selects it.
     Q_INVOKABLE bool putBackTab(const QString &tabId, bool show);
+    // A new tab at the end of a Space's list, shown in a Tab window from the
+    // start, for a link in a Tab window that asks for a window of its own. The
+    // main window stays as it was. Answers its id, or nothing when the Space is
+    // not this window's or the address is blank.
+    Q_INVOKABLE QString openTabWindow(const QString &spaceId, const QUrl &url);
     Q_INVOKABLE bool tabPoppedOut(const QString &tabId) const;
+    // Brings a popped-out tab's Tab window forward, in any Space.
+    void raiseTabWindow(const QString &tabId);
+    // A Tab window's own commands, for its tab in any Space: the zoom ladder
+    // the main window steps along, and the inspector, attached to it as to the
+    // tab on show. Refused for a tab no Tab window shows.
+    Q_INVOKABLE void stepTabZoom(const QString &tabId, int direction);
+    Q_INVOKABLE void resetTabZoom(const QString &tabId);
+    Q_INVOKABLE void toggleTabDeveloperTools(const QString &tabId);
+    // What the Omnibar would open for this input, as an address to load in a
+    // Tab window's own page.
+    Q_INVOKABLE QUrl addressFor(const QString &input) const;
     // Hides or shows the strip of a popped-out tab's Tab window, in any Space.
     Q_INVOKABLE bool setTabStripHidden(const QString &tabId, bool hidden);
     // The tabs of the Space on show that will keep running once it is put
@@ -518,9 +534,13 @@ public:
     Q_INVOKABLE bool isPaymentCardNumber(const QString &number) const;
     Q_INVOKABLE bool clearBrowsingData(const QStringList &dataTypes, qint64 since,
         bool everySpace = false, const QString &confirmation = {});
-    Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
+    // Asked and answered in the Space the page belongs to, which is the Space
+    // on show unless one is named: a Tab window's page, or a retained one, may
+    // be another Space's.
+    Q_INVOKABLE int permissionDecision(
+        const QUrl &url, const QString &permission, const QString &spaceId = {});
     Q_INVOKABLE bool setPermissionDecision(
-        const QUrl &url, const QString &permission, int decision);
+        const QUrl &url, const QString &permission, int decision, const QString &spaceId = {});
     Q_INVOKABLE int permissionPolicy(const QString &permission) const;
     // What Site information reads and what its reset action does: one origin's
     // decisions inside the Space on show, and nothing beyond it.
@@ -683,13 +703,13 @@ public:
     QUrl resolveAddress(const QString &input) const;
     // A new ordinary tab at the end of a Space's list, not selected. Answers
     // its id, or nothing when the Space is not this window's.
-    QString openTabInSpace(const QString &spaceId, const QUrl &url);
+    Q_INVOKABLE QString openTabInSpace(const QString &spaceId, const QUrl &url);
     // Loads an address in an existing tab without selecting it. A Pinned tab
     // is refused, because its address is the reader's to change. The hint is
     // findTab's.
     bool navigateTab(const QString &tabId, const QUrl &url, const QString &spaceHint = {});
     // Closes an ordinary tab in any Space. A Pinned tab is refused.
-    bool closeTabInSpace(const QString &tabId, const QString &spaceHint = {});
+    Q_INVOKABLE bool closeTabInSpace(const QString &tabId, const QString &spaceHint = {});
 
 signals:
     void paymentCardsChanged();
@@ -821,6 +841,8 @@ private:
     // it would choose, passing over the tabs it cannot show; nothing when no
     // tab is left to show.
     QString successorOf(const QString &tabId) const;
+    // A popped-out tab of any Space, as the Tab window list names it.
+    std::optional<TabState> tabWindowTab(const QString &tabId) const;
     void reportAwayTabWindowPageState(
         const QString &tabId, const QUrl &url, const QString &title, bool loading);
     // Changes a tab of a Space not on show in that Space's store.
@@ -982,6 +1004,10 @@ private:
     // The popped-out tabs of each Space not on show, as last read from its
     // store.
     QHash<QString, QVector<TabState>> m_awayTabWindows;
+    // Set for the length of a Space switch, while the tabs on show and the
+    // Space they belong to change at different moments: the list is composed
+    // once the switch is done, so a Tab window never reads as gone mid-way.
+    bool m_holdTabWindows = false;
     // The away Tab windows whose page is loading, so a finished load is
     // recorded once.
     QSet<QString> m_awayTabWindowLoads;

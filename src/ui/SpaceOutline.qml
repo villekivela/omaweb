@@ -181,6 +181,9 @@ Rectangle {
     // that does not exist. The pinned block stays — those are the Space's own
     // furniture and are there whether anything is open or not.
     readonly property bool atRest: browser ? browser.atRest : false
+    // Whether a tab of any Space is in a Tab window, which a Space at rest may
+    // still list.
+    readonly property bool hasTabWindows: browser ? browser.tabWindows.length > 0 : false
 
     readonly property url activeUrl: browser ? browser.activeUrl : ""
 
@@ -1229,12 +1232,16 @@ Rectangle {
                 // split keep the gap between them, and their washes meet across it.
                 spacing: pinnedSection.spacing
 
+                // At rest the tabs a Tab window shows are still listed, and the
+                // blank one standing in for a page is not.
                 Repeater {
-                    model: root.atRest || !root.browser ? null : root.browser.unpinnedTabs
+                    model: !root.browser || (root.atRest && !root.hasTabWindows) ? null :
+                                                                                   root.browser.unpinnedTabs
 
                     TabRow {
                         id: ordinaryRow
                         required property int index
+                        visible: !root.atRest || poppedOut
                         placeInSection: index
                         width: inSplit ? (ordinarySection.rowWidth - ordinarySection.spacing) / 2 :
                                          ordinarySection.rowWidth

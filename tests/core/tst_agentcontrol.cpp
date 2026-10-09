@@ -307,6 +307,7 @@ private slots:
     void refusesAddressesThatActInsideAPage();
     void listsEverySpacesTabsInOneCall();
     void leavesTheWindowWhereItIsWhenItFocusesATab();
+    void raisesTheTabWindowOfAPoppedOutTabWhenItIsAskedTo();
     void bringsTheWindowForwardWhenItIsAskedTo();
     void picksATabThroughOmarchysMenuAndBringsItForward();
     void leavesTheWindowAloneWhenThePickIsCancelled();
@@ -555,6 +556,38 @@ void AgentControlTest::leavesTheWindowWhereItIsWhenItFocusesATab()
     QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
         {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
     QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
+    QCOMPARE(forward.count(), 0);
+}
+
+// A tab shown in a Tab window is never the main window's tab (ADR 0062).
+// Focusing it leaves the main window on its Space, and only asked to raise
+// does anything come forward: the Tab window, not the main window.
+void AgentControlTest::raisesTheTabWindowOfAPoppedOutTabWhenItIsAskedTo()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QVERIFY(browser->switchSpace(QStringLiteral("work")));
+    QVERIFY(browser->popOutTab(QStringLiteral("work-tab")));
+    QVERIFY(browser->switchSpace(QStringLiteral("personal")));
+    QSignalSpy forward(&control, &AgentControl::windowRequested);
+    QSignalSpy raised(browser.get(), &omaweb::BrowserController::tabWindowRaiseRequested);
+
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
+    QCOMPARE(browser->activeSpaceId(), QStringLiteral("personal"));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("personal-tab"));
+    QCOMPARE(raised.count(), 0);
+    QCOMPARE(forward.count(), 0);
+
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-tab")},
+            {QStringLiteral("raise"), true}})));
+    QCOMPARE(browser->activeSpaceId(), QStringLiteral("personal"));
+    QCOMPARE(raised.count(), 1);
+    QCOMPARE(raised.first().first().toString(), QStringLiteral("work-tab"));
     QCOMPARE(forward.count(), 0);
 }
 
@@ -1998,6 +2031,22 @@ void AgentControlTest::runsOnlyThePublicCommandsInTheWindow()
     QCOMPARE(failure(run(QStringLiteral("reload"), 1)), QStringLiteral("bad-request"));
     QCOMPARE(asked.size(), 2);
 
+    // A Tab window's commands name a tab by its id, in any Space, or act on
+    // the tab the window answers for.
+    QVERIFY(succeeded(run(QStringLiteral("pop-out-tab"), QStringLiteral("work-tab"))));
+    QCOMPARE(asked.constLast().value(QStringLiteral("command")).toString(),
+        QStringLiteral("pop-out-tab"));
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("argument")).toString(), QStringLiteral("work-tab"));
+    QVERIFY(succeeded(run(QStringLiteral("put-back-tab"))));
+    QCOMPARE(asked.constLast().value(QStringLiteral("argument")).toInt(), -1);
+    QCOMPARE(failure(run(QStringLiteral("pop-out-tab"), QStringLiteral("no-such-tab"))),
+        QStringLiteral("not-found"));
+    QCOMPARE(failure(run(QStringLiteral("pop-out-tab"), 2)), QStringLiteral("bad-request"));
+    QCOMPARE(failure(run(QStringLiteral("select-tab"), QStringLiteral("work-tab"))),
+        QStringLiteral("bad-request"));
+    QCOMPARE(asked.size(), 4);
+
     // Refused by name, and never put to the window.
     for (const auto &command : {QStringLiteral("private-window"), QStringLiteral("screenshot-page"),
              QStringLiteral("copy-full-page-screenshot"), QStringLiteral("rm-rf")}) {
@@ -2006,7 +2055,7 @@ void AgentControlTest::runsOnlyThePublicCommandsInTheWindow()
         QVERIFY2(refused.value(QStringLiteral("error")).toString().contains(command),
             qPrintable(command));
     }
-    QCOMPARE(asked.size(), 2);
+    QCOMPARE(asked.size(), 4);
 
     windowAnswer
         = {{QStringLiteral("ok"), false}, {QStringLiteral("code"), QStringLiteral("unavailable")},

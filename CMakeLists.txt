@@ -744,6 +744,8 @@ add_library(omaweb-platform STATIC
     src/platform/SystemMotion.h
     src/platform/SystemNotifier.cpp
     src/platform/SystemNotifier.h
+    src/platform/WindowAppId.cpp
+    src/platform/WindowAppId.h
     src/platform/WindowChrome.h
     src/platform/WindowExposure.cpp
     src/platform/WindowExposure.h
@@ -771,6 +773,7 @@ if(APPLE)
         src/platform/MacPagePrinter.mm
         src/platform/MacSystemMotion.mm
         src/platform/MacSystemNotifier.mm
+        src/platform/MacWindowAppId.cpp
         src/platform/MacWindowChrome.mm
     )
     target_link_libraries(omaweb-platform PRIVATE
@@ -788,6 +791,7 @@ else()
         src/platform/LinuxRunningBrowser.cpp
         src/platform/LinuxSystemMotion.cpp
         src/platform/LinuxSystemNotifier.cpp
+        src/platform/LinuxWindowAppId.cpp
         src/platform/WindowChrome.cpp
     )
     # `Qt6::GuiPrivate` is here for one call, and `LinuxPortalWindow.cpp` says
@@ -799,7 +803,16 @@ else()
     # printing would then call whatever took its place. That is the real cost
     # of the private call, it is confined to printing, and the answer to it is
     # a rebuild against the Qt in front of it rather than anything in the code.
+    #
+    # `LinuxWindowAppId.cpp` is the other use, for the same reason: the name a
+    # Tab window gives the compositor (ADR 0062). It reads the window's
+    # `xdg_toplevel` through Qt's private Wayland window interface and is
+    # guarded the same way. It sends the request with libwayland-client
+    # itself, which `qt6-base` already depends on.
     target_link_libraries(omaweb-platform PRIVATE Qt6::DBus Qt6::GuiPrivate Qt6::Network)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
+    target_link_libraries(omaweb-platform PRIVATE PkgConfig::WAYLAND_CLIENT)
 endif()
 omaweb_strict_target(omaweb-platform)
 
@@ -888,6 +901,7 @@ set(omaweb_ui_files
     src/ui/SuggestionList.qml
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml
+    src/ui/TabWindow.qml
 )
 
 # One QML module compiled ahead of time into a static library named after its
@@ -1821,6 +1835,19 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-window-exposure-tests)
     add_test(NAME omaweb-window-exposure COMMAND omaweb-window-exposure-tests)
     set_tests_properties(omaweb-window-exposure PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(omaweb-window-app-id-tests
+        tests/platform/tst_windowappid.cpp
+    )
+    target_link_libraries(omaweb-window-app-id-tests PRIVATE
+        omaweb-platform
+        Qt6::Test
+    )
+    omaweb_strict_target(omaweb-window-app-id-tests)
+    add_test(NAME omaweb-window-app-id COMMAND omaweb-window-app-id-tests)
+    set_tests_properties(omaweb-window-app-id PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
     # The seam's contract is what it does on a desktop that offers no

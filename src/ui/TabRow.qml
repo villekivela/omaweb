@@ -38,6 +38,9 @@ Item {
     // strength.
     required property string splitPartnerId
     required property bool tabBeside
+    // Whether the tab is shown in a Tab window of its own (ADR 0062). It is
+    // still the Space's tab and listed here, and the row says where it is.
+    required property bool poppedOut
     readonly property bool inSplit: splitPartnerId.length > 0
     // Whether this row is a split's right half. The list sets it, since it
     // knows where it laid the row out.
@@ -345,6 +348,25 @@ Item {
         border.width: 1
         border.color: root.colors.windowOpaque
         Accessible.ignored: true
+    }
+
+    // A window's outline, where the row ends, in the row's own text colour. On
+    // an ordinary row it gives way to the close button under the pointer; a
+    // pin carries it in the corner the speaker leaves free.
+    Text {
+        objectName: "tabWindowMark-" + root.tabId
+        visible: root.poppedOut && (root.pinned || !hoverArea.containsMouse)
+        anchors.right: parent.right
+        anchors.rightMargin: root.pinned ? 4 : root.endGap + (closeButton.width - width) / 2
+        anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
+        anchors.top: root.pinned ? parent.top : undefined
+        anchors.topMargin: 4
+        text: "web_asset"
+        color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
+        font.family: root.iconFontFamily
+        font.pixelSize: root.pinned ? Style.font.iconSmall : Style.font.iconLarge
+        Accessible.role: Accessible.StaticText
+        Accessible.name: qsTr("In a window of its own")
     }
 
     // The title names the page; its address is already in the address button

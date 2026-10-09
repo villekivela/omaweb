@@ -411,7 +411,7 @@ omaweb close [--tab <id>]
 omaweb space <id|name>
 omaweb focus [--raise] <tab id|part of an address>
 omaweb commands
-omaweb run <command> [position]
+omaweb run <command> [position|tab id]
 omaweb space new [name] [--temporary]
 omaweb space delete <id|name>
 omaweb look [--all]
@@ -426,15 +426,18 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 words start `space new` and `space delete`. `focus` selects a tab by its id or else the first tab
 whose address holds the text, looking in the Space on show before the others and switching to the
 tab's Space, and leaves the window where it is unless `--raise` is given, which also brings the
-window forward. `tabs --all` lists every Space's tabs. `tabs --pick` offers them to Omarchy 4's
-`omarchy-menu-select`, then runs `focus --raise` on the one chosen. It exits 0 when the menu is
-closed and 1, saying so, where `omarchy-menu-select` is not on the PATH. `commands` lists the
-command scope's commands that can run now, one line each as id and title, and `run` runs one in the
-ordinary window as the command scope would, exiting 0 when it ran. `select-tab` and `select-space`
-take a position, 1 for the first. Every command of `src/ui/BrowserCommands.qml` is public except
-`private-window`, since a Private window is never an Agent's, and the four screenshot commands,
-which read the page and are `shot`'s. `run` refuses any other by name. These four need nothing
-turned on, so a keybind can use them:
+window forward. A tab shown in a Tab window is never the main window's, so `focus` leaves the main
+window on its Space and `--raise` brings the Tab window forward instead. `tabs --all` lists every
+Space's tabs. `tabs --pick` offers them to Omarchy 4's `omarchy-menu-select`, then runs
+`focus --raise` on the one chosen. It exits 0 when the menu is closed and 1, saying so, where
+`omarchy-menu-select` is not on the PATH. `commands` lists the command scope's commands that can run
+now, one line each as id and title, and `run` runs one in the ordinary window as the command scope
+would, exiting 0 when it ran. `select-tab` and `select-space` take a position, 1 for the first.
+`pop-out-tab`, `put-back-tab` and `toggle-tab-window-strip` take a tab's id, of any Space, and
+otherwise act on the tab on show or the Tab window used last. Every command of
+`src/ui/BrowserCommands.qml` is public except `private-window`, since a Private window is never an
+Agent's, and the four screenshot commands, which read the page and are `shot`'s. `run` refuses any
+other by name. These four need nothing turned on, so a keybind can use them:
 
 ```sh
 omaweb space Work && omaweb run toggle-sidebar
