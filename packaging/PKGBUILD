@@ -135,10 +135,8 @@ package_omaweb-git() {
     depends+=("omaweb-cli=$pkgver")
     provides=("$_pkgname=$pkgver")
     conflicts=("$_pkgname")
-    # Prints the Hyprland window rule an Omarchy reader has to add by hand.
-    # Omarchy owns its own rule directory, so the package cannot install the
-    # rule itself. On removal it names the desktop entry the Theme app icon
-    # left in the reader's home.
+    # On removal, names the desktop entry the Theme app icon left in the
+    # reader's home.
     install=omaweb-git.install
 
     cd "$_pkgname"
