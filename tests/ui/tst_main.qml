@@ -15878,8 +15878,17 @@ TestCase {
         compare(browser.activeTabId, readingTabId);
         tryCompare(browser.tabWindows[1], "url", "https://kept.example/");
 
-        kept.close();
+        // The kept page is its own tab's now, and outlives the window it was
+        // a Glance in.
         tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowCount === 1;
+        });
+        wait(200);
+        compare(kept.engine, glanced);
+        compare(glanced.pageLocalState, "read in the Glance");
+        compare(findChild(window.contentItem, "engineLoader").engines[keptTabId], glanced);
+        kept.close();
         tryVerify(function () {
             return window.tabWindowCount === 0;
         });

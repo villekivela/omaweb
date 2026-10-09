@@ -682,7 +682,10 @@ Item {
                                                                                              root.sessionSpaceId) :
                                           null;
         const held = root.pageWaits(host) && !root.pagelessAddress(tabUrl);
-        const engine = engineComponent.createObject(parent, {
+        // Every engine is this host's to destroy, wherever it is drawn: a
+        // Glance's page kept as a tab outlives the window the Glance was in,
+        // and an item's `parent` moves only where it is drawn.
+        const engine = engineComponent.createObject(root, {
                                                         "profilePath": profilePath !== undefined
                                                                        ? profilePath :
                                                                          root.profilePath,
@@ -722,6 +725,8 @@ Item {
                                                         "pageTakesFocus": takesFocus !== false,
                                                         "visible": false
                                                     });
+        if (engine && parent && parent !== root)
+            engine.parent = parent;
         if (held)
             root.releaseWhenReady(engine, host, tabUrl);
         root.giveScrollbar(engine);
