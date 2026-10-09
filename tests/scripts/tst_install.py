@@ -77,6 +77,8 @@ STUBS = {
     "id": 'if [ "$1" = -u ]; then echo 1000; else exit 1; fi\n',
     "sudo": 'echo "sudo $*" >> "$STAND_IN/log"\nexec "$@"\n',
     "pacman": 'echo "pacman $*" >> "$STAND_IN/log"\n',
+    # Present only on an Omarchy machine, where the guard refuses a direct `pacman -Syu`.
+    "omarchy": 'echo "omarchy $*" >> "$STAND_IN/log"\n',
     "curl": (
         'echo "curl $*" >> "$STAND_IN/log"\n'
         'while [ $# -gt 1 ]; do\n'
@@ -114,7 +116,9 @@ def stub(directory: Path, name: str, body: str) -> None:
 class StandIn:
     """A temporary root with a pacman.conf, a terminal and the stubs."""
 
-    def __init__(self, directory: Path, *, pacman: bool = True, key: Path = KEY):
+    def __init__(
+        self, directory: Path, *, pacman: bool = True, omarchy: bool = False, key: Path = KEY
+    ):
         self.directory = directory
         self.bin = directory / "bin"
         self.bin.mkdir()
@@ -128,7 +132,7 @@ class StandIn:
             if found:
                 (self.bin / tool).symlink_to(found)
         for name, body in STUBS.items():
-            if name == "pacman" and not pacman:
+            if (name == "pacman" and not pacman) or (name == "omarchy" and not omarchy):
                 continue
             stub(self.bin, name, body)
 
@@ -203,6 +207,29 @@ class Install(unittest.TestCase):
                 self.assertIn(f"sudo pacman-key --lsign-key {PUBLISHED}", sudo)
                 self.assertTrue(any(line.startswith("sudo pacman-key --add ") for line in sudo))
                 self.assertEqual(sudo[-1], "sudo pacman -Syu --needed --noconfirm omaweb")
+
+    def test_on_omarchy_it_upgrades_through_omarchy_update_and_never_pacman_syu(self):
+        for shell in SHELLS:
+            with self.subTest(shell):
+                machine = self.stand_in(omarchy=True)
+                result = machine.run(shell=shell)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+                self.assertEqual(machine.conf.read_text(encoding="utf-8"), PACMAN_CONF + BLOCK)
+                [update] = [line for line in machine.log if line.startswith("omarchy ")]
+                self.assertTrue(update.startswith("omarchy update"), update)
+                install = "pacman -S --needed --noconfirm omaweb"
+                self.assertEqual(machine.log[-1], install)
+                self.assertLess(machine.log.index(update), len(machine.log) - 1)
+                self.assertFalse(any("-Syu" in line for line in machine.log), machine.log)
+                self.assertNotIn("-Syu omaweb", result.stdout)
+                self.assertIn("omarchy update", result.stdout)
+
+    def test_off_omarchy_it_upgrades_with_pacman_syu(self):
+        machine = self.stand_in()
+        result = machine.run()
+        self.assertFalse(any(line.startswith("omarchy ") for line in machine.log))
+        self.assertIn("pacman -Syu --needed --noconfirm omaweb", result.stdout)
 
     def test_it_says_what_it_will_do_and_asks_once_before_doing_it(self):
         machine = self.stand_in()

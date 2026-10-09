@@ -523,7 +523,8 @@
             fingerprint, and what it installs, then asks once before it uses <code>sudo</code>.
             <code>sh -s -- --yes</code> skips the question.
             <a href="install">Read the script</a> first if you like. From then on,
-            <code>sudo pacman -Syu</code> keeps it current.
+            <code>omarchy update</code> keeps it current on Omarchy, and
+            <code>sudo pacman -Syu</code> on plain Arch.
           </p>
           <!-- The same two steps by hand, closed until asked for. -->
           <details class="install__manual">
@@ -559,6 +560,11 @@ Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</cod
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman -Syu omaweb</code></pre>
               </div>
             </figure>
+            <p>
+              On Omarchy, whose guard refuses a direct <code>pacman -Syu</code>, run
+              <code>omarchy update</code> and then <code>sudo pacman -S omaweb</code> as the last
+              step instead.
+            </p>
             <p>
               The fingerprint is the one thing to check. It comes from here, not from a keyserver,
               and pacman installs nothing that key did not sign. A single package or a build from

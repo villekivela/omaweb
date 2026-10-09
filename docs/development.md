@@ -901,8 +901,9 @@ named differently.
 ### The pacman repository
 
 A release is also an upgrade. The workflow publishes the `omaweb` and `omaweb-cli` packages to a
-pacman repository, so a reader who has Omaweb gets the next version from their own `pacman -Syu`
-rather than from noticing that one was released. What was decided and why is
+pacman repository, so a reader who has Omaweb gets the next version from their own `pacman -Syu`, or
+on Omarchy from `omarchy update`, whose pacman hook refuses a direct `-Syu`, rather than from
+noticing that one was released. What was decided and why is
 [ADR 0043](adr/0043-serve-upgrades-from-a-signed-pacman-repository.md); what follows is how to run
 it.
 

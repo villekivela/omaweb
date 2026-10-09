@@ -47,8 +47,12 @@ The script, [`scripts/install.sh`](scripts/install.sh), prints the lines it adds
 `/etc/pacman.conf`, where the signing key comes from and its fingerprint, and the `pacman` command
 it runs, then asks once before it uses `sudo`. `sh -s -- --yes` skips the question. It stops if the
 key it downloads is not the one below, leaves an `[omaweb]` section already in `pacman.conf` alone,
-and keeps a copy of the file before changing it. A second run redoes none of that, and its
-`pacman -Syu` only upgrades what is out of date.
+and keeps a copy of the file before changing it. A second run redoes none of that, and its upgrade
+only upgrades what is out of date.
+
+On Omarchy, whose pacman hook aborts a `pacman -Syu` made outside `omarchy update`, the script runs
+`omarchy update` for the system upgrade and then `pacman -S --needed omaweb`. On Omarchy,
+`omarchy update` keeps Omaweb current. On plain Arch, `sudo pacman -Syu` does.
 
 To make the same steps by hand, add the Omaweb repository to `/etc/pacman.conf`, and Omaweb arrives
 and upgrades with the rest of the system:
@@ -69,6 +73,9 @@ sudo pacman-key --add repo-signing-key.asc
 sudo pacman-key --lsign-key FDA535B2185755EA718BEA585DBF15FE484EFA64
 sudo pacman -Syu omaweb
 ```
+
+On Omarchy, run `omarchy update` and then `sudo pacman -S omaweb` instead of the last line: the
+`-Syu` is refused there.
 
 The key is fetched over HTTPS rather than from a keyserver because keyservers answer on port 11371,
 which plenty of networks do not let out, and a machine that cannot reach one gets
