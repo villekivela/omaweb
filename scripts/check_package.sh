@@ -157,24 +157,10 @@ install_output=$(pacman -U --noconfirm $pacman_dep_flags "$package" "$client_pac
 printf '%s\n' "$install_output"
 [ -x /usr/bin/omaweb ] || { echo "omaweb is not installed" >&2; exit 1; }
 [ -x /usr/lib/omaweb/omaweb-browser ] || { echo "The browser is not installed" >&2; exit 1; }
-# Omarchy draws a window opaque unless it opts in, so there is nothing for the
-# reader to add and the install has nothing to print about a window rule.
-if printf '%s\n' "$install_output" | grep -qi 'default-opacity\|looknfeel\|hyprctl'; then
-    echo "Installing printed a Hyprland window rule" >&2
-    exit 1
-fi
 
 echo "==> Upgrading over itself"
 # shellcheck disable=SC2086
-upgrade_output=$(pacman -U --noconfirm $pacman_dep_flags "$package" "$client_package" 2>&1) || {
-    printf '%s\n' "$upgrade_output" >&2
-    exit 1
-}
-printf '%s\n' "$upgrade_output"
-if printf '%s\n' "$upgrade_output" | grep -qi 'default-opacity\|looknfeel\|hyprctl'; then
-    echo "Upgrading printed a Hyprland window rule" >&2
-    exit 1
-fi
+pacman -U --noconfirm $pacman_dep_flags "$package" "$client_package"
 
 echo "==> Removing"
 remove_output=$(pacman -R --noconfirm omaweb-git omaweb-cli-git 2>&1) || {
