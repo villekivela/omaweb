@@ -24,7 +24,8 @@ class WindowAppId : public QObject {
     Q_OBJECT
     Q_PROPERTY(QWindow *window READ window WRITE setWindow NOTIFY windowChanged)
     Q_PROPERTY(QString appId READ appId WRITE setAppId NOTIFY appIdChanged)
-    // Whether the compositor was given the name.
+    // Whether the compositor was given the name for the window's surface as it
+    // stands.
     Q_PROPERTY(bool applied READ applied NOTIFY appliedChanged)
 
 public:
@@ -48,7 +49,8 @@ private:
     void setApplied(bool applied);
 
     QPointer<QWindow> m_window;
-    // The platform window already being watched, so it is watched once.
+    // The platform window being watched, so it is watched once, and forgotten
+    // as it goes.
     const void *m_watched = nullptr;
     QString m_appId;
     bool m_applied = false;

@@ -44,13 +44,21 @@ bool WindowAppId::applied() const { return m_applied; }
 
 // A window's platform surface is made when it is first shown, and the name
 // has to reach it before the compositor maps it, so a window not yet shown is
-// watched until it has one.
+// watched until it has one. A surface can be taken away and made again, at the
+// same address or another, and the new one has to be named too.
 bool WindowAppId::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == m_window && event->type() == QEvent::PlatformSurface
-        && static_cast<QPlatformSurfaceEvent *>(event)->surfaceEventType()
-            == QPlatformSurfaceEvent::SurfaceCreated) {
+    if (watched != m_window || event->type() != QEvent::PlatformSurface) {
+        return false;
+    }
+    switch (static_cast<QPlatformSurfaceEvent *>(event)->surfaceEventType()) {
+    case QPlatformSurfaceEvent::SurfaceCreated:
         watchSurface();
+        break;
+    case QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed:
+        m_watched = nullptr;
+        setApplied(false);
+        break;
     }
     return false;
 }

@@ -13,6 +13,7 @@ class WindowAppIdTest final : public QObject {
 private slots:
     void asksNothingOffWayland();
     void namesTheWindowBeforeItIsMapped();
+    void namesTheWindowAgainWhenItIsMadeAgain();
 };
 
 // A platform with no Wayland window interface, as the offscreen one a test
@@ -47,6 +48,29 @@ void WindowAppIdTest::namesTheWindowBeforeItIsMapped()
     QVERIFY(appId.applied());
     QCOMPARE(appliedSpy.count(), 1);
     QVERIFY(QTest::qWaitForWindowExposed(&window));
+}
+
+// A window hidden and shown again can be given a new platform window, which
+// may sit where the last one did. That one is named too, before it is mapped.
+// Run under a Wayland session, as above.
+void WindowAppIdTest::namesTheWindowAgainWhenItIsMadeAgain()
+{
+    if (QGuiApplication::platformName() != u"wayland") {
+        QSKIP("Needs a Wayland session.");
+    }
+    QWindow window;
+    WindowAppId appId;
+    QSignalSpy appliedSpy(&appId, &WindowAppId::appliedChanged);
+    appId.setAppId(QStringLiteral("omaweb-tab"));
+    appId.setWindow(&window);
+    window.show();
+    QVERIFY(appId.applied());
+
+    window.destroy();
+    QVERIFY(!appId.applied());
+    window.show();
+    QVERIFY(appId.applied());
+    QCOMPARE(appliedSpy.count(), 3);
 }
 
 QTEST_MAIN(WindowAppIdTest)
