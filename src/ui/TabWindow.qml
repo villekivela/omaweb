@@ -131,14 +131,23 @@ Window {
 
     // Built once the engine is lent; a restart may reach this window before
     // the tab's Space has a profile to build its page on, so it asks again.
+    // A page that still cannot be had after five seconds never will be, and
+    // the tab goes back to the sidebar rather than the window asking for ever.
+    property int adoptAttempts: 0
     function adoptPage() {
         if (root.engine || root.released || root.tabId.length === 0)
             return;
         root.engine = root.engineHost.lendEngine(root.entry, pageHost);
         if (!root.engine) {
+            root.adoptAttempts += 1;
+            if (root.adoptAttempts >= 50) {
+                root.putBack(false);
+                return;
+            }
             adoptAgain.start();
             return;
         }
+        root.adoptAttempts = 0;
         // A page built a moment ago may not have its address yet, and then the
         // address the tab was saved with is the site the strip was hidden on.
         const host = root.hostOf(root.engine.currentUrl);

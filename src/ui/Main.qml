@@ -825,7 +825,8 @@ ApplicationWindow {
         return {
             "label": qsTr("Pop out into a window"),
             "command": "pop-out-tab",
-            "enabled": !(window.glanceOpen && tabId === window.windowBrowser.activeTabId)
+            "enabled": window.windowBrowser.canPopOutTab(tabId) && !(window.glanceOpen && tabId
+                                                                     === window.windowBrowser.activeTabId)
         };
     }
 

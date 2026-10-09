@@ -74,6 +74,7 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // an address the reader typed, so the interface stands something else in
     // its place rather than showing an empty viewport.
     Q_PROPERTY(bool activeTabBlank READ activeTabBlank NOTIFY activeTabChanged)
+    Q_PROPERTY(bool activeTabCanPopOut READ activeTabCanPopOut NOTIFY activeTabChanged)
     // A Space is at rest when its only ordinary tab is blank: nothing has been
     // opened in it, or the last page in it has been closed. The interface has
     // no page to show then and no ordinary tab to list, so both read this
@@ -372,6 +373,10 @@ public:
     // the active tab shows the tab closing it would, or the Space at rest. A
     // blank tab has no page to pop out, and a Private window none at all.
     Q_INVOKABLE bool popOutTab(const QString &tabId);
+    // Whether `popOutTab` would take the tab: one with a page of its own, not
+    // out already. Agent activity is the browser's own page and never is.
+    Q_INVOKABLE bool canPopOutTab(const QString &tabId) const;
+    bool activeTabCanPopOut() const;
     // Returns a popped-out tab of any Space to the main window's sidebar.
     // With `show`, the main window switches to its Space and selects it.
     Q_INVOKABLE bool putBackTab(const QString &tabId, bool show);
@@ -902,6 +907,9 @@ private:
     TabJumpList &settledTabJumpList();
     static double steppedZoom(double zoom, int direction);
     static bool isBlank(const QUrl &url);
+    // A page a Tab window can show: not blank, and not the browser's own Agent
+    // activity, which no engine draws.
+    static bool poppable(const QUrl &url);
     bool restingOnBlankTab() const;
     void refreshAtRest();
     void setDeveloperToolsTab(const QString &tabId, const QString &spaceId);

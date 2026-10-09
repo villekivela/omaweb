@@ -2630,17 +2630,31 @@ QString BrowserController::successorOf(const QString &tabId) const
     return successor < 0 ? QString {} : m_tabs.items().at(successor).id;
 }
 
-bool BrowserController::popOutTab(const QString &tabId)
+bool BrowserController::canPopOutTab(const QString &tabId) const
 {
     if (!m_capabilities.allows(Capability::TabWindows)) {
+        return false;
+    }
+    const auto *live = m_tabs.find(tabId);
+    const auto found = live ? std::optional<TabState>(*live) : findTab(tabId);
+    return found && !found->poppedOut && poppable(found->url);
+}
+
+bool BrowserController::activeTabCanPopOut() const { return canPopOutTab(m_activeTabId); }
+
+bool BrowserController::poppable(const QUrl &url)
+{
+    return !isBlank(url) && url != agentActivityAddress();
+}
+
+bool BrowserController::popOutTab(const QString &tabId)
+{
+    if (!canPopOutTab(tabId)) {
         return false;
     }
     const auto *found = m_tabs.find(tabId);
     if (!found) {
         return popOutAwayTab(tabId);
-    }
-    if (found->poppedOut || isBlank(found->url)) {
-        return false;
     }
     // Closing a split's half would show the half beside it, so that is the
     // tab shown in its place, once the split has ended.
@@ -2670,7 +2684,7 @@ bool BrowserController::popOutTab(const QString &tabId)
 
 QString BrowserController::openTabWindow(const QString &spaceId, const QUrl &url)
 {
-    if (!m_capabilities.allows(Capability::TabWindows) || isBlank(url) || !url.isValid()
+    if (!m_capabilities.allows(Capability::TabWindows) || !poppable(url) || !url.isValid()
         || m_spaces.rowOf(spaceId) < 0) {
         return {};
     }
@@ -2703,7 +2717,7 @@ QString BrowserController::openTabWindow(const QString &spaceId, const QUrl &url
 bool BrowserController::popOutAwayTab(const QString &tabId)
 {
     const auto found = findTab(tabId);
-    if (!found || found->poppedOut || isBlank(found->url)) {
+    if (!found || found->poppedOut || !poppable(found->url)) {
         return false;
     }
     auto tabs = m_store->loadTabs(found->spaceId);

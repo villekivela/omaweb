@@ -16352,6 +16352,52 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // Agent activity is the browser's own page and has none to lend: its row
+    // offers no pop-out, and the command is not available on it.
+    function test_agentActivityDoesNotPopOut() {
+        openPage("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(browser.openAgentActivity());
+        const activityId = browser.activeTabId;
+        verify(!window.commands.available("pop-out-tab"));
+        verify(!window.commands.run("pop-out-tab", -1));
+        const entries = window.tabMenuActionsFor(activityId).filter(function (entry) {
+            return entry.command === "pop-out-tab";
+        });
+        compare(entries.length, 1);
+        compare(entries[0].enabled, false);
+        compare(window.tabWindowCount, 0);
+
+        browser.closeTab(activityId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A Tab window that cannot get its page, because its Space has no
+    // profile to build it on, stops asking after a while and puts the tab
+    // back rather than asking for ever.
+    function test_aTabWindowThatCannotGetItsPageGivesItBack() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        openPage("https://unbuildable.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const profiles = engineLoader.spaceProfiles;
+        engineLoader.spaceProfiles = null;
+        engineLoader.discardEngine(tabId);
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        }, 10000);
+        engineLoader.spaceProfiles = profiles;
+        verify(!browser.tabPoppedOut(tabId));
+        compare(browser.tabWindows.length, 0);
+
+        window.requestActivate();
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // A question the taken page asked goes with it, unanswered: the bar
     // closes, nothing is remembered, and a hidden strip goes back to hidden.
     function test_aTakenTabWindowPagesQuestionGoesWithIt() {

@@ -643,7 +643,7 @@ QtObject {
             // A Tab window shows a page, and a Glance is kept as a tab first.
             // A Private window has none.
         case "tab-to-pop-out":
-            return !window.privateWindow && !browser.activeTabBlank && !window.glanceOpen;
+            return !window.privateWindow && browser.activeTabCanPopOut && !window.glanceOpen;
         case "tab-window":
             return !window.privateWindow && window.tabWindowCount > 0;
         case "agent-space":

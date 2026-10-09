@@ -48,6 +48,7 @@ private slots:
     void endsTheSplitOfATabPoppedOut();
     void restsTheSpaceWhenItsLastPageIsPoppedOut();
     void popsOutNoBlankTab();
+    void popsOutNoAgentActivityTab();
     void putsATabBackInTheSidebar();
     void putsATabOfAnotherSpaceBackAndShowsIt();
     void closesAPoppedOutTabOntoTheRecentlyClosedStack();
@@ -275,6 +276,31 @@ void TabWindowsTest::popsOutNoBlankTab()
     QVERIFY(controller.activeTabBlank());
     QVERIFY(!controller.popOutTab(controller.activeTabId()));
     QVERIFY(!controller.popOutTab(QStringLiteral("no-such-tab")));
+    QVERIFY(controller.tabWindows().isEmpty());
+}
+
+// Agent activity is the browser's own page, with no engine to lend: it pops
+// out from nowhere, on show or not, and no Tab window opens on it.
+void TabWindowsTest::popsOutNoAgentActivityTab()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://reading.example"), false);
+    QVERIFY(controller.openAgentActivity());
+    const auto activityId = controller.activeTabId();
+    QVERIFY(!controller.activeTabBlank());
+    QVERIFY(!controller.canPopOutTab(activityId));
+    QVERIFY(!controller.activeTabCanPopOut());
+    QVERIFY(!controller.popOutTab(activityId));
+    QVERIFY(controller
+            .openTabWindow(controller.activeSpaceId(), BrowserController::agentActivityAddress())
+            .isEmpty());
+
+    const auto homeId = controller.activeSpaceId();
+    QVERIFY(controller.switchSpace(controller.createSpace(QStringLiteral("Elsewhere"))));
+    QVERIFY(!controller.canPopOutTab(activityId));
+    QVERIFY(!controller.popOutTab(activityId));
+    QVERIFY(controller.openTabWindow(homeId, BrowserController::agentActivityAddress()).isEmpty());
     QVERIFY(controller.tabWindows().isEmpty());
 }
 
