@@ -4161,6 +4161,36 @@ TestCase {
         browser.toggleActivePinned();
     }
 
+    // Every pin is one column wide, so a partial row leaves its columns empty
+    // instead of stretching the pins on it (#654).
+    function test_pinsKeepTheColumnGridOnAPartialRow() {
+        const list = findChild(window.contentItem, "pinnedList");
+        const ids = [];
+        const total = 7;
+        for (let i = 0; i < total; ++i) {
+            openPage("https://grid-pin-" + i + ".example");
+            ids.push(browser.activeTabId);
+            browser.toggleActivePinned();
+        }
+        const column = (list.width - list.spacing * (list.capacity - 1)) / list.capacity;
+        for (let i = 0; i < total; ++i) {
+            const id = ids[i];
+            tryVerify(function () {
+                return findChild(window.contentItem, "pinned-" + id) !== null;
+            });
+            const pin = findChild(window.contentItem, "pinned-" + id);
+            fuzzyCompare(pin.width, column, 0.01, "pin " + i + " is one column wide");
+            const columnIndex = Math.round(pin.x / (column + list.spacing));
+            verify(columnIndex < list.capacity, "pin " + i + " sits in a column");
+            fuzzyCompare(pin.x, columnIndex * (column + list.spacing), 0.01, "pin " + i
+                         + " sits on its column");
+        }
+        for (const id of ids) {
+            browser.activateTab(id);
+            browser.toggleActivePinned();
+        }
+    }
+
     function test_layoutKeepsChromeOutOfThePagesWay() {
         const settledSidebar = findChild(window.contentItem, "sidebar");
         window.sidebarCollapsed = false;
@@ -4205,9 +4235,9 @@ TestCase {
         const pinnedList = findChild(window.contentItem, "pinnedList");
         verify(pinnedList.capacity >= 3);
         verify(pinnedList.capacity <= 5);
-        compare(pinnedList.columns, Math.min(pinnedList.capacity, browser.pinnedTabs.rowCount()));
         compare(pinnedRow.x, 0);
-        compare(pinnedRow.width, pinnedList.width);
+        compare(pinnedRow.width, (pinnedList.width - pinnedList.spacing * (pinnedList.capacity - 1))
+                / pinnedList.capacity);
         compare(pinnedRow.height, 44);
 
         const tabRow = findChild(window.contentItem, "tab-" + browser.activeTabId);
