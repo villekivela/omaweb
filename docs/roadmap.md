@@ -25,19 +25,23 @@ measurements with what came in over budget fixed, jumping between tabs with `Ctr
 the sidebar on the right, and five more Start page Scenes.
 [v0.12.1](https://github.com/villekivela/omaweb/releases/tag/v0.12.1) shipped the black and white
 icon in the launcher, the active tab marked the way the Omnibar marks its selected row, and the
-release mark no longer hidden under the extension mark. v0.13.0 is the release in progress.
+release mark no longer hidden under the extension mark.
+[v0.13.0](https://github.com/villekivela/omaweb/releases/tag/v0.13.0) shipped configuration as
+files: the reader's settings in one `settings.json` in the configuration directory, the app icon
+chosen in Settings, six Space colours that Omaweb owns rather than the theme, and the sidebar's
+opacity on a slider. [v0.13.1](https://github.com/villekivela/omaweb/releases/tag/v0.13.1) shipped
+packages built against the Qt that Omarchy's stable mirror serves, so Omaweb starts on Omarchy
+again. v0.14.0 is the release in progress.
 
-[v0.13.0](https://github.com/villekivela/omaweb/milestone/9) is configuration as files and the
-chrome. The reader's settings move into one file in the configuration directory that they can keep
-in their dotfiles ([#389](https://github.com/villekivela/omaweb/issues/389)), and three settings
-build on it: the app icon chosen in Settings
-([#635](https://github.com/villekivela/omaweb/issues/635)), Space colours that Omaweb owns rather
-than the theme ([#631](https://github.com/villekivela/omaweb/issues/631)), and the sidebar's opacity
-on a slider ([#643](https://github.com/villekivela/omaweb/issues/643)). Beside them, the sidebar's
-address field is sized like a tab row ([#632](https://github.com/villekivela/omaweb/issues/632)),
-the Omnibar drops its hint row at rest ([#630](https://github.com/villekivela/omaweb/issues/630)),
-and the night sky Scene's planet and comets change
-([#629](https://github.com/villekivela/omaweb/issues/629)).
+[v0.14.0](https://github.com/villekivela/omaweb/milestone/12) is Tab windows and Omarchy. A tab pops
+out of the main window into a Tab window of its own, so a page of a Space can sit on another monitor
+([#653](https://github.com/villekivela/omaweb/issues/653),
+[ADR 0062](adr/0062-pop-a-tab-out-instead-of-opening-windows.md)). Omarchy now draws a window opaque
+unless it opts in to transparency, so the opacity override Omaweb asks Omarchy readers to add goes
+away ([#75](https://github.com/villekivela/omaweb/issues/75)). Pinned tabs keep one column grid on a
+partial row ([#654](https://github.com/villekivela/omaweb/issues/654)), and the release finds why
+Bitwarden's passkeys don't offer themselves to a page, fixing it when the cause is Omaweb's
+([#561](https://github.com/villekivela/omaweb/issues/561)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -55,9 +59,11 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
 
 ## Waiting on upstream or deferred
 
-- The Omarchy window rule ([#75](https://github.com/villekivela/omaweb/issues/75)) and the component
-  kit ([#9](https://github.com/villekivela/omaweb/issues/9),
-  [#13](https://github.com/villekivela/omaweb/issues/13)) wait on Omarchy.
+- The component kit ([#9](https://github.com/villekivela/omaweb/issues/9),
+  [#13](https://github.com/villekivela/omaweb/issues/13)) waits on Omarchy.
+- Running Omarchy's web apps in Omaweb with `--app`
+  ([#655](https://github.com/villekivela/omaweb/issues/655)) builds on Tab windows and waits for its
+  design to be settled.
 - What a reader could extend in Omaweb's own chrome waits on the command registry question
   ([#175](https://github.com/villekivela/omaweb/issues/175)).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
