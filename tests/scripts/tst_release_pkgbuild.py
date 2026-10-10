@@ -132,12 +132,12 @@ class EngineAndCapability(unittest.TestCase):
 
     def test_the_engine_tells_an_extension_where_its_window_is(self) -> None:
         # Engine 6.11.2-5 crashed the moment a Known extension made an offscreen
-        # document (#646), and an Omaweb built against 6.11.2-8 calls the
+        # document (#646), and an Omaweb built against 6.11.2-12 calls the
         # window geometry API that 6.11.2-7 does not have, so it would not start
         # on it (#684). pacman upgrades Omaweb without the engine unless the
         # dependency asks for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
-            self.assertIn(f"{ENGINE}>=6.11.2-8", depends(pkgbuild))
+            self.assertIn(f"{ENGINE}>=6.11.2-12", depends(pkgbuild))
 
     def test_the_option_is_one_cmake_declares(self) -> None:
         # A misspelt or renamed option is accepted by CMake with a warning

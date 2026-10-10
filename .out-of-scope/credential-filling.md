@@ -64,7 +64,7 @@ extension. Bitwarden asks the reader to confirm a passkey in a popout, which it 
 `chrome.windows` says the page's window is, and Omaweb opens the popout as a Glance. Engine 6.11.2-7
 reports no position, so Bitwarden's `windows.create` is refused and the passkey fails. Engine
 6.11.2-8 reports one (#684), and the popout's `windows.create` goes through once Omaweb requires
-that engine. Omaweb still stores nothing and fills nothing itself.
+6.11.2-12, the release that carries it. Omaweb still stores nothing and fills nothing itself.
 
 One-time codes are the exception and work headlessly today through all three tools.
 
