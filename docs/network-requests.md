@@ -54,6 +54,11 @@ site the Space has never loaded keeps its host code, and one whose icon carries 
 neutral tile. Omaweb never asks a third-party favicon service or a site's `/favicon.ico` for an
 icon.
 
+The engine asks a site for the icon its page declares once per run. Omaweb removes the engine's own
+favicon database at each start, so an icon that follows the colour scheme is drawn under the current
+one ([ADR 0064](adr/0064-draw-favicons-afresh-in-each-run.md)). The HTTP cache answers where the
+site allows it.
+
 Engine suggestions are off by default, and while they are off typing in the Omnibar queries only the
 active Space's local history and sends nothing over the network. With the Engine suggestions switch
 in Settings' network section on, typing search terms in the Omnibar sends them, about 150 ms after

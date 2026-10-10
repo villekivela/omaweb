@@ -43,6 +43,7 @@
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtCookiePolicy.h"
+#include "QtDrawnFavicons.h"
 #include "QtEnginePaths.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
@@ -301,6 +302,16 @@ int main(int argc, char *argv[])
         }
         // Nothing took it. Opening the page here is worse than one browser and
         // better than none, so this carries on as an ordinary launch.
+    }
+
+    // Before any Space's engine profile is built, which is the one moment no
+    // engine has the files open. A favicon that follows the colour scheme is
+    // drawn once, and the engine shows that drawing on every later visit, so a
+    // Space that met a site under a light theme kept its black mark under a
+    // dark one (#698). Each Space keeps the icons its pages showed in its own
+    // store, which is what a tab shows until its page reports one.
+    if (!validatingQml) {
+        omaweb::forgetDrawnFavicons(omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")));
     }
 
     // Before anything reads settings.json: the first start of this version

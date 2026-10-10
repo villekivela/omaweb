@@ -119,6 +119,11 @@ shows is dropped when History is trimmed, so the icons stay bounded by the Histo
 Deleting History deletes the icons of the pages it names, except one a tab in the Space's sidebar
 still shows; the pending tab write lands first so the sidebar the store reads is the one on screen.
 
+The engine keeps a favicon database of its own in each Engine profile, and Omaweb removes it from
+every Space at startup, before any profile is built. An icon that follows the colour scheme is then
+drawn under the scheme of the run that shows it rather than the one that first met it
+([ADR 0064](adr/0064-draw-favicons-afresh-in-each-run.md)).
+
 The interface draws a stored icon from an `image://omaweb-favicon/<window>/<Space>/<page>` address,
 answered by an asynchronous image provider. The window part names the controller whose store
 answers, so an address never reaches another window's store, and a Private window's never reaches a
