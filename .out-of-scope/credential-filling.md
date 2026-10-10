@@ -42,10 +42,10 @@ documentation states that many fields cannot be placed into a definite type.
 
 Filling only the focused field avoids all of this, and is also what the external picker does.
 
-## Passkeys have no mechanism, not merely no ticket
+## Passkeys come from the password manager's own extension
 
-Passkeys were the capability that made this worth reconsidering. On Linux there is no route to them
-that does not run through a vendor's own browser extension.
+Passkeys were the capability that made this worth reconsidering. On Linux, the only route to them
+runs through a vendor's own browser extension, and Omaweb does not build its own.
 
 - Bitwarden and 1Password both provide passkeys by replacing `navigator.credentials` from an
   extension content script. Their native messaging channels are restricted to their own extension
@@ -59,29 +59,32 @@ that does not run through a vendor's own browser extension.
 - Ladybird implements no WebAuthn. Every `CredentialsContainer` method rejects, and two pull
   requests adding them were closed unmerged.
 
+So a passkey in Omaweb is the password manager's, through its extension running as a Known
+extension. Bitwarden asks the reader to confirm a passkey in a popout, which it places from where
+`chrome.windows` says the page's window is, and Omaweb opens the popout as a Glance. Engine 6.11.2-7
+reports no position, so Bitwarden's `windows.create` is refused and the passkey fails. Engine
+6.11.2-8 reports one (#684), and the popout's `windows.create` goes through once Omaweb requires
+that engine. Omaweb still stores nothing and fills nothing itself.
+
 One-time codes are the exception and work headlessly today through all three tools.
 
 ## Hosting a vendor's extension instead
 
-Qt 6.10 added `QWebEngineExtensionManager`, so the engine can load a Manifest V3 extension. The API
-surface behind it is Chromium's core extensions layer plus a `tabs` schema defining only
-`chrome.tabs.update`. There is no `tabs.query`, no `windows`, no `action`, no `contextMenus`, and
-native messaging is unimplemented and refuses. There is no toolbar, and an embedder renders an
-extension's popup itself. uBlock Origin does not work and Privacy Badger does not load.
-
-A password manager's extension needs `tabs` queries and events, popup hosting, context menus, and
-native messaging for desktop unlock. Adopting extensions for this would also contradict
-[ADR 0001](../docs/adr/0001-isolate-web-engines-by-build.md), which withholds them until both
-engines support the same system. Ladybird's maintainers state that the WebExtension APIs and every
-version of the manifest specification are out of scope for a long while, so that condition is
-further off than when the decision was taken.
+Qt 6.10 added `QWebEngineExtensionManager`, so the engine can load a Manifest V3 extension. Stock Qt
+offers Chromium's core extensions layer plus a `tabs` schema defining only `chrome.tabs.update`.
+Omaweb's engine patch series adds what a password manager's extension needs: `tabs` queries and
+events, `windows`, `scripting`, and native messaging for desktop unlock. Stock Qt declares `action`
+and `contextMenus` as schemas with nothing behind them, and the series keeps what an extension asks
+of them and answers with it. Native messaging reaches a vendor's desktop app only when the extension
+loads under its Web Store id, because the host lists Web Store ids in `allowed_origins`. Carrying
+the store's public key as `key` in the manifest does that. That is how Bitwarden runs as a Known
+extension. The research and the measurements are in
+[the password manager extensions research](../docs/research/password-manager-extensions.md).
 
 ## What would reopen this
 
 - Bitwarden or 1Password shipping a Linux platform passkey provider that a browser can call without
   hosting their extension.
-- Native messaging landing in QtWebEngine, together with enough of the `tabs` and `action` surface
-  for a manager's extension to run.
 
 ## Prior requests
 
