@@ -26,8 +26,8 @@ the database is simpler, and it also takes the page addresses with it.
 A theme changed while Omaweb runs still leaves the icons drawn before the change until the next
 start. The engine draws an icon once per address while it runs, a reload does not draw it again for
 the view on show, and the image provider answers an address from the first view that holds it.
-Drawing again when the scheme changes takes a patch to the engine's favicon driver. Omaweb's own
-copy of a page's icon is replaced when the page next reports one, so a tab whose page has not loaded
-in this run, and an Omnibar row, draw the earlier copy until then.
+Drawing again when the scheme changes takes a patch to the engine's favicon driver (#700). Omaweb's
+own copy of a page's icon is replaced when the page next reports one, so a tab whose page has not
+loaded in this run, and an Omnibar row, draw the earlier copy until then.
 
 See #698.
