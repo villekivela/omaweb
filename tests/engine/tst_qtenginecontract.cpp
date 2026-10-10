@@ -9365,17 +9365,12 @@ void QtEngineContractTest::qtKeepsAKnownExtensionsRegisteredScriptAcrossARestart
         return;
     PageServer server(R"HTML(<!doctype html><title>waiting</title>)HTML");
     QVERIFY(server.listen(QHostAddress::LocalHost));
-    // The extension reads what it kept as it starts, on its own time, so the
-    // page is loaded again until it has.
-    const QUrl page(QStringLiteral("http://localhost:%1/page.html").arg(server.serverPort()));
-    for (int attempt = 0; attempt < 20; ++attempt) {
-        QVERIFY(view->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
-        QTRY_COMPARE(view->property("currentUrl").toUrl(), QUrl(QStringLiteral("about:blank")));
-        QVERIFY(view->setProperty("currentUrl", page));
-        if (QTest::qWaitFor([&title] { return title() == QStringLiteral("kept"); }, 1000))
-            break;
-    }
-    QCOMPARE(title(), QStringLiteral("kept"));
+    // Loaded once, as a restored tab is, as soon as the extension is on. The
+    // extension is still reading what it kept, and the engine holds the load
+    // until it has, so the first load already runs the script.
+    QVERIFY(view->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://localhost:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE(title(), QStringLiteral("kept"));
 #else
     QSKIP("Only Omaweb's own engine hosts a Known extension.");
 #endif
