@@ -114,3 +114,6 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 - Commands with the same `--name` share the current tab. The name defaults to that of the process
   that ran `omaweb`, so give it only when commands come from different processes.
 - `--tab <id>` points any page command at another tab. `--json` prints the browser's answer as JSON.
+- Options may come before the verb or after it: `omaweb --name x open URL` is
+  `omaweb open URL --name x`. An option with no verb after it, as in `omaweb --json URL`, is an
+  error.

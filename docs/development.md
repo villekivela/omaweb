@@ -478,16 +478,19 @@ omaweb do 'fill 1 reader@example.com' 'fill 2 "A Reader"' 'click 5'
 ```
 
 Each takes `--json` and `--name`, which defaults to the parent process's name, and `--` ends the
-options. These words, `look`, `read`, `do`, `shot`, `eval` and `console` among them, are verbs, so
-`omaweb open https://…` and `omaweb tabs` are clients of a running browser and exit with 3 when
-there is none. A launcher that starts the browser with an address passes the address alone,
-`omaweb https://…`, as the desktop entry does. `space new` and `space delete` need Allow agents,
-which has no switch in Settings yet; set `"allow-agents": true` in `agents.json` under the
-configuration root. A running browser follows the file, and turning it off there detaches every
-connection at once. `space new --temporary` prints the Space's id and keeps running, and the Space
-is deleted when the process stops, so start it in the background and stop it when the Agent is done.
-Wait for the id before using the Space, and name it with `--space`, so a command that arrives first,
-or after the holder has gone, never lands in another Space:
+options. Options may come before the verb or after it, `omaweb --name x open URL` or
+`omaweb open URL --name x`. An Agent option before anything that is not a verb, as in
+`omaweb --json https://…`, is refused with exit 2 and never launches a browser. These words, `look`,
+`read`, `do`, `shot`, `eval` and `console` among them, are verbs, so `omaweb open https://…` and
+`omaweb tabs` are clients of a running browser and exit with 3 when there is none. A launcher that
+starts the browser with an address passes the address alone, `omaweb https://…`, as the desktop
+entry does. `space new` and `space delete` need Allow agents, which has no switch in Settings yet;
+set `"allow-agents": true` in `agents.json` under the configuration root. A running browser follows
+the file, and turning it off there detaches every connection at once. `space new --temporary` prints
+the Space's id and keeps running, and the Space is deleted when the process stops, so start it in
+the background and stop it when the Agent is done. Wait for the id before using the Space, and name
+it with `--space`, so a command that arrives first, or after the holder has gone, never lands in
+another Space:
 
 ```sh
 omaweb space new signup --temporary --name checker > space-id &
@@ -504,13 +507,14 @@ another.
 socket name longer than 104 bytes on macOS, or 108 on Linux, cannot be opened, and the browser says
 so at start.
 
-`omaweb mcp [--name <name>]` serves the same verbs to an Agent as a stdio MCP server, one tool each,
-with `space new` and `space delete` as `space_new` and `space_delete`. It holds one connection to
-the socket for as long as it runs, so the current tab carries from call to call and a temporary
-Space lasts until the Agent stops the server. When no browser answers, the first tool call starts
-one and waits up to 30 seconds for its socket. A browser that runs with its socket closed would only
-come forward, so one started that never answers is not started again, and later calls say so.
-Settings' Add MCP server registers it with Claude Code and Codex. By hand:
+`omaweb mcp [--name <name>]`, with `--name` before `mcp` or after it, serves the same verbs to an
+Agent as a stdio MCP server, one tool each, with `space new` and `space delete` as `space_new` and
+`space_delete`. It holds one connection to the socket for as long as it runs, so the current tab
+carries from call to call and a temporary Space lasts until the Agent stops the server. When no
+browser answers, the first tool call starts one and waits up to 30 seconds for its socket. A browser
+that runs with its socket closed would only come forward, so one started that never answers is not
+started again, and later calls say so. Settings' Add MCP server registers it with Claude Code and
+Codex. By hand:
 
 ```sh
 claude mcp add -s user omaweb -- omaweb mcp
