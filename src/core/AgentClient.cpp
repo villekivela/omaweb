@@ -88,6 +88,10 @@ int runAgentClient(
     if (isAgentCommand(arguments)) {
         return runAgentCommand(arguments, socketPath);
     }
+    if (const auto option = misplacedAgentOption(arguments); !option.isEmpty()) {
+        std::fprintf(stderr, "%s\n", qPrintable(misplacedAgentOptionMessage(option)));
+        return 2;
+    }
     if (browserPath.isEmpty()) {
         // The browser reports the engine's versions too, and with none here
         // the client's own is all there is to report.

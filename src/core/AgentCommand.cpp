@@ -520,6 +520,56 @@ namespace {
         return reachesAPage ? timeout + grantAnswerTimeoutMs : timeout;
     }
 
+    const QSet<QString> &verbs()
+    {
+        static const QSet<QString> verbs {
+            QStringLiteral("spaces"),
+            QStringLiteral("tabs"),
+            QStringLiteral("open"),
+            QStringLiteral("close"),
+            QStringLiteral("space"),
+            QStringLiteral("look"),
+            QStringLiteral("read"),
+            QStringLiteral("do"),
+            QStringLiteral("shot"),
+            QStringLiteral("eval"),
+            QStringLiteral("console"),
+            QStringLiteral("commands"),
+            QStringLiteral("run"),
+            QStringLiteral("focus"),
+            QStringLiteral("dev"),
+#ifdef OMAWEB_FILM_HOOKS
+            QStringLiteral("film-hover"),
+#endif
+        };
+        return verbs;
+    }
+
+    bool isVerb(const QString &word) { return verbs().contains(word); }
+
+    // Every option some verb's grammar takes, and whether it takes a value,
+    // with `--json` and `--name`, which every verb takes.
+    const QHash<QString, bool> &agentOptions()
+    {
+        static const auto options = [] {
+            QHash<QString, bool> all {
+                {QStringLiteral("json"), false}, {QStringLiteral("name"), true}};
+            auto verbNames = verbs();
+            verbNames.insert(QStringLiteral("space new"));
+            for (const auto &verb : std::as_const(verbNames)) {
+                const auto grammar = grammarFor(verb);
+                for (const auto &option : grammar.valued) {
+                    all.insert(option, true);
+                }
+                for (const auto &option : grammar.flags) {
+                    all.insert(option, false);
+                }
+            }
+            return all;
+        }();
+        return options;
+    }
+
 } // namespace
 
 QJsonArray readAgentSteps(const QStringList &arguments, QString &error)
@@ -542,29 +592,49 @@ const QStringList &agentConsoleLevels()
 
 int agentAnswerTimeoutMs(const QJsonObject &request) { return answerTimeoutFor(request); }
 
+qsizetype agentVerbIndex(const QStringList &arguments)
+{
+    const auto &options = agentOptions();
+    qsizetype index = 1;
+    while (index < arguments.size()) {
+        const auto &argument = arguments.at(index);
+        if (!argument.startsWith(u"--") || argument == u"--") {
+            break;
+        }
+        const auto equals = argument.indexOf(u'=');
+        const auto option = options.constFind(argument.mid(2, equals < 0 ? -1 : equals - 2));
+        if (option == options.cend()) {
+            break;
+        }
+        // A value follows an option that takes one, unless it came with `=`.
+        index += option.value() && equals < 0 ? 2 : 1;
+    }
+    return std::min(index, arguments.size());
+}
+
+QString misplacedAgentOptionMessage(const QString &option)
+{
+    return QStringLiteral(
+        "omaweb: %1 belongs to an Agent verb, and no verb follows it. Give it one, "
+        "or leave the option out to launch the browser.")
+        .arg(option);
+}
+
 bool isAgentCommand(const QStringList &arguments)
 {
-    static const QSet<QString> verbs {
-        QStringLiteral("spaces"),
-        QStringLiteral("tabs"),
-        QStringLiteral("open"),
-        QStringLiteral("close"),
-        QStringLiteral("space"),
-        QStringLiteral("look"),
-        QStringLiteral("read"),
-        QStringLiteral("do"),
-        QStringLiteral("shot"),
-        QStringLiteral("eval"),
-        QStringLiteral("console"),
-        QStringLiteral("commands"),
-        QStringLiteral("run"),
-        QStringLiteral("focus"),
-        QStringLiteral("dev"),
-#ifdef OMAWEB_FILM_HOOKS
-        QStringLiteral("film-hover"),
-#endif
-    };
-    return arguments.size() > 1 && verbs.contains(arguments.at(1));
+    const auto verb = agentVerbIndex(arguments);
+    return verb < arguments.size() && isVerb(arguments.at(verb));
+}
+
+QString misplacedAgentOption(const QStringList &arguments)
+{
+    const auto verb = agentVerbIndex(arguments);
+    if (verb == 1
+        || (verb < arguments.size()
+            && (isVerb(arguments.at(verb)) || arguments.at(verb) == u"mcp"))) {
+        return {};
+    }
+    return arguments.at(1);
 }
 
 AgentCommand readAgentCommand(const QStringList &arguments, const QString &defaultName)
@@ -574,27 +644,31 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         command.error = QStringLiteral("Not an Agent command.");
         return command;
     }
-    auto verb = arguments.at(1);
-    qsizetype next = 2;
+    QString name = defaultName;
+    const auto verbIndex = agentVerbIndex(arguments);
+    auto verb = arguments.at(verbIndex);
+    qsizetype next = verbIndex + 1;
     // `space <name>` switches to a Space, so a Space called "new" or "delete"
     // is switched to by its id.
     if (verb == u"space") {
-        const auto action = arguments.value(2);
+        const auto action = arguments.value(next);
         if (action == u"new" || action == u"delete") {
             verb += u' ' + action;
-            next = 3;
+            ++next;
         }
     }
 
     const auto grammar = grammarFor(verb);
     QJsonObject request {{QStringLiteral("verb"), verb}};
-    QString name = defaultName;
     QStringList positionals;
     // `--` ends the options, so an expression or an address that starts with
     // two dashes can still be given.
     auto optionsEnded = false;
-    for (auto index = next; index < arguments.size(); ++index) {
-        const auto &argument = arguments.at(index);
+    // The options ahead of the verb are read as the verb's own, wherever they
+    // stand.
+    const auto tokens = arguments.mid(1, verbIndex - 1) + arguments.mid(next);
+    for (qsizetype index = 0; index < tokens.size(); ++index) {
+        const auto &argument = tokens.at(index);
         if (!optionsEnded && argument == u"--") {
             optionsEnded = true;
             continue;
@@ -625,11 +699,11 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             return command;
         }
         if (!hasInlineValue) {
-            if (index + 1 >= arguments.size()) {
+            if (index + 1 >= tokens.size()) {
                 command.error = QStringLiteral("--%1 needs a value.").arg(option);
                 return command;
             }
-            value = arguments.at(++index);
+            value = tokens.at(++index);
         }
         if (option == u"name") {
             name = value;

@@ -333,7 +333,10 @@ namespace {
 
 } // namespace
 
-bool isAgentMcpCommand(const QStringList &arguments) { return arguments.value(1) == u"mcp"; }
+bool isAgentMcpCommand(const QStringList &arguments)
+{
+    return arguments.value(agentVerbIndex(arguments)) == u"mcp";
+}
 
 QJsonArray agentMcpTools()
 {
@@ -478,10 +481,12 @@ void serveAgentMcp(std::istream &input, std::ostream &output, const QString &nam
 std::optional<QString> readAgentMcpName(const QStringList &arguments, const QString &defaultName)
 {
     auto name = defaultName;
-    for (qsizetype index = 2; index < arguments.size(); ++index) {
-        const auto &argument = arguments.at(index);
-        if (argument == u"--name" && index + 1 < arguments.size()) {
-            name = arguments.at(++index);
+    const auto verb = agentVerbIndex(arguments);
+    const auto options = arguments.mid(1, verb - 1) + arguments.mid(verb + 1);
+    for (qsizetype index = 0; index < options.size(); ++index) {
+        const auto &argument = options.at(index);
+        if (argument == u"--name" && index + 1 < options.size()) {
+            name = options.at(++index);
         } else if (argument.startsWith(namePrefix)) {
             name = argument.mid(namePrefix.size());
         } else {
@@ -603,7 +608,8 @@ int runAgentMcp(
 {
     const auto name = readAgentMcpName(arguments, parentProcessName());
     if (!name) {
-        std::fputs("omaweb: use `omaweb mcp [--name <name>]`.\n", stderr);
+        std::fputs(
+            "omaweb: use `omaweb mcp [--name <name>]`, with --name before or after mcp.\n", stderr);
         return 2;
     }
     AgentMcpLink browser(socketPath, start, startTimeoutMs);

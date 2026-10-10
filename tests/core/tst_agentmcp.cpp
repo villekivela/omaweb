@@ -172,6 +172,7 @@ private slots:
     void servesOneMessageALine();
     void readsTheConnectionsName_data();
     void readsTheConnectionsName();
+    void readsTheNameAheadOfMcp();
     void holdsOneConnectionToTheBrowser();
     void startsABrowserWhenNoneAnswers();
     void startsABrowserThatNeverAnswersOnlyOnce();
@@ -649,6 +650,18 @@ void AgentMcpTest::readsTheConnectionsName()
     if (read) {
         QCOMPARE(*read, name);
     }
+}
+
+// `--name` leads the command line as it follows it (#683), and `mcp` takes no other.
+void AgentMcpTest::readsTheNameAheadOfMcp()
+{
+    const auto program = QStringLiteral("omaweb");
+    const QStringList ahead {
+        program, QStringLiteral("--name"), QStringLiteral("x"), QStringLiteral("mcp")};
+    QVERIFY(omaweb::isAgentMcpCommand(ahead));
+    QCOMPARE(readAgentMcpName(ahead, QStringLiteral("claude")), QStringLiteral("x"));
+    QVERIFY(!readAgentMcpName(
+        {program, QStringLiteral("--json"), QStringLiteral("mcp")}, QStringLiteral("claude")));
 }
 
 // The current tab and a temporary Space belong to a connection, so every call

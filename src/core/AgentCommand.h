@@ -16,8 +16,22 @@ namespace omaweb {
 // A process run with one of them is a client and never a browser. It builds no
 // engine, claims no desktop name and exits once it has its answer.
 
+// Where the verb stands: the first argument after the Agent options that lead
+// the command line, which may come before the verb as after it
+// (`omaweb --name x open URL`). The options are those some verb's grammar
+// takes, with their values. `arguments.size()` when nothing follows them.
+qsizetype agentVerbIndex(const QStringList &arguments);
+
 // Whether a command line asks for an Agent verb rather than for the browser.
 bool isAgentCommand(const QStringList &arguments);
+
+// The Agent option that leads a command line which has no verb to give it to,
+// such as `--json` in `omaweb --json https://example.com`, or nothing. The
+// browser must never be launched for it.
+QString misplacedAgentOption(const QStringList &arguments);
+
+// What the CLI says of a misplaced option, which it exits 2 on.
+QString misplacedAgentOptionMessage(const QString &option);
 
 struct AgentCommand {
     // What goes over the socket, or nothing when `error` says why not.

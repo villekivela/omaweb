@@ -199,6 +199,10 @@ int main(int argc, char *argv[])
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
         return omaweb::runAgentCommand(arguments, omaweb::agentSocketPath());
     }
+    if (const auto option = omaweb::misplacedAgentOption(arguments); !option.isEmpty()) {
+        std::fprintf(stderr, "%s\n", qPrintable(omaweb::misplacedAgentOptionMessage(option)));
+        return 2;
+    }
     if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX")) {
         qCritical("Omaweb refuses to start with QTWEBENGINE_DISABLE_SANDBOX set. There is no "
                   "Omaweb that runs page code outside a sandbox.");

@@ -153,6 +153,8 @@ class AgentClientTest final : public QObject {
 private slots:
     void handsALaunchToTheBrowserBesideIt_data();
     void handsALaunchToTheBrowserBesideIt();
+    void refusesAnAgentOptionWithNoVerb_data();
+    void refusesAnAgentOptionWithNoVerb();
     void saysTheBrowserIsNotInstalled_data();
     void saysTheBrowserIsNotInstalled();
     void answersItsOwnVersionWithoutABrowser();
@@ -175,6 +177,7 @@ void AgentClientTest::handsALaunchToTheBrowserBesideIt_data()
         << QStringList {QStringLiteral("https://example.com/a b?c=d")};
     QTest::newRow("the browser's own switches")
         << QStringList {QStringLiteral("--remote-debugging=9222"), QStringLiteral("--version")};
+    QTest::newRow("a QML validation") << QStringList {QStringLiteral("--validate-qml")};
 }
 
 void AgentClientTest::handsALaunchToTheBrowserBesideIt()
@@ -193,6 +196,38 @@ void AgentClientTest::handsALaunchToTheBrowserBesideIt()
     QCOMPARE(QFileInfo(commandLine.takeFirst()).canonicalFilePath(),
         QFileInfo(directory.filePath(QStringLiteral("omaweb-browser"))).canonicalFilePath());
     QCOMPARE(commandLine, arguments);
+}
+
+void AgentClientTest::refusesAnAgentOptionWithNoVerb_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::addColumn<QString>("option");
+    QTest::newRow("json and an address")
+        << QStringList {QStringLiteral("--json"), QStringLiteral("https://example.com")}
+        << QStringLiteral("--json");
+    QTest::newRow("a name") << QStringList {QStringLiteral("--name"), QStringLiteral("x")}
+                            << QStringLiteral("--name");
+    QTest::newRow("json alone") << QStringList {QStringLiteral("--json")}
+                                << QStringLiteral("--json");
+}
+
+// The browser beside the client records what it is run with, so a launch would show: the command
+// fails with the option named and the browser is never run (#683).
+void AgentClientTest::refusesAnAgentOptionWithNoVerb()
+{
+    QFETCH(QStringList, arguments);
+    QFETCH(QString, option);
+    QTemporaryDir directory;
+    const auto client = placeClient(directory);
+    QVERIFY(!client.isEmpty());
+    QVERIFY(placeBrowser(directory));
+
+    const auto ran = run(client, arguments, environmentFor(directory));
+
+    QCOMPARE(ran.code, 2);
+    QVERIFY2(ran.err.contains(option), qPrintable(ran.err));
+    QVERIFY2(ran.err.contains(QStringLiteral("Agent verb")), qPrintable(ran.err));
+    QVERIFY(recorded(directory).isEmpty());
 }
 
 void AgentClientTest::saysTheBrowserIsNotInstalled_data()

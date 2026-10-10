@@ -9,6 +9,8 @@ using omaweb::agentAnswerTimeoutMs;
 using omaweb::AgentCommand;
 using omaweb::formatAgentAnswer;
 using omaweb::isAgentCommand;
+using omaweb::misplacedAgentOption;
+using omaweb::misplacedAgentOptionMessage;
 using omaweb::readAgentCommand;
 
 class AgentCommandTest final : public QObject {
@@ -18,6 +20,12 @@ private slots:
     void tellsAVerbFromAnAddressToOpen();
     void readsEachVerbIntoARequest_data();
     void readsEachVerbIntoARequest();
+    void readsOptionsBeforeTheVerbAsAfterIt_data();
+    void readsOptionsBeforeTheVerbAsAfterIt();
+    void readsTheClientsOptionsBeforeTheVerb();
+    void refusesAnAgentOptionThatLeadsNoVerb_data();
+    void refusesAnAgentOptionThatLeadsNoVerb();
+    void leavesTheBrowsersOwnArgumentsAlone();
     void readsThePickerAsATabsRequestForEverySpace();
     void refusesAMalformedCommand_data();
     void refusesAMalformedCommand();
@@ -210,6 +218,124 @@ void AgentCommandTest::readsEachVerbIntoARequest()
     QVERIFY2(command.error.isEmpty(), qPrintable(command.error));
     QCOMPARE(command.request, request);
     QCOMPARE(command.json, json);
+}
+
+void AgentCommandTest::readsOptionsBeforeTheVerbAsAfterIt_data()
+{
+    QTest::addColumn<QStringList>("before");
+    QTest::addColumn<QStringList>("after");
+    const auto url = QStringLiteral("http://localhost:8561/");
+    QTest::newRow("a name") << QStringList {"--name", "x", "open", url}
+                            << QStringList {"open", url, "--name", "x"};
+    QTest::newRow("a name with its value inline")
+        << QStringList {"--name=x", "tabs"} << QStringList {"tabs", "--name=x"};
+    QTest::newRow("json and a name before a two-word verb") << QStringList {"--json", "--name", "x",
+        "space", "new", "probe"} << QStringList {"space", "new", "probe", "--json", "--name", "x"};
+    QTest::newRow("a tab") << QStringList {"--tab", "t", "look"}
+                           << QStringList {"look", "--tab", "t"};
+    QTest::newRow("a space and a flag") << QStringList {"--space", "work", "--all", "tabs"}
+                                        << QStringList {"tabs", "--space", "work", "--all"};
+    QTest::newRow("options on both sides") << QStringList {"--tab", "t", "do", "--settle", "5",
+        "click 3"} << QStringList {"do", "--tab", "t", "--settle", "5", "click 3"};
+    QTest::newRow("a flag before the verb") << QStringList {"--temporary", "space", "new"}
+                                            << QStringList {"space", "new", "--temporary"};
+    QTest::newRow("a badly valued option") << QStringList {"--settle", "soon", "do", "click 3"}
+                                           << QStringList {"do", "--settle", "soon", "click 3"};
+    QTest::newRow("an option the verb does not take")
+        << QStringList {"--tab", "t", "spaces"} << QStringList {"spaces", "--tab", "t"};
+    QTest::newRow("the picker with json")
+        << QStringList {"--json", "--pick", "tabs"} << QStringList {"tabs", "--pick", "--json"};
+}
+
+// The options a verb takes, the values they take and the errors they give are the same wherever
+// they stand (#683).
+void AgentCommandTest::readsOptionsBeforeTheVerbAsAfterIt()
+{
+    QFETCH(QStringList, before);
+    QFETCH(QStringList, after);
+    const auto program = QStringLiteral("omaweb");
+
+    QVERIFY(isAgentCommand(QStringList {program} + before));
+    const auto early = readAgentCommand(QStringList {program} + before, QStringLiteral("claude"));
+    const auto late = readAgentCommand(QStringList {program} + after, QStringLiteral("claude"));
+
+    QCOMPARE(early.error, late.error);
+    QCOMPARE(early.request, late.request);
+    QCOMPARE(early.json, late.json);
+    QCOMPARE(early.pick, late.pick);
+}
+
+void AgentCommandTest::readsTheClientsOptionsBeforeTheVerb()
+{
+    const auto command = readAgentCommand(
+        {QStringLiteral("omaweb"), QStringLiteral("--name"), QStringLiteral("p561"),
+            QStringLiteral("open"), QStringLiteral("http://localhost:8561/")},
+        QStringLiteral("claude"));
+    QCOMPARE(command.error, QString());
+    QCOMPARE(command.request,
+        (QJsonObject {{QStringLiteral("verb"), QStringLiteral("open")},
+            {QStringLiteral("url"), QStringLiteral("http://localhost:8561/")},
+            {QStringLiteral("name"), QStringLiteral("p561")}}));
+
+    const auto tab = readAgentCommand({QStringLiteral("omaweb"), QStringLiteral("--tab"),
+                                          QStringLiteral("t"), QStringLiteral("look")},
+        QStringLiteral("claude"));
+    QCOMPARE(tab.error, QString());
+    QCOMPARE(tab.request,
+        (QJsonObject {{QStringLiteral("verb"), QStringLiteral("look")},
+            {QStringLiteral("tab"), QStringLiteral("t")},
+            {QStringLiteral("name"), QStringLiteral("claude")}}));
+}
+
+void AgentCommandTest::refusesAnAgentOptionThatLeadsNoVerb_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::addColumn<QString>("option");
+    const auto url = QStringLiteral("https://example.com");
+    QTest::newRow("json and an address") << QStringList {"--json", url} << "--json";
+    QTest::newRow("a name and an address") << QStringList {"--name", "x", url} << "--name";
+    QTest::newRow("a name alone") << QStringList {"--name", "x"} << "--name";
+    QTest::newRow("json alone") << QStringList {"--json"} << "--json";
+    QTest::newRow("a name without its value") << QStringList {"--name"} << "--name";
+    QTest::newRow("a tab and a launch") << QStringList {"--tab=t"} << "--tab=t";
+    QTest::newRow("a verb's flag") << QStringList {"--all", url} << "--all";
+}
+
+void AgentCommandTest::refusesAnAgentOptionThatLeadsNoVerb()
+{
+    QFETCH(QStringList, arguments);
+    QFETCH(QString, option);
+    arguments.prepend(QStringLiteral("omaweb"));
+
+    QVERIFY(!isAgentCommand(arguments));
+    QCOMPARE(misplacedAgentOption(arguments), option);
+    const auto message = misplacedAgentOptionMessage(option);
+    QVERIFY(message.contains(option));
+    QVERIFY(message.contains(QStringLiteral("Agent verb")));
+    // An example would put a verb where a valued option reads it as its value.
+    QVERIFY2(!message.contains(QStringLiteral("spaces")), qPrintable(message));
+}
+
+// What is no Agent option is the browser's, and still launches it.
+void AgentCommandTest::leavesTheBrowsersOwnArgumentsAlone()
+{
+    const auto program = QStringLiteral("omaweb");
+    for (const auto &arguments : QList<QStringList> {
+             {program},
+             {program, QStringLiteral("--version")},
+             {program, QStringLiteral("--validate-qml")},
+             {program, QStringLiteral("--remote-debugging=9222"), QStringLiteral("--version")},
+             {program, QStringLiteral("https://example.com/")},
+             {program, QStringLiteral("mcp")},
+         }) {
+        QVERIFY2(misplacedAgentOption(arguments).isEmpty(), qPrintable(arguments.join(u' ')));
+    }
+    // An option ahead of a verb, or of `mcp`, has somewhere to go.
+    QVERIFY(misplacedAgentOption({program, QStringLiteral("--json"), QStringLiteral("tabs")})
+            .isEmpty());
+    QVERIFY(misplacedAgentOption(
+        {program, QStringLiteral("--name"), QStringLiteral("x"), QStringLiteral("mcp")})
+            .isEmpty());
 }
 
 // The picker is the CLI's own: what goes over the socket is the list of every Space's tabs, and
