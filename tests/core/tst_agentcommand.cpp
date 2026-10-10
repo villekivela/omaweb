@@ -309,7 +309,11 @@ void AgentCommandTest::refusesAnAgentOptionThatLeadsNoVerb()
 
     QVERIFY(!isAgentCommand(arguments));
     QCOMPARE(misplacedAgentOption(arguments), option);
-    QVERIFY(misplacedAgentOptionMessage(option).contains(option));
+    const auto message = misplacedAgentOptionMessage(option);
+    QVERIFY(message.contains(option));
+    QVERIFY(message.contains(QStringLiteral("Agent verb")));
+    // An example would put a verb where a valued option reads it as its value.
+    QVERIFY2(!message.contains(QStringLiteral("spaces")), qPrintable(message));
 }
 
 // What is no Agent option is the browser's, and still launches it.
