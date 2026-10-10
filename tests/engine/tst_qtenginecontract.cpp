@@ -237,6 +237,8 @@ private slots:
     void qtSpaceProfilesKeepSiteStorageOnDisk();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
+    void qtRunsAKnownExtensionsMainWorldScriptInAPage_data();
+    void qtRunsAKnownExtensionsMainWorldScriptInAPage();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
     void qtTranslatesEachSecurityKeyStep_data();
     void qtTranslatesEachSecurityKeyStep();
@@ -8936,6 +8938,112 @@ void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
     QVERIFY(adapter->setProperty("currentUrl", QUrl(address + QStringLiteral("#again"))));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("stored:0:0"), 20000);
+}
+
+// A password manager offers passkeys by replacing the page's own
+// navigator.credentials, so its script has to run in the page's main world.
+// Bitwarden registers that script from its worker, with Bitwarden's own
+// matches and timing here; 1Password declares it in its manifest (#561).
+void QtEngineContractTest::qtRunsAKnownExtensionsMainWorldScriptInAPage_data()
+{
+    QTest::addColumn<QByteArray>("manifest");
+    QTest::addColumn<QByteArray>("worker");
+    QTest::newRow("registered") << QByteArray(
+        R"JSON({"manifest_version": 3, "name": "passkeys", "version": "1",
+            "permissions": ["scripting"], "host_permissions": ["<all_urls>"],
+            "background": {"service_worker": "worker.js"}})JSON")
+                                << QByteArray(R"JS(
+            const shared = {matches: ["https://*/*", "http://localhost/*"],
+                excludeMatches: ["https://*/*.xml*"], allFrames: true, runAt: "document_start"};
+            chrome.scripting.registerContentScripts([
+                Object.assign({id: "page", js: ["page.js"], world: "MAIN"}, shared),
+                Object.assign({id: "content", js: ["content.js"]}, shared),
+            ]);
+        )JS");
+    QTest::newRow("declared") << QByteArray(
+        R"JSON({"manifest_version": 3, "name": "passkeys", "version": "1",
+            "background": {"service_worker": "worker.js"},
+            "content_scripts": [
+                {"matches": ["https://*/*", "http://localhost/*"], "all_frames": true,
+                 "js": ["content.js"], "run_at": "document_start"},
+                {"matches": ["https://*/*", "http://localhost/*"], "all_frames": true,
+                 "js": ["page.js"], "run_at": "document_start", "world": "MAIN"}]})JSON")
+                              << QByteArray();
+}
+
+void QtEngineContractTest::qtRunsAKnownExtensionsMainWorldScriptInAPage()
+{
+#if OMAWEB_KNOWN_EXTENSIONS
+    QTemporaryDir root;
+    QDir extension(root.filePath(QStringLiteral("passkeys")));
+    QVERIFY(extension.mkpath(QStringLiteral(".")));
+    QFETCH(QByteArray, manifest);
+    QFETCH(QByteArray, worker);
+    const QList<std::pair<QString, QByteArray>> files {
+        {QStringLiteral("manifest.json"), manifest},
+        {QStringLiteral("worker.js"), worker},
+        {QStringLiteral("page.js"), R"JS(
+            navigator.credentials.get = function extensionGet() {};
+            document.documentElement.dataset.page = "ran";
+        )JS"},
+        {QStringLiteral("content.js"), R"JS(document.documentElement.dataset.content = "ran";)JS"},
+    };
+    for (const auto &[name, contents] : files) {
+        QFile file(extension.filePath(name));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(contents), contents.size());
+    }
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("knownExtensions"),
+            QVariantList {QVariantMap {
+                {QStringLiteral("key"), QStringLiteral("passkeys")},
+                {QStringLiteral("name"), QStringLiteral("passkeys")},
+                {QStringLiteral("path"), extension.path()},
+            }}},
+    }));
+    QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+    QTRY_COMPARE(spaceHost->property("hostedExtensions").toList().size(), 1);
+
+    PageServer server(R"HTML(<!doctype html><title>waiting</title><script>
+        document.title = navigator.credentials.get.name + " page=" +
+            document.documentElement.dataset.page + " content=" +
+            document.documentElement.dataset.content;
+    </script>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+    }));
+    QVERIFY2(view, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+    window.show();
+
+    // A script registered from the worker reaches pages loaded after the
+    // registration lands, and the worker starts on its own time, so the page
+    // is loaded again until it has.
+    const QUrl page(QStringLiteral("http://localhost:%1/page.html").arg(server.serverPort()));
+    const auto title = [&view] { return view->property("pageTitle").toString(); };
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        QVERIFY(view->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
+        QTRY_COMPARE(view->property("currentUrl").toUrl(), QUrl(QStringLiteral("about:blank")));
+        QVERIFY(view->setProperty("currentUrl", page));
+        QTRY_VERIFY(title().contains(QStringLiteral("page=")));
+        if (title().startsWith(QStringLiteral("extensionGet")))
+            break;
+        QTest::qWait(250);
+    }
+    QCOMPARE(title(), QStringLiteral("extensionGet page=ran content=ran"));
+#else
+    QSKIP("Only Omaweb's own engine hosts a Known extension.");
+#endif
 }
 
 int main(int argc, char *argv[])
