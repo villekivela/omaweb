@@ -304,22 +304,20 @@ int main(int argc, char *argv[])
         // better than none, so this carries on as an ordinary launch.
     }
 
-    // Before any Space's engine profile is built, which is the one moment no
-    // engine has the files open. A favicon that follows the colour scheme is
-    // drawn once, and the engine shows that drawing on every later visit, so a
-    // Space that met a site under a light theme kept its black mark under a
-    // dark one (#698). Each Space keeps the icons its pages showed in its own
-    // store, which is what a tab shows until its page reports one.
-    if (!validatingQml) {
-        omaweb::forgetDrawnFavicons(omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")));
+    const omaweb::SpaceStorage spaceStorage(dataRoot(), QStringLiteral("qt"));
+    // Before any Space's Engine profile is built, the one moment no engine in
+    // this process has the files open. A browser that could not hand over to
+    // the one that owns the name leaves them alone, since that one may be
+    // running on the same profiles.
+    if (runningBrowser.isPrimary() && !validatingQml) {
+        omaweb::forgetDrawnFavicons(spaceStorage);
     }
 
     // Before anything reads settings.json: the first start of this version
     // moves the reader's settings into it from where an earlier one kept them,
     // through the store the browser is about to open.
     {
-        omaweb::SqliteSessionStore store(
-            omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")).dataRoot());
+        omaweb::SqliteSessionStore store(spaceStorage.dataRoot());
         if (store.open()) {
             omaweb::migrateSettings(configRoot(), store);
         }
@@ -330,8 +328,7 @@ int main(int argc, char *argv[])
     // The reader's payment cards, in the desktop's keyring. Only the main
     // browser is given them; a Private window never is.
     omaweb::PaymentCards paymentCards(omaweb::makeDesktopKeyring());
-    omaweb::BrowserController browser(
-        omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")), configRoot());
+    omaweb::BrowserController browser(spaceStorage, configRoot());
     omaweb::markStartupPhase("session-read");
     browser.setEngineSuggestions(&engineSuggestions);
     browser.setPaymentCards(&paymentCards);

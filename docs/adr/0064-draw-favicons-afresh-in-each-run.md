@@ -11,11 +11,13 @@ after run. That happened before Omaweb told the engine its own scheme (#346), an
 theme since.
 
 Omaweb now removes `Favicons` and its journal from every Space's Engine profile at startup, before
-any profile is built, so no engine has the files open. The first visit to a site in a run asks for
-its icon again, from the HTTP cache where the site allows it, and the engine draws it under that
-run's scheme. Until then a tab shows the copy its Space keeps
+any profile is built, so no engine has the files open. A launch that could not hand its address to
+the browser already running leaves them alone. The first visit to a site in a run asks for its icon
+again, from the HTTP cache where the site allows it, and the engine draws it under that run's
+scheme. Until then a tab shows the copy its Space keeps
 ([ADR 0055](0055-keep-favicons-in-the-space-that-loaded-them.md)). The database also held the
-address of every page whose icon it drew, out of reach of deleting History, and now lasts one run.
+address of every page whose icon it drew, out of reach of deleting History, and now goes at the next
+start.
 
 Removing it only when the scheme differs from the last run's would keep the engine's drawings for
 longer. That would need a record of the scheme each run started under. Every run starting without

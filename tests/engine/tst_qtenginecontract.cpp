@@ -68,6 +68,8 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QSignalSpy>
 #include <QSslConfiguration>
 #include <QSslKey>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QSslServer>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -1033,6 +1035,26 @@ int faviconLightness(QQmlEngine &engine, const QUrl &iconUrl)
     return opaque ? int(lightness / opaque) : -1;
 }
 
+// Whether the engine's favicon database at `path` holds a drawing and can be
+// read, which it cannot while an engine still has it open.
+bool holdsADrawing(const QString &path)
+{
+    const auto connection = QStringLiteral("drawn-favicons");
+    bool drawn = false;
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(path);
+        database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+        if (QFileInfo::exists(path) && database.open()) {
+            QSqlQuery query(database);
+            drawn = query.exec(QStringLiteral("SELECT COUNT(*) FROM favicon_bitmaps"))
+                && query.next() && query.value(0).toInt() > 0;
+        }
+    }
+    QSqlDatabase::removeDatabase(connection);
+    return drawn;
+}
+
 } // namespace
 
 // The engine keeps the favicon it drew for a page in the Space's profile and
@@ -1051,6 +1073,8 @@ void QtEngineContractTest::qtDrawsAFaviconAfreshInEachRun()
     const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
     QTemporaryDir root;
     const SpaceStorage storage(root.path(), QStringLiteral("qt"));
+    const auto favicons = QDir(storage.profilePathFor(QStringLiteral("space")))
+                              .filePath(QStringLiteral("Favicons"));
 
     // One run of the browser: a Space's profile and a view, gone again before
     // the next run builds its own over the same directory.
@@ -1087,13 +1111,19 @@ void QtEngineContractTest::qtDrawsAFaviconAfreshInEachRun()
         const auto lightness = faviconLightness(engine, iconUrl());
         view.reset();
         spaceHost.reset();
-        // The engine closes a profile's databases on its own threads, after
-        // the profile has gone.
-        QTest::qWait(1000);
+        // The engine writes the drawing and lets go of the database on its own
+        // threads, after the profile has gone. It holds the file locked until
+        // then, so a read that finds the drawing is one the next run would.
+        if (!QTest::qWaitFor([&] { return holdsADrawing(favicons); }, 10000)) {
+            qWarning() << "The engine kept no drawing of the favicon";
+            return -1;
+        }
         return lightness;
     };
 
-    QCOMPARE_LT(visit(), 64);
+    const auto first = visit();
+    QVERIFY(first >= 0);
+    QCOMPARE_LT(first, 64);
     server.colour = "#fff";
     forgetDrawnFavicons(storage);
     QCOMPARE_GT(visit(), 192);
