@@ -345,6 +345,17 @@ From Omaweb's model: a presenter. Qt already routes web notifications through
 Bucket: **rewrite behind delegate**. Implemented on 2026-09-21, exactly that way. Its absence stops
 1Password's worker starting; see the log entry.
 
+Its gate case, `theReadersAnswerToANotificationReachesTheExtension`, then crashed as the test
+deleted its profile, in about one run in fifteen alone and one full-suite run in thirty. The
+namespace was not the cause. A message to an extension's worker waits in a queue until the worker is
+registered and started for it, and the case's last poll leaves one waiting. Qt's
+`ExtensionsBrowserClientQt::IsValidContext` answered true for a profile being destroyed, so the
+waiting message's port reported to a service the profile had already destroyed, and a `CHECK`
+stopped the process. Chrome answers from its `ProfileManager`, which a profile leaves before it is
+destroyed. Series patch 0024 answers the same way, and its own case deletes a profile with a message
+waiting on every run. Whether Omaweb deletes a Space's profile with a message waiting was not run.
+[Issue #696](https://github.com/villekivela/omaweb/issues/696).
+
 ### privacy
 
 Bitwarden reads and writes `privacy.services.passwordSavingEnabled`, `autofillAddressEnabled`, and
