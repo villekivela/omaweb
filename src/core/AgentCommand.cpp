@@ -616,7 +616,7 @@ QString misplacedAgentOptionMessage(const QString &option)
 {
     return QStringLiteral(
         "omaweb: %1 belongs to an Agent verb, and no verb follows it. Give it one, "
-        "such as `omaweb %1 spaces`, or leave it out to launch the browser.")
+        "or leave the option out to launch the browser.")
         .arg(option);
 }
 
