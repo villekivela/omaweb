@@ -62,8 +62,8 @@ runs through a vendor's own browser extension, and Omaweb does not build its own
 So a passkey in Omaweb is the password manager's, through its extension running as a Known
 extension. Bitwarden's passkey prompt is a window of its own that it places beside the browser's,
 which needs `chrome.windows` to report where that window is. Omaweb's engine reports it from 0.14.0
-(#684), and Bitwarden registers and signs in with a passkey there. Omaweb still stores nothing and
-fills nothing itself.
+(#684), so the prompt's `windows.create` no longer fails. Omaweb still stores nothing and fills
+nothing itself.
 
 One-time codes are the exception and work headlessly today through all three tools.
 
