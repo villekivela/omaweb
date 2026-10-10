@@ -260,9 +260,12 @@ Item {
 
     signal printFinished(string destination, bool succeeded)
     signal pageCaptured(string destination, bool succeeded, string reason)
+    // What a tab's page asks to open, from every engine this window answers
+    // for: the Space on show's, and a retained or Agent tab's in a Space that
+    // is away, which has no row here to pass it on. The Space is the page's.
     signal auxiliaryWindowRequested(var engine, var request, url requestedUrl)
-    signal newTabRequested(var engine, var request, url requestedUrl)
-    signal backgroundTabRequested(url requestedUrl)
+    signal newTabRequested(var engine, var request, url requestedUrl, string spaceId)
+    signal backgroundTabRequested(url requestedUrl, string spaceId)
     signal sitePermissionRequested(var engine, string requestId, string origin, string permission)
     signal certificateErrorRaised(var engine, string requestId, var failure)
     signal pageSiteDataCleared(string origin, var cleared, string error)
@@ -334,6 +337,24 @@ Item {
             root.adoptingTabId = "";
             late.acceptNewWindowRequest(request);
         });
+    }
+
+    // A tab of a Space that is not on show, opened for a page of that Space,
+    // the way a Tab window opens one: at the end of the Space's list, holding
+    // a page that has taken the request, and frozen there until the reader
+    // goes to it. The window stays where it is.
+    function openRequestInSpace(spaceId, request, requestedUrl) {
+        const destination = String(requestedUrl).length > 0 ? String(requestedUrl) : "about:blank";
+        const tabId = root.browserController.openTabInSpace(spaceId, destination);
+        if (tabId.length === 0 || !request)
+            return tabId;
+        const engine = root.createDetachedEngineIn(null, "about:blank", spaceId);
+        if (!engine)
+            return tabId;
+        root.adoptTabWindowEngine(tabId, engine, spaceId);
+        engine.acceptNewWindowRequest(request);
+        root.setEngineVisible(tabId, false);
+        return tabId;
     }
 
     function focusPage() {
@@ -870,6 +891,21 @@ Item {
         engine.pageHasFocusChanged.connect(function () {
             root.keepKeyboardOff(engine);
         });
+        // A page lent to a Tab window asks that window instead.
+        if (engine.newTabRequested) {
+            engine.auxiliaryWindowRequested.connect(function (request, requestedUrl) {
+                if (!root.lent(tabId))
+                    root.auxiliaryWindowRequested(engine, request, requestedUrl);
+            });
+            engine.newTabRequested.connect(function (request, requestedUrl) {
+                if (!root.lent(tabId))
+                    root.newTabRequested(engine, request, requestedUrl, root.engineSpaces[tabId]);
+            });
+            engine.backgroundTabRequested.connect(function (requestedUrl) {
+                if (!root.lent(tabId))
+                    root.backgroundTabRequested(requestedUrl, root.engineSpaces[tabId]);
+            });
+        }
         // Passed on only for an Agent tab, so a reader's page costs no call
         // a line. The core checks again, since Allow agents may have gone off
         // since the page area last heard. An engine numbers its documents from
@@ -1711,18 +1747,6 @@ Item {
 
                 function onRendererFailed(reason) {
                     root.browserController.reportTabRendererFailure(tabSlot.tabId, reason);
-                }
-
-                function onAuxiliaryWindowRequested(request, requestedUrl) {
-                    root.auxiliaryWindowRequested(tabSlot.engine, request, requestedUrl);
-                }
-
-                function onNewTabRequested(request, requestedUrl) {
-                    root.newTabRequested(tabSlot.engine, request, requestedUrl);
-                }
-
-                function onBackgroundTabRequested(requestedUrl) {
-                    root.backgroundTabRequested(requestedUrl);
                 }
 
                 function onPageContextRequested(context) {
