@@ -26,8 +26,11 @@ for a view drawn nowhere. Every answer that carries a window carries the four nu
 `windows.create`'s and populated ones included.
 
 Wayland tells a client nothing about where its window is, so there `left` and `top` are `0` and only
-the size is real. Read from Bitwarden's code, it sets no position for a prompt when both are `0`,
-and the compositor places it.
+the size is real. Bitwarden checks the window it was told about, not the position it computes from
+it. `openPopout` in `apps/browser/src/platform/browser/browser-popup-utils.ts` passes no `left` or
+`top` to `windows.create` when the platform is Linux and `senderWindow.left` and `senderWindow.top`
+are both `0`. Elsewhere, on X11 among them, it passes the position it computed. That does no harm,
+because Omaweb opens the prompt as a Glance and does not place it from the request.
 
 ## Still one window
 

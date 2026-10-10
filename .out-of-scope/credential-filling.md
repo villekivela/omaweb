@@ -60,10 +60,11 @@ runs through a vendor's own browser extension, and Omaweb does not build its own
   requests adding them were closed unmerged.
 
 So a passkey in Omaweb is the password manager's, through its extension running as a Known
-extension. Bitwarden's passkey prompt is a window of its own that it places beside the browser's,
-which needs `chrome.windows` to report where that window is. Omaweb's engine reports it from 0.14.0
-(#684), so the prompt's `windows.create` no longer fails. Omaweb still stores nothing and fills
-nothing itself.
+extension. Bitwarden asks the reader to confirm a passkey in a popout, which it places from where
+`chrome.windows` says the page's window is, and Omaweb opens the popout as a Glance. Engine 6.11.2-7
+reports no position, so Bitwarden's `windows.create` is refused and the passkey fails. Engine
+6.11.2-8 reports one (#684), and the popout's `windows.create` goes through once Omaweb requires
+that engine. Omaweb still stores nothing and fills nothing itself.
 
 One-time codes are the exception and work headlessly today through all three tools.
 
@@ -72,8 +73,12 @@ One-time codes are the exception and work headlessly today through all three too
 Qt 6.10 added `QWebEngineExtensionManager`, so the engine can load a Manifest V3 extension. Stock Qt
 offers Chromium's core extensions layer plus a `tabs` schema defining only `chrome.tabs.update`.
 Omaweb's engine patch series adds what a password manager's extension needs: `tabs` queries and
-events, `windows`, `action`, `contextMenus`, `scripting`, and native messaging for desktop unlock.
-That is how Bitwarden runs as a Known extension. The research and the measurements are in
+events, `windows`, `scripting`, and native messaging for desktop unlock. Stock Qt declares `action`
+and `contextMenus` as schemas with nothing behind them, and the series keeps what an extension asks
+of them and answers with it. Native messaging reaches a vendor's desktop app only when the extension
+loads under its Web Store id, because the host lists Web Store ids in `allowed_origins`. Carrying
+the store's public key as `key` in the manifest does that. That is how Bitwarden runs as a Known
+extension. The research and the measurements are in
 [the password manager extensions research](../docs/research/password-manager-extensions.md).
 
 ## What would reopen this
