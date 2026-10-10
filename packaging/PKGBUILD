@@ -30,9 +30,9 @@ depends=(
     # The patched engine, not the distribution's. Extensions do not work
     # against qt6-webengine, and the two install side by side. 6.11.2-6 is the
     # first that survives a Known extension's offscreen document (#646), and
-    # 6.11.2-9 the first that keeps the scripts it registers across a restart
+    # 6.11.2-11 the first that keeps the scripts it registers across a restart
     # (#686).
-    'omaweb-qtwebengine>=6.11.2-9'
+    'omaweb-qtwebengine>=6.11.2-11'
     # Native Wayland is the primary display platform. X11 stays a fallback Qt
     # supplies through qt6-base.
     'qt6-wayland'

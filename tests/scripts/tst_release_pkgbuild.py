@@ -132,11 +132,11 @@ class EngineAndCapability(unittest.TestCase):
 
     def test_the_engine_keeps_an_extensions_registered_scripts(self) -> None:
         # Engine 6.11.2-5 crashed the moment a Known extension made an offscreen
-        # document (#646), and before 6.11.2-9 an extension lost the scripts it
+        # document (#646), and before 6.11.2-11 an extension lost the scripts it
         # registered at every restart (#686). pacman upgrades Omaweb without the
         # engine unless the dependency asks for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
-            self.assertIn(f"{ENGINE}>=6.11.2-9", depends(pkgbuild))
+            self.assertIn(f"{ENGINE}>=6.11.2-11", depends(pkgbuild))
 
     def test_the_option_is_one_cmake_declares(self) -> None:
         # A misspelt or renamed option is accepted by CMake with a warning
