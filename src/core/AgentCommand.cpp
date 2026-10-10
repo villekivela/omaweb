@@ -520,6 +520,62 @@ namespace {
         return reachesAPage ? timeout + grantAnswerTimeoutMs : timeout;
     }
 
+    bool isVerb(const QString &word)
+    {
+        static const QSet<QString> verbs {
+            QStringLiteral("spaces"),
+            QStringLiteral("tabs"),
+            QStringLiteral("open"),
+            QStringLiteral("close"),
+            QStringLiteral("space"),
+            QStringLiteral("look"),
+            QStringLiteral("read"),
+            QStringLiteral("do"),
+            QStringLiteral("shot"),
+            QStringLiteral("eval"),
+            QStringLiteral("console"),
+            QStringLiteral("commands"),
+            QStringLiteral("run"),
+            QStringLiteral("focus"),
+            QStringLiteral("dev"),
+#ifdef OMAWEB_FILM_HOOKS
+            QStringLiteral("film-hover"),
+#endif
+        };
+        return verbs.contains(word);
+    }
+
+    // The client's own options may come before the verb: `--json`, and
+    // `--name` with its value. Gives the index of the verb, and reads the
+    // options on the way, or -1 when what follows them is no verb.
+    qsizetype findVerb(const QStringList &arguments, bool *json, QString *name)
+    {
+        qsizetype index = 1;
+        for (; index < arguments.size(); ++index) {
+            const auto &argument = arguments.at(index);
+            if (argument == u"--json") {
+                if (json) {
+                    *json = true;
+                }
+            } else if (argument == u"--name") {
+                if (index + 1 >= arguments.size()) {
+                    return -1;
+                }
+                if (name) {
+                    *name = arguments.at(index + 1);
+                }
+                ++index;
+            } else if (argument.startsWith(u"--name=")) {
+                if (name) {
+                    *name = argument.mid(7);
+                }
+            } else {
+                break;
+            }
+        }
+        return index < arguments.size() && isVerb(arguments.at(index)) ? index : -1;
+    }
+
 } // namespace
 
 QJsonArray readAgentSteps(const QStringList &arguments, QString &error)
@@ -544,27 +600,7 @@ int agentAnswerTimeoutMs(const QJsonObject &request) { return answerTimeoutFor(r
 
 bool isAgentCommand(const QStringList &arguments)
 {
-    static const QSet<QString> verbs {
-        QStringLiteral("spaces"),
-        QStringLiteral("tabs"),
-        QStringLiteral("open"),
-        QStringLiteral("close"),
-        QStringLiteral("space"),
-        QStringLiteral("look"),
-        QStringLiteral("read"),
-        QStringLiteral("do"),
-        QStringLiteral("shot"),
-        QStringLiteral("eval"),
-        QStringLiteral("console"),
-        QStringLiteral("commands"),
-        QStringLiteral("run"),
-        QStringLiteral("focus"),
-        QStringLiteral("dev"),
-#ifdef OMAWEB_FILM_HOOKS
-        QStringLiteral("film-hover"),
-#endif
-    };
-    return arguments.size() > 1 && verbs.contains(arguments.at(1));
+    return findVerb(arguments, nullptr, nullptr) >= 0;
 }
 
 AgentCommand readAgentCommand(const QStringList &arguments, const QString &defaultName)
@@ -574,21 +610,22 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         command.error = QStringLiteral("Not an Agent command.");
         return command;
     }
-    auto verb = arguments.at(1);
-    qsizetype next = 2;
+    QString name = defaultName;
+    const auto verbIndex = findVerb(arguments, &command.json, &name);
+    auto verb = arguments.at(verbIndex);
+    qsizetype next = verbIndex + 1;
     // `space <name>` switches to a Space, so a Space called "new" or "delete"
     // is switched to by its id.
     if (verb == u"space") {
-        const auto action = arguments.value(2);
+        const auto action = arguments.value(next);
         if (action == u"new" || action == u"delete") {
             verb += u' ' + action;
-            next = 3;
+            ++next;
         }
     }
 
     const auto grammar = grammarFor(verb);
     QJsonObject request {{QStringLiteral("verb"), verb}};
-    QString name = defaultName;
     QStringList positionals;
     // `--` ends the options, so an expression or an address that starts with
     // two dashes can still be given.

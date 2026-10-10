@@ -18,6 +18,7 @@ private slots:
     void tellsAVerbFromAnAddressToOpen();
     void readsEachVerbIntoARequest_data();
     void readsEachVerbIntoARequest();
+    void readsTheClientsOptionsBeforeTheVerb();
     void readsThePickerAsATabsRequestForEverySpace();
     void refusesAMalformedCommand_data();
     void refusesAMalformedCommand();
@@ -210,6 +211,36 @@ void AgentCommandTest::readsEachVerbIntoARequest()
     QVERIFY2(command.error.isEmpty(), qPrintable(command.error));
     QCOMPARE(command.request, request);
     QCOMPARE(command.json, json);
+}
+
+// An option before the verb is the client's own, and never turns an Agent command into a launch
+// of the reader's browser (#683).
+void AgentCommandTest::readsTheClientsOptionsBeforeTheVerb()
+{
+    const auto program = QStringLiteral("omaweb");
+    const auto url = QStringLiteral("http://localhost:8561/");
+    QVERIFY(isAgentCommand({program, QStringLiteral("--json"), QStringLiteral("spaces")}));
+    QVERIFY(isAgentCommand(
+        {program, QStringLiteral("--name"), QStringLiteral("p561"), QStringLiteral("open"), url}));
+    QVERIFY(isAgentCommand({program, QStringLiteral("--name=p561"), QStringLiteral("tabs")}));
+    QVERIFY(!isAgentCommand({program, QStringLiteral("--name"), QStringLiteral("p561")}));
+    QVERIFY(!isAgentCommand({program, QStringLiteral("--json"), url}));
+
+    const auto opened = readAgentCommand(
+        {program, QStringLiteral("--name"), QStringLiteral("p561"), QStringLiteral("open"), url},
+        QStringLiteral("claude"));
+    QCOMPARE(opened.error, QString());
+    QCOMPARE(opened.request,
+        (QJsonObject {{QStringLiteral("verb"), QStringLiteral("open")},
+            {QStringLiteral("url"), url}, {QStringLiteral("name"), QStringLiteral("p561")}}));
+
+    const auto created
+        = readAgentCommand({program, QStringLiteral("--json"), QStringLiteral("space"),
+                               QStringLiteral("new"), QStringLiteral("probe")},
+            QStringLiteral("claude"));
+    QCOMPARE(created.error, QString());
+    QVERIFY(created.json);
+    QCOMPARE(created.request.value(QStringLiteral("verb")).toString(), QStringLiteral("space new"));
 }
 
 // The picker is the CLI's own: what goes over the socket is the list of every Space's tabs, and
