@@ -5979,6 +5979,39 @@ TestCase {
         putKeptPageAway(kept);
     }
 
+    // A Keep active page goes on while its Space is away, and may move to
+    // another address there. Back on show, its tab says where it is now.
+    function test_aKeptPageThatMovedWhileAwayGivesItsTabTheNewAddress() {
+        const kept = keptPageInASpaceNotOnShow("https://kept-mover.example/");
+
+        kept.engine.currentUrl = "https://kept-moved.example/";
+        showKeptPagesSpace(kept);
+        compare(browser.activeTabId, kept.tabId);
+        tryVerify(function () {
+            return browser.activeUrl.toString() === "https://kept-moved.example/";
+        });
+
+        putKeptPageAway(kept);
+    }
+
+    // A page being taken down with its tab is no longer the tab's, and a
+    // popup it asks for in the turn before it goes opens nothing.
+    function test_aClosedTabsPageOpensNoWindow() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const engine = openPageInNewTab("https://closing-opener.example/");
+        const tabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+
+        browser.closeTab(tabId);
+        compare(engineLoader.engines[tabId], undefined);
+        engine.simulateNewWindowRequest("https://closing-popup.example/", true);
+        engine.simulateNewWindowRequest("https://closing-tab.example/", false);
+        engine.simulateBackgroundTabRequest("https://closing-background.example/");
+        wait(50);
+        compare(findChild(window, "auxiliaryWindow"), null);
+        compare(browser.tabs.rowCount(), tabCount - 1);
+    }
+
     // Asked for in the background, it is a tab of the page's Space too, and
     // not of the Space on show.
     function test_aPageInASpaceNotOnShowOpensABackgroundTabInItsOwnSpace() {

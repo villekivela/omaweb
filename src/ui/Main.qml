@@ -3537,10 +3537,12 @@ ApplicationWindow {
                     }
 
                     // A Glance is opened by the page on show. A page the
-                    // reader cannot see, a Keep active tab say, has nothing
-                    // to stand its Glance over, and gets a tab as before.
-                    // An Agent tab's page opens a window the Agent drives
-                    // instead, since a tab would take the reader's view.
+                    // reader cannot see has nothing to stand its Glance over:
+                    // a Keep active tab's in the Space on show gets a tab,
+                    // and one in a Space that is away gets a tab in its own
+                    // Space, in the background. An Agent tab's page opens a
+                    // window the Agent drives instead, since a tab would take
+                    // the reader's view.
                     onNewTabRequested: function (engine, request, requestedUrl, spaceId) {
                         if (engineLoader.agentTabIdOf(engine).length > 0) {
                             window.openAuxiliaryWindow(engine, request, requestedUrl);

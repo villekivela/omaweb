@@ -350,10 +350,10 @@ Item {
             root.setEngineVisible(tabId, false);
     }
 
-    // A tab opened for a page's request, in a Space that need not be on show,
-    // takes the request in a page of that Space's built for it. The tab has no
-    // row here to build one, and the request has to be taken now or the page
-    // that asked is told it was refused.
+    // Builds a page on the Space's profile for a tab just opened for a request,
+    // and hands it the request. The tab has no row here to build that page,
+    // and the request has to be taken now, or the page that asked is told it
+    // was refused.
     function adoptRequestInTab(tabId, spaceId, request) {
         const engine = root.createDetachedEngineIn(null, "about:blank", spaceId);
         if (!engine)
@@ -687,10 +687,11 @@ Item {
     }
 
     // An engine that answered for no tab, a Tab window's Glance or one built
-    // for a page's request, becomes a new popped-out tab's, page and all. Its
-    // page reports through its Tab window, so nothing is reported here: an
-    // engine still blank while a request is handed to it would read as the
-    // tab losing its address.
+    // for a page's request, becomes the page of a tab that has no row here: a
+    // new popped-out tab's, or a new tab's in a Space that is away. Nothing is
+    // reported now. An engine still blank while a request is handed to it
+    // would read as the tab losing its address, and the tab's Tab window or
+    // row reports the page once it has one.
     function adoptTabWindowEngine(tabId, engine, spaceId) {
         engine.visible = false;
         root.registerEngine(tabId, engine, spaceId);
@@ -897,18 +898,23 @@ Item {
         engine.pageHasFocusChanged.connect(function () {
             root.keepKeyboardOff(engine);
         });
-        // A page lent to a Tab window asks that window instead.
+        // A page lent to a Tab window asks that window instead. A page being
+        // taken down is no longer its tab's, and what it asks for in the turn
+        // before it goes is dropped.
         if (engine.newTabRequested) {
+            const relays = function () {
+                return root.engines[tabId] === engine && !root.lent(tabId);
+            };
             engine.auxiliaryWindowRequested.connect(function (request, requestedUrl) {
-                if (!root.lent(tabId))
+                if (relays())
                     root.auxiliaryWindowRequested(engine, request, requestedUrl);
             });
             engine.newTabRequested.connect(function (request, requestedUrl) {
-                if (!root.lent(tabId))
+                if (relays())
                     root.newTabRequested(engine, request, requestedUrl, root.engineSpaces[tabId]);
             });
             engine.backgroundTabRequested.connect(function (requestedUrl) {
-                if (!root.lent(tabId))
+                if (relays())
                     root.backgroundTabRequested(requestedUrl, root.engineSpaces[tabId]);
             });
         }
