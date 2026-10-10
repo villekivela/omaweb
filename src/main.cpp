@@ -64,6 +64,7 @@
 #include "SyncLauncher.h"
 #include "ThemeController.h"
 #include "Translations.h"
+#include "WindowAppId.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
 
@@ -517,6 +518,7 @@ int main(int argc, char *argv[])
     omaweb::registerLocaleReport(&localeReport);
     omaweb::registerQtAgentInput();
     omaweb::registerWindowExposure();
+    omaweb::registerWindowAppId();
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     omaweb::installStoredFavicons(engine);

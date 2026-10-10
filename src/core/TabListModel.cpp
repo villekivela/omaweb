@@ -60,6 +60,8 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
         const auto *partner = tab.splitPartnerId.isEmpty() ? nullptr : find(tab.splitPartnerId);
         return partner && partner->active && !tab.active;
     }
+    case PoppedOutRole:
+        return tab.poppedOut;
     default:
         return {};
     }
@@ -82,6 +84,7 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {KeepActiveRole, "tabKeepActive"},
         {SoundSuppressedRole, "tabSoundSuppressed"},
         {SplitPartnerIdRole, "splitPartnerId"},
+        {PoppedOutRole, "poppedOut"},
         {TabBesideRole, "tabBeside"},
     };
 }

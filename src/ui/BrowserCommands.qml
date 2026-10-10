@@ -11,6 +11,11 @@ QtObject {
     property var engineHost
     property var keymap
 
+    // A tab's id, where a command was given one rather than a position.
+    function tabArgument(argument) {
+        return typeof argument === "string" ? argument : "";
+    }
+
     function run(command, argument) {
         switch (command) {
         case "back":
@@ -102,6 +107,14 @@ QtObject {
         case "focus-split-partner":
             browser.focusSplitPartner();
             return true;
+            // A tab named by its id, from `omaweb run`, or the tab on show.
+        case "pop-out-tab":
+            return window.popOutTab(root.tabArgument(argument));
+            // A named tab, or the Tab window the reader was in last.
+        case "put-back-tab":
+            return window.putBackTab(root.tabArgument(argument));
+        case "toggle-tab-window-strip":
+            return window.toggleTabWindowStrip(root.tabArgument(argument));
         case "next-space":
             window.stepSpace(1);
             return true;
@@ -356,6 +369,21 @@ QtObject {
                                                  group: "tabs",
                                                  title: qsTr("Focus the tab beside"),
                                                  requires: "split"
+                                             },
+                                             "pop-out-tab": {
+                                                 group: "tabs",
+                                                 title: qsTr("Pop the tab out into a window"),
+                                                 requires: "tab-to-pop-out"
+                                             },
+                                             "put-back-tab": {
+                                                 group: "tabs",
+                                                 title: qsTr("Put the tab back in the sidebar"),
+                                                 requires: "tab-window"
+                                             },
+                                             "toggle-tab-window-strip": {
+                                                 group: "tabs",
+                                                 title: qsTr("Hide or show the Tab window's strip"),
+                                                 requires: "tab-window"
                                              },
                                              "next-space": {
                                                  group: "spaces",
@@ -612,6 +640,12 @@ QtObject {
             return !browser.activeTabPinned && !browser.splitOnShow;
         case "split":
             return browser.splitOnShow;
+            // A Tab window shows a page, and a Glance is kept as a tab first.
+            // A Private window has none.
+        case "tab-to-pop-out":
+            return !window.privateWindow && browser.activeTabCanPopOut && !window.glanceOpen;
+        case "tab-window":
+            return !window.privateWindow && window.tabWindowCount > 0;
         case "agent-space":
             return window.agentSpaceOnShow;
         }
@@ -650,7 +684,9 @@ QtObject {
                 error: "Omaweb has no command \"" + command + "\" to run from outside its window."
             };
         }
-        if (!root.available(command)) {
+        // A command given a tab is about that tab rather than the one on
+        // show, and whether it ran says whether it could.
+        if (typeof request.argument !== "string" && !root.available(command)) {
             return {
                 ok: false,
                 code: "unavailable",
@@ -677,7 +713,9 @@ QtObject {
             if (window.privateWindow && (command === "pin-tab" || command === "move-tab" || command
                                          === "keep-tab-active" || command === "select-space"
                                          || command === "next-space" || command === "new-space"
-                                         || command === "take-over-space" || command === "ask")) {
+                                         || command === "take-over-space" || command === "ask"
+                                         || command === "pop-out-tab" || command === "put-back-tab"
+                                         || command === "toggle-tab-window-strip")) {
                 continue;
             }
             list.push({

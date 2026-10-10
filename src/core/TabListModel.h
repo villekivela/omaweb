@@ -59,6 +59,15 @@ struct TabState {
     // before the record existed, and it counts from the first check that
     // finds it. What puts an unused tab away; Sync never reads it.
     qint64 lastShownAt = 0;
+    // Whether the tab is shown in a Tab window of its own rather than in the
+    // main window, which never makes it the active tab while it is. Its page
+    // keeps running whichever Space is on show. Kept with the session on this
+    // machine; Sync never reads it.
+    bool poppedOut = false;
+    // Whether the reader hid the strip at the top of the tab's Tab window.
+    // Kept with the tab, so its window comes back as it was left, and like
+    // the popping out itself never synced.
+    bool stripHidden = false;
     QString rendererFailureReason {};
 };
 
@@ -87,6 +96,8 @@ public:
         // its partner is the active tab. Read off the partner, so an active
         // change on either half changes the answer for the other.
         TabBesideRole,
+        // Whether the tab is shown in a Tab window of its own.
+        PoppedOutRole,
     };
     Q_ENUM(Role)
 

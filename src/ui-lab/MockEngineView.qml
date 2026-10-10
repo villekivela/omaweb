@@ -585,7 +585,7 @@ Rectangle {
     property int permissionsSettledWithoutAsking: 0
     function simulateSitePermission(origin, permission) {
         const decision = root.permissionController ? root.permissionController.permissionDecision(
-                                                         origin, permission) : 0;
+                                                         origin, permission, root.spaceId) : 0;
         if (decision !== 0) {
             root.permissionsSettledWithoutAsking += 1;
             return "";
@@ -995,7 +995,11 @@ Rectangle {
             }
         }
     }
+    // The new-window request this page was handed, so a test can tell a page
+    // that took the request from one that only loaded the same address.
+    property var acceptedRequest: null
     function acceptNewWindowRequest(request) {
+        root.acceptedRequest = request;
         if (request && request.requestedUrl)
             currentUrl = request.requestedUrl;
     }

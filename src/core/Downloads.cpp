@@ -175,7 +175,7 @@ int Downloads::activeCount(const QUrl &origin) const
 }
 
 QVariantMap Downloads::disposition(const QUrl &origin, const QString &fileName,
-    const QString &mimeType, const QString &directory, bool answered) const
+    const QString &mimeType, const QString &directory, bool answered, const QString &spaceId) const
 {
     const auto normalized = m_permissions ? m_permissions->permissionOrigin(origin) : QString {};
     const auto kind = DownloadPolicy::riskKind(fileName, mimeType);
@@ -192,7 +192,7 @@ QVariantMap Downloads::disposition(const QUrl &origin, const QString &fileName,
         return answer;
     };
     if (automatic) {
-        const auto decision = m_permissions->automaticDownloadDecision(normalized);
+        const auto decision = m_permissions->automaticDownloadDecision(normalized, spaceId);
         if (decision == BrowserController::Block) {
             return decide(BrowserController::RefuseDownload);
         }
@@ -211,7 +211,7 @@ QVariantMap Downloads::disposition(const QUrl &origin, const QString &fileName,
 }
 
 QVariantMap Downloads::agentDisposition(const QUrl &origin, const QString &fileName,
-    const QString &mimeType, const QString &directory, bool answered) const
+    const QString &mimeType, const QString &directory, bool answered, const QString &spaceId) const
 {
     const auto normalized = m_permissions ? m_permissions->permissionOrigin(origin) : QString {};
     const auto kind = DownloadPolicy::riskKind(fileName, mimeType);
@@ -225,7 +225,8 @@ QVariantMap Downloads::agentDisposition(const QUrl &origin, const QString &fileN
         return answer;
     };
     if (!normalized.isEmpty()
-        && m_permissions->automaticDownloadDecision(normalized) == BrowserController::Block) {
+        && m_permissions->automaticDownloadDecision(normalized, spaceId)
+            == BrowserController::Block) {
         return decide(BrowserController::RefuseDownload);
     }
     if (!kind.isEmpty() && !answered) {
@@ -405,13 +406,14 @@ void Downloads::saved(const QString &path, const QUrl &pageUrl)
 }
 
 void Downloads::hold(const QString &downloadNamespace, const QString &token, int disposition,
-    const QString &origin, const QUrl &sourceUrl, const QString &fileName, const QString &risk)
+    const QString &origin, const QUrl &sourceUrl, const QString &fileName, const QString &risk,
+    const QString &spaceId)
 {
     if (token.isEmpty()) {
         return;
     }
-    m_queue.append(
-        HeldDownload {downloadNamespace, token, disposition, origin, sourceUrl, fileName, risk});
+    m_queue.append(HeldDownload {
+        downloadNamespace, token, disposition, origin, sourceUrl, fileName, risk, spaceId});
     present();
 }
 
@@ -424,7 +426,8 @@ void Downloads::answer(bool keep, const QString &path, int permissionDecision)
     m_question = {};
     m_questionOpen = false;
     if (m_permissions && permissionDecision > BrowserController::Ask) {
-        m_permissions->rememberAutomaticDownloadDecision(held.origin, permissionDecision);
+        m_permissions->rememberAutomaticDownloadDecision(
+            held.origin, permissionDecision, held.spaceId);
     }
     if (keep) {
         emit releaseRequested(held.downloadNamespace, held.token, path);

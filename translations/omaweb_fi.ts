@@ -191,6 +191,18 @@
         <translation>Siirrä kohdistus viereiseen välilehteen</translation>
     </message>
     <message>
+        <source>Pop the tab out into a window</source>
+        <translation>Irrota välilehti ikkunaan</translation>
+    </message>
+    <message>
+        <source>Put the tab back in the sidebar</source>
+        <translation>Palauta välilehti sivupalkkiin</translation>
+    </message>
+    <message>
+        <source>Hide or show the Tab window&apos;s strip</source>
+        <translation>Piilota tai näytä välilehti-ikkunan palkki</translation>
+    </message>
+    <message>
         <source>Next Space</source>
         <translation>Seuraava Tila</translation>
     </message>
@@ -1291,6 +1303,14 @@
     <message>
         <source>Close tab</source>
         <translation>Sulje välilehti</translation>
+    </message>
+    <message>
+        <source>Put back in the sidebar</source>
+        <translation>Palauta sivupalkkiin</translation>
+    </message>
+    <message>
+        <source>Pop out into a window</source>
+        <translation>Irrota ikkunaan</translation>
     </message>
     <message>
         <source>New blank tab</source>
@@ -2775,10 +2795,6 @@
         <translation>Mitään ei pidetä aktiivisena</translation>
     </message>
     <message>
-        <source>A Pinned tab set to Keep active, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs.</source>
-        <translation>Kiinnitetty välilehti, jolle on asetettu Pidä aktiivisena, tai välilehti, johon on liitetty kehittäjätyökalut, pysyy käynnissä, vaikka sen Tila ei ole aktiivinen. Se näkyy tässä kustannuksineen.</translation>
-    </message>
-    <message>
         <source>The edge of the window the sidebar stands against. While it is hidden, the floating controls stay at that edge.</source>
         <translation>Ikkunan reuna, jota vasten sivupalkki on. Kun sivupalkki on piilotettu, kelluvat ohjaimet pysyvät tässä reunassa.</translation>
     </message>
@@ -3540,6 +3556,14 @@ Päivitykset osoitteesta %3</translation>
         <source>Theme</source>
         <comment>app icon: drawn in the Omarchy theme&apos;s colours</comment>
         <translation>Teema</translation>
+    </message>
+    <message>
+        <source>In a Tab window</source>
+        <translation>Välilehti-ikkunassa</translation>
+    </message>
+    <message>
+        <source>A Pinned tab set to Keep active, a tab in a Tab window, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs.</source>
+        <translation>Aktiivisena pidettävä kiinnitetty välilehti, välilehti-ikkunassa oleva välilehti tai välilehti, johon on liitetty kehittäjätyökalut, pysyy käynnissä, kun sen Tila ei ole aktiivinen, ja se näkyy tässä kustannuksineen.</translation>
     </message>
     <message>
         <source>Sidebar side</source>
@@ -4607,6 +4631,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>(Agentin välilehti)</translation>
     </message>
     <message>
+        <source>In a window of its own</source>
+        <translation>Omassa ikkunassaan</translation>
+    </message>
+    <message>
         <source>Unmute %1</source>
         <translation>Poista mykistys: %1</translation>
     </message>
@@ -4621,6 +4649,77 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Close %1</source>
         <translation>Sulje %1</translation>
+    </message>
+</context>
+<context>
+    <name>TabWindow</name>
+    <message>
+        <source>%1 · %2</source>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>Choose file</source>
+        <translation>Valitse tiedosto</translation>
+    </message>
+    <message>
+        <source>Choose folder</source>
+        <translation>Valitse kansio</translation>
+    </message>
+    <message>
+        <source>Site information: %1</source>
+        <translation>Sivuston tiedot: %1</translation>
+    </message>
+    <message>
+        <source>Certificate could not be verified</source>
+        <translation>Varmennetta ei voitu todentaa</translation>
+    </message>
+    <message>
+        <source>Connection is secure</source>
+        <translation>Yhteys on suojattu</translation>
+    </message>
+    <message>
+        <source>Omaweb page</source>
+        <translation>Omawebin sivu</translation>
+    </message>
+    <message>
+        <source>Not secure</source>
+        <translation>Ei suojattu</translation>
+    </message>
+    <message>
+        <source>%1 asked for a protected browser capability</source>
+        <translation>%1 pyysi suojattua selaimen ominaisuutta</translation>
+    </message>
+    <message>
+        <source>%1 · remembered in %2</source>
+        <translation>%1 · muistetaan Tilassa %2</translation>
+    </message>
+    <message>
+        <source>%1 · asked every time, never remembered</source>
+        <translation>%1 · kysytään joka kerta, ei koskaan muisteta</translation>
+    </message>
+    <message>
+        <source>Allow once</source>
+        <translation>Salli kerran</translation>
+    </message>
+    <message>
+        <source>Always allow</source>
+        <translation>Salli aina</translation>
+    </message>
+    <message>
+        <source>Block</source>
+        <translation>Estä</translation>
+    </message>
+    <message>
+        <source>%1 could not prove its certificate</source>
+        <translation>%1 ei voinut todistaa varmenteensa</translation>
+    </message>
+    <message>
+        <source>%1 · local development site · this load only, never remembered</source>
+        <translation>%1 · paikallinen kehityssivusto · vain tämä lataus, ei koskaan muisteta</translation>
+    </message>
+    <message>
+        <source>Continue once</source>
+        <translation>Jatka kerran</translation>
     </message>
 </context>
 <context>

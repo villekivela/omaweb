@@ -584,12 +584,150 @@ ApplicationWindow {
         omnibarOpen = true;
     }
 
+    // The Tab windows (ADR 0062), one for each tab the core lists as popped
+    // out, by tab id. Each is kept for as long as its tab is listed and
+    // follows what the core says of it, so a title or a strip changing does
+    // not close and open the window again.
+    property var tabWindows: ({})
+    // The Tab window the reader was in last, which a command about "the Tab
+    // window" from the main window means.
+    property string lastTabWindowId: ""
+    readonly property int tabWindowCount: Object.keys(window.tabWindows).length
+
+    Component {
+        id: tabWindowComponent
+        TabWindow {}
+    }
+
+    // What the tests and the windows' own commands ask a Tab window of.
+    function tabWindowFor(tabId) {
+        return window.tabWindows[tabId] || null;
+    }
+
+    function reconcileTabWindows() {
+        if (window.privateWindow)
+            return;
+        const listed = window.windowBrowser.tabWindows;
+        const kept = ({});
+        for (let index = 0; index < listed.length; ++index) {
+            const entry = listed[index];
+            let tabWindow = window.tabWindows[entry.tabId];
+            if (tabWindow) {
+                tabWindow.entry = entry;
+            } else {
+                tabWindow = tabWindowComponent.createObject(null, {
+                                                                "entry": entry,
+                                                                "browser": window.windowBrowser,
+                                                                "engineHost": engineLoader,
+                                                                "mainWindow": window,
+                                                                "colors": Qt.binding(function () {
+                                                                    return window.colors;
+                                                                }),
+                                                                "commands": browserCommands,
+                                                                "keymap": keymap,
+                                                                "iconFontFamily":
+                                                                materialSymbols.name,
+                                                                "spaceColours": Qt.binding(function (
+                                                                    ) {
+                                                                    return window.spaceColours;
+                                                                }),
+                                                                "useFavicons": Qt.binding(function (
+                                                                    ) {
+                                                                    return window.useFavicons;
+                                                                }),
+                                                                "tintFavicons": Qt.binding(function (
+                                                                    ) {
+                                                                    return window.tintFavicons;
+                                                                }),
+                                                                "glanceEnabled": Qt.binding(
+                                                                                     function () {
+                                                                                         return window.glanceEnabled;
+                                                                                     })
+                                                            });
+                if (!tabWindow)
+                    continue;
+                tabWindow.activeChanged.connect(function () {
+                    if (tabWindow.active)
+                        window.lastTabWindowId = tabWindow.tabId;
+                });
+                window.lastTabWindowId = entry.tabId;
+            }
+            kept[entry.tabId] = tabWindow;
+        }
+        // A tab no longer listed was put back, closed or deleted with its
+        // Space. Its page, where it is still there, goes back to this window
+        // before its Tab window goes.
+        for (const tabId in window.tabWindows) {
+            if (kept[tabId])
+                continue;
+            const leaving = window.tabWindows[tabId];
+            leaving.release();
+            leaving.close();
+            leaving.destroy();
+        }
+        window.tabWindows = kept;
+        if (!kept[window.lastTabWindowId])
+            window.lastTabWindowId = Object.keys(kept).length > 0 ? Object.keys(kept)[0] : "";
+    }
+
+    // The tab a Tab window command names, or `fallback` where it names none.
+    function namedTab(tabId, fallback) {
+        return tabId && String(tabId).length > 0 ? String(tabId) : fallback;
+    }
+
+    // The tab on show, or the one named, out of this window and into one of
+    // its own.
+    function popOutTab(tabId) {
+        const named = window.namedTab(tabId, window.windowBrowser.activeTabId);
+        if (window.glanceOpen && named === window.windowBrowser.activeTabId)
+            return false;
+        return window.windowBrowser.popOutTab(named);
+    }
+
+    // Back to the sidebar, and shown there: the named tab, or the Tab window
+    // the reader was in last.
+    function putBackTab(tabId) {
+        const named = window.namedTab(tabId, window.lastTabWindowId);
+        const tabWindow = window.tabWindows[named];
+        if (tabWindow) {
+            tabWindow.putBack(true);
+            return true;
+        }
+        return window.windowBrowser.putBackTab(named, true);
+    }
+
+    function toggleTabWindowStrip(tabId) {
+        const named = window.namedTab(tabId, window.lastTabWindowId);
+        const tabWindow = window.tabWindows[named];
+        if (!tabWindow)
+            return false;
+        tabWindow.toggleStrip();
+        return true;
+    }
+
+    Connections {
+        target: window.privateWindow ? null : window.windowBrowser
+
+        function onTabWindowsChanged() {
+            window.reconcileTabWindows();
+        }
+
+        function onTabWindowRaiseRequested(tabId) {
+            const tabWindow = window.tabWindows[tabId];
+            if (tabWindow)
+                tabWindow.bringForward();
+        }
+    }
+
     // Everything a row can be asked on its own. The ordinary rows and the pins
     // are offered different lists: a pin has no close and no rows below it, and
     // Keep active is a pin's setting alone.
     function tabMenuActionsFor(tabId) {
         if (tabId.length === 0)
             return [];
+        // A tab in a Tab window is still this Space's, and its row is asked
+        // what any row is, except what would move it or show it here.
+        const poppedOut = !window.privateWindow && window.windowBrowser.tabPoppedOut(tabId);
         if (window.windowBrowser.tabPinned(tabId)) {
             const keptActive = window.windowBrowser.tabKeepActive(tabId);
             return [
@@ -603,15 +741,17 @@ ApplicationWindow {
                         },
                         {
                             "label": qsTr("Unpin tab"),
-                            "command": "pin-tab"
+                            "command": "pin-tab",
+                            "enabled": !poppedOut
                         },
+                        window.tabWindowMenuAction(tabId),
                         {
                             "separator": true
                         },
                         {
                             "label": qsTr("Move to another Space"),
                             "command": "move-tab",
-                            "enabled": !window.privateWindow
+                            "enabled": !window.privateWindow && !poppedOut
                         }
                     ];
         }
@@ -638,20 +778,22 @@ ApplicationWindow {
             actions.push({
                              "label": qsTr("Add split view"),
                              "command": "add-split",
-                             "enabled": tabId === activeTabId || (
-                                            !window.windowBrowser.activeTabPinned &&
-                                            !window.windowBrowser.splitOnShow)
+                             "enabled": !poppedOut && (tabId === activeTabId || (
+                                                           !window.windowBrowser.activeTabPinned &&
+                                                           !window.windowBrowser.splitOnShow))
                          });
             actions.push({
                              "label": qsTr("Pin tab"),
                              "command": "pin-tab",
-                             "enabled": !window.privateWindow
+                             "enabled": !window.privateWindow && !poppedOut
                          });
         }
+        if (!window.privateWindow)
+            actions.push(window.tabWindowMenuAction(tabId));
         actions.push({
                          "label": qsTr("Move to another Space"),
                          "command": "move-tab",
-                         "enabled": !window.privateWindow
+                         "enabled": !window.privateWindow && !poppedOut
                      });
         actions.push({
                          "separator": true
@@ -670,6 +812,22 @@ ApplicationWindow {
                          "destructive": true
                      });
         return actions;
+    }
+
+    // Pop out, or put back, whichever the row's tab can be asked.
+    function tabWindowMenuAction(tabId) {
+        if (window.windowBrowser.tabPoppedOut(tabId)) {
+            return {
+                "label": qsTr("Put back in the sidebar"),
+                "command": "put-back-tab"
+            };
+        }
+        return {
+            "label": qsTr("Pop out into a window"),
+            "command": "pop-out-tab",
+            "enabled": window.windowBrowser.canPopOutTab(tabId) && !(window.glanceOpen && tabId
+                                                                     === window.windowBrowser.activeTabId)
+        };
     }
 
     // The Omnibar's way in: the menu belongs to the tab on show, and
@@ -725,6 +883,12 @@ ApplicationWindow {
             break;
         case "separate-split":
             window.windowBrowser.separateSplit(tabId);
+            break;
+        case "pop-out-tab":
+            window.popOutTab(tabId);
+            break;
+        case "put-back-tab":
+            window.putBackTab(tabId);
             break;
         default:
             window.windowBrowser.activateTab(tabId);
@@ -866,11 +1030,15 @@ ApplicationWindow {
     // An Auxiliary window opened by an Agent tab's page is the Agent's, under
     // the id the core gives it, and the core lists it so it is marked as its
     // tab is.
-    function openAuxiliaryWindow(engine, request, requestedUrl) {
+    //
+    // One opened from a Tab window's page belongs to that Tab window, `owner`:
+    // it stands over it and asks its questions there.
+    function openAuxiliaryWindow(engine, request, requestedUrl, owner) {
         const openerTabId = engineLoader.agentTabIdOf(engine);
         const control = engineLoader.agentControl;
         const windowId = control && openerTabId.length > 0 ? control.attachWindow(openerTabId) : "";
-        return auxiliaryWindowComponent.createObject(window, {
+        return auxiliaryWindowComponent.createObject(owner || window, {
+                                                         "tabWindow": owner || null,
                                                          "openerEngine": engine,
                                                          "request": request,
                                                          "requestedUrl": requestedUrl,
@@ -2170,7 +2338,10 @@ ApplicationWindow {
 
     function respondToPermission(decision) {
         window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
-                                                   window.pendingPermissionType, decision);
+                                                   window.pendingPermissionType, decision,
+                                                   window.pendingPermissionResponder ? String(
+                                                                                           window.pendingPermissionResponder.spaceId
+                                                                                           || "") : "");
         if (window.pendingPermissionResponder) {
             window.pendingPermissionResponder.respondToPermission(window.pendingPermissionRequest,
                                                                   decision);
@@ -2672,7 +2843,7 @@ ApplicationWindow {
             host.downloadHeld.connect(function (token, disposition, origin, sourceUrl, fileName,
                                                 risk) {
                 window.downloads.hold(host.downloadNamespace, token, disposition, origin, sourceUrl,
-                                      fileName, risk);
+                                      fileName, risk, host.spaceId);
             });
             host.downloadRefused.connect(function (sourceUrl, fileName, origin) {
                 window.showNotice("block", qsTr("Download refused"), qsTr(
@@ -3569,7 +3740,9 @@ ApplicationWindow {
                              !window.historyOpen
                     z: 4
                     colors: window.colors
-                    developerToolsView: engineLoader.developerToolsView
+                    // A Tab window's tab has its inspector in its own window.
+                    developerToolsView: engineLoader.lent(engineLoader.inspectedTabId) ? null :
+                                                                                         engineLoader.developerToolsView
                 }
 
                 PanelResizer {
@@ -4715,6 +4888,8 @@ ApplicationWindow {
         id: auxiliaryWindowComponent
 
         AuxiliaryWindow {
+            // The Tab window whose page opened this one, or null.
+            property var tabWindow: null
             engineSource: engineViewSource
             colors: window.colors
             permissionController: window.windowBrowser
@@ -4722,6 +4897,10 @@ ApplicationWindow {
             engineContentBlocker: engineContentBlocker
             cookiePolicy: engineCookiePolicy
             onSitePermissionRequested: function (responder, requestId, origin, permission) {
+                if (tabWindow) {
+                    tabWindow.askPermission(responder, requestId, origin, permission);
+                    return;
+                }
                 window.pendingPermissionRequest = requestId;
                 window.pendingPermissionResponder = responder;
                 window.pendingPermissionOrigin = origin;
@@ -4730,14 +4909,24 @@ ApplicationWindow {
             }
 
             onCertificateErrorRaised: function (responder, requestId, failure) {
-                window.showCertificateError(responder, requestId, failure, true);
+                if (tabWindow)
+                    tabWindow.askAboutCertificate(responder, requestId, failure);
+                else
+                    window.showCertificateError(responder, requestId, failure, true);
             }
 
             onSecurityKeyRequested: function (responder, requestId, step) {
-                window.showSecurityKey(responder, requestId, step, true);
+                if (tabWindow)
+                    tabWindow.showSecurityKey(responder, requestId, step);
+                else
+                    window.showSecurityKey(responder, requestId, step, true);
             }
 
-            onClosing: window.refuseRequestsFrom(pageEngine)
+            onClosing: {
+                if (tabWindow)
+                    tabWindow.refuseRequestsFrom(pageEngine);
+                window.refuseRequestsFrom(pageEngine);
+            }
         }
     }
 
@@ -4872,6 +5061,8 @@ ApplicationWindow {
         window.restoreTabAppearance();
         window.restoreChromeAppearance();
         window.restoreAppIcon();
+        // A restart brings the Tab windows back from the session.
+        window.reconcileTabWindows();
         // The notes an upgrade owes the reader, which the watch opens once,
         // behind the page on show and in a Space of the reader's own. A
         // Private window says nothing about this installation, so it never
@@ -4891,6 +5082,12 @@ ApplicationWindow {
         if (!window.privateWindow) {
             for (const openWindow of window.privateWindows.slice())
                 openWindow.close();
+            // The Tab windows close with the browser and keep their tabs
+            // popped out, so the next start brings them back.
+            for (const tabId in window.tabWindows) {
+                window.tabWindows[tabId].quitting = true;
+                window.tabWindows[tabId].close();
+            }
             return;
         }
         if (!window.windowBrowser)

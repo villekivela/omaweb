@@ -2386,6 +2386,23 @@ void exerciseAddresses(Window window)
     QCOMPARE(controller->removeAddress(id), allowed);
 }
 
+void exerciseTabWindows(Window window)
+{
+    const bool allowed = window == Window::Main;
+    QTemporaryDir root;
+    PrivateSessionFixture privateSession;
+    auto controller = makeControllerFor(window, root.path(), privateSession);
+    controller->openInput(QStringLiteral("https://popped.example"), false);
+    const auto tabId = controller->activeTabId();
+    controller->openInput(QStringLiteral("https://beside.example"), true);
+
+    QCOMPARE(controller->popOutTab(tabId), allowed);
+    QCOMPARE(controller->tabPoppedOut(tabId), allowed);
+    QCOMPARE(controller->tabWindows().size(), allowed ? 1 : 0);
+    QCOMPARE(controller->setTabStripHidden(tabId, true), allowed);
+    QCOMPARE(controller->putBackTab(tabId, false), allowed);
+}
+
 void exerciseEngineSuggestions(Window window)
 {
     const bool allowed = window == Window::Main;
@@ -2430,6 +2447,7 @@ void BrowserControllerTest::allowsEveryWindowCapabilityInAMainWindow()
     exerciseClearBrowsingData(Window::Main);
     exerciseFormHistory(Window::Main);
     exerciseAddresses(Window::Main);
+    exerciseTabWindows(Window::Main);
 }
 
 void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
@@ -2441,6 +2459,7 @@ void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
     exerciseClearBrowsingData(Window::Private);
     exerciseFormHistory(Window::Private);
     exerciseAddresses(Window::Private);
+    exerciseTabWindows(Window::Private);
 }
 
 void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()

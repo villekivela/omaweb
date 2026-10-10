@@ -101,6 +101,7 @@ Item {
     Component {
         id: tabSlideComponent
         Translate {
+            objectName: "tabSlide"
             property var engine: null
             property string tabId: ""
             readonly property bool arriving: engine !== null && root.onShow(engine)
@@ -127,7 +128,7 @@ Item {
     // by the panes again once it is hidden.
     function departEngine(tabId, pane, direction) {
         const engine = root.engines[tabId];
-        if (!engine || !root.ease || !root.onShow(engine) || direction === 0) {
+        if (!engine || root.lent(tabId) || !root.ease || !root.onShow(engine) || direction === 0) {
             root.setEngineVisible(tabId, false);
             return;
         }
@@ -148,7 +149,7 @@ Item {
         const tabId = departure.tabId;
         departure.tabId = "";
         const engine = root.engines[tabId];
-        if (!engine)
+        if (!engine || root.lent(tabId))
             return;
         engine.transform[0].departureX = 0;
         engine.z = 0;
@@ -272,6 +273,9 @@ Item {
     signal fileSelectionRequested(var engine, string requestId, var selection)
     // A card the reader typed and submitted in a tab's page.
     signal paymentCardSubmitted(var engine, var card, string tabId)
+    // A tab's engine was taken down. A Tab window drawing it builds the page
+    // again, as the tab's row would.
+    signal engineDiscarded(string tabId)
 
     function keyboardConfiguration(url) {
         const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url));
@@ -487,6 +491,14 @@ Item {
         const engine = root.engines[tabId];
         if (!engine)
             return;
+        // A page lent to a Tab window is on show there, whatever this window
+        // shows.
+        if (root.lent(tabId)) {
+            engine.visible = true;
+            engine.opacity = 1;
+            root.applyPageLifecycle(tabId);
+            return;
+        }
         if (visible && !root.onShow(engine))
             root.noteArrival(tabId);
         engine.visible = visible || root.agentAttached(tabId);
@@ -636,6 +648,27 @@ Item {
         return root.buildEngine(parent, tabUrl, undefined, undefined, undefined);
     }
 
+    // The same, on a named Space's profile: a Tab window's Glance is a page of
+    // the Tab window's Space, which is not always the one on show.
+    function createDetachedEngineIn(parent, tabUrl, spaceId) {
+        const profile = root.spaceProfiles ? root.spaceProfiles.hostFor(spaceId) : null;
+        if (!profile)
+            return null;
+        return root.buildEngine(parent, tabUrl, spaceId,
+                                root.browserController.prepareProfileForSpace(spaceId),
+                                profile.profile);
+    }
+
+    // An engine that answered for no tab, a Tab window's Glance or one built
+    // for a page's request, becomes a new popped-out tab's, page and all. Its
+    // page reports through its Tab window, so nothing is reported here: an
+    // engine still blank while a request is handed to it would read as the
+    // tab losing its address.
+    function adoptTabWindowEngine(tabId, engine, spaceId) {
+        engine.visible = false;
+        root.registerEngine(tabId, engine, spaceId);
+    }
+
     function buildEngine(parent, tabUrl, spaceId, profilePath, sharedProfile, takesFocus) {
         if (!engineComponent)
             engineComponent = Qt.createComponent(root.engineSource);
@@ -650,7 +683,10 @@ Item {
                                                                                              root.sessionSpaceId) :
                                           null;
         const held = root.pageWaits(host) && !root.pagelessAddress(tabUrl);
-        const engine = engineComponent.createObject(parent, {
+        // Every engine is this host's to destroy, wherever it is drawn: a
+        // Glance's page kept as a tab outlives the window the Glance was in,
+        // and an item's `parent` moves only where it is drawn.
+        const engine = engineComponent.createObject(root, {
                                                         "profilePath": profilePath !== undefined
                                                                        ? profilePath :
                                                                          root.profilePath,
@@ -690,6 +726,8 @@ Item {
                                                         "pageTakesFocus": takesFocus !== false,
                                                         "visible": false
                                                     });
+        if (engine && parent && parent !== root)
+            engine.parent = parent;
         if (held)
             root.releaseWhenReady(engine, host, tabUrl);
         root.giveScrollbar(engine);
@@ -795,18 +833,37 @@ Item {
         });
     }
 
-    // The engine becomes the named tab's: drawn in the host, keyed to the tab,
-    // and from here on shown, hidden and taken away with it.
-    function registerEngine(tabId, engine, spaceId) {
+    // Where an engine is drawn in the host: the full height, in its pane, and
+    // nudged as it arrives.
+    function placeEngine(tabId, engine) {
         engine.parent = root;
         engine.anchors.fill = undefined;
         engine.anchors.top = root.top;
         engine.anchors.bottom = root.bottom;
         root.bindPane(tabId, engine);
+        root.dropSlides(engine);
         engine.transform = [tabSlideComponent.createObject(engine, {
                                                                "engine": engine,
                                                                "tabId": tabId
                                                            })];
+    }
+
+    // A slide is the engine's child, and taking it out of `transform` leaves
+    // it there, so the one an engine has is destroyed before it goes. The
+    // list is copied first, since `transform` reads live.
+    function dropSlides(engine) {
+        const slides = [];
+        for (let index = 0; index < engine.transform.length; ++index)
+            slides.push(engine.transform[index]);
+        engine.transform = [];
+        for (let index = 0; index < slides.length; ++index)
+            slides[index].destroy();
+    }
+
+    // The engine becomes the named tab's: drawn in the host, keyed to the tab,
+    // and from here on shown, hidden and taken away with it.
+    function registerEngine(tabId, engine, spaceId) {
+        root.placeEngine(tabId, engine);
         root.engines[tabId] = engine;
         root.engineSpaces[tabId] = spaceId !== undefined ? spaceId : root.spaceId;
         root.markAgentEngine(tabId, engine);
@@ -867,6 +924,95 @@ Item {
         root.adoptingTabId = "";
     }
 
+    // The tabs whose pages are lent to a Tab window (ADR 0062). The host still
+    // owns each engine, keyed to its tab, and the Tab window only draws it: so
+    // the page outlives a Space switch, the window closing and a restart the
+    // way any retained page does. A lent page answers to its Tab window, and
+    // nothing in this window shows, hides, lays out or relays it.
+    property var lentTabIds: []
+
+    function lent(tabId) {
+        return root.lentTabIds.indexOf(tabId) >= 0;
+    }
+
+    function forgetLent(tabId) {
+        if (root.lent(tabId)) {
+            root.lentTabIds = root.lentTabIds.filter(function (lentId) {
+                return lentId !== tabId;
+            });
+        }
+    }
+
+    // The engine a Tab window draws for its tab: the one the tab already has,
+    // which moves with its page, or one built on the tab's own Space, as a
+    // retained tab's is after a restart.
+    function tabWindowEngine(entry) {
+        const existing = root.engines[entry.tabId];
+        if (existing)
+            return existing;
+        if (root.pagelessAddress(entry.url))
+            return null;
+        const profile = root.spaceProfiles ? root.spaceProfiles.hostFor(entry.spaceId) : null;
+        if (!profile)
+            return null;
+        const engine = root.createEngine(entry.tabId, entry.url, entry.spaceId,
+                                         root.browserController.prepareProfileForSpace(
+                                             entry.spaceId), profile.profile);
+        if (!engine)
+            return null;
+        engine.audioMuted = entry.muted === true;
+        engine.setZoomFactor(entry.zoom !== undefined ? entry.zoom : 1.0);
+        return engine;
+    }
+
+    // Moves the live page into the Tab window's `host`, with nothing reloaded.
+    function lendEngine(entry, host) {
+        const engine = root.tabWindowEngine(entry);
+        if (!engine)
+            return null;
+        const tabId = entry.tabId;
+        if (root.activeEngine === engine)
+            root.activeEngine = null;
+        if (root.besideEngine === engine)
+            root.besideEngine = null;
+        if (departure.tabId === tabId) {
+            departure.stop();
+            departure.tabId = "";
+        }
+        if (!root.lent(tabId))
+            root.lentTabIds = root.lentTabIds.concat([tabId]);
+        engine.anchors.top = undefined;
+        engine.anchors.bottom = undefined;
+        root.dropSlides(engine);
+        // The pane's bindings are broken, not left to the anchors: a binding
+        // still set would resize the page each time this window's width
+        // changed, before the anchors put it back. `placeEngine` binds them
+        // again when the page comes back.
+        engine.x = 0;
+        engine.width = host.width;
+        engine.z = 0;
+        engine.parent = host;
+        engine.anchors.fill = host;
+        root.setEngineVisible(tabId, true);
+        return engine;
+    }
+
+    // The page comes back to this window, live, and is shown here again when
+    // its row is: a Space not on show keeps it frozen, as any page of its own.
+    function reclaimEngine(tabId) {
+        if (!root.lent(tabId))
+            return;
+        root.forgetLent(tabId);
+        const engine = root.engines[tabId];
+        if (!engine)
+            return;
+        // A page put back in a Space that is away waits there with that
+        // Space's other pages rather than being retained.
+        retainedEngines.forget(tabId);
+        root.placeEngine(tabId, engine);
+        root.setEngineVisible(tabId, root.shownTabIds[tabId] === true);
+    }
+
     // The desktop's media key, for the tab the core says it is for. A window
     // that does not hold that tab leaves it to the one that does.
     function invokeMediaAction(tabId, command) {
@@ -897,12 +1043,14 @@ Item {
             departure.stop();
             departure.tabId = "";
         }
+        root.forgetLent(tabId);
         root.keepAgentLabels(tabId, engine);
         delete root.engines[tabId];
         delete root.engineSpaces[tabId];
         delete root.shownTabIds[tabId];
         engine.destroy();
         root.abandonAgentRequests(tabId);
+        root.engineDiscarded(tabId);
         // An Agent tab whose page was taken, because its address changed in a
         // Space not on show, is built again on the address it has now.
         if (root.agentAttached(tabId))
@@ -1482,8 +1630,10 @@ Item {
                 }
             }
 
+            // A page lent to a Tab window reports to that window, which
+            // answers for it.
             Connections {
-                target: tabSlot.engine
+                target: root.lent(tabSlot.tabId) ? null : tabSlot.engine
                 ignoreUnknownSignals: true
 
                 function onCurrentUrlChanged() {

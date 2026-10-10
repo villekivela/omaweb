@@ -1073,15 +1073,20 @@ Rectangle {
                                 colors: root.colors
                                 title: modelData.title.length > 0 ? modelData.title : String(
                                                                         modelData.url)
-                                note: modelData.spaceName + " · " + (modelData.inspected ? qsTr(
-                                                                                               "Developer tools") :
-                                                                                           qsTr("Keep active"))
+                                note: modelData.spaceName + " · " + (modelData.poppedOut ? qsTr(
+                                                                                               "In a Tab window") :
+                                                                                           (modelData.inspected
+                                                                                            ? qsTr("Developer tools") :
+                                                                                              qsTr("Keep active")))
                                       + " · " + (modelData.running ? root.resourceLabel(
                                                                          modelData.residentBytes) :
                                                                      qsTr("not running"))
 
+                                // A Tab window's tab stops when its window is
+                                // closed, and an inspected one when its
+                                // inspector is.
                                 ActionButton {
-                                    visible: !modelData.inspected
+                                    visible: !modelData.inspected && !modelData.poppedOut
                                     colors: root.colors
                                     label: qsTr("stop", "verb: stop keeping a tab active")
                                     accessibleName: qsTr("Stop keeping %1 active").arg(
@@ -1097,7 +1102,7 @@ Rectangle {
                             colors: root.colors
                             title: qsTr("Nothing is kept active")
                             note: qsTr(
-                                      "A Pinned tab set to Keep active, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs.")
+                                      "A Pinned tab set to Keep active, a tab in a Tab window, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs.")
                         }
                     }
                 }

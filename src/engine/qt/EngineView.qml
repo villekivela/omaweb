@@ -4722,7 +4722,8 @@ Item {
         onPermissionRequested: function (request) {
             const permission = root.permissionName(request.permissionType);
             const decision = root.permissionController
-                  ? root.permissionController.permissionDecision(request.origin, permission) : 0;
+                  ? root.permissionController.permissionDecision(request.origin, permission,
+                                                                 root.spaceId) : 0;
             if (decision === 1 || decision === 2)
                 request.grant();
             else if (decision === 3)

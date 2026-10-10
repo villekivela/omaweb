@@ -1069,11 +1069,20 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
         for (auto &tab : tabs) {
             states.append(std::move(tab.state));
         }
+        // A Tab window is this machine's (ADR 0062) and never in the
+        // projection, so a tab that was popped out here stays out.
+        const auto localTabs = store.loadTabs(spaces[index].id);
+        for (auto &state : states) {
+            const auto local = std::ranges::find(localTabs, state.id, &TabState::id);
+            if (local != localTabs.end()) {
+                state.poppedOut = local->poppedOut;
+                state.stripHidden = local->stripHidden;
+            }
+        }
         const auto protectedId = protectedTabId();
         if (!protectedId.isEmpty()
             && std::ranges::none_of(
                 states, [&protectedId](const TabState &tab) { return tab.id == protectedId; })) {
-            const auto localTabs = store.loadTabs(spaces[index].id);
             const auto protectedTab = std::ranges::find(localTabs, protectedId, &TabState::id);
             if (protectedTab != localTabs.end()) {
                 states.append(*protectedTab);

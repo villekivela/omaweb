@@ -75,6 +75,10 @@ BrowserStateImage BrowserStateExchangeAdapter::capture(const BrowserStateSelecti
             tab.audible = false;
             tab.soundSuppressed = false;
             tab.rendererFailureReason.clear();
+            // A Tab window is this machine's (ADR 0062): the tab travels as an
+            // ordinary tab of its Space.
+            tab.poppedOut = false;
+            tab.stripHidden = false;
         }
         image.tabsBySpace.insert(space.id, std::move(tabs));
     }

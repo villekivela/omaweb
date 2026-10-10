@@ -316,6 +316,7 @@ private slots:
     void recoveryKeysDetectEntryErrors();
     void twoMachinesConvergeWhenTheyChangeDifferentRecords();
     void preservesUnappliedRemoteChangesDuringALocalEdit();
+    void keepsATabWindowOnItsOwnMachineThroughARemoteChange();
     void laterRecordWinsWhenTwoMachinesChangeTheSameRecord();
     void aClosedTabDoesNotReturnFromAnotherMachine();
     void setupUsesAForgeIdentityAndCreatesAPrivateRepository();
@@ -1290,6 +1291,22 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
     QTest::qWait(10);
     QCOMPARE(changed.count(), 0);
 
+    // Nor is a Tab window. Being popped out belongs to this machine, so the
+    // tab is carried as an ordinary tab, with no popped-out state or strip.
+    QVERIFY(browser.popOutTab(leftId));
+    QVERIFY(browser.setTabStripHidden(leftId, true));
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+    const auto poppedImage = exchange.capture({});
+    const auto poppedTabs = poppedImage.tabsBySpace.value(browser.activeSpaceId());
+    const auto popped = std::ranges::find(poppedTabs, leftId, &omaweb::TabState::id);
+    QVERIFY(popped != poppedTabs.end());
+    QVERIFY(!popped->poppedOut);
+    QVERIFY(!popped->stripHidden);
+    QVERIFY(browser.putBackTab(leftId, false));
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+
     changed.clear();
     const auto workSpace = browser.createSpace(QStringLiteral("Work"));
     QVERIFY(!workSpace.isEmpty());
@@ -1519,6 +1536,75 @@ void SyncModuleTest::twoMachinesConvergeWhenTheyChangeDifferentRecords()
         QStringLiteral("Changed title"));
     QCOMPARE(secondStore.loadTabs(QStringLiteral("space-1")).constFirst().title,
         QStringLiteral("Changed title"));
+}
+
+// A Tab window belongs to the machine it is open on (ADR 0062). Another
+// machine gets its tab as an ordinary tab, and a change made there and synced
+// back leaves the window open here.
+void SyncModuleTest::keepsATabWindowOnItsOwnMachineThroughARemoteChange()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key
+        = QByteArray::fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeef");
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Work"), QStringLiteral("green"), true}));
+    QVERIFY(firstStore.saveTabs(QStringLiteral("space-1"),
+        {TabState {.id = QStringLiteral("tab-popped"),
+             .spaceId = QStringLiteral("space-1"),
+             .url = QUrl(QStringLiteral("https://dashboard.example")),
+             .title = QStringLiteral("Dashboard"),
+             .poppedOut = true,
+             .stripHidden = true},
+            TabState {.id = QStringLiteral("tab-reading"),
+                .spaceId = QStringLiteral("space-1"),
+                .url = QUrl(QStringLiteral("https://reading.example")),
+                .title = QStringLiteral("Reading")}},
+        QStringLiteral("tab-reading")));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    auto secondTabs = secondStore.loadTabs(QStringLiteral("space-1"));
+    QCOMPARE(secondTabs.size(), 2);
+    QVERIFY(!secondTabs.at(0).poppedOut);
+    QVERIFY(!secondTabs.at(0).stripHidden);
+
+    secondTabs[0].title = QStringLiteral("Dashboard, renamed");
+    QVERIFY(
+        secondStore.saveTabs(QStringLiteral("space-1"), secondTabs, QStringLiteral("tab-reading")));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    const auto firstTabs = firstStore.loadTabs(QStringLiteral("space-1"));
+    QCOMPARE(firstTabs.size(), 2);
+    QCOMPARE(firstTabs.at(0).title, QStringLiteral("Dashboard, renamed"));
+    QVERIFY(firstTabs.at(0).poppedOut);
+    QVERIFY(firstTabs.at(0).stripHidden);
 }
 
 void SyncModuleTest::preservesUnappliedRemoteChangesDuringALocalEdit()

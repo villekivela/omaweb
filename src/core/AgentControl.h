@@ -150,12 +150,15 @@ public:
 
     // The commands of `BrowserCommands.qml` that `commands` lists and `run`
     // runs: every one but `private-window`, because a Private window is never
-    // an Agent's, and the four screenshots, which read the page and so are
-    // `shot`, behind Allow agents. A command outside it is refused by name.
+    // an Agent's, the four screenshots, which read the page and so are `shot`,
+    // behind Allow agents, and `toggle-tab-window-strip`, which is the
+    // reader's in the Tab window. A command outside it is refused by name.
     static const QStringList &publicCommands();
     // Whether a public command takes a position: `select-tab` and
     // `select-space`, counted from 1 as their keys are.
     static bool commandTakesPosition(const QString &command);
+    // A Tab window's commands, which may name a tab of any Space by its id.
+    static bool commandTakesTab(const QString &command);
 
     // One request, `{"verb": ..., "name": ..., ...}`, and its answer:
     // `{"ok": true, ...}` or `{"ok": false, "code": ..., "error": ...}`. The
