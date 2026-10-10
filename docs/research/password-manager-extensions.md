@@ -1162,10 +1162,12 @@ the routes to what the reader saw.
   window." Its view raises `newWindowRequested` and `newTabRequested`, and `TabEngineHost`'s handler
   for a tab's `newTabRequested` never runs, so nothing adopts the page. An Agent Space hits this,
   which is how it was found. [Issue #685](https://github.com/villekivela/omaweb/issues/685).
-- Dynamically registered scripts do not survive a restart. Chrome keeps them by default
-  (`persistAcrossSessions`), and `getRegisteredContentScripts` is empty in Omaweb after a relaunch.
+- Dynamically registered scripts did not survive a restart. Chrome keeps them by default
+  (`persistAcrossSessions`), and `getRegisteredContentScripts` was empty in Omaweb after a relaunch.
   Bitwarden registers again whenever its worker starts with an account, so it does not depend on
-  this. [Issue #686](https://github.com/villekivela/omaweb/issues/686).
+  this. [Issue #686](https://github.com/villekivela/omaweb/issues/686). Fixed in engine 6.11.2-9 by
+  the series' patch 0022, which also makes an update that leaves `persistAcrossSessions` out keep
+  the script, where Chromium made it last for the session only.
 - Every Space has its own engine profile, so its own Bitwarden, signed in or not. A Space whose
   Bitwarden is signed out gets no page script and goes straight to the engine's authenticator, which
   is the reported symptom by another route. This is how Spaces are meant to work, so it has no
