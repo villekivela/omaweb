@@ -1076,6 +1076,103 @@ package's architecture as the vendor's, and Bitwarden's fixed URLs being refused
 asks for dynamic ones. Both halves of that last rule are now covered by a test, because passing one
 while failing the other is the shape of both the bug and the overcorrection.
 
+### 2026-10-10, passkeys stop at the popout's position
+
+[Issue #561](https://github.com/villekivela/omaweb/issues/561): with Bitwarden as a Known extension,
+"Use passkey" does not sign in. Measured against Omaweb on engine 6.11.2-7 and Chromium 152 with the
+same Bitwarden 2026.9.3 package, first with no account and then signed in to a throwaway account in
+the Space on show.
+
+**The call that fails is `windows.create`, because `windows.get` reports no position.** Bitwarden
+asks the reader to confirm a passkey in a popout, and places it beside the page's window:
+`left = window.left + window.width - popupWidth - 15`, from `windows.get(senderWindowId)`. The
+engine's window carries an id, focus, type and state, and no `left`, `top`, `width` or `height`
+(`CreateWindowValue` in the series' `windows_api.cc`), so `left` is `NaN`, and the schema refuses
+the call before it runs:
+
+```text
+[Fido2Client] Aborted by user: TypeError: Error in invocation of windows.create(...): Error at
+parameter 'createData': Error at property 'left': Invalid type: expected integer, found number.
+```
+
+The page then gets "The operation either timed out or was not allowed.", on webauthn.io's Register
+and on its Authenticate alike. `windows.getAll()` from Bitwarden's own pages answers
+`left: 10, top: 10, width: 780, height: 580` in Chromium and `{id: 1}` in Omaweb. On Linux Bitwarden
+places nothing when `left` and `top` are both `0`, so a window reporting `0, 0` and its size is
+enough.
+
+**Nothing else stands in the way.** With `windows.get` and `windows.getCurrent` given a position in
+the worker's memory, the issue's scenario completes in Omaweb: Bitwarden's popout opens as a Glance,
+saves a passkey for webauthn.io, and a second popout signs in with it ("You're logged in!"). The
+position is the engine's to report. Omaweb has no hook to supply it, and neither the 6.11.2-7 series
+nor the newer one reports it. [Issue #684](https://github.com/villekivela/omaweb/issues/684) asks
+the engine's `chrome.windows` API for it.
+
+**GitHub, where the reader saw it, fails the same way, and the bar is not explained.** The report
+was GitHub's sign-in page on 0.10.0. Its "Sign in with a passkey" asks for a discoverable
+credential: `rpId: "github.com"`, an empty `allowCredentials`, `userVerification: "required"`, from
+`/u2f/login_fragment`. Pressed in Omaweb with Bitwarden signed in, Bitwarden's page script takes it,
+the popout is refused at `left` as above, and GitHub says "Authentication failed." No request
+reaches `SecurityKeyBar.qml`. Bitwarden hands a request to the browser's own WebAuthn only when
+passkeys are not enabled for the site, when the reader asks for another device in the popout, or
+when every `allowCredentials` entry names only non-internal transports. GitHub's empty list rules
+out the third, and the refused popout rules out the second. The bar therefore means Bitwarden did
+not take the request at all, through the first case or through a GitHub tab whose document Bitwarden
+had not reached, and which of those it was cannot be told now. No engine since 0.10.0 reports a
+window's position, so the popout failed there too.
+
+**How each extension puts its script in the page.** Bitwarden registers
+`content/fido2-page-script.js` from its worker with `chrome.scripting.registerContentScripts`,
+`world: "MAIN"`, on `https://*/*` and `http://localhost/*` at `document_start`, beside
+`content/fido2-content-script.js` in the isolated world. It registers only when an account is signed
+in or locked (`Fido2Background.handleEnablePasskeysUpdate` returns early while logged out), and
+reaches back into open tabs with `scripting.executeScript` and `ExecutionWorld.MAIN`. 1Password
+8.12.41.1 declares `inline/injected/webauthn-listeners.js` in its manifest's `content_scripts` with
+`"world": "MAIN"` on the same two patterns, so it needs no account and no worker to be in the page.
+
+**Both routes reach the page's own world in Omaweb.** Bitwarden's own registration call, run in its
+worker with its own options, makes `navigator.credentials.get` in a page `getWebAuthnCredential` by
+the time the page's first script runs, in Omaweb and in Chromium alike. `executeScript` into an open
+tab does the same. In both browsers the function becomes the browser's again about a second later,
+because a logged-out worker disconnects the page's port (`isFido2FeatureEnabled` answers false) and
+the page script then restores what it replaced. That restore is Bitwarden behaving as designed, not
+a difference between the browsers. The engine contract test
+`qtRunsAKnownExtensionsMainWorldScriptInAPage` holds both routes, registered and declared, and fails
+when the script runs in the isolated world instead. The declared route was measured with a fixture
+extension declaring 1Password's entry, not with 1Password's own package.
+
+**The popout opens when the position is not the problem.** `windows.create` with no `left`, from a
+page in the Space on show, opens its page: in a Glance with Glance on, and in a new tab with it off.
+
+**The two suspects in the issue.** Bitwarden not recognising the browser is ruled out for this path:
+what decides whether a page gets a passkey is the account's status, the "Ask to save and use
+passkeys" setting (`enablePasskeys`), the blocked and never-save domains, and whether the page is
+Bitwarden's own vault, and nothing in it reads the browser's identity. The setting is on by default
+and was on for the test account, which never stored it, and the failure above happens with it on.
+Off, Bitwarden registers nothing and the page goes to the engine's authenticator, so it stays one of
+the routes to what the reader saw.
+
+**Four side findings, none of them the reader's symptom:**
+
+- `windows.create` from a tab of a Space that is not on show answers "The application did not open a
+  window." Its view raises `newWindowRequested` and `newTabRequested`, and `TabEngineHost`'s handler
+  for a tab's `newTabRequested` never runs, so nothing adopts the page. An Agent Space hits this,
+  which is how it was found. [Issue #685](https://github.com/villekivela/omaweb/issues/685).
+- Dynamically registered scripts do not survive a restart. Chrome keeps them by default
+  (`persistAcrossSessions`), and `getRegisteredContentScripts` is empty in Omaweb after a relaunch.
+  Bitwarden registers again whenever its worker starts with an account, so it does not depend on
+  this. [Issue #686](https://github.com/villekivela/omaweb/issues/686).
+- Every Space has its own engine profile, so its own Bitwarden, signed in or not. A Space whose
+  Bitwarden is signed out gets no page script and goes straight to the engine's authenticator, which
+  is the reported symptom by another route.
+- The series declares `windows.onRemoved` and never raises it. Bitwarden ends a request, asking the
+  page to fall back, when its popout's window closes, so once the popout opens, a reader who closes
+  it waits out the site's timeout instead. Read from the series, not measured.
+  [Issue #687](https://github.com/villekivela/omaweb/issues/687).
+
+1Password's own flow past the page script was not run: no 1Password account or desktop application
+is on the test machine.
+
 ## What the prototype verifies first
 
 1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.
