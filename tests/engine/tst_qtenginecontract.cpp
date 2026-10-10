@@ -238,6 +238,7 @@ private slots:
     void qtSpaceProfilesKeepSiteStorageOnDisk();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
+    void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage_data();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
@@ -1884,6 +1885,235 @@ struct ViewInWindow {
 };
 
 } // namespace
+
+// A page that asks for a window is answered at once, or the engine tells it the
+// window was refused: `window.open` returns null, and an extension's
+// `windows.create` fails. The shell takes such a request for a page in a Space
+// that is not on show into a hidden view it has just built, and freezes that
+// view, as it does every page the reader cannot see (#685). The page that asked
+// gets its window, and the frozen page still loads.
+namespace {
+
+QByteArray openedWindowsProbe()
+{
+    return QByteArray(R"QML(
+import QtQuick
+import "ADAPTERS" as Adapters
+Item {
+    id: probe
+    width: 640
+    height: 480
+    property var sharedProfile: null
+    property bool takesRequests: true
+    property var opened: null
+    readonly property alias opener: openerView
+    // Whichever view of the profile the engine hands a request to, as every
+    // tab's engine passes one on, and it is taken into a hidden, frozen view
+    // built for it.
+    function take(request) {
+        if (!probe.takesRequests)
+            return;
+        const view = viewComponent.createObject(probe, {
+            "pageFrozen": true
+        });
+        view.acceptNewWindowRequest(request);
+        probe.opened = view;
+    }
+    Component {
+        id: viewComponent
+        Adapters.EngineView {
+            anchors.fill: parent
+            sharedProfile: probe.sharedProfile
+            visible: false
+            onNewTabRequested: function (request, requestedUrl) {
+                probe.take(request);
+            }
+        }
+    }
+    Adapters.EngineView {
+        id: openerView
+        anchors.fill: parent
+        sharedProfile: probe.sharedProfile
+        visible: false
+        onNewTabRequested: function (request, requestedUrl) {
+            probe.take(request);
+        }
+    }
+    // Another hidden view of the same profile, which the engine may pick to
+    // hand an extension's request to.
+    Adapters.EngineView {
+        anchors.fill: parent
+        sharedProfile: probe.sharedProfile
+        visible: false
+        pageFrozen: true
+        onNewTabRequested: function (request, requestedUrl) {
+            probe.take(request);
+        }
+    }
+}
+)QML")
+        .replace("ADAPTERS",
+            QUrl::fromLocalFile(
+                QFileInfo(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)).absolutePath())
+                .toString()
+                .toUtf8());
+}
+
+// The two views of one probe, an opener and the view that takes its request,
+// on one Space's profile.
+struct OpenedWindows {
+    QQmlComponent component;
+    std::unique_ptr<QObject> probe;
+    QQuickWindow window;
+    QObject *opener = nullptr;
+
+    OpenedWindows(QQmlEngine &engine, const QVariant &profile, bool takesRequests)
+        : component(&engine)
+    {
+        component.setData(openedWindowsProbe(), QUrl());
+        probe.reset(component.createWithInitialProperties({
+            {QStringLiteral("sharedProfile"), profile},
+            {QStringLiteral("takesRequests"), takesRequests},
+        }));
+        if (!probe) {
+            return;
+        }
+        window.resize(640, 480);
+        qobject_cast<QQuickItem *>(probe.get())->setParentItem(window.contentItem());
+        window.show();
+        opener = probe->property("opener").value<QObject *>();
+    }
+
+    // The view the request was taken into, or nothing.
+    QObject *opened() const { return probe->property("opened").value<QObject *>(); }
+};
+
+} // namespace
+
+void QtEngineContractTest::qtGivesAPageTheWindowAHiddenViewTakesAtOnce()
+{
+    PageServer server(QByteArray(R"HTML(<!doctype html><html><body><script>
+        if (location.pathname === "/opener")
+            document.title = "opener window=" + (window.open("/opened") !== null);
+        else
+            document.title = "opened ran";
+    </script></body></html>)HTML"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const auto address = [&server](const QString &path) {
+        return QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(server.serverPort()).arg(path));
+    };
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+
+    // `window.open` from a hidden page.
+    {
+        const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("open"))},
+            {QStringLiteral("privateBrowsing"), false},
+        }));
+        QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+        for (const bool takesRequests : {true, false}) {
+            server.forget();
+            OpenedWindows views(engine, spaceHost->property("profile"), takesRequests);
+            QVERIFY2(views.probe, qPrintable(views.component.errorString()));
+            QVERIFY(views.opener->setProperty("currentUrl", address(QStringLiteral("/opener"))));
+            QTRY_VERIFY_WITH_TIMEOUT(
+                views.opener->property("pageTitle").toString().startsWith(QStringLiteral("opener")),
+                15000);
+            // Nobody takes the request, and nothing loads the page. The engine
+            // still hands the opener a window object.
+            if (!takesRequests) {
+                QTest::qWait(1000);
+                QVERIFY(!server.requested().contains(QStringLiteral("/opened")));
+                continue;
+            }
+            QCOMPARE(views.opener->property("pageTitle").toString(),
+                QStringLiteral("opener window=true"));
+            QVERIFY(views.opened());
+            QVERIFY(views.opened());
+            QTRY_COMPARE_WITH_TIMEOUT(views.opened()->property("currentUrl").toUrl(),
+                address(QStringLiteral("/opened")), 15000);
+            QTRY_COMPARE_WITH_TIMEOUT(views.opened()->property("pageTitle").toString(),
+                QStringLiteral("opened ran"), 15000);
+            QVERIFY(views.opened()->property("pageFrozen").toBool());
+        }
+    }
+
+#if OMAWEB_KNOWN_EXTENSIONS
+    // An extension's `windows.create` from a hidden tab of its profile.
+    QDir extension(root.filePath(QStringLiteral("windows")));
+    QVERIFY(extension.mkpath(QStringLiteral(".")));
+    const auto script
+        = QByteArray(R"JS(
+        chrome.windows.create({url: "OPENED"})
+            .then((created) => document.title = "created " + (created !== undefined))
+            .catch((error) => document.title = "failed: " + error.message);
+    )JS")
+              .replace("OPENED", address(QStringLiteral("/opened")).toString().toUtf8());
+    // Outside any macro: moc misreads a raw string with quotes in a macro's
+    // arguments.
+    const QList<std::pair<QString, QByteArray>> files {
+        {QStringLiteral("manifest.json"),
+            R"JSON({"manifest_version": 3, "name": "windows", "version": "1"})JSON"},
+        {QStringLiteral("page.html"),
+            R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML"},
+        {QStringLiteral("page.js"), script},
+    };
+    for (const auto &[name, contents] : files) {
+        QFile file(extension.filePath(name));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(contents), contents.size());
+    }
+    const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("knownExtensions"),
+            QVariantList {QVariantMap {
+                {QStringLiteral("key"), QStringLiteral("windows")},
+                {QStringLiteral("name"), QStringLiteral("windows")},
+                {QStringLiteral("path"), extension.path()},
+            }}},
+    }));
+    QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+    const auto hosted = [&spaceHost] { return spaceHost->property("hostedExtensions").toList(); };
+    QTRY_COMPARE(hosted().size(), 1);
+    const auto id = hosted().constFirst().toMap().value(QStringLiteral("id")).toString();
+    QVERIFY(!id.isEmpty());
+    const QUrl page(QStringLiteral("chrome-extension://%1/page.html").arg(id));
+
+    for (const bool takesRequests : {true, false}) {
+        OpenedWindows views(engine, spaceHost->property("profile"), takesRequests);
+        QVERIFY2(views.probe, qPrintable(views.component.errorString()));
+        QVERIFY(views.opener->setProperty("currentUrl", page));
+        QTRY_VERIFY_WITH_TIMEOUT(
+            views.opener->property("pageTitle").toString() != QStringLiteral("waiting")
+                && !views.opener->property("pageTitle").toString().isEmpty()
+                && !views.opener->property("pageTitle")
+                    .toString()
+                    .startsWith(QStringLiteral("chrome-extension")),
+            15000);
+        if (!takesRequests) {
+            QVERIFY2(views.opener->property("pageTitle")
+                         .toString()
+                         .contains(QStringLiteral("did not open a window")),
+                qPrintable(views.opener->property("pageTitle").toString()));
+            continue;
+        }
+        QCOMPARE(views.opener->property("pageTitle").toString(), QStringLiteral("created true"));
+        QVERIFY(views.opened());
+        QTRY_COMPARE_WITH_TIMEOUT(views.opened()->property("currentUrl").toUrl(),
+            address(QStringLiteral("/opened")), 15000);
+        QTRY_COMPARE_WITH_TIMEOUT(
+            views.opened()->property("pageTitle").toString(), QStringLiteral("opened ran"), 15000);
+        QVERIFY(views.opened()->property("pageFrozen").toBool());
+    }
+#else
+    QSKIP("Only Omaweb's own engine hosts a Known extension, so windows.create is not checked.");
+#endif
+}
 
 void QtEngineContractTest::qtPaintsThePageAgainWhenItsWindowIsExposedAgain()
 {

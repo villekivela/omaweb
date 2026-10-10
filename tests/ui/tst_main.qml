@@ -5850,6 +5850,264 @@ TestCase {
         verify(browser.deleteSpace(awaySpaceId, "Away"));
     }
 
+    // A Keep active tab's page in the reader's own Space, running while the
+    // window shows another Space it has just created.
+    function keptPageInASpaceNotOnShow(address) {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const homeSpaceId = browser.activeSpaceId;
+        openPageInNewTab(address);
+        const keptTabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        verify(browser.tabPinned(keptTabId));
+        verify(browser.setTabKeepActive(keptTabId, true));
+        const engine = engineLoader.engines[keptTabId];
+        verify(engine !== undefined);
+        const homeTabCount = browser.tabs.rowCount();
+        const awaySpaceId = browser.createSpace("Away");
+        verify(browser.switchSpace(awaySpaceId));
+        verify(engineLoader.keepsEngineFor(keptTabId));
+        return {
+            "engineLoader": engineLoader,
+            "engine": engine,
+            "tabId": keptTabId,
+            "homeSpaceId": homeSpaceId,
+            "homeTabCount": homeTabCount,
+            "awaySpaceId": awaySpaceId,
+            "awayTabId": browser.activeTabId,
+            "awayTabCount": browser.tabs.rowCount()
+        };
+    }
+
+    // Back in the page's own Space, with its pages handed back to their rows.
+    function showKeptPagesSpace(kept) {
+        if (browser.activeSpaceId !== kept.homeSpaceId)
+            verify(browser.switchSpace(kept.homeSpaceId));
+        tryCompare(kept.engineLoader, "suspended", false);
+    }
+
+    function putKeptPageAway(kept) {
+        showKeptPagesSpace(kept);
+        browser.activateTab(kept.tabId);
+        compare(browser.activeTabId, kept.tabId);
+        verify(browser.setTabKeepActive(kept.tabId, false));
+        browser.toggleActivePinned();
+        verify(!browser.tabPinned(kept.tabId));
+        browser.closeTab(kept.tabId);
+        compare(kept.engineLoader.engines[kept.tabId], undefined);
+        verify(browser.deleteSpace(kept.awaySpaceId, "Away"));
+    }
+
+    // The tab of the Space on show whose address is the one named, or nothing.
+    function tabIdWithUrl(url) {
+        for (let row = 0; row < browser.tabs.rowCount(); ++row) {
+            const index = browser.tabs.index(row, 0);
+            if (String(browser.tabs.data(index, Qt.UserRole + 3)) === url)
+                return String(browser.tabs.data(index, Qt.UserRole + 1));
+        }
+        return "";
+    }
+
+    // A page in a Space that is not on show asks for a tab: it opens in the
+    // page's own Space, behind the reader's back. The window stays on the
+    // Space and the tab it was showing, and the page gets its window, since
+    // the request is taken there and then.
+    function test_aPageInASpaceNotOnShowOpensATabInItsOwnSpace() {
+        const kept = keptPageInASpaceNotOnShow("https://kept-opener.example/");
+        const engineLoader = kept.engineLoader;
+
+        kept.engine.simulateNewWindowRequest("https://opened-away.example/", false);
+        let openedTabId = "";
+        for (const tabId in engineLoader.engines) {
+            const request = engineLoader.engines[tabId].acceptedRequest;
+            if (request && request.requestedUrl === "https://opened-away.example/")
+                openedTabId = tabId;
+        }
+        verify(openedTabId.length > 0);
+        const openedEngine = engineLoader.engines[openedTabId];
+        compare(browser.activeSpaceId, kept.awaySpaceId);
+        compare(browser.activeTabId, kept.awayTabId);
+        compare(browser.tabs.rowCount(), kept.awayTabCount);
+        verify(!openedEngine.visible);
+
+        // In the page's Space, as a tab holding the page that took the
+        // request rather than a second load of its address.
+        showKeptPagesSpace(kept);
+        compare(browser.tabs.rowCount(), kept.homeTabCount + 1);
+        compare(tabIdWithUrl("https://opened-away.example/"), openedTabId);
+        browser.activateTab(openedTabId);
+        tryVerify(function () {
+            return engineLoader.item === openedEngine;
+        });
+
+        browser.closeTab(openedTabId);
+        putKeptPageAway(kept);
+    }
+
+    // A window asked for with no address starts blank, and the opener points
+    // it somewhere afterwards. The tab is still the one holding that page:
+    // selected, it shows the page and takes its address, rather than the
+    // Start page over a renderer no row answers for.
+    function test_aBlankWindowFromASpaceNotOnShowIsItsTabsPage() {
+        const kept = keptPageInASpaceNotOnShow("https://kept-opener.example/");
+        const engineLoader = kept.engineLoader;
+        const startPage = findChild(window.contentItem, "startPage");
+
+        const before = Object.keys(engineLoader.engines);
+        kept.engine.simulateNewWindowRequest("", false);
+        let openedTabId = "";
+        for (const tabId in engineLoader.engines) {
+            if (before.indexOf(tabId) < 0 && engineLoader.engines[tabId].acceptedRequest)
+                openedTabId = tabId;
+        }
+        verify(openedTabId.length > 0);
+        const openedEngine = engineLoader.engines[openedTabId];
+        openedEngine.currentUrl = "https://written-later.example/";
+
+        showKeptPagesSpace(kept);
+        browser.activateTab(openedTabId);
+        tryVerify(function () {
+            return engineLoader.item === openedEngine;
+        });
+        tryVerify(function () {
+            return browser.activeUrl.toString() === "https://written-later.example/";
+        });
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+
+        browser.closeTab(openedTabId);
+        putKeptPageAway(kept);
+    }
+
+    // A Keep active page goes on while its Space is away, and may move to
+    // another address there. Back on show, its tab says where it is now.
+    function test_aKeptPageThatMovedWhileAwayGivesItsTabTheNewAddress() {
+        const kept = keptPageInASpaceNotOnShow("https://kept-mover.example/");
+
+        kept.engine.currentUrl = "https://kept-moved.example/";
+        showKeptPagesSpace(kept);
+        compare(browser.activeTabId, kept.tabId);
+        tryVerify(function () {
+            return browser.activeUrl.toString() === "https://kept-moved.example/";
+        });
+
+        putKeptPageAway(kept);
+    }
+
+    // A page being taken down with its tab is no longer the tab's, and a
+    // popup it asks for in the turn before it goes opens nothing.
+    function test_aClosedTabsPageOpensNoWindow() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const engine = openPageInNewTab("https://closing-opener.example/");
+        const tabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+
+        browser.closeTab(tabId);
+        compare(engineLoader.engines[tabId], undefined);
+        engine.simulateNewWindowRequest("https://closing-popup.example/", true);
+        engine.simulateNewWindowRequest("https://closing-tab.example/", false);
+        engine.simulateBackgroundTabRequest("https://closing-background.example/");
+        wait(50);
+        compare(findChild(window, "auxiliaryWindow"), null);
+        compare(browser.tabs.rowCount(), tabCount - 1);
+    }
+
+    // Asked for in the background, it is a tab of the page's Space too, and
+    // not of the Space on show.
+    function test_aPageInASpaceNotOnShowOpensABackgroundTabInItsOwnSpace() {
+        const kept = keptPageInASpaceNotOnShow("https://kept-opener.example/");
+
+        kept.engine.simulateBackgroundTabRequest("https://background-away.example/");
+        compare(browser.activeSpaceId, kept.awaySpaceId);
+        compare(browser.activeTabId, kept.awayTabId);
+        compare(browser.tabs.rowCount(), kept.awayTabCount);
+
+        showKeptPagesSpace(kept);
+        compare(browser.tabs.rowCount(), kept.homeTabCount + 1);
+        const openedTabId = tabIdWithUrl("https://background-away.example/");
+        verify(openedTabId.length > 0);
+
+        browser.closeTab(openedTabId);
+        putKeptPageAway(kept);
+    }
+
+    // A sign-in popup from that page is its Auxiliary window, as it is from
+    // a page on show, on the page's own profile.
+    function test_aPageInASpaceNotOnShowOpensItsSignInWindow() {
+        const kept = keptPageInASpaceNotOnShow("https://kept-opener.example/");
+
+        kept.engine.simulateNewWindowRequest("https://sign-in-away.example/", true);
+        let auxiliary = null;
+        tryVerify(function () {
+            auxiliary = findChild(window, "auxiliaryWindow");
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const loader = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        tryVerify(function () {
+            return loader.item !== null;
+        });
+        compare(loader.item.sharedProfile, kept.engine.browserProfile);
+        compare(loader.item.currentUrl.toString(), "https://sign-in-away.example/");
+        compare(browser.activeSpaceId, kept.awaySpaceId);
+        compare(browser.tabs.rowCount(), kept.awayTabCount);
+
+        loader.item.simulateWindowCloseRequest();
+        tryVerify(function () {
+            return findChild(window, "auxiliaryWindow") === null;
+        });
+        window.requestActivate();
+        putKeptPageAway(kept);
+    }
+
+    // An Agent tab's page in an Agent Space that is not on show keeps the
+    // rule it has on show: what it opens is a window the Agent drives, and
+    // nothing lands in the reader's sidebar.
+    function test_anAgentTabInASpaceNotOnShowOpensTheAgentsWindow() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+        const homeSpaceId = browser.activeSpaceId;
+        const agentSpaceId = browser.createSpace("Agent");
+        const agentTabId = browser.openTabInSpace(agentSpaceId,
+                                                  "https://agent-away-opener.example/");
+        verify(agentTabId.length > 0);
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": agentSpaceId,
+            "url": "https://agent-away-opener.example/",
+            "downloadDirectory": "/downloads/Agents/test"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        control.agentTabsChanged();
+        const agentEngine = engineLoader.engines[agentTabId];
+        verify(agentEngine !== undefined);
+        const tabCount = browser.tabs.rowCount();
+
+        agentEngine.simulateNewWindowRequest("https://agent-away-checkout.example/", false);
+        let auxiliary = null;
+        tryVerify(function () {
+            auxiliary = findChild(window, "auxiliaryWindow");
+            return auxiliary !== null && auxiliary.visible;
+        });
+        verify(auxiliary.agentDriven);
+        compare(auxiliary.agentWindowId, "window-1");
+        compare(browser.activeSpaceId, homeSpaceId);
+        compare(browser.tabs.rowCount(), tabCount);
+
+        findChild(auxiliary.contentItem, "auxiliaryEngineLoader").item.simulateWindowCloseRequest();
+        tryVerify(function () {
+            return findChild(window, "auxiliaryWindow") === null;
+        });
+        window.requestActivate();
+        control.agentTabIds = [];
+        control.agentTabsChanged();
+        engineLoader.agentControl = null;
+        control.destroy();
+        verify(browser.deleteSpace(agentSpaceId, "Agent"));
+    }
+
     function test_primaryChromeIsAccessibleFromKeyboard() {
         window.requestActivate();
         tryVerify(function () {
