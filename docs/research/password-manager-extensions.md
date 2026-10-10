@@ -1170,13 +1170,18 @@ the routes to what the reader saw.
   Bitwarden is signed out gets no page script and goes straight to the engine's authenticator, which
   is the reported symptom by another route. This is how Spaces are meant to work, so it has no
   issue.
-- The series declares `windows.onRemoved` and never raises it. Bitwarden ends a request, asking the
-  page to fall back, when its popout's window closes, so once the popout opens, a reader who closes
-  it waits out the site's timeout instead. Read from the series, not measured.
+- Bitwarden ends a request, asking the page to fall back, when its popout's window closes, and
+  closes the popout itself by finding its tab with `tabs.query` and removing it. The series declared
+  `windows.onRemoved` and never raised it, so a reader who closed the popout waited out the site's
+  timeout instead. That was read from the series, not measured.
   [Issue #687](https://github.com/villekivela/omaweb/issues/687). Patch 0023, in engine 6.11.2-10,
-  gives a page opened with `windows.create` a window id of its own. When that page closes, however
-  it closes, the engine raises `tabs.onRemoved` and then `windows.onRemoved`. No other `tabs` or
-  `windows` event is raised yet.
+  makes a page opened with `windows.create` a window of its own, with its own id. `tabs` and
+  `windows` report it in that window, and `tabs.remove` closes it. When the page closes, however it
+  closes, the engine raises `tabs.onRemoved` and then `windows.onRemoved`, waking a stopped worker
+  to hear them. No other `tabs` or `windows` event is raised yet. The engine cannot see where Omaweb
+  shows the page, so a page shown as a tab, with Glance off or after "Open as tab", is still
+  reported as a window of its own. The extension can close that tab, and the reader closing it ends
+  the request.
 
 1Password's own flow past the page script was not run: no 1Password account or desktop application
 is on the test machine.
