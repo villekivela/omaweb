@@ -5855,9 +5855,10 @@ TestCase {
     function keptPageInASpaceNotOnShow(address) {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const homeSpaceId = browser.activeSpaceId;
-        openPage(address);
+        openPageInNewTab(address);
         const keptTabId = browser.activeTabId;
         browser.toggleActivePinned();
+        verify(browser.tabPinned(keptTabId));
         verify(browser.setTabKeepActive(keptTabId, true));
         const engine = engineLoader.engines[keptTabId];
         verify(engine !== undefined);
@@ -5877,13 +5878,22 @@ TestCase {
         };
     }
 
-    function putKeptPageAway(kept) {
+    // Back in the page's own Space, with its pages handed back to their rows.
+    function showKeptPagesSpace(kept) {
         if (browser.activeSpaceId !== kept.homeSpaceId)
             verify(browser.switchSpace(kept.homeSpaceId));
+        tryCompare(kept.engineLoader, "suspended", false);
+    }
+
+    function putKeptPageAway(kept) {
+        showKeptPagesSpace(kept);
         browser.activateTab(kept.tabId);
+        compare(browser.activeTabId, kept.tabId);
         verify(browser.setTabKeepActive(kept.tabId, false));
         browser.toggleActivePinned();
+        verify(!browser.tabPinned(kept.tabId));
         browser.closeTab(kept.tabId);
+        compare(kept.engineLoader.engines[kept.tabId], undefined);
         verify(browser.deleteSpace(kept.awaySpaceId, "Away"));
     }
 
@@ -5921,12 +5931,48 @@ TestCase {
 
         // In the page's Space, as a tab holding the page that took the
         // request rather than a second load of its address.
-        verify(browser.switchSpace(kept.homeSpaceId));
+        showKeptPagesSpace(kept);
         compare(browser.tabs.rowCount(), kept.homeTabCount + 1);
         compare(tabIdWithUrl("https://opened-away.example/"), openedTabId);
         browser.activateTab(openedTabId);
         tryVerify(function () {
             return engineLoader.item === openedEngine;
+        });
+
+        browser.closeTab(openedTabId);
+        putKeptPageAway(kept);
+    }
+
+    // A window asked for with no address starts blank, and the opener points
+    // it somewhere afterwards. The tab is still the one holding that page:
+    // selected, it shows the page and takes its address, rather than the
+    // Start page over a renderer no row answers for.
+    function test_aBlankWindowFromASpaceNotOnShowIsItsTabsPage() {
+        const kept = keptPageInASpaceNotOnShow("https://kept-opener.example/");
+        const engineLoader = kept.engineLoader;
+        const startPage = findChild(window.contentItem, "startPage");
+
+        const before = Object.keys(engineLoader.engines);
+        kept.engine.simulateNewWindowRequest("", false);
+        let openedTabId = "";
+        for (const tabId in engineLoader.engines) {
+            if (before.indexOf(tabId) < 0 && engineLoader.engines[tabId].acceptedRequest)
+                openedTabId = tabId;
+        }
+        verify(openedTabId.length > 0);
+        const openedEngine = engineLoader.engines[openedTabId];
+        openedEngine.currentUrl = "https://written-later.example/";
+
+        showKeptPagesSpace(kept);
+        browser.activateTab(openedTabId);
+        tryVerify(function () {
+            return engineLoader.item === openedEngine;
+        });
+        tryVerify(function () {
+            return browser.activeUrl.toString() === "https://written-later.example/";
+        });
+        tryVerify(function () {
+            return !startPage.visible;
         });
 
         browser.closeTab(openedTabId);
@@ -5943,7 +5989,7 @@ TestCase {
         compare(browser.activeTabId, kept.awayTabId);
         compare(browser.tabs.rowCount(), kept.awayTabCount);
 
-        verify(browser.switchSpace(kept.homeSpaceId));
+        showKeptPagesSpace(kept);
         compare(browser.tabs.rowCount(), kept.homeTabCount + 1);
         const openedTabId = tabIdWithUrl("https://background-away.example/");
         verify(openedTabId.length > 0);

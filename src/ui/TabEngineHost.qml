@@ -346,15 +346,21 @@ Item {
     function openRequestInSpace(spaceId, request, requestedUrl) {
         const destination = String(requestedUrl).length > 0 ? String(requestedUrl) : "about:blank";
         const tabId = root.browserController.openTabInSpace(spaceId, destination);
-        if (tabId.length === 0 || !request)
-            return tabId;
+        if (tabId.length > 0 && request && root.adoptRequestInTab(tabId, spaceId, request))
+            root.setEngineVisible(tabId, false);
+    }
+
+    // A tab opened for a page's request, in a Space that need not be on show,
+    // takes the request in a page of that Space's built for it. The tab has no
+    // row here to build one, and the request has to be taken now or the page
+    // that asked is told it was refused.
+    function adoptRequestInTab(tabId, spaceId, request) {
         const engine = root.createDetachedEngineIn(null, "about:blank", spaceId);
         if (!engine)
-            return tabId;
+            return false;
         root.adoptTabWindowEngine(tabId, engine, spaceId);
         engine.acceptNewWindowRequest(request);
-        root.setEngineVisible(tabId, false);
-        return tabId;
+        return true;
     }
 
     function focusPage() {
@@ -1458,11 +1464,16 @@ Item {
             // given an engine of its own — one keyed to no tab, so no tab ever
             // shows it, hides it or takes it away, left on top of the page the
             // reader came back to.
+            //
+            // A page opened for a request while its Space was away is keyed to
+            // its tab before the tab has a row, and may still be blank. The
+            // row takes it as it is.
             function needsEngine() {
                 if (tabSlot.tabId.length === 0)
                     return false;
                 return !root.pagelessAddress(tabSlot.tabUrl) || root.adoptingTabId
-                        === tabSlot.tabId;
+                        === tabSlot.tabId || (!tabSlot.engine && root.engines[tabSlot.tabId]
+                                              !== undefined);
             }
 
             readonly property bool wantsEngine: tabId.length > 0 && (!root.pagelessAddress(tabUrl)
@@ -1531,11 +1542,19 @@ Item {
             function loadEngine() {
                 if (root.suspended || !everActive || !needsEngine())
                     return;
-                engine = root.engines[tabId] || root.createEngine(tabId, tabSlot.tabUrl);
+                const kept = root.engines[tabId];
+                engine = kept || root.createEngine(tabId, tabSlot.tabUrl);
                 if (engine) {
                     engine.setZoomFactor(tabSlot.tabZoom);
                     tabSlot.applySoundPolicy();
                 }
+                // A page that went on while no row answered for it says where
+                // it is now.
+                if (kept && !root.blankAddress(kept.currentUrl) && String(kept.currentUrl)
+                        !== String(tabSlot.tabUrl))
+                    root.browserController.reportTabPageState(tabId, kept.currentUrl, kept.pageTitle,
+                                                              kept.pageIconUrl, kept.loading,
+                                                              kept.pageAudible);
                 showEngine();
             }
 
