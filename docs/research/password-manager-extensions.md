@@ -1173,7 +1173,10 @@ the routes to what the reader saw.
 - The series declares `windows.onRemoved` and never raises it. Bitwarden ends a request, asking the
   page to fall back, when its popout's window closes, so once the popout opens, a reader who closes
   it waits out the site's timeout instead. Read from the series, not measured.
-  [Issue #687](https://github.com/villekivela/omaweb/issues/687).
+  [Issue #687](https://github.com/villekivela/omaweb/issues/687). Patch 0023, in engine 6.11.2-10,
+  gives a page opened with `windows.create` a window id of its own. When that page closes, however
+  it closes, the engine raises `tabs.onRemoved` and then `windows.onRemoved`. No other `tabs` or
+  `windows` event is raised yet.
 
 1Password's own flow past the page script was not run: no 1Password account or desktop application
 is on the test machine.
