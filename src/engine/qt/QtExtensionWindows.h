@@ -29,7 +29,7 @@ public:
     // The window a call with no page behind it is answered with.
     void setMainWindow(QWindow *window);
 
-    // The frame of the window |page| is drawn in, or of the main window when
+    // The frame of the window the page is drawn in, or of the main window when
     // there is no page or it is drawn nowhere.
     QRect geometryOf(const QObject *page) const;
 
