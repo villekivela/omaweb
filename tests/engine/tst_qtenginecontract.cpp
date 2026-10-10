@@ -3,6 +3,7 @@
 #include "AgentConsole.h"
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
+#include "QtDrawnFavicons.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
 #include "PageImages.h"
@@ -58,6 +59,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQuickImageProvider>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QRegularExpression>
@@ -66,6 +68,8 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QSignalSpy>
 #include <QSslConfiguration>
 #include <QSslKey>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QSslServer>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -235,6 +239,7 @@ private slots:
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
+    void qtDrawsAFaviconAfreshInEachRun();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
@@ -963,6 +968,165 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     QTRY_COMPARE(view->property("pageTitle").toString(), QStringLiteral("kept"));
     QTRY_VERIFY(
         !QDir(spacePath).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot).isEmpty());
+}
+
+namespace {
+
+// A page with an SVG favicon in the colour it is given, at an address that
+// never changes, and that no cache may keep.
+class FaviconServer final : public QTcpServer {
+public:
+    FaviconServer()
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+                const auto request = socket->readAll();
+                const auto fields = request.split(' ');
+                const auto icon = fields.size() > 1 && fields.at(1) == "/icon.svg";
+                const auto body = icon
+                    ? R"(<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">)"
+                      R"(<rect width="32" height="32" fill=")"
+                        + colour + R"("/></svg>)"
+                    : QByteArray(R"(<!doctype html><title>icon</title>)"
+                                 R"(<link rel="icon" href="/icon.svg" type="image/svg+xml">)");
+                const QByteArray type = icon ? "image/svg+xml" : "text/html";
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: " + type
+                    + "\r\nCache-Control: no-store\r\nContent-Length: "
+                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+    }
+
+    QByteArray colour = "#000";
+};
+
+// How light the opaque part of the favicon at `iconUrl` is, from 0 to 255,
+// as the engine's image provider hands it to the interface. -1 when nothing
+// came back.
+int faviconLightness(QQmlEngine &engine, const QUrl &iconUrl)
+{
+    auto *provider = static_cast<QQuickAsyncImageProvider *>(engine.imageProvider(iconUrl.host()));
+    if (!provider) {
+        return -1;
+    }
+    const auto identifier = iconUrl.toString(QUrl::RemoveScheme | QUrl::RemoveAuthority).mid(1);
+    const std::unique_ptr<QQuickImageResponse> response(
+        provider->requestImageResponse(identifier, QSize(32, 32)));
+    QSignalSpy finished(response.get(), &QQuickImageResponse::finished);
+    if (!finished.wait(5000)) {
+        return -1;
+    }
+    const std::unique_ptr<QQuickTextureFactory> factory(response->textureFactory());
+    const auto image = factory ? factory->image() : QImage();
+    int opaque = 0;
+    qint64 lightness = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const auto colour = image.pixelColor(x, y);
+            if (colour.alpha() > 128) {
+                ++opaque;
+                lightness += colour.lightness();
+            }
+        }
+    }
+    return opaque ? int(lightness / opaque) : -1;
+}
+
+// Whether the engine's favicon database at `path` holds a drawing and can be
+// read, which it cannot while an engine still has it open.
+bool holdsADrawing(const QString &path)
+{
+    const auto connection = QStringLiteral("drawn-favicons");
+    bool drawn = false;
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(path);
+        database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+        if (QFileInfo::exists(path) && database.open()) {
+            QSqlQuery query(database);
+            drawn = query.exec(QStringLiteral("SELECT COUNT(*) FROM favicon_bitmaps"))
+                && query.next() && query.value(0).toInt() > 0;
+        }
+    }
+    QSqlDatabase::removeDatabase(connection);
+    return drawn;
+}
+
+} // namespace
+
+// The engine keeps the favicon it drew for a page in the Space's profile and
+// shows that drawing on every later visit, without asking the site again. A
+// favicon that follows the colour scheme is drawn under the scheme of its first
+// visit, so a Space that met chatgpt.com under a light theme went on showing
+// its black mark under a dark one (#698). Each run starts its Spaces without
+// the drawings an earlier run made. Under the offscreen platform the tests run
+// on, a page is not told a dark scheme the application asks for, so the site
+// changes its icon between runs instead, which is what a new scheme does to an
+// icon that follows it.
+void QtEngineContractTest::qtDrawsAFaviconAfreshInEachRun()
+{
+    FaviconServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QTemporaryDir root;
+    const SpaceStorage storage(root.path(), QStringLiteral("qt"));
+    const auto favicons = QDir(storage.profilePathFor(QStringLiteral("space")))
+                              .filePath(QStringLiteral("Favicons"));
+
+    // One run of the browser: a Space's profile and a view, gone again before
+    // the next run builds its own over the same directory.
+    const auto visit = [&] {
+        QQmlEngine engine;
+        QQmlComponent profileComponent(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+        std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), storage.profilePathFor(QStringLiteral("space"))},
+            {QStringLiteral("privateBrowsing"), false},
+        }));
+        if (!spaceHost) {
+            qWarning() << profileComponent.errorString();
+            return -1;
+        }
+        QQmlComponent viewComponent(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+        std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+            {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+        }));
+        if (!view) {
+            qWarning() << viewComponent.errorString();
+            return -1;
+        }
+        QQuickWindow window;
+        qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+        window.show();
+        view->setProperty("currentUrl", page);
+        const auto iconUrl = [&view] { return view->property("pageIconUrl").toUrl(); };
+        if (!QTest::qWaitFor([&] { return !iconUrl().isEmpty(); }, 10000)) {
+            qWarning() << "The page reported no favicon";
+            return -1;
+        }
+        const auto lightness = faviconLightness(engine, iconUrl());
+        view.reset();
+        spaceHost.reset();
+        // The engine writes the drawing and lets go of the database on its own
+        // threads, after the profile has gone. It holds the file locked until
+        // then, so a read that finds the drawing is one the next run would.
+        if (!QTest::qWaitFor([&] { return holdsADrawing(favicons); }, 10000)) {
+            qWarning() << "The engine kept no drawing of the favicon";
+            return -1;
+        }
+        return lightness;
+    };
+
+    const auto first = visit();
+    QVERIFY(first >= 0);
+    QCOMPARE_LT(first, 64);
+    server.colour = "#fff";
+    forgetDrawnFavicons(storage);
+    QCOMPARE_GT(visit(), 192);
 }
 
 // The engine builds a profile's extension storage once, from the directory the

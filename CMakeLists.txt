@@ -678,6 +678,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtContentBlocker.h
         src/engine/qt/QtCookiePolicy.cpp
         src/engine/qt/QtCookiePolicy.h
+        src/engine/qt/QtDrawnFavicons.cpp
+        src/engine/qt/QtDrawnFavicons.h
         src/engine/qt/QtEnginePaths.cpp
         src/engine/qt/QtEnginePaths.h
         src/engine/qt/QtHeldDownloads.cpp
