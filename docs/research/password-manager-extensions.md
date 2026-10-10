@@ -1080,8 +1080,10 @@ while failing the other is the shape of both the bug and the overcorrection.
 
 [Issue #561](https://github.com/villekivela/omaweb/issues/561): with Bitwarden as a Known extension,
 "Use passkey" does not sign in. Measured against Omaweb on engine 6.11.2-7 and Chromium 152 with the
-same Bitwarden 2026.9.3 package, first with no account and then signed in to a throwaway account in
-the Space on show.
+same Bitwarden 2026.9.3 package. Omaweb ran with no account and then signed in to a throwaway
+account in the Space on show. Chromium ran signed out only: signing the account in there was not
+possible in this session, so the passkey was registered from Omaweb, not from Chromium as the issue
+planned, and Chromium's evidence is the page script and the window's position.
 
 **The call that fails is `windows.create`, because `windows.get` reports no position.** Bitwarden
 asks the reader to confirm a passkey in a popout, and places it beside the page's window:
@@ -1097,16 +1099,17 @@ parameter 'createData': Error at property 'left': Invalid type: expected integer
 
 The page then gets "The operation either timed out or was not allowed.", on webauthn.io's Register
 and on its Authenticate alike. `windows.getAll()` from Bitwarden's own pages answers
-`left: 10, top: 10, width: 780, height: 580` in Chromium and `{id: 1}` in Omaweb. On Linux Bitwarden
-places nothing when `left` and `top` are both `0`, so a window reporting `0, 0` and its size is
-enough.
+`left: 10, top: 10, width: 780, height: 580` in Chromium and `{id: 1}` in Omaweb. Bitwarden's
+`openPopout`, read rather than run, sets no position on Linux when `left` and `top` are both `0`, so
+a window reporting `0, 0` and its size should be enough.
 
-**Nothing else stands in the way.** With `windows.get` and `windows.getCurrent` given a position in
-the worker's memory, the issue's scenario completes in Omaweb: Bitwarden's popout opens as a Glance,
-saves a passkey for webauthn.io, and a second popout signs in with it ("You're logged in!"). The
-position is the engine's to report. Omaweb has no hook to supply it, and neither the 6.11.2-7 series
-nor the newer one reports it. [Issue #684](https://github.com/villekivela/omaweb/issues/684) asks
-the engine's `chrome.windows` API for it.
+**From the Space on show, nothing else stands in the way.** With `windows.get` and
+`windows.getCurrent` given a position in the worker's memory, the issue's scenario completes in
+Omaweb: Bitwarden's popout opens as a Glance, saves a passkey for webauthn.io, and a second popout
+signs in with it ("You're logged in!"). The position is the engine's to report. Omaweb has no hook
+to supply it, and neither the 6.11.2-7 series nor the one built for #674 reports it.
+[Issue #684](https://github.com/villekivela/omaweb/issues/684) asks the engine's `chrome.windows`
+API for it.
 
 **GitHub, where the reader saw it, fails the same way, and the bar is not explained.** The report
 was GitHub's sign-in page on 0.10.0. Its "Sign in with a passkey" asks for a discoverable
@@ -1116,10 +1119,11 @@ the popout is refused at `left` as above, and GitHub says "Authentication failed
 reaches `SecurityKeyBar.qml`. Bitwarden hands a request to the browser's own WebAuthn only when
 passkeys are not enabled for the site, when the reader asks for another device in the popout, or
 when every `allowCredentials` entry names only non-internal transports. GitHub's empty list rules
-out the third, and the refused popout rules out the second. The bar therefore means Bitwarden did
-not take the request at all, through the first case or through a GitHub tab whose document Bitwarden
-had not reached, and which of those it was cannot be told now. No engine since 0.10.0 reports a
-window's position, so the popout failed there too.
+out the third, and the refused popout rules out the second. Read from Bitwarden's code, the bar
+means Bitwarden did not take the request at all, through the first case or through a GitHub tab
+whose document Bitwarden had not reached, and which of those it was cannot be told now. No engine
+series since 0.10.0 sets a window's position, so the popout would have failed there too. That is
+read from the series, not run on 0.10.0.
 
 **How each extension puts its script in the page.** Bitwarden registers
 `content/fido2-page-script.js` from its worker with `chrome.scripting.registerContentScripts`,
@@ -1164,7 +1168,8 @@ the routes to what the reader saw.
   this. [Issue #686](https://github.com/villekivela/omaweb/issues/686).
 - Every Space has its own engine profile, so its own Bitwarden, signed in or not. A Space whose
   Bitwarden is signed out gets no page script and goes straight to the engine's authenticator, which
-  is the reported symptom by another route.
+  is the reported symptom by another route. This is how Spaces are meant to work, so it has no
+  issue.
 - The series declares `windows.onRemoved` and never raises it. Bitwarden ends a request, asking the
   page to fall back, when its popout's window closes, so once the popout opens, a reader who closes
   it waits out the site's timeout instead. Read from the series, not measured.

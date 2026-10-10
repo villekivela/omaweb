@@ -8968,7 +8968,7 @@ void QtEngineContractTest::qtRunsAKnownExtensionsMainWorldScriptInAPage_data()
                  "js": ["content.js"], "run_at": "document_start"},
                 {"matches": ["https://*/*", "http://localhost/*"], "all_frames": true,
                  "js": ["page.js"], "run_at": "document_start", "world": "MAIN"}]})JSON")
-                              << QByteArray("");
+                              << QByteArray();
 }
 
 void QtEngineContractTest::qtRunsAKnownExtensionsMainWorldScriptInAPage()
