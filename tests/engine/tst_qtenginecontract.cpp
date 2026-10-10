@@ -240,6 +240,7 @@ private slots:
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage_data();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage();
+    void qtKeepsAKnownExtensionsRegisteredScriptAcrossARestart();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
     void qtTranslatesEachSecurityKeyStep_data();
     void qtTranslatesEachSecurityKeyStep();
@@ -9271,6 +9272,110 @@ void QtEngineContractTest::qtRunsAKnownExtensionsMainWorldScriptInAPage()
         QTest::qWait(250);
     }
     QCOMPARE(title(), QStringLiteral("extensionGet page=ran content=ran"));
+#else
+    QSKIP("Only Omaweb's own engine hosts a Known extension.");
+#endif
+}
+
+// Chrome keeps a script an extension registers unless it is told not to, so an
+// extension that registers once, when it is set up, finds it there at every
+// later start (#686). Bitwarden registers again whenever its worker starts, so
+// it would not notice; this fixture registers only when its page is opened,
+// and that page is opened in the first session only.
+void QtEngineContractTest::qtKeepsAKnownExtensionsRegisteredScriptAcrossARestart()
+{
+#if OMAWEB_KNOWN_EXTENSIONS
+    QTemporaryDir root;
+    QDir extension(root.filePath(QStringLiteral("kept")));
+    QVERIFY(extension.mkpath(QStringLiteral(".")));
+    const QList<std::pair<QString, QByteArray>> files {
+        {QStringLiteral("manifest.json"),
+            R"JSON({"manifest_version": 3, "name": "kept", "version": "1",
+                "permissions": ["scripting"], "host_permissions": ["<all_urls>"]})JSON"},
+        {QStringLiteral("register.html"),
+            R"HTML(<!doctype html><title>waiting</title><script src="register.js"></script>)HTML"},
+        {QStringLiteral("register.js"), R"JS(
+            chrome.scripting.registerContentScripts([{id: "kept",
+                matches: ["http://localhost/*"], js: ["kept.js"], runAt: "document_end"}])
+                .then(() => document.title = "registered",
+                      (error) => document.title = "failed: " + error.message);
+        )JS"},
+        {QStringLiteral("kept.js"), R"JS(document.title = "kept";)JS"},
+    };
+    for (const auto &[name, contents] : files) {
+        QFile file(extension.filePath(name));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(contents), contents.size());
+    }
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQuickWindow window;
+    window.show();
+    const QString space = root.filePath(QStringLiteral("space"));
+    std::unique_ptr<QObject> spaceHost;
+    std::unique_ptr<QObject> view;
+    // One start of the Space: its profile with the extension on, and a view of
+    // it. The view goes before the profile it shows.
+    const auto start = [&] {
+        view.reset();
+        spaceHost.reset();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        spaceHost.reset(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), space},
+            {QStringLiteral("privateBrowsing"), false},
+            {QStringLiteral("knownExtensions"),
+                QVariantList {QVariantMap {
+                    {QStringLiteral("key"), QStringLiteral("kept")},
+                    {QStringLiteral("name"), QStringLiteral("kept")},
+                    {QStringLiteral("path"), extension.path()},
+                }}},
+        }));
+        QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+        QTRY_COMPARE(spaceHost->property("hostedExtensions").toList().size(), 1);
+        view.reset(viewComponent.createWithInitialProperties({
+            {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+        }));
+        QVERIFY2(view, qPrintable(viewComponent.errorString()));
+        qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+    };
+    const auto title = [&view] { return view->property("pageTitle").toString(); };
+
+    start();
+    if (QTest::currentTestFailed())
+        return;
+    const auto id = spaceHost->property("hostedExtensions")
+                        .toList()
+                        .constFirst()
+                        .toMap()
+                        .value(QStringLiteral("id"))
+                        .toString();
+    QVERIFY(view->setProperty(
+        "currentUrl", QUrl(QStringLiteral("chrome-extension://%1/register.html").arg(id))));
+    QTRY_COMPARE(title(), QStringLiteral("registered"));
+    // Written on the engine's own file thread; waited for so the restart below
+    // is about what is kept, not how soon.
+    QTRY_VERIFY(QDir(QDir(space).filePath(QStringLiteral("Extension Scripts"))).exists());
+
+    start();
+    if (QTest::currentTestFailed())
+        return;
+    PageServer server(R"HTML(<!doctype html><title>waiting</title>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    // The extension reads what it kept as it starts, on its own time, so the
+    // page is loaded again until it has.
+    const QUrl page(QStringLiteral("http://localhost:%1/page.html").arg(server.serverPort()));
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        QVERIFY(view->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
+        QTRY_COMPARE(view->property("currentUrl").toUrl(), QUrl(QStringLiteral("about:blank")));
+        QVERIFY(view->setProperty("currentUrl", page));
+        if (QTest::qWaitFor([&title] { return title() == QStringLiteral("kept"); }, 1000))
+            break;
+    }
+    QCOMPARE(title(), QStringLiteral("kept"));
 #else
     QSKIP("Only Omaweb's own engine hosts a Known extension.");
 #endif
