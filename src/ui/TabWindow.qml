@@ -489,13 +489,8 @@ Window {
     function openNewTabWindow(request, destination) {
         const spaceId = String(root.entry.spaceId || "");
         const tabId = root.browser.openTabWindow(spaceId, destination);
-        if (tabId.length === 0 || !request)
-            return tabId;
-        const engine = root.engineHost.createDetachedEngineIn(null, "about:blank", spaceId);
-        if (!engine)
-            return tabId;
-        root.engineHost.adoptTabWindowEngine(tabId, engine, spaceId);
-        engine.acceptNewWindowRequest(request);
+        if (tabId.length > 0 && request)
+            root.engineHost.adoptRequestInTab(tabId, spaceId, request);
         return tabId;
     }
 
