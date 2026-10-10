@@ -375,6 +375,7 @@ private slots:
     void qtOffersACallThePublicInterfaceOnly();
     void qtTellsAnExtensionWhereThePagesWindowIs();
     void qtTellsAnExtensionNoPositionWhereThePlatformHasNone();
+    void qtKnowsWhichPlatformsSayWhereAWindowIs();
 #if OMAWEB_KNOWN_EXTENSIONS && OMAWEB_EXTENSION_WINDOW_GEOMETRY
     void qtAnswersAKnownExtensionThroughItsProfile();
 #endif
@@ -6024,6 +6025,7 @@ void QtEngineContractTest::qtTellsAnExtensionWhereThePagesWindowIs()
     qobject_cast<QQuickItem *>(adapter.get())->setParentItem(mainWindow.contentItem());
     QCOMPARE(windows.geometryOf(page), mainWindow.frameGeometry());
     QCOMPARE(windows.geometryOf(nullptr), mainWindow.frameGeometry());
+    // Never shown, so no frame is drawn and the frame is the size asked for.
     QCOMPARE(windows.geometryOf(page).size(), QSize(1400, 900));
 
     // Popped out, the tab's engine is lent to its Tab window.
@@ -6050,6 +6052,29 @@ void QtEngineContractTest::qtTellsAnExtensionNoPositionWhereThePlatformHasNone()
     omaweb::QtExtensionWindows windows(omaweb::QtExtensionWindows::Positions::Unknown);
     windows.setMainWindow(&mainWindow);
     QCOMPARE(windows.geometryOf(nullptr), QRect(0, 0, 1400, 900));
+}
+
+// Wayland, under either of Qt's names for it, is the platform that tells a
+// window nothing about where it is. Elsewhere the platform's position stands,
+// and a browser picks its answer from the platform it runs on.
+void QtEngineContractTest::qtKnowsWhichPlatformsSayWhereAWindowIs()
+{
+    using Positions = omaweb::QtExtensionWindows::Positions;
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("wayland")), Positions::Unknown);
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("wayland-egl")), Positions::Unknown);
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("xcb")), Positions::FromPlatform);
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("cocoa")), Positions::FromPlatform);
+
+    // The tests run offscreen, which says where a window is.
+    QQuickWindow mainWindow;
+    mainWindow.setGeometry(120, 80, 1400, 900);
+    omaweb::QtExtensionWindows windows;
+    windows.setMainWindow(&mainWindow);
+    QCOMPARE(windows.geometryOf(nullptr).topLeft(), QPoint(120, 80));
 }
 
 #if OMAWEB_KNOWN_EXTENSIONS && OMAWEB_EXTENSION_WINDOW_GEOMETRY

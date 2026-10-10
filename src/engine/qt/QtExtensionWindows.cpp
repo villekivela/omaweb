@@ -8,21 +8,16 @@
 
 namespace omaweb {
 
-namespace {
-
-    // Wayland gives a client no say over where its window is and does not tell
-    // it either, so a position Qt reports there is only what was last asked for.
-    QtExtensionWindows::Positions platformPositions()
-    {
-        return QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
-            ? QtExtensionWindows::Positions::Unknown
-            : QtExtensionWindows::Positions::FromPlatform;
-    }
-
-} // namespace
+// Wayland gives a client no say over where its window is and does not tell it
+// either, so a position Qt reports there is only what was last asked for.
+QtExtensionWindows::Positions QtExtensionWindows::positionsOn(const QString &platformName)
+{
+    return platformName.startsWith(QLatin1String("wayland")) ? Positions::Unknown
+                                                             : Positions::FromPlatform;
+}
 
 QtExtensionWindows::QtExtensionWindows(QObject *parent)
-    : QtExtensionWindows(platformPositions(), parent)
+    : QtExtensionWindows(positionsOn(QGuiApplication::platformName()), parent)
 {
 }
 

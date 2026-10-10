@@ -23,8 +23,12 @@ public:
         Unknown,
     };
 
+    // Picks the positions from the running platform.
     explicit QtExtensionWindows(QObject *parent = nullptr);
     explicit QtExtensionWindows(Positions positions, QObject *parent = nullptr);
+
+    // What a platform, by Qt's name for it, says about where a window is.
+    static Positions positionsOn(const QString &platformName);
 
     // The window a call with no page behind it is answered with.
     void setMainWindow(QWindow *window);
