@@ -276,6 +276,7 @@ set(QT_NO_PRIVATE_MODULE_WARNING OFF)
 # told: an Omaweb built against a stock QtWebEngine reports the capability absent.
 set(OMAWEB_CNAME_UNCLOAKING OFF)
 set(OMAWEB_PAGE_CERTIFICATES OFF)
+set(OMAWEB_EXTENSION_WINDOW_GEOMETRY OFF)
 if(OMAWEB_BUILD_BROWSER)
     include(CheckCXXSourceCompiles)
     # The same Qt the adapter links, in the same order, so the probe reads the
@@ -306,12 +307,28 @@ if(OMAWEB_BUILD_BROWSER)
             return read ? 0 : 1;
         }
     ]=] OMAWEB_ENGINE_OFFERS_PAGE_CERTIFICATES)
+    # An extension reads where its window is through chrome.windows, and only
+    # the application knows, which another patch in the series lets it say
+    # (#684). Without the patch the engine reports no position or size, and an
+    # extension that places a window from them opens none.
+    check_cxx_source_compiles([=[
+        #include <QtWebEngineCore/qwebengineextensionmanager.h>
+        int main()
+        {
+            void (QWebEngineExtensionManager::*answer)(std::function<QRect(const QObject *)>)
+                = &QWebEngineExtensionManager::setWindowGeometryProvider;
+            return answer ? 0 : 1;
+        }
+    ]=] OMAWEB_ENGINE_OFFERS_WINDOW_GEOMETRY)
     unset(CMAKE_REQUIRED_LIBRARIES)
     if(OMAWEB_ENGINE_OFFERS_DNS_ALIASES)
         set(OMAWEB_CNAME_UNCLOAKING ON)
     endif()
     if(OMAWEB_ENGINE_OFFERS_PAGE_CERTIFICATES)
         set(OMAWEB_PAGE_CERTIFICATES ON)
+    endif()
+    if(OMAWEB_ENGINE_OFFERS_WINDOW_GEOMETRY)
+        set(OMAWEB_EXTENSION_WINDOW_GEOMETRY ON)
     endif()
 endif()
 
@@ -665,7 +682,8 @@ target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Gui Qt6::Network Q
 target_compile_definitions(omaweb-engine-api PUBLIC
     OMAWEB_KNOWN_EXTENSIONS=$<BOOL:${OMAWEB_KNOWN_EXTENSIONS}>
     OMAWEB_CNAME_UNCLOAKING=$<BOOL:${OMAWEB_CNAME_UNCLOAKING}>
-    OMAWEB_PAGE_CERTIFICATES=$<BOOL:${OMAWEB_PAGE_CERTIFICATES}>)
+    OMAWEB_PAGE_CERTIFICATES=$<BOOL:${OMAWEB_PAGE_CERTIFICATES}>
+    OMAWEB_EXTENSION_WINDOW_GEOMETRY=$<BOOL:${OMAWEB_EXTENSION_WINDOW_GEOMETRY}>)
 omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)
@@ -680,6 +698,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtCookiePolicy.h
         src/engine/qt/QtEnginePaths.cpp
         src/engine/qt/QtEnginePaths.h
+        src/engine/qt/QtExtensionWindows.cpp
+        src/engine/qt/QtExtensionWindows.h
         src/engine/qt/QtHeldDownloads.cpp
         src/engine/qt/QtHeldDownloads.h
         src/engine/qt/QtPageFonts.cpp

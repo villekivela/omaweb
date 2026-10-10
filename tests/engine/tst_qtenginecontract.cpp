@@ -15,6 +15,7 @@
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtEnginePaths.h"
+#include "QtExtensionWindows.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
 #include "QtSecureDns.h"
@@ -371,6 +372,8 @@ private slots:
     void qtDrawsAPageInTheReadersFonts();
     void qtOffersACallThePublicInterfaceOnly_data();
     void qtOffersACallThePublicInterfaceOnly();
+    void qtTellsAnExtensionWhereThePagesWindowIs();
+    void qtTellsAnExtensionNoPositionWhereThePlatformHasNone();
 };
 
 namespace {
@@ -5759,6 +5762,61 @@ void QtEngineContractTest::qtOffersACallThePublicInterfaceOnly()
     QVERIFY(!publicInterfacesOnly());
     policy.setPublicInterfacesOnly(true);
     QVERIFY(publicInterfacesOnly());
+}
+
+// An extension reads where its window is through chrome.windows and places a
+// window of its own from that (#684). The engine asks about the view a call
+// came from, which is the page's QtWebEngine view, and Omaweb answers with the
+// window that view is drawn in: the main window, or the Tab window a tab was
+// popped out into. A call with no page behind it, an extension's worker, is
+// answered with the main window.
+void QtEngineContractTest::qtTellsAnExtensionWhereThePagesWindowIs()
+{
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *page = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(page);
+
+    QQuickWindow mainWindow;
+    mainWindow.setGeometry(120, 80, 1400, 900);
+    QQuickWindow tabWindow;
+    tabWindow.setGeometry(1600, 40, 1024, 768);
+    omaweb::QtExtensionWindows windows(omaweb::QtExtensionWindows::Positions::FromPlatform);
+    windows.setMainWindow(&mainWindow);
+
+    // A tab in the main window, and a worker, which no page is behind.
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(mainWindow.contentItem());
+    QCOMPARE(windows.geometryOf(page), mainWindow.frameGeometry());
+    QCOMPARE(windows.geometryOf(nullptr), mainWindow.frameGeometry());
+    QCOMPARE(windows.geometryOf(page).size(), QSize(1400, 900));
+
+    // Popped out, the tab's engine is lent to its Tab window.
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(tabWindow.contentItem());
+    QCOMPARE(windows.geometryOf(page), tabWindow.frameGeometry());
+    QCOMPARE(windows.geometryOf(page).size(), QSize(1024, 768));
+    QCOMPARE(windows.geometryOf(nullptr), mainWindow.frameGeometry());
+
+    // The reader resizes the Tab window, and the next call reads the new size.
+    tabWindow.resize(800, 500);
+    QCOMPARE(windows.geometryOf(page).size(), QSize(800, 500));
+
+    // A page drawn in no window is answered with the main window.
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(nullptr);
+    QCOMPARE(windows.geometryOf(page), mainWindow.frameGeometry());
+}
+
+// Wayland tells no window where it is, so the window is reported at the top
+// left and only its size is real.
+void QtEngineContractTest::qtTellsAnExtensionNoPositionWhereThePlatformHasNone()
+{
+    QQuickWindow mainWindow;
+    mainWindow.setGeometry(120, 80, 1400, 900);
+    omaweb::QtExtensionWindows windows(omaweb::QtExtensionWindows::Positions::Unknown);
+    windows.setMainWindow(&mainWindow);
+    QCOMPARE(windows.geometryOf(nullptr), QRect(0, 0, 1400, 900));
 }
 
 void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn_data()
