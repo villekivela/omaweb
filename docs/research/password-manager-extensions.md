@@ -1181,7 +1181,7 @@ the routes to what the reader saw.
   to hear them. No other `tabs` or `windows` event is raised yet. The engine cannot see where Omaweb
   shows the page, so a page shown as a tab, with Glance off or after "Open as tab", is still
   reported as a window of its own. The extension can close that tab, and the reader closing it ends
-  the request.
+  the request. [Issue #694](https://github.com/villekivela/omaweb/issues/694).
 
 1Password's own flow past the page script was not run: no 1Password account or desktop application
 is on the test machine.
