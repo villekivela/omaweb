@@ -1162,14 +1162,29 @@ the routes to what the reader saw.
   window." Its view raises `newWindowRequested` and `newTabRequested`, and `TabEngineHost`'s handler
   for a tab's `newTabRequested` never runs, so nothing adopts the page. An Agent Space hits this,
   which is how it was found. [Issue #685](https://github.com/villekivela/omaweb/issues/685).
-- Dynamically registered scripts do not survive a restart. Chrome keeps them by default
-  (`persistAcrossSessions`), and `getRegisteredContentScripts` is empty in Omaweb after a relaunch.
-  Bitwarden registers again whenever its worker starts with an account, so it does not depend on
-  this. [Issue #686](https://github.com/villekivela/omaweb/issues/686).
+- Dynamically registered scripts did not survive a restart. Chrome keeps them by default
+  (`persistAcrossSessions`), and `getRegisteredContentScripts` was empty in Omaweb after a relaunch.
+  [Issue #686](https://github.com/villekivela/omaweb/issues/686). Engine 6.11.2-11 keeps them, with
+  the series' patch 0022, and that changes Bitwarden's path. It registers its page script without
+  `persistAcrossSessions`, so the script is kept and comes back at the next start. Its worker
+  registers the same id again whenever it starts with an account. Once the kept script is back, that
+  registration fails with "Duplicate script ID", and Bitwarden drops the error
+  (`void BrowserApi.registerContentScriptsMv3`), so the kept script is the one that runs. An update
+  to Bitwarden forgets what the old version registered, as in Chrome, so a renamed or rescoped page
+  script is registered afresh. A page opened as Bitwarden is turned on, such as a restored tab,
+  waits until the kept script is read.
 - Every Space has its own engine profile, so its own Bitwarden, signed in or not. A Space whose
-  Bitwarden is signed out gets no page script and goes straight to the engine's authenticator, which
-  is the reported symptom by another route. This is how Spaces are meant to work, so it has no
-  issue.
+  Bitwarden has never been signed in gets no page script and goes straight to the engine's
+  authenticator, which is the reported symptom by another route. One signed in before and signed out
+  since still gets it: Bitwarden returns early when it is logged out and never unregisters, and from
+  6.11.2-11 the script it registered while signed in is kept across restarts. This is how Spaces are
+  meant to work, so it has no issue.
+
+  Read from Bitwarden's source (`fido2.background.ts`, `updateMv3ContentScriptsRegistration` and
+  `handleAuthStatusUpdate`), not run: Bitwarden registers nothing until it is signed in, and the
+  test account is no longer on any machine, so a check after a restart on the new engine needs an
+  account.
+
 - The series declares `windows.onRemoved` and never raises it. Bitwarden ends a request, asking the
   page to fall back, when its popout's window closes, so once the popout opens, a reader who closes
   it waits out the site's timeout instead. Read from the series, not measured.
