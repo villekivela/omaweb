@@ -56,7 +56,7 @@ icon.
 
 The engine asks a site for the icon its page declares once per run. Omaweb removes the engine's own
 favicon database at each start, so an icon that follows the colour scheme is drawn under the current
-one ([ADR 0064](adr/0064-draw-favicons-afresh-in-each-run.md)). The HTTP cache answers where the
+one ([ADR 0065](adr/0065-draw-favicons-afresh-in-each-run.md)). The HTTP cache answers where the
 site allows it.
 
 Engine suggestions are off by default, and while they are off typing in the Omnibar queries only the

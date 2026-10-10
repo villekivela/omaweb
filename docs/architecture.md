@@ -122,7 +122,7 @@ still shows; the pending tab write lands first so the sidebar the store reads is
 The engine keeps a favicon database of its own in each Engine profile, and Omaweb removes it from
 every Space at startup, before any profile is built. An icon that follows the colour scheme is then
 drawn under the scheme of the run that shows it rather than the one that first met it
-([ADR 0064](adr/0064-draw-favicons-afresh-in-each-run.md)).
+([ADR 0065](adr/0065-draw-favicons-afresh-in-each-run.md)).
 
 The interface draws a stored icon from an `image://omaweb-favicon/<window>/<Space>/<page>` address,
 answered by an asynchronous image provider. The window part names the controller whose store
