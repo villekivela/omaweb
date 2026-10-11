@@ -1186,6 +1186,10 @@ ApplicationWindow {
     // The engine stays drawn for the length of the drop, so the panel does not
     // empty before it has gone.
     function closeGlance() {
+        // A Glance the reader kept is on its way to being a tab, and nothing
+        // that would end a Glance takes the page from it.
+        if (glance.keeping)
+            return;
         const engine = window.glanceEngine;
         window.glanceIsExtension = false;
         if (!engine)
@@ -1197,19 +1201,64 @@ ApplicationWindow {
         window.focusPage();
     }
 
+    // Keeping a Glance grows it into the page area first, and the tab takes
+    // its page once it is there (#704). With motion off it is a cut.
+    // An extension's popup is not a page to keep, however the command reached
+    // here.
+    function openGlanceAsTab() {
+        if (window.glanceEngine && !window.glanceIsExtension)
+            glance.keepAsTab();
+    }
+
     // The Glance's page becomes an ordinary tab, engine and all, so what the
     // reader scrolled to and typed into comes with it. The Glance is let go of
     // before the tab is made: making the tab changes the tab on show, which
-    // would otherwise end the Glance and take the engine down with it.
-    function openGlanceAsTab() {
+    // would otherwise end the Glance and take the engine down with it. The
+    // page is already where the tab draws it, so its arrival is held.
+    function keepGlance() {
         const engine = window.glanceEngine;
-        if (!engine)
+        if (!engine) {
+            glance.settle();
             return;
+        }
+        const openerId = window.glanceTabId;
         window.refuseRequestsFrom(engine);
         window.glanceEngine = null;
         window.glanceTabId = "";
+        sidebar.arrivalHeld = true;
         window.windowBrowser.openInput("about:blank", true);
-        engineLoader.adoptEngine(window.windowBrowser.activeTabId, engine);
+        const tabId = window.windowBrowser.activeTabId;
+        window.placeAfterOpener(tabId, openerId);
+        engineLoader.adoptEngine(tabId, engine);
+        sidebar.arrivalHeld = false;
+        if (!glance.keeping)
+            return;
+        sidebar.washArrival(tabId);
+        window.keptEngine = engine;
+        if (engineLoader.item === engine)
+            glance.settle();
+    }
+
+    // The engine a kept Glance handed its tab, until the tab draws it or the
+    // Glance lets go of keeping by itself.
+    property var keptEngine: null
+
+    // A kept Glance's tab stands right after the tab it came from, where the
+    // reader was reading, rather than at the end of the list. A split's two
+    // halves stand together, so it goes after both; a pin's place is among the
+    // pins, so a pin's Glance heads the list instead.
+    function placeAfterOpener(tabId, openerId) {
+        const browser = window.windowBrowser;
+        if (openerId === "" || browser.tabSectionIndex(openerId) < 0)
+            return;
+        if (browser.tabPinned(openerId)) {
+            browser.moveTab(tabId, 0);
+            return;
+        }
+        let after = browser.tabSectionIndex(openerId);
+        if (browser.tabInSplit(openerId) && browser.tabBesideId !== "")
+            after = Math.max(after, browser.tabSectionIndex(browser.tabBesideId));
+        browser.moveTab(tabId, after + 1);
     }
 
     // A question an engine asked is dropped with the engine: a bar left
@@ -2253,6 +2302,11 @@ ApplicationWindow {
 
         function onItemChanged() {
             window.noteLookupFailure();
+            // A kept Glance's page is drawn by its tab now. Not before: making
+            // the tab changes what the host shows once already.
+            const drawsKept = window.keptEngine !== null && engineLoader.item === window.keptEngine;
+            if (glance.keeping && drawsKept)
+                glance.settle();
         }
     }
 
@@ -3483,6 +3537,7 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
+                    scale: glance.pageScale
                     // A tab further down the list arrives from below, one
                     // further up from above, and a pin further along the row
                     // from the right, by less than a row: the arriving page
@@ -3795,12 +3850,14 @@ ApplicationWindow {
                     open: window.glanceOpen
                     ease: window.chromeEase
                     openAsTabAllowed: !window.glanceIsExtension
-                    pageSource: window.pagelessViewport ? null : engineLoader
                     engine: window.glanceEngine
                     escapeTaken: formSuggestions.shown
 
                     onClosed: window.closeGlance()
                     onOpenAsTabRequested: window.openGlanceAsTab()
+                    onKept: window.keepGlance()
+                    onKeepingChanged: if (!keeping)
+                                          window.keptEngine = null
                 }
 
                 // What the Glance's page asks of the browser, answered as the

@@ -1604,6 +1604,60 @@ QtObject {
                     card->setProperty("cookieCount", 9);
                 }
             });
+        } else if (requested == QLatin1String("glance")) {
+            // A Glance over the last seeded tab's page, as a link asking for a
+            // new tab opens one. `--glance-keep-at <ms>` keeps it as a tab and
+            // holds the movement that far in, so a capture is a moment of it.
+            const auto tabId = lastTabId(browser.unpinnedTabs());
+            if (tabId.isEmpty()) {
+                qCritical("--show glance needs a page; pass --tabs");
+                return 1;
+            }
+            browser.activateTab(tabId);
+            const auto keepAtIndex = arguments.indexOf(QStringLiteral("--glance-keep-at"));
+            const auto keepAt = keepAtIndex >= 0 && keepAtIndex + 1 < arguments.size()
+                ? arguments.at(keepAtIndex + 1).toInt()
+                : -1;
+            QTimer::singleShot(300, root, [root, keepAt] {
+                QMetaObject::invokeMethod(root, "openGlance", Q_ARG(QVariant, QVariant()),
+                    Q_ARG(QVariant, QUrl(QStringLiteral("https://example.org/glance"))));
+                auto *glance = root->findChild<QObject *>(QStringLiteral("glance"));
+                if (keepAt < 0 || glance == nullptr) {
+                    return;
+                }
+                QTimer::singleShot(300, glance, [root, glance, keepAt] {
+                    // Its animations are named inside Glance.qml, whose context
+                    // is its children's rather than its own.
+                    auto *inside
+                        = qmlContext(glance->findChild<QObject *>(QStringLiteral("glancePanel")));
+                    // The lab has no pointer, and the chrome eases for one.
+                    QQmlExpression(inside, glance, QStringLiteral("ease = true")).evaluate();
+                    QMetaObject::invokeMethod(glance, "keepAsTab");
+                    // The growth: 180 ms, OutCubic, as Glance.qml has it.
+                    const auto grown = std::min(1.0, keepAt / 180.0);
+                    if (grown < 1) {
+                        QQmlExpression(inside, glance,
+                            QStringLiteral("keepEase.stop(); keep = %1")
+                                .arg(1 - std::pow(1 - grown, 3)))
+                            .evaluate();
+                        return;
+                    }
+                    QQmlExpression(inside, glance, QStringLiteral("keepEase.complete()"))
+                        .evaluate();
+                    // Then the row's wash: 300 ms, OutCubic, from 0.35.
+                    auto *sidebar = root->findChild<QObject *>(QStringLiteral("sidebar"));
+                    if (sidebar == nullptr) {
+                        return;
+                    }
+                    const auto faded = std::min(1.0, (keepAt - 180) / 300.0);
+                    QQmlExpression(
+                        qmlContext(sidebar->findChild<QObject *>(QStringLiteral("sidebarDither"))),
+                        sidebar,
+                        QStringLiteral("washFade.stop(); washLevel = %1")
+                            .arg(0.35 * std::pow(1 - faded, 3)))
+                        .evaluate();
+                });
+            });
         } else if (state.isEmpty() && !pageAsks) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;

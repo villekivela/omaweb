@@ -31,17 +31,24 @@ files: the reader's settings in one `settings.json` in the configuration directo
 chosen in Settings, six Space colours that Omaweb owns rather than the theme, and the sidebar's
 opacity on a slider. [v0.13.1](https://github.com/villekivela/omaweb/releases/tag/v0.13.1) shipped
 packages built against the Qt that Omarchy's stable mirror serves, so Omaweb starts on Omarchy
-again. v0.14.0 is the release in progress.
+again. [v0.14.0](https://github.com/villekivela/omaweb/releases/tag/v0.14.0) shipped Tab windows: a
+tab popped out of the main window into a window of its own, so a page of a Space can sit on another
+monitor ([ADR 0062](adr/0062-pop-a-tab-out-instead-of-opening-windows.md)). It also shipped
+Bitwarden's passkeys, the Hyprland opacity override no longer asked for now that Omarchy draws
+windows opaque, and pinned tabs kept on their column grid. v0.15.0 is the release in progress.
 
-[v0.14.0](https://github.com/villekivela/omaweb/milestone/12) is Tab windows and Omarchy. A tab pops
-out of the main window into a Tab window of its own, so a page of a Space can sit on another monitor
-([#653](https://github.com/villekivela/omaweb/issues/653),
-[ADR 0062](adr/0062-pop-a-tab-out-instead-of-opening-windows.md)). Omarchy now draws a window opaque
-unless it opts in to transparency, so the opacity override Omaweb asks Omarchy readers to add goes
-away ([#75](https://github.com/villekivela/omaweb/issues/75)). Pinned tabs keep one column grid on a
-partial row ([#654](https://github.com/villekivela/omaweb/issues/654)), and the release finds why
-Bitwarden's passkeys don't offer themselves to a page, fixing it when the cause is Omaweb's
-([#561](https://github.com/villekivela/omaweb/issues/561)).
+[v0.15.0](https://github.com/villekivela/omaweb/milestone/13) is engine fixes and flakes. Two engine
+patches go into one release build. A favicon that recolours itself for the colour scheme is drawn
+again when the theme changes while Omaweb runs
+([#700](https://github.com/villekivela/omaweb/issues/700)). Omaweb tells the engine when a page an
+extension opened becomes a reader's tab, so `tabs.query` lists it among the reader's tabs, and the
+extension hears nothing ([#694](https://github.com/villekivela/omaweb/issues/694)). A Glance kept as
+a tab moves into the page area and its tab into the sidebar, as Zen's does, rather than cutting
+([#704](https://github.com/villekivela/omaweb/issues/704)). The black frame that still shows when
+Omaweb's workspace comes back is found ([#702](https://github.com/villekivela/omaweb/issues/702)).
+So are two CI flakes: the form history contract test reporting two fields of three
+([#701](https://github.com/villekivela/omaweb/issues/701)), and the renderer stopping itself with
+SIGTRAP on the first page after startup ([#442](https://github.com/villekivela/omaweb/issues/442)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 

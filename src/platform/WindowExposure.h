@@ -33,6 +33,10 @@ signals:
     // filter, ahead of the window's own handling of the same event, so what
     // the listener does is in place before the window draws.
     void exposedAgain();
+    // The window is going from exposed to not, said once per going. It is sent
+    // from the filter too, while the window still holds its last picture:
+    // once the window has handled the event, the page's frames are gone.
+    void goingAway();
 
 private:
     QPointer<QWindow> m_window;

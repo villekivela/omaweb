@@ -754,6 +754,8 @@ add_library(omaweb-platform STATIC
     src/platform/OmarchyTheme.h
     src/platform/PagePrinter.cpp
     src/platform/PagePrinter.h
+    src/platform/PageSnapshot.cpp
+    src/platform/PageSnapshot.h
     src/platform/PortalWindow.h
     src/platform/ProcessResources.cpp
     src/platform/ProcessResources.h

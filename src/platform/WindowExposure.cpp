@@ -41,8 +41,9 @@ bool WindowExposure::eventFilter(QObject *watched, QEvent *event)
             if (returned) {
                 emit exposedAgain();
             }
-        } else if (m_hasBeenExposed) {
+        } else if (m_hasBeenExposed && !m_wasAway) {
             m_wasAway = true;
+            emit goingAway();
         }
     }
     return false;

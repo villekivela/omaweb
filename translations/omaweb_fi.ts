@@ -972,14 +972,6 @@
 <context>
     <name>Glance</name>
     <message>
-        <source>Glance</source>
-        <translation>Pikakatsaus</translation>
-    </message>
-    <message>
-        <source>esc closes</source>
-        <translation>esc sulkee</translation>
-    </message>
-    <message>
         <source>Open as tab</source>
         <translation>Avaa välilehtenä</translation>
     </message>

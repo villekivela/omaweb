@@ -298,18 +298,21 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A Space at rest, one whose only ordinary tab is blank, also lists no ordinary tab row. Any other
   blank tab is a tab in its own right and keeps its row, its close button, and the engine a page's
   new-window request was handed to.
-- A Glance is one accent-bordered panel over the page area, the page blurred under the sheet tint
-  around it, grown out of the link that asked for it and retreating into it when it closes. Its head
-  names its page and address, offers Open as tab and close, and says that `Escape` closes it. It
-  takes the opener's engine profile, so logins hold, and its visits enter the Space's history. It is
-  not a tab: the outline does not list it, the session store and the Sync projection do not carry
-  it, and the address trigger, find bar, prompt bars and page commands keep answering for the tab
-  beneath. It ends with `Escape`, its close button, a click outside its panel, the close-tab
-  command, and anything that changes the tab on show: a tab or Space switch, the tab closing,
-  settings or history opening. `Primary+Shift+Return` or the head's button makes it an ordinary tab
-  after the tab it stood over, keeping its engine and so its history, scroll and form state. A
-  new-tab request from inside a Glance opens a tab, which ends the Glance; a second request from the
-  page beneath replaces it. Settings' interface section turns the Glance off, locally.
+- A Glance is one accent-bordered panel the page area's full height, between margins of 12% of its
+  width, grown out of the link that asked for it and retreating into it when it closes. The page
+  beneath stands back and is dimmed, not blurred. It has no head: close and Open as tab float beside
+  its top corner. Open as tab grows the panel's width into the page area, then the page is a tab
+  listed right after the one it came from, its row lit for a moment; with reduced motion it is a
+  cut. It takes the opener's engine profile, so logins hold, and its visits enter the Space's
+  history. It is not a tab: the outline does not list it, the session store and the Sync projection
+  do not carry it, and the address trigger, find bar, prompt bars and page commands keep answering
+  for the tab beneath. It ends with `Escape`, its close button, a click outside its panel, the
+  close-tab command, and anything that changes the tab on show: a tab or Space switch, the tab
+  closing, settings or history opening. `Primary+Shift+Return` or the Open as tab button beside it
+  makes it an ordinary tab after the tab it stood over, keeping its engine and so its history,
+  scroll and form state. A new-tab request from inside a Glance opens a tab, which ends the Glance;
+  a second request from the page beneath replaces it. Settings' interface section turns the Glance
+  off, locally.
 - The Shortcut sheet lists the browser commands and the keys that run them, read from the live
   keymap so it cannot promise a key the window does not answer. The Keyboard shortcuts command
   summons it, from the Omnibar or with `Primary+/` and `?`, over a page or over the Start page,

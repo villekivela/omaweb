@@ -243,6 +243,19 @@ Item {
                                                                                           0.07)
     }
 
+    // A tab that arrived from a Glance flashes the accent where it landed and
+    // fades, so the reader sees where in the list the page went (#704).
+    property real arrivalWash: 0
+
+    Rectangle {
+        objectName: "tabArrivalWash-" + root.tabId
+        anchors.fill: parent
+        anchors.leftMargin: -root.reachLeft
+        anchors.rightMargin: -root.reachRight
+        visible: root.arrivalWash > 0
+        color: Qt.alpha(root.colors.accent, root.arrivalWash)
+    }
+
     // The Omnibar's hover on an ordinary row, edge to edge. The Sidebar cursor
     // brings its own, so a row under both is not washed twice.
     Rectangle {

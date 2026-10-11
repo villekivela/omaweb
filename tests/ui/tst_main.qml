@@ -1492,6 +1492,12 @@ TestCase {
         verify(dither.shader !== null);
         compare(sidebar.color, Qt.rgba(0, 0, 0, 0));
         fuzzyCompare(dither.shader.premultiplied.w, themes, 0.003);
+        // The ground reaches the sidebar's edges: a pixel short of the one
+        // meeting the page left the desktop showing down the seam (#704).
+        compare(dither.x, 0);
+        compare(dither.y, 0);
+        compare(dither.width, sidebar.width);
+        compare(dither.height, sidebar.height);
 
         sidebarOpacity.set(1.0);
         tryVerify(function () {
@@ -9119,13 +9125,9 @@ TestCase {
             verify(engineLoader.engines[tabId] !== engine);
         compare(engineLoader.item, opener);
 
-        // The chrome goes on answering for the tab beneath; the Glance names
-        // its own page.
+        // The chrome goes on answering for the tab beneath.
         compare(browser.activeTabId, openerTabId);
         compare(browser.activeUrl.toString(), "https://opener.example");
-        const address = findChild(glance, "glanceAddress");
-        verify(address !== null);
-        compare(address.text, "https://glanced.example/page");
         verify(window.commands.available("glance-to-tab"));
 
         // Escape closes it whatever the page does with the key, the engine goes
@@ -9183,6 +9185,113 @@ TestCase {
         });
         verify(!engine.visible);
         browser.closeTab(keptTabId);
+    }
+
+    // With motion off, keeping a Glance is a cut (#704): in one frame the
+    // panel is gone, the page beneath has stepped forward again, and the
+    // Glance's page is the tab on show, listed right after the tab it came
+    // from rather than at the end of the list, with its engine.
+    function test_aKeptGlanceIsTheTabAfterItsOpener() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        SystemMotion.reduced = true;
+        const opener = openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        openPageInNewTab("https://later.example");
+        const laterTabId = browser.activeTabId;
+        browser.activateTab(openerTabId);
+        tryVerify(function () {
+            return engineLoader.item === opener;
+        });
+        const glance = openGlance("https://kept-after.example/page");
+        const engine = window.glanceEngine;
+        const openerAt = browser.tabSectionIndex(openerTabId);
+        try {
+            verify(window.commands.run("glance-to-tab", -1));
+            const keptTabId = browser.activeTabId;
+            verify(keptTabId !== openerTabId);
+            compare(browser.tabSectionIndex(keptTabId), openerAt + 1);
+            compare(browser.tabSectionIndex(laterTabId), openerAt + 2);
+            compare(engineLoader.engines[keptTabId], engine);
+            compare(window.glanceEngine, null);
+            verify(!glance.visible);
+            compare(engineLoader.scale, 1);
+            tryVerify(function () {
+                return engineLoader.item === engine;
+            });
+            browser.closeTab(keptTabId);
+        } finally {
+            SystemMotion.reduced = false;
+            browser.closeTab(laterTabId);
+        }
+    }
+
+    // Once the reader has kept a Glance, nothing ends it while it grows into
+    // its tab: a click outside it, Escape or a tab switch in those 180 ms
+    // would otherwise close it and take the page with it (#704). The row the
+    // tab lands in is lit when it gets there.
+    function test_aGlanceGrowingIntoItsTabIsNotClosed() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        const glance = openGlance("https://growing.example/page");
+        const engine = window.glanceEngine;
+        glance.ease = true;
+        try {
+            verify(window.commands.run("glance-to-tab", -1));
+            verify(glance.keeping);
+            window.closeGlance();
+            keyClick(Qt.Key_Escape);
+            tryVerify(function () {
+                return browser.activeTabId !== openerTabId;
+            });
+            const keptTabId = browser.activeTabId;
+            compare(engineLoader.engines[keptTabId], engine);
+            compare(sidebar.washTabId, keptTabId);
+            tryVerify(function () {
+                return engineLoader.item === engine && !glance.visible;
+            });
+            browser.closeTab(keptTabId);
+        } finally {
+            glance.ease = Qt.binding(function () {
+                return window.chromeEase;
+            });
+        }
+    }
+
+    // Keeping cannot stick (#704). A Glance left keeping, as one whose page
+    // its tab never came to draw would be, refuses every close and stays over
+    // the page; it lets go of keeping on its own, and can be closed again.
+    function test_aGlanceDoesNotStayKeeping() {
+        openPage("https://opener.example");
+        const glance = openGlance("https://stuck.example/page");
+        glance.keeping = true;
+        window.closeGlance();
+        verify(window.glanceEngine !== null, "a close refused while keeping");
+        tryVerify(function () {
+            return !glance.keeping;
+        }, 3000, "keeping let go of");
+        window.closeGlance();
+        compare(window.glanceEngine, null);
+        tryVerify(function () {
+            return !glance.visible;
+        });
+    }
+
+    // An extension's popup is drawn as a Glance but is a control, not a page
+    // to keep: run directly, the command that keeps a Glance leaves it be,
+    // rather than growing it into a tab (#704).
+    function test_anExtensionsPopupIsNotKeptAsATab() {
+        openPage("https://opener.example");
+        const tabCount = browser.tabs.rowCount();
+        const glance = openGlance("https://popup.example/page");
+        window.glanceIsExtension = true;
+        window.commands.run("glance-to-tab", -1);
+        verify(!glance.keeping);
+        compare(browser.tabs.rowCount(), tabCount);
+        verify(window.glanceEngine !== null);
+        window.closeGlance();
+        compare(window.glanceIsExtension, false);
     }
 
     // The close-tab key closes what is in front, which is the Glance, and the
@@ -9261,18 +9370,20 @@ TestCase {
         SystemMotion.reduced = true;
         const opener = openPage("https://opener.example");
         opener.simulatePress(120, 300, 160, 20);
+        // Where the link is before the page beneath stands back for the
+        // Glance, which is where it comes back to at the end of the closing.
+        const expected = opener.mapToItem(findChild(window.contentItem, "glance"), Qt.rect(120, 300, 160,
+                                                                                           20));
         const glance = openGlance("https://linked.example/page");
         const panel = findChild(glance, "glancePanel");
         const pageHost = findChild(glance, "glancePageHost");
         verify(panel !== null);
         verify(pageHost !== null);
 
-        const expected = opener.mapToItem(glance, Qt.rect(120, 300, 160, 20));
         compare(glance.origin, expected);
         compare(glance.arrival, 1);
-        compare(Math.round(panel.x), 40);
-        compare(Math.round(panel.y), 40);
-        compare(Math.round(panel.width), Math.round(glance.width - 80));
+        const restX = panel.x;
+        compare(panel.y, 0);
         const restPageHeight = pageHost.height;
 
         glance.arrival = 0;
@@ -9293,12 +9404,57 @@ TestCase {
         openGlance("https://unplaced.example/page");
         verify(!glance.fromOrigin);
         glance.arrival = 0;
-        compare(Math.round(panel.x), 40);
-        compare(Math.round(panel.y), 64);
+        compare(panel.x, restX);
+        compare(Math.round(panel.y), 24);
         compare(panel.opacity, 0);
         glance.arrival = 1;
         window.closeGlance();
         SystemMotion.reduced = false;
+    }
+
+    // A Glance stands the page area's full height between margins of an
+    // eighth of its width, as Zen's does (#704). It has no head: its buttons
+    // float beside it, and the page it came from is scaled back and dimmed
+    // behind it rather than blurred.
+    function test_aGlanceStandsTheFullHeightWithItsButtonsBeside() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        SystemMotion.reduced = true;
+        openPage("https://opener.example");
+        const glance = openGlance("https://beside.example/page");
+        const panel = findChild(glance, "glancePanel");
+        const pageHost = findChild(glance, "glancePageHost");
+        try {
+            compare(panel.y, 0);
+            compare(panel.height, glance.height);
+            const margin = Math.round(glance.width * 0.12);
+            compare(Math.round(panel.x), margin);
+            compare(Math.round(glance.width - panel.x - panel.width), margin);
+            // The page fills the panel inside its border, with no head over it.
+            compare(findChild(glance, "glanceTitle"), null);
+            compare(findChild(glance, "glanceAddress"), null);
+            compare(pageHost.y, panel.border.width);
+            compare(pageHost.height, panel.height - 2 * panel.border.width);
+
+            for (const name of ["closeGlanceButton", "openGlanceAsTabButton"]) {
+                const button = findChild(glance, name);
+                verify(button !== null, name);
+                verify(button.visible, name);
+                const at = button.mapToItem(glance, 0, 0);
+                verify(at.x >= panel.x + panel.width, name + " beside the panel: " + at.x);
+                verify(at.y < 80, name + " by the panel's top: " + at.y);
+            }
+
+            compare(findChild(glance, "glanceBackdrop"), null);
+            compare(findChild(glance, "glanceDim").opacity, 0.45);
+            compare(engineLoader.scale, 0.96);
+        } finally {
+            window.closeGlance();
+            SystemMotion.reduced = false;
+        }
+        tryVerify(function () {
+            return !glance.visible;
+        });
+        compare(engineLoader.scale, 1);
     }
 
     // A popup-sized Glance stands in the middle of the page area on whole
@@ -9309,7 +9465,12 @@ TestCase {
         const glance = openGlance("https://popup.example/page");
         const panel = findChild(glance, "glancePanel");
         const pageHost = findChild(glance, "glancePageHost");
-        tryCompare(glance, "arrival", 1);
+        // Exactly at rest: compare takes 0.999995 for 1, and the panel still
+        // a hundred-thousandth of its lift away reads past the half pixel the
+        // centring is allowed.
+        tryVerify(function () {
+            return glance.arrival === 1;
+        });
         for (const oddPageArea of [0, 1]) {
             window.setSidebarWidth(window.sidebarDefaultWidth + oddPageArea);
             for (const size of [Qt.size(400, 600), Qt.size(401, 601)]) {
@@ -9321,6 +9482,11 @@ TestCase {
         }
         glance.preferredSize = Qt.size(0, 0);
         window.closeGlance();
+        // The page beneath comes forward as the Glance goes, and the next
+        // test measures it.
+        tryVerify(function () {
+            return !glance.visible;
+        });
     }
 
     // What stands in the middle of the page area rests on whole pixels whether
@@ -14938,9 +15104,10 @@ TestCase {
     }
 
     // On the right the sidebar is the left one turned round: the page starts at
-    // the window's left edge and ends on the seam, the divider and the handle
-    // stand on the sidebar's inner edge, and every way of resizing reads the
-    // width from the right edge.
+    // the window's left edge and ends on the seam, the handle stands on the
+    // sidebar's inner edge, and every way of resizing reads the width from the
+    // right edge. The sidebar meets the page with no divider between them
+    // (#704).
     function test_aRightSidebarResizesFromItsInnerEdge() {
         window.requestActivate();
         tryVerify(function () {
@@ -14950,8 +15117,7 @@ TestCase {
         const sidebar = findChild(window.contentItem, "sidebar");
         const viewport = findChild(window.contentItem, "engineViewport");
         const resizer = findChild(window.contentItem, "sidebarResizer");
-        const divider = findChild(sidebar, "sidebarDivider");
-        verify(divider !== null);
+        compare(findChild(sidebar, "sidebarDivider"), null);
         const row = window.contentItem.width;
         const restsAt = function (width) {
             return Math.round(sidebar.x) === row - width && Math.round(viewport.x) === 0
@@ -14961,7 +15127,6 @@ TestCase {
             return restsAt(window.sidebarDefaultWidth);
         });
         compare(Math.round(resizer.x + resizer.width / 2), Math.round(sidebar.x));
-        compare(Math.round(divider.mapToItem(window.contentItem, 0, 0).x), Math.round(sidebar.x));
         // The Space notice stands over the middle of the page, not of the window.
         const notice = findChild(window.contentItem, "spaceNotice");
         verify(Math.abs(notice.x + notice.width / 2 - (row - window.sidebarDefaultWidth) / 2) <= 1);

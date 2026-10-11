@@ -413,6 +413,29 @@ Rectangle {
     property real settledTabY: -1
     property real tabOffsetX: 0
     property real tabOffsetY: 0
+    // Set while a page that is already in place becomes the tab on show, as a
+    // kept Glance's does: its row is new, but the page did not come from
+    // anywhere, so nothing arrives.
+    property bool arrivalHeld: false
+    // The row a kept Glance landed in, and how strongly it is lit.
+    property string washTabId: ""
+    property real washLevel: 0
+
+    function washArrival(tabId) {
+        root.washTabId = tabId;
+        root.washLevel = 0.35;
+        washFade.restart();
+    }
+
+    NumberAnimation {
+        id: washFade
+        target: root
+        property: "washLevel"
+        to: 0
+        duration: 300
+        easing.type: Easing.OutCubic
+        onFinished: root.washTabId = ""
+    }
     // The row of the tab beside, while a split is on show. A pane arriving
     // beside the page on show comes from this row, the way a page arrives
     // from its own.
@@ -509,7 +532,7 @@ Rectangle {
         settledTabId = row.tabId;
         settledTabX = at.x;
         settledTabY = at.y;
-        if (!easeSpaces || arriving || fromY < 0 || focusMoved)
+        if (!easeSpaces || arriving || fromY < 0 || focusMoved || arrivalHeld)
             return;
         activeArriving = true;
         Qt.callLater(function () {
@@ -769,6 +792,10 @@ Rectangle {
     }
 
     color: sidebarDither.fill
+    // The sidebar meets the page with no edge of its own. Said, because an
+    // unset border still reads as a pixel wide, and the dither would start its
+    // ground inside it and leave the desktop showing down the seam.
+    border.width: 0
     clip: true
 
     GroundDither {
@@ -788,16 +815,6 @@ Rectangle {
         function onModelReset() {
             root.pinnedCount = root.browser.pinnedTabs.rowCount();
         }
-    }
-
-    // The seam down the sidebar is a divider rather than a frame, so it is
-    // drawn as the bar draws one, on the edge that meets the page.
-    Rectangle {
-        objectName: "sidebarDivider"
-        x: root.onRight ? 0 : parent.width - width
-        width: 1
-        height: parent.height
-        color: root.colors.separator
     }
 
     Column {
@@ -1254,6 +1271,7 @@ Rectangle {
                         keyLabel: root.tabLabel(tabId)
                         keyLabelShown: root.keyLabelsShown
                         agent: root.agentOf(tabId)
+                        arrivalWash: tabId === root.washTabId ? root.washLevel : 0
                         onActivated: function (id) {
                             root.tabActivated(id);
                         }
