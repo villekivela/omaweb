@@ -46,12 +46,10 @@ extension hears nothing ([#694](https://github.com/villekivela/omaweb/issues/694
 a tab moves into the page area and its tab into the sidebar, as Zen's does, rather than cutting
 ([#704](https://github.com/villekivela/omaweb/issues/704)). The black frame that still shows when
 Omaweb's workspace comes back is found ([#702](https://github.com/villekivela/omaweb/issues/702)).
-So are two CI flakes: the form history contract test reporting two fields of three
-([#701](https://github.com/villekivela/omaweb/issues/701)), and the renderer stopping itself with
-SIGTRAP on the first page after startup ([#442](https://github.com/villekivela/omaweb/issues/442)).
-`omaweb help`, `--help` and `-h` list the verbs, and `omaweb help <verb>` its options, instead of
-launching the browser on the reader's profile
-([#707](https://github.com/villekivela/omaweb/issues/707)).
+So are the CI flakes in the form history and certificate tests
+([#701](https://github.com/villekivela/omaweb/issues/701)). `omaweb help`, `--help` and `-h` list
+the verbs, and `omaweb help <verb>` its options, instead of launching the browser on the reader's
+profile ([#707](https://github.com/villekivela/omaweb/issues/707)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
