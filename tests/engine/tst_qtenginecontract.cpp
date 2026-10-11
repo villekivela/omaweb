@@ -4468,12 +4468,17 @@ struct FormHistoryView {
         QMetaObject::invokeMethod(webView, "runJavaScript", Q_ARG(QString, script));
     }
 
+    static QString fieldSelector(const QString &id)
+    {
+        return QStringLiteral("#%1, [data-field=%1]").arg(id);
+    }
+
     // Focuses a field afresh, as the reader's Tab would.
     void focus(const QString &id)
     {
         run(QStringLiteral("document.activeElement && document.activeElement.blur();"
-                           "document.querySelector('#%1, [data-field=%1]').focus();")
-                .arg(id));
+                           "document.querySelector('%1').focus();")
+                .arg(fieldSelector(id)));
     }
 
     // Keys the reader presses, which is what makes a value theirs.
@@ -4488,26 +4493,53 @@ struct FormHistoryView {
 
     int reads = 0;
 
-    // What the page holds in each field, by id, read back through its title.
-    QVariantMap values(const QString &selector)
+    // What a page expression comes to, read back through the page's title.
+    QJsonValue read(const QString &expression)
     {
         // The title holds whatever was last written there until the script
         // runs, so each read is numbered.
         ++reads;
-        run(QStringLiteral("document.title = JSON.stringify({read: %2, values: Object.fromEntries("
-                           "[...document.querySelectorAll('%1')]"
-                           ".map(e => [e.id || e.dataset.field, e.value]))});")
-                .arg(selector)
-                .arg(reads));
-        QJsonObject read;
+        run(QStringLiteral("document.title = JSON.stringify({read: %1, value: %2});")
+                .arg(QString::number(reads), expression));
+        QJsonObject answer;
         static_cast<void>(QTest::qWaitFor(
             [&] {
-                read = QJsonDocument::fromJson(adapter->property("pageTitle").toString().toUtf8())
-                           .object();
-                return read.value(QStringLiteral("read")).toInt() == reads;
+                answer = QJsonDocument::fromJson(adapter->property("pageTitle").toString().toUtf8())
+                             .object();
+                return answer.value(QStringLiteral("read")).toInt() == reads;
             },
             5000));
-        return read.value(QStringLiteral("values")).toObject().toVariantMap();
+        return answer.value(QStringLiteral("value"));
+    }
+
+    // What the page holds in each field, by id.
+    QVariantMap values(const QString &selector)
+    {
+        return read(QStringLiteral("Object.fromEntries([...document.querySelectorAll('%1')]"
+                                   ".map(e => [e.id || e.dataset.field, e.value]))")
+                        .arg(selector))
+            .toObject()
+            .toVariantMap();
+    }
+
+    // Types into an empty field and waits until it holds the text. A script
+    // reaches the page by one way and keys by another, and either can overtake
+    // the other: keys pressed before the focus lands, or still on their way when
+    // the next field is focused, end up in another field (#701). So the focus
+    // is read back before the keys, and the value after them. The focus is read
+    // from the page rather than from field(), which reports only a field form
+    // history may keep.
+    bool typeInto(const QString &id, const QString &text)
+    {
+        focus(id);
+        if (!read(QStringLiteral("document.activeElement === document.querySelector('%1')")
+                      .arg(fieldSelector(id)))
+                .toBool()) {
+            return false;
+        }
+        type(text);
+        return QTest::qWaitFor(
+            [&] { return values(fieldSelector(id)).value(id).toString() == text; }, 5000);
     }
 };
 
@@ -4583,11 +4615,8 @@ void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
              {QStringLiteral("payment"), QStringLiteral("4111111111111111")},
              {QStringLiteral("cardnumber"), QStringLiteral("4111111111111111")},
              {QStringLiteral("notes"), QStringLiteral("typed")}}) {
-        form.focus(id);
-        QTest::qWait(150);
-        form.type(text);
+        QVERIFY2(form.typeInto(id, text), qPrintable(id));
     }
-    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("ready"));
     form.run(QStringLiteral(
         "for (const [id, value] of [['nameless', 'x'], ['off', 'x'], ['code', '123456'],"
         "    ['scripted', 'written by the page']])"
@@ -4610,9 +4639,7 @@ void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
         expected);
 
     // A form the page marked not to be remembered reports nothing on submit.
-    form.focus(QStringLiteral("secret"));
-    QTest::qWait(150);
-    form.type(QStringLiteral("typed"));
+    QVERIFY(form.typeInto(QStringLiteral("secret"), QStringLiteral("typed")));
     form.run(QStringLiteral("document.getElementById('unkept').requestSubmit();"));
     QTest::qWait(300);
     QCOMPARE(submitted.count(), 0);
@@ -9106,7 +9133,10 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     // With no failure to carry it, only the engine that reports the chain a
     // page arrived over still has one to show.
 #if OMAWEB_PAGE_CERTIFICATES
-    QCOMPARE(adapter->property("certificateChain").toList(), refused);
+    // The engine's loading drops as soon as the load has stopped, and the
+    // adapter hears of the end, and reads the chain from it, a turn later
+    // (#701).
+    QTRY_COMPARE(adapter->property("certificateChain").toList(), refused);
 #else
     QVERIFY(adapter->property("certificateChain").toList().isEmpty());
 #endif
