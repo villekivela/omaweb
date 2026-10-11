@@ -9465,7 +9465,12 @@ TestCase {
         const glance = openGlance("https://popup.example/page");
         const panel = findChild(glance, "glancePanel");
         const pageHost = findChild(glance, "glancePageHost");
-        tryCompare(glance, "arrival", 1);
+        // Exactly at rest: compare takes 0.999995 for 1, and the panel still
+        // a hundred-thousandth of its lift away reads past the half pixel the
+        // centring is allowed.
+        tryVerify(function () {
+            return glance.arrival === 1;
+        });
         for (const oddPageArea of [0, 1]) {
             window.setSidebarWidth(window.sidebarDefaultWidth + oddPageArea);
             for (const size of [Qt.size(400, 600), Qt.size(401, 601)]) {
