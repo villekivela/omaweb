@@ -9125,13 +9125,9 @@ TestCase {
             verify(engineLoader.engines[tabId] !== engine);
         compare(engineLoader.item, opener);
 
-        // The chrome goes on answering for the tab beneath; the Glance names
-        // its own page.
+        // The chrome goes on answering for the tab beneath.
         compare(browser.activeTabId, openerTabId);
         compare(browser.activeUrl.toString(), "https://opener.example");
-        const address = findChild(glance, "glanceAddress");
-        verify(address !== null);
-        compare(address.text, "https://glanced.example/page");
         verify(window.commands.available("glance-to-tab"));
 
         // Escape closes it whatever the page does with the key, the engine goes
@@ -9267,18 +9263,20 @@ TestCase {
         SystemMotion.reduced = true;
         const opener = openPage("https://opener.example");
         opener.simulatePress(120, 300, 160, 20);
+        // Where the link is before the page beneath stands back for the
+        // Glance, which is where it comes back to at the end of the closing.
+        const expected = opener.mapToItem(findChild(window.contentItem, "glance"), Qt.rect(120, 300, 160,
+                                                                                           20));
         const glance = openGlance("https://linked.example/page");
         const panel = findChild(glance, "glancePanel");
         const pageHost = findChild(glance, "glancePageHost");
         verify(panel !== null);
         verify(pageHost !== null);
 
-        const expected = opener.mapToItem(glance, Qt.rect(120, 300, 160, 20));
         compare(glance.origin, expected);
         compare(glance.arrival, 1);
-        compare(Math.round(panel.x), 40);
-        compare(Math.round(panel.y), 40);
-        compare(Math.round(panel.width), Math.round(glance.width - 80));
+        const restX = panel.x;
+        compare(panel.y, 0);
         const restPageHeight = pageHost.height;
 
         glance.arrival = 0;
@@ -9299,12 +9297,57 @@ TestCase {
         openGlance("https://unplaced.example/page");
         verify(!glance.fromOrigin);
         glance.arrival = 0;
-        compare(Math.round(panel.x), 40);
-        compare(Math.round(panel.y), 64);
+        compare(panel.x, restX);
+        compare(Math.round(panel.y), 24);
         compare(panel.opacity, 0);
         glance.arrival = 1;
         window.closeGlance();
         SystemMotion.reduced = false;
+    }
+
+    // A Glance stands the page area's full height between margins of an
+    // eighth of its width, as Zen's does (#704). It has no head: its buttons
+    // float beside it, and the page it came from is scaled back and dimmed
+    // behind it rather than blurred.
+    function test_aGlanceStandsTheFullHeightWithItsButtonsBeside() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        SystemMotion.reduced = true;
+        openPage("https://opener.example");
+        const glance = openGlance("https://beside.example/page");
+        const panel = findChild(glance, "glancePanel");
+        const pageHost = findChild(glance, "glancePageHost");
+        try {
+            compare(panel.y, 0);
+            compare(panel.height, glance.height);
+            const margin = Math.round(glance.width * 0.12);
+            compare(Math.round(panel.x), margin);
+            compare(Math.round(glance.width - panel.x - panel.width), margin);
+            // The page fills the panel inside its border, with no head over it.
+            compare(findChild(glance, "glanceTitle"), null);
+            compare(findChild(glance, "glanceAddress"), null);
+            compare(pageHost.y, panel.border.width);
+            compare(pageHost.height, panel.height - 2 * panel.border.width);
+
+            for (const name of ["closeGlanceButton", "openGlanceAsTabButton"]) {
+                const button = findChild(glance, name);
+                verify(button !== null, name);
+                verify(button.visible, name);
+                const at = button.mapToItem(glance, 0, 0);
+                verify(at.x >= panel.x + panel.width, name + " beside the panel: " + at.x);
+                verify(at.y < 80, name + " by the panel's top: " + at.y);
+            }
+
+            compare(findChild(glance, "glanceBackdrop"), null);
+            compare(findChild(glance, "glanceDim").opacity, 0.45);
+            compare(engineLoader.scale, 0.96);
+        } finally {
+            window.closeGlance();
+            SystemMotion.reduced = false;
+        }
+        tryVerify(function () {
+            return !glance.visible;
+        });
+        compare(engineLoader.scale, 1);
     }
 
     // A popup-sized Glance stands in the middle of the page area on whole

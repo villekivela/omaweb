@@ -941,6 +941,8 @@ Window {
         Item {
             id: pageHost
             objectName: "tabWindowPageHost"
+            // Stands back behind a Glance.
+            scale: glance.pageScale
             anchors.left: parent.left
             anchors.right: developerToolsDock.visible ? developerToolsDock.left : parent.right
             anchors.top: strip.bottom
@@ -993,7 +995,6 @@ Window {
             colors: root.colors
             iconFontFamily: root.iconFontFamily
             open: root.glanceOpen
-            pageSource: pageHost
             engine: root.glanceEngine
 
             onClosed: root.closeGlance()

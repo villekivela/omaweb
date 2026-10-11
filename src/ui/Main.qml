@@ -3483,6 +3483,8 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
+                    // Stands back behind a Glance.
+                    scale: glance.pageScale
                     // A tab further down the list arrives from below, one
                     // further up from above, and a pin further along the row
                     // from the right, by less than a row: the arriving page
@@ -3795,7 +3797,6 @@ ApplicationWindow {
                     open: window.glanceOpen
                     ease: window.chromeEase
                     openAsTabAllowed: !window.glanceIsExtension
-                    pageSource: window.pagelessViewport ? null : engineLoader
                     engine: window.glanceEngine
                     escapeTaken: formSuggestions.shown
 
