@@ -1202,6 +1202,11 @@ ApplicationWindow {
     // before the tab is made: making the tab changes the tab on show, which
     // would otherwise end the Glance and take the engine down with it.
     function openGlanceAsTab() {
+        // PROTOTYPE #704: a variant picked in the lab moves instead of cutting.
+        if (window.prototypeGlanceKeep !== "" && !window.reducedMotion && window.glanceEngine) {
+            window.prototypeKeepStart();
+            return;
+        }
         const engine = window.glanceEngine;
         if (!engine)
             return;
@@ -5656,5 +5661,318 @@ ApplicationWindow {
         cursorShape: Qt.SizeVerCursor
         onPressed: window.startSystemResize(Qt.BottomEdge)
         z: 100
+    }
+
+    // PROTOTYPE #704: three ways of keeping a Glance as a tab, for the
+    // maintainer to pick from in the UI lab (`--glance-keep A|B|C`). Throwaway:
+    // the motion runs on one clock, `keepClock`, in milliseconds, so the lab
+    // can hold it at any moment for a capture (`--glance-keep-at <ms>`).
+    //   A  Grow and pulse: the panel grows to the page area in 180 ms, pulses
+    //      1, 1.005, 1 over 250 ms, then is the tab, placed after its opener.
+    //   B  Head flies: the panel grows in 180 ms while its head flies to the
+    //      tab's row at the end of the list, landing at 260 ms.
+    //   C  Frame dissolves: the page is the tab at once, placed after its
+    //      opener, arriving by the list's own nudge; the frame fades in 120 ms.
+    property string prototypeGlanceKeep: ""
+    property int prototypeKeepHoldAt: -1
+    property real keepClock: -1
+    property bool keepAdopted: false
+    property string keepOpenerId: ""
+    property string keepTabId: ""
+    property rect keepRowRect: Qt.rect(0, 0, 0, 0)
+    property real keepRowWash: 0
+    property rect keepChipFrom: Qt.rect(0, 0, 0, 0)
+    property rect keepChipTo: Qt.rect(0, 0, 0, 0)
+    property real keepChip: -1
+    property real keepChipOpacity: 0
+    property string keepChipTitle: ""
+    readonly property var keepVariants: ["A", "B", "C"]
+    readonly property var keepNames: ({
+                                          "A": "Grow and pulse",
+                                          "B": "Head flies to the sidebar",
+                                          "C": "Frame dissolves"
+                                      })
+    readonly property var keepTotals: ({
+                                           "A": 730,
+                                           "B": 330,
+                                           "C": 320
+                                       })
+
+    function keepEase(kind, t, start, length) {
+        const x = Math.max(0, Math.min(1, (t - start) / length));
+        if (kind === "out")
+            return 1 - Math.pow(1 - x, 3);
+        if (kind === "in")
+            return x * x * x;
+        if (kind === "inout")
+            return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+        return x;
+    }
+
+    function prototypeKeepStart() {
+        keepAnim.stop();
+        window.keepAdopted = false;
+        window.keepOpenerId = window.glanceTabId;
+        window.keepTabId = "";
+        window.keepChip = -1;
+        window.keepChipOpacity = 0;
+        window.keepRowWash = 0;
+        sidebar.prototypeHoldArrival = true;
+        glance.keptTitle = glance.pageTitle;
+        glance.keeping = true;
+        if (window.prototypeGlanceKeep === "B") {
+            window.keepChipTitle = glance.pageTitle;
+            const head = glance.mapToItem(window.contentItem, glance.restX, glance.restY);
+            window.keepChipFrom = Qt.rect(head.x, head.y, glance.restWidth, 38);
+            // Where the row will stand: at the end of the list, as today.
+            const row = sidebar.activeTabItem;
+            if (row && row.parent) {
+                const below = window.windowBrowser.tabSectionCount(window.keepOpenerId)
+                      - window.windowBrowser.tabSectionIndex(window.keepOpenerId);
+                const at = row.mapToItem(window.contentItem, 0, 0);
+                window.keepChipTo = Qt.rect(at.x, at.y + below * (row.height + row.parent.spacing),
+                                            row.width, row.height);
+            }
+        }
+        window.keepClock = -1;
+        const total = window.keepTotals[window.prototypeGlanceKeep];
+        if (window.prototypeKeepHoldAt >= 0) {
+            const hold = Math.min(window.prototypeKeepHoldAt, total);
+            for (let t = 0; t < hold; t += 16)
+                window.keepClock = t;
+            window.keepClock = hold;
+            return;
+        }
+        keepAnim.to = total;
+        keepAnim.duration = total;
+        keepAnim.restart();
+    }
+
+    onKeepClockChanged: if (keepClock >= 0)
+                            prototypeKeepStep(keepClock)
+
+    function prototypeKeepStep(t) {
+        const v = window.prototypeGlanceKeep;
+        if (v === "A") {
+            glance.keep = keepEase("out", t, 0, 180);
+            glance.keepPulse = 1 + 0.005 * Math.sin(Math.PI * keepEase("linear", t, 180, 250));
+            if (t >= 430)
+                window.keepAdopt(true);
+            window.keepRowWash = t < 430 ? 0 : 0.35 * (1 - keepEase("out", t, 430, 300));
+        } else if (v === "B") {
+            glance.keep = keepEase("out", t, 0, 180);
+            if (t >= 180)
+                window.keepAdopt(false);
+            window.keepChip = keepEase("inout", t, 0, 260);
+            window.keepChipOpacity = 1 - keepEase("linear", t, 260, 70);
+        } else {
+            window.keepAdopt(true);
+            glance.dissolve = keepEase("out", t, 0, 120);
+            // From below, as a tab further down the list arrives.
+            sidebar.tabOffsetY = 10 * (1 - keepEase("out", t, 0, 160));
+            window.keepRowWash = 0.35 * (1 - keepEase("out", t, 0, 300));
+        }
+    }
+
+    function keepAdopt(afterOpener) {
+        if (window.keepAdopted)
+            return;
+        window.keepAdopted = true;
+        const engine = window.glanceEngine;
+        if (!engine)
+            return;
+        window.refuseRequestsFrom(engine);
+        window.glanceEngine = null;
+        window.glanceTabId = "";
+        window.windowBrowser.openInput("about:blank", true);
+        const tabId = window.windowBrowser.activeTabId;
+        window.keepTabId = tabId;
+        if (afterOpener && window.keepOpenerId !== "") {
+            const at = window.windowBrowser.tabSectionIndex(window.keepOpenerId);
+            if (at >= 0)
+                window.windowBrowser.moveTab(tabId, at + 1);
+        }
+        engineLoader.adoptEngine(tabId, engine);
+        if (window.prototypeGlanceKeep !== "C") {
+            glance.keeping = false;
+            glance.keep = 0;
+            glance.keepPulse = 1;
+        }
+        const row = sidebar.activeTabItem;
+        if (row && row.parent) {
+            row.parent.forceLayout();
+            const p = row.mapToItem(window.contentItem, 0, 0);
+            window.keepRowRect = Qt.rect(p.x, p.y, row.width, row.height);
+            if (window.prototypeGlanceKeep === "B")
+                window.keepChipTo = window.keepRowRect;
+        }
+    }
+
+    function prototypeKeepEnd() {
+        glance.keeping = false;
+        glance.keep = 0;
+        glance.dissolve = 0;
+        glance.keepPulse = 1;
+        sidebar.tabOffsetY = 0;
+        sidebar.prototypeHoldArrival = false;
+        window.keepChip = -1;
+        window.keepRowWash = 0;
+    }
+
+    // Closes the tab the last keep made, opens a Glance over its opener again,
+    // and keeps it once the Glance has arrived.
+    function prototypeKeepReplay() {
+        keepAnim.stop();
+        window.prototypeKeepEnd();
+        if (!window.glanceOpen) {
+            if (window.keepTabId !== "")
+                window.windowBrowser.closeTab(window.keepTabId);
+            window.keepTabId = "";
+            if (window.keepOpenerId !== "")
+                window.windowBrowser.activateTab(window.keepOpenerId);
+            Qt.callLater(function () {
+                window.openGlance(null, "https://example.org/glance-prototype");
+            });
+        }
+        keepReplay.restart();
+    }
+
+    function prototypeKeepCycle(step) {
+        const at = window.keepVariants.indexOf(window.prototypeGlanceKeep);
+        window.prototypeGlanceKeep = window.keepVariants[(at + step + 3) % 3];
+    }
+
+    NumberAnimation {
+        id: keepAnim
+        target: window
+        property: "keepClock"
+        from: 0
+        onFinished: window.prototypeKeepEnd()
+    }
+
+    Timer {
+        id: keepReplay
+        interval: 700
+        onTriggered: window.openGlanceAsTab()
+    }
+
+    // The keep's own pieces, over everything: the head on its way to the
+    // sidebar, and the wash on the row the tab landed in.
+    Rectangle {
+        objectName: "prototypeKeepChip"
+        readonly property real e: Math.max(0, window.keepChip)
+        visible: window.keepChip >= 0 && window.keepChipOpacity > 0
+        z: 10000
+        x: window.keepChipFrom.x + (window.keepChipTo.x - window.keepChipFrom.x) * e
+        y: window.keepChipFrom.y + (window.keepChipTo.y - window.keepChipFrom.y) * e
+        width: window.keepChipFrom.width + (window.keepChipTo.width - window.keepChipFrom.width) * e
+        height: window.keepChipFrom.height + (window.keepChipTo.height
+                                              - window.keepChipFrom.height) * e
+        radius: 3
+        color: window.colors.overlay
+        border.width: 1
+        border.color: window.colors.accent
+        opacity: window.keepChipOpacity
+        clip: true
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 16 - 6 * parent.e
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: window.keepChipTitle
+            elide: Text.ElideRight
+            color: window.colors.text
+            font.pixelSize: 13
+        }
+    }
+
+    Rectangle {
+        objectName: "prototypeKeepRowWash"
+        visible: window.keepRowWash > 0
+        z: 10000
+        x: window.keepRowRect.x
+        y: window.keepRowRect.y
+        width: window.keepRowRect.width
+        height: window.keepRowRect.height
+        radius: 3
+        color: window.colors.accent
+        opacity: window.keepRowWash
+    }
+
+    // The variant switcher and the motion's state, which is not part of any
+    // variant. Shown by the lab only.
+    Rectangle {
+        objectName: "prototypeKeepSwitcher"
+        visible: window.prototypeGlanceKeep !== "" && window.prototypeKeepHoldAt < 0
+        z: 10001
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 16
+        width: switcherRow.implicitWidth + 28
+        height: 40
+        radius: 20
+        color: "#101010"
+        border.width: 2
+        border.color: "#ff00aa"
+
+        Row {
+            id: switcherRow
+            anchors.centerIn: parent
+            spacing: 14
+
+            Repeater {
+                model: [
+                    {
+                        "label": "◀",
+                        "act": -1
+                    },
+                    {
+                        "label": "PROTOTYPE #704  " + window.prototypeGlanceKeep + "  "
+                                 + window.keepNames[window.prototypeGlanceKeep],
+                        "act": 0
+                    },
+                    {
+                        "label": "▶",
+                        "act": 1
+                    },
+                    {
+                        "label": "↻ Replay",
+                        "act": 2
+                    },
+                    {
+                        "label": "clock " + Math.round(Math.max(0, window.keepClock)) + " ms  keep "
+                                 + glance.keep.toFixed(2) + "  dissolve " + glance.dissolve.toFixed(
+                                     2) + "  adopted " + window.keepAdopted + "  row " + (
+                                     window.keepTabId === "" ? "-" :
+                                                               window.windowBrowser.tabSectionIndex(
+                                                                   window.keepTabId)),
+                        "act": 3
+                    }
+                ]
+
+                Text {
+                    required property var modelData
+                    text: modelData.label
+                    color: modelData.act === 3 ? "#9a9a9a" : "#ffffff"
+                    font.family: "monospace"
+                    font.pixelSize: 13
+
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        enabled: parent.modelData.act !== 0 && parent.modelData.act !== 3
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (parent.modelData.act === 2)
+                                window.prototypeKeepReplay();
+                            else
+                                window.prototypeKeepCycle(parent.modelData.act);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -43,10 +43,23 @@ FocusScope {
     // 0 at the origin, 1 at rest.
     property real arrival: 1
     property bool leaving: false
+    // PROTOTYPE #704: the keep-as-tab motion, driven by Main.qml's clock.
+    // `keep` is 0 at rest and 1 at the page area; `dissolve` fades the frame
+    // away from a page that is already the tab's; `keepPulse` scales the panel.
+    property bool keeping: false
+    property real keep: 0
+    property real dissolve: 0
+    property real keepPulse: 1
+    function toPage(value, page) {
+        return value + (page - value) * keep;
+    }
     readonly property bool fromOrigin: origin.width > 0
 
+    // PROTOTYPE #704: the title stays while the frame dissolves off the tab.
+    property string keptTitle: ""
     readonly property string pageTitle: root.engine && root.engine.pageTitle.length > 0
-                                        ? root.engine.pageTitle : qsTr("Glance")
+                                        ? root.engine.pageTitle : root.keeping && keptTitle !== ""
+                                          ? keptTitle : qsTr("Glance")
     readonly property string pageAddress: root.engine ? String(root.engine.currentUrl) : ""
     // Where the engine goes, for the window to parent it into.
     readonly property alias pageHost: pageHost
@@ -133,7 +146,7 @@ FocusScope {
     }
 
     // Drawn for the length of the retreat.
-    visible: open || leaving
+    visible: open || leaving || keeping
     focus: root.open
 
     onOpenChanged: {
@@ -150,7 +163,7 @@ FocusScope {
             return;
         }
         arrivalEase.stop();
-        if (!ease) {
+        if (!ease || keeping) {
             arrival = 1;
             return;
         }
@@ -186,7 +199,7 @@ FocusScope {
         anchors.fill: parent
         source: root.pageSource
         tint: root.colors.sheet
-        opacity: root.arrival
+        opacity: root.arrival * (1 - root.keep) * (1 - root.dissolve)
 
         MouseArea {
             anchors.fill: parent
@@ -201,17 +214,20 @@ FocusScope {
     Rectangle {
         id: panel
         objectName: "glancePanel"
-        x: root.lerp(root.fromX, root.restX)
-        y: root.lerp(root.fromY, root.restY)
-        width: root.lerp(root.fromWidth, root.restWidth)
-        height: root.lerp(root.fromHeight, root.restHeight)
+        x: root.toPage(root.lerp(root.fromX, root.restX), 0)
+        y: root.toPage(root.lerp(root.fromY, root.restY), 0)
+        width: root.toPage(root.lerp(root.fromWidth, root.restWidth), root.width)
+        height: root.toPage(root.lerp(root.fromHeight, root.restHeight), root.height)
         opacity: root.fromOrigin ? 1 : root.arrival
-        radius: 3
-        color: panelDither.fill
+        scale: root.keepPulse
+        radius: 3 * (1 - root.keep)
+        color: root.keeping && !root.engine ? "transparent" : panelDither.fill
         // One logical pixel, rounded to whole pixels of the display, so the
         // page inside it starts on one.
         border.width: DevicePixels.snap(1, root.pixelRatio)
-        border.color: root.colors.accent
+        border.color: Qt.rgba(root.colors.accent.r, root.colors.accent.g, root.colors.accent.b, (1
+                                                                                                 - root.keep)
+                              * (1 - root.dissolve))
         clip: true
 
         GroundDither {
@@ -227,7 +243,8 @@ FocusScope {
         Item {
             id: head
             x: panel.border.width
-            y: panel.border.width
+            y: panel.border.width - 39 * root.keep - 10 * root.dissolve
+            opacity: 1 - root.dissolve
             width: root.restWidth - 2 * panel.border.width
             height: 38
 
@@ -323,11 +340,15 @@ FocusScope {
         Rectangle {
             id: pageHost
             objectName: "glancePageHost"
-            x: panel.border.width
-            y: DevicePixels.snap(head.y + head.height, root.pixelRatio)
-            width: head.width
-            height: root.restHeight - y - panel.border.width
-            color: root.colors.windowOpaque
+            x: panel.border.width * (1 - root.keep)
+            y: root.keeping ? (panel.border.width + 38) * (1 - root.keep) : DevicePixels.snap(head.y
+                                                                                              + head.height,
+                                                                                              root.pixelRatio)
+            // PROTOTYPE #704: the page is laid out once at the page area's size
+            // as the motion starts, and the growing panel reveals it.
+            width: root.keeping ? root.width : head.width
+            height: root.keeping ? root.height : root.restHeight - y - panel.border.width
+            color: root.keeping && !root.engine ? "transparent" : root.colors.windowOpaque
             clip: true
         }
     }

@@ -413,6 +413,8 @@ Rectangle {
     property real settledTabY: -1
     property real tabOffsetX: 0
     property real tabOffsetY: 0
+    // PROTOTYPE #704: the Glance keep motion drives the page's nudge itself.
+    property bool prototypeHoldArrival: false
     // The row of the tab beside, while a split is on show. A pane arriving
     // beside the page on show comes from this row, the way a page arrives
     // from its own.
@@ -509,7 +511,7 @@ Rectangle {
         settledTabId = row.tabId;
         settledTabX = at.x;
         settledTabY = at.y;
-        if (!easeSpaces || arriving || fromY < 0 || focusMoved)
+        if (!easeSpaces || arriving || fromY < 0 || focusMoved || prototypeHoldArrival)
             return;
         activeArriving = true;
         Qt.callLater(function () {
