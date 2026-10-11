@@ -4391,6 +4391,41 @@ struct FormHistoryView {
 
     QVariantMap field() const { return adapter->property("formField").toMap(); }
 
+    // Types into an empty field and waits until it holds the text. A script
+    // reaches the page by one way and keys by another, and either can overtake
+    // the other: keys pressed before the focus lands, or still on their way when
+    // the next field is focused, end up in another field (#701). So the focus
+    // is read back before the keys, and the value after them.
+    bool typeInto(const QString &id, const QString &text)
+    {
+        ++reads;
+        run(QStringLiteral("document.activeElement && document.activeElement.blur();"
+                           "{ const field = document.querySelector('#%1, [data-field=%1]');"
+                           "field.focus();"
+                           "document.title = JSON.stringify("
+                           "{read: %2, focused: document.activeElement === field}); }")
+                .arg(id)
+                .arg(reads));
+        if (!QTest::qWaitFor(
+                [&] {
+                    const auto read = QJsonDocument::fromJson(
+                        adapter->property("pageTitle").toString().toUtf8())
+                                          .object();
+                    return read.value(QStringLiteral("read")).toInt() == reads
+                        && read.value(QStringLiteral("focused")).toBool();
+                },
+                5000)) {
+            return false;
+        }
+        type(text);
+        return QTest::qWaitFor(
+            [&] {
+                return values(QStringLiteral("#%1, [data-field=%1]").arg(id)).value(id).toString()
+                    == text;
+            },
+            5000);
+    }
+
     int reads = 0;
 
     // What the page holds in each field, by id, read back through its title.
@@ -4488,11 +4523,8 @@ void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
              {QStringLiteral("payment"), QStringLiteral("4111111111111111")},
              {QStringLiteral("cardnumber"), QStringLiteral("4111111111111111")},
              {QStringLiteral("notes"), QStringLiteral("typed")}}) {
-        form.focus(id);
-        QTest::qWait(150);
-        form.type(text);
+        QVERIFY2(form.typeInto(id, text), qPrintable(id));
     }
-    QTRY_COMPARE(form.adapter->property("pageTitle").toString(), QStringLiteral("ready"));
     form.run(QStringLiteral(
         "for (const [id, value] of [['nameless', 'x'], ['off', 'x'], ['code', '123456'],"
         "    ['scripted', 'written by the page']])"
@@ -4515,9 +4547,7 @@ void QtEngineContractTest::qtReportsOnlyAFieldFormHistoryMayKeep()
         expected);
 
     // A form the page marked not to be remembered reports nothing on submit.
-    form.focus(QStringLiteral("secret"));
-    QTest::qWait(150);
-    form.type(QStringLiteral("typed"));
+    QVERIFY(form.typeInto(QStringLiteral("secret"), QStringLiteral("typed")));
     form.run(QStringLiteral("document.getElementById('unkept').requestSubmit();"));
     QTest::qWait(300);
     QCOMPARE(submitted.count(), 0);
