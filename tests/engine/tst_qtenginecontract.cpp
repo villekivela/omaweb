@@ -1176,6 +1176,9 @@ void QtEngineContractTest::qtDrawsAFaviconAfreshInEachRun()
 // of a page on show again under the new scheme, at the address it had (#700).
 void QtEngineContractTest::qtRedrawsAFaviconWhenTheColourSchemeChanges()
 {
+    // The engine draws the icon again from patch 0025 of its series, which a
+    // build against the distribution's QtWebEngine does not carry.
+#if OMAWEB_KNOWN_EXTENSIONS
     FaviconServer server;
     server.darkColour = "#fff";
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -1228,6 +1231,9 @@ void QtEngineContractTest::qtRedrawsAFaviconWhenTheColourSchemeChanges()
     QTRY_VERIFY_WITH_TIMEOUT(
         iconUrl() == drawnUrl && faviconLightness(engine, drawnUrl) > 192, 10000);
     QTRY_COMPARE(reports.reported, (QList<QUrl> {QUrl(), drawnUrl}));
+#else
+    QSKIP("Only Omaweb's own engine draws a favicon again when the colour scheme changes.");
+#endif
 }
 
 // The engine builds a profile's extension storage once, from the directory the
