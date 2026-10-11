@@ -83,18 +83,25 @@ FocusScope {
     // The head sits above the page, so a panel asked for a page's room is that
     // much taller.
     readonly property real chrome: 38 + 2
+    // PROTOTYPE #704, variant D: Zen's Glance. No head; the panel stands the
+    // page area's full height between wide side margins, the page it came from
+    // scaled back and dimmed behind it, and its buttons float beside it.
+    property bool zenRest: false
+    readonly property real sideInset: zenRest ? DevicePixels.snap(width * 0.12, pixelRatio) : inset
+    readonly property real topInset: zenRest ? 0 : inset
     readonly property real restWidth: root.preferredSize.width > 0 ? Math.min(
                                                                          root.preferredSize.width,
                                                                          Math.max(0, width - 2
                                                                                   * inset)) :
-                                                                     Math.max(0, width - 2 * inset)
+                                                                     Math.max(0, width - 2
+                                                                              * sideInset)
     readonly property real restHeight: root.preferredSize.height > 0 ? Math.min(
                                                                            root.preferredSize.height
                                                                            + root.chrome, Math.max(0,
                                                                                                    height - 2
                                                                                                    * inset)) :
                                                                        Math.max(0, height - 2
-                                                                                * inset)
+                                                                                * topInset)
     // A panel the size of the page area sits where the page would. One the
     // size of a popup stands in the middle of it, because a small panel pinned
     // to a corner reads as something that slipped rather than something that
@@ -103,15 +110,15 @@ FocusScope {
     // rounds the other way, which splits the page along its diagonal.
     readonly property real restX: root.preferredSize.width > 0 ? root.centred(width,
                                                                               root.restWidth) :
-                                                                 root.inset
+                                                                 root.sideInset
     readonly property real restY: root.preferredSize.height > 0 ? root.centred(height,
                                                                                root.restHeight) :
-                                                                  root.inset
+                                                                  root.topInset
 
     // Where the panel starts and ends: the link, or its own place a sheet's
     // lift below.
-    readonly property real fromX: fromOrigin ? origin.x : inset
-    readonly property real fromY: fromOrigin ? origin.y : inset + 24
+    readonly property real fromX: fromOrigin ? origin.x : restX
+    readonly property real fromY: fromOrigin ? origin.y : restY + 24
     readonly property real fromWidth: fromOrigin ? origin.width : restWidth
     readonly property real fromHeight: fromOrigin ? origin.height : restHeight
 
@@ -199,7 +206,20 @@ FocusScope {
         anchors.fill: parent
         source: root.pageSource
         tint: root.colors.sheet
-        opacity: root.arrival * (1 - root.keep) * (1 - root.dissolve)
+        opacity: root.zenRest ? 0 : root.arrival * (1 - root.keep) * (1 - root.dissolve)
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.closed()
+        }
+    }
+
+    // PROTOTYPE #704, variant D: the page beneath is dimmed, not blurred.
+    Rectangle {
+        anchors.fill: parent
+        visible: root.zenRest
+        color: "black"
+        opacity: 0.45 * root.arrival * (1 - root.keep)
 
         MouseArea {
             anchors.fill: parent
@@ -219,7 +239,11 @@ FocusScope {
         width: root.toPage(root.lerp(root.fromWidth, root.restWidth), root.width)
         height: root.toPage(root.lerp(root.fromHeight, root.restHeight), root.height)
         opacity: root.fromOrigin ? 1 : root.arrival
-        scale: root.keepPulse
+        // PROTOTYPE #704: the pulse widens the panel, never heightens it.
+        transform: Scale {
+            origin.x: panel.width / 2
+            xScale: root.keepPulse
+        }
         radius: 3 * (1 - root.keep)
         color: root.keeping && !root.engine ? "transparent" : panelDither.fill
         // One logical pixel, rounded to whole pixels of the display, so the
@@ -242,6 +266,7 @@ FocusScope {
 
         Item {
             id: head
+            visible: !root.zenRest
             x: panel.border.width
             y: panel.border.width - 39 * root.keep - 10 * root.dissolve
             opacity: 1 - root.dissolve
@@ -341,15 +366,64 @@ FocusScope {
             id: pageHost
             objectName: "glancePageHost"
             x: panel.border.width * (1 - root.keep)
-            y: root.keeping ? (panel.border.width + 38) * (1 - root.keep) : DevicePixels.snap(head.y
-                                                                                              + head.height,
-                                                                                              root.pixelRatio)
+            y: root.zenRest ? panel.border.width * (1 - root.keep) : root.keeping ? (panel.border.width
+                                                                                     + 38) * (1
+                                                                                              - root.keep) :
+                                                                                    DevicePixels.snap(
+                                                                                        head.y + head.height,
+                                                                                        root.pixelRatio)
             // PROTOTYPE #704: the page is laid out once at the page area's size
             // as the motion starts, and the growing panel reveals it.
             width: root.keeping ? root.width : head.width
             height: root.keeping ? root.height : root.restHeight - y - panel.border.width
             color: root.keeping && !root.engine ? "transparent" : root.colors.windowOpaque
             clip: true
+        }
+    }
+
+    // PROTOTYPE #704, variant D: the Glance's buttons, beside the panel rather
+    // than in a head, gone as it grows into the tab.
+    Rectangle {
+        visible: root.zenRest && root.keep < 1
+        x: panel.x + panel.width + 8
+        y: panel.y + 8
+        width: zenButtons.implicitWidth + 8
+        height: zenButtons.implicitHeight + 8
+        radius: width / 2
+        color: root.colors.overlay
+        border.width: 1
+        border.color: root.colors.separator
+        opacity: root.arrival * (1 - Math.min(1, root.keep * 3))
+
+        Column {
+            id: zenButtons
+            anchors.centerIn: parent
+            spacing: 4
+
+            ChromeButton {
+                objectName: "zenCloseGlanceButton"
+                width: 30
+                height: 30
+                icon: "close"
+                accessibleName: qsTr("Close Glance")
+                fontFamily: root.iconFontFamily
+                foreground: root.colors.mutedText
+                accent: root.colors.accent
+                onClicked: root.closed()
+            }
+
+            ChromeButton {
+                objectName: "zenOpenGlanceAsTabButton"
+                visible: root.openAsTabAllowed
+                width: 30
+                height: 30
+                icon: "open_in_new"
+                accessibleName: qsTr("Open as tab")
+                fontFamily: root.iconFontFamily
+                foreground: root.colors.mutedText
+                accent: root.colors.accent
+                onClicked: root.openAsTabRequested()
+            }
         }
     }
 }
