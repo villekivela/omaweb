@@ -140,6 +140,15 @@ FocusScope {
         root.keep = 0;
     }
 
+    // Keeping refuses every close, so it cannot be left to stick: a page its
+    // tab never came to draw would leave the Glance over the page for good.
+    // Well past the growth and the handoff, it lets go on its own.
+    Timer {
+        interval: 1000
+        running: root.keeping
+        onTriggered: root.settle()
+    }
+
     // As quick as the arrival, so keeping reads as the arrival carried on.
     NumberAnimation {
         id: keepEase

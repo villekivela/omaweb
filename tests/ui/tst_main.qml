@@ -9259,6 +9259,25 @@ TestCase {
         }
     }
 
+    // Keeping cannot stick (#704). A Glance left keeping, as one whose page
+    // its tab never came to draw would be, refuses every close and stays over
+    // the page; it lets go of keeping on its own, and can be closed again.
+    function test_aGlanceDoesNotStayKeeping() {
+        openPage("https://opener.example");
+        const glance = openGlance("https://stuck.example/page");
+        glance.keeping = true;
+        window.closeGlance();
+        verify(window.glanceEngine !== null, "a close refused while keeping");
+        tryVerify(function () {
+            return !glance.keeping;
+        }, 3000, "keeping let go of");
+        window.closeGlance();
+        compare(window.glanceEngine, null);
+        tryVerify(function () {
+            return !glance.visible;
+        });
+    }
+
     // An extension's popup is drawn as a Glance but is a control, not a page
     // to keep: run directly, the command that keeps a Glance leaves it be,
     // rather than growing it into a tab (#704).

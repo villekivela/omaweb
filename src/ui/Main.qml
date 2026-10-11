@@ -1236,16 +1236,12 @@ ApplicationWindow {
         sidebar.washArrival(tabId);
         window.keptEngine = engine;
         if (engineLoader.item === engine)
-            window.settleKept();
+            glance.settle();
     }
 
-    // The engine a kept Glance handed its tab, until the tab draws it.
+    // The engine a kept Glance handed its tab, until the tab draws it or the
+    // Glance lets go of keeping by itself.
     property var keptEngine: null
-
-    function settleKept() {
-        window.keptEngine = null;
-        glance.settle();
-    }
 
     // A kept Glance's tab stands right after the tab it came from, where the
     // reader was reading, rather than at the end of the list. A split's two
@@ -2308,10 +2304,9 @@ ApplicationWindow {
             window.noteLookupFailure();
             // A kept Glance's page is drawn by its tab now. Not before: making
             // the tab changes what the host shows once already.
-            if (glance.keeping && window.keptEngine !== null && engineLoader.item
-                    === window.keptEngine)
-
-                window.settleKept();
+            const drawsKept = window.keptEngine !== null && engineLoader.item === window.keptEngine;
+            if (glance.keeping && drawsKept)
+                glance.settle();
         }
     }
 
@@ -3861,6 +3856,8 @@ ApplicationWindow {
                     onClosed: window.closeGlance()
                     onOpenAsTabRequested: window.openGlanceAsTab()
                     onKept: window.keepGlance()
+                    onKeepingChanged: if (!keeping)
+                                          window.keptEngine = null
                 }
 
                 // What the Glance's page asks of the browser, answered as the
