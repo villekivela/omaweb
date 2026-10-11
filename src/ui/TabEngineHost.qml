@@ -327,7 +327,7 @@ Item {
         const engine = root.engines[tabId];
         if (engine) {
             root.adoptingTabId = "";
-            engine.acceptNewWindowRequest(request);
+            root.takeRequestAsTab(engine, request);
             return;
         }
         Qt.callLater(function () {
@@ -335,8 +335,16 @@ Item {
             if (!late)
                 return;
             root.adoptingTabId = "";
-            late.acceptNewWindowRequest(request);
+            root.takeRequestAsTab(late, request);
         });
+    }
+
+    // A tab's engine takes a page's request, and the page is a tab from then
+    // on. A page an extension opened as a window of its own is the reader's
+    // tab now, which the engine is told once the engine holds it (#694).
+    function takeRequestAsTab(engine, request) {
+        engine.acceptNewWindowRequest(request);
+        engine.showAsTab();
     }
 
     // A tab of a Space that is not on show, opened for a page of that Space,
@@ -359,7 +367,7 @@ Item {
         if (!engine)
             return false;
         root.adoptTabWindowEngine(tabId, engine, spaceId);
-        engine.acceptNewWindowRequest(request);
+        root.takeRequestAsTab(engine, request);
         return true;
     }
 
@@ -965,6 +973,7 @@ Item {
     function adoptEngine(tabId, engine) {
         engine.visible = false;
         root.registerEngine(tabId, engine, undefined);
+        engine.showAsTab();
         root.adoptingTabId = tabId;
         root.browserController.reportTabPageState(tabId, engine.currentUrl, engine.pageTitle,
                                                   engine.pageIconUrl, engine.loading,

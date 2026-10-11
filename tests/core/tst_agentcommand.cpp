@@ -3,15 +3,18 @@
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QTest>
 
 using omaweb::agentAnswerTimeoutMs;
 using omaweb::AgentCommand;
 using omaweb::formatAgentAnswer;
 using omaweb::isAgentCommand;
+using omaweb::isAgentHelpCommand;
 using omaweb::misplacedAgentOption;
 using omaweb::misplacedAgentOptionMessage;
 using omaweb::readAgentCommand;
+using omaweb::readAgentHelp;
 
 class AgentCommandTest final : public QObject {
     Q_OBJECT
@@ -37,6 +40,14 @@ private slots:
     void readsTheStepsThatAnswerAPage();
     void printsWhatAPageAsksOfTheAgent();
     void waitsForTheReaderToGrantASpace();
+    void answersHelpWithTheVerbsAndHowToLaunch_data();
+    void answersHelpWithTheVerbsAndHowToLaunch();
+    void doesNotTakeAnAddressOrAVerbForHelp();
+    void listsTheOptionsOfAVerbFromItsGrammar_data();
+    void listsTheOptionsOfAVerbFromItsGrammar();
+    void helpsEveryVerbTheCliTakes_data();
+    void helpsEveryVerbTheCliTakes();
+    void saysWhenHelpIsAskedOfNoVerb();
 };
 
 void AgentCommandTest::tellsAVerbFromAnAddressToOpen()
@@ -712,6 +723,105 @@ void AgentCommandTest::waitsForTheReaderToGrantASpace()
         > 60000 + 65000);
     QVERIFY(wait(QStringLiteral("look")) > 60000 + 60000);
     QCOMPARE(wait(QStringLiteral("tabs")), 10000);
+}
+
+void AgentCommandTest::answersHelpWithTheVerbsAndHowToLaunch_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::newRow("help") << QStringList {QStringLiteral("omaweb"), QStringLiteral("help")};
+    QTest::newRow("--help") << QStringList {QStringLiteral("omaweb"), QStringLiteral("--help")};
+    QTest::newRow("-h") << QStringList {QStringLiteral("omaweb"), QStringLiteral("-h")};
+}
+
+void AgentCommandTest::answersHelpWithTheVerbsAndHowToLaunch()
+{
+    QFETCH(QStringList, arguments);
+    QVERIFY(isAgentHelpCommand(arguments));
+    // Help is not a verb, so no socket is reached for it.
+    QVERIFY(!isAgentCommand(arguments));
+    const auto help = readAgentHelp(arguments);
+    QCOMPARE(help.status, 0);
+    // Every verb the parser takes has its line, so a new one cannot ship unlisted.
+    for (const auto &verb : omaweb::agentVerbNames()) {
+        QVERIFY2(help.text.contains(QRegularExpression(
+                     QStringLiteral("^  %1 ").arg(verb), QRegularExpression::MultilineOption)),
+            qPrintable(verb));
+    }
+    QVERIFY(help.text.contains(QStringLiteral("omaweb [address]")));
+    QVERIFY(help.text.contains(QStringLiteral("omaweb help <verb>")));
+}
+
+void AgentCommandTest::doesNotTakeAnAddressOrAVerbForHelp()
+{
+    const auto program = QStringLiteral("omaweb");
+    QVERIFY(!isAgentHelpCommand({program}));
+    QVERIFY(!isAgentHelpCommand({program, QStringLiteral("https://example.com")}));
+    QVERIFY(!isAgentHelpCommand({program, QStringLiteral("tabs"), QStringLiteral("help")}));
+    QVERIFY(!isAgentHelpCommand({program, QStringLiteral("open"), QStringLiteral("-h")}));
+    // An Agent option may lead, as it may before a verb.
+    QVERIFY(isAgentHelpCommand({program, QStringLiteral("--json"), QStringLiteral("help")}));
+    QVERIFY(!isAgentCommand({program, QStringLiteral("--json"), QStringLiteral("help")}));
+}
+
+void AgentCommandTest::listsTheOptionsOfAVerbFromItsGrammar_data()
+{
+    QTest::addColumn<QStringList>("words");
+    QTest::addColumn<QStringList>("options");
+    QTest::newRow("tabs") << QStringList {QStringLiteral("tabs")}
+                          << QStringList {QStringLiteral("--space <value>"),
+                                 QStringLiteral("--all"), QStringLiteral("--pick")};
+    QTest::newRow("open") << QStringList {QStringLiteral("open")}
+                          << QStringList {QStringLiteral("--space <value>"),
+                                 QStringLiteral("--tab <value>"), QStringLiteral("--new")};
+    QTest::newRow("space new") << QStringList {QStringLiteral("space"), QStringLiteral("new")}
+                               << QStringList {QStringLiteral("--temporary")};
+    QTest::newRow("shot") << QStringList {QStringLiteral(
+        "shot")} << QStringList {QStringLiteral("--full"), QStringLiteral("--output <value>")};
+}
+
+void AgentCommandTest::listsTheOptionsOfAVerbFromItsGrammar()
+{
+    QFETCH(QStringList, words);
+    QFETCH(QStringList, options);
+    const auto help
+        = readAgentHelp(QStringList {QStringLiteral("omaweb"), QStringLiteral("help")} + words);
+    QCOMPARE(help.status, 0);
+    for (const auto &option : options) {
+        QVERIFY2(help.text.contains(option), qPrintable(option));
+    }
+    // Every verb takes these.
+    QVERIFY(help.text.contains(QStringLiteral("--json")));
+    QVERIFY(help.text.contains(QStringLiteral("--name <value>")));
+    // And not one of another verb's.
+    QVERIFY(!help.text.contains(QStringLiteral("--level")));
+}
+
+void AgentCommandTest::helpsEveryVerbTheCliTakes_data()
+{
+    QTest::addColumn<QString>("verb");
+    for (const auto &verb : omaweb::agentVerbNames()) {
+        QTest::newRow(qPrintable(verb)) << verb;
+    }
+}
+
+void AgentCommandTest::helpsEveryVerbTheCliTakes()
+{
+    QFETCH(QString, verb);
+    const auto help = readAgentHelp({QStringLiteral("omaweb"), QStringLiteral("help"), verb});
+    QCOMPARE(help.status, 0);
+    QVERIFY(help.text.startsWith(QStringLiteral("omaweb %1").arg(verb)));
+    const auto deleted = readAgentHelp({QStringLiteral("omaweb"), QStringLiteral("help"),
+        QStringLiteral("space"), QStringLiteral("delete")});
+    QCOMPARE(deleted.status, 0);
+    QVERIFY(deleted.text.startsWith(QStringLiteral("omaweb space delete")));
+}
+
+void AgentCommandTest::saysWhenHelpIsAskedOfNoVerb()
+{
+    const auto help = readAgentHelp(
+        {QStringLiteral("omaweb"), QStringLiteral("help"), QStringLiteral("frobnicate")});
+    QCOMPARE(help.status, 2);
+    QVERIFY(help.text.contains(QStringLiteral("frobnicate")));
 }
 
 QTEST_GUILESS_MAIN(AgentCommandTest)

@@ -188,6 +188,11 @@ int main(int argc, char *argv[])
         std::fprintf(stdout, "%s\n", qPrintable(report));
         return 0;
     }
+    // Help is answered before anything is built or opened: it must never
+    // start a browser on the reader's profile.
+    if (omaweb::isAgentHelpCommand(arguments)) {
+        return omaweb::printAgentHelp(arguments);
+    }
     // An Agent verb is a client of the browser already running, so it starts
     // nothing of its own: no engine, no desktop claim, no session. The MCP
     // server is one too, and starts a browser as a separate process.

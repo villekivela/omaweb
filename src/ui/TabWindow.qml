@@ -546,6 +546,7 @@ Window {
         }
         engine.anchors.fill = undefined;
         root.engineHost.adoptTabWindowEngine(tabId, engine, spaceId);
+        engine.showAsTab();
     }
 
     Connections {

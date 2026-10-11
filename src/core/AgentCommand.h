@@ -25,6 +25,27 @@ qsizetype agentVerbIndex(const QStringList &arguments);
 // Whether a command line asks for an Agent verb rather than for the browser.
 bool isAgentCommand(const QStringList &arguments);
 
+// What `omaweb help`, `omaweb --help` and `omaweb -h` answer, which they print
+// without starting a browser or reaching a socket. `help <verb>` lists that
+// verb's options, read from the grammar the parser takes. A word that is no
+// verb is said so, with `status` 2.
+struct AgentHelp {
+    QString text;
+    int status = 0;
+};
+
+// Every verb the CLI takes, `mcp` included, as the parser knows them, sorted.
+QStringList agentVerbNames();
+
+// Whether a command line asks for help rather than for the browser.
+bool isAgentHelpCommand(const QStringList &arguments);
+
+AgentHelp readAgentHelp(const QStringList &arguments);
+
+// Prints the help, to stdout, or to stderr when it refuses, and answers the
+// exit status.
+int printAgentHelp(const QStringList &arguments);
+
 // The Agent option that leads a command line which has no verb to give it to,
 // such as `--json` in `omaweb --json https://example.com`, or nothing. The
 // browser must never be launched for it.

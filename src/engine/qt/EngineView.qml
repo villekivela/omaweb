@@ -2162,6 +2162,15 @@ Item {
         if (request)
             request.openIn(webView);
     }
+    // The engine moves a page an extension opened as a window of its own into
+    // the browser's window (#694). The call is looked for when it is made rather
+    // than probed at build time, since it is invokable and nothing here compiles
+    // against it. Without it, the extension keeps a window that is now a tab.
+    function showAsTab() {
+        const extensions = webView.profile ? webView.profile.extensionManager : null;
+        if (extensions && typeof extensions.setPageIsTab === "function")
+            extensions.setPageIsTab(webView);
+    }
     function isAuxiliaryDestination(destination) {
         return destination === WebEngineNewWindowRequest.InNewDialog;
     }
