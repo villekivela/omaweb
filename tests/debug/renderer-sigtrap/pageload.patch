@@ -1,0 +1,49 @@
+--- a/scripts/benchmark_runtime.py
++++ b/scripts/benchmark_runtime.py
+@@ -90,7 +90,7 @@
+
+ import performance_history as history
+
+-ROOT = Path(__file__).resolve().parent.parent
++ROOT = Path(os.environ["LOOP_SOURCE"])
+ BUDGET = ROOT / "performance" / "budget.json"
+ FILTER_LISTS = ROOT / "third_party" / "filter-lists"
+
+@@ -206,7 +206,7 @@
+ # The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
+ # fetches everything the load with it off does and the difference is what blocking cost.
+ PAGELOAD_IMAGES = 40
+-PAGELOAD_LOADS = 10
++PAGELOAD_LOADS = 1
+
+ # Loads kept in reserve for each case and mode. A page missing an image is not the page the other
+ # mode loaded, so such a load is not counted and a spare takes its place; the spares are in the plan
+@@ -1797,6 +1797,8 @@
+             with open(f"/proc/self/{name}", "w", encoding="utf-8") as handle:
+                 handle.write(content)
+         self._run("ip", "link", "set", "lo", "up")
++        if os.environ.get("LOOP_NO_GPU"):
++            self._run("mount", "-t", "tmpfs", "none", "/dev/dri")
+         for name, content in (("resolv.conf", "nameserver 127.0.0.1\n"),
+                               ("nsswitch.conf", "hosts: files dns\n")):
+             path = os.path.join(self.root, name)
+@@ -1872,7 +1874,7 @@
+
+
+ def run_pageload(executable: str, private: bool) -> dict:
+-    plan = pageload_plan()
++    plan = pageload_plan()[:2]
+     workspace = Workspace()
+     network = PrivateNetwork(workspace.root, pageload_zone(plan)) if private else None
+     site: PageLoadSite | None = None
+@@ -1900,6 +1902,10 @@
+             site.stop()
+         if network:
+             network.leave()
++        keep = os.environ.get("LOOP_KEEP_LOG")
++        if keep:
++            with open(browser.log_path, encoding="utf-8", errors="replace") as handle, open(keep, "w") as out:
++                out.writelines(line for line in handle if not WAYLAND_LINE.match(line.lstrip()))
+         workspace.discard()
+
+     if site.repeated:
