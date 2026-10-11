@@ -2166,7 +2166,9 @@ Item {
     // as one of the reader's tabs once it is shown as one (#694): the extension
     // then finds it in the browser's window and may not close it, and hears
     // nothing, since the page is still open. An engine without the patch has
-    // no such call, and the extension keeps a window that is now a tab.
+    // no such call, and the extension keeps a window that is now a tab. The
+    // call is looked for when it is made rather than probed at build time,
+    // since it is invokable and nothing here compiles against it.
     function showAsTab() {
         const extensions = webView.profile ? webView.profile.extensionManager : null;
         if (extensions && typeof extensions.setPageIsTab === "function")
