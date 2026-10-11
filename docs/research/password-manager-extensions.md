@@ -1205,9 +1205,13 @@ the routes to what the reader saw.
   `windows` report it in that window, and `tabs.remove` closes it. When the page closes, however it
   closes, the engine raises `tabs.onRemoved` and then `windows.onRemoved`, waking a stopped worker
   to hear them. No other `tabs` or `windows` event is raised yet. The engine cannot see where Omaweb
-  shows the page, so a page shown as a tab, with Glance off or after "Open as tab", is still
-  reported as a window of its own. The extension can close that tab, and the reader closing it ends
-  the request. [Issue #694](https://github.com/villekivela/omaweb/issues/694).
+  shows the page, so patch 0026, in engine 6.11.2-14, lets Omaweb say that it shows the page as a
+  tab, with Glance off or after "Open as tab". The page then leaves its window for the browser's:
+  `tabs.query` lists it there, `tabs.remove` refuses it as it refuses every reader's tab, and the
+  extension hears nothing, then or when the page closes. A passkey prompt kept as a tab stays alive,
+  and Bitwarden keeps a window id that no longer answers, which it survives. On an engine without
+  the patch the page stays a window of its own.
+  [Issue #694](https://github.com/villekivela/omaweb/issues/694).
 
 1Password's own flow past the page script was not run: no 1Password account or desktop application
 is on the test machine.

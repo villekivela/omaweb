@@ -5930,6 +5930,7 @@ TestCase {
         }
         verify(openedTabId.length > 0);
         const openedEngine = engineLoader.engines[openedTabId];
+        compare(openedEngine.requestShownAsTab, openedEngine.acceptedRequest);
         compare(browser.activeSpaceId, kept.awaySpaceId);
         compare(browser.activeTabId, kept.awayTabId);
         compare(browser.tabs.rowCount(), kept.awayTabCount);
@@ -8978,6 +8979,7 @@ TestCase {
         });
         compare(auxiliaryEngine.item.sharedProfile, engineLoader.item.browserProfile);
         compare(auxiliaryEngine.item.currentUrl.toString(), "https://example.com/dialog");
+        verify(!auxiliaryEngine.item.shownAsTab);
         auxiliaryEngine.item.simulateWindowCloseRequest();
         tryVerify(function () {
             return !auxiliary.visible;
@@ -9010,6 +9012,10 @@ TestCase {
         const openedTabId = browser.activeTabId;
         const openedEngine = engineLoader.item;
         verify(openedEngine !== null);
+        // The page that took the request is a tab's, and the engine is told
+        // so once it holds the page (#694).
+        verify(openedEngine.acceptedRequest !== null);
+        compare(openedEngine.requestShownAsTab, openedEngine.acceptedRequest);
 
         openedEngine.currentUrl = "";
         compare(browser.activeUrl.toString(), "https://opened.example/page");
@@ -9157,12 +9163,14 @@ TestCase {
         const tabCount = browser.tabs.rowCount();
         const glance = openGlance("https://kept.example/page");
         const engine = window.glanceEngine;
+        verify(!engine.shownAsTab);
 
         verify(window.commands.run("glance-to-tab", -1));
         tryVerify(function () {
             return browser.tabs.rowCount() === tabCount + 1;
         });
         const keptTabId = browser.activeTabId;
+        verify(engine.shownAsTab);
         verify(keptTabId !== openerTabId);
         tryVerify(function () {
             return browser.activeUrl.toString() === "https://kept.example/page";
@@ -16446,6 +16454,7 @@ TestCase {
         });
         const glanced = tabWindow.glanceEngine;
         glanced.pageLocalState = "read in the Glance";
+        verify(!glanced.shownAsTab);
 
         verify(tabWindow.run("glance-to-tab", -1));
         tryVerify(function () {
@@ -16455,6 +16464,7 @@ TestCase {
         compare(browser.tabWindows[1].spaceId, browser.activeSpaceId);
         const kept = tabWindowOf(keptTabId);
         compare(kept.engine, glanced);
+        verify(glanced.shownAsTab);
         compare(glanced.pageLocalState, "read in the Glance");
         compare(tabWindow.glanceEngine, null);
         compare(browser.activeTabId, readingTabId);
@@ -16502,6 +16512,7 @@ TestCase {
         // The page took the request itself, so what opened it can reach it.
         verify(opened.engine.acceptedRequest !== null);
         compare(String(opened.engine.acceptedRequest.requestedUrl), "https://asked-for.example/");
+        compare(opened.engine.requestShownAsTab, opened.engine.acceptedRequest);
         compare(opened.engine.browserProfile, engine.browserProfile);
         compare(tabWindow.glanceEngine, null);
         compare(browser.activeTabId, readingTabId);

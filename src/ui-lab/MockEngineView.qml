@@ -1003,6 +1003,15 @@ Rectangle {
         if (request && request.requestedUrl)
             currentUrl = request.requestedUrl;
     }
+    // Whether the shell said this page is one of the reader's tabs, and the
+    // request it held then, so a test can tell the page was a tab's only
+    // once it had taken the request.
+    property bool shownAsTab: false
+    property var requestShownAsTab: null
+    function showAsTab() {
+        root.shownAsTab = true;
+        root.requestShownAsTab = root.acceptedRequest;
+    }
     function simulateAudible(audible) {
         root.pageAudible = audible;
     }

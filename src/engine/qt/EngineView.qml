@@ -2162,6 +2162,16 @@ Item {
         if (request)
             request.openIn(webView);
     }
+    // A page an extension opened as a window of its own is told to the engine
+    // as one of the reader's tabs once it is shown as one (#694): the extension
+    // then finds it in the browser's window and may not close it, and hears
+    // nothing, since the page is still open. An engine without the patch has
+    // no such call, and the extension keeps a window that is now a tab.
+    function showAsTab() {
+        const extensions = webView.profile ? webView.profile.extensionManager : null;
+        if (extensions && typeof extensions.setPageIsTab === "function")
+            extensions.setPageIsTab(webView);
+    }
     function isAuxiliaryDestination(destination) {
         return destination === WebEngineNewWindowRequest.InNewDialog;
     }

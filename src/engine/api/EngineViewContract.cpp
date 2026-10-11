@@ -185,6 +185,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"focusPage", false, 0},
         {"checkForEditedFormState", false, 1},
         {"acceptNewWindowRequest", false, 1},
+        // The page the view holds is one of the reader's tabs from now on.
+        // An engine that tells extensions which of their windows still is one
+        // passes it on: a page an extension opened as a window of its own, then
+        // shown as a tab, joins the browser's window (#694).
+        {"showAsTab", false, 0},
         {"configureKeyboardNavigation", false, 1},
         // The media key the desktop sent, given to the page that is sounding.
         {"invokeMediaAction", false, 1},
