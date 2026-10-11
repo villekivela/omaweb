@@ -9041,7 +9041,10 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     // With no failure to carry it, only the engine that reports the chain a
     // page arrived over still has one to show.
 #if OMAWEB_PAGE_CERTIFICATES
-    QCOMPARE(adapter->property("certificateChain").toList(), refused);
+    // The engine's loading drops as soon as the load has stopped, and the
+    // adapter hears of the end, and reads the chain from it, a turn later
+    // (#701).
+    QTRY_COMPARE(adapter->property("certificateChain").toList(), refused);
 #else
     QVERIFY(adapter->property("certificateChain").toList().isEmpty());
 #endif
