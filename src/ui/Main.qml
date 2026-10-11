@@ -1186,6 +1186,10 @@ ApplicationWindow {
     // The engine stays drawn for the length of the drop, so the panel does not
     // empty before it has gone.
     function closeGlance() {
+        // A Glance the reader kept is on its way to being a tab, and nothing
+        // that would end a Glance takes the page from it.
+        if (glance.keeping)
+            return;
         const engine = window.glanceEngine;
         window.glanceIsExtension = false;
         if (!engine)
@@ -1199,8 +1203,10 @@ ApplicationWindow {
 
     // Keeping a Glance grows it into the page area first, and the tab takes
     // its page once it is there (#704). With motion off it is a cut.
+    // An extension's popup is not a page to keep, however the command reached
+    // here.
     function openGlanceAsTab() {
-        if (window.glanceEngine)
+        if (window.glanceEngine && !window.glanceIsExtension)
             glance.keepAsTab();
     }
 
@@ -1228,8 +1234,17 @@ ApplicationWindow {
         if (!glance.keeping)
             return;
         sidebar.washArrival(tabId);
+        window.keptEngine = engine;
         if (engineLoader.item === engine)
-            glance.settle();
+            window.settleKept();
+    }
+
+    // The engine a kept Glance handed its tab, until the tab draws it.
+    property var keptEngine: null
+
+    function settleKept() {
+        window.keptEngine = null;
+        glance.settle();
     }
 
     // A kept Glance's tab stands right after the tab it came from, where the
@@ -2291,9 +2306,12 @@ ApplicationWindow {
 
         function onItemChanged() {
             window.noteLookupFailure();
-            // A kept Glance's page is drawn by its tab now.
-            if (glance.keeping && !window.glanceEngine)
-                glance.settle();
+            // A kept Glance's page is drawn by its tab now. Not before: making
+            // the tab changes what the host shows once already.
+            if (glance.keeping && window.keptEngine !== null && engineLoader.item
+                    === window.keptEngine)
+
+                window.settleKept();
         }
     }
 
@@ -3524,7 +3542,6 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
-                    // Stands back behind a Glance.
                     scale: glance.pageScale
                     // A tab further down the list arrives from below, one
                     // further up from above, and a pin further along the row

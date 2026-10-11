@@ -9225,6 +9225,56 @@ TestCase {
         }
     }
 
+    // Once the reader has kept a Glance, nothing ends it while it grows into
+    // its tab: a click outside it, Escape or a tab switch in those 180 ms
+    // would otherwise close it and take the page with it (#704). The row the
+    // tab lands in is lit when it gets there.
+    function test_aGlanceGrowingIntoItsTabIsNotClosed() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        const glance = openGlance("https://growing.example/page");
+        const engine = window.glanceEngine;
+        glance.ease = true;
+        try {
+            verify(window.commands.run("glance-to-tab", -1));
+            verify(glance.keeping);
+            window.closeGlance();
+            keyClick(Qt.Key_Escape);
+            tryVerify(function () {
+                return browser.activeTabId !== openerTabId;
+            });
+            const keptTabId = browser.activeTabId;
+            compare(engineLoader.engines[keptTabId], engine);
+            compare(sidebar.washTabId, keptTabId);
+            tryVerify(function () {
+                return engineLoader.item === engine && !glance.visible;
+            });
+            browser.closeTab(keptTabId);
+        } finally {
+            glance.ease = Qt.binding(function () {
+                return window.chromeEase;
+            });
+        }
+    }
+
+    // An extension's popup is drawn as a Glance but is a control, not a page
+    // to keep: run directly, the command that keeps a Glance leaves it be,
+    // rather than growing it into a tab (#704).
+    function test_anExtensionsPopupIsNotKeptAsATab() {
+        openPage("https://opener.example");
+        const tabCount = browser.tabs.rowCount();
+        const glance = openGlance("https://popup.example/page");
+        window.glanceIsExtension = true;
+        window.commands.run("glance-to-tab", -1);
+        verify(!glance.keeping);
+        compare(browser.tabs.rowCount(), tabCount);
+        verify(window.glanceEngine !== null);
+        window.closeGlance();
+        compare(window.glanceIsExtension, false);
+    }
+
     // The close-tab key closes what is in front, which is the Glance, and the
     // tab it stood over is untouched. Every other way the tab on show changes
     // ends the Glance too: a tab switch, a Space switch, and a sheet taking the

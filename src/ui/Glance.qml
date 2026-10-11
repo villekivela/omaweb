@@ -174,8 +174,8 @@ FocusScope {
         }
     }
 
-    // Drawn for the length of the retreat.
-    // Drawn while the tab takes the page over, too.
+    // Drawn for the length of the retreat, and while the tab takes the page
+    // over.
     visible: open || leaving || keeping
     focus: root.open
 
@@ -292,8 +292,10 @@ FocusScope {
     // would have held them.
     Rectangle {
         objectName: "glanceButtons"
-        x: panel.x + panel.width + Style.spacing.lg
-        y: panel.y + Style.spacing.lg
+        // On whole pixels of the display, as the panel is, so its border and
+        // glyphs are not drawn soft at a fractional scale.
+        x: DevicePixels.snap(panel.x + panel.width + Style.spacing.lg, root.pixelRatio)
+        y: DevicePixels.snap(panel.y + Style.spacing.lg, root.pixelRatio)
         width: buttons.implicitWidth + 2 * Style.spacing.sm
         height: buttons.implicitHeight + 2 * Style.spacing.sm
         radius: width / 2
@@ -310,7 +312,8 @@ FocusScope {
 
         Column {
             id: buttons
-            anchors.centerIn: parent
+            x: DevicePixels.snap(Style.spacing.sm, root.pixelRatio)
+            y: x
             spacing: Style.spacing.sm
 
             ChromeButton {
