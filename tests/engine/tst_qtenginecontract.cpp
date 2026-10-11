@@ -237,6 +237,8 @@ private slots:
     void qtKeepsTheKeyboardWhereItWasWhenItPaintsThePageAgain();
     void qtLeavesAHiddenPageHiddenWhenItsWindowIsExposedAgain();
     void qtShowsThePagesOwnColourWhereThePageDrawsNothing();
+    void qtShowsThePageAsItWasUntilItDrawsAgain();
+    void qtShowsAPageResizedWhileAwayInItsOwnColour();
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
@@ -2391,6 +2393,88 @@ void QtEngineContractTest::qtShowsThePagesOwnColourWhereThePageDrawsNothing()
     // And down again, well inside the time it would otherwise be held for.
     QTRY_VERIFY_WITH_TIMEOUT(!ground->isVisible(), 2000);
     QCOMPARE(coverSpy.count(), 2);
+}
+
+// The page's colour is not the page: a page whose ground is dark and whose
+// content is light came back as a dark frame or two before its content (#702).
+// What the window showed as it went away is the page as the reader left it,
+// so that is what covers the page until it has made a new frame.
+void QtEngineContractTest::qtShowsThePageAsItWasUntilItDrawsAgain()
+{
+    PageServer server(QByteArrayLiteral(
+        "<!doctype html><body style=\"margin:0;background:rgb(10,200,30)\">"
+        "<div style=\"position:fixed;inset:0;background:rgb(230,120,30)\">page</div>"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    auto *ground = shown.adapter->findChild<QQuickItem *>(QStringLiteral("pageGround"));
+    QVERIFY(ground);
+    QTRY_COMPARE(ground->property("color").value<QColor>(), QColor(10, 200, 30));
+    const QPoint inPage(320, 240);
+    const auto ratio = shown.window.effectiveDevicePixelRatio();
+    const auto pixel
+        = [&shown, inPage, ratio] { return shown.window.grabWindow().pixelColor(inPage * ratio); };
+    // Whatever this platform's scene shows of the page, held still.
+    QColor left;
+    QTRY_VERIFY(QTest::qWaitFor([&] {
+        const auto before = pixel();
+        QTest::qWait(100);
+        left = pixel();
+        return left == before;
+    }));
+
+    QList<QColor> covered;
+    QObject::connect(shown.adapter.get(), SIGNAL(awaitingPageFrameChanged()), &shown.window,
+        SLOT(requestUpdate()));
+    QObject::connect(&shown.window, &QQuickWindow::frameSwapped, &shown.window, [&] {
+        if (shown.adapter->property("awaitingPageFrame").toBool() && covered.isEmpty())
+            QTimer::singleShot(0, &shown.window, [&] { covered.append(pixel()); });
+    });
+    shown.window.hide();
+    shown.window.show();
+    QTRY_VERIFY(!covered.isEmpty());
+
+    QCOMPARE(covered.constFirst(), left);
+    QTRY_VERIFY_WITH_TIMEOUT(!shown.adapter->property("awaitingPageFrame").toBool(), 2000);
+}
+
+// A picture of the page at another size would put the page's parts where they
+// no longer are, so a page resized while the window was away is covered in its
+// own colour, as it was before there was a picture.
+void QtEngineContractTest::qtShowsAPageResizedWhileAwayInItsOwnColour()
+{
+    PageServer server(QByteArrayLiteral(
+        "<!doctype html><body style=\"margin:0;background:rgb(10,200,30)\">"
+        "<div style=\"position:fixed;inset:0;background:rgb(230,120,30)\">page</div>"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    auto *ground = shown.adapter->findChild<QQuickItem *>(QStringLiteral("pageGround"));
+    QVERIFY(ground);
+    QTRY_COMPARE(ground->property("color").value<QColor>(), QColor(10, 200, 30));
+    const auto ratio = shown.window.effectiveDevicePixelRatio();
+    const QPoint inPage(200, 150);
+    QTRY_COMPARE(shown.window.grabWindow().pixelColor(inPage * ratio), QColor(230, 120, 30));
+
+    QList<QColor> covered;
+    QObject::connect(shown.adapter.get(), SIGNAL(awaitingPageFrameChanged()), &shown.window,
+        SLOT(requestUpdate()));
+    QObject::connect(&shown.window, &QQuickWindow::frameSwapped, &shown.window, [&] {
+        if (shown.adapter->property("awaitingPageFrame").toBool() && covered.isEmpty())
+            QTimer::singleShot(0, &shown.window,
+                [&] { covered.append(shown.window.grabWindow().pixelColor(inPage * ratio)); });
+    });
+    shown.window.hide();
+    QTRY_VERIFY(!shown.window.isExposed());
+    shown.view->setSize(QSizeF(400, 300));
+    shown.window.show();
+    QTRY_VERIFY(!covered.isEmpty());
+
+    QCOMPARE(covered.constFirst(), QColor(10, 200, 30));
 }
 
 // A tracker served from a subdomain of the page's own site, whose CNAME chain ends at the tracker's

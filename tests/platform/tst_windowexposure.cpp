@@ -9,8 +9,8 @@ using namespace omaweb;
 
 namespace {
 
-// Counts the exposures the window handles itself, so a test can say whether
-// the listener heard of one before the window did.
+// Counts the exposures the window handles itself, and the losses of one, so a
+// test can say whether the listener heard of either before the window did.
 class RecordingWindow final : public QWindow {
 public:
     void exposeEvent(QExposeEvent *event) override
@@ -18,9 +18,12 @@ public:
         QWindow::exposeEvent(event);
         if (isExposed()) {
             ++exposures;
+        } else {
+            ++losses;
         }
     }
     int exposures = 0;
+    int losses = 0;
 };
 
 } // namespace
@@ -33,6 +36,7 @@ private slots:
     void speaksOnceForEachReturnOfTheWindow();
     void speaksBeforeTheWindowHandlesItsOwnExposure();
     void stopsListeningToAWindowItHasLeft();
+    void speaksOnceAsTheWindowGoesAwayWhileItStillHoldsItsPicture();
 };
 
 static bool showAndWait(QWindow &window)
@@ -119,6 +123,35 @@ void WindowExposureTest::stopsListeningToAWindowItHasLeft()
     QVERIFY(showAndWait(first));
 
     QCOMPARE(returned.count(), 0);
+}
+
+// The window's last picture is what the page should look like when it comes
+// back, and the window lets the page's frames go as it handles its going, so
+// the listener is told first, and once however the platform reports it.
+void WindowExposureTest::speaksOnceAsTheWindowGoesAwayWhileItStillHoldsItsPicture()
+{
+    RecordingWindow window;
+    window.resize(120, 80);
+    WindowExposure exposure;
+    exposure.setWindow(&window);
+    QSignalSpy away(&exposure, &WindowExposure::goingAway);
+    int lossesHandledWhenTold = -1;
+    QObject::connect(&exposure, &WindowExposure::goingAway, &exposure,
+        [&] { lossesHandledWhenTold = window.losses; });
+    QVERIFY(showAndWait(window));
+    QCOMPARE(away.count(), 0);
+    const int handledBefore = window.losses;
+
+    hideAndWait(window);
+    QCOMPARE(away.count(), 1);
+    QCOMPARE(lossesHandledWhenTold, handledBefore);
+    QExposeEvent again {QRegion()};
+    QCoreApplication::sendEvent(&window, &again);
+    QCOMPARE(away.count(), 1);
+
+    QVERIFY(showAndWait(window));
+    hideAndWait(window);
+    QCOMPARE(away.count(), 2);
 }
 
 int main(int argc, char **argv)

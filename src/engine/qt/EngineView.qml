@@ -2245,6 +2245,13 @@ Item {
         visible: root.awaitingPageFrame
         color: root.documentPainted ? root.pageGroundColor : root.pageBackgroundColor
     }
+    PageSnapshot {
+        id: pageAsLeft
+        objectName: "pageAsLeft"
+        anchors.fill: parent
+        z: 1
+        visible: root.awaitingPageFrame && held
+    }
 
     Connections {
         target: root.contentBlocker
@@ -4230,11 +4237,19 @@ Item {
     // not.
     WindowExposure {
         window: webView.Window.window
+        onGoingAway: root.keepPageAsLeft()
         onExposedAgain: root.attachPageToCompositorAgain()
     }
+    // Only the view on screen is in the window's picture.
+    function keepPageAsLeft() {
+        if (webView.visible)
+            pageAsLeft.take();
+    }
     function attachPageToCompositorAgain() {
-        if (!webView.visible)
+        if (!webView.visible) {
+            pageAsLeft.release();
             return;
+        }
         const hadFocus = webView.activeFocus;
         webView.visible = false;
         webView.visible = true;
@@ -4249,6 +4264,9 @@ Item {
     // behind the view would never be seen: the cover is over it. It is the
     // colour the page itself reported, so the wait is blank in the page's
     // colour instead of black; before the page has painted it is the theme's.
+    // Over that colour is the page as the window last showed it, when there is
+    // such a picture of the size the page still is: a page whose ground is
+    // dark and whose content is light is otherwise a dark flash (#702).
     // It is up before the window's first frame, and it comes down shortly
     // after the page says its frame was made, or after a time that does not
     // depend on the page saying so: a page the script does not reach, such as
@@ -4273,6 +4291,10 @@ Item {
         pageFrameGiveUp.restart();
         webView.runJavaScript("globalThis.__omawebAfterFrame && globalThis.__omawebAfterFrame()",
                               WebEngineScript.ApplicationWorld);
+    }
+    onAwaitingPageFrameChanged: {
+        if (!root.awaitingPageFrame)
+            pageAsLeft.release();
     }
     Timer {
         id: pageFrameGiveUp
