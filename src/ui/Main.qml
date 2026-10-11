@@ -1197,22 +1197,39 @@ ApplicationWindow {
         window.focusPage();
     }
 
+    // Keeping a Glance grows it into the page area first, and the tab takes
+    // its page once it is there (#704). With motion off it is a cut.
+    function openGlanceAsTab() {
+        if (window.glanceEngine)
+            glance.keepAsTab();
+    }
+
     // The Glance's page becomes an ordinary tab, engine and all, so what the
     // reader scrolled to and typed into comes with it. The Glance is let go of
     // before the tab is made: making the tab changes the tab on show, which
-    // would otherwise end the Glance and take the engine down with it.
-    function openGlanceAsTab() {
+    // would otherwise end the Glance and take the engine down with it. The
+    // page is already where the tab draws it, so its arrival is held.
+    function keepGlance() {
         const engine = window.glanceEngine;
-        if (!engine)
+        if (!engine) {
+            glance.settle();
             return;
+        }
         const openerId = window.glanceTabId;
         window.refuseRequestsFrom(engine);
         window.glanceEngine = null;
         window.glanceTabId = "";
+        sidebar.arrivalHeld = true;
         window.windowBrowser.openInput("about:blank", true);
         const tabId = window.windowBrowser.activeTabId;
         window.placeAfterOpener(tabId, openerId);
         engineLoader.adoptEngine(tabId, engine);
+        sidebar.arrivalHeld = false;
+        if (!glance.keeping)
+            return;
+        sidebar.washArrival(tabId);
+        if (engineLoader.item === engine)
+            glance.settle();
     }
 
     // A kept Glance's tab stands right after the tab it came from, where the
@@ -2274,6 +2291,9 @@ ApplicationWindow {
 
         function onItemChanged() {
             window.noteLookupFailure();
+            // A kept Glance's page is drawn by its tab now.
+            if (glance.keeping && !window.glanceEngine)
+                glance.settle();
         }
     }
 
@@ -3823,6 +3843,7 @@ ApplicationWindow {
 
                     onClosed: window.closeGlance()
                     onOpenAsTabRequested: window.openGlanceAsTab()
+                    onKept: window.keepGlance()
                 }
 
                 // What the Glance's page asks of the browser, answered as the

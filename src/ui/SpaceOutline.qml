@@ -413,6 +413,29 @@ Rectangle {
     property real settledTabY: -1
     property real tabOffsetX: 0
     property real tabOffsetY: 0
+    // Set while a page that is already in place becomes the tab on show, as a
+    // kept Glance's does: its row is new, but the page did not come from
+    // anywhere, so nothing arrives.
+    property bool arrivalHeld: false
+    // The row a kept Glance landed in, and how strongly it is lit.
+    property string washTabId: ""
+    property real washLevel: 0
+
+    function washArrival(tabId) {
+        root.washTabId = tabId;
+        root.washLevel = 0.35;
+        washFade.restart();
+    }
+
+    NumberAnimation {
+        id: washFade
+        target: root
+        property: "washLevel"
+        to: 0
+        duration: 300
+        easing.type: Easing.OutCubic
+        onFinished: root.washTabId = ""
+    }
     // The row of the tab beside, while a split is on show. A pane arriving
     // beside the page on show comes from this row, the way a page arrives
     // from its own.
@@ -509,7 +532,7 @@ Rectangle {
         settledTabId = row.tabId;
         settledTabX = at.x;
         settledTabY = at.y;
-        if (!easeSpaces || arriving || fromY < 0 || focusMoved)
+        if (!easeSpaces || arriving || fromY < 0 || focusMoved || arrivalHeld)
             return;
         activeArriving = true;
         Qt.callLater(function () {
@@ -1248,6 +1271,7 @@ Rectangle {
                         keyLabel: root.tabLabel(tabId)
                         keyLabelShown: root.keyLabelsShown
                         agent: root.agentOf(tabId)
+                        arrivalWash: tabId === root.washTabId ? root.washLevel : 0
                         onActivated: function (id) {
                             root.tabActivated(id);
                         }

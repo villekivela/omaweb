@@ -41,6 +41,13 @@ FocusScope {
     // 0 at the origin, 1 at rest.
     property real arrival: 1
     property bool leaving: false
+    // Keeping the Glance as a tab, as Zen's does: the panel grows into the
+    // page area, and the page beneath comes forward and loses its dim under
+    // it. `keep` is 0 at rest and 1 at the page area, where the panel is the
+    // page as the tab will draw it, so the window can hand the engine over
+    // without anything on screen changing (#704).
+    property real keep: 0
+    property bool keeping: false
     readonly property bool fromOrigin: origin.width > 0
 
     readonly property string pageAddress: root.engine ? String(root.engine.currentUrl) : ""
@@ -50,10 +57,12 @@ FocusScope {
     // How far the page beneath stands back while the Glance is over it, for
     // whoever draws that page to scale it by: it stays in sight, behind, as
     // the page the Glance came from, and comes forward again as it closes.
-    readonly property real pageScale: visible ? 1 - 0.04 * arrival : 1
+    readonly property real pageScale: visible ? 1 - 0.04 * arrival * (1 - keep) : 1
 
     signal closed
     signal openAsTabRequested
+    // The panel is the page area: the engine is the tab's to take.
+    signal kept
 
     // A page's Glance stands the page area's full height between margins wide
     // enough that the page beneath is seen either side, so the panel reads as
@@ -107,6 +116,42 @@ FocusScope {
         return a + (b - a) * arrival;
     }
 
+    function toPage(value, page) {
+        return value + (page - value) * keep;
+    }
+
+    // Grows into the page area and says so, or says so at once with motion
+    // off, which makes keeping a cut.
+    function keepAsTab() {
+        if (root.keeping)
+            return;
+        if (!root.ease) {
+            root.kept();
+            return;
+        }
+        root.keeping = true;
+        keepEase.restart();
+    }
+
+    // The page is the tab's and drawn by it, so the Glance can go.
+    function settle() {
+        keepEase.stop();
+        root.keeping = false;
+        root.keep = 0;
+    }
+
+    // As quick as the arrival, so keeping reads as the arrival carried on.
+    NumberAnimation {
+        id: keepEase
+        target: root
+        property: "keep"
+        from: 0
+        to: 1
+        duration: 180
+        easing.type: Easing.OutCubic
+        onFinished: root.kept()
+    }
+
     NumberAnimation {
         id: arrivalEase
         target: root
@@ -130,7 +175,8 @@ FocusScope {
     }
 
     // Drawn for the length of the retreat.
-    visible: open || leaving
+    // Drawn while the tab takes the page over, too.
+    visible: open || leaving || keeping
     focus: root.open
 
     onOpenChanged: {
@@ -147,7 +193,8 @@ FocusScope {
             return;
         }
         arrivalEase.stop();
-        if (!ease) {
+        // A kept Glance does not go back into its link: it is the tab now.
+        if (!ease || keeping) {
             arrival = 1;
             return;
         }
@@ -183,7 +230,7 @@ FocusScope {
         objectName: "glanceDim"
         anchors.fill: parent
         color: "black"
-        opacity: 0.45 * root.arrival
+        opacity: 0.45 * root.arrival * (1 - root.keep)
 
         MouseArea {
             anchors.fill: parent
@@ -198,17 +245,19 @@ FocusScope {
     Rectangle {
         id: panel
         objectName: "glancePanel"
-        x: root.lerp(root.fromX, root.restX)
-        y: root.lerp(root.fromY, root.restY)
-        width: root.lerp(root.fromWidth, root.restWidth)
-        height: root.lerp(root.fromHeight, root.restHeight)
+        x: root.toPage(root.lerp(root.fromX, root.restX), 0)
+        y: root.toPage(root.lerp(root.fromY, root.restY), 0)
+        width: root.toPage(root.lerp(root.fromWidth, root.restWidth), root.width)
+        height: root.toPage(root.lerp(root.fromHeight, root.restHeight), root.height)
         opacity: root.fromOrigin ? 1 : root.arrival
-        radius: 3
-        color: panelDither.fill
+        radius: 3 * (1 - root.keep)
+        // Clear once the tab has the engine, so its page shows through until
+        // the Glance goes.
+        color: root.keeping && !root.engine ? "transparent" : panelDither.fill
         // One logical pixel, rounded to whole pixels of the display, so the
         // page inside it starts on one.
         border.width: DevicePixels.snap(1, root.pixelRatio)
-        border.color: root.colors.accent
+        border.color: Qt.alpha(root.colors.accent, 1 - root.keep)
         clip: true
 
         GroundDither {
@@ -228,11 +277,13 @@ FocusScope {
         Rectangle {
             id: pageHost
             objectName: "glancePageHost"
-            x: panel.border.width
-            y: panel.border.width
-            width: root.restWidth - 2 * panel.border.width
-            height: root.restHeight - 2 * panel.border.width
-            color: root.colors.windowOpaque
+            x: panel.border.width * (1 - root.keep)
+            y: panel.border.width * (1 - root.keep)
+            // Laid out once at the page area's size as keeping starts, and
+            // revealed by the panel as it grows, as the arrival reveals it.
+            width: root.keeping ? root.width : root.restWidth - 2 * panel.border.width
+            height: root.keeping ? root.height : root.restHeight - 2 * panel.border.width
+            color: root.keeping && !root.engine ? "transparent" : root.colors.windowOpaque
             clip: true
         }
     }
@@ -249,7 +300,8 @@ FocusScope {
         color: buttonsDither.fill
         border.width: DevicePixels.snap(1, root.pixelRatio)
         border.color: root.colors.separator
-        opacity: root.arrival
+        // Gone early in the keeping, as the head of a page that is a tab now.
+        opacity: root.arrival * (1 - Math.min(1, 3 * root.keep))
 
         GroundDither {
             id: buttonsDither
