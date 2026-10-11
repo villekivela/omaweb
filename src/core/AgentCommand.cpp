@@ -593,6 +593,9 @@ namespace {
         {"console", "read the page's console"},
         {"mcp", "serve the verbs to an MCP client over stdio"},
         {"dev", "open the folder it runs in as a project Space"},
+#ifdef OMAWEB_FILM_HOOKS
+        {"film-hover", "hold a Space's name on show for the introductory film"},
+#endif
     };
 
     QString overview()
@@ -694,6 +697,14 @@ bool isAgentCommand(const QStringList &arguments)
 {
     const auto verb = agentVerbIndex(arguments);
     return verb < arguments.size() && isVerb(arguments.at(verb));
+}
+
+QStringList agentVerbNames()
+{
+    auto names = verbs().values();
+    names.append(QStringLiteral("mcp"));
+    names.sort();
+    return names;
 }
 
 bool isAgentHelpCommand(const QStringList &arguments)

@@ -34,6 +34,9 @@ struct AgentHelp {
     int status = 0;
 };
 
+// Every verb the CLI takes, `mcp` included, as the parser knows them, sorted.
+QStringList agentVerbNames();
+
 // Whether a command line asks for help rather than for the browser.
 bool isAgentHelpCommand(const QStringList &arguments);
 

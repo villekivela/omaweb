@@ -741,12 +741,11 @@ void AgentCommandTest::answersHelpWithTheVerbsAndHowToLaunch()
     QVERIFY(!isAgentCommand(arguments));
     const auto help = readAgentHelp(arguments);
     QCOMPARE(help.status, 0);
-    for (const auto verb : {"spaces", "tabs", "open", "close", "space", "look", "read", "do",
-             "shot", "eval", "console", "commands", "run", "focus", "dev", "mcp"}) {
-        QVERIFY2(
-            help.text.contains(QRegularExpression(QStringLiteral("^  %1 ").arg(QLatin1String(verb)),
-                QRegularExpression::MultilineOption)),
-            verb);
+    // Every verb the parser takes has its line, so a new one cannot ship unlisted.
+    for (const auto &verb : omaweb::agentVerbNames()) {
+        QVERIFY2(help.text.contains(QRegularExpression(
+                     QStringLiteral("^  %1 ").arg(verb), QRegularExpression::MultilineOption)),
+            qPrintable(verb));
     }
     QVERIFY(help.text.contains(QStringLiteral("omaweb [address]")));
     QVERIFY(help.text.contains(QStringLiteral("omaweb help <verb>")));
@@ -800,9 +799,8 @@ void AgentCommandTest::listsTheOptionsOfAVerbFromItsGrammar()
 void AgentCommandTest::helpsEveryVerbTheCliTakes_data()
 {
     QTest::addColumn<QString>("verb");
-    for (const auto verb : {"spaces", "tabs", "open", "close", "space", "look", "read", "do",
-             "shot", "eval", "console", "commands", "run", "focus", "dev", "mcp"}) {
-        QTest::newRow(verb) << QString::fromLatin1(verb);
+    for (const auto &verb : omaweb::agentVerbNames()) {
+        QTest::newRow(qPrintable(verb)) << verb;
     }
 }
 
