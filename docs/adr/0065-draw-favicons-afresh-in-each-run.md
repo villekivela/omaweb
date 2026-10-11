@@ -23,11 +23,19 @@ Removing it only when the scheme differs from the last run's would keep the engi
 longer. That would need a record of the scheme each run started under. Every run starting without
 the database is simpler, and it also takes the page addresses with it.
 
-A theme changed while Omaweb runs still leaves the icons drawn before the change until the next
-start. The engine draws an icon once per address while it runs, a reload does not draw it again for
-the view on show, and the image provider answers an address from the first view that holds it.
-Drawing again when the scheme changes takes a patch to the engine's favicon driver (#700). Omaweb's
-own copy of a page's icon is replaced when the page next reports one, so a tab whose page has not
-loaded in this run, and an Omnibar row, draw the earlier copy until then.
+## When the theme changes while Omaweb runs
+
+Omaweb tells the engine the scheme of its own theme, and a theme changed while it runs changes it
+(#346). The engine draws an icon once per address while it runs, so before #700 a page on show kept
+the icon drawn under the earlier scheme until the next start.
+
+A patch in the engine series now follows the change. The engine tells every page on show the new
+scheme, marks every drawing the profile keeps out of date, as a reload does for one page, and has
+each page on show draw its icon again under the new scheme. The page reports no icon and then the
+same address, and Omaweb's tab draws the new drawing rather than one it cached, and stores it
+([ADR 0055](0055-keep-favicons-in-the-space-that-loaded-them.md)). A page not on show draws its icon
+afresh on its next visit, showing the earlier drawing until the new one arrives, as it does after a
+reload. A tab whose page has not loaded in this run, and an Omnibar row, draw the copy the Space
+keeps until then. An engine without the patch keeps the behaviour before #700.
 
 See #698.
