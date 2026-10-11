@@ -4373,12 +4373,17 @@ struct FormHistoryView {
         QMetaObject::invokeMethod(webView, "runJavaScript", Q_ARG(QString, script));
     }
 
+    static QString fieldSelector(const QString &id)
+    {
+        return QStringLiteral("#%1, [data-field=%1]").arg(id);
+    }
+
     // Focuses a field afresh, as the reader's Tab would.
     void focus(const QString &id)
     {
         run(QStringLiteral("document.activeElement && document.activeElement.blur();"
-                           "document.querySelector('#%1, [data-field=%1]').focus();")
-                .arg(id));
+                           "document.querySelector('%1').focus();")
+                .arg(fieldSelector(id)));
     }
 
     // Keys the reader presses, which is what makes a value theirs.
@@ -4391,63 +4396,55 @@ struct FormHistoryView {
 
     QVariantMap field() const { return adapter->property("formField").toMap(); }
 
-    // Types into an empty field and waits until it holds the text. A script
-    // reaches the page by one way and keys by another, and either can overtake
-    // the other: keys pressed before the focus lands, or still on their way when
-    // the next field is focused, end up in another field (#701). So the focus
-    // is read back before the keys, and the value after them.
-    bool typeInto(const QString &id, const QString &text)
-    {
-        ++reads;
-        run(QStringLiteral("document.activeElement && document.activeElement.blur();"
-                           "{ const field = document.querySelector('#%1, [data-field=%1]');"
-                           "field.focus();"
-                           "document.title = JSON.stringify("
-                           "{read: %2, focused: document.activeElement === field}); }")
-                .arg(id)
-                .arg(reads));
-        if (!QTest::qWaitFor(
-                [&] {
-                    const auto read = QJsonDocument::fromJson(
-                        adapter->property("pageTitle").toString().toUtf8())
-                                          .object();
-                    return read.value(QStringLiteral("read")).toInt() == reads
-                        && read.value(QStringLiteral("focused")).toBool();
-                },
-                5000)) {
-            return false;
-        }
-        type(text);
-        return QTest::qWaitFor(
-            [&] {
-                return values(QStringLiteral("#%1, [data-field=%1]").arg(id)).value(id).toString()
-                    == text;
-            },
-            5000);
-    }
-
     int reads = 0;
 
-    // What the page holds in each field, by id, read back through its title.
-    QVariantMap values(const QString &selector)
+    // What a page expression comes to, read back through the page's title.
+    QJsonValue read(const QString &expression)
     {
         // The title holds whatever was last written there until the script
         // runs, so each read is numbered.
         ++reads;
-        run(QStringLiteral("document.title = JSON.stringify({read: %2, values: Object.fromEntries("
-                           "[...document.querySelectorAll('%1')]"
-                           ".map(e => [e.id || e.dataset.field, e.value]))});")
-                .arg(selector)
-                .arg(reads));
-        QJsonObject read;
+        run(QStringLiteral("document.title = JSON.stringify({read: %1, value: %2});")
+                .arg(QString::number(reads), expression));
+        QJsonObject answer;
         static_cast<void>(QTest::qWaitFor(
             [&] {
-                read = QJsonDocument::fromJson(adapter->property("pageTitle").toString().toUtf8())
-                           .object();
-                return read.value(QStringLiteral("read")).toInt() == reads;
+                answer = QJsonDocument::fromJson(adapter->property("pageTitle").toString().toUtf8())
+                             .object();
+                return answer.value(QStringLiteral("read")).toInt() == reads;
             },
             5000));
-        return read.value(QStringLiteral("values")).toObject().toVariantMap();
+        return answer.value(QStringLiteral("value"));
+    }
+
+    // What the page holds in each field, by id.
+    QVariantMap values(const QString &selector)
+    {
+        return read(QStringLiteral("Object.fromEntries([...document.querySelectorAll('%1')]"
+                                   ".map(e => [e.id || e.dataset.field, e.value]))")
+                        .arg(selector))
+            .toObject()
+            .toVariantMap();
+    }
+
+    // Types into an empty field and waits until it holds the text. A script
+    // reaches the page by one way and keys by another, and either can overtake
+    // the other: keys pressed before the focus lands, or still on their way when
+    // the next field is focused, end up in another field (#701). So the focus
+    // is read back before the keys, and the value after them. The focus is read
+    // from the page rather than from field(), which reports only a field form
+    // history may keep.
+    bool typeInto(const QString &id, const QString &text)
+    {
+        focus(id);
+        if (!read(QStringLiteral("document.activeElement === document.querySelector('%1')")
+                      .arg(fieldSelector(id)))
+                .toBool()) {
+            return false;
+        }
+        type(text);
+        return QTest::qWaitFor(
+            [&] { return values(fieldSelector(id)).value(id).toString() == text; }, 5000);
     }
 };
 
