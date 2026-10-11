@@ -769,6 +769,10 @@ Rectangle {
     }
 
     color: sidebarDither.fill
+    // The sidebar meets the page with no edge of its own. Said, because an
+    // unset border still reads as a pixel wide, and the dither would start its
+    // ground inside it and leave the desktop showing down the seam.
+    border.width: 0
     clip: true
 
     GroundDither {
@@ -788,16 +792,6 @@ Rectangle {
         function onModelReset() {
             root.pinnedCount = root.browser.pinnedTabs.rowCount();
         }
-    }
-
-    // The seam down the sidebar is a divider rather than a frame, so it is
-    // drawn as the bar draws one, on the edge that meets the page.
-    Rectangle {
-        objectName: "sidebarDivider"
-        x: root.onRight ? 0 : parent.width - width
-        width: 1
-        height: parent.height
-        color: root.colors.separator
     }
 
     Column {

@@ -1492,6 +1492,12 @@ TestCase {
         verify(dither.shader !== null);
         compare(sidebar.color, Qt.rgba(0, 0, 0, 0));
         fuzzyCompare(dither.shader.premultiplied.w, themes, 0.003);
+        // The ground reaches the sidebar's edges: a pixel short of the one
+        // meeting the page left the desktop showing down the seam (#704).
+        compare(dither.x, 0);
+        compare(dither.y, 0);
+        compare(dither.width, sidebar.width);
+        compare(dither.height, sidebar.height);
 
         sidebarOpacity.set(1.0);
         tryVerify(function () {
@@ -14900,9 +14906,10 @@ TestCase {
     }
 
     // On the right the sidebar is the left one turned round: the page starts at
-    // the window's left edge and ends on the seam, the divider and the handle
-    // stand on the sidebar's inner edge, and every way of resizing reads the
-    // width from the right edge.
+    // the window's left edge and ends on the seam, the handle stands on the
+    // sidebar's inner edge, and every way of resizing reads the width from the
+    // right edge. The sidebar meets the page with no divider between them
+    // (#704).
     function test_aRightSidebarResizesFromItsInnerEdge() {
         window.requestActivate();
         tryVerify(function () {
@@ -14912,8 +14919,7 @@ TestCase {
         const sidebar = findChild(window.contentItem, "sidebar");
         const viewport = findChild(window.contentItem, "engineViewport");
         const resizer = findChild(window.contentItem, "sidebarResizer");
-        const divider = findChild(sidebar, "sidebarDivider");
-        verify(divider !== null);
+        compare(findChild(sidebar, "sidebarDivider"), null);
         const row = window.contentItem.width;
         const restsAt = function (width) {
             return Math.round(sidebar.x) === row - width && Math.round(viewport.x) === 0
@@ -14923,7 +14929,6 @@ TestCase {
             return restsAt(window.sidebarDefaultWidth);
         });
         compare(Math.round(resizer.x + resizer.width / 2), Math.round(sidebar.x));
-        compare(Math.round(divider.mapToItem(window.contentItem, 0, 0).x), Math.round(sidebar.x));
         // The Space notice stands over the middle of the page, not of the window.
         const notice = findChild(window.contentItem, "spaceNotice");
         verify(Math.abs(notice.x + notice.width / 2 - (row - window.sidebarDefaultWidth) / 2) <= 1);
