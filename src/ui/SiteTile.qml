@@ -94,9 +94,11 @@ Rectangle {
         width: parent.width
         height: width
         source: root.useArtwork ? root.iconUrl : ""
-        // A stored favicon changes under the same address as the Space records
-        // or deletes one, so it is asked for afresh rather than cached.
-        cache: !String(root.iconUrl).startsWith("image://omaweb-favicon/")
+        // A favicon can change under the address it had: a stored one as the
+        // Space records or deletes it, and a page's own when the engine draws
+        // it again for a new colour scheme (#700). So it is asked for afresh
+        // rather than cached.
+        cache: false
         sourceSize.width: 32
         sourceSize.height: 32
         fillMode: Image.PreserveAspectFit

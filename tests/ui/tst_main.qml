@@ -14748,6 +14748,44 @@ TestCase {
         engineLoader.item.pageIconUrl = "";
     }
 
+    // A page can draw its icon again at the address it had, as one that
+    // follows the colour scheme does when the theme changes (#700). It reports
+    // no icon and then the same address, and the tab draws what is there now
+    // rather than what it drew before.
+    function test_tabDrawsAnIconRedrawnAtItsAddress() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        verify(engineLoader !== null);
+        openPage("https://redrawn.example");
+        const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
+        verify(tile !== null);
+        // The window's pixels, because a grab of the tile alone leaves out the
+        // artwork drawn inside it.
+        const shown = function () {
+            const centre = tile.mapToItem(window.contentItem, tile.width / 2, tile.height / 2);
+            return grabImage(window.contentItem).pixel(Math.round(centre.x), Math.round(centre.y));
+        };
+
+        imageProbe.directory("redrawn");
+        const icon = imageProbe.favicon("redrawn/icon.png", "#d04040");
+        engineLoader.item.pageIconUrl = icon;
+        tryCompare(tile, "iconUrl", icon);
+        tryVerify(function () {
+            return Qt.colorEqual(shown(), "#d04040");
+        });
+
+        compare(imageProbe.favicon("redrawn/icon.png", "#2f5ce6"), icon);
+        engineLoader.item.pageIconUrl = "";
+        tryVerify(function () {
+            return String(tile.iconUrl) !== String(icon);
+        });
+        engineLoader.item.pageIconUrl = icon;
+        tryCompare(tile, "iconUrl", icon);
+        tryVerify(function () {
+            return Qt.colorEqual(shown(), "#2f5ce6");
+        });
+        engineLoader.item.pageIconUrl = "";
+    }
+
     function test_tabArtworkSettingsAreLiveAndSaved() {
         const useFavicons = findChild(window.contentItem, "useFavicons");
         const tintFavicons = findChild(window.contentItem, "tintFavicons");

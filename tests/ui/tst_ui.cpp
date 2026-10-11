@@ -207,6 +207,20 @@ public:
     }
 };
 
+// A favicon on disk for the tests that check what colour a site's chip takes.
+// A mark on a transparent plate is the shape a real favicon has.
+QUrl writeFavicon(const QString &path, const QColor &mark)
+{
+    QImage icon(32, 32, QImage::Format_ARGB32);
+    icon.fill(Qt::transparent);
+    QPainter painter(&icon);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(mark);
+    painter.drawRect(6, 6, 20, 20);
+    painter.end();
+    return icon.save(path) ? QUrl::fromLocalFile(path) : QUrl {};
+}
+
 // What a test needs to read an image the browser wrote: its size, one pixel,
 // and the files in a directory of the harness's own.
 class ImageProbe final : public QObject {
@@ -232,6 +246,12 @@ public:
     Q_INVOKABLE QColor pixel(const QString &path, int x, int y) const
     {
         return QImage(path).pixelColor(x, y);
+    }
+    // Writes a favicon of one colour under the harness's own directory and
+    // answers its address, the same each time the name is.
+    Q_INVOKABLE QUrl favicon(const QString &name, const QColor &mark) const
+    {
+        return writeFavicon(QDir(m_root).filePath(name), mark);
     }
 
 private:
@@ -404,20 +424,6 @@ private:
     omaweb::AgentControl &m_control;
     QVariantList m_replies;
 };
-
-// A favicon on disk for the tests that check what colour a site's chip takes.
-// A mark on a transparent plate is the shape a real favicon has.
-QUrl writeFavicon(const QString &path, const QColor &mark)
-{
-    QImage icon(32, 32, QImage::Format_ARGB32);
-    icon.fill(Qt::transparent);
-    QPainter painter(&icon);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(mark);
-    painter.drawRect(6, 6, 20, 20);
-    painter.end();
-    return icon.save(path) ? QUrl::fromLocalFile(path) : QUrl {};
-}
 
 } // namespace
 
