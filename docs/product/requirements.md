@@ -308,10 +308,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   do not carry it, and the address trigger, find bar, prompt bars and page commands keep answering
   for the tab beneath. It ends with `Escape`, its close button, a click outside its panel, the
   close-tab command, and anything that changes the tab on show: a tab or Space switch, the tab
-  closing, settings or history opening. `Primary+Shift+Return` or the head's button makes it an
-  ordinary tab after the tab it stood over, keeping its engine and so its history, scroll and form
-  state. A new-tab request from inside a Glance opens a tab, which ends the Glance; a second request
-  from the page beneath replaces it. Settings' interface section turns the Glance off, locally.
+  closing, settings or history opening. `Primary+Shift+Return` or the Open as tab button beside it
+  makes it an ordinary tab after the tab it stood over, keeping its engine and so its history,
+  scroll and form state. A new-tab request from inside a Glance opens a tab, which ends the Glance;
+  a second request from the page beneath replaces it. Settings' interface section turns the Glance
+  off, locally.
 - The Shortcut sheet lists the browser commands and the keys that run them, read from the live
   keymap so it cannot promise a key the window does not answer. The Keyboard shortcuts command
   summons it, from the Omnibar or with `Primary+/` and `?`, over a page or over the Start page,
