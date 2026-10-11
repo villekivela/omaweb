@@ -699,13 +699,10 @@ Item {
     // new popped-out tab's, or a new tab's in a Space that is away. Nothing is
     // reported now. An engine still blank while a request is handed to it
     // would read as the tab losing its address, and the tab's Tab window or
-    // row reports the page once it has one. The engine is told the page is a
-    // tab's: a kept Glance's page now, and a request's again once the engine
-    // has taken it.
+    // row reports the page once it has one.
     function adoptTabWindowEngine(tabId, engine, spaceId) {
         engine.visible = false;
         root.registerEngine(tabId, engine, spaceId);
-        engine.showAsTab();
     }
 
     function buildEngine(parent, tabUrl, spaceId, profilePath, sharedProfile, takesFocus) {

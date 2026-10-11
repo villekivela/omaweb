@@ -1007,10 +1007,10 @@ Rectangle {
     // request it held then, so a test can tell the page was a tab's only
     // once it had taken the request.
     property bool shownAsTab: false
-    property var requestShownAsTab: null
+    property var requestHeldWhenShownAsTab: null
     function showAsTab() {
         root.shownAsTab = true;
-        root.requestShownAsTab = root.acceptedRequest;
+        root.requestHeldWhenShownAsTab = root.acceptedRequest;
     }
     function simulateAudible(audible) {
         root.pageAudible = audible;

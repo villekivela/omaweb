@@ -5930,7 +5930,7 @@ TestCase {
         }
         verify(openedTabId.length > 0);
         const openedEngine = engineLoader.engines[openedTabId];
-        compare(openedEngine.requestShownAsTab, openedEngine.acceptedRequest);
+        compare(openedEngine.requestHeldWhenShownAsTab, openedEngine.acceptedRequest);
         compare(browser.activeSpaceId, kept.awaySpaceId);
         compare(browser.activeTabId, kept.awayTabId);
         compare(browser.tabs.rowCount(), kept.awayTabCount);
@@ -9015,7 +9015,7 @@ TestCase {
         // The page that took the request is a tab's, and the engine is told
         // so once it holds the page (#694).
         verify(openedEngine.acceptedRequest !== null);
-        compare(openedEngine.requestShownAsTab, openedEngine.acceptedRequest);
+        compare(openedEngine.requestHeldWhenShownAsTab, openedEngine.acceptedRequest);
 
         openedEngine.currentUrl = "";
         compare(browser.activeUrl.toString(), "https://opened.example/page");
@@ -16512,7 +16512,7 @@ TestCase {
         // The page took the request itself, so what opened it can reach it.
         verify(opened.engine.acceptedRequest !== null);
         compare(String(opened.engine.acceptedRequest.requestedUrl), "https://asked-for.example/");
-        compare(opened.engine.requestShownAsTab, opened.engine.acceptedRequest);
+        compare(opened.engine.requestHeldWhenShownAsTab, opened.engine.acceptedRequest);
         compare(opened.engine.browserProfile, engine.browserProfile);
         compare(tabWindow.glanceEngine, null);
         compare(browser.activeTabId, readingTabId);
