@@ -9187,6 +9187,44 @@ TestCase {
         browser.closeTab(keptTabId);
     }
 
+    // With motion off, keeping a Glance is a cut (#704): in one frame the
+    // panel is gone, the page beneath has stepped forward again, and the
+    // Glance's page is the tab on show, listed right after the tab it came
+    // from rather than at the end of the list, with its engine.
+    function test_aKeptGlanceIsTheTabAfterItsOpener() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        SystemMotion.reduced = true;
+        const opener = openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        openPageInNewTab("https://later.example");
+        const laterTabId = browser.activeTabId;
+        browser.activateTab(openerTabId);
+        tryVerify(function () {
+            return engineLoader.item === opener;
+        });
+        const glance = openGlance("https://kept-after.example/page");
+        const engine = window.glanceEngine;
+        const openerAt = browser.tabSectionIndex(openerTabId);
+        try {
+            verify(window.commands.run("glance-to-tab", -1));
+            const keptTabId = browser.activeTabId;
+            verify(keptTabId !== openerTabId);
+            compare(browser.tabSectionIndex(keptTabId), openerAt + 1);
+            compare(browser.tabSectionIndex(laterTabId), openerAt + 2);
+            compare(engineLoader.engines[keptTabId], engine);
+            compare(window.glanceEngine, null);
+            verify(!glance.visible);
+            compare(engineLoader.scale, 1);
+            tryVerify(function () {
+                return engineLoader.item === engine;
+            });
+            browser.closeTab(keptTabId);
+        } finally {
+            SystemMotion.reduced = false;
+            browser.closeTab(laterTabId);
+        }
+    }
+
     // The close-tab key closes what is in front, which is the Glance, and the
     // tab it stood over is untouched. Every other way the tab on show changes
     // ends the Glance too: a tab switch, a Space switch, and a sheet taking the

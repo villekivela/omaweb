@@ -1205,11 +1205,32 @@ ApplicationWindow {
         const engine = window.glanceEngine;
         if (!engine)
             return;
+        const openerId = window.glanceTabId;
         window.refuseRequestsFrom(engine);
         window.glanceEngine = null;
         window.glanceTabId = "";
         window.windowBrowser.openInput("about:blank", true);
-        engineLoader.adoptEngine(window.windowBrowser.activeTabId, engine);
+        const tabId = window.windowBrowser.activeTabId;
+        window.placeAfterOpener(tabId, openerId);
+        engineLoader.adoptEngine(tabId, engine);
+    }
+
+    // A kept Glance's tab stands right after the tab it came from, where the
+    // reader was reading, rather than at the end of the list. A split's two
+    // halves stand together, so it goes after both; a pin's place is among the
+    // pins, so a pin's Glance heads the list instead.
+    function placeAfterOpener(tabId, openerId) {
+        const browser = window.windowBrowser;
+        if (openerId === "" || browser.tabSectionIndex(openerId) < 0)
+            return;
+        if (browser.tabPinned(openerId)) {
+            browser.moveTab(tabId, 0);
+            return;
+        }
+        let after = browser.tabSectionIndex(openerId);
+        if (browser.tabInSplit(openerId) && browser.tabBesideId !== "")
+            after = Math.max(after, browser.tabSectionIndex(browser.tabBesideId));
+        browser.moveTab(tabId, after + 1);
     }
 
     // A question an engine asked is dropped with the engine: a bar left
