@@ -413,10 +413,6 @@ Rectangle {
     property real settledTabY: -1
     property real tabOffsetX: 0
     property real tabOffsetY: 0
-    // PROTOTYPE #704: the Glance keep motion drives the page's nudge itself.
-    property bool prototypeHoldArrival: false
-    // PROTOTYPE #704: variant D has the sidebar meet the page with no divider.
-    property bool prototypeHideDivider: false
     // The row of the tab beside, while a split is on show. A pane arriving
     // beside the page on show comes from this row, the way a page arrives
     // from its own.
@@ -513,7 +509,7 @@ Rectangle {
         settledTabId = row.tabId;
         settledTabX = at.x;
         settledTabY = at.y;
-        if (!easeSpaces || arriving || fromY < 0 || focusMoved || prototypeHoldArrival)
+        if (!easeSpaces || arriving || fromY < 0 || focusMoved)
             return;
         activeArriving = true;
         Qt.callLater(function () {
@@ -773,10 +769,6 @@ Rectangle {
     }
 
     color: sidebarDither.fill
-    // No border of its own: the divider is drawn beside it. Said, because an
-    // unset border still reads as one pixel wide, and the dither starts its
-    // ground inside it, which left the sidebar's edges a pixel short.
-    border.width: 0
     clip: true
 
     GroundDither {
@@ -802,7 +794,6 @@ Rectangle {
     // drawn as the bar draws one, on the edge that meets the page.
     Rectangle {
         objectName: "sidebarDivider"
-        visible: !root.prototypeHideDivider
         x: root.onRight ? 0 : parent.width - width
         width: 1
         height: parent.height

@@ -43,23 +43,10 @@ FocusScope {
     // 0 at the origin, 1 at rest.
     property real arrival: 1
     property bool leaving: false
-    // PROTOTYPE #704: the keep-as-tab motion, driven by Main.qml's clock.
-    // `keep` is 0 at rest and 1 at the page area; `dissolve` fades the frame
-    // away from a page that is already the tab's; `keepPulse` scales the panel.
-    property bool keeping: false
-    property real keep: 0
-    property real dissolve: 0
-    property real keepPulse: 1
-    function toPage(value, page) {
-        return value + (page - value) * keep;
-    }
     readonly property bool fromOrigin: origin.width > 0
 
-    // PROTOTYPE #704: the title stays while the frame dissolves off the tab.
-    property string keptTitle: ""
     readonly property string pageTitle: root.engine && root.engine.pageTitle.length > 0
-                                        ? root.engine.pageTitle : root.keeping && keptTitle !== ""
-                                          ? keptTitle : qsTr("Glance")
+                                        ? root.engine.pageTitle : qsTr("Glance")
     readonly property string pageAddress: root.engine ? String(root.engine.currentUrl) : ""
     // Where the engine goes, for the window to parent it into.
     readonly property alias pageHost: pageHost
@@ -83,25 +70,18 @@ FocusScope {
     // The head sits above the page, so a panel asked for a page's room is that
     // much taller.
     readonly property real chrome: 38 + 2
-    // PROTOTYPE #704, variant D: Zen's Glance. No head; the panel stands the
-    // page area's full height between wide side margins, the page it came from
-    // scaled back and dimmed behind it, and its buttons float beside it.
-    property bool zenRest: false
-    readonly property real sideInset: zenRest ? DevicePixels.snap(width * 0.12, pixelRatio) : inset
-    readonly property real topInset: zenRest ? 0 : inset
     readonly property real restWidth: root.preferredSize.width > 0 ? Math.min(
                                                                          root.preferredSize.width,
                                                                          Math.max(0, width - 2
                                                                                   * inset)) :
-                                                                     Math.max(0, width - 2
-                                                                              * sideInset)
+                                                                     Math.max(0, width - 2 * inset)
     readonly property real restHeight: root.preferredSize.height > 0 ? Math.min(
                                                                            root.preferredSize.height
                                                                            + root.chrome, Math.max(0,
                                                                                                    height - 2
                                                                                                    * inset)) :
                                                                        Math.max(0, height - 2
-                                                                                * topInset)
+                                                                                * inset)
     // A panel the size of the page area sits where the page would. One the
     // size of a popup stands in the middle of it, because a small panel pinned
     // to a corner reads as something that slipped rather than something that
@@ -110,15 +90,15 @@ FocusScope {
     // rounds the other way, which splits the page along its diagonal.
     readonly property real restX: root.preferredSize.width > 0 ? root.centred(width,
                                                                               root.restWidth) :
-                                                                 root.sideInset
+                                                                 root.inset
     readonly property real restY: root.preferredSize.height > 0 ? root.centred(height,
                                                                                root.restHeight) :
-                                                                  root.topInset
+                                                                  root.inset
 
     // Where the panel starts and ends: the link, or its own place a sheet's
     // lift below.
-    readonly property real fromX: fromOrigin ? origin.x : restX
-    readonly property real fromY: fromOrigin ? origin.y : restY + 24
+    readonly property real fromX: fromOrigin ? origin.x : inset
+    readonly property real fromY: fromOrigin ? origin.y : inset + 24
     readonly property real fromWidth: fromOrigin ? origin.width : restWidth
     readonly property real fromHeight: fromOrigin ? origin.height : restHeight
 
@@ -153,7 +133,7 @@ FocusScope {
     }
 
     // Drawn for the length of the retreat.
-    visible: open || leaving || keeping
+    visible: open || leaving
     focus: root.open
 
     onOpenChanged: {
@@ -170,7 +150,7 @@ FocusScope {
             return;
         }
         arrivalEase.stop();
-        if (!ease || keeping) {
+        if (!ease) {
             arrival = 1;
             return;
         }
@@ -206,20 +186,7 @@ FocusScope {
         anchors.fill: parent
         source: root.pageSource
         tint: root.colors.sheet
-        opacity: root.zenRest ? 0 : root.arrival * (1 - root.keep) * (1 - root.dissolve)
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.closed()
-        }
-    }
-
-    // PROTOTYPE #704, variant D: the page beneath is dimmed, not blurred.
-    Rectangle {
-        anchors.fill: parent
-        visible: root.zenRest
-        color: "black"
-        opacity: 0.45 * root.arrival * (1 - root.keep)
+        opacity: root.arrival
 
         MouseArea {
             anchors.fill: parent
@@ -234,24 +201,17 @@ FocusScope {
     Rectangle {
         id: panel
         objectName: "glancePanel"
-        x: root.toPage(root.lerp(root.fromX, root.restX), 0)
-        y: root.toPage(root.lerp(root.fromY, root.restY), 0)
-        width: root.toPage(root.lerp(root.fromWidth, root.restWidth), root.width)
-        height: root.toPage(root.lerp(root.fromHeight, root.restHeight), root.height)
+        x: root.lerp(root.fromX, root.restX)
+        y: root.lerp(root.fromY, root.restY)
+        width: root.lerp(root.fromWidth, root.restWidth)
+        height: root.lerp(root.fromHeight, root.restHeight)
         opacity: root.fromOrigin ? 1 : root.arrival
-        // PROTOTYPE #704: the pulse widens the panel, never heightens it.
-        transform: Scale {
-            origin.x: panel.width / 2
-            xScale: root.keepPulse
-        }
-        radius: 3 * (1 - root.keep)
-        color: root.keeping && !root.engine ? "transparent" : panelDither.fill
+        radius: 3
+        color: panelDither.fill
         // One logical pixel, rounded to whole pixels of the display, so the
         // page inside it starts on one.
         border.width: DevicePixels.snap(1, root.pixelRatio)
-        border.color: Qt.rgba(root.colors.accent.r, root.colors.accent.g, root.colors.accent.b, (1
-                                                                                                 - root.keep)
-                              * (1 - root.dissolve))
+        border.color: root.colors.accent
         clip: true
 
         GroundDither {
@@ -266,10 +226,8 @@ FocusScope {
 
         Item {
             id: head
-            visible: !root.zenRest
             x: panel.border.width
-            y: panel.border.width - 39 * root.keep - 10 * root.dissolve
-            opacity: 1 - root.dissolve
+            y: panel.border.width
             width: root.restWidth - 2 * panel.border.width
             height: 38
 
@@ -365,65 +323,12 @@ FocusScope {
         Rectangle {
             id: pageHost
             objectName: "glancePageHost"
-            x: panel.border.width * (1 - root.keep)
-            y: root.zenRest ? panel.border.width * (1 - root.keep) : root.keeping ? (panel.border.width
-                                                                                     + 38) * (1
-                                                                                              - root.keep) :
-                                                                                    DevicePixels.snap(
-                                                                                        head.y + head.height,
-                                                                                        root.pixelRatio)
-            // PROTOTYPE #704: the page is laid out once at the page area's size
-            // as the motion starts, and the growing panel reveals it.
-            width: root.keeping ? root.width : head.width
-            height: root.keeping ? root.height : root.restHeight - y - panel.border.width
-            color: root.keeping && !root.engine ? "transparent" : root.colors.windowOpaque
+            x: panel.border.width
+            y: DevicePixels.snap(head.y + head.height, root.pixelRatio)
+            width: head.width
+            height: root.restHeight - y - panel.border.width
+            color: root.colors.windowOpaque
             clip: true
-        }
-    }
-
-    // PROTOTYPE #704, variant D: the Glance's buttons, beside the panel rather
-    // than in a head, gone as it grows into the tab.
-    Rectangle {
-        visible: root.zenRest && root.keep < 1
-        x: panel.x + panel.width + 8
-        y: panel.y + 8
-        width: zenButtons.implicitWidth + 8
-        height: zenButtons.implicitHeight + 8
-        radius: width / 2
-        color: root.colors.overlay
-        border.width: 1
-        border.color: root.colors.separator
-        opacity: root.arrival * (1 - Math.min(1, root.keep * 3))
-
-        Column {
-            id: zenButtons
-            anchors.centerIn: parent
-            spacing: 4
-
-            ChromeButton {
-                objectName: "zenCloseGlanceButton"
-                width: 30
-                height: 30
-                icon: "close"
-                accessibleName: qsTr("Close Glance")
-                fontFamily: root.iconFontFamily
-                foreground: root.colors.mutedText
-                accent: root.colors.accent
-                onClicked: root.closed()
-            }
-
-            ChromeButton {
-                objectName: "zenOpenGlanceAsTabButton"
-                visible: root.openAsTabAllowed
-                width: 30
-                height: 30
-                icon: "open_in_new"
-                accessibleName: qsTr("Open as tab")
-                fontFamily: root.iconFontFamily
-                foreground: root.colors.mutedText
-                accent: root.colors.accent
-                onClicked: root.openAsTabRequested()
-            }
         }
     }
 }

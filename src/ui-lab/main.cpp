@@ -1150,35 +1150,6 @@ int main(int argc, char *argv[])
             }
         });
     }
-    // PROTOTYPE #704: `--glance` opens a Glance over the page on show,
-    // `--glance-keep A|B|C` picks how keeping it as a tab moves and shows the
-    // variant switcher, and `--glance-keep-at <ms>` keeps it and holds the
-    // motion at that moment, for a capture.
-    const auto glanceKeepIndex = arguments.indexOf(QStringLiteral("--glance-keep"));
-    const auto glanceKeepAtIndex = arguments.indexOf(QStringLiteral("--glance-keep-at"));
-    if (!engine.rootObjects().isEmpty()) {
-        auto *window = engine.rootObjects().constFirst();
-        if (glanceKeepIndex >= 0 && glanceKeepIndex + 1 < arguments.size()) {
-            window->setProperty("prototypeGlanceKeep", arguments.at(glanceKeepIndex + 1));
-            // A capture is of the Glance, not of the switcher.
-            if (arguments.contains(QStringLiteral("--capture"))) {
-                window->setProperty("prototypeKeepHoldAt", -2);
-            }
-        }
-        if (arguments.contains(QStringLiteral("--glance"))) {
-            QTimer::singleShot(300, window, [window] {
-                QMetaObject::invokeMethod(window, "openGlance", Q_ARG(QVariant, QVariant()),
-                    Q_ARG(QVariant, QUrl(QStringLiteral("https://example.org/glance-prototype"))));
-            });
-        }
-        if (glanceKeepAtIndex >= 0 && glanceKeepAtIndex + 1 < arguments.size()) {
-            const auto at = arguments.at(glanceKeepAtIndex + 1).toInt();
-            QTimer::singleShot(700, window, [window, at] {
-                window->setProperty("prototypeKeepHoldAt", at);
-                QMetaObject::invokeMethod(window, "openGlanceAsTab");
-            });
-        }
-    }
     // `--space-overflow` opens the menu of the Spaces the footer left out, which
     // is a click on its count. Late enough that a compositor has given the
     // window its size: the menu hangs from where the count stands then.
