@@ -1453,9 +1453,9 @@ numbers only when it failed, and GPU is three runs. The sidebar and Space switch
 
 On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to
 35 ms. On the GPU all four are inside the budget. The software rasteriser draws no blur, so the
-Omnibar's glass, the Glance's backdrop and the sidebar's floating shelf are priced only by the GPU
-columns. Take those from a terminal in the session, where the test window opens over the desktop for
-about fifteen seconds:
+Omnibar's glass and the sidebar's floating shelf are priced only by the GPU columns, as the Glance's
+blurred backdrop was when these were measured; it draws none since #704. Take those from a terminal
+in the session, where the test window opens over the desktop for about fifteen seconds:
 
 ```sh
 QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1 build/ci/omaweb-ui-tests \
