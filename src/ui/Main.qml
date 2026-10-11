@@ -3274,6 +3274,8 @@ ApplicationWindow {
 
             SpaceOutline {
                 id: sidebar
+                // PROTOTYPE #704: no divider in variant D.
+                prototypeHideDivider: window.prototypeGlanceKeep === "D"
                 objectName: "sidebar"
                 // A floating outline has to sit above the blur that samples
                 // the composed shell. Reparenting it keeps that sample from
@@ -3488,6 +3490,11 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
+                    // PROTOTYPE #704, variant D: scaled back behind the Glance.
+                    scale: glance.zenRest && glance.visible && !window.keepAdopted ? 1 - 0.04
+                                                                                     * glance.arrival
+                                                                                     * (1 - glance.keep) :
+                                                                                     1
                     // A tab further down the list arrives from below, one
                     // further up from above, and a pin further along the row
                     // from the right, by less than a row: the arriving page
@@ -3797,6 +3804,9 @@ ApplicationWindow {
                     z: 35
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
+                    zenRest: window.prototypeGlanceKeep === "D" && !window.glanceIsExtension
+                    // PROTOTYPE #704: the pulse stays inside the page area.
+                    clip: zenRest
                     open: window.glanceOpen
                     ease: window.chromeEase
                     openAsTabAllowed: !window.glanceIsExtension
@@ -5675,6 +5685,10 @@ ApplicationWindow {
     //      opener, arriving by the list's own nudge; the frame fades in 120 ms.
     property string prototypeGlanceKeep: ""
     property int prototypeKeepHoldAt: -1
+    // Whether A and D pulse once grown, before the panel is the tab.
+    property bool prototypeKeepPulse: false
+    readonly property int keepPulseLength: prototypeKeepPulse ? 250 : 0
+    readonly property int keepAdoptAt: 180 + keepPulseLength
     property real keepClock: -1
     property bool keepAdopted: false
     property string keepOpenerId: ""
@@ -5686,16 +5700,18 @@ ApplicationWindow {
     property real keepChip: -1
     property real keepChipOpacity: 0
     property string keepChipTitle: ""
-    readonly property var keepVariants: ["A", "B", "C"]
+    readonly property var keepVariants: ["A", "B", "C", "D"]
     readonly property var keepNames: ({
                                           "A": "Grow and pulse",
                                           "B": "Head flies to the sidebar",
-                                          "C": "Frame dissolves"
+                                          "C": "Frame dissolves",
+                                          "D": "Zen: full height, page scaled back"
                                       })
     readonly property var keepTotals: ({
                                            "A": 730,
                                            "B": 330,
-                                           "C": 320
+                                           "C": 320,
+                                           "D": 730
                                        })
 
     function keepEase(kind, t, start, length) {
@@ -5735,7 +5751,8 @@ ApplicationWindow {
             }
         }
         window.keepClock = -1;
-        const total = window.keepTotals[window.prototypeGlanceKeep];
+        const total = window.prototypeGlanceKeep === "A" || window.prototypeGlanceKeep === "D"
+              ? window.keepAdoptAt + 300 : window.keepTotals[window.prototypeGlanceKeep];
         if (window.prototypeKeepHoldAt >= 0) {
             const hold = Math.min(window.prototypeKeepHoldAt, total);
             for (let t = 0; t < hold; t += 16)
@@ -5753,12 +5770,15 @@ ApplicationWindow {
 
     function prototypeKeepStep(t) {
         const v = window.prototypeGlanceKeep;
-        if (v === "A") {
+        if (v === "A" || v === "D") {
             glance.keep = keepEase("out", t, 0, 180);
-            glance.keepPulse = 1 + 0.005 * Math.sin(Math.PI * keepEase("linear", t, 180, 250));
-            if (t >= 430)
+            glance.keepPulse = window.prototypeKeepPulse ? 1 + 0.005 * Math.sin(Math.PI * keepEase(
+                                                                                    "linear", t, 180,
+                                                                                    250)) : 1;
+            const adoptAt = window.keepAdoptAt;
+            if (t >= adoptAt)
                 window.keepAdopt(true);
-            window.keepRowWash = t < 430 ? 0 : 0.35 * (1 - keepEase("out", t, 430, 300));
+            window.keepRowWash = t < adoptAt ? 0 : 0.35 * (1 - keepEase("out", t, adoptAt, 300));
         } else if (v === "B") {
             glance.keep = keepEase("out", t, 0, 180);
             if (t >= 180)
@@ -5809,6 +5829,7 @@ ApplicationWindow {
     }
 
     function prototypeKeepEnd() {
+        window.keepAdopted = false;
         glance.keeping = false;
         glance.keep = 0;
         glance.dissolve = 0;
@@ -5839,7 +5860,8 @@ ApplicationWindow {
 
     function prototypeKeepCycle(step) {
         const at = window.keepVariants.indexOf(window.prototypeGlanceKeep);
-        window.prototypeGlanceKeep = window.keepVariants[(at + step + 3) % 3];
+        window.prototypeGlanceKeep = window.keepVariants[(at + step + window.keepVariants.length)
+                                                         % window.keepVariants.length];
     }
 
     NumberAnimation {
@@ -5905,7 +5927,7 @@ ApplicationWindow {
     // variant. Shown by the lab only.
     Rectangle {
         objectName: "prototypeKeepSwitcher"
-        visible: window.prototypeGlanceKeep !== "" && window.prototypeKeepHoldAt < 0
+        visible: window.prototypeGlanceKeep !== "" && window.prototypeKeepHoldAt === -1
         z: 10001
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
@@ -5949,6 +5971,10 @@ ApplicationWindow {
                                                                window.windowBrowser.tabSectionIndex(
                                                                    window.keepTabId)),
                         "act": 3
+                    },
+                    {
+                        "label": "pulse " + (window.prototypeKeepPulse ? "on" : "off"),
+                        "act": 4
                     }
                 ]
 
@@ -5967,6 +5993,8 @@ ApplicationWindow {
                         onClicked: {
                             if (parent.modelData.act === 2)
                                 window.prototypeKeepReplay();
+                            else if (parent.modelData.act === 4)
+                                window.prototypeKeepPulse = !window.prototypeKeepPulse;
                             else
                                 window.prototypeKeepCycle(parent.modelData.act);
                         }

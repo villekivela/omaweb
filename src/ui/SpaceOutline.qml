@@ -415,6 +415,8 @@ Rectangle {
     property real tabOffsetY: 0
     // PROTOTYPE #704: the Glance keep motion drives the page's nudge itself.
     property bool prototypeHoldArrival: false
+    // PROTOTYPE #704: variant D has the sidebar meet the page with no divider.
+    property bool prototypeHideDivider: false
     // The row of the tab beside, while a split is on show. A pane arriving
     // beside the page on show comes from this row, the way a page arrives
     // from its own.
@@ -771,6 +773,10 @@ Rectangle {
     }
 
     color: sidebarDither.fill
+    // No border of its own: the divider is drawn beside it. Said, because an
+    // unset border still reads as one pixel wide, and the dither starts its
+    // ground inside it, which left the sidebar's edges a pixel short.
+    border.width: 0
     clip: true
 
     GroundDither {
@@ -796,6 +802,7 @@ Rectangle {
     // drawn as the bar draws one, on the edge that meets the page.
     Rectangle {
         objectName: "sidebarDivider"
+        visible: !root.prototypeHideDivider
         x: root.onRight ? 0 : parent.width - width
         width: 1
         height: parent.height

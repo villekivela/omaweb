@@ -1160,6 +1160,10 @@ int main(int argc, char *argv[])
         auto *window = engine.rootObjects().constFirst();
         if (glanceKeepIndex >= 0 && glanceKeepIndex + 1 < arguments.size()) {
             window->setProperty("prototypeGlanceKeep", arguments.at(glanceKeepIndex + 1));
+            // A capture is of the Glance, not of the switcher.
+            if (arguments.contains(QStringLiteral("--capture"))) {
+                window->setProperty("prototypeKeepHoldAt", -2);
+            }
         }
         if (arguments.contains(QStringLiteral("--glance"))) {
             QTimer::singleShot(300, window, [window] {

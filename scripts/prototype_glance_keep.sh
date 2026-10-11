@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PROTOTYPE #704, throwaway: how keeping a Glance as a tab should move.
 #
-#   scripts/prototype_glance_keep.sh [A|B|C]
+#   scripts/prototype_glance_keep.sh [A|B|C|D]
 #       Opens the UI lab with a Glance over a page. The bar at the bottom
 #       switches variant and replays the keep; the Glance's own open-as-tab
 #       button keeps it too.
@@ -23,14 +23,15 @@ out=${2:?--capture takes a directory}
 mkdir -p "$out"
 export QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=1
 step=20
-declare -A total=([A]=730 [B]=330 [C]=320)
-for variant in A B C; do
+declare -A total=([A]=730 [B]=330 [C]=320 [D]=730)
+for variant in A B C D; do
     frames="$out/$variant-frames"
     rm -rf "$frames"
     mkdir -p "$frames"
     # A still Glance first, then the motion, then its end held for a beat.
     index=0
-    "$lab" --tabs --browse --glance --capture "$frames/$(printf %03d $index).png" \
+    "$lab" --tabs --browse --glance --glance-keep "$variant" \
+        --capture "$frames/$(printf %03d $index).png" \
         --capture-delay 1200 >/dev/null 2>&1
     for ((at = 0; at <= total[$variant] + step; at += step)); do
         index=$((index + 1))
