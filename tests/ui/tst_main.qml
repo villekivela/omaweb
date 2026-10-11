@@ -9458,6 +9458,11 @@ TestCase {
         }
         glance.preferredSize = Qt.size(0, 0);
         window.closeGlance();
+        // The page beneath comes forward as the Glance goes, and the next
+        // test measures it.
+        tryVerify(function () {
+            return !glance.visible;
+        });
     }
 
     // What stands in the middle of the page area rests on whole pixels whether
