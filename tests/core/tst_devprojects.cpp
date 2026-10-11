@@ -415,7 +415,10 @@ void DevProjectsTest::countsACertificateAsTheServersAnswer()
     AddressWatch watch(QUrl(QStringLiteral("https://127.0.0.1:%1/").arg(server.serverPort())), 20);
     QSignalSpy answered(&watch, &AddressWatch::answered);
     QTRY_COMPARE(answered.count(), 1);
-    QVERIFY(!held.isEmpty());
+    // The watch has its answer once the certificate arrives, and this server
+    // has the connection only once the watch's last handshake message does,
+    // which can be later (#701).
+    QTRY_VERIFY(!held.isEmpty());
 }
 
 // Any process can run `omaweb dev`, so it never lets an Agent into a Space:
