@@ -78,6 +78,9 @@ int runAgentClient(
     for (const auto *argument : commandLine) {
         arguments.append(QString::fromLocal8Bit(argument));
     }
+    if (isAgentHelpCommand(arguments)) {
+        return printAgentHelp(arguments);
+    }
     if (isAgentMcpCommand(arguments)) {
         std::function<bool()> start;
         if (!browserPath.isEmpty()) {

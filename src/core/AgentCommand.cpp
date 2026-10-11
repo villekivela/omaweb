@@ -570,6 +570,75 @@ namespace {
         return options;
     }
 
+    struct VerbSummary {
+        const char *verb;
+        const char *summary;
+    };
+
+    // What `omaweb help` says of each verb, in the order it lists them.
+    constexpr VerbSummary verbSummaries[] = {
+        {"spaces", "list the Spaces"},
+        {"tabs", "list the tabs of the Space on show"},
+        {"open", "open an address"},
+        {"close", "close a tab"},
+        {"space", "switch to a Space, or `space new` and `space delete` one"},
+        {"focus", "select a tab by its id or part of its address"},
+        {"commands", "list the commands that can run now"},
+        {"run", "run a command"},
+        {"look", "list what the page offers to read and click"},
+        {"read", "read the page's text, or one element's"},
+        {"do", "click, fill, press, select, scroll, wait, answer a dialog or upload"},
+        {"shot", "take a screenshot of the page"},
+        {"eval", "run a JavaScript expression in the page"},
+        {"console", "read the page's console"},
+        {"dev", "open the folder it runs in as a project Space"},
+    };
+
+    QString overview()
+    {
+        QString text = QStringLiteral("omaweb [address]            launch the browser\n"
+                                      "omaweb <verb> [options]     drive the browser already "
+                                      "running\n"
+                                      "omaweb help <verb>          list a verb's options\n"
+                                      "\n"
+                                      "Verbs:\n");
+        for (const auto &entry : verbSummaries) {
+            text += QStringLiteral("  %1 %2\n")
+                        .arg(QLatin1String(entry.verb), -9)
+                        .arg(QLatin1String(entry.summary));
+        }
+        text += QStringLiteral(
+            "\nA verb exits 0 when done, 1 when refused, 2 when malformed and 3 when no browser "
+            "is running.\n");
+        return text;
+    }
+
+    QString verbHelp(const QString &verb)
+    {
+        const auto grammar = grammarFor(verb);
+        auto valued = grammar.valued.values();
+        auto flags = grammar.flags.values();
+        std::sort(valued.begin(), valued.end());
+        std::sort(flags.begin(), flags.end());
+        QString text = QStringLiteral("omaweb %1 [options]").arg(verb);
+        if (grammar.maximumPositionals != 0) {
+            const auto required = grammar.minimumPositionals > 0;
+            text += required ? QStringLiteral(" <argument>") : QStringLiteral(" [argument]");
+            if (grammar.maximumPositionals != 1) {
+                text += QStringLiteral("...");
+            }
+        }
+        text += QStringLiteral("\n\nOptions:\n");
+        for (const auto &option : valued) {
+            text += QStringLiteral("  --%1 <value>\n").arg(option);
+        }
+        for (const auto &option : flags) {
+            text += QStringLiteral("  --%1\n").arg(option);
+        }
+        text += QStringLiteral("  --name <value>\n  --json\n");
+        return text;
+    }
+
 } // namespace
 
 QJsonArray readAgentSteps(const QStringList &arguments, QString &error)
@@ -624,6 +693,42 @@ bool isAgentCommand(const QStringList &arguments)
 {
     const auto verb = agentVerbIndex(arguments);
     return verb < arguments.size() && isVerb(arguments.at(verb));
+}
+
+bool isAgentHelpCommand(const QStringList &arguments)
+{
+    if (arguments.size() < 2) {
+        return false;
+    }
+    const auto &first = arguments.at(1);
+    return first == u"help" || first == u"--help" || first == u"-h";
+}
+
+AgentHelp readAgentHelp(const QStringList &arguments)
+{
+    const auto words = arguments.mid(2);
+    if (words.isEmpty()) {
+        return {.text = overview(), .status = 0};
+    }
+    auto verb = words.constFirst();
+    if (verb == u"space" && words.size() > 1
+        && (words.at(1) == u"new" || words.at(1) == u"delete")) {
+        verb += u' ' + words.at(1);
+    }
+    const auto known = isVerb(verb) || verb == u"space new" || verb == u"space delete";
+    if (!known) {
+        return {.text = QStringLiteral("omaweb: `%1` is no verb. `omaweb help` lists them.\n")
+                    .arg(words.join(u' ')),
+            .status = 2};
+    }
+    return {.text = verbHelp(verb), .status = 0};
+}
+
+int printAgentHelp(const QStringList &arguments)
+{
+    const auto help = readAgentHelp(arguments);
+    std::fputs(qPrintable(help.text), help.status == 0 ? stdout : stderr);
+    return help.status;
 }
 
 QString misplacedAgentOption(const QStringList &arguments)

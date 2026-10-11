@@ -425,6 +425,11 @@ omaweb eval <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
 ```
 
+`omaweb help`, `omaweb --help` and `omaweb -h` list the verbs and say how to launch the browser, and
+`omaweb help <verb>` lists a verb's options, read from the grammar the parser takes. They exit 0
+without starting a browser, opening a profile or reaching the control socket, so an agent can ask
+first. `omaweb help <word>` for a word that is no verb says so and exits 2.
+
 `space` puts a Space on show. A Space named `new` or `delete` is switched to by its id, since those
 words start `space new` and `space delete`. `focus` selects a tab by its id or else the first tab
 whose address holds the text, looking in the Space on show before the others and switching to the

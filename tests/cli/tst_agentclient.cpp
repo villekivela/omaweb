@@ -155,6 +155,8 @@ private slots:
     void handsALaunchToTheBrowserBesideIt();
     void refusesAnAgentOptionWithNoVerb_data();
     void refusesAnAgentOptionWithNoVerb();
+    void answersHelpWithoutLaunchingTheBrowser_data();
+    void answersHelpWithoutLaunchingTheBrowser();
     void saysTheBrowserIsNotInstalled_data();
     void saysTheBrowserIsNotInstalled();
     void answersItsOwnVersionWithoutABrowser();
@@ -227,6 +229,37 @@ void AgentClientTest::refusesAnAgentOptionWithNoVerb()
     QCOMPARE(ran.code, 2);
     QVERIFY2(ran.err.contains(option), qPrintable(ran.err));
     QVERIFY2(ran.err.contains(QStringLiteral("Agent verb")), qPrintable(ran.err));
+    QVERIFY(recorded(directory).isEmpty());
+}
+
+void AgentClientTest::answersHelpWithoutLaunchingTheBrowser_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::addColumn<int>("code");
+    QTest::addColumn<QString>("said");
+    QTest::newRow("help") << QStringList {QStringLiteral("help")} << 0 << QStringLiteral("Verbs:");
+    QTest::newRow("--help") << QStringList {QStringLiteral("--help")} << 0
+                            << QStringLiteral("Verbs:");
+    QTest::newRow("-h") << QStringList {QStringLiteral("-h")} << 0 << QStringLiteral("Verbs:");
+    QTest::newRow("a verb") << QStringList {QStringLiteral("help"), QStringLiteral("tabs")} << 0
+                            << QStringLiteral("--pick");
+}
+
+// The browser beside the client records what it is run with, so a launch would show (#707).
+void AgentClientTest::answersHelpWithoutLaunchingTheBrowser()
+{
+    QFETCH(QStringList, arguments);
+    QFETCH(int, code);
+    QFETCH(QString, said);
+    QTemporaryDir directory;
+    const auto client = placeClient(directory);
+    QVERIFY(!client.isEmpty());
+    QVERIFY(placeBrowser(directory));
+
+    const auto ran = run(client, arguments, environmentFor(directory));
+
+    QCOMPARE(ran.code, code);
+    QVERIFY2(ran.out.contains(said), qPrintable(ran.out));
     QVERIFY(recorded(directory).isEmpty());
 }
 
