@@ -23,6 +23,8 @@ public:
     QString dataRoot() const;
     QString engineName() const;
 
+    // The directory that holds one directory per Space, named for its id.
+    QString spacesDirectory() const;
     // Where this engine keeps its own state for one Space: cookies, site
     // storage, cache, and whatever else it writes for itself.
     QString profilePathFor(const QString &spaceId) const;

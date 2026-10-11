@@ -130,10 +130,12 @@ class EngineAndCapability(unittest.TestCase):
     def test_the_release_package(self) -> None:
         self.assert_engine_matches_option(release_pkgbuild())
 
-    def test_the_engine_keeps_an_extensions_registered_scripts(self) -> None:
+    def test_the_engine_has_what_omaweb_needs(self) -> None:
         # Engine 6.11.2-5 crashed the moment a Known extension made an offscreen
-        # document (#646), and before 6.11.2-12 an extension lost the scripts it
-        # registered at every restart (#686). pacman upgrades Omaweb without the
+        # document (#646), before 6.11.2-12 an extension lost the scripts it
+        # registered at every restart (#686), and an Omaweb built against
+        # 6.11.2-12 calls the window geometry API that 6.11.2-7 does not have, so
+        # it would not start on it (#684). pacman upgrades Omaweb without the
         # engine unless the dependency asks for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
             self.assertIn(f"{ENGINE}>=6.11.2-12", depends(pkgbuild))

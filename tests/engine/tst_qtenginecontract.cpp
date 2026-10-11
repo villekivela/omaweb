@@ -3,6 +3,7 @@
 #include "AgentConsole.h"
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
+#include "QtDrawnFavicons.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
 #include "PageImages.h"
@@ -15,6 +16,7 @@
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtEnginePaths.h"
+#include "QtExtensionWindows.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
 #include "QtSecureDns.h"
@@ -58,6 +60,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQuickImageProvider>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QRegularExpression>
@@ -66,6 +69,8 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QSignalSpy>
 #include <QSslConfiguration>
 #include <QSslKey>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QSslServer>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -235,6 +240,7 @@ private slots:
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
+    void qtDrawsAFaviconAfreshInEachRun();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
@@ -372,6 +378,12 @@ private slots:
     void qtDrawsAPageInTheReadersFonts();
     void qtOffersACallThePublicInterfaceOnly_data();
     void qtOffersACallThePublicInterfaceOnly();
+    void qtTellsAnExtensionWhereThePagesWindowIs();
+    void qtTellsAnExtensionNoPositionWhereThePlatformHasNone();
+    void qtKnowsWhichPlatformsSayWhereAWindowIs();
+#if OMAWEB_KNOWN_EXTENSIONS && OMAWEB_EXTENSION_WINDOW_GEOMETRY
+    void qtAnswersAKnownExtensionThroughItsProfile();
+#endif
 };
 
 namespace {
@@ -963,6 +975,165 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     QTRY_COMPARE(view->property("pageTitle").toString(), QStringLiteral("kept"));
     QTRY_VERIFY(
         !QDir(spacePath).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot).isEmpty());
+}
+
+namespace {
+
+// A page with an SVG favicon in the colour it is given, at an address that
+// never changes, and that no cache may keep.
+class FaviconServer final : public QTcpServer {
+public:
+    FaviconServer()
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+                const auto request = socket->readAll();
+                const auto fields = request.split(' ');
+                const auto icon = fields.size() > 1 && fields.at(1) == "/icon.svg";
+                const auto body = icon
+                    ? R"(<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">)"
+                      R"(<rect width="32" height="32" fill=")"
+                        + colour + R"("/></svg>)"
+                    : QByteArray(R"(<!doctype html><title>icon</title>)"
+                                 R"(<link rel="icon" href="/icon.svg" type="image/svg+xml">)");
+                const QByteArray type = icon ? "image/svg+xml" : "text/html";
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: " + type
+                    + "\r\nCache-Control: no-store\r\nContent-Length: "
+                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+    }
+
+    QByteArray colour = "#000";
+};
+
+// How light the opaque part of the favicon at `iconUrl` is, from 0 to 255,
+// as the engine's image provider hands it to the interface. -1 when nothing
+// came back.
+int faviconLightness(QQmlEngine &engine, const QUrl &iconUrl)
+{
+    auto *provider = static_cast<QQuickAsyncImageProvider *>(engine.imageProvider(iconUrl.host()));
+    if (!provider) {
+        return -1;
+    }
+    const auto identifier = iconUrl.toString(QUrl::RemoveScheme | QUrl::RemoveAuthority).mid(1);
+    const std::unique_ptr<QQuickImageResponse> response(
+        provider->requestImageResponse(identifier, QSize(32, 32)));
+    QSignalSpy finished(response.get(), &QQuickImageResponse::finished);
+    if (!finished.wait(5000)) {
+        return -1;
+    }
+    const std::unique_ptr<QQuickTextureFactory> factory(response->textureFactory());
+    const auto image = factory ? factory->image() : QImage();
+    int opaque = 0;
+    qint64 lightness = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const auto colour = image.pixelColor(x, y);
+            if (colour.alpha() > 128) {
+                ++opaque;
+                lightness += colour.lightness();
+            }
+        }
+    }
+    return opaque ? int(lightness / opaque) : -1;
+}
+
+// Whether the engine's favicon database at `path` holds a drawing and can be
+// read, which it cannot while an engine still has it open.
+bool holdsADrawing(const QString &path)
+{
+    const auto connection = QStringLiteral("drawn-favicons");
+    bool drawn = false;
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(path);
+        database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+        if (QFileInfo::exists(path) && database.open()) {
+            QSqlQuery query(database);
+            drawn = query.exec(QStringLiteral("SELECT COUNT(*) FROM favicon_bitmaps"))
+                && query.next() && query.value(0).toInt() > 0;
+        }
+    }
+    QSqlDatabase::removeDatabase(connection);
+    return drawn;
+}
+
+} // namespace
+
+// The engine keeps the favicon it drew for a page in the Space's profile and
+// shows that drawing on every later visit, without asking the site again. A
+// favicon that follows the colour scheme is drawn under the scheme of its first
+// visit, so a Space that met chatgpt.com under a light theme went on showing
+// its black mark under a dark one (#698). Each run starts its Spaces without
+// the drawings an earlier run made. Under the offscreen platform the tests run
+// on, a page is not told a dark scheme the application asks for, so the site
+// changes its icon between runs instead, which is what a new scheme does to an
+// icon that follows it.
+void QtEngineContractTest::qtDrawsAFaviconAfreshInEachRun()
+{
+    FaviconServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QTemporaryDir root;
+    const SpaceStorage storage(root.path(), QStringLiteral("qt"));
+    const auto favicons = QDir(storage.profilePathFor(QStringLiteral("space")))
+                              .filePath(QStringLiteral("Favicons"));
+
+    // One run of the browser: a Space's profile and a view, gone again before
+    // the next run builds its own over the same directory.
+    const auto visit = [&] {
+        QQmlEngine engine;
+        QQmlComponent profileComponent(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+        std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), storage.profilePathFor(QStringLiteral("space"))},
+            {QStringLiteral("privateBrowsing"), false},
+        }));
+        if (!spaceHost) {
+            qWarning() << profileComponent.errorString();
+            return -1;
+        }
+        QQmlComponent viewComponent(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+        std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+            {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+        }));
+        if (!view) {
+            qWarning() << viewComponent.errorString();
+            return -1;
+        }
+        QQuickWindow window;
+        qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+        window.show();
+        view->setProperty("currentUrl", page);
+        const auto iconUrl = [&view] { return view->property("pageIconUrl").toUrl(); };
+        if (!QTest::qWaitFor([&] { return !iconUrl().isEmpty(); }, 10000)) {
+            qWarning() << "The page reported no favicon";
+            return -1;
+        }
+        const auto lightness = faviconLightness(engine, iconUrl());
+        view.reset();
+        spaceHost.reset();
+        // The engine writes the drawing and lets go of the database on its own
+        // threads, after the profile has gone. It holds the file locked until
+        // then, so a read that finds the drawing is one the next run would.
+        if (!QTest::qWaitFor([&] { return holdsADrawing(favicons); }, 10000)) {
+            qWarning() << "The engine kept no drawing of the favicon";
+            return -1;
+        }
+        return lightness;
+    };
+
+    const auto first = visit();
+    QVERIFY(first >= 0);
+    QCOMPARE_LT(first, 64);
+    server.colour = "#fff";
+    forgetDrawnFavicons(storage);
+    QCOMPARE_GT(visit(), 192);
 }
 
 // The engine builds a profile's extension storage once, from the directory the
@@ -5990,6 +6161,158 @@ void QtEngineContractTest::qtOffersACallThePublicInterfaceOnly()
     policy.setPublicInterfacesOnly(true);
     QVERIFY(publicInterfacesOnly());
 }
+
+// An extension reads where its window is through chrome.windows and places a
+// window of its own from that (#684). The engine asks about the view a call
+// came from, which is the page's QtWebEngine view, and Omaweb answers with the
+// window that view is drawn in: the main window, or the Tab window a tab was
+// popped out into. A call with no page behind it, an extension's worker, is
+// answered with the main window.
+void QtEngineContractTest::qtTellsAnExtensionWhereThePagesWindowIs()
+{
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *page = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(page);
+
+    QQuickWindow mainWindow;
+    mainWindow.setGeometry(120, 80, 1400, 900);
+    QQuickWindow tabWindow;
+    tabWindow.setGeometry(1600, 40, 1024, 768);
+    omaweb::QtExtensionWindows windows(omaweb::QtExtensionWindows::Positions::FromPlatform);
+    windows.setMainWindow(&mainWindow);
+
+    // A tab in the main window, and a worker, which no page is behind.
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(mainWindow.contentItem());
+    QCOMPARE(windows.geometryOf(page), mainWindow.frameGeometry());
+    QCOMPARE(windows.geometryOf(nullptr), mainWindow.frameGeometry());
+    // Never shown, so no frame is drawn and the frame is the size asked for.
+    QCOMPARE(windows.geometryOf(page).size(), QSize(1400, 900));
+
+    // Popped out, the tab's engine is lent to its Tab window.
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(tabWindow.contentItem());
+    QCOMPARE(windows.geometryOf(page), tabWindow.frameGeometry());
+    QCOMPARE(windows.geometryOf(page).size(), QSize(1024, 768));
+    QCOMPARE(windows.geometryOf(nullptr), mainWindow.frameGeometry());
+
+    // The reader resizes the Tab window, and the next call reads the new size.
+    tabWindow.resize(800, 500);
+    QCOMPARE(windows.geometryOf(page).size(), QSize(800, 500));
+
+    // A page drawn in no window is answered with the main window.
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(nullptr);
+    QCOMPARE(windows.geometryOf(page), mainWindow.frameGeometry());
+}
+
+// Wayland tells no window where it is, so the window is reported at the top
+// left and only its size is real.
+void QtEngineContractTest::qtTellsAnExtensionNoPositionWhereThePlatformHasNone()
+{
+    QQuickWindow mainWindow;
+    mainWindow.setGeometry(120, 80, 1400, 900);
+    omaweb::QtExtensionWindows windows(omaweb::QtExtensionWindows::Positions::Unknown);
+    windows.setMainWindow(&mainWindow);
+    QCOMPARE(windows.geometryOf(nullptr), QRect(0, 0, 1400, 900));
+}
+
+// Wayland, under either of Qt's names for it, is the platform that tells a
+// window nothing about where it is. Elsewhere the platform's position stands,
+// and a browser picks its answer from the platform it runs on.
+void QtEngineContractTest::qtKnowsWhichPlatformsSayWhereAWindowIs()
+{
+    using Positions = omaweb::QtExtensionWindows::Positions;
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("wayland")), Positions::Unknown);
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("wayland-egl")), Positions::Unknown);
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("xcb")), Positions::FromPlatform);
+    QCOMPARE(
+        omaweb::QtExtensionWindows::positionsOn(QStringLiteral("cocoa")), Positions::FromPlatform);
+
+    // The tests run offscreen, which says where a window is.
+    QQuickWindow mainWindow;
+    mainWindow.setGeometry(120, 80, 1400, 900);
+    omaweb::QtExtensionWindows windows;
+    windows.setMainWindow(&mainWindow);
+    QCOMPARE(windows.geometryOf(nullptr).topLeft(), QPoint(120, 80));
+}
+
+#if OMAWEB_KNOWN_EXTENSIONS && OMAWEB_EXTENSION_WINDOW_GEOMETRY
+// The answers above reach an extension only through the profile it runs in.
+// Attached to that profile, Omaweb is what the engine asks, so a Known
+// extension's page reads the window it is drawn in rather than the engine's
+// guess of the top left and the page's own size.
+void QtEngineContractTest::qtAnswersAKnownExtensionThroughItsProfile()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QDir extension(root.filePath(QStringLiteral("windows")));
+    QVERIFY(extension.mkpath(QStringLiteral(".")));
+    // Outside any macro: moc misreads a raw string with quotes in a macro's
+    // arguments.
+    const QList<std::pair<QString, QByteArray>> files {
+        {QStringLiteral("manifest.json"),
+            R"JSON({"manifest_version": 3, "name": "windows", "version": "1"})JSON"},
+        {QStringLiteral("page.html"),
+            R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML"},
+        {QStringLiteral("page.js"), R"JS(
+            chrome.windows.getCurrent()
+                .then((w) => document.title = ["at", w.left, w.top, w.width, w.height].join(" "))
+                .catch((error) => document.title = "failed: " + error.message);
+        )JS"},
+    };
+    for (const auto &[name, contents] : files) {
+        QFile file(extension.filePath(name));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(contents), contents.size());
+    }
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("knownExtensions"),
+            QVariantList {QVariantMap {
+                {QStringLiteral("key"), QStringLiteral("windows")},
+                {QStringLiteral("name"), QStringLiteral("windows")},
+                {QStringLiteral("path"), extension.path()},
+            }}},
+    }));
+    QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+    const auto hosted = [&spaceHost] { return spaceHost->property("hostedExtensions").toList(); };
+    QTRY_COMPARE(hosted().size(), 1);
+    const auto id = hosted().constFirst().toMap().value(QStringLiteral("id")).toString();
+    QVERIFY(!id.isEmpty());
+
+    omaweb::QtExtensionWindows windows(omaweb::QtExtensionWindows::Positions::FromPlatform);
+    windows.attachToProfile(spaceHost->property("profile").value<QObject *>());
+
+    OpenedWindows views(engine, spaceHost->property("profile"), true);
+    QVERIFY2(views.probe, qPrintable(views.component.errorString()));
+    views.window.setGeometry(120, 80, 640, 480);
+    QVERIFY(views.opener->setProperty(
+        "currentUrl", QUrl(QStringLiteral("chrome-extension://%1/page.html").arg(id))));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        views.opener->property("pageTitle").toString().startsWith(QStringLiteral("at "))
+            || views.opener->property("pageTitle").toString().startsWith(QStringLiteral("failed")),
+        15000);
+    // The frame, which the offscreen platform draws two pixels wide.
+    const QRect frame = views.window.frameGeometry();
+    QVERIFY(frame.topLeft() != QPoint(0, 0));
+    QCOMPARE(views.opener->property("pageTitle").toString(),
+        QStringLiteral("at %1 %2 %3 %4")
+            .arg(frame.x())
+            .arg(frame.y())
+            .arg(frame.width())
+            .arg(frame.height()));
+}
+#endif
 
 void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn_data()
 {

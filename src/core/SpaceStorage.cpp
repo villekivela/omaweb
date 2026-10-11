@@ -16,10 +16,15 @@ QString SpaceStorage::dataRoot() const { return m_dataRoot; }
 
 QString SpaceStorage::engineName() const { return m_engineName; }
 
+QString SpaceStorage::spacesDirectory() const
+{
+    return QDir(m_dataRoot).filePath(QStringLiteral("spaces"));
+}
+
 QString SpaceStorage::profilePathFor(const QString &spaceId) const
 {
-    return QDir(m_dataRoot)
-        .filePath(QStringLiteral("spaces/%1/engines/%2").arg(spaceId, m_engineName));
+    return QDir(spacesDirectory())
+        .filePath(QStringLiteral("%1/engines/%2").arg(spaceId, m_engineName));
 }
 
 QString SpaceStorage::extensionPathFor(const QString &extensionKey) const
@@ -30,7 +35,7 @@ QString SpaceStorage::extensionPathFor(const QString &extensionKey) const
 
 QString SpaceStorage::databasePathFor(const QString &spaceId) const
 {
-    return QDir(m_dataRoot).filePath(QStringLiteral("spaces/%1/browser.sqlite").arg(spaceId));
+    return QDir(spacesDirectory()).filePath(QStringLiteral("%1/browser.sqlite").arg(spaceId));
 }
 
 } // namespace omaweb
