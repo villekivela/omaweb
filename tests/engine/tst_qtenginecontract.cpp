@@ -60,6 +60,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQmlProperty>
 #include <QQuickImageProvider>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -72,6 +73,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSslServer>
+#include <QStyleHints>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
@@ -241,6 +243,7 @@ private slots:
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
     void qtDrawsAFaviconAfreshInEachRun();
+    void qtRedrawsAFaviconWhenTheColourSchemeChanges();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
@@ -994,8 +997,11 @@ public:
                 const auto icon = fields.size() > 1 && fields.at(1) == "/icon.svg";
                 const auto body = icon
                     ? R"(<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">)"
-                      R"(<rect width="32" height="32" fill=")"
-                        + colour + R"("/></svg>)"
+                        + (darkColour.isEmpty()
+                                ? QByteArray()
+                                : "<style>@media (prefers-color-scheme: dark) { rect { fill: "
+                                    + darkColour + "; } }</style>")
+                        + R"(<rect width="32" height="32" fill=")" + colour + R"("/></svg>)"
                     : QByteArray(R"(<!doctype html><title>icon</title>)"
                                  R"(<link rel="icon" href="/icon.svg" type="image/svg+xml">)");
                 const QByteArray type = icon ? "image/svg+xml" : "text/html";
@@ -1009,6 +1015,30 @@ public:
     }
 
     QByteArray colour = "#000";
+    // The colour under a dark scheme, for an icon that follows it as
+    // chatgpt.com's does. Empty for one that does not.
+    QByteArray darkColour;
+};
+
+// Every address a view reports for its page's icon, in order, so a test sees
+// the empty one a view reports between two drawings at one address.
+class IconReports final : public QObject {
+    Q_OBJECT
+
+public:
+    explicit IconReports(QObject *view)
+        : m_view(view)
+    {
+        QQmlProperty(view, QStringLiteral("pageIconUrl")).connectNotifySignal(this, SLOT(record()));
+    }
+
+    QList<QUrl> reported;
+
+private slots:
+    void record() { reported.append(m_view->property("pageIconUrl").toUrl()); }
+
+private:
+    QObject *m_view;
 };
 
 // How light the opaque part of the favicon at `iconUrl` is, from 0 to 255,
@@ -1135,6 +1165,65 @@ void QtEngineContractTest::qtDrawsAFaviconAfreshInEachRun()
     server.colour = "#fff";
     forgetDrawnFavicons(storage);
     QCOMPARE_GT(visit(), 192);
+}
+
+// A favicon that follows the colour scheme is drawn under the scheme the page
+// is told. When the theme changes while Omaweb runs, the engine draws the icon
+// of a page on show again under the new scheme, at the address it had (#700).
+void QtEngineContractTest::qtRedrawsAFaviconWhenTheColourSchemeChanges()
+{
+    FaviconServer server;
+    server.darkColour = "#fff";
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QTemporaryDir root;
+    const SpaceStorage storage(root.path(), QStringLiteral("qt"));
+    // Omaweb asks Qt for its theme's scheme. The platform the tests run on may
+    // not take the request, as the offscreen one in CI does not, and then the
+    // test announces the change itself, as a platform does.
+    auto *styleHints = QGuiApplication::styleHints();
+    const auto useScheme = [styleHints](Qt::ColorScheme scheme) {
+        styleHints->setColorScheme(scheme);
+        if (styleHints->colorScheme() != scheme) {
+            emit styleHints->colorSchemeChanged(scheme);
+        }
+    };
+    const auto restoreScheme = qScopeGuard([styleHints] {
+        styleHints->unsetColorScheme();
+        emit styleHints->colorSchemeChanged(styleHints->colorScheme());
+    });
+    useScheme(Qt::ColorScheme::Light);
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), storage.profilePathFor(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+    }));
+    QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+    }));
+    QVERIFY2(view, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+    window.show();
+    view->setProperty("currentUrl", page);
+    const auto iconUrl = [&view] { return view->property("pageIconUrl").toUrl(); };
+    QTRY_VERIFY_WITH_TIMEOUT(!iconUrl().isEmpty(), 10000);
+    const auto drawnUrl = iconUrl();
+    QCOMPARE_LT(faviconLightness(engine, drawnUrl), 64);
+
+    // Omaweb's tab draws an icon again only when the address it is given
+    // changes, so the view reports none before the redrawn icon's address.
+    IconReports reports(view.get());
+    useScheme(Qt::ColorScheme::Dark);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        iconUrl() == drawnUrl && faviconLightness(engine, drawnUrl) > 192, 10000);
+    QTRY_COMPARE(reports.reported, (QList<QUrl> {QUrl(), drawnUrl}));
 }
 
 // The engine builds a profile's extension storage once, from the directory the
