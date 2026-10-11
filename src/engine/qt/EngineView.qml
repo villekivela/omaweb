@@ -2245,11 +2245,12 @@ Item {
         visible: root.awaitingPageFrame
         color: root.documentPainted ? root.pageGroundColor : root.pageBackgroundColor
     }
+    // Over the colour while the page is awaited: the page as the window last
+    // showed it.
     PageSnapshot {
         id: pageAsLeft
-        objectName: "pageAsLeft"
         anchors.fill: parent
-        z: 1
+        z: 2
         visible: root.awaitingPageFrame && held
     }
 
@@ -4264,9 +4265,10 @@ Item {
     // behind the view would never be seen: the cover is over it. It is the
     // colour the page itself reported, so the wait is blank in the page's
     // colour instead of black; before the page has painted it is the theme's.
-    // Over that colour is the page as the window last showed it, when there is
-    // such a picture of the size the page still is: a page whose ground is
-    // dark and whose content is light is otherwise a dark flash (#702).
+    // A page whose ground is dark and whose content is light would still come
+    // back as a dark flash (#702), so the picture the window took of the page
+    // as it went away is over the colour, when there is one that still fits:
+    // the page has not been resized and has not moved on to another document.
     // It is up before the window's first frame, and it comes down shortly
     // after the page says its frame was made, or after a time that does not
     // depend on the page saying so: a page the script does not reach, such as
@@ -4729,6 +4731,7 @@ Item {
                 root.documentReported = true;
                 lateCanvas.stop();
                 root.documentPainted = false;
+                pageAsLeft.release();
             } else if (report.channel === "document_painted") {
                 root.documentPainted = true;
             } else if (report.channel === "frame_after_return") {
