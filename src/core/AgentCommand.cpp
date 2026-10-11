@@ -591,6 +591,7 @@ namespace {
         {"shot", "take a screenshot of the page"},
         {"eval", "run a JavaScript expression in the page"},
         {"console", "read the page's console"},
+        {"mcp", "serve the verbs to an MCP client over stdio"},
         {"dev", "open the folder it runs in as a project Space"},
     };
 
@@ -697,16 +698,14 @@ bool isAgentCommand(const QStringList &arguments)
 
 bool isAgentHelpCommand(const QStringList &arguments)
 {
-    if (arguments.size() < 2) {
-        return false;
-    }
-    const auto &first = arguments.at(1);
-    return first == u"help" || first == u"--help" || first == u"-h";
+    // Agent options may lead, as before any verb: `omaweb --json help`.
+    const auto word = arguments.value(agentVerbIndex(arguments));
+    return word == u"help" || word == u"--help" || word == u"-h";
 }
 
 AgentHelp readAgentHelp(const QStringList &arguments)
 {
-    const auto words = arguments.mid(2);
+    const auto words = arguments.mid(agentVerbIndex(arguments) + 1);
     if (words.isEmpty()) {
         return {.text = overview(), .status = 0};
     }
@@ -714,6 +713,12 @@ AgentHelp readAgentHelp(const QStringList &arguments)
     if (verb == u"space" && words.size() > 1
         && (words.at(1) == u"new" || words.at(1) == u"delete")) {
         verb += u' ' + words.at(1);
+    }
+    // `mcp` reads its own arguments and has no grammar to list.
+    if (verb == u"mcp") {
+        return {.text = QStringLiteral("omaweb mcp\n\nServes the verbs to an MCP client over "
+                                       "stdio. It takes no options.\n"),
+            .status = 0};
     }
     const auto known = isVerb(verb) || verb == u"space new" || verb == u"space delete";
     if (!known) {

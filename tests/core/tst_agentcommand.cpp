@@ -45,6 +45,8 @@ private slots:
     void doesNotTakeAnAddressOrAVerbForHelp();
     void listsTheOptionsOfAVerbFromItsGrammar_data();
     void listsTheOptionsOfAVerbFromItsGrammar();
+    void helpsEveryVerbTheCliTakes_data();
+    void helpsEveryVerbTheCliTakes();
     void saysWhenHelpIsAskedOfNoVerb();
 };
 
@@ -740,7 +742,7 @@ void AgentCommandTest::answersHelpWithTheVerbsAndHowToLaunch()
     const auto help = readAgentHelp(arguments);
     QCOMPARE(help.status, 0);
     for (const auto verb : {"spaces", "tabs", "open", "close", "space", "look", "read", "do",
-             "shot", "eval", "console", "commands", "run", "focus", "dev"}) {
+             "shot", "eval", "console", "commands", "run", "focus", "dev", "mcp"}) {
         QVERIFY2(
             help.text.contains(QRegularExpression(QStringLiteral("^  %1 ").arg(QLatin1String(verb)),
                 QRegularExpression::MultilineOption)),
@@ -757,6 +759,9 @@ void AgentCommandTest::doesNotTakeAnAddressOrAVerbForHelp()
     QVERIFY(!isAgentHelpCommand({program, QStringLiteral("https://example.com")}));
     QVERIFY(!isAgentHelpCommand({program, QStringLiteral("tabs"), QStringLiteral("help")}));
     QVERIFY(!isAgentHelpCommand({program, QStringLiteral("open"), QStringLiteral("-h")}));
+    // An Agent option may lead, as it may before a verb.
+    QVERIFY(isAgentHelpCommand({program, QStringLiteral("--json"), QStringLiteral("help")}));
+    QVERIFY(!isAgentCommand({program, QStringLiteral("--json"), QStringLiteral("help")}));
 }
 
 void AgentCommandTest::listsTheOptionsOfAVerbFromItsGrammar_data()
@@ -790,6 +795,27 @@ void AgentCommandTest::listsTheOptionsOfAVerbFromItsGrammar()
     QVERIFY(help.text.contains(QStringLiteral("--name <value>")));
     // And not one of another verb's.
     QVERIFY(!help.text.contains(QStringLiteral("--level")));
+}
+
+void AgentCommandTest::helpsEveryVerbTheCliTakes_data()
+{
+    QTest::addColumn<QString>("verb");
+    for (const auto verb : {"spaces", "tabs", "open", "close", "space", "look", "read", "do",
+             "shot", "eval", "console", "commands", "run", "focus", "dev", "mcp"}) {
+        QTest::newRow(verb) << QString::fromLatin1(verb);
+    }
+}
+
+void AgentCommandTest::helpsEveryVerbTheCliTakes()
+{
+    QFETCH(QString, verb);
+    const auto help = readAgentHelp({QStringLiteral("omaweb"), QStringLiteral("help"), verb});
+    QCOMPARE(help.status, 0);
+    QVERIFY(help.text.startsWith(QStringLiteral("omaweb %1").arg(verb)));
+    const auto deleted = readAgentHelp({QStringLiteral("omaweb"), QStringLiteral("help"),
+        QStringLiteral("space"), QStringLiteral("delete")});
+    QCOMPARE(deleted.status, 0);
+    QVERIFY(deleted.text.startsWith(QStringLiteral("omaweb space delete")));
 }
 
 void AgentCommandTest::saysWhenHelpIsAskedOfNoVerb()
