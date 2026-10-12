@@ -41,4 +41,19 @@ visit and draws it under the new scheme, showing the earlier drawing for that mo
 visit, its tab and an Omnibar row draw the copy the Space keeps. An engine without the patch keeps
 the behaviour before #700.
 
+## When a page offers a raster icon beside an SVG one
+
+Drawing an SVG under the current scheme helps only if the engine shows the SVG. chatgpt.com declares
+a black ICO for any size ahead of its SVG. Chromium ranks an icon declared for any size, or for
+none, as ideal before fetching it. After fetching, it prefers a raster with exact 16 and 32 pixel
+frames over the single drawing it makes of an SVG. The ICO won, and the tab showed the black mark
+under a dark theme, on a fresh load as well as after a change (#700). Chromium's own ranking is the
+same on its main branch.
+
+A second patch in the engine series ranks a page's SVG icon above its raster ones and takes the SVG
+once it is drawn. A candidate carries no type from its `<link>`, so the engine knows an SVG by its
+address: a path ending in `.svg`, or a `data:` URL of `image/svg+xml`. An SVG that cannot be fetched
+leaves the page its raster icon. The page sees nothing of this. A script in the page could have
+hidden the raster icons from the engine instead, but only by changing the page's own links.
+
 See #698.
