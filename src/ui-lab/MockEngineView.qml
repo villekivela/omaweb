@@ -48,14 +48,15 @@ Rectangle {
     // The lab plays nothing, so both sides of the tab's speaker are set by
     // hand: `simulateAudible` stands in for the engine hearing the page, and
     // `simulateMediaPlaying` for the page's media playing. A page that has
-    // been heard stays audible through a silence while its media plays, as
-    // the Qt adapter's does.
-    readonly property bool pageAudible: root.soundHeardNow || (root.mediaHeard && root.mediaPlaying)
-    property bool soundHeardNow: false
+    // been heard stays audible through a silence while media it can be heard
+    // through plays, as the Qt adapter's does.
+    readonly property bool pageAudible: root.recentlyAudible || (root.mediaHeard
+                                                                 && root.mediaPlaying)
+    property bool recentlyAudible: false
     property bool mediaHeard: false
     property bool mediaPlaying: false
-    function noteMediaHeard() {
-        if (root.soundHeardNow)
+    function refreshMediaHeard() {
+        if (root.recentlyAudible)
             root.mediaHeard = true;
         else if (!root.mediaPlaying)
             root.mediaHeard = false;
@@ -1025,12 +1026,12 @@ Rectangle {
         root.requestHeldWhenShownAsTab = root.acceptedRequest;
     }
     function simulateAudible(audible) {
-        root.soundHeardNow = audible;
-        root.noteMediaHeard();
+        root.recentlyAudible = audible;
+        root.refreshMediaHeard();
     }
     function simulateMediaPlaying(playing) {
         root.mediaPlaying = playing;
-        root.noteMediaHeard();
+        root.refreshMediaHeard();
     }
     function simulateMediaSession(declaration) {
         root.pageMediaSession = declaration ? declaration : {};
