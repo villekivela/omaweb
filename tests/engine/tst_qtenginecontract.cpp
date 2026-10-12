@@ -250,6 +250,7 @@ private slots:
     void qtRedrawsAFaviconWhenTheColourSchemeChanges();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
+    void qtTellsAPageWhatItsSecurityKeysCanReach();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage_data();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage();
@@ -2257,6 +2258,43 @@ struct OpenedWindows {
 };
 
 } // namespace
+
+// A site asks what passkeys the browser can reach before it offers one. The
+// engine is built without Bluetooth, so its answer waited on an adapter that
+// never came and the page heard nothing (#711). It answers now with what
+// Omaweb reaches: no phone over hybrid transport and no platform
+// authenticator, and passkey autofill for a security key.
+void QtEngineContractTest::qtTellsAPageWhatItsSecurityKeysCanReach()
+{
+    PageServer server(R"HTML(<!doctype html><title>asking</title><script>
+PublicKeyCredential.getClientCapabilities().then(answer => document.title = [
+  "hybrid " + answer.hybridTransport,
+  "platform " + answer.userVerifyingPlatformAuthenticator,
+  "passkey " + answer.passkeyPlatformAuthenticator,
+  "autofill " + answer.conditionalGet,
+].join(", "));
+</script>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    // A page on the loopback address is a secure context, as WebAuthn needs.
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("hybrid false, platform false, passkey false, autofill true"), 15000);
+}
 
 void QtEngineContractTest::qtGivesAPageTheWindowAHiddenViewTakesAtOnce()
 {
