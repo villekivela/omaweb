@@ -9715,11 +9715,10 @@ void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking_data()
 void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking()
 {
     QFETCH(bool, privateWindow);
-    // Only Omaweb's own engine, from patch 0029, rejects it without asking in a
-    // Private window.
+    // The answer is patch 0029's, which a build against the distribution's
+    // QtWebEngine does not carry.
 #if !OMAWEB_KNOWN_EXTENSIONS
-    if (privateWindow)
-        QSKIP("Only Omaweb's own engine rejects a push subscription in a Private window unasked.");
+    QSKIP("Only Omaweb's own engine rejects a push subscription as a Space does.");
 #endif
     PageServer server(R"HTML(<!doctype html><html><body><title>subscribing</title>
         <script>
