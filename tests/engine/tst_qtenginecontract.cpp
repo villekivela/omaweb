@@ -9589,7 +9589,9 @@ void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking_data()
 // at once and nothing is asked. A Private window answered it differently,
 // because Chromium asks for the notifications permission there first and then
 // refuses whatever the reader says, so the reader met a question that led
-// nowhere and a site could tell the two apart (#421).
+// nowhere and a site could tell the two apart (#421). It needs patch 0029 of
+// the engine series, in omaweb-qtwebengine 6.11.2-15, and fails on an earlier
+// engine.
 void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking()
 {
     QFETCH(bool, privateWindow);
