@@ -35,21 +35,18 @@ again. [v0.14.0](https://github.com/villekivela/omaweb/releases/tag/v0.14.0) shi
 tab popped out of the main window into a window of its own, so a page of a Space can sit on another
 monitor ([ADR 0062](adr/0062-pop-a-tab-out-instead-of-opening-windows.md)). It also shipped
 Bitwarden's passkeys, the Hyprland opacity override no longer asked for now that Omarchy draws
-windows opaque, and pinned tabs kept on their column grid. v0.15.0 is the release in progress.
+windows opaque, and pinned tabs kept on their column grid.
+[v0.15.0](https://github.com/villekivela/omaweb/releases/tag/v0.15.0) shipped a Glance that moves
+into its tab when kept, a favicon that follows the colour scheme drawn again when the theme changes,
+a page an extension opened told to the engine as a reader's tab, no dark frame when Omaweb's
+workspace comes back, and `omaweb help`. Its engine is 6.11.2-14. v0.15.1 is the release in
+progress.
 
-[v0.15.0](https://github.com/villekivela/omaweb/milestone/13) is engine fixes and flakes. Two engine
-patches go into one release build. A favicon that recolours itself for the colour scheme is drawn
-again when the theme changes while Omaweb runs
-([#700](https://github.com/villekivela/omaweb/issues/700)). Omaweb tells the engine when a page an
-extension opened becomes a reader's tab, so `tabs.query` lists it among the reader's tabs, and the
-extension hears nothing ([#694](https://github.com/villekivela/omaweb/issues/694)). A Glance kept as
-a tab moves into the page area and its tab into the sidebar, as Zen's does, rather than cutting
-([#704](https://github.com/villekivela/omaweb/issues/704)). The black frame that still shows when
-Omaweb's workspace comes back is found ([#702](https://github.com/villekivela/omaweb/issues/702)).
-So are the CI flakes in the form history and certificate tests
-([#701](https://github.com/villekivela/omaweb/issues/701)). `omaweb help`, `--help` and `-h` list
-the verbs, and `omaweb help <verb>` its options, instead of launching the browser on the reader's
-profile ([#707](https://github.com/villekivela/omaweb/issues/707)).
+[v0.15.1](https://github.com/villekivela/omaweb/milestone/14) is fixes. A Google account whose
+default sign-in is a passkey gets a way in rather than the unsupported-browser page
+([#711](https://github.com/villekivela/omaweb/issues/711)), and a Private window answers web push as
+a Space does, so a page can't tell the two apart by it
+([#421](https://github.com/villekivela/omaweb/issues/421)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -69,9 +66,6 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
 
 - The component kit ([#9](https://github.com/villekivela/omaweb/issues/9),
   [#13](https://github.com/villekivela/omaweb/issues/13)) waits on Omarchy.
-- Running Omarchy's web apps in Omaweb with `--app`
-  ([#655](https://github.com/villekivela/omaweb/issues/655)) is unplanned until more readers ask. It
-  would change only whose logins a web app runs with, and it builds on Tab windows.
 - What a reader could extend in Omaweb's own chrome waits on the command registry question
   ([#175](https://github.com/villekivela/omaweb/issues/175)).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
@@ -110,4 +104,6 @@ URL reputation is out of the daily-driver contract
 [ADR 0032](adr/0032-ship-without-url-reputation.md)). Omaweb ships no phishing, malware, or
 download-reputation provider, documents the missing protection, and never presents Content blocking
 as equivalent. Custom user agents and print preview are declined in `docs/product/requirements.md`
-with the reasoning ([#323](https://github.com/villekivela/omaweb/issues/323)).
+with the reasoning ([#323](https://github.com/villekivela/omaweb/issues/323)). Omaweb doesn't run
+Omarchy's web apps with `--app`: they run well in Chromium, which `omarchy launch webapp` already
+falls back to ([#655](https://github.com/villekivela/omaweb/issues/655)).
