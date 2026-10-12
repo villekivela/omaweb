@@ -1,0 +1,3 @@
+# See ../../qmldir.
+module Quickshell.Services.Pipewire
+plugin quickshell-service-pipewireplugin

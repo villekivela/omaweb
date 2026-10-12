@@ -3,7 +3,10 @@ import QtQuick.Controls
 import QtTest
 import Omaweb
 import Quickshell.Hyprland
+import Quickshell.Io
+import Quickshell.Services.Pipewire
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui as Omarchy
 import "../../src/ui" as Omaweb
 
@@ -118,13 +121,13 @@ TestCase {
         }
     }
 
-    // `Style` and `ShellColor` are Quickshell-backed singletons; a missing shim type
+    // `Style` and `Color` are Quickshell-backed singletons; a missing shim type
     // takes the whole kit down, and the failure surfaces here as a token that
     // never resolved.
     function test_commonsTokensResolve() {
         verify(Style.font.body > 0);
         verify(Style.spacing.controlPaddingX >= 0);
-        verify(ShellColor.foreground.a > 0);
+        verify(Commons.Color.foreground.a > 0);
         verify(Border.none() !== undefined);
     }
 
@@ -165,6 +168,39 @@ TestCase {
         verify(spy.valid);
     }
 
+    // `qs.Commons`' `UntypedInput` imports `Quickshell.Services.Pipewire` and reads
+    // `Pipewire.defaultAudioSource`. Omaweb has no audio graph to offer, so the module has to
+    // exist, or no `qs.Commons` token loads, and it reports no source.
+    function test_theShimOffersNoDefaultAudioSource() {
+        compare(Pipewire.defaultAudioSource, null);
+    }
+
+    // `InputMethodState` and `UntypedInput` run a process whose output a `SplitParser` hands over
+    // a line at a time, with an `environment` and an `onExited`.
+    Component {
+        id: lineProcessComponent
+
+        Process {
+            property var lines: []
+            property int exits: 0
+            command: ["sh", "-c", "printf 'one\\ntwo\\n'; printf '%s\\n' \"$OMAWEB_SHIM_TEST\""]
+            environment: ({
+                              "OMAWEB_SHIM_TEST": "three"
+                          })
+            stdout: SplitParser {
+                onRead: line => lines = lines.concat([String(line)])
+            }
+            onExited: exits++
+        }
+    }
+
+    function test_theShimSplitsAProcessesOutputIntoLines() {
+        const process = createTemporaryObject(lineProcessComponent, testCase);
+        process.running = true;
+        tryCompare(process, "exits", 1);
+        compare(process.lines, ["one", "two", "three"]);
+    }
+
     // Omaweb's own Typography object is gone: the kit's scale is the only type
     // scale, so every size a Omaweb surface asks for has to exist on it.
     function test_theKitScaleCoversEverySizeOmawebAsksFor() {
@@ -192,12 +228,12 @@ TestCase {
     }
 
     function test_theKitPaletteComesFromOmawebsTheme() {
-        compare(String(ShellColor.foreground), String(theme.palette.text));
+        compare(String(Commons.Color.foreground), String(theme.palette.text));
         // The kit paints `background` as a solid surface, so it takes the
         // opaque window rather than the alpha the desktop shows through.
-        compare(String(ShellColor.background), String(theme.palette.windowOpaque));
-        compare(String(ShellColor.accent), String(theme.palette.accent));
-        compare(String(ShellColor.muted), String(theme.palette.mutedText));
+        compare(String(Commons.Color.background), String(theme.palette.windowOpaque));
+        compare(String(Commons.Color.accent), String(theme.palette.accent));
+        compare(String(Commons.Color.muted), String(theme.palette.mutedText));
     }
 
     // The kit reaches for its own theme through watched files and short-lived
@@ -205,19 +241,19 @@ TestCase {
     // whichever of them writes last, so the seam pushes again — which is what
     // makes ThemeController authoritative rather than merely first.
     function test_theKitCannotOutlastOmawebsPalette() {
-        ShellColor.loadColors("foreground = \"#ff0000\"\naccent = \"#00ff00\"");
-        compare(String(ShellColor.foreground), String(theme.palette.text));
-        compare(String(ShellColor.accent), String(theme.palette.accent));
+        Commons.Color.loadColors("foreground = \"#ff0000\"\naccent = \"#00ff00\"");
+        compare(String(Commons.Color.foreground), String(theme.palette.text));
+        compare(String(Commons.Color.accent), String(theme.palette.accent));
 
         // A shell.toml reaching Style resets the type base size along with
         // everything else it owns.
-        ShellColor.loadUserShell("[font]\nbase-size = 20\n");
+        Commons.Color.loadUserShell("[font]\nbase-size = 20\n");
         compare(Style.font.baseSize, theme.palette.font.size);
 
         // Leave the kit as the rest of the suite expects to find it. The
         // palette is restored by the seam; the parsed dicts are not.
-        ShellColor.loadUserShell("");
-        ShellColor.loadColors("");
+        Commons.Color.loadUserShell("");
+        Commons.Color.loadColors("");
     }
 
     // The theme sets the base size and the reader may set it over the theme
@@ -231,9 +267,9 @@ TestCase {
 
         fontSettings.setInterfaceFontSize(themeSize + 4);
         compare(Style.font.baseSize, themeSize + 4);
-        ShellColor.loadUserShell("[font]\nbase-size = 20\n");
+        Commons.Color.loadUserShell("[font]\nbase-size = 20\n");
         compare(Style.font.baseSize, themeSize + 4);
-        ShellColor.loadUserShell("");
+        Commons.Color.loadUserShell("");
 
         // A theme reload under an override is not a reason to lose it.
         theme.reload();
@@ -266,14 +302,14 @@ TestCase {
     // reread shell.toml even though ThemeController's palette did not change.
     function test_theKitRereadsDesktopStyleWhenTheThemeReloads() {
         const sentinel = 0.731;
-        ShellColor.loadShell("[controls]\nnormal-fill-alpha = " + sentinel + "\n");
+        Commons.Color.loadShell("[controls]\nnormal-fill-alpha = " + sentinel + "\n");
         compare(Style.normalFillAlpha, sentinel);
 
         theme.reload();
         const reloadedAlpha = Style.normalFillAlpha;
 
         // Restore a predictable baseline before reporting a failure.
-        ShellColor.loadShell("");
+        Commons.Color.loadShell("");
         verify(Math.abs(reloadedAlpha - sentinel) > 0.0001);
     }
 
@@ -281,13 +317,13 @@ TestCase {
     // other used to recurse until the JavaScript stack ran out; the kit now
     // gives up on the cycle and draws the fallback.
     function test_theKitResolvesRoleAliasesAndGivesUpOnACycle() {
-        ShellColor.loadShell("[alias]\nchain = \"alias.step\"\nstep = \"accent\"\n"
-                             + "ping = \"alias.pong\"\npong = \"alias.ping\"\n");
-        const chained = ShellColor.flatColor("alias.chain", "#123456");
-        const cycled = ShellColor.flatColor("alias.ping", "#123456");
+        Commons.Color.loadShell("[alias]\nchain = \"alias.step\"\nstep = \"accent\"\n"
+                                + "ping = \"alias.pong\"\npong = \"alias.ping\"\n");
+        const chained = Commons.Color.flatColor("alias.chain", "#123456");
+        const cycled = Commons.Color.flatColor("alias.ping", "#123456");
 
-        ShellColor.loadShell("");
-        compare(String(chained), String(ShellColor.accent));
+        Commons.Color.loadShell("");
+        compare(String(chained), String(Commons.Color.accent));
         compare(String(cycled), "#123456");
     }
 

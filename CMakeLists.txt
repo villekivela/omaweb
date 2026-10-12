@@ -619,6 +619,8 @@ add_library(omaweb-quickshell-shim STATIC
     src/ui/quickshell-shim/QuickshellHyprland.h
     src/ui/quickshell-shim/QuickshellIo.cpp
     src/ui/quickshell-shim/QuickshellIo.h
+    src/ui/quickshell-shim/QuickshellPipewire.cpp
+    src/ui/quickshell-shim/QuickshellPipewire.h
 )
 target_include_directories(omaweb-quickshell-shim PUBLIC src/ui/quickshell-shim)
 target_link_libraries(omaweb-quickshell-shim PUBLIC Qt6::Core Qt6::Qml Qt6::QuickControls2)
@@ -634,6 +636,7 @@ qt_add_resources(omaweb-quickshell-shim "omaweb_quickshell_shim_qml"
         src/ui/quickshell-shim/qml/Quickshell/qmldir
         src/ui/quickshell-shim/qml/Quickshell/Hyprland/qmldir
         src/ui/quickshell-shim/qml/Quickshell/Io/qmldir
+        src/ui/quickshell-shim/qml/Quickshell/Services/Pipewire/qmldir
 )
 omaweb_strict_target(omaweb-quickshell-shim)
 

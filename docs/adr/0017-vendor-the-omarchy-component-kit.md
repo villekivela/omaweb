@@ -20,19 +20,20 @@ untracked file under the vendored tree, or a hash that does not match the manife
 script refuses to overwrite an edited copy.
 
 Three seams carry the adaptation instead; the third, `KitTheme`, arrived with 0018.
-`omaweb-quickshell-shim` registers the `Quickshell`, `Quickshell.Hyprland` and `Quickshell.Io` types
-the kit's singletons import: an environment lookup, a watched file, a short-lived process run for
-its output, the `Singleton` and `IpcHandler` types that `qs.Commons`' `IpcRegistry` declares (Omaweb
-answers no `qs ipc` call, so the handler only holds its properties), and the `Hyprland` singleton
-whose `rawEvent` signal `Style` connects to (declared, never emitted). It also ships a qmldir for
-each of those URIs and puts them at the front of the engine's import path: Omarchy installs the real
-Quickshell into Qt's own qml directory, a module found on the import path beats C++ registration,
-and the engine would otherwise resolve the kit's imports there and fail to load a plugin Omaweb has
-no use for. The kit's layer-shell and Hyprland surfaces stay out of scope, and so do the components
-that need them: `Panel`, `PopupCard`, `KeyboardPanel`, `MultiSelect`, `BarIconButton`, and
-`SpeedTestOverlay`. QML in `src/ui` adapts each component to Omaweb's call sites, keeping Omaweb's
-property names and the accessibility annotations the kit does not carry, so adopting a component
-does not ripple through the surfaces that use it.
+`omaweb-quickshell-shim` registers the `Quickshell`, `Quickshell.Hyprland`, `Quickshell.Io` and
+`Quickshell.Services.Pipewire` types the kit's singletons import: an environment lookup, a watched
+file, a process run for its output, read at its end or a line at a time, the `Singleton` and
+`IpcHandler` types that `qs.Commons`' `IpcRegistry` declares (Omaweb answers no `qs ipc` call, so
+the handler only holds its properties), and the `Hyprland` singleton whose `rawEvent` signal `Style`
+connects to (declared, never emitted). It also ships a qmldir for each of those URIs and puts them
+at the front of the engine's import path: Omarchy installs the real Quickshell into Qt's own qml
+directory, a module found on the import path beats C++ registration, and the engine would otherwise
+resolve the kit's imports there and fail to load a plugin Omaweb has no use for. The kit's
+layer-shell and Hyprland surfaces stay out of scope, and so do the components that need them:
+`Panel`, `PopupCard`, `KeyboardPanel`, `MultiSelect`, `BarIconButton`, and `SpeedTestOverlay`. QML
+in `src/ui` adapts each component to Omaweb's call sites, keeping Omaweb's property names and the
+accessibility annotations the kit does not carry, so adopting a component does not ripple through
+the surfaces that use it.
 
 The shim also pins the Qt Quick Controls style to Basic. The kit's `TextField` inherits Qt's
 `TextField` and replaces its `background`, which a native style refuses: on macOS the field renders

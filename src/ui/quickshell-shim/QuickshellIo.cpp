@@ -6,7 +6,10 @@
 #include <QFileSystemWatcher>
 #include <QLoggingCategory>
 #include <QMetaObject>
+#include <QProcessEnvironment>
 #include <QTextStream>
+
+#include <utility>
 
 namespace omaweb::quickshell {
 
@@ -17,8 +20,13 @@ namespace omaweb::quickshell {
 // then indistinguishable from one that never arrived, so the shim says.
 Q_LOGGING_CATEGORY(fileViewLog, "omaweb.quickshell.fileview")
 
-StdioCollector::StdioCollector(QObject *parent)
+StdioSink::StdioSink(QObject *parent)
     : QObject(parent)
+{
+}
+
+StdioCollector::StdioCollector(QObject *parent)
+    : StdioSink(parent)
 {
 }
 
@@ -55,6 +63,52 @@ void StdioCollector::append(const QByteArray &data)
 
 void StdioCollector::finish() { emit streamFinished(); }
 
+SplitParser::SplitParser(QObject *parent)
+    : StdioSink(parent)
+{
+}
+
+QString SplitParser::splitMarker() const { return m_splitMarker; }
+
+void SplitParser::setSplitMarker(const QString &splitMarker)
+{
+    if (m_splitMarker == splitMarker) {
+        return;
+    }
+    m_splitMarker = splitMarker;
+    emit splitMarkerChanged();
+}
+
+void SplitParser::reset()
+{
+    m_pending.clear();
+    m_decoder = QStringDecoder(QStringDecoder::Utf8);
+}
+
+void SplitParser::append(const QByteArray &data)
+{
+    if (data.isEmpty() || m_splitMarker.isEmpty()) {
+        return;
+    }
+    // A multi-byte character can arrive in two reads, so the decoder keeps its tail.
+    m_pending.append(m_decoder(data));
+    for (auto end = m_pending.indexOf(m_splitMarker); end >= 0;
+        end = m_pending.indexOf(m_splitMarker)) {
+        const auto line = m_pending.left(end);
+        m_pending.remove(0, end + m_splitMarker.size());
+        emit read(line);
+    }
+}
+
+void SplitParser::finish()
+{
+    if (m_pending.isEmpty()) {
+        return;
+    }
+    const auto line = std::exchange(m_pending, QString());
+    emit read(line);
+}
+
 Process::Process(QObject *parent)
     : QObject(parent)
 {
@@ -64,12 +118,17 @@ Process::Process(QObject *parent)
             m_standardOutput->append(m_process.readAllStandardOutput());
         }
     });
-    connect(&m_process, &QProcess::finished, this, &Process::finish);
+    connect(
+        &m_process, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus status) {
+            finish();
+            emit exited(exitCode, status);
+        });
     // A command the host does not have is a normal outcome here. Report the
     // stream as finished anyway so the consumer's fallback path runs.
     connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
             finish();
+            emit exited(-1, QProcess::CrashExit);
         }
     });
 }
@@ -111,20 +170,49 @@ void Process::setRunning(bool running)
     emit runningChanged();
 }
 
-StdioCollector *Process::standardOutput() const { return m_standardOutput; }
+QVariantMap Process::environment() const { return m_environment; }
 
-void Process::setStandardOutput(StdioCollector *collector)
+void Process::setEnvironment(const QVariantMap &environment)
 {
-    if (m_standardOutput == collector) {
+    if (m_environment == environment) {
         return;
     }
-    m_standardOutput = collector;
+    m_environment = environment;
+    emit environmentChanged();
+}
+
+bool Process::stdinEnabled() const { return m_stdinEnabled; }
+
+void Process::setStdinEnabled(bool stdinEnabled)
+{
+    if (m_stdinEnabled == stdinEnabled) {
+        return;
+    }
+    m_stdinEnabled = stdinEnabled;
+    emit stdinEnabledChanged();
+}
+
+StdioSink *Process::standardOutput() const { return m_standardOutput; }
+
+void Process::setStandardOutput(StdioSink *sink)
+{
+    if (m_standardOutput == sink) {
+        return;
+    }
+    m_standardOutput = sink;
     emit standardOutputChanged();
+}
+
+void Process::write(const QString &data)
+{
+    if (m_stdinEnabled && m_process.state() == QProcess::Running) {
+        m_process.write(data.toUtf8());
+    }
 }
 
 void Process::start()
 {
-    if (m_command.isEmpty()) {
+    if (m_command.isEmpty() || m_process.state() != QProcess::NotRunning) {
         return;
     }
     if (m_standardOutput) {
@@ -132,6 +220,16 @@ void Process::start()
     }
     m_running = true;
     emit runningChanged();
+    // The kit's variables go on top of the browser's own, as Quickshell's do.
+    auto environment = QProcessEnvironment::systemEnvironment();
+    for (auto it = m_environment.cbegin(); it != m_environment.cend(); ++it) {
+        if (it.value().isNull()) {
+            environment.remove(it.key());
+        } else {
+            environment.insert(it.key(), it.value().toString());
+        }
+    }
+    m_process.setProcessEnvironment(environment);
     m_process.start(m_command.first(), m_command.mid(1));
 }
 
@@ -163,9 +261,25 @@ void FileView::setPath(const QString &path)
     m_path = path;
     emit pathChanged();
     refreshWatch();
-    // Load after the component finishes binding, so an `onLoaded` handler
-    // declared alongside `path` is connected before the signal fires.
+    // A file that asked to block has its text the moment the path is set. Any other loads after
+    // the component finishes binding, so an `onLoaded` handler declared alongside `path` is
+    // connected before the signal fires.
+    if (m_blockLoading) {
+        reload();
+        return;
+    }
     QMetaObject::invokeMethod(this, &FileView::reload, Qt::QueuedConnection);
+}
+
+bool FileView::blockLoading() const { return m_blockLoading; }
+
+void FileView::setBlockLoading(bool blockLoading)
+{
+    if (m_blockLoading == blockLoading) {
+        return;
+    }
+    m_blockLoading = blockLoading;
+    emit blockLoadingChanged();
 }
 
 bool FileView::watchChanges() const { return m_watchChanges; }

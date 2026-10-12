@@ -2,6 +2,7 @@
 
 #include "QuickshellHyprland.h"
 #include "QuickshellIo.h"
+#include "QuickshellPipewire.h"
 
 #include <QQmlEngine>
 #include <QQuickStyle>
@@ -32,7 +33,12 @@ void installShim(QQmlEngine &engine)
     qmlRegisterType<FileView>("Quickshell.Io", 1, 0, "FileView");
     qmlRegisterType<IpcHandler>("Quickshell.Io", 1, 0, "IpcHandler");
     qmlRegisterType<Process>("Quickshell.Io", 1, 0, "Process");
+    qmlRegisterUncreatableType<StdioSink>("Quickshell.Io", 1, 0, "StdioSink",
+        QStringLiteral("a StdioSink is made as a StdioCollector or a SplitParser"));
+    qmlRegisterType<SplitParser>("Quickshell.Io", 1, 0, "SplitParser");
     qmlRegisterType<StdioCollector>("Quickshell.Io", 1, 0, "StdioCollector");
+    qmlRegisterSingletonType<Pipewire>("Quickshell.Services.Pipewire", 1, 0, "Pipewire",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new Pipewire; });
 }
 
 Quickshell::Quickshell(QObject *parent)
