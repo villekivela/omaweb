@@ -13,6 +13,11 @@ namespace omaweb {
 
 class SidebarOpacity;
 
+// The colour scheme pages and the Developer tools are told for a palette:
+// dark when its window colour is under half lightness. None for a palette
+// without a window colour, which leaves the scheme as it was.
+std::optional<Qt::ColorScheme> colorSchemeOf(const QVariantMap &palette);
+
 class ThemeController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantMap palette READ palette NOTIFY paletteChanged)

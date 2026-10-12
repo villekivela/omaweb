@@ -73,6 +73,9 @@ namespace {
             // The launcher's icon on Omarchy: the package's, or the theme's.
             {QLatin1StringView("app-icon"), Kind::Text, QStringLiteral("black-and-white"),
                 {QStringLiteral("black-and-white"), QStringLiteral("theme")}},
+            // The installed Omarchy theme the browser draws from, by its
+            // folder's name, or none to follow the desktop's (ADR 0066).
+            {QLatin1StringView("browser-theme"), Kind::Text, QString()},
             {QLatin1StringView("sidebar-side"), Kind::Text, QStringLiteral("left"),
                 {QStringLiteral("left"), QStringLiteral("right")}},
             {QLatin1StringView("floating-controls"), Kind::Switch, true},

@@ -24,6 +24,7 @@ class ThemeControllerTest final : public QObject {
     Q_OBJECT
 
 private slots:
+    void tellsPagesTheSchemeOfTheWindowColour();
     void enforcesDistinctPrivateColors();
     void tintsTheThemesOwnSurfacesTowardsThePrivateAccent();
     void tintsAPrivateWindowHarderWhenTheAccentBarelyRegisters();
@@ -1972,6 +1973,17 @@ void ThemeControllerTest::keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBund
 }
 
 // QFontDatabase needs a GUI application, so this suite is no longer guiless.
+// Catppuccin Latte's window is light and Tokyo Night's dark, whichever theme
+// the desktop is on (#710).
+void ThemeControllerTest::tellsPagesTheSchemeOfTheWindowColour()
+{
+    QCOMPARE(omaweb::colorSchemeOf({{QStringLiteral("window"), QStringLiteral("#d7d8dc")}}),
+        std::optional(Qt::ColorScheme::Light));
+    QCOMPARE(omaweb::colorSchemeOf({{QStringLiteral("window"), QStringLiteral("#16161e")}}),
+        std::optional(Qt::ColorScheme::Dark));
+    QCOMPARE(omaweb::colorSchemeOf({}), std::optional<Qt::ColorScheme>());
+}
+
 QTEST_MAIN(ThemeControllerTest)
 
 #include "tst_themecontroller.moc"

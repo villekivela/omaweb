@@ -30,6 +30,7 @@ private slots:
     void takesItsTurnBesideABusyWriter();
     void offersOnlyTheLimitsSettingsOffers();
     void offersTheTwoAppIcons();
+    void holdsTheBrowserThemeAsAFolderName();
     void leavesAKeyWithoutADefaultUndefined();
     void keepsASidebarOpacityBetweenHalfAndOne();
     void readsASidebarOpacityOutOfRangeAsTheThemes();
@@ -358,6 +359,22 @@ void SettingsFileTest::offersTheTwoAppIcons()
     QVERIFY(SettingsFile::accepts(key, QStringLiteral("black-and-white")));
     QVERIFY(SettingsFile::accepts(key, QStringLiteral("theme")));
     QVERIFY(!SettingsFile::accepts(key, QStringLiteral("green")));
+}
+
+// Following the desktop's theme is the default, and leaves the key out of the
+// file; a picked theme is its folder's name.
+void SettingsFileTest::holdsTheBrowserThemeAsAFolderName()
+{
+    QTemporaryDir root;
+    SettingsFile settings(root.path());
+    const auto key = QStringLiteral("browser-theme");
+    QCOMPARE(SettingsFile::defaultValue(key), QJsonValue(QString()));
+
+    QVERIFY(settings.set(key, QStringLiteral("catppuccin-latte")));
+    QCOMPARE(SettingsFile(root.path()).value(key), QJsonValue(QStringLiteral("catppuccin-latte")));
+
+    QVERIFY(settings.set(key, QString()));
+    QVERIFY(!SettingsFile(root.path()).isSet(key));
 }
 
 // A key whose default is not Omaweb's to state reads as undefined while the

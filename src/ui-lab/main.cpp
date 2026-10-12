@@ -2,6 +2,7 @@
 #include <QJSValue>
 #include "AgentControl.h"
 #include "BrowserController.h"
+#include "BrowserTheme.h"
 #include "StoredFaviconProvider.h"
 #include "ContentBlocker.h"
 #include "EngineSuggestions.h"
@@ -562,8 +563,20 @@ int main(int argc, char *argv[])
     // the config directory, the desktop's theme — applies: a lab that read the
     // machine's theme would review a different palette on every machine.
     const auto themeOverride = qEnvironmentVariable("OMAWEB_THEME_FILE");
-    omaweb::ThemeController theme(
-        themeOverride.isEmpty() ? QStringLiteral(OMAWEB_THEME_PATH) : themeOverride);
+    // `--browser-theme <folder>` reviews a picked browser theme over the
+    // built-in palette, which stands for the desktop's. The themes are read
+    // where Omarchy keeps them, so a review points XDG_CONFIG_HOME,
+    // XDG_STATE_HOME and OMARCHY_PATH at copies, and the render goes to the
+    // lab's data root.
+    omaweb::BrowserTheme browserTheme(omaweb::BrowserThemePaths::fromEnvironment(dataRootPath,
+                                          QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH)),
+        omaweb::readOmarchyColours, {}, themeOverride);
+    const auto browserThemeIndex = arguments.indexOf(QStringLiteral("--browser-theme"));
+    browserTheme.setChoice(browserThemeIndex >= 0 && browserThemeIndex + 1 < arguments.size()
+            ? arguments.at(browserThemeIndex + 1)
+            : QString());
+    omaweb::ThemeController theme(omaweb::paletteSources(
+        themeOverride, {}, browserTheme.renderedPath(), {}, QStringLiteral(OMAWEB_THEME_PATH)));
     omaweb::WindowManager windowManager;
     // The size control is reviewed here; what it sets is written under the
     // lab's own data root rather than the reader's configuration.
@@ -630,6 +643,7 @@ int main(int argc, char *argv[])
     // Settings names a file and says what is wrong with it as it would.
     omaweb::SettingsFile settingsFile(dataRootPath);
     engine.rootContext()->setContextProperty(QStringLiteral("settingsFile"), &settingsFile);
+    engine.rootContext()->setContextProperty(QStringLiteral("browserTheme"), &browserTheme);
     engine.rootContext()->setContextProperty(
         QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
@@ -678,6 +692,7 @@ int main(int argc, char *argv[])
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.
     omaweb::KitTheme kitTheme(&engine, &theme, &fontSettings);
+    kitTheme.setDrivesSurfaces(browserTheme.drawn());
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
@@ -1729,6 +1744,17 @@ QtObject {
             if (auto *sidebar = root->findChild<QObject *>(QStringLiteral("sidebar"));
                 sidebar != nullptr && rows != 0) {
                 QMetaObject::invokeMethod(sidebar, "stepCursor", Q_ARG(QVariant, rows));
+            }
+        });
+    }
+
+    // `--theme-list` opens the browser theme's list in Settings, which a reader
+    // opens with a click.
+    if (arguments.contains(QStringLiteral("--theme-list")) && !engine.rootObjects().isEmpty()) {
+        auto *root = engine.rootObjects().constFirst();
+        QTimer::singleShot(300, root, [root] {
+            if (auto *dropdown = root->findChild<QObject *>(QStringLiteral("browserTheme"))) {
+                QMetaObject::invokeMethod(dropdown, "open");
             }
         });
     }

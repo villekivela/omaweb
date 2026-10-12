@@ -152,6 +152,12 @@ Rectangle {
     property var fontSettings: null
     // The reader's say over the sidebar's opacity, over the theme's.
     property var sidebarOpacity: null
+    // The installed Omarchy theme the browser draws in (#710).
+    property var browserTheme: null
+    onBrowserThemeChanged: {
+        if (browserTheme)
+            browserTheme.refreshThemes();
+    }
     property var pageFonts: null
     readonly property bool pageFontsUnreachable: !!pageFonts && !pageFonts.available
     readonly property var pageFontsMap: fontSettings ? fontSettings.pageFontsMap : ({})
@@ -1113,6 +1119,43 @@ Rectangle {
                     width: pane.width
                     visible: root.section === 1
                     spacing: pane.spacing
+
+                    // The desktop's theme, or one the reader picks for the
+                    // browser alone (ADR 0066). A theme file of the reader's
+                    // outranks either, and the row says so rather than offer a
+                    // choice that draws nothing.
+                    SettingRow {
+                        objectName: "browserThemeRow"
+                        width: pane.width
+                        visible: !!root.browserTheme && (root.browserTheme.themes.length > 0
+                                                         || root.browserTheme.choice !== "")
+                        colors: root.colors
+                        title: qsTr("Theme")
+                        note: {
+                            const theme = root.browserTheme;
+                            if (theme && theme.overrideSource !== "")
+                                return qsTr("%1 sets Omaweb's palette instead.").arg(
+                                            theme.overrideSource);
+                            if (theme && theme.missing)
+                                return qsTr("%1 isn't installed, so Omaweb follows Omarchy.").arg(
+                                            theme.choiceName);
+                            return qsTr(
+                                        "The Omarchy theme Omaweb, its pages and Developer tools are drawn in. The rest of the desktop keeps its own.");
+                        }
+
+                        ThemeDropdown {
+                            objectName: "browserTheme"
+                            enabled: root.settingsWritable && !!root.browserTheme
+                                     && root.browserTheme.overrideSource === ""
+                            colors: root.colors
+                            browserTheme: root.browserTheme
+                            iconFontFamily: root.iconFontFamily
+                            accessibleName: qsTr("Theme")
+                            onChosen: function (folder) {
+                                root.browser.setPreference("browser-theme", folder);
+                            }
+                        }
+                    }
 
                     SettingRow {
                         width: pane.width

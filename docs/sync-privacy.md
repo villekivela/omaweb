@@ -36,18 +36,19 @@ read them.
 
 ### Readable in the repository
 
-Your whole `keybindings.json`, your filter subscription addresses, and four settings:
-`floating-controls`, `use-favicons`, `tint-favicons` and `app-icon`. These are stored as plain text,
-so anyone who can read the repository, GitHub included, can read them. A repository an earlier
-version wrote `ease-sidebar` into loses that file on the next sync, since the setting no longer
-exists.
+Your whole `keybindings.json`, your filter subscription addresses, and five settings:
+`floating-controls`, `use-favicons`, `tint-favicons`, `app-icon` and `browser-theme`. These are
+stored as plain text, so anyone who can read the repository, GitHub included, can read them. A
+repository an earlier version wrote `ease-sidebar` into loses that file on the next sync, since the
+setting no longer exists.
 
 ### Never synced
 
 Passwords, cookies and active logins. Payment cards, which stay in your desktop's keyring. Browsing
 history. Form history, what you typed into forms. Saved addresses. Downloads. Site permissions.
 Per-site content-blocking exceptions and your own rules. Anything in a Private window. Which Space
-and tab you have open stays on the machine, and so does your theme.
+and tab you have open stays on the machine, and so does your theme: the browser theme travels as the
+name of an Omarchy theme, and a machine without it installed follows its desktop's.
 
 ## What encryption covers, and what it doesn't
 

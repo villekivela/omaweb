@@ -634,6 +634,7 @@ public slots:
         engine->addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
         m_kitTheme
             = std::make_unique<omaweb::KitTheme>(engine, m_theme.get(), m_fontSettings.get());
+        engine->rootContext()->setContextProperty(QStringLiteral("kitTheme"), m_kitTheme.get());
     }
 
     void cleanupTestCase()

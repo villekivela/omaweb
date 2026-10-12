@@ -243,7 +243,10 @@ TestCase {
             return fallback;
         }
 
+        property var preferenceCalls: []
+
         function setPreference(key, value) {
+            preferenceCalls = preferenceCalls.concat([[key, value]]);
         }
     }
 
@@ -1720,6 +1723,58 @@ TestCase {
         }
     }
 
+    // The browser theme as the page reads it: the desktop on Tokyo Night and
+    // three themes installed, one of them picked or not as a test says.
+    QtObject {
+        id: browserThemeStub
+
+        property string choice: ""
+        property string choiceName: ""
+        property bool missing: false
+        property string desktopName: "Tokyo Night"
+        property string overrideSource: ""
+        property var desktopColours: ({
+                                          background: "#1a1b26",
+                                          foreground: "#a9b1d6",
+                                          accent: "#7aa2f7"
+                                      })
+        property var themes: [
+            {
+                folder: "catppuccin-latte",
+                name: "Catppuccin Latte",
+                background: "#eff1f5",
+                foreground: "#4c4f69",
+                accent: "#1e66f5"
+            },
+            {
+                folder: "flexoki-light",
+                name: "Flexoki Light",
+                background: "#fffcf0",
+                foreground: "#100f0f",
+                accent: "#205ea6"
+            },
+            {
+                folder: "nord",
+                name: "Nord",
+                background: "#2e3440",
+                foreground: "#d8dee9",
+                accent: "#81a1c1"
+            }
+        ]
+        property int refreshes: 0
+
+        function refreshThemes() {
+            refreshes += 1;
+        }
+        function reset() {
+            choice = "";
+            choiceName = "";
+            missing = false;
+            overrideSource = "";
+            refreshes = 0;
+        }
+    }
+
     QtObject {
         id: pageFontsStub
 
@@ -1733,6 +1788,209 @@ TestCase {
         page.pageFonts = pageFontsStub;
         page.section = page.sections.indexOf("interface");
         return page;
+    }
+
+    function makeThemePage() {
+        browserThemeStub.reset();
+        browserStub.preferenceCalls = [];
+        const page = makeInterfacePage();
+        page.browser = browserStub;
+        page.browserTheme = browserThemeStub;
+        return page;
+    }
+
+    function themeRows(dropdown) {
+        const rows = [];
+        const list = findChild(dropdown.popupItem, "themeList");
+        for (let index = 0; index < list.count; ++index) {
+            list.currentIndex = index;
+            rows.push(list.currentItem);
+        }
+        return rows;
+    }
+
+    // The browser theme leads Interface: following the desktop first, named
+    // for the desktop's theme, then every installed theme by name. Each row
+    // ends with the theme's background, foreground and accent (#710).
+    function test_theThemeRowListsFollowingOmarchyThenEveryTheme() {
+        const page = makeThemePage();
+        const row = findChild(page, "browserThemeRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Theme");
+        // The rows are laid out on the next polish after the row appears.
+        for (const other of ["putAwayAfterRow", "interfaceFontSizeRow", "sidebarSide"])
+            tryVerify(function () {
+                return row.mapToItem(page, 0, 0).y < findChild(page, other).mapToItem(page, 0, 0).y;
+            }, 1000, other);
+
+        const dropdown = findChild(page, "browserTheme");
+        compare(findChild(dropdown, "themeLabel").text, "Follow Omarchy");
+        compare(findChild(dropdown, "themeDetail").text, "Tokyo Night");
+        click(dropdown);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        verify(browserThemeStub.refreshes > 0);
+        const rows = themeRows(dropdown);
+        compare(rows.map(function (option) {
+            return findChild(option, "themeLabel").text;
+        }), ["Follow Omarchy", "Catppuccin Latte", "Flexoki Light", "Nord"]);
+        compare(findChild(rows[0], "themeDetail").text, "Tokyo Night");
+        const swatches = [findChild(rows[1], "swatchBackground"), findChild(rows[1],
+                                                                            "swatchForeground"),
+                          findChild(rows[1], "swatchAccent")];
+        compare(swatches.map(function (swatch) {
+            return String(swatch.color);
+        }), ["#eff1f5", "#4c4f69", "#1e66f5"]);
+        for (const swatch of swatches) {
+            compare(swatch.width, 12);
+            compare(swatch.height, 12);
+        }
+        compare(String(findChild(rows[0], "swatchAccent").color), "#7aa2f7");
+        keyClick(Qt.Key_Escape);
+    }
+
+    // Moving through the list previews nothing; choosing an entry applies it.
+    function test_choosingAThemeStoresItAndMovingDoesNot() {
+        const page = makeThemePage();
+        const dropdown = findChild(page, "browserTheme");
+        click(dropdown);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down);
+        compare(browserStub.preferenceCalls.length, 0);
+        keyClick(Qt.Key_Return);
+        compare(browserStub.preferenceCalls, [["browser-theme", "catppuccin-latte"]]);
+        verify(!dropdown.popupOpen);
+
+        browserThemeStub.choice = "catppuccin-latte";
+        browserThemeStub.choiceName = "Catppuccin Latte";
+        compare(findChild(dropdown, "themeLabel").text, "Catppuccin Latte");
+        click(dropdown);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Return);
+        compare(browserStub.preferenceCalls[1], ["browser-theme", ""]);
+    }
+
+    // The swatches arrive after the list opens, and the row the reader walked
+    // to stays highlighted when they do.
+    function test_theListKeepsItsPlaceWhenTheColoursArrive() {
+        const page = makeThemePage();
+        const dropdown = findChild(page, "browserTheme");
+        click(dropdown);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        const list = findChild(dropdown.popupItem, "themeList");
+        compare(list.currentIndex, 0);
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down);
+        compare(list.currentIndex, 2);
+        browserThemeStub.themes = browserThemeStub.themes.slice();
+        compare(list.currentIndex, 2);
+        keyClick(Qt.Key_Escape);
+    }
+
+    // The search field sits in the popup as the kit's SearchableDropdown puts
+    // it: a header a row and a control's padding tall, the field inset by the
+    // same space on every side inside the popup's border.
+    function test_theSearchFieldIsInsetLikeTheKits() {
+        const page = makeThemePage();
+        const dropdown = findChild(page, "browserTheme");
+        click(dropdown);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        const field = findChild(dropdown.popupItem, "themeSearch");
+        const ground = dropdown.popupItem.parent.background;
+        verify(field !== null && ground !== null);
+        const box = field.mapToItem(ground, 0, 0, field.width, field.height);
+        const inset = Style.spacing.md + Style.spacing.hairline + ground.borderLeft;
+        compare(box.x, inset);
+        compare(box.y, inset);
+        compare(ground.width - box.x - box.width, inset);
+        compare(findChild(dropdown.popupItem, "themeSearchHeader").height,
+                Style.spacing.popupRowHeight + Style.spacing.controlPaddingX);
+        keyClick(Qt.Key_Escape);
+    }
+
+    function luminance(colour) {
+        const channel = function (value) {
+            return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * channel(colour.r) + 0.7152 * channel(colour.g) + 0.0722 * channel(colour.b);
+    }
+
+    // What a colour shows as over the ground it is drawn on.
+    function over(colour, ground) {
+        return Qt.rgba(colour.r * colour.a + ground.r * (1 - colour.a), colour.g * colour.a
+                       + ground.g * (1 - colour.a), colour.b * colour.a + ground.b * (1 - colour.a),
+                       1);
+    }
+
+    function contrast(colour, ground) {
+        const a = luminance(over(colour, ground));
+        const b = luminance(ground);
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }
+
+    // The placeholder reads quieter than typed text under a dark theme and a
+    // light one alike.
+    function test_theSearchPlaceholderIsMutedInLightAndDark() {
+        const light = Object.assign({}, testCase.colorsFixture, {
+                                        text: "#4c4f69",
+                                        mutedText: "#404350",
+                                        accent: "#1e66f5",
+                                        overlayOpaque: "#e3e4e8",
+                                        windowOpaque: "#d7d8dc",
+                                        separator: "#1f4c4f69"
+                                    });
+        const dark = Object.assign({}, testCase.colorsFixture, {
+                                       overlayOpaque: "#1f1d27"
+                                   });
+        for (const colours of [dark, light]) {
+            const page = makeThemePage();
+            page.colors = colours;
+            const dropdown = findChild(page, "browserTheme");
+            click(dropdown);
+            tryVerify(function () {
+                return dropdown.popupOpen;
+            });
+            const field = findChild(dropdown.popupItem, "themeSearch");
+            const fill = over(field.background.color, Qt.color(colours.overlayOpaque));
+            verify(contrast(field.placeholderTextColor, fill) < contrast(field.color, fill) / 1.5,
+                   colours.text);
+            compare(String(field.background.color), String(Style.controlFill(true, false, Qt.color(
+                                                                                 colours.text),
+                                                                             Qt.color(colours.accent))));
+            keyClick(Qt.Key_Escape);
+            page.destroy();
+            livePage = null;
+        }
+    }
+
+    function test_aPickedThemeThatIsNotInstalledSaysSo() {
+        const page = makeThemePage();
+        browserThemeStub.choice = "catppuccin-latte";
+        browserThemeStub.choiceName = "Catppuccin Latte";
+        browserThemeStub.missing = true;
+        compare(findChild(page, "browserThemeRow").note,
+                "Catppuccin Latte isn't installed, so Omaweb follows Omarchy.");
+        verify(findChild(page, "browserTheme").enabled);
+    }
+
+    function test_aThemeFileThatSetsThePaletteDisablesTheRow() {
+        const page = makeThemePage();
+        browserThemeStub.overrideSource = "~/.config/omaweb/theme.json";
+        verify(!findChild(page, "browserTheme").enabled);
+        compare(findChild(page, "browserThemeRow").note,
+                "~/.config/omaweb/theme.json sets Omaweb's palette instead.");
     }
 
     function click(control) {

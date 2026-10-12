@@ -302,6 +302,7 @@ private slots:
     void logsTheRecordARestoreFailedOn();
     void syncsOnlyTheApprovedConfiguration();
     void syncsTheAppIcon();
+    void syncsTheBrowserTheme();
     void restoresSettingsBesideASettingsPageWrite();
     void restoresTheRestBesideASettingsFileItCannotRead();
     void leavesAReadOnlyKeybindingsFileAloneWhenItMatches();
@@ -830,6 +831,48 @@ void SyncModuleTest::syncsTheAppIcon()
 
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("app-icon")),
         QJsonValue(QStringLiteral("theme")));
+}
+
+// A browser theme the reader picked reaches their other machines, which draw
+// it where it is installed and follow the desktop's where it is not.
+void SyncModuleTest::syncsTheBrowserTheme()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'i');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(writeSettings(firstConfigRoot.path(),
+        {{QStringLiteral("browser-theme"), QStringLiteral("catppuccin-latte")}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
+        QJsonValue(QStringLiteral("catppuccin-latte")));
 }
 
 // Sync's restore and the Settings page write the same file. A reader changing

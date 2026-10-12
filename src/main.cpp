@@ -34,6 +34,7 @@
 #include "InputMethod.h"
 #include "LocaleReport.h"
 #include "KeyboardNavigation.h"
+#include "BrowserTheme.h"
 #include "KitTheme.h"
 #include "LaunchRequest.h"
 #include "MediaAnnouncer.h"
@@ -117,25 +118,20 @@ QString configRoot()
     return QDir(base).filePath(QStringLiteral("omaweb"));
 }
 
+QString readerThemePath() { return QDir(configRoot()).filePath(QStringLiteral("theme.json")); }
+
 // Every place a palette may come from, in the order they outrank each other.
 // The files are not tested for here: the controller reads the first one that is
 // there and watches the rest, so a desktop theme rendered a moment after
 // startup takes over without a restart.
-QStringList themePaths()
+QStringList themePaths(const omaweb::BrowserTheme &browserTheme)
 {
-    const auto override = qEnvironmentVariable("OMAWEB_THEME_FILE");
-    if (!override.isEmpty()) {
-        // An override names one file, and nothing overtakes it.
-        return {override};
-    }
-    // A theme the user dropped in their own config directory outranks a
-    // desktop-managed one; both outrank the built-in.
-    QStringList paths {QDir(configRoot()).filePath(QStringLiteral("theme.json"))};
+    QString desktopTheme;
 #if defined(Q_OS_LINUX)
-    paths.append(omaweb::OmarchyThemePaths::fromEnvironment().renderedTheme());
+    desktopTheme = omaweb::OmarchyThemePaths::fromEnvironment().renderedTheme();
 #endif
-    paths.append(QStringLiteral(OMAWEB_THEME_PATH));
-    return paths;
+    return omaweb::paletteSources(qEnvironmentVariable("OMAWEB_THEME_FILE"), readerThemePath(),
+        browserTheme.renderedPath(), desktopTheme, QStringLiteral(OMAWEB_THEME_PATH));
 }
 
 QString keybindingsPath()
@@ -420,7 +416,27 @@ int main(int argc, char *argv[])
     omaweb::followOmarchyTheme(
         omaweb::OmarchyThemePaths::fromEnvironment(), QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
 #endif
-    omaweb::ThemeController theme(themePaths());
+    // The reader's settings file as Settings shows it: where it is and what
+    // went wrong reading it. The browser theme is read from it before the
+    // first palette is.
+    omaweb::SettingsFile settingsFile(configRoot());
+    // The installed Omarchy theme the browser draws, the desktop's unless the
+    // reader picked another (ADR 0066). A pick is rendered before the theme
+    // controller first reads, so the first frame is drawn in it.
+    omaweb::BrowserTheme browserTheme(omaweb::BrowserThemePaths::fromEnvironment(
+                                          dataRoot(), QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH)),
+        omaweb::readOmarchyColours, readerThemePath(), qEnvironmentVariable("OMAWEB_THEME_FILE"));
+    const auto followBrowserTheme = [&browserTheme, &settingsFile] {
+        browserTheme.setChoice(settingsFile.value(QStringLiteral("browser-theme")).toString());
+    };
+    QObject::connect(&settingsFile, &omaweb::SettingsFile::changed, &browserTheme,
+        [followBrowserTheme](const QStringList &keys) {
+            if (keys.contains(QStringLiteral("browser-theme"))) {
+                followBrowserTheme();
+            }
+        });
+    followBrowserTheme();
+    omaweb::ThemeController theme(themePaths(browserTheme));
     // A page asks what colour scheme it is being read in, and Qt answers for
     // the whole application. Nothing was answering, so the engine fell back to
     // the desktop's idea, which on a plain Linux session is light however dark
@@ -428,12 +444,9 @@ int main(int argc, char *argv[])
     // chrome came up white. The browser's own theme is the honest answer, so
     // the window colour decides it, and a theme that changes changes it.
     const auto followThemeColorScheme = [&theme] {
-        const QColor window(theme.palette().value(QStringLiteral("window")).toString());
-        if (!window.isValid()) {
-            return;
+        if (const auto scheme = omaweb::colorSchemeOf(theme.palette())) {
+            QGuiApplication::styleHints()->setColorScheme(*scheme);
         }
-        QGuiApplication::styleHints()->setColorScheme(
-            window.lightnessF() < 0.5 ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
     };
     QObject::connect(
         &theme, &omaweb::ThemeController::paletteChanged, &theme, followThemeColorScheme);
@@ -470,9 +483,6 @@ int main(int argc, char *argv[])
     if (!inputMethod.available()) {
         qWarning("%s", qPrintable(omaweb::inputMethodDiagnostic(inputMethodHost, false)));
     }
-    // The reader's settings file as Settings shows it: where it is and what
-    // went wrong reading it.
-    omaweb::SettingsFile settingsFile(configRoot());
 #if defined(Q_OS_LINUX)
     // The launcher's icon, applied on every start, which is when a choice
     // Sync brought from another machine first reaches this one, and again
@@ -557,6 +567,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineHeldDownloads"), &engineHeldDownloads);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
+    engine.rootContext()->setContextProperty(QStringLiteral("browserTheme"), &browserTheme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
     engine.rootContext()->setContextProperty(QStringLiteral("settingsFile"), &settingsFile);
@@ -592,6 +603,13 @@ int main(int argc, char *argv[])
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.
     omaweb::KitTheme kitTheme(&engine, &theme, &fontSettings);
+    // A picked theme's colours are not the ones the desktop's shell.toml names,
+    // so the kit's controls and surfaces take the palette's while one is drawn.
+    const auto followBrowserThemeInKit
+        = [&kitTheme, &browserTheme] { kitTheme.setDrivesSurfaces(browserTheme.drawn()); };
+    QObject::connect(
+        &browserTheme, &omaweb::BrowserTheme::changed, &kitTheme, followBrowserThemeInKit);
+    followBrowserThemeInKit();
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

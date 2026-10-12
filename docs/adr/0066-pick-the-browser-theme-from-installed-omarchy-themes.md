@@ -25,11 +25,13 @@ it theirs.
 The vendored kit reads its control tokens, the normal, hover, focus and selected colours of its
 controls, from the desktop theme's `shell.toml` at a path it fixes, and ADR 0018 left them to the
 kit. Under a light browser theme on a dark desktop those controls would draw the desktop's light
-foreground on a light ground. While a browser theme is picked, `KitTheme` therefore also drives the
-control colours from the palette, as Omarchy's own `shell.toml` template derives them from
-foreground and accent, and leaves their alphas and widths to the kit. Pointing the kit at a rendered
-`shell.toml` was rejected because the path is the kit's own and ADR 0017 forbids editing it.
-Following the desktop theme drives nothing new.
+foreground on a light ground. The kit's popups and tooltips, which its dropdowns, the Omnibar's
+suggestions and its buttons' tips draw on, take their colours from the same file and stayed dark
+under a light browser theme. While a browser theme is picked, `KitTheme` therefore also drives the
+control, popup and tooltip colours from the palette, as Omarchy's own `shell.toml` template derives
+them from foreground, background and accent, and leaves their alphas and widths to the kit. Pointing
+the kit at a rendered `shell.toml` was rejected because the path is the kit's own and ADR 0017
+forbids editing it. Following the desktop theme drives nothing new.
 
 The app icon stays with the desktop theme, because the launcher it appears in belongs to the
 desktop.

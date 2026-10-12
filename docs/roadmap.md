@@ -48,10 +48,8 @@ engine is 6.11.2-15. v0.16.0 is the release in progress.
 
 [v0.16.0](https://github.com/villekivela/omaweb/milestone/15) is planned around the browser's theme:
 follow Omarchy's, or pick any installed Omarchy theme for the browser alone
-([#710](https://github.com/villekivela/omaweb/issues/710)). Its design is still to be decided.
-Whether a Google account whose default sign-in is a passkey gets past the unsupported-browser page
-on v0.15.1's engine, and why it didn't before, is still to be found
-([#711](https://github.com/villekivela/omaweb/issues/711)).
+([#710](https://github.com/villekivela/omaweb/issues/710)), as
+[ADR 0066](adr/0066-pick-the-browser-theme-from-installed-omarchy-themes.md) records.
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
