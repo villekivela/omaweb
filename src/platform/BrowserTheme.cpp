@@ -3,11 +3,11 @@
 #include "OmarchyTheme.h"
 
 #include <QColor>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
-#include <QDateTime>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QtConcurrentRun>
@@ -207,7 +207,7 @@ BrowserTheme::BrowserTheme(BrowserThemePaths paths, ColourSource colours, QStrin
     // directory that did not exist yet, so both are also polled.
     m_poll.setInterval(1000);
     connect(&m_poll, &QTimer::timeout, this, [this] {
-        if (sourceState() != m_sourceState) {
+        if (renderState() != m_renderState || readOverride() != m_override) {
             update();
         }
     });
@@ -227,6 +227,10 @@ QString BrowserTheme::desktopName() const { return m_desktopName; }
 QVariantList BrowserTheme::themes() const { return m_themes; }
 QVariantMap BrowserTheme::desktopColours() const { return m_desktopColours; }
 QString BrowserTheme::overrideSource() const { return m_override; }
+bool BrowserTheme::drawn() const
+{
+    return !m_choice.isEmpty() && !m_missing && m_override.isEmpty();
+}
 QString BrowserTheme::renderedPath() const { return m_paths.rendered; }
 
 void BrowserTheme::setChoice(const QString &folder)
@@ -248,26 +252,26 @@ QString BrowserTheme::themeDirectory(const QString &folder) const
     return QFileInfo(user).isDir() ? user : QDir(m_paths.systemThemes).filePath(folder);
 }
 
-QString BrowserTheme::sourceState() const
+QString BrowserTheme::renderState() const
 {
-    const auto overriding = readOverride();
-    if (m_choice.isEmpty()) {
-        return overriding;
-    }
+    // What a render is made from: the choice, its colours, a palette the theme
+    // ships and the reader's template. The same state renders the same file.
     const auto directory = themeDirectory(m_choice);
-    const QFileInfo colours(
-        directory.isEmpty() ? QString() : QDir(directory).filePath(QStringLiteral("colors.toml")));
-    return QStringLiteral("%1\n%2\n%3\n%4\n%5")
-        .arg(overriding, colours.canonicalFilePath(), QString::number(colours.size()),
-            QString::number(colours.lastModified().toMSecsSinceEpoch()),
-            QString::number(QFileInfo(m_paths.userTemplate).lastModified().toMSecsSinceEpoch()));
+    const auto stamp = [](const QFileInfo &file) {
+        return QStringLiteral("%1 %2 %3")
+            .arg(file.canonicalFilePath(), QString::number(file.size()),
+                QString::number(file.lastModified().toMSecsSinceEpoch()));
+    };
+    const auto inTheme = [&directory](const QString &name) {
+        return QFileInfo(directory.isEmpty() ? QString() : QDir(directory).filePath(name));
+    };
+    return QStringList {m_choice, stamp(inTheme(QStringLiteral("colors.toml"))),
+        stamp(inTheme(QStringLiteral("omaweb.json"))), stamp(QFileInfo(m_paths.userTemplate))}
+        .join(QLatin1Char('\n'));
 }
 
 void BrowserTheme::watch()
 {
-    if (const auto watched = m_watcher.files() + m_watcher.directories(); !watched.isEmpty()) {
-        m_watcher.removePaths(watched);
-    }
     QStringList paths {m_paths.userThemes, m_paths.systemThemes, m_paths.desktopTheme,
         QFileInfo(m_paths.userTemplate).absolutePath(), m_paths.userTemplate};
     if (!m_readerTheme.isEmpty()) {
@@ -276,8 +280,16 @@ void BrowserTheme::watch()
     if (const auto directory = themeDirectory(m_choice); !directory.isEmpty()) {
         paths << directory << QDir(directory).filePath(QStringLiteral("colors.toml"));
     }
-    for (const auto &path : paths) {
-        if (QFileInfo::exists(path)) {
+    paths.removeIf([](const QString &path) { return !QFileInfo::exists(path); });
+    // A file replaced under its watch is dropped from it, so the watch is
+    // brought to the paths wanted now rather than added to once.
+    auto stale = m_watcher.files() + m_watcher.directories();
+    stale.removeIf([&paths](const QString &path) { return paths.contains(path); });
+    if (!stale.isEmpty()) {
+        m_watcher.removePaths(stale);
+    }
+    for (const auto &path : std::as_const(paths)) {
+        if (!m_watcher.files().contains(path) && !m_watcher.directories().contains(path)) {
             m_watcher.addPath(path);
         }
     }
@@ -291,13 +303,26 @@ void BrowserTheme::update()
     const bool wasMissing = m_missing;
     const auto previousDesktop = m_desktopName;
     const auto previousOverride = m_override;
-    const auto previousChoice = m_renderedChoice;
-    m_renderedChoice = m_choice;
-    m_sourceState = sourceState();
+    const auto previousChoice = m_announcedChoice;
+    m_announcedChoice = m_choice;
     m_desktopName = omarchyThemeName(QString::fromUtf8(
         readFile(QDir(m_paths.desktopTheme).filePath(QStringLiteral("theme.name"))).trimmed()));
     m_override = readOverride();
+    // Anything in the folders watched wakes this, and a render runs a process,
+    // so only a change to what the render is made from renders again.
+    if (const auto state = renderState(); state != m_renderState) {
+        m_renderState = state;
+        render();
+    }
+    watch();
+    if (m_missing != wasMissing || m_desktopName != previousDesktop
+        || m_override != previousOverride || m_choice != previousChoice) {
+        emit changed();
+    }
+}
 
+void BrowserTheme::render()
+{
     const auto directory = themeDirectory(m_choice);
     const auto coloursFile = QDir(directory).filePath(QStringLiteral("colors.toml"));
     const bool installed = !directory.isEmpty() && QFileInfo::exists(coloursFile);
@@ -331,11 +356,6 @@ void BrowserTheme::update()
             qPrintable(m_paths.rendered));
     }
     m_missing = !m_choice.isEmpty() && !installed;
-    watch();
-    if (m_missing != wasMissing || m_desktopName != previousDesktop
-        || m_override != previousOverride || m_choice != previousChoice) {
-        emit changed();
-    }
 }
 
 QString BrowserTheme::readOverride() const
@@ -356,6 +376,10 @@ QString BrowserTheme::readOverride() const
 
 void BrowserTheme::refreshThemes()
 {
+    // A read already on its way answers this ask too.
+    if (m_swatches.isRunning()) {
+        return;
+    }
     // `omarchy theme list`: every folder in either place, once, in the order
     // of their folder names.
     QStringList folders;
@@ -378,7 +402,6 @@ void BrowserTheme::refreshThemes()
     // The desktop's colours come last, beside the themes'. Each read is a
     // process, so the list is drawn first and coloured once they are back.
     coloursFiles.append(QDir(m_paths.desktopTheme).filePath(QStringLiteral("theme/colors.toml")));
-    m_swatches.cancel();
     m_swatches.setFuture(QtConcurrent::run([colours = m_colours, coloursFiles] {
         QVariantList swatches;
         for (const auto &file : coloursFiles) {
@@ -394,9 +417,6 @@ void BrowserTheme::refreshThemes()
 
 void BrowserTheme::applySwatches()
 {
-    if (m_swatches.isCanceled()) {
-        return;
-    }
     const auto swatches = m_swatches.result();
     if (swatches.size() != m_themes.size() + 1) {
         return;

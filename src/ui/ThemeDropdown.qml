@@ -54,13 +54,16 @@ Omarchy.BorderSurface {
     signal chosen(string value)
 
     function filter() {
+        // The swatches arrive after the list does, which builds the options
+        // again; the row the reader walked to stays the one highlighted.
+        const highlighted = popup.opened && list.currentIndex >= 0 && list.currentIndex
+              < root.filtered.length ? root.filtered[list.currentIndex].value : root.value;
         const query = search.text.toLowerCase();
         root.filtered = query === "" ? root.options : root.options.filter(function (option) {
             return option.label.toLowerCase().indexOf(query) >= 0;
         });
-        // Opened on the theme in force, so the list starts where the reader is.
         const current = root.filtered.findIndex(function (option) {
-            return option.value === root.value;
+            return option.value === highlighted;
         });
         list.currentIndex = current >= 0 ? current : (root.filtered.length > 0 ? 0 : -1);
     }
@@ -160,6 +163,7 @@ Omarchy.BorderSurface {
             if (root.browserTheme)
                 root.browserTheme.refreshThemes();
             search.text = "";
+            list.currentIndex = -1;
             root.filter();
             search.forceActiveFocus();
         }

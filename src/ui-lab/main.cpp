@@ -692,8 +692,7 @@ int main(int argc, char *argv[])
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.
     omaweb::KitTheme kitTheme(&engine, &theme, &fontSettings);
-    kitTheme.setDrivesSurfaces(!browserTheme.choice().isEmpty() && !browserTheme.missing()
-        && browserTheme.overrideSource().isEmpty());
+    kitTheme.setDrivesSurfaces(browserTheme.drawn());
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

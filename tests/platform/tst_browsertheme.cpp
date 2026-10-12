@@ -139,6 +139,8 @@ private slots:
     void namesTheFileThatOverridesIt();
     void readsOnlyAFolderInTheThemesPlaces();
     void leavesTheDesktopsThemeAlone();
+    void rendersOnlyWhenThePickedThemeChanges();
+    void saysWhetherThePickedThemeIsDrawn();
 };
 
 // The expected text is what `omarchy-theme-set-templates` itself rendered from
@@ -423,6 +425,45 @@ void BrowserThemeTest::leavesTheDesktopsThemeAlone()
 
     QVERIFY(!QFileInfo::exists(marker));
     QCOMPARE(filesUnder(omarchy) + filesUnder(state), before);
+}
+
+// Rendering runs Omarchy's colour process, on the window's thread, and the
+// folders watched change for other themes too.
+void BrowserThemeTest::rendersOnlyWhenThePickedThemeChanges()
+{
+    Home home;
+    home.install(home.paths.systemThemes, QStringLiteral("catppuccin-latte"));
+    BrowserTheme theme(home.paths, home.colours());
+    theme.setChoice(QStringLiteral("catppuccin-latte"));
+    QCOMPARE(home.asked.size(), 1);
+
+    home.install(home.paths.userThemes, QStringLiteral("nord"));
+    Home::write(QDir(home.paths.desktopTheme).filePath(QStringLiteral("theme.name")), "nord\n");
+    QTRY_COMPARE(theme.desktopName(), QStringLiteral("Nord"));
+    // Past the poll, which would render again if anything it reads moved.
+    QTest::qWait(1500);
+
+    QCOMPARE(home.asked.size(), 1);
+}
+
+void BrowserThemeTest::saysWhetherThePickedThemeIsDrawn()
+{
+    Home home;
+    home.install(home.paths.systemThemes, QStringLiteral("catppuccin-latte"));
+    const auto readerTheme = home.root.filePath(QStringLiteral(".config/omaweb/theme.json"));
+    BrowserTheme theme(home.paths, home.colours(), readerTheme);
+    QVERIFY(!theme.drawn());
+
+    theme.setChoice(QStringLiteral("catppuccin-latte"));
+    QVERIFY(theme.drawn());
+
+    Home::write(readerTheme, "{}");
+    QTRY_VERIFY(!theme.drawn());
+    QVERIFY(QFile::remove(readerTheme));
+    QTRY_VERIFY(theme.drawn());
+
+    theme.setChoice(QStringLiteral("rose-pine"));
+    QVERIFY(!theme.drawn());
 }
 
 QTEST_GUILESS_MAIN(BrowserThemeTest)

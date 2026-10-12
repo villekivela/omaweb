@@ -605,10 +605,8 @@ int main(int argc, char *argv[])
     omaweb::KitTheme kitTheme(&engine, &theme, &fontSettings);
     // A picked theme's colours are not the ones the desktop's shell.toml names,
     // so the kit's controls and surfaces take the palette's while one is drawn.
-    const auto followBrowserThemeInKit = [&kitTheme, &browserTheme] {
-        kitTheme.setDrivesSurfaces(!browserTheme.choice().isEmpty() && !browserTheme.missing()
-            && browserTheme.overrideSource().isEmpty());
-    };
+    const auto followBrowserThemeInKit
+        = [&kitTheme, &browserTheme] { kitTheme.setDrivesSurfaces(browserTheme.drawn()); };
     QObject::connect(
         &browserTheme, &omaweb::BrowserTheme::changed, &kitTheme, followBrowserThemeInKit);
     followBrowserThemeInKit();

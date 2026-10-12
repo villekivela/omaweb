@@ -1877,6 +1877,26 @@ TestCase {
         compare(browserStub.preferenceCalls[1], ["browser-theme", ""]);
     }
 
+    // The swatches arrive after the list opens, and the row the reader walked
+    // to stays highlighted when they do.
+    function test_theListKeepsItsPlaceWhenTheColoursArrive() {
+        const page = makeThemePage();
+        const dropdown = findChild(page, "browserTheme");
+        click(dropdown);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        const list = findChild(dropdown.popupItem, "themeList");
+        compare(list.currentIndex, 0);
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down);
+        compare(list.currentIndex, 2);
+        browserThemeStub.themes = browserThemeStub.themes.slice();
+        compare(list.currentIndex, 2);
+        keyClick(Qt.Key_Escape);
+    }
+
     function test_aPickedThemeThatIsNotInstalledSaysSo() {
         const page = makeThemePage();
         browserThemeStub.choice = "catppuccin-latte";

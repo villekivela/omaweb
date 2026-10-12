@@ -11,6 +11,7 @@
 #include <QVariantMap>
 
 #include <functional>
+#include <optional>
 
 namespace omaweb {
 
@@ -87,6 +88,9 @@ class BrowserTheme final : public QObject {
     // The file that sets the palette over any browser theme, as the reader
     // would name it, or empty where none does.
     Q_PROPERTY(QString overrideSource READ overrideSource NOTIFY changed)
+    // A picked theme is what the browser draws: it is installed and no file
+    // sets the palette over it.
+    Q_PROPERTY(bool drawn READ drawn NOTIFY changed)
 
 public:
     using ColourSource = std::function<OmarchyColours(const QString &coloursFile)>;
@@ -104,6 +108,7 @@ public:
     QVariantList themes() const;
     QVariantMap desktopColours() const;
     QString overrideSource() const;
+    bool drawn() const;
     QString renderedPath() const;
 
     // The reader's `browser-theme`: a folder name, or empty to follow the
@@ -123,7 +128,8 @@ private:
     void update();
     void applySwatches();
     void watch();
-    QString sourceState() const;
+    QString renderState() const;
+    void render();
     QString readOverride() const;
 
     BrowserThemePaths m_paths;
@@ -134,9 +140,11 @@ private:
     bool m_missing = false;
     QString m_override;
     QString m_desktopName;
-    // The choice the last update rendered, so a change of it is announced.
-    QString m_renderedChoice;
-    QString m_sourceState;
+    // The choice the last update announced, so a change of it is announced.
+    QString m_announcedChoice;
+    // What the render on disk was made from, or none before the first, which
+    // also clears one an earlier run left for a choice that no longer stands.
+    std::optional<QString> m_renderState;
     QVariantList m_themes;
     QVariantMap m_desktopColours;
     QFileSystemWatcher m_watcher;
