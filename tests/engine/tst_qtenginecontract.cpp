@@ -4374,6 +4374,14 @@ void QtEngineContractTest::qtGivesAPageWithNoBackgroundAWhiteGroundOfItsOwn()
                                 " {rel: 'stylesheet', href: URL.createObjectURL(new Blob("
                                 "['body { background: #123456; }'], {type: 'text/css'}))}))")),
         QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
+    QCOMPARE(
+        groundOf(QStringLiteral("<!doctype html><title>t</title>"
+                                "<style>[data-theme=dark] body { background: #123456; }</style>"
+                                "<body><p>themed</p>")
+                + afterLoad.arg(QStringLiteral("document.documentElement.dataset.theme = 'dark'"))
+                + script,
+            QStringLiteral("ground:")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
     QCOMPARE(bareThen(QStringLiteral("document.documentElement.style.colorScheme = 'dark'")),
         QStringLiteral("ground:rgba(0, 0, 0, 0)|rgba(0, 0, 0, 0)"));
     // A frame inside the page is not the page: it stays as it was written.

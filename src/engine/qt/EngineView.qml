@@ -2677,8 +2677,8 @@ Item {
             // its own choosing, gets it as a rule no page rule can lose to, so
             // it arrives in the page's own frames. A body that sets a ground
             // keeps spreading it to the canvas, and a root that sets one is
-            // left alone. The page is asked again whenever the class or style
-            // of its root or body changes, or a style sheet in its head does,
+            // left alone. The page is asked again whenever an attribute of its
+            // root or body changes, or a style sheet in its head does,
             // with the white taken off while it answers, so a ground the page
             // drops once it has drawn is given the white and one it sets later
             // is its own. A rule inserted through the CSSOM alone is not seen.
@@ -2704,9 +2704,7 @@ Item {
                 followGround();
                 const watch = new MutationObserver(followGround);
                 for (const element of [document.documentElement, document.body])
-                    if (element)
-                        watch.observe(element, {attributes: true,
-                                                attributeFilter: ['class', 'style']});
+                    if (element) watch.observe(element, {attributes: true});
                 // And whenever its style sheets change, which a sheet that
                 // arrives over the network does only once it has loaded.
                 if (document.head)
