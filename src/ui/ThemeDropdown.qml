@@ -58,7 +58,15 @@ Omarchy.BorderSurface {
         root.filtered = query === "" ? root.options : root.options.filter(function (option) {
             return option.label.toLowerCase().indexOf(query) >= 0;
         });
-        list.currentIndex = root.filtered.length > 0 ? 0 : -1;
+        // Opened on the theme in force, so the list starts where the reader is.
+        const current = root.filtered.findIndex(function (option) {
+            return option.value === root.value;
+        });
+        list.currentIndex = current >= 0 ? current : (root.filtered.length > 0 ? 0 : -1);
+    }
+
+    function open() {
+        popup.open();
     }
 
     function choose(index) {
@@ -70,7 +78,11 @@ Omarchy.BorderSurface {
 
     onOptionsChanged: filter()
 
-    implicitWidth: Style.spacing.searchableDropdownWidth
+    // The kit's width, or wider for a name that would not fit beside the
+    // desktop theme's and the squares.
+    implicitWidth: Math.max(Style.spacing.searchableDropdownWidth, Math.ceil(trigger.implicitWidth)
+                            + root.borderLeft + root.borderRight + Style.spacing.controlPaddingX
+                            + Style.spacing.md + arrow.implicitWidth + Style.spacing.xs)
     implicitHeight: Style.spacing.controlHeight
     radius: Style.cornerRadius
     opacity: root.enabled ? 1 : 0.5
@@ -272,8 +284,10 @@ Omarchy.BorderSurface {
         property var swatches: ({})
 
         implicitHeight: Math.max(name.implicitHeight, 12)
+        implicitWidth: words.implicitWidth + Style.spacing.md + squares.implicitWidth
 
         Row {
+            id: words
             anchors.left: parent.left
             anchors.right: squares.left
             anchors.rightMargin: Style.spacing.md
@@ -291,8 +305,16 @@ Omarchy.BorderSurface {
             }
 
             Text {
+                visible: entry.detail !== ""
+                text: "·"
+                color: entry.colors.mutedText
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+            }
+
+            Text {
                 objectName: "themeDetail"
-                visible: text !== ""
+                visible: entry.detail !== ""
                 text: entry.detail
                 color: entry.colors.mutedText
                 font.family: Style.font.family
