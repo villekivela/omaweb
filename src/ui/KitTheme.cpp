@@ -4,6 +4,8 @@
 #include "ThemeController.h"
 
 #include <QColor>
+#include <QJSValue>
+#include <QRegularExpression>
 #include <QQmlEngine>
 #include <QQmlProperty>
 #include <QVariantMap>
@@ -20,6 +22,32 @@ namespace {
             return;
         }
         target->setProperty(key.constData(), value);
+    }
+
+    // The kit keeps a `shell.toml` as a map of key to the text the file holds.
+    QVariantMap valuesOf(QObject *target, const char *name)
+    {
+        const auto value = target->property(name);
+        return value.canConvert<QJSValue>() ? value.value<QJSValue>().toVariant().toMap()
+                                            : value.toMap();
+    }
+
+    // The desktop's `shell.toml` without its colours: what is left is the
+    // alphas, the widths, the sizes and the switches, which are numbers or
+    // `true` and `false`. A colour, a gradient and a role a value names all
+    // go, so the kit falls back to the foreground, background and accent the
+    // palette sets, which is what Omarchy's own template derives them from.
+    QVariantMap withoutColours(const QVariantMap &values)
+    {
+        static const QRegularExpression measure(
+            QStringLiteral(R"(^\s*-?\d+(\.\d+)?(\s+-?\d+(\.\d+)?)*\s*$|^\s*(true|false)\s*$)"));
+        QVariantMap kept;
+        for (auto it = values.cbegin(); it != values.cend(); ++it) {
+            if (measure.match(it.value().toString()).hasMatch()) {
+                kept.insert(it.key(), it.value());
+            }
+        }
+        return kept;
     }
 
     QVariant colorFrom(const QVariantMap &palette, const QString &key)
@@ -80,9 +108,10 @@ KitTheme::KitTheme(
     followResets(m_color,
         {QStringLiteral("foreground"), QStringLiteral("background"), QStringLiteral("accent"),
             QStringLiteral("muted"), QStringLiteral("urgent")});
+    followResets(m_color, {QStringLiteral("shellValues")});
     followResets(m_style,
-        {QStringLiteral("fontFamily"), QStringLiteral("resolvedFontFamily"),
-            QStringLiteral("fontBaseSize")});
+        {QStringLiteral("styleOverrides"), QStringLiteral("fontFamily"),
+            QStringLiteral("resolvedFontFamily"), QStringLiteral("fontBaseSize")});
     if (!m_systemMotion) {
         qWarning("Omaweb.SystemMotion is not registered, so the Omarchy kit's controls follow only "
                  "Hyprland's animations setting, read once at startup.");
@@ -95,6 +124,25 @@ KitTheme::KitTheme(
         followResets(m_style, {QStringLiteral("reduceMotion")});
     }
     apply();
+}
+
+bool KitTheme::drivesSurfaces() const { return m_drivesSurfaces; }
+
+void KitTheme::setDrivesSurfaces(bool drives)
+{
+    if (drives == m_drivesSurfaces) {
+        return;
+    }
+    m_drivesSurfaces = drives;
+    if (m_color && m_style) {
+        if (!drives) {
+            // The colours were taken out of the kit's values, and reading its
+            // files again is what puts the desktop's back.
+            rereadKitSources();
+        }
+        apply();
+    }
+    emit drivesSurfacesChanged();
 }
 
 void KitTheme::rereadKitSources()
@@ -151,6 +199,18 @@ void KitTheme::apply()
     // desktop's answers, and the kit's controls take the same one.
     if (m_systemMotion) {
         assign(m_style, QStringLiteral("reduceMotion"), m_systemMotion->property("reduced"));
+    }
+    if (m_drivesSurfaces) {
+        // Color draws the surfaces from its values and Style the controls from
+        // its own copy of the `[controls]` ones, and the kit hands each its
+        // values separately, so each is stripped where it lands.
+        for (const auto &[target, name] :
+            {std::pair {m_color, "shellValues"}, std::pair {m_style, "styleOverrides"}}) {
+            const auto values = valuesOf(target, name);
+            if (const auto kept = withoutColours(values); kept != values) {
+                target->setProperty(name, kept);
+            }
+        }
     }
     m_applying = false;
 }

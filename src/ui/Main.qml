@@ -1811,6 +1811,9 @@ ApplicationWindow {
 
     // settings.json, where this window has one: the lab runs without it.
     readonly property var readerSettings: typeof settingsFile !== "undefined" ? settingsFile : null
+    // The browser theme, where this window has one: the tests run without it.
+    readonly property var readerBrowserTheme: typeof browserTheme !== "undefined" ? browserTheme :
+                                                                                    null
     // HTTPS-only mode's policy, where this window has one: the lab and the
     // tests run without it.
     readonly property var httpsOnlyPolicy: typeof httpsOnly !== "undefined" ? httpsOnly : null
@@ -4563,6 +4566,7 @@ ApplicationWindow {
                             engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                             fontSettings: window.readerFonts
                             sidebarOpacity: window.readerSidebarOpacity
+                            browserTheme: window.readerBrowserTheme
                             settingsFile: window.readerSettings
                             pageFonts: window.enginePageFonts
                             knownExtensions: window.knownExtensions

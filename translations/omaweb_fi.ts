@@ -3138,6 +3138,10 @@ Päivitykset osoitteesta %3</translation>
         <translation>Näytä</translation>
     </message>
     <message>
+        <source>%1 sets Omaweb&apos;s palette instead.</source>
+        <translation>%1 määrää Omawebin väripaletin tämän sijaan.</translation>
+    </message>
+    <message>
         <source>Show where this download landed</source>
         <translation>Näytä, minne tämä lataus tallentui</translation>
     </message>
@@ -3556,6 +3560,18 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>A Pinned tab set to Keep active, a tab in a Tab window, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs.</source>
         <translation>Aktiivisena pidettävä kiinnitetty välilehti, välilehti-ikkunassa oleva välilehti tai välilehti, johon on liitetty kehittäjätyökalut, pysyy käynnissä, kun sen Tila ei ole aktiivinen, ja se näkyy tässä kustannuksineen.</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>Teema</translation>
+    </message>
+    <message>
+        <source>%1 isn&apos;t installed, so Omaweb follows Omarchy.</source>
+        <translation>%1 ei ole asennettu, joten Omaweb seuraa Omarchya.</translation>
+    </message>
+    <message>
+        <source>The Omarchy theme Omaweb, its pages and Developer tools are drawn in. The rest of the desktop keeps its own.</source>
+        <translation>Omarchy-teema, jolla Omaweb, sen sivut ja kehittäjätyökalut piirretään. Muu työpöytä pitää omansa.</translation>
     </message>
     <message>
         <source>Sidebar side</source>
@@ -4712,6 +4728,17 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Continue once</source>
         <translation>Jatka kerran</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeDropdown</name>
+    <message>
+        <source>Follow Omarchy</source>
+        <translation>Seuraa Omarchya</translation>
+    </message>
+    <message>
+        <source>Search themes</source>
+        <translation>Hae teemoja</translation>
     </message>
 </context>
 <context>

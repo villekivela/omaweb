@@ -745,6 +745,8 @@ endif()
 add_library(omaweb-platform STATIC
     src/platform/AppIcon.cpp
     src/platform/AppIcon.h
+    src/platform/BrowserTheme.cpp
+    src/platform/BrowserTheme.h
     src/platform/DefaultBrowser.cpp
     src/platform/DefaultBrowser.h
     src/platform/ExternalProtocolHandler.cpp
@@ -778,7 +780,7 @@ add_library(omaweb-platform STATIC
     src/platform/WindowExposure.h
 )
 target_include_directories(omaweb-platform PUBLIC src/platform)
-target_link_libraries(omaweb-platform PUBLIC Qt6::Gui Qt6::Qml Qt6::Quick)
+target_link_libraries(omaweb-platform PUBLIC Qt6::Gui Qt6::Qml Qt6::Quick PRIVATE Qt6::Concurrent)
 target_compile_definitions(omaweb-platform PUBLIC
     OMAWEB_APPROVED_QTWEBENGINE="${omaweb_approved_qtwebengine}"
     OMAWEB_APPROVED_CHROMIUM="${omaweb_approved_chromium}"
@@ -929,6 +931,7 @@ set(omaweb_ui_files
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml
     src/ui/TabWindow.qml
+    src/ui/ThemeDropdown.qml
 )
 
 # One QML module compiled ahead of time into a static library named after its
@@ -1982,6 +1985,17 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-omarchy-theme-tests)
     add_test(NAME omaweb-omarchy-theme COMMAND omaweb-omarchy-theme-tests)
+
+    # A browser theme is rendered from the colours Omarchy resolves, which the
+    # suite hands it from fixtures, so it runs where Omarchy is not installed.
+    qt_add_executable(omaweb-browser-theme-tests tests/platform/tst_browsertheme.cpp)
+    target_link_libraries(omaweb-browser-theme-tests PRIVATE omaweb-platform Qt6::Test)
+    target_compile_definitions(omaweb-browser-theme-tests PRIVATE
+        OMAWEB_BROWSER_THEME_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/platform/fixtures"
+        OMAWEB_OMARCHY_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb.json.tpl"
+    )
+    omaweb_strict_target(omaweb-browser-theme-tests)
+    add_test(NAME omaweb-browser-theme COMMAND omaweb-browser-theme-tests)
 
     qt_add_executable(omaweb-app-icon-tests tests/platform/tst_appicon.cpp)
     target_link_libraries(omaweb-app-icon-tests PRIVATE omaweb-platform Qt6::Test)

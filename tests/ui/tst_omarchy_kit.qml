@@ -313,6 +313,51 @@ TestCase {
         verify(Math.abs(reloadedAlpha - sentinel) > 0.0001);
     }
 
+    // A browser theme the reader picked is not the desktop's, and the desktop's
+    // shell.toml names its colours outright. While one is picked, the kit's
+    // controls and surfaces draw from Omaweb's palette as Omarchy's template
+    // derives them, and keep the desktop's alphas and widths (ADR 0066).
+    function test_aPickedThemeDrivesTheKitsControlColours() {
+        const desktop = "[controls]\nnormal-color = \"#a9b1d6\"\nnormal-border = \"#a9b1d6\"\n"
+              + "normal-fill-alpha = 0.06\nselected-color = \"#a9b1d6\"\n"
+              + "hover-cursor-border-gradient = \"#a9b1d6 #7aa2f7 45deg\"\n"
+              + "selected-border-width = 2\n[popups]\nbackground = \"#1a1b26\"\n"
+              + "background-alpha = 0.9\ntext = \"#a9b1d6\"\nborder = \"hyprland.active-border\"\n"
+              + "[tooltip]\nbackground = \"#1a1b26\"\n";
+        Commons.Color.loadShell(desktop);
+        compare(Style.styleOverrides["normal-color"], "#a9b1d6");
+
+        kitTheme.drivesSurfaces = true;
+        const overrides = Style.styleOverrides;
+        const popupBackground = String(Commons.Color.popups.background);
+        const tooltipBackground = String(Commons.Color.tooltip.background);
+        const popupText = String(Commons.Color.popups.text);
+        const normal = String(Style.normalStateColor());
+        // The kit reading its files again is the desktop's values coming back,
+        // and they are taken off again.
+        Commons.Color.loadShell(desktop);
+        const reloaded = Style.styleOverrides["selected-color"];
+        kitTheme.drivesSurfaces = false;
+        Commons.Color.loadShell(desktop);
+        const following = Style.styleOverrides["normal-color"];
+        Commons.Color.loadShell("");
+
+        compare(overrides["normal-color"], undefined);
+        compare(overrides["normal-border"], undefined);
+        compare(overrides["selected-color"], undefined);
+        compare(overrides["hover-cursor-border-gradient"], undefined);
+        compare(overrides["normal-fill-alpha"], "0.06");
+        compare(overrides["selected-border-width"], "2");
+        compare(normal, String(Commons.Color.foreground));
+        compare(popupBackground, String(Qt.rgba(Commons.Color.background.r,
+                                                Commons.Color.background.g,
+                                                Commons.Color.background.b, 0.9)));
+        compare(tooltipBackground, String(Commons.Color.background));
+        compare(popupText, String(Commons.Color.foreground));
+        compare(reloaded, undefined);
+        compare(following, "#a9b1d6");
+    }
+
     // A shell.toml role may name another role. A theme whose roles name each
     // other used to recurse until the JavaScript stack ran out; the kit now
     // gives up on the cycle and draws the fallback.

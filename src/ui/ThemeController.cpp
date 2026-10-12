@@ -457,6 +457,15 @@ namespace {
 
 } // namespace
 
+std::optional<Qt::ColorScheme> colorSchemeOf(const QVariantMap &palette)
+{
+    const QColor window(palette.value(QStringLiteral("window")).toString());
+    if (!window.isValid()) {
+        return std::nullopt;
+    }
+    return window.lightnessF() < 0.5 ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light;
+}
+
 ThemeController::ThemeController(QString themePath, QObject *parent)
     : ThemeController(QStringList {std::move(themePath)}, parent)
 {
