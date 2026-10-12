@@ -61,3 +61,6 @@ user's Omarchy theme reaches Omaweb's chrome through the palette Omaweb owns, in
 kit reading `colors.toml` would skip, such as the Private-window separation and the semantic
 opacities. A second source for the same values in the same process would buy nothing and would have
 to be reconciled with the first.
+
+While a browser theme is picked, `KitTheme` also drives the kit's control colours
+([ADR 0066](0066-pick-the-browser-theme-from-installed-omarchy-themes.md)).
