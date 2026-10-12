@@ -163,12 +163,21 @@ Omarchy.BorderSurface {
 
     Popup {
         id: popup
+
+        readonly property var borderSpec: Border.controlSpec("normal", root.colors.text,
+                                                             root.colors.accent)
+
         objectName: "themePopup"
         y: root.height + Style.spacing.xxs
         width: root.width
-        height: Math.min(search.height + Style.spacing.md * 2 + 1 + list.contentHeight,
+        height: Math.min(topPadding + searchHeader.height + 1 + list.contentHeight + bottomPadding,
                          Style.spacing.popupRowHeight * 9)
+        // Inside the border, as the kit's SearchableDropdown pads its popup.
         padding: Style.spacing.hairline
+        leftPadding: Border.left(popup.borderSpec) + Style.spacing.hairline
+        rightPadding: Border.right(popup.borderSpec) + Style.spacing.hairline
+        topPadding: Border.top(popup.borderSpec) + Style.spacing.hairline
+        bottomPadding: Border.bottom(popup.borderSpec) + Style.spacing.hairline
         focus: true
 
         onOpened: {
@@ -184,53 +193,61 @@ Omarchy.BorderSurface {
         background: Omarchy.BorderSurface {
             radius: Style.cornerRadius
             color: root.colors.overlayOpaque
-            borderSpec: Border.controlSpec("normal", root.colors.text, root.colors.accent)
+            borderSpec: popup.borderSpec
         }
 
         contentItem: Column {
             spacing: 0
 
-            Omarchy.TextField {
-                id: search
-                x: Style.spacing.md
-                width: parent.width - 2 * Style.spacing.md
-                topPadding: Style.spacing.md
-                placeholderText: qsTr("Search themes")
-                foreground: root.colors.text
-                accent: root.colors.accent
-                onTextChanged: root.filter()
-
-                Keys.onPressed: function (event) {
-                    if (event.key === Qt.Key_Down && list.count > 0) {
-                        list.currentIndex = 0;
-                        list.forceActiveFocus();
-                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        root.choose(list.currentIndex);
-                    } else if (event.key === Qt.Key_Escape) {
-                        popup.close();
-                    } else {
-                        return;
-                    }
-                    event.accepted = true;
-                }
-            }
-
+            // The kit's header: a row and a control's padding tall, with the
+            // field inset by the same space on every side.
             Item {
+                id: searchHeader
+                objectName: "themeSearchHeader"
                 width: parent.width
-                height: Style.spacing.md
+                height: Style.spacing.popupRowHeight + Style.spacing.controlPaddingX
+
+                Omarchy.TextField {
+                    id: search
+                    objectName: "themeSearch"
+                    anchors.fill: parent
+                    anchors.margins: Style.spacing.md
+                    placeholderText: qsTr("Search themes")
+                    foreground: root.colors.text
+                    accent: root.colors.accent
+                    // The kit darkens the foreground, which mutes it on a dark
+                    // theme and darkens it past the text on a light one. Drawn
+                    // over the field at part strength, it is quieter on both.
+                    placeholderTextColor: Util.alpha(root.colors.text, 0.55)
+                    onTextChanged: root.filter()
+
+                    Keys.onPressed: function (event) {
+                        if (event.key === Qt.Key_Down && list.count > 0) {
+                            list.currentIndex = 0;
+                            list.forceActiveFocus();
+                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            root.choose(list.currentIndex);
+                        } else if (event.key === Qt.Key_Escape) {
+                            popup.close();
+                        } else {
+                            return;
+                        }
+                        event.accepted = true;
+                    }
+                }
             }
 
             Rectangle {
                 width: parent.width
                 height: 1
-                color: root.colors.separator
+                color: Util.alpha(root.colors.text, 0.10)
             }
 
             ListView {
                 id: list
                 objectName: "themeList"
                 width: parent.width
-                height: popup.availableHeight - search.height - Style.spacing.md - 1
+                height: popup.availableHeight - searchHeader.height - 1
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 model: root.filtered

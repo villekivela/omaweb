@@ -1897,6 +1897,84 @@ TestCase {
         keyClick(Qt.Key_Escape);
     }
 
+    // The search field sits in the popup as the kit's SearchableDropdown puts
+    // it: a header a row and a control's padding tall, the field inset by the
+    // same space on every side inside the popup's border.
+    function test_theSearchFieldIsInsetLikeTheKits() {
+        const page = makeThemePage();
+        const dropdown = findChild(page, "browserTheme");
+        click(dropdown);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        const field = findChild(dropdown.popupItem, "themeSearch");
+        const ground = dropdown.popupItem.parent.background;
+        verify(field !== null && ground !== null);
+        const box = field.mapToItem(ground, 0, 0, field.width, field.height);
+        const inset = Style.spacing.md + Style.spacing.hairline + ground.borderLeft;
+        compare(box.x, inset);
+        compare(box.y, inset);
+        compare(ground.width - box.x - box.width, inset);
+        compare(findChild(dropdown.popupItem, "themeSearchHeader").height,
+                Style.spacing.popupRowHeight + Style.spacing.controlPaddingX);
+        keyClick(Qt.Key_Escape);
+    }
+
+    function luminance(colour) {
+        const channel = function (value) {
+            return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * channel(colour.r) + 0.7152 * channel(colour.g) + 0.0722 * channel(colour.b);
+    }
+
+    // What a colour shows as over the ground it is drawn on.
+    function over(colour, ground) {
+        return Qt.rgba(colour.r * colour.a + ground.r * (1 - colour.a), colour.g * colour.a
+                       + ground.g * (1 - colour.a), colour.b * colour.a + ground.b * (1 - colour.a),
+                       1);
+    }
+
+    function contrast(colour, ground) {
+        const a = luminance(over(colour, ground));
+        const b = luminance(ground);
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }
+
+    // The placeholder reads quieter than typed text under a dark theme and a
+    // light one alike.
+    function test_theSearchPlaceholderIsMutedInLightAndDark() {
+        const light = Object.assign({}, testCase.colorsFixture, {
+                                        text: "#4c4f69",
+                                        mutedText: "#404350",
+                                        accent: "#1e66f5",
+                                        overlayOpaque: "#e3e4e8",
+                                        windowOpaque: "#d7d8dc",
+                                        separator: "#1f4c4f69"
+                                    });
+        const dark = Object.assign({}, testCase.colorsFixture, {
+                                       overlayOpaque: "#1f1d27"
+                                   });
+        for (const colours of [dark, light]) {
+            const page = makeThemePage();
+            page.colors = colours;
+            const dropdown = findChild(page, "browserTheme");
+            click(dropdown);
+            tryVerify(function () {
+                return dropdown.popupOpen;
+            });
+            const field = findChild(dropdown.popupItem, "themeSearch");
+            const fill = over(field.background.color, Qt.color(colours.overlayOpaque));
+            verify(contrast(field.placeholderTextColor, fill) < contrast(field.color, fill) / 1.5,
+                   colours.text);
+            compare(String(field.background.color), String(Style.controlFill(true, false, Qt.color(
+                                                                                 colours.text),
+                                                                             Qt.color(colours.accent))));
+            keyClick(Qt.Key_Escape);
+            page.destroy();
+            livePage = null;
+        }
+    }
+
     function test_aPickedThemeThatIsNotInstalledSaysSo() {
         const page = makeThemePage();
         browserThemeStub.choice = "catppuccin-latte";
