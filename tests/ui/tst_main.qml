@@ -14933,10 +14933,17 @@ TestCase {
         const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(tile !== null);
         // The window's pixels, because a grab of the tile alone leaves out the
-        // artwork drawn inside it.
-        const shown = function () {
+        // artwork drawn inside it. A new tab's row slides in, and on a loaded
+        // run the tile can still be left of the window, where there is no pixel
+        // to read, so it counts as drawing nothing yet.
+        const shows = function (colour) {
             const centre = tile.mapToItem(window.contentItem, tile.width / 2, tile.height / 2);
-            return grabImage(window.contentItem).pixel(Math.round(centre.x), Math.round(centre.y));
+            const image = grabImage(window.contentItem);
+            const x = Math.round(centre.x);
+            const y = Math.round(centre.y);
+            if (x < 0 || y < 0 || x >= image.width || y >= image.height)
+                return false;
+            return Qt.colorEqual(image.pixel(x, y), colour);
         };
 
         imageProbe.directory("redrawn");
@@ -14944,7 +14951,7 @@ TestCase {
         engineLoader.item.pageIconUrl = icon;
         tryCompare(tile, "iconUrl", icon);
         tryVerify(function () {
-            return Qt.colorEqual(shown(), "#d04040");
+            return shows("#d04040");
         });
 
         compare(imageProbe.favicon("redrawn/icon.png", "#2f5ce6"), icon);
@@ -14955,7 +14962,7 @@ TestCase {
         engineLoader.item.pageIconUrl = icon;
         tryCompare(tile, "iconUrl", icon);
         tryVerify(function () {
-            return Qt.colorEqual(shown(), "#2f5ce6");
+            return shows("#2f5ce6");
         });
         engineLoader.item.pageIconUrl = "";
     }
