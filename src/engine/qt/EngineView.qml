@@ -2677,25 +2677,42 @@ Item {
             // its own choosing, gets it as a rule no page rule can lose to, so
             // it arrives in the page's own frames. A body that sets a ground
             // keeps spreading it to the canvas, and a root that sets one is
-            // left alone.
-            let whitened = false;
+            // left alone. The page is asked again whenever its root or body
+            // changes, with the white taken off while it answers, so a ground
+            // the page drops once it has drawn is given the white and one it
+            // sets later is its own.
+            const rule = document.createElement('style');
+            rule.textContent = ':where(html) { background-color: white; }';
             const whiten = () => {
                 const root = document.documentElement;
                 const body = document.body;
-                if (whitened || !root || !body) return;
+                if (!root || !body) return;
+                if (rule.sheet) rule.sheet.disabled = true;
                 const clear = (element) => {
                     const style = getComputedStyle(element);
                     return style.backgroundColor === 'rgba(0, 0, 0, 0)'
                         && style.backgroundImage === 'none';
                 };
-                if (!clear(root) || !clear(body)) return;
-                if (getComputedStyle(root).colorScheme.includes('dark')) return;
-                whitened = true;
-                const rule = document.createElement('style');
-                rule.textContent = ':where(html) { background-color: white; }';
-                (document.head || root).appendChild(rule);
+                const bare = clear(root) && clear(body)
+                    && !getComputedStyle(root).colorScheme.includes('dark');
+                if (bare && !rule.isConnected) (document.head || root).appendChild(rule);
+                if (rule.sheet) rule.sheet.disabled = !bare;
             };
-            document.addEventListener('DOMContentLoaded', whiten);
+            document.addEventListener('DOMContentLoaded', () => {
+                whiten();
+                const watch = new MutationObserver(whiten);
+                for (const element of [document.documentElement, document.body])
+                    watch.observe(element, {attributes: true,
+                                            attributeFilter: ['class', 'style']});
+                // And whenever its style sheets change, which a sheet that
+                // arrives over the network does only once it has loaded.
+                if (document.head)
+                    watch.observe(document.head, {childList: true, subtree: true,
+                                                  characterData: true});
+                document.addEventListener('load', (event) => {
+                    if (event.target instanceof HTMLLinkElement) whiten();
+                }, true);
+            });
             let painted = false;
             // The colour the page sits on, its root's or its body's, or the
             // canvas when neither has one of its own.
