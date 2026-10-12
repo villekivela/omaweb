@@ -4342,38 +4342,39 @@ void QtEngineContractTest::qtGivesAPageWithNoBackgroundAWhiteGroundOfItsOwn()
     // A ground the page drops once it has drawn, as a loading body does, leaves
     // its sides beside a centred column bare: the root is given the white then,
     // and keeps it while the page goes on changing its body.
-    const QString later = QStringLiteral(
+    const QString afterLoad = QStringLiteral(
         "<script>addEventListener('load', () => setTimeout(() => {%1}, 200));</script>");
     QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title>"
                                      "<style>.loading { background: #f3f2f1; }</style>"
                                      "<body class=\"loading\" style=\"margin:0\">"
                                      "<main style=\"max-width:200px;margin:0 auto;"
                                      "background:white\">apps</main>")
-                     + later.arg(QStringLiteral(
+                     + afterLoad.arg(QStringLiteral(
                          "document.body.classList.remove('loading');"
                          " setTimeout(() => document.body.style.cursor = 'grab', 100)"))
                      + script,
                  QStringLiteral("ground:")),
         QStringLiteral("ground:rgb(255, 255, 255)|rgba(0, 0, 0, 0)"));
     // A ground the page sets once it has drawn is its own: the body's spreads
-    // to the canvas, and a dark canvas the root asks for is the page's.
-    QCOMPARE(
-        groundOf(QStringLiteral("<!doctype html><title>t</title><body><p>bare</p>")
-                + later.arg(QStringLiteral("document.body.style.background = '#123456'")) + script,
-            QStringLiteral("ground:")),
+    // to the canvas, however it arrives, and a dark canvas the root asks for is
+    // the page's.
+    const auto bareThen = [&](const QString &change) {
+        return groundOf(QStringLiteral("<!doctype html><title>t</title><body><p>bare</p>")
+                + afterLoad.arg(change) + script,
+            QStringLiteral("ground:"));
+    };
+    QCOMPARE(bareThen(QStringLiteral("document.body.style.background = '#123456'")),
         QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
-    QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title><body><p>bare</p>")
-                     + later.arg(QStringLiteral(
-                         "document.head.append(Object.assign(document.createElement('style'),"
-                         " {textContent: 'body { background: #123456; }'}))"))
-                     + script,
-                 QStringLiteral("ground:")),
+    QCOMPARE(bareThen(QStringLiteral(
+                 "document.head.append(Object.assign(document.createElement('style'),"
+                 " {textContent: 'body { background: #123456; }'}))")),
         QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
     QCOMPARE(
-        groundOf(QStringLiteral("<!doctype html><title>t</title><body><p>bare</p>")
-                + later.arg(QStringLiteral("document.documentElement.style.colorScheme = 'dark'"))
-                + script,
-            QStringLiteral("ground:")),
+        bareThen(QStringLiteral("document.head.append(Object.assign(document.createElement('link'),"
+                                " {rel: 'stylesheet', href: URL.createObjectURL(new Blob("
+                                "['body { background: #123456; }'], {type: 'text/css'}))}))")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
+    QCOMPARE(bareThen(QStringLiteral("document.documentElement.style.colorScheme = 'dark'")),
         QStringLiteral("ground:rgba(0, 0, 0, 0)|rgba(0, 0, 0, 0)"));
     // A frame inside the page is not the page: it stays as it was written.
     QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title><body><iframe srcdoc=\""

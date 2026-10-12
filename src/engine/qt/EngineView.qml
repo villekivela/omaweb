@@ -2677,17 +2677,19 @@ Item {
             // its own choosing, gets it as a rule no page rule can lose to, so
             // it arrives in the page's own frames. A body that sets a ground
             // keeps spreading it to the canvas, and a root that sets one is
-            // left alone. The page is asked again whenever its root or body
-            // changes, with the white taken off while it answers, so a ground
-            // the page drops once it has drawn is given the white and one it
-            // sets later is its own.
+            // left alone. The page is asked again whenever the class or style
+            // of its root or body changes, or a style sheet in its head does,
+            // with the white taken off while it answers, so a ground the page
+            // drops once it has drawn is given the white and one it sets later
+            // is its own. A rule inserted through the CSSOM alone is not seen.
             const rule = document.createElement('style');
             rule.textContent = ':where(html) { background-color: white; }';
-            const whiten = () => {
+            const followGround = () => {
                 const root = document.documentElement;
                 const body = document.body;
                 if (!root || !body) return;
-                if (rule.sheet) rule.sheet.disabled = true;
+                const white = rule.sheet && !rule.sheet.disabled;
+                if (white) rule.sheet.disabled = true;
                 const clear = (element) => {
                     const style = getComputedStyle(element);
                     return style.backgroundColor === 'rgba(0, 0, 0, 0)'
@@ -2699,18 +2701,19 @@ Item {
                 if (rule.sheet) rule.sheet.disabled = !bare;
             };
             document.addEventListener('DOMContentLoaded', () => {
-                whiten();
-                const watch = new MutationObserver(whiten);
+                followGround();
+                const watch = new MutationObserver(followGround);
                 for (const element of [document.documentElement, document.body])
-                    watch.observe(element, {attributes: true,
-                                            attributeFilter: ['class', 'style']});
+                    if (element)
+                        watch.observe(element, {attributes: true,
+                                                attributeFilter: ['class', 'style']});
                 // And whenever its style sheets change, which a sheet that
                 // arrives over the network does only once it has loaded.
                 if (document.head)
                     watch.observe(document.head, {childList: true, subtree: true,
                                                   characterData: true});
                 document.addEventListener('load', (event) => {
-                    if (event.target instanceof HTMLLinkElement) whiten();
+                    if (event.target instanceof HTMLLinkElement) followGround();
                 }, true);
             });
             let painted = false;
@@ -2734,7 +2737,7 @@ Item {
             const paint = () => {
                 if (painted) return;
                 painted = true;
-                whiten();
+                followGround();
                 report('document_painted');
                 report('page_ground', ground());
             };
