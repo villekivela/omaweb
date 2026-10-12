@@ -10,11 +10,37 @@ Item {
     property alias pageTitle: webView.title
     property alias pageIconUrl: webView.icon
     property alias loading: webView.loading
-    // Chromium keeps a page "recently audible" for a moment after the sound
-    // stops, which is what keeps the tab's speaker from flickering through a
-    // pause between clips. Muting is the embedder's to set and survives
-    // navigation within the view, so the tab keeps its decision across pages.
-    readonly property bool pageAudible: webView.recentlyAudible
+    // Whether the page is making sound. Chromium calls a page audible for only
+    // a moment after its last sound, about a quarter of a second, so a video
+    // in a quiet scene would read as stopped, and the shell would take the
+    // tab's speaker away, freeze the page if it is hidden and put the tab away.
+    // So a page that has been heard stays audible while any of its frames
+    // still has media playing, and stops when the playing does. Media that
+    // never made a sound, such as a muted video playing on its own, is not
+    // audible. Muting is the embedder's to set and survives navigation within
+    // the view, so the tab keeps its decision across pages.
+    readonly property bool pageAudible: webView.recentlyAudible || (root.mediaHeard
+                                                                    && root.mediaPlaying)
+    // The frames with media playing, by the identity each reported, and
+    // whether the page has made a sound since its media last stopped.
+    property var playingMediaFrames: ({})
+    readonly property bool mediaPlaying: Object.keys(root.playingMediaFrames).length > 0
+    property bool mediaHeard: false
+    function recordMediaPlaying(report) {
+        const frames = Object.assign({}, root.playingMediaFrames);
+        if (report.playing === true)
+            frames[String(report.frame)] = true;
+        else
+            delete frames[String(report.frame)];
+        root.playingMediaFrames = frames;
+        root.noteMediaHeard();
+    }
+    function noteMediaHeard() {
+        if (webView.recentlyAudible)
+            root.mediaHeard = true;
+        else if (!root.mediaPlaying)
+            root.mediaHeard = false;
+    }
     // What the page declares about what it is playing, in the shape the shell
     // hands the desktop: "state" as one of "none", "playing" or "paused", and
     // the "title", "artist", "album", "artwork", "canGoNext" and
@@ -2774,6 +2800,47 @@ Item {
         return script;
     }
 
+    // Whether media is playing in a frame, for `pageAudible`. Every frame
+    // reports for itself, an embedded video's included, under a random
+    // identity, and a frame that goes away takes its playing with it. Media
+    // events do not bubble, so the document hears an element start in the
+    // capture phase and the element itself is asked to say when it stops: one
+    // taken out of the document stops there, out of the document's hearing.
+    property var mediaPlayingScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb media playing";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.ApplicationWorld;
+        script.runsOnSubFrames = true;
+        script.sourceCode = root.reporting(`
+            const frame = Array.from(crypto.getRandomValues(new Uint32Array(4)),
+                part => part.toString(36)).join('');
+            const playing = new Set();
+            let reported = false;
+            const tell = () => {
+                if ((playing.size > 0) === reported) return;
+                reported = playing.size > 0;
+                report('media_playing', {frame, playing: reported});
+            };
+            const stopped = event => {
+                playing.delete(event.target);
+                tell();
+            };
+            document.addEventListener('play', event => {
+                const element = event.target;
+                if (!(element instanceof HTMLMediaElement)) return;
+                for (const name of ['pause', 'ended', 'emptied'])
+                    element.addEventListener(name, stopped, {passive: true});
+                playing.add(element);
+                tell();
+            }, {capture: true, passive: true});
+            addEventListener('pagehide', () => {
+                playing.clear();
+                tell();
+            });`);
+        return script;
+    }
+
     // What the page says it is playing, and the page's own answer to a media
     // key. The Media Session API is the page's statement about itself, and the
     // engine does not hand it out, so first-party script reads it and reports
@@ -3418,8 +3485,8 @@ Item {
                 root.externalProtocolOriginScript, root.documentPaintedScript,
                 root.userActivationScript, root.pressOriginScript, root.formHistoryScript,
                 root.controlAccentScript, root.pagePaletteScript, root.pageScrollbarScript,
-                root.pageScrollReportScript, root.mediaSessionScript, root.cosmeticSurveyScript,
-                root.proceduralFiltersScript];
+                root.pageScrollReportScript, root.mediaSessionScript, root.mediaPlayingScript,
+                root.cosmeticSurveyScript, root.proceduralFiltersScript];
     }
 
     property var externalProtocolOriginScript: {
@@ -4457,6 +4524,7 @@ Item {
         }
 
         onRenderProcessPidChanged: root.refreshRenderProcessPid()
+        onRecentlyAudibleChanged: root.noteMediaHeard()
         onLoadingChanged: function (loadRequest) {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
@@ -4753,7 +4821,15 @@ Item {
                     // what a page with no media session declares too.
                     root.pageMediaSession = {};
                 }
+            } else if (report.channel === "media_playing") {
+                try {
+                    root.recordMediaPlaying(JSON.parse(report.body));
+                } catch (error) {
+                    console.warn("Could not read whether media is playing: " + error);
+                }
             } else if (report.channel === "document_created") {
+                root.playingMediaFrames = {};
+                root.mediaHeard = false;
                 root.forgetFormFrames();
                 root.documentReported = true;
                 lateCanvas.stop();

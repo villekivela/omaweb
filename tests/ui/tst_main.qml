@@ -5847,6 +5847,54 @@ TestCase {
         browser.closeTab(watchedTabId);
     }
 
+    // A video goes quiet in places while it plays. A hidden tab playing one is
+    // still being heard through the quiet: it keeps its speaker, it keeps
+    // running, so the video goes on, and it stays the tab the media keys reach.
+    // Once the video stops, the tab is as idle as any other.
+    function test_aHiddenTabKeepsPlayingThroughASilence() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        verify(engineHost !== null);
+        openPageInNewTab("https://video.example");
+        const videoTabId = browser.activeTabId;
+        const videoEngine = engineHost.item;
+        videoEngine.simulateMediaSession({
+                                             "state": "playing",
+                                             "title": "Episode"
+                                         });
+        videoEngine.simulateMediaPlaying(true);
+        videoEngine.simulateAudible(true);
+
+        openPageInNewTab("https://elsewhere.example");
+        const elsewhereTabId = browser.activeTabId;
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== videoEngine;
+        });
+        compare(videoEngine.pageFrozen, false);
+        compare(SoundingTabs.announcement.tabId, videoTabId);
+
+        const row = findChild(window.contentItem, "tab-" + videoTabId);
+        verify(row !== null);
+        verify(row.showsAudio);
+
+        // The quiet scene: the engine hears nothing, and the video plays on.
+        videoEngine.simulateAudible(false);
+        wait(100);
+        verify(row.tabAudible);
+        compare(videoEngine.pageFrozen, false);
+        compare(SoundingTabs.announcement.tabId, videoTabId);
+
+        videoEngine.simulateMediaSession({
+                                             "state": "none"
+                                         });
+        videoEngine.simulateMediaPlaying(false);
+        tryCompare(videoEngine, "pageFrozen", true);
+        verify(!row.tabAudible);
+        compare(SoundingTabs.announcement.tabId, undefined);
+
+        browser.closeTab(elsewhereTabId);
+        browser.closeTab(videoTabId);
+    }
+
     // Keep active is the reader asking for a page to go on running while they
     // are looking at something else, so freezing never reaches it: not behind
     // another tab of its own Space, and not while its Space is away. Taking the
