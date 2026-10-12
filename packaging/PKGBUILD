@@ -32,9 +32,10 @@ depends=(
     # first that survives a Known extension's offscreen document (#646),
     # 6.11.2-12 the first that keeps the scripts it registers across a restart
     # (#686) and the release with the window geometry Omaweb links against
-    # (#684), and 6.11.2-14 the first that draws a favicon again when the
-    # colour scheme changes (#700).
-    'omaweb-qtwebengine>=6.11.2-14'
+    # (#684), 6.11.2-14 the first that draws a favicon again when the colour
+    # scheme changes, and 6.11.2-15 the first that shows a page's SVG icon
+    # rather than a raster one beside it (#700).
+    'omaweb-qtwebengine>=6.11.2-15'
     # Native Wayland is the primary display platform. X11 stays a fallback Qt
     # supplies through qt6-base.
     'qt6-wayland'
