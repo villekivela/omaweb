@@ -930,57 +930,39 @@ Rectangle {
                 }
             }
 
-            // The labels belong to the navigation row rather than to their
-            // buttons: a disabled button is drawn at 35%, and a label that
-            // inherited that would let the address show through it.
-            KeyLabel {
+            NavigationKeyLabel {
                 objectName: "keyLabel-collapseButton"
-                iconFontFamily: root.iconFontFamily
-                x: outlineControls.x + collapseButton.x + (collapseButton.width - width) / 2
-                y: outlineControls.y + collapseButton.y + collapseButton.height - 4
-                keys: root.keyLabelsShown ? root.labelFor("toggle-sidebar") : ""
-                shown: root.keyLabelsShown
-                colors: root.colors
+                button: collapseButton
+                row: outlineControls
+                command: "toggle-sidebar"
             }
 
-            KeyLabel {
+            NavigationKeyLabel {
                 objectName: "keyLabel-commandScopeButton"
-                iconFontFamily: root.iconFontFamily
-                x: outlineControls.x + commandScopeButton.x + (commandScopeButton.width - width) / 2
-                y: outlineControls.y + commandScopeButton.y + commandScopeButton.height - 4
-                keys: root.keyLabelsShown ? root.labelFor("command-scope") : ""
-                shown: root.keyLabelsShown
-                colors: root.colors
+                button: commandScopeButton
+                row: outlineControls
+                command: "command-scope"
             }
 
-            KeyLabel {
+            NavigationKeyLabel {
                 objectName: "keyLabel-backButton"
-                iconFontFamily: root.iconFontFamily
-                x: outlineNavigation.x + backButton.x + (backButton.width - width) / 2
-                y: outlineNavigation.y + backButton.y + backButton.height - 4
-                keys: root.keyLabelsShown ? root.labelFor("back") : ""
-                shown: root.keyLabelsShown
-                colors: root.colors
+                button: backButton
+                row: outlineNavigation
+                command: "back"
             }
 
-            KeyLabel {
+            NavigationKeyLabel {
                 objectName: "keyLabel-forwardButton"
-                iconFontFamily: root.iconFontFamily
-                x: outlineNavigation.x + forwardButton.x + (forwardButton.width - width) / 2
-                y: outlineNavigation.y + forwardButton.y + forwardButton.height - 4
-                keys: root.keyLabelsShown ? root.labelFor("forward") : ""
-                shown: root.keyLabelsShown
-                colors: root.colors
+                button: forwardButton
+                row: outlineNavigation
+                command: "forward"
             }
 
-            KeyLabel {
+            NavigationKeyLabel {
                 objectName: "keyLabel-reloadButton"
-                iconFontFamily: root.iconFontFamily
-                x: outlineNavigation.x + reloadButton.x + (reloadButton.width - width) / 2
-                y: outlineNavigation.y + reloadButton.y + reloadButton.height - 4
-                keys: root.keyLabelsShown ? root.labelFor("reload") : ""
-                shown: root.keyLabelsShown
-                colors: root.colors
+                button: reloadButton
+                row: outlineNavigation
+                command: "reload"
             }
         }
 
@@ -1122,6 +1104,23 @@ Rectangle {
                 }
             }
         }
+    }
+
+    // The labels belong to the navigation row rather than to their
+    // buttons: a disabled button is drawn at 35%, and a label that
+    // inherited that would let the address show through it. Each hangs
+    // 4px into the row below, centred on its button.
+    component NavigationKeyLabel: KeyLabel {
+        required property Item button
+        required property Item row
+        required property string command
+
+        iconFontFamily: root.iconFontFamily
+        x: DevicePixels.snap(row.x + button.x + (button.width - width) / 2, root.pixelRatio)
+        y: DevicePixels.snap(row.y + button.y + button.height - 4, root.pixelRatio)
+        keys: root.keyLabelsShown ? root.labelFor(command) : ""
+        shown: root.keyLabelsShown
+        colors: root.colors
     }
 
     // The section stands between the address and the tab list on anchors of

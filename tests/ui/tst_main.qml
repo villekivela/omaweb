@@ -5412,8 +5412,11 @@ TestCase {
             return window.active;
         });
         openPage("https://labels-over.example/");
+        // A page with no history leaves back and forward disabled, drawn at 35%.
+        verify(!findChild(window.contentItem, "backButton").enabled);
         const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
-                       "reloadButton"];
+                       "reloadButton", "addressButton", "space-" + browser.activeSpaceId, "tab-"
+                       + browser.activeTabId];
         keyPress(Qt.Key_Control);
         tryVerify(function () {
             return findChild(window.contentItem, "keyLabel-backButton").visible;
