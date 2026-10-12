@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QString>
+#include <QStringDecoder>
 #include <QStringList>
 #include <QVariantMap>
 
@@ -81,6 +82,7 @@ signals:
 private:
     QString m_splitMarker = QStringLiteral("\n");
     QString m_pending;
+    QStringDecoder m_decoder {QStringDecoder::Utf8};
 };
 
 // `Process { command: [...]; stdout: StdioCollector { ... } }`.

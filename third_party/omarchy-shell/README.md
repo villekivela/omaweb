@@ -18,7 +18,7 @@ Two things make an unedited copy work inside Omaweb:
 
 - **`src/ui/quickshell-shim/`** supplies the `Quickshell`, `Quickshell.Hyprland`,
   `Quickshell.Io` and `Quickshell.Services.Pipewire` types the kit imports — an
-  environment lookup, a watched file, a short-lived process whose output a
+  environment lookup, a watched file, a process whose output a
   collector or a line splitter reads, a `Pipewire` singleton that offers no audio
   source, and the `Hyprland.rawEvent` signal `Style` connects to, declared and
   never emitted. Its own qmldir for each URI goes to

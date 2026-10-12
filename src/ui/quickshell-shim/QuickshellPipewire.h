@@ -10,15 +10,12 @@ namespace omaweb::quickshell {
 // can drive through `wpctl`. Omaweb offers no audio graph, so there is never a source.
 class Pipewire : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QObject *defaultAudioSource READ defaultAudioSource NOTIFY defaultAudioSourceChanged)
+    Q_PROPERTY(QObject *defaultAudioSource READ defaultAudioSource CONSTANT)
 
 public:
     explicit Pipewire(QObject *parent = nullptr);
 
     QObject *defaultAudioSource() const;
-
-signals:
-    void defaultAudioSourceChanged();
 };
 
 } // namespace omaweb::quickshell

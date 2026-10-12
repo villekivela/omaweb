@@ -79,14 +79,19 @@ void SplitParser::setSplitMarker(const QString &splitMarker)
     emit splitMarkerChanged();
 }
 
-void SplitParser::reset() { m_pending.clear(); }
+void SplitParser::reset()
+{
+    m_pending.clear();
+    m_decoder = QStringDecoder(QStringDecoder::Utf8);
+}
 
 void SplitParser::append(const QByteArray &data)
 {
     if (data.isEmpty() || m_splitMarker.isEmpty()) {
         return;
     }
-    m_pending.append(QString::fromUtf8(data));
+    // A multi-byte character can arrive in two reads, so the decoder keeps its tail.
+    m_pending.append(m_decoder(data));
     for (auto end = m_pending.indexOf(m_splitMarker); end >= 0;
         end = m_pending.indexOf(m_splitMarker)) {
         const auto line = m_pending.left(end);
@@ -207,7 +212,7 @@ void Process::write(const QString &data)
 
 void Process::start()
 {
-    if (m_command.isEmpty()) {
+    if (m_command.isEmpty() || m_process.state() != QProcess::NotRunning) {
         return;
     }
     if (m_standardOutput) {
@@ -218,7 +223,11 @@ void Process::start()
     // The kit's variables go on top of the browser's own, as Quickshell's do.
     auto environment = QProcessEnvironment::systemEnvironment();
     for (auto it = m_environment.cbegin(); it != m_environment.cend(); ++it) {
-        environment.insert(it.key(), it.value().toString());
+        if (it.value().isNull()) {
+            environment.remove(it.key());
+        } else {
+            environment.insert(it.key(), it.value().toString());
+        }
     }
     m_process.setProcessEnvironment(environment);
     m_process.start(m_command.first(), m_command.mid(1));
