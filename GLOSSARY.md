@@ -416,6 +416,11 @@ notice naming the origin and always ends with `Escape`. It is separate from the 
 reader asks Omaweb for, and handing one back never takes the other away. _Avoid_: Fullscreen mode,
 video fullscreen
 
+**Browser theme**: The installed Omarchy theme the whole browser draws its Theme palette from, and
+so its chrome, the colour scheme pages are told and its accents. It is the desktop theme, the one
+Omarchy is set to, unless the reader picks another for the browser alone. The app icon belongs to
+the desktop and keeps the desktop theme. _Avoid_: Omaweb theme, appearance, light or dark mode
+
 **Theme palette**: A complete, versioned set of visual values that defines Omaweb's current
 appearance, including the semantic opacity values for its interface surfaces and the type family and
 base size they draw with. Omaweb can replace the active theme palette while running. _Avoid_: Theme

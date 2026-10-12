@@ -22,3 +22,6 @@ would silently stop Omarchy theme switching from reaching Omaweb, and nothing on
 explain why the palette had stopped following the desktop. The terminal theme importer therefore
 refuses to write into the configuration directory while an Omarchy-rendered theme is present, rather
 than the lookup order making an exception for it.
+
+A browser theme the reader picks is a palette source between `theme.json` and the desktop's render
+([ADR 0066](0066-pick-the-browser-theme-from-installed-omarchy-themes.md)).
