@@ -39,14 +39,19 @@ windows opaque, and pinned tabs kept on their column grid.
 [v0.15.0](https://github.com/villekivela/omaweb/releases/tag/v0.15.0) shipped a Glance that moves
 into its tab when kept, a favicon that follows the colour scheme drawn again when the theme changes,
 a page an extension opened told to the engine as a reader's tab, no dark frame when Omaweb's
-workspace comes back, and `omaweb help`. Its engine is 6.11.2-14. v0.15.1 is the release in
-progress.
+workspace comes back, and `omaweb help`. Its engine is 6.11.2-14.
+[v0.15.1](https://github.com/villekivela/omaweb/releases/tag/v0.15.1) shipped fixes: a page's SVG
+favicon shown over a raster one beside it, so chatgpt.com's follows a dark theme, white beside a
+page that leaves its sides bare, the sidebar's key labels drawn over the address row, a Private
+window that answers web push as a Space does, and a page told what its passkeys can reach. Its
+engine is 6.11.2-15. v0.16.0 is the release in progress.
 
-[v0.15.1](https://github.com/villekivela/omaweb/milestone/14) is fixes. A Google account whose
-default sign-in is a passkey gets a way in rather than the unsupported-browser page
-([#711](https://github.com/villekivela/omaweb/issues/711)), and a Private window answers web push as
-a Space does, so a page can't tell the two apart by it
-([#421](https://github.com/villekivela/omaweb/issues/421)).
+[v0.16.0](https://github.com/villekivela/omaweb/milestone/15) is planned around the browser's theme:
+follow Omarchy's, or pick any installed Omarchy theme for the browser alone
+([#710](https://github.com/villekivela/omaweb/issues/710)). Its design is still to be decided.
+Whether a Google account whose default sign-in is a passkey gets past the unsupported-browser page
+on v0.15.1's engine, and why it didn't before, is still to be found
+([#711](https://github.com/villekivela/omaweb/issues/711)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
