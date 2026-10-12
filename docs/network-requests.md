@@ -58,7 +58,8 @@ The engine asks a site for the icon its page declares once per run, and again wh
 changes: at once for each page on show, and on the next visit for any other. Omaweb removes the
 engine's own favicon database at each start, so an icon that follows the colour scheme is drawn
 under the current one ([ADR 0065](adr/0065-draw-favicons-afresh-in-each-run.md)). The HTTP cache
-answers where the site allows it.
+answers where the site allows it. Of a page that declares an SVG icon beside raster ones, the engine
+asks for the SVG first, and for a raster only when the SVG cannot be fetched.
 
 Engine suggestions are off by default, and while they are off typing in the Omnibar queries only the
 active Space's local history and sends nothing over the network. With the Engine suggestions switch
