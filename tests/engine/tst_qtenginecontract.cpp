@@ -9762,10 +9762,12 @@ void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking()
     QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
     QVERIFY(asked.isValid());
     QVERIFY(adapter->setProperty("currentUrl", page));
-    // Either the page has its answer or the engine is waiting on the reader.
+    // Either the page has its answer or the engine is waiting on the reader. The
+    // title is the page's address until the page has loaded, and "subscribing"
+    // until it has its answer.
     const auto answered = [&] {
         const auto title = adapter->property("pageTitle").toString();
-        return !title.isEmpty() && title != QStringLiteral("subscribing");
+        return title == QStringLiteral("subscribed") || title.contains(QStringLiteral("Error: "));
     };
     QTRY_VERIFY_WITH_TIMEOUT(answered() || asked.count() > 0, 20000);
     QCOMPARE(asked.count(), 0);
