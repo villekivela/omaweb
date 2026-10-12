@@ -141,6 +141,7 @@ private slots:
     void leavesTheDesktopsThemeAlone();
     void rendersOnlyWhenThePickedThemeChanges();
     void saysWhetherThePickedThemeIsDrawn();
+    void keepsAQuietFolderForTheRender();
 };
 
 // The expected text is what `omarchy-theme-set-templates` itself rendered from
@@ -464,6 +465,18 @@ void BrowserThemeTest::saysWhetherThePickedThemeIsDrawn()
 
     theme.setChoice(QStringLiteral("rose-pine"));
     QVERIFY(!theme.drawn());
+}
+
+// The theme controller watches the deepest folder of a palette source that
+// exists. Without the render's own folder that is Omaweb's data root, which
+// changes with every page, and each change would read the palette again.
+void BrowserThemeTest::keepsAQuietFolderForTheRender()
+{
+    Home home;
+    BrowserTheme theme(home.paths, home.colours());
+
+    QVERIFY(QFileInfo(QFileInfo(home.paths.rendered).absolutePath()).isDir());
+    QVERIFY(!QFileInfo::exists(home.paths.rendered));
 }
 
 QTEST_GUILESS_MAIN(BrowserThemeTest)

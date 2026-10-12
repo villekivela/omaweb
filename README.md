@@ -34,6 +34,9 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
   automatically.
 - Omaweb follows the desktop theme and can import terminal and Omarchy themes without restarting. A
   page that asks for it, with `<meta name="omaweb-palette">`, is handed the palette too.
+- Any installed Omarchy theme can be picked for the browser alone in Settings, such as a light one
+  on a dark desktop. Pages and Developer tools take its colour scheme, and the desktop keeps its
+  own.
 
 Every browser action is available from the Omnibar.
 
@@ -304,7 +307,10 @@ unset:
   suggestions are off.
 
 Desktop theme following needs no setup. On Omarchy, Omaweb installs its theme template on first
-start so `omarchy theme set` can update the browser without a restart. See the
+start so `omarchy theme set` can update the browser without a restart. Settings' Theme row picks
+another installed Omarchy theme for the browser alone, kept in `settings.json` as `browser-theme`:
+Omaweb renders it through the same template, from the colours `omarchy-theme-color` gives it, and
+never sets the desktop's theme. A `theme.json` outranks it. See the
 [Omarchy integration guide](integrations/omarchy/README.md) for compositor blur.
 
 ## Find tabs from Omarchy's menu

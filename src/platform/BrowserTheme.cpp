@@ -198,6 +198,10 @@ BrowserTheme::BrowserTheme(BrowserThemePaths paths, ColourSource colours, QStrin
     , m_readerTheme(std::move(readerTheme))
     , m_environmentOverride(std::move(environmentOverride))
 {
+    // The theme controller watches the deepest folder of its sources that
+    // exists, and while nothing is rendered that would be the data root,
+    // which changes with every page. The render's own folder is quiet.
+    QDir().mkpath(QFileInfo(m_paths.rendered).absolutePath());
     connect(
         &m_swatches, &QFutureWatcher<QVariantList>::finished, this, &BrowserTheme::applySwatches);
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, &BrowserTheme::update);
