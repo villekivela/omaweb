@@ -1,10 +1,11 @@
 pragma Singleton
 import QtQuick
+import qs.Commons as Commons
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
 
-// Shared structural style tokens for the shell. ShellColor is the palette
+// Shared structural style tokens for the shell. Color is the palette
 // singleton; Style holds everything else themes can influence — corner
 // rounding, gap to screen edges, state affordances, spacing, typography
 // scale, and bar dimensions.
@@ -114,27 +115,27 @@ QtObject {
   }
 
   function resolveStateColor(token, foreground, accent, urgent, fallback) {
-    var fb = fallback || foreground || ShellColor.foreground
+    var fb = fallback || foreground || Commons.Color.foreground
     var s = String(token || "").replace(/^\s+|\s+$/g, "")
     var role = s.toLowerCase()
-    if (role === "foreground" || role === "text") return foreground || ShellColor.foreground
-    if (role === "accent") return accent || ShellColor.accent
-    if (role === "urgent") return urgent || ShellColor.urgent
-    if (role === "background") return ShellColor.background
+    if (role === "foreground" || role === "text") return foreground || Commons.Color.foreground
+    if (role === "accent") return accent || Commons.Color.accent
+    if (role === "urgent") return urgent || Commons.Color.urgent
+    if (role === "background") return Commons.Color.background
     if (role === "transparent") return Qt.rgba(0, 0, 0, 0)
     return colorFromHex(s, fb)
   }
 
   function normalStateColor(foreground, accent, urgent) {
-    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || ShellColor.foreground)
+    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function hoverStateColor(foreground, accent, urgent) {
-    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || ShellColor.foreground)
+    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function selectedStateColor(foreground, accent, urgent) {
-    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || ShellColor.foreground)
+    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function pressedStateColor(foreground, accent, urgent) {
@@ -149,7 +150,7 @@ QtObject {
   }
 
   function selectionStateColor(foreground, accent, urgent) {
-    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || ShellColor.foreground)
+    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
   }
 
   function normalFillFor(foreground, accent, urgent) { return Util.alpha(normalStateColor(foreground, accent, urgent), normalFillAlpha) }
@@ -187,17 +188,17 @@ QtObject {
   }
 
   // Convenience colors resolved against the foundational palette.
-  readonly property color normalFill: normalFillFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color hoverFill: hoverFillFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color selectedFill: selectedFillFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color pressedFill: pressedFillFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color focusFillColor: focusFillFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color normalBorderColor: normalBorderFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color hoverBorderColor: hoverBorderFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color selectedBorderColor: selectedBorderFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color focusBorderColor: focusBorderFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
-  readonly property color selectedAccentFill: Util.alpha(ShellColor.accent, selectedFillAlpha)
-  readonly property color selectionFill: selectionFillFor(ShellColor.foreground, ShellColor.accent, ShellColor.urgent)
+  readonly property color normalFill: normalFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color hoverFill: hoverFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color selectedFill: selectedFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color pressedFill: pressedFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color focusFillColor: focusFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color normalBorderColor: normalBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color hoverBorderColor: hoverBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color selectedBorderColor: selectedBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color focusBorderColor: focusBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+  readonly property color selectedAccentFill: Util.alpha(Commons.Color.accent, selectedFillAlpha)
+  readonly property color selectionFill: selectionFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
 
   // ---------------------------------------------------------- spacing
   //
@@ -342,9 +343,17 @@ QtObject {
   readonly property QtObject bar: QtObject {
     readonly property int sizeHorizontal: root.barToken("size-horizontal", 26)
     readonly property int sizeVertical:   root.barToken("size-vertical",   28)
+    // Calibrated notch cutout height in logical px, for panels whose real
+    // cutout differs from the derived default (see BarModel.notchHeight).
+    // 0 means derive it. Physical alignment, so it never scales with font.
+    readonly property int notchHeight: {
+      var v = Number(root.barOverrides["notch-height"])
+      return (isFinite(v) && v > 0) ? Math.round(v) : 0
+    }
     readonly property int iconSlot:       root.barToken("icon-slot",       27)
     readonly property int iconCanvas:     root.barToken("icon-canvas",     16)
     readonly property int iconFont:       root.barToken("icon-font",       13)
+    readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
   }
 
@@ -390,7 +399,7 @@ QtObject {
   }
 
   // Pull typography, bar dimensions, state tokens, and spacing out of the
-  // shell.toml dict that Color already parsed. Called by ShellColor.loadShell so
+  // shell.toml dict that Color already parsed. Called by Commons.Color.loadShell so
   // a single parse pass feeds both singletons.
   function applyShellValues(values) {
     var fontOut = {}
@@ -416,7 +425,9 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
-        } else if (key === "size-horizontal" || key === "size-vertical") {
+        } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
+          || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
+          || key === "icon-size" || key === "status-slot") {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }

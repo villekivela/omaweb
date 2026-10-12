@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // Mutually-exclusive row of Buttons — the form-style "pick one of N"
 // pattern (bar position top/right/bottom/left, theme preset chips, etc.).
@@ -25,9 +26,9 @@ Row {
 
   property var options: []
   property string value: ""
-  property color foreground: ShellColor.foreground
-  property color background: ShellColor.background
-  property color accent: ShellColor.accent
+  property color foreground: Commons.Color.foreground
+  property color background: Commons.Color.background
+  property color accent: Commons.Color.accent
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.body
   property bool focusable: true
