@@ -47,7 +47,9 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QImage>
+#include <QBuffer>
 #include <QColor>
+#include <QDataStream>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
@@ -248,6 +250,7 @@ private slots:
     void qtSpaceProfilesKeepSiteStorageOnDisk();
     void qtDrawsAFaviconAfreshInEachRun();
     void qtRedrawsAFaviconWhenTheColourSchemeChanges();
+    void qtShowsAnSvgFaviconOverARasterBesideIt();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
@@ -998,7 +1001,17 @@ public:
             connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
                 const auto request = socket->readAll();
                 const auto fields = request.split(' ');
-                const auto icon = fields.size() > 1 && fields.at(1) == "/icon.svg";
+                const auto path = fields.size() > 1 ? fields.at(1) : QByteArray();
+                if (path == "/favicon.ico" && raster) {
+                    const auto body = blackIcon();
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Type: image/x-icon"
+                                  "\r\nCache-Control: no-store\r\nContent-Length: "
+                        + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                    socket->flush();
+                    socket->disconnectFromHost();
+                    return;
+                }
+                const auto icon = path == "/icon.svg";
                 const auto body = icon
                     ? R"(<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">)"
                         + (darkColour.isEmpty()
@@ -1006,8 +1019,9 @@ public:
                                 : "<style>@media (prefers-color-scheme: dark) { rect { fill: "
                                     + darkColour + "; } }</style>")
                         + R"(<rect width="32" height="32" fill=")" + colour + R"("/></svg>)"
-                    : QByteArray(R"(<!doctype html><title>icon</title>)"
-                                 R"(<link rel="icon" href="/icon.svg" type="image/svg+xml">)");
+                    : QByteArray(R"(<!doctype html><title>icon</title>)")
+                        + (raster ? R"(<link rel="icon" href="/favicon.ico" sizes="any">)" : "")
+                        + R"(<link rel="icon" href="/icon.svg" type="image/svg+xml">)";
                 const QByteArray type = icon ? "image/svg+xml" : "text/html";
                 socket->write("HTTP/1.1 200 OK\r\nContent-Type: " + type
                     + "\r\nCache-Control: no-store\r\nContent-Length: "
@@ -1022,6 +1036,39 @@ public:
     // The colour under a dark scheme, for an icon that follows it as
     // chatgpt.com's does. Empty for one that does not.
     QByteArray darkColour;
+    // Whether the page also offers a black ICO, with a frame at each size a
+    // tab draws, ahead of the SVG and for any size, as chatgpt.com does.
+    bool raster = false;
+
+private:
+    // An ICO of black 16 and 32 pixel PNG frames.
+    static QByteArray blackIcon()
+    {
+        QList<QByteArray> frames;
+        for (const int size : {16, 32}) {
+            QImage frame(size, size, QImage::Format_ARGB32);
+            frame.fill(Qt::black);
+            QBuffer buffer;
+            buffer.open(QIODevice::WriteOnly);
+            frame.save(&buffer, "PNG");
+            frames.append(buffer.data());
+        }
+        QByteArray icon;
+        QDataStream stream(&icon, QIODevice::WriteOnly);
+        stream.setByteOrder(QDataStream::LittleEndian);
+        stream << quint16(0) << quint16(1) << quint16(frames.size());
+        quint32 offset = 6 + 16 * frames.size();
+        for (int i = 0; i < frames.size(); ++i) {
+            const quint8 size = i == 0 ? 16 : 32;
+            stream << size << size << quint8(0) << quint8(0) << quint16(1) << quint16(32)
+                   << quint32(frames.at(i).size()) << offset;
+            offset += frames.at(i).size();
+        }
+        for (const auto &frame : frames) {
+            stream.writeRawData(frame.constData(), frame.size());
+        }
+        return icon;
+    }
 };
 
 // Every address a view reports for its page's icon, in order, so a test sees
@@ -1231,6 +1278,79 @@ void QtEngineContractTest::qtRedrawsAFaviconWhenTheColourSchemeChanges()
     QTRY_VERIFY_WITH_TIMEOUT(
         iconUrl() == drawnUrl && faviconLightness(engine, drawnUrl) > 192, 10000);
     QTRY_COMPARE(reports.reported, (QList<QUrl> {QUrl(), drawnUrl}));
+#else
+    QSKIP("Only Omaweb's own engine draws a favicon again when the colour scheme changes.");
+#endif
+}
+
+// chatgpt.com offers a black ICO for any size ahead of an SVG that follows the
+// colour scheme. Chromium ranks both as ideal before fetching them, and then
+// prefers the ICO's exact 16 and 32 pixel frames over the one drawing it makes
+// of the SVG, so a tab showed the black mark under a dark theme (#700). The
+// engine ranks a page's SVG icon above its raster ones.
+void QtEngineContractTest::qtShowsAnSvgFaviconOverARasterBesideIt()
+{
+    // The SVG wins from patch 0027 of the engine series, and turns light from
+    // patch 0025.
+#if OMAWEB_KNOWN_EXTENSIONS
+    FaviconServer server;
+    server.darkColour = "#fff";
+    server.raster = true;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QTemporaryDir root;
+    const SpaceStorage storage(root.path(), QStringLiteral("qt"));
+    // A page made after a scheme is announced on a platform that does not take
+    // it, as in CI, is told the platform's, so the page loads under the light
+    // scheme and the dark one arrives while it is on show.
+    auto *styleHints = QGuiApplication::styleHints();
+    const auto useScheme = [styleHints](Qt::ColorScheme scheme) {
+        styleHints->setColorScheme(scheme);
+        if (styleHints->colorScheme() != scheme) {
+            emit styleHints->colorSchemeChanged(scheme);
+        }
+    };
+    const auto restoreScheme = qScopeGuard([styleHints] {
+        styleHints->unsetColorScheme();
+        emit styleHints->colorSchemeChanged(styleHints->colorScheme());
+    });
+    useScheme(Qt::ColorScheme::Light);
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), storage.profilePathFor(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+    }));
+    QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+    }));
+    QVERIFY2(view, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+    window.show();
+    // Every icon the tab is given, so a black ICO shown for a moment before the
+    // SVG counts as well.
+    IconReports reports(view.get());
+    view->setProperty("currentUrl", page);
+    const auto iconUrl = [&view] { return view->property("pageIconUrl").toUrl(); };
+    QTRY_VERIFY_WITH_TIMEOUT(!iconUrl().isEmpty(), 10000);
+    const auto drawnUrl = iconUrl();
+    // The engine's icon address carries the icon's own, so the path ends in it.
+    QVERIFY2(
+        drawnUrl.path().endsWith(QStringLiteral("/icon.svg")), qPrintable(drawnUrl.toString()));
+
+    useScheme(Qt::ColorScheme::Dark);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        iconUrl() == drawnUrl && faviconLightness(engine, drawnUrl) > 192, 10000);
+    for (const auto &reported : std::as_const(reports.reported)) {
+        QVERIFY2(reported.isEmpty() || reported.path().endsWith(QStringLiteral("/icon.svg")),
+            qPrintable(reported.toString()));
+    }
 #else
     QSKIP("Only Omaweb's own engine draws a favicon again when the colour scheme changes.");
 #endif
