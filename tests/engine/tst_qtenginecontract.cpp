@@ -379,6 +379,9 @@ private slots:
     void qtKeepsADocumentsOwnCookiesAcrossARedirect();
     void qtNamesEveryPermissionTheShellHasAPolicyFor();
     void qtAsksTheShellAboutEveryPermissionRequest();
+    void qtRejectsAPushSubscriptionWithoutAsking_data();
+    void qtRejectsAPushSubscriptionWithoutAsking();
+    void qtAsksForNotificationsInAPrivateWindow();
     void qtEmptiesTheCacheItWasAskedToClear();
     void qtEmptiesOneOriginsStorageFromInsideItsPage();
     void qtHoldsARiskyDownloadUntilTheShellHasAnswered();
@@ -2060,6 +2063,13 @@ public:
                         : m_redirectTo;
                     socket->write("HTTP/1.1 302 Found\r\nLocation: " + destination
                         + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    socket->disconnectFromHost();
+                    return;
+                }
+                // A service worker's script is refused unless it is served as script.
+                if (path == "/worker.js") {
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/javascript\r\n"
+                                  "Content-Length: 0\r\nConnection: close\r\n\r\n");
                     socket->disconnectFromHost();
                     return;
                 }
@@ -9566,6 +9576,124 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     const auto askedBeforeReturn = asked.count();
     QVERIFY(adapter->setProperty("currentUrl", page));
     QTRY_VERIFY_WITH_TIMEOUT(asked.count() > askedBeforeReturn, 20000);
+}
+
+void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space") << false;
+    QTest::newRow("a Private window") << true;
+}
+
+// Omaweb has no push service (#324), and a Space says so: `subscribe` rejects
+// at once and nothing is asked. A Private window answered it differently,
+// because Chromium asks for the notifications permission there first and then
+// refuses whatever the reader says, so the reader met a question that led
+// nowhere and a site could tell the two apart (#421).
+void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking()
+{
+    QFETCH(bool, privateWindow);
+    PageServer server(R"HTML(<!doctype html><html><body><title>subscribing</title>
+        <script>
+            const key = new Uint8Array(65);
+            key[0] = 4;
+            navigator.serviceWorker.register("/worker.js")
+                .then(() => navigator.serviceWorker.ready)
+                .then(registration => registration.pushManager.subscribe(
+                    {userVisibleOnly: true, applicationServerKey: key}))
+                .then(() => document.title = "subscribed",
+                    error => document.title = error.name + ": " + error.message);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("privateBrowsing"), privateWindow},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
+    QVERIFY(asked.isValid());
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    // Either the page has its answer or the engine is waiting on the reader.
+    const auto answered = [&] {
+        const auto title = adapter->property("pageTitle").toString();
+        return !title.isEmpty() && title != QStringLiteral("subscribing");
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(answered() || asked.count() > 0, 20000);
+    QCOMPARE(asked.count(), 0);
+    QCOMPARE(adapter->property("pageTitle").toString(),
+        QStringLiteral("AbortError: Registration failed - push service not available"));
+}
+
+// A page that asks to notify still reaches the reader in a Private window. Only
+// a push subscription is turned away there, not the notifications it shares a
+// permission with.
+void QtEngineContractTest::qtAsksForNotificationsInAPrivateWindow()
+{
+    PageServer server(R"HTML(<!doctype html><html><body><title>asking</title>
+        <script>
+            Notification.requestPermission().then(
+                answer => document.title = "answered " + answer);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+        {QStringLiteral("privateBrowsing"), true},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
+    QVERIFY(asked.isValid());
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_VERIFY_WITH_TIMEOUT(asked.count() > 0, 20000);
+    QCOMPARE(asked.first().at(2).toString(), QStringLiteral("notifications"));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToPermission",
+        Q_ARG(QVariant, asked.first().at(0)), Q_ARG(QVariant, 2)));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("answered granted"), 20000);
 }
 
 namespace {
