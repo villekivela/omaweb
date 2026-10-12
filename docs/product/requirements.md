@@ -834,6 +834,10 @@ The default page commands include:
   it has something to ask, so a key that needs no PIN and holds one account for the site is touched
   without a prompt, and a request no key answers shows nothing until it times out. The engine names
   an account only by the name the site stored on the key, so that is what the account chooser shows.
+  A site that asks what the browser can reach before offering a passkey, with
+  `PublicKeyCredential.getClientCapabilities()`, is told the same: no hybrid transport and no
+  platform authenticator. The engine reports conditional mediation available, as Chromium on Linux
+  does.
 - Third-party cookies are blocked by default. Authentication and payment flows may receive a
   temporary origin-specific allowance listed in Site information's third-party detail and revocable
   from it.

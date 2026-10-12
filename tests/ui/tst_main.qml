@@ -5401,6 +5401,49 @@ TestCase {
             browser.closeTab(firstId);
     }
 
+    // A label hangs below its button into the address row, so it has to be
+    // drawn over the address and the navigation, not under them: the window
+    // shows the cap's own ground along its top edge, clear of the key.
+    function test_theKeyLabelsDrawOverTheAddressRow() {
+        window.settingsOpen = false;
+        window.sidebarCollapsed = false;
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        openPage("https://labels-over.example/");
+        // A page with no history leaves back and forward disabled, drawn at 35%.
+        verify(!findChild(window.contentItem, "backButton").enabled);
+        const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
+                       "reloadButton", "addressButton", "space-" + browser.activeSpaceId, "tab-"
+                       + browser.activeTabId];
+        keyPress(Qt.Key_Control);
+        tryVerify(function () {
+            return findChild(window.contentItem, "keyLabel-backButton").visible;
+        });
+        settleMotion();
+        const whole = grabImage(window.contentItem);
+        for (let index = 0; index < names.length; ++index) {
+            const label = findChild(window.contentItem, "keyLabel-" + names[index]);
+            verify(label.visible, names[index]);
+            const ground = findChild(label, "keycap").ground;
+            const origin = label.mapToItem(window.contentItem, 0, 0);
+            let hidden = 0;
+            // The columns either side of the key, from the part of the label
+            // below the navigation row to the cap's bottom edge.
+            for (const x of [3, label.width - 4]) {
+                for (let y = 10; y < label.height - 5; ++y) {
+                    const seen = whole.pixel(Math.round(origin.x) + x, Math.round(origin.y) + y);
+                    if (Math.abs(seen.r - ground.r) > 0.02 || Math.abs(seen.g - ground.g) > 0.02
+                            || Math.abs(seen.b - ground.b) > 0.02)
+                        ++hidden;
+                }
+            }
+            compare(hidden, 0, names[index] + " has pixels drawn over");
+        }
+        keyRelease(Qt.Key_Control);
+    }
+
     // Switching Space names the Space it arrived in at the top of the page,
     // over where the page settles, and the window's title names it too. The
     // notice stands still while the page arrives and goes on its own.

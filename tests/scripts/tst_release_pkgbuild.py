@@ -136,12 +136,13 @@ class EngineAndCapability(unittest.TestCase):
         # registered at every restart (#686), before 6.11.2-14 a tab kept the
         # favicon drawn under the colour scheme it loaded under (#700), before
         # 6.11.2-15 a raster icon beside an SVG one was shown instead of the
-        # SVG, so the icon could not follow the scheme (#700), a Private window
-        # asked the reader before it refused a push subscription (#421), and an
-        # Omaweb built against 6.11.2-12 calls the window geometry API that
-        # 6.11.2-7 does not have, so it would not start on it (#684). pacman
-        # upgrades Omaweb without the engine unless the dependency asks for a
-        # newer one.
+        # SVG, so the icon could not follow the scheme (#700), a page that
+        # asked what its passkeys can reach never heard back (#711), and a
+        # Private window asked the reader before it refused a push subscription
+        # (#421), and an Omaweb built against 6.11.2-12 calls the window
+        # geometry API that 6.11.2-7 does not have, so it would not start on it
+        # (#684). pacman upgrades Omaweb without the engine unless the
+        # dependency asks for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
             self.assertIn(f"{ENGINE}>=6.11.2-15", depends(pkgbuild))
 

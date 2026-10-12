@@ -253,6 +253,7 @@ private slots:
     void qtShowsAnSvgFaviconOverARasterBesideIt();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
+    void qtTellsAPageWhatItsPasskeysCanReach();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage_data();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage();
@@ -2388,6 +2389,35 @@ struct OpenedWindows {
 
 } // namespace
 
+// A site may ask what passkeys the browser can reach before it offers one, and
+// waits for the answer (#711). The engine is built without Bluetooth, so the
+// answer names no phone over hybrid transport and no platform authenticator,
+// and reports conditional mediation available, as Chromium on Linux does.
+void QtEngineContractTest::qtTellsAPageWhatItsPasskeysCanReach()
+{
+    // The answer comes from patch 0028 of the engine series.
+#if OMAWEB_KNOWN_EXTENSIONS
+    PageServer server(R"HTML(<!doctype html><title>asking</title><script>
+PublicKeyCredential.getClientCapabilities().then(answer => document.title = [
+  "hybrid " + answer.hybridTransport,
+  "platform " + answer.userVerifyingPlatformAuthenticator,
+  "passkey " + answer.passkeyPlatformAuthenticator,
+  "conditional " + answer.conditionalGet,
+].join(", "));
+</script>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    // A page on the loopback address is a secure context, as WebAuthn needs.
+    ViewInWindow shown;
+    QVERIFY(shown.create(
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(shown.adapter->property("pageTitle").toString(),
+        QStringLiteral("hybrid false, platform false, passkey false, conditional true"), 15000);
+#else
+    QSKIP("Only Omaweb's own engine tells a page what its passkeys can reach.");
+#endif
+}
+
 void QtEngineContractTest::qtGivesAPageTheWindowAHiddenViewTakesAtOnce()
 {
     PageServer server(QByteArray(R"HTML(<!doctype html><html><body><script>
@@ -4408,7 +4438,8 @@ void QtEngineContractTest::qtWaitsForThePaintReportAfterTheLoad()
 // page's own frames, and only where the page set no ground of its own: html and
 // body both transparent, and not a page that chose a dark canvas. A page that
 // sets only the body's background keeps it spreading to the canvas, a page that
-// sets the root's is left alone, and a frame inside a page is not the page.
+// sets the root's is left alone, and a frame inside a page is not the page. A
+// ground the page drops or sets once it has drawn is followed (#720).
 void QtEngineContractTest::qtGivesAPageWithNoBackgroundAWhiteGroundOfItsOwn()
 {
     const QString report = QStringLiteral(R"JS(
@@ -4468,6 +4499,51 @@ void QtEngineContractTest::qtGivesAPageWithNoBackgroundAWhiteGroundOfItsOwn()
                      + script,
                  QStringLiteral("ground:")),
         QStringLiteral("ground:rgb(101, 67, 33)|rgba(0, 0, 0, 0)"));
+    // A ground the page drops once it has drawn, as a loading body does, leaves
+    // its sides beside a centred column bare: the root is given the white then,
+    // and keeps it while the page goes on changing its body.
+    const QString afterLoad = QStringLiteral(
+        "<script>addEventListener('load', () => setTimeout(() => {%1}, 200));</script>");
+    QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title>"
+                                     "<style>.loading { background: #f3f2f1; }</style>"
+                                     "<body class=\"loading\" style=\"margin:0\">"
+                                     "<main style=\"max-width:200px;margin:0 auto;"
+                                     "background:white\">apps</main>")
+                     + afterLoad.arg(QStringLiteral(
+                         "document.body.classList.remove('loading');"
+                         " setTimeout(() => document.body.style.cursor = 'grab', 100)"))
+                     + script,
+                 QStringLiteral("ground:")),
+        QStringLiteral("ground:rgb(255, 255, 255)|rgba(0, 0, 0, 0)"));
+    // A ground the page sets once it has drawn is its own: the body's spreads
+    // to the canvas, however it arrives, and a dark canvas the root asks for is
+    // the page's.
+    const auto bareThen = [&](const QString &change) {
+        return groundOf(QStringLiteral("<!doctype html><title>t</title><body><p>bare</p>")
+                + afterLoad.arg(change) + script,
+            QStringLiteral("ground:"));
+    };
+    QCOMPARE(bareThen(QStringLiteral("document.body.style.background = '#123456'")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
+    QCOMPARE(bareThen(QStringLiteral(
+                 "document.head.append(Object.assign(document.createElement('style'),"
+                 " {textContent: 'body { background: #123456; }'}))")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
+    QCOMPARE(
+        bareThen(QStringLiteral("document.head.append(Object.assign(document.createElement('link'),"
+                                " {rel: 'stylesheet', href: URL.createObjectURL(new Blob("
+                                "['body { background: #123456; }'], {type: 'text/css'}))}))")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
+    QCOMPARE(
+        groundOf(QStringLiteral("<!doctype html><title>t</title>"
+                                "<style>[data-theme=dark] body { background: #123456; }</style>"
+                                "<body><p>themed</p>")
+                + afterLoad.arg(QStringLiteral("document.documentElement.dataset.theme = 'dark'"))
+                + script,
+            QStringLiteral("ground:")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgb(18, 52, 86)"));
+    QCOMPARE(bareThen(QStringLiteral("document.documentElement.style.colorScheme = 'dark'")),
+        QStringLiteral("ground:rgba(0, 0, 0, 0)|rgba(0, 0, 0, 0)"));
     // A frame inside the page is not the page: it stays as it was written.
     QCOMPARE(groundOf(QStringLiteral("<!doctype html><title>t</title><body><iframe srcdoc=\""
                                      "&lt;script&gt;addEventListener('load',()=&gt;"
