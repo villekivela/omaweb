@@ -81,9 +81,12 @@ Omarchy.BorderSurface {
 
     onOptionsChanged: filter()
 
-    // The kit's width, or wider for a name that would not fit beside the
-    // desktop theme's and the squares.
-    implicitWidth: Math.max(Style.spacing.searchableDropdownWidth, Math.ceil(trigger.implicitWidth)
+    // The kit's width, or wider for the trigger or the Follow Omarchy row,
+    // which names the desktop's theme beside its own, when either would not
+    // fit. The list is as wide as the trigger.
+    implicitWidth: Math.max(Style.spacing.searchableDropdownWidth, Math.ceil(Math.max(
+                                                                                 trigger.implicitWidth,
+                                                                                 followRow.implicitWidth))
                             + root.borderLeft + root.borderRight + Style.spacing.controlPaddingX
                             + Style.spacing.md + arrow.implicitWidth + Style.spacing.xs)
     implicitHeight: Style.spacing.controlHeight
@@ -135,6 +138,15 @@ Omarchy.BorderSurface {
         }) || {
                                                  colours: {}
                                              }).colours : ({})
+    }
+
+    // Measures the Follow Omarchy row, which is never drawn here.
+    ThemeEntry {
+        id: followRow
+        visible: false
+        colors: root.colors
+        label: qsTr("Follow Omarchy")
+        detail: root.browserTheme ? root.browserTheme.desktopName : ""
     }
 
     Text {
