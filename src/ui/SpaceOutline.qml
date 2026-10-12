@@ -834,6 +834,9 @@ Rectangle {
             objectName: "sidebarNavigation"
             width: parent.width
             height: 32
+            // Its key labels hang below it into the address row, and the
+            // column paints a later sibling over an earlier one.
+            z: 1
 
             DragHandler {
                 target: null
@@ -842,23 +845,15 @@ Rectangle {
             }
 
             Row {
+                id: outlineControls
                 objectName: "outlineControls"
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
 
                 ChromeButton {
+                    id: collapseButton
                     objectName: "collapseButton"
-                    KeyLabel {
-                        objectName: "keyLabel-collapseButton"
-                        iconFontFamily: root.iconFontFamily
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.bottom
-                        anchors.topMargin: -4
-                        keys: root.keyLabelsShown ? root.labelFor("toggle-sidebar") : ""
-                        shown: root.keyLabelsShown
-                        colors: root.colors
-                    }
                     width: 28
                     height: 26
                     icon: root.onRight ? (root.collapsed ? "right_panel_open" :
@@ -873,17 +868,8 @@ Rectangle {
                 }
 
                 ChromeButton {
+                    id: commandScopeButton
                     objectName: "commandScopeButton"
-                    KeyLabel {
-                        objectName: "keyLabel-commandScopeButton"
-                        iconFontFamily: root.iconFontFamily
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.bottom
-                        anchors.topMargin: -4
-                        keys: root.keyLabelsShown ? root.labelFor("command-scope") : ""
-                        shown: root.keyLabelsShown
-                        colors: root.colors
-                    }
                     width: 28
                     height: 26
                     icon: "search"
@@ -896,23 +882,15 @@ Rectangle {
             }
 
             Row {
+                id: outlineNavigation
                 objectName: "outlineNavigation"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
 
                 ChromeButton {
+                    id: backButton
                     objectName: "backButton"
-                    KeyLabel {
-                        objectName: "keyLabel-backButton"
-                        iconFontFamily: root.iconFontFamily
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.bottom
-                        anchors.topMargin: -4
-                        keys: root.keyLabelsShown ? root.labelFor("back") : ""
-                        shown: root.keyLabelsShown
-                        colors: root.colors
-                    }
                     width: 28
                     height: 26
                     icon: "arrow_back"
@@ -925,17 +903,8 @@ Rectangle {
                 }
 
                 ChromeButton {
+                    id: forwardButton
                     objectName: "forwardButton"
-                    KeyLabel {
-                        objectName: "keyLabel-forwardButton"
-                        iconFontFamily: root.iconFontFamily
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.bottom
-                        anchors.topMargin: -4
-                        keys: root.keyLabelsShown ? root.labelFor("forward") : ""
-                        shown: root.keyLabelsShown
-                        colors: root.colors
-                    }
                     width: 28
                     height: 26
                     icon: "arrow_forward"
@@ -948,17 +917,8 @@ Rectangle {
                 }
 
                 ChromeButton {
+                    id: reloadButton
                     objectName: "reloadButton"
-                    KeyLabel {
-                        objectName: "keyLabel-reloadButton"
-                        iconFontFamily: root.iconFontFamily
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.bottom
-                        anchors.topMargin: -4
-                        keys: root.keyLabelsShown ? root.labelFor("reload") : ""
-                        shown: root.keyLabelsShown
-                        colors: root.colors
-                    }
                     width: 28
                     height: 26
                     icon: "refresh"
@@ -968,6 +928,59 @@ Rectangle {
                     accent: root.colors.accent
                     onClicked: root.reloadRequested()
                 }
+            }
+
+            // The labels belong to the navigation row rather than to their
+            // buttons: a disabled button is drawn at 35%, and a label that
+            // inherited that would let the address show through it.
+            KeyLabel {
+                objectName: "keyLabel-collapseButton"
+                iconFontFamily: root.iconFontFamily
+                x: outlineControls.x + collapseButton.x + (collapseButton.width - width) / 2
+                y: outlineControls.y + collapseButton.y + collapseButton.height - 4
+                keys: root.keyLabelsShown ? root.labelFor("toggle-sidebar") : ""
+                shown: root.keyLabelsShown
+                colors: root.colors
+            }
+
+            KeyLabel {
+                objectName: "keyLabel-commandScopeButton"
+                iconFontFamily: root.iconFontFamily
+                x: outlineControls.x + commandScopeButton.x + (commandScopeButton.width - width) / 2
+                y: outlineControls.y + commandScopeButton.y + commandScopeButton.height - 4
+                keys: root.keyLabelsShown ? root.labelFor("command-scope") : ""
+                shown: root.keyLabelsShown
+                colors: root.colors
+            }
+
+            KeyLabel {
+                objectName: "keyLabel-backButton"
+                iconFontFamily: root.iconFontFamily
+                x: outlineNavigation.x + backButton.x + (backButton.width - width) / 2
+                y: outlineNavigation.y + backButton.y + backButton.height - 4
+                keys: root.keyLabelsShown ? root.labelFor("back") : ""
+                shown: root.keyLabelsShown
+                colors: root.colors
+            }
+
+            KeyLabel {
+                objectName: "keyLabel-forwardButton"
+                iconFontFamily: root.iconFontFamily
+                x: outlineNavigation.x + forwardButton.x + (forwardButton.width - width) / 2
+                y: outlineNavigation.y + forwardButton.y + forwardButton.height - 4
+                keys: root.keyLabelsShown ? root.labelFor("forward") : ""
+                shown: root.keyLabelsShown
+                colors: root.colors
+            }
+
+            KeyLabel {
+                objectName: "keyLabel-reloadButton"
+                iconFontFamily: root.iconFontFamily
+                x: outlineNavigation.x + reloadButton.x + (reloadButton.width - width) / 2
+                y: outlineNavigation.y + reloadButton.y + reloadButton.height - 4
+                keys: root.keyLabelsShown ? root.labelFor("reload") : ""
+                shown: root.keyLabelsShown
+                colors: root.colors
             }
         }
 
