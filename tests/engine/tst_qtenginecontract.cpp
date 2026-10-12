@@ -2385,6 +2385,8 @@ struct OpenedWindows {
 // and reports conditional mediation available, as Chromium on Linux does.
 void QtEngineContractTest::qtTellsAPageWhatItsPasskeysCanReach()
 {
+    // The answer comes from patch 0028 of the engine series.
+#if OMAWEB_KNOWN_EXTENSIONS
     PageServer server(R"HTML(<!doctype html><title>asking</title><script>
 PublicKeyCredential.getClientCapabilities().then(answer => document.title = [
   "hybrid " + answer.hybridTransport,
@@ -2401,6 +2403,9 @@ PublicKeyCredential.getClientCapabilities().then(answer => document.title = [
         QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
     QTRY_COMPARE_WITH_TIMEOUT(shown.adapter->property("pageTitle").toString(),
         QStringLiteral("hybrid false, platform false, passkey false, conditional true"), 15000);
+#else
+    QSKIP("Only Omaweb's own engine tells a page what its passkeys can reach.");
+#endif
 }
 
 void QtEngineContractTest::qtGivesAPageTheWindowAHiddenViewTakesAtOnce()
