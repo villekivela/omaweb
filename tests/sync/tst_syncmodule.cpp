@@ -303,6 +303,8 @@ private slots:
     void syncsOnlyTheApprovedConfiguration();
     void syncsTheAppIcon();
     void syncsTheBrowserTheme();
+    void keepsFollowingTheDesktopThemeAfterAPick();
+    void keepsAPickMadeWhileAnotherMachineFollowsTheDesktop();
     void restoresSettingsBesideASettingsPageWrite();
     void restoresTheRestBesideASettingsFileItCannotRead();
     void leavesAReadOnlyKeybindingsFileAloneWhenItMatches();
@@ -873,6 +875,115 @@ void SyncModuleTest::syncsTheBrowserTheme()
 
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
         QJsonValue(QStringLiteral("catppuccin-latte")));
+}
+
+// A reader who picked a browser theme and then chose to follow the desktop
+// again keeps following it, and so do their other machines: the earlier pick
+// is not restored over the choice (#740).
+void SyncModuleTest::keepsFollowingTheDesktopThemeAfterAPick()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'i');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
+    QVERIFY(writeSettings(
+        firstConfigRoot.path(), {{QStringLiteral("browser-theme"), QStringLiteral("hackerman")}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
+        QJsonValue(QStringLiteral("hackerman")));
+
+    // Follow Omarchy, as Settings stores it.
+    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("browser-theme"), {}}}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    // The other machine changes something of its own, which this one applies.
+    QVERIFY(secondStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Work"), QStringLiteral("green"), true}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    QVERIFY(!omaweb::SettingsFile(firstConfigRoot.path()).isSet(QStringLiteral("browser-theme")));
+    QVERIFY(!omaweb::SettingsFile(secondConfigRoot.path()).isSet(QStringLiteral("browser-theme")));
+}
+
+// One machine follows the desktop again while another picks a theme before it
+// hears so. The pick is the change both keep.
+void SyncModuleTest::keepsAPickMadeWhileAnotherMachineFollowsTheDesktop()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'i');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
+    QVERIFY(writeSettings(
+        firstConfigRoot.path(), {{QStringLiteral("browser-theme"), QStringLiteral("hackerman")}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("browser-theme"), {}}}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    QVERIFY(writeSettings(
+        secondConfigRoot.path(), {{QStringLiteral("browser-theme"), QStringLiteral("nord")}}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    QCOMPARE(setting(firstConfigRoot.path(), QStringLiteral("browser-theme")),
+        QJsonValue(QStringLiteral("nord")));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
+        QJsonValue(QStringLiteral("nord")));
 }
 
 // Sync's restore and the Settings page write the same file. A reader changing

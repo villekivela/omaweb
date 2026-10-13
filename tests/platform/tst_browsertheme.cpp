@@ -127,6 +127,7 @@ private slots:
     void letsTheEnvironmentOverrideStandAlone();
     void rendersAPickedThemeThroughTheShippedTemplate();
     void leavesNoRenderWhileFollowingTheDesktop();
+    void startsWithoutTheRenderOfAnEarlierPick();
     void rendersThroughTheReadersTemplate();
     void prefersTheReadersCopyOfATheme();
     void takesAPaletteTheThemeShips();
@@ -201,6 +202,24 @@ void BrowserThemeTest::leavesNoRenderWhileFollowingTheDesktop()
 
     QVERIFY(!QFileInfo::exists(home.paths.rendered));
     QVERIFY(!theme.missing());
+}
+
+// A browser started after the reader chose to follow the desktop again draws
+// the desktop's theme, not the render an earlier pick left (#740).
+void BrowserThemeTest::startsWithoutTheRenderOfAnEarlierPick()
+{
+    Home home;
+    home.install(home.paths.systemThemes, QStringLiteral("hackerman"));
+    {
+        BrowserTheme picked(home.paths, home.colours());
+        picked.setChoice(QStringLiteral("hackerman"));
+        QVERIFY(QFileInfo::exists(home.paths.rendered));
+    }
+
+    BrowserTheme restarted(home.paths, home.colours());
+    restarted.setChoice({});
+
+    QVERIFY(!QFileInfo::exists(home.paths.rendered));
 }
 
 void BrowserThemeTest::rendersThroughTheReadersTemplate()
