@@ -798,9 +798,10 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
                 = gitOutput({QStringLiteral("show"), QStringLiteral(":2:") + path}, &localRead);
             const auto remote
                 = gitOutput({QStringLiteral("show"), QStringLiteral(":3:") + path}, &remoteRead);
-            // A setting one side took back to its default as no record, and
-            // the other changed, keeps the change.
-            if (!localRead && !remoteRead) {
+            // Where one side removed a setting's record, returning it to an
+            // empty default, and the other changed it, the change wins.
+            const bool setting = path.startsWith(QLatin1String("settings/"));
+            if ((!localRead || !remoteRead) && !(setting && (localRead || remoteRead))) {
                 setError(errorMessage,
                     QCoreApplication::translate(
                         "SyncModule", "Could not read conflicting Sync settings"));
@@ -1266,10 +1267,13 @@ bool SyncModule::stageConfigurationFile(
 bool SyncModule::restoreConfiguration(QString *errorMessage)
 {
     const auto settingsDirectory = QDir(checkoutRoot()).filePath(QStringLiteral("settings"));
-    const auto applied = readJsonObject(
-        QDir(m_options.dataRoot).filePath(QStringLiteral("sync/applied-records.json")))
-                             .value(QStringLiteral("configuration"))
-                             .toObject();
+    // A baseline written before this machine first applied anything lists its
+    // own settings, not records it applied, and has no applied tree.
+    const auto inventory = readJsonObject(
+        QDir(m_options.dataRoot).filePath(QStringLiteral("sync/applied-records.json")));
+    const auto applied = inventory.contains(QStringLiteral("appliedTree"))
+        ? inventory.value(QStringLiteral("configuration")).toObject()
+        : QJsonObject {};
     QJsonObject synced;
     for (const auto &name : syncedPreferences) {
         const auto record = readJsonObject(QDir(settingsDirectory).filePath(name + ".json"));
@@ -1406,10 +1410,15 @@ bool SyncModule::captureConfiguration(QString *errorMessage)
         }
         // A setting whose default is empty, as the browser theme's is, goes
         // back to it as no record: a record of an empty value is one 0.16.0
-        // rejects, and that fails its whole restore (#740).
+        // rejects, and that fails its whole restore (#740). A record that is
+        // not the one applied here is another machine's change still waiting
+        // to be applied, and stays.
         if (!settings.isSet(name) && hasEmptyDefault(name)) {
-            const auto record = QDir(checkoutRoot()).filePath(path);
-            if (QFileInfo::exists(record) && !QFile::remove(record)) {
+            QFile record(QDir(checkoutRoot()).filePath(path));
+            const bool appliedHere = record.open(QIODevice::ReadOnly)
+                && digest(record.readAll()) == applied.value(path).toString();
+            record.close();
+            if (appliedHere && !record.remove()) {
                 setError(errorMessage,
                     QCoreApplication::translate(
                         "SyncModule", "Could not stage Sync configuration"));

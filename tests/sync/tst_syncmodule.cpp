@@ -305,6 +305,8 @@ private slots:
     void syncsTheBrowserTheme();
     void keepsFollowingTheDesktopThemeAfterAPick();
     void keepsAPickMadeWhileAnotherMachineFollowsTheDesktop();
+    void keepsAPickNotYetAppliedWhereTheDesktopIsFollowed();
+    void keepsItsOwnPickWhenAdoptingARepositoryWithoutOne();
     void restoresSettingsBesideASettingsPageWrite();
     void restoresTheRestBesideASettingsFileItCannotRead();
     void leavesAReadOnlyKeybindingsFileAloneWhenItMatches();
@@ -982,6 +984,109 @@ void SyncModuleTest::keepsAPickMadeWhileAnotherMachineFollowsTheDesktop()
 
     QCOMPARE(setting(firstConfigRoot.path(), QStringLiteral("browser-theme")),
         QJsonValue(QStringLiteral("nord")));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
+        QJsonValue(QStringLiteral("nord")));
+}
+
+// A pick from another machine that arrives while this one follows the desktop,
+// and waits for the browser to apply it, is not taken back meanwhile.
+void SyncModuleTest::keepsAPickNotYetAppliedWhereTheDesktopIsFollowed()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'i');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
+    QVERIFY(writeSettings(
+        firstConfigRoot.path(), {{QStringLiteral("browser-theme"), QStringLiteral("hackerman")}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QVERIFY(writeSettings(
+        firstConfigRoot.path(), {{QStringLiteral("browser-theme"), QStringLiteral("nord")}}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    QVERIFY(writeSettings(secondConfigRoot.path(), {{QStringLiteral("browser-theme"), {}}}));
+    // The browser defers applying what these passes bring.
+    OMAWEB_VERIFY_SYNC(second.reconcile(secondStore));
+    OMAWEB_VERIFY_SYNC(second.reconcile(secondStore));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    QCOMPARE(setting(firstConfigRoot.path(), QStringLiteral("browser-theme")),
+        QJsonValue(QStringLiteral("nord")));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
+        QJsonValue(QStringLiteral("nord")));
+}
+
+// A machine that joins by taking the repository's state keeps a browser theme
+// of its own the repository has no record of.
+void SyncModuleTest::keepsItsOwnPickWhenAdoptingARepositoryWithoutOne()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'i');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    QVERIFY(secondStore.saveSpace(SpaceState {
+        QStringLiteral("space-2"), QStringLiteral("Work"), QStringLiteral("blue"), true}));
+    QVERIFY(writeSettings(
+        secondConfigRoot.path(), {{QStringLiteral("browser-theme"), QStringLiteral("nord")}}));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .intent = SyncIntent::AdoptRemote});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
         QJsonValue(QStringLiteral("nord")));
 }
