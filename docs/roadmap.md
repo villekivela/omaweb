@@ -48,7 +48,18 @@ engine is 6.11.2-15. [v0.16.0](https://github.com/villekivela/omaweb/releases/ta
 the browser theme, which follows Omarchy's or is any installed Omarchy theme picked for the browser
 alone ([ADR 0066](adr/0066-pick-the-browser-theme-from-installed-omarchy-themes.md)), a playing tab
 kept audible through its silences, and the Omarchy kit caught up with quattro. Its engine is still
-6.11.2-15. No release is in progress.
+6.11.2-15. v0.17.0 is the release in progress.
+
+[v0.17.0](https://github.com/villekivela/omaweb/milestone/16) is planned around the size and feel of
+the chrome. A two-finger swipe across the sidebar switches Space, with the sidebar following the
+fingers and the next Space's tabs sliding in
+([#734](https://github.com/villekivela/omaweb/issues/734)). Pages and Omaweb's own type follow the
+desktop's text scaling, beneath each tab's zoom, until the reader sets a Page scale
+([#709](https://github.com/villekivela/omaweb/issues/709),
+[ADR 0067](adr/0067-scale-pages-by-the-desktops-text-scaling.md)). Two differences a page could tell
+Omaweb apart by go: the missing `Accept-Language` header
+([#735](https://github.com/villekivela/omaweb/issues/735)) and the three `__omaweb` globals a page
+can see ([#736](https://github.com/villekivela/omaweb/issues/736)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
