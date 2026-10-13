@@ -44,12 +44,11 @@ workspace comes back, and `omaweb help`. Its engine is 6.11.2-14.
 favicon shown over a raster one beside it, so chatgpt.com's follows a dark theme, white beside a
 page that leaves its sides bare, the sidebar's key labels drawn over the address row, a Private
 window that answers web push as a Space does, and a page told what its passkeys can reach. Its
-engine is 6.11.2-15. v0.16.0 is the release in progress.
-
-[v0.16.0](https://github.com/villekivela/omaweb/milestone/15) is planned around the browser's theme:
-follow Omarchy's, or pick any installed Omarchy theme for the browser alone
-([#710](https://github.com/villekivela/omaweb/issues/710)), as
-[ADR 0066](adr/0066-pick-the-browser-theme-from-installed-omarchy-themes.md) records.
+engine is 6.11.2-15. [v0.16.0](https://github.com/villekivela/omaweb/releases/tag/v0.16.0) shipped
+the browser theme, which follows Omarchy's or is any installed Omarchy theme picked for the browser
+alone ([ADR 0066](adr/0066-pick-the-browser-theme-from-installed-omarchy-themes.md)), a playing tab
+kept audible through its silences, and the Omarchy kit caught up with quattro. Its engine is still
+6.11.2-15. No release is in progress.
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
