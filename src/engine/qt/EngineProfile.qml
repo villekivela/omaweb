@@ -522,6 +522,26 @@ QtObject {
     // sets them.
     function dropEngineToken(engineProfile) {
         engineProfile.httpUserAgent = engineProfile.httpUserAgent.replace(/ ?QtWebEngine\/\S+/, "");
+        root.reportChrome152(engineProfile);
+    }
+
+    // Diagnostic for #711, never merged: report Chrome 152 instead of the
+    // engine's 140, in the user agent and in the client hints alike, so a
+    // retry tells whether the version alone makes Google refuse a sign-in.
+    // The brands and every other hint stay the engine's own, though Qt sends
+    // the brands sorted by name once any hint is set.
+    function reportChrome152(engineProfile) {
+        const fullVersion = "152.0.7977.82";
+        const engineFullVersion = engineProfile.clientHints.fullVersion;
+        engineProfile.httpUserAgent = engineProfile.httpUserAgent.replace(/Chrome\/\S+/,
+                                                                          "Chrome/152.0.0.0");
+        const versions = engineProfile.clientHints.fullVersionList;
+        for (const brand in versions) {
+            if (versions[brand] === engineFullVersion)
+                versions[brand] = fullVersion;
+        }
+        engineProfile.clientHints.fullVersionList = versions;
+        engineProfile.clientHints.fullVersion = fullVersion;
     }
 
     Component.onCompleted: {
