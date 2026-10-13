@@ -426,6 +426,15 @@ appearance, including the semantic opacity values for its interface surfaces and
 base size they draw with. Omaweb can replace the active theme palette while running. _Avoid_: Theme
 injection, color scheme
 
+**Desktop text scaling**: The factor the desktop asks every app to enlarge its type by. Omarchy sets
+it from its text size. _Avoid_: DPI, display scale, font scaling
+
+**Page scale**: The size every page is drawn at before a tab's own zoom. It is the Desktop text
+scaling until the reader sets it. _Avoid_: Default zoom, global zoom, page zoom
+
+**Zoom**: A tab's own enlargement of its page over the Page scale. It belongs to the tab and never
+to a site. _Avoid_: Site zoom, page scale
+
 **Transparent surface**: An Omaweb-owned interface region whose theme allows the desktop to remain
 visible behind it. Webpage viewports are not Transparent surfaces. _Avoid_: Transparent webpage,
 click-through region
