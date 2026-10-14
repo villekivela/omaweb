@@ -103,8 +103,6 @@ Rectangle {
     property real pageScrollOffset: 0
     property real pageScrollLength: 0
     property real pageViewportLength: 0
-    property color pageScrollbarThumb: "transparent"
-    property color pageScrollbarTrack: "transparent"
     function scrollPageTo(offset) {
         root.pageScrollOffset = offset;
     }

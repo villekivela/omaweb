@@ -1598,28 +1598,18 @@ Item {
     // The engine's scrollbar answers to nothing the theme says, so Omaweb hides
     // the one the document itself scrolls in and draws that bar for the shell
     // to place. What is hidden is only the viewport's: `scrollbar-width` on the
-    // root element reaches the document's own scroller and leaves every box
-    // inside the page scrolling in a bar of its own, which stays the engine's
-    // to draw and is only coloured. Hiding all of them would put every
-    // `overflow: auto` box on the page in Omaweb's hands.
+    // root element reaches the document's own scroller and is not inherited, so
+    // every box inside the page keeps the bar the page gave it. Nothing here
+    // colours those bars either: `scrollbar-color` is inherited, and Chromium
+    // ignores a box's `::-webkit-scrollbar` rules once it has one, so a theme
+    // colour on the root would replace the bars a site such as Jira draws for
+    // its own panels.
     //
     // `:where(html)` for the same reason the accent uses it: no specificity, so
-    // a page that names either property outranks Omaweb and keeps the bar it
-    // drew for itself.
+    // a page that names the property outranks Omaweb and keeps the bar it drew
+    // for itself.
     readonly property string pageScrollbarSheetId: "__omaweb_scrollbars"
-    property color pageScrollbarThumb: "transparent"
-    property color pageScrollbarTrack: "transparent"
-
-    readonly property string pageScrollbarStyleSheet: {
-        const thumb = root.pageScrollbarThumb;
-        const track = root.pageScrollbarTrack;
-        if (!thumb || thumb.a === 0 || !track || track.a === 0)
-            return "";
-        const rgb = colour => Math.round(colour.r * 255) + " " + Math.round(colour.g * 255) + " "
-                              + Math.round(colour.b * 255);
-        return ":where(html) { scrollbar-width: none; scrollbar-color: rgb(" + rgb(thumb)
-                + ") rgb(" + rgb(track) + "); }";
-    }
+    readonly property string pageScrollbarStyleSheet: ":where(html) { scrollbar-width: none; }"
 
     property var pageScrollbarScript: {
         const script = WebEngine.script();
@@ -1647,13 +1637,6 @@ Item {
 
     onPageScrollbarScriptChanged: root.installUserScript(root.pageScrollbarScript.name,
                                                          root.pageScrollbarScript)
-
-    onPageScrollbarStyleSheetChanged: {
-        if (!root.completed)
-            return;
-        webView.runJavaScript(root.styleSheetSnippet(root.pageScrollbarSheetId,
-                                                     root.pageScrollbarStyleSheet));
-    }
 
     // How a page reports a fact to the shell. The engine hands out no channel
     // of its own, so the report goes over the console, and the console is the

@@ -54,19 +54,17 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // shell says which roles a page may have, so a page reads the same
         // names from every adapter.
         {"pagePalette", QMetaType::QVariant},
-        // The page's own scrollbar. The shell hides the one the engine draws
-        // for the document's own scroller and draws that bar itself, so the
-        // adapter reports where the page stands in its own length and takes
-        // the two colours the bars inside the page keep the engine drawing.
         // HTTPS-only mode's account of the load: a failure it owns, for the
         // shell's own page, and whether the page arrived through an upgrade.
         {"httpsUpgradeFailure", QMetaType::QVariant},
         {"arrivedThroughHttpsUpgrade", QMetaType::Bool},
+        // The page's own scrollbar. The shell hides the one the engine draws
+        // for the document's own scroller and draws that bar itself, so the
+        // adapter reports where the page stands in its own length. The bars
+        // inside the page stay the page's.
         {"pageScrollOffset", QMetaType::Double},
         {"pageScrollLength", QMetaType::Double},
         {"pageViewportLength", QMetaType::Double},
-        {"pageScrollbarThumb", QMetaType::QColor},
-        {"pageScrollbarTrack", QMetaType::QColor},
         // Find belongs to one tab, and a tab is one adapter, so the query and
         // where it has reached live here rather than in a table the shell keeps
         // beside the tabs.

@@ -31,10 +31,6 @@ Item {
     property var developerToolsColors: ({})
     // The window's palette, for the divider between a split's panes.
     property var colors: null
-    // The two colours the engine keeps drawing with: a box inside the page that
-    // scrolls keeps the engine's bar, and only its colour is Omaweb's to say.
-    readonly property color pageScrollbarThumb: root.colors ? root.colors.mutedText : "transparent"
-    readonly property color pageScrollbarTrack: root.colors ? root.colors.surface : "transparent"
     property color pageBackgroundColor: "#16151d"
     // The accent a page's own controls are drawn in, which differs per window:
     // a Private window's chrome carries its own, and so should the controls on
@@ -750,13 +746,6 @@ Item {
                                                         root.pageBackgroundColor,
                                                         "pageControlAccent": root.pageControlAccent,
                                                         "pagePalette": root.pagePalette,
-                                                        // What the engine goes on
-                                                        // drawing: the bars inside the
-                                                        // page, which stay its own.
-                                                        "pageScrollbarThumb":
-                                                        root.pageScrollbarThumb,
-                                                        "pageScrollbarTrack":
-                                                        root.pageScrollbarTrack,
                                                         "developerToolsColors":
                                                         root.developerToolsColors,
                                                         "pageTakesFocus": takesFocus !== false,
@@ -1936,16 +1925,6 @@ Item {
 
     // A theme the reader changes has to reach the pages already open, not only
     // the next one to load.
-    onPageScrollbarThumbChanged: {
-        for (const tabId in root.engines)
-            root.engines[tabId].pageScrollbarThumb = root.pageScrollbarThumb;
-    }
-
-    onPageScrollbarTrackChanged: {
-        for (const tabId in root.engines)
-            root.engines[tabId].pageScrollbarTrack = root.pageScrollbarTrack;
-    }
-
     onDeveloperToolsColorsChanged: {
         for (const tabId in root.engines)
             root.engines[tabId].developerToolsColors = root.developerToolsColors;

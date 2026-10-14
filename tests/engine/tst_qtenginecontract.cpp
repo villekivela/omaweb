@@ -295,6 +295,7 @@ private slots:
     void qtKeepsTheProceduralApplierOutOfThePagesReach();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
+    void qtLeavesTheBarsInsideAPageToThePage();
     void qtGivesAPageWithNoBackgroundAWhiteGroundOfItsOwn();
     void qtWaitsForThePaintReportAfterTheLoad();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
@@ -4389,6 +4390,52 @@ void QtEngineContractTest::qtHandsThePaletteOnlyToAPageThatAsks()
     QVERIFY(adapter->setProperty("pagePalette", repainted));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), first + "#" + changed, 15000);
+}
+
+// The shell draws the bar the document scrolls in, so the engine's is hidden,
+// and only that one: a box inside the page keeps the bar the page styled for
+// it (#742).
+void QtEngineContractTest::qtLeavesTheBarsInsideAPageToThePage()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><style>
+            #panel { width: 200px; height: 100px; overflow-y: scroll; }
+            #panel::-webkit-scrollbar { width: 30px; }
+        </style></head><body style="margin:0">
+        <div id="panel"><div style="height:1000px"></div></div>
+        <div style="height:3000px"></div>
+        <script>
+            const report = () => {
+                const panel = document.getElementById("panel");
+                document.title = (innerWidth - document.documentElement.clientWidth) + "|"
+                    + (panel.offsetWidth - panel.clientWidth);
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("0|30"), 15000);
 }
 
 // A document's load can end before its first paint: a page that reveals itself
