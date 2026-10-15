@@ -59,7 +59,33 @@ private slots:
     void aRefusalFromCppReachesTheUiInFinnish();
     void aLogLineStaysEnglishUnderFinnish();
     void theOnDiskFormatStaysEnglishUnderFinnish();
+    void theAcceptLanguageIsTheReadersFirstLanguage_data();
+    void theAcceptLanguageIsTheReadersFirstLanguage();
 };
+
+// One language, the reader's first, as current Chrome sends it (#735): the language with its
+// region, the language alone where the locale has none, and English for the C locale. No
+// q-values and nothing after the first.
+void TranslationsTests::theAcceptLanguageIsTheReadersFirstLanguage_data()
+{
+    QTest::addColumn<QString>("locale");
+    QTest::addColumn<QString>("expected");
+    QTest::newRow("Finnish") << "fi_FI" << "fi-FI";
+    QTest::newRow("a codeset is not part of it") << "fi_FI.UTF-8" << "fi-FI";
+    QTest::newRow("American English") << "en_US" << "en-US";
+    QTest::newRow("British English") << "en_GB" << "en-GB";
+    QTest::newRow("a language with no region") << "eo" << "eo";
+    QTest::newRow("a region Qt completes") << "fi" << "fi-FI";
+    QTest::newRow("C") << "C" << "en-US";
+    QTest::newRow("POSIX") << "POSIX" << "en-US";
+}
+
+void TranslationsTests::theAcceptLanguageIsTheReadersFirstLanguage()
+{
+    QFETCH(QString, locale);
+    QFETCH(QString, expected);
+    QCOMPARE(omaweb::acceptLanguage(QLocale(locale)), expected);
+}
 
 void TranslationsTests::lcAllOutranksLcMessagesAndLang()
 {

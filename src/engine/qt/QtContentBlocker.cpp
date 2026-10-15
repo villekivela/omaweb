@@ -5,6 +5,7 @@
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
 #include "StartupPhases.h"
+#include "Translations.h"
 
 #include <QBuffer>
 #include <QQuickWebEngineProfile>
@@ -320,6 +321,9 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &sp
         if (!attached) {
             m_profiles.emplace_back(profileObject);
             installGlobalPrivacyControlScript(profileObject, sendsGlobalPrivacyControl());
+            // The engine derives the header and `navigator.languages` from this one value, so
+            // every Space, Agent Space and Private profile tells sites the interface's language.
+            profile->setHttpAcceptLanguage(acceptLanguage(requestedLocale()));
             emit profileAttached(profileObject);
         }
         return true;

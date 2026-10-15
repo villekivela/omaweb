@@ -853,6 +853,12 @@ The default page commands include:
   is the engine's own, so an engine update reports its own Chrome version, and `navigator.userAgent`
   matches the header. Client hints stay as the engine sets them. There is no per-site override and
   no setting.
+- Every Engine profile, in a Space, a Private window or an Agent Space, sends one language in
+  `Accept-Language`: the first of the locale that chooses the interface language, with its region
+  (`fi-FI` for `fi_FI`, `en-GB` for `en_GB`), the language alone where the locale has no region, and
+  `en-US` for the `C` and `POSIX` locales. The header has no further languages and no q-values, and
+  `navigator.languages` holds the same one. A locale change takes effect on the next launch. There
+  is no setting.
 - HTTPS-only mode is on by default and browser-wide. Every top-level `http:` navigation, typed,
   followed from a link, redirected to or opened from another application, is sent as `https:` before
   it leaves the browser; subresources stay with the engine's mixed-content policy, and the addresses
