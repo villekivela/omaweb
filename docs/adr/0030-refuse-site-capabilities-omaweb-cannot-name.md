@@ -1,5 +1,8 @@
 # Refuse site capabilities Omaweb cannot name
 
+[0068](0068-answer-the-clipboard-as-chrome-does.md) makes clipboard read rememberable, as Chrome
+does, in place of asking every time.
+
 Site capabilities are decided from an allow-list of named policies rather than from whatever the
 engine happens to ask about. A capability Omaweb has no policy for is refused without a question
 being asked: a question whose only honest answer is no is not a question, and an engine that grows a

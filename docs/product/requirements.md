@@ -811,9 +811,9 @@ The default page commands include:
   pre-alpha.
 - Site permissions belong to an origin within one Space and support allow once, persistent allow,
   and block.
-- Camera, microphone, geolocation, and notifications use the three Site-permission decisions.
-  Clipboard read and screen sharing require approval each time. USB, Bluetooth, serial, and MIDI
-  remain outside the first daily-driver contract.
+- Camera, microphone, geolocation, notifications, and clipboard read use the three Site-permission
+  decisions. Screen sharing requires approval each time. USB, Bluetooth, serial, and MIDI remain
+  outside the first daily-driver contract.
 - Native notifications name both origin and Space; activating one switches to its tab. Only a Pinned
   tab with Keep active enabled can generate a notification while its Space is inactive. A Private
   window raises none: a desktop notification records the origin in a list that outlives the private

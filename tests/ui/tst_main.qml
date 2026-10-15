@@ -3730,6 +3730,36 @@ TestCase {
         compare(asked, ["camera=Allow", "geolocation=Ask", "notifications=Block"]);
     }
 
+    // A site that reads the clipboard is asked once, as Chrome asks: the
+    // reader's answer is kept for the site, Site information lists it, and its
+    // reset takes it back.
+    function test_aClipboardReadIsAskedOnceForItsSite() {
+        const site = "https://reads-clipboard.example";
+        const engine = openPage(site + "/notes");
+        const bar = findChild(window.contentItem, "sitePermissionBar");
+        verify(engine.simulateSitePermission(site, "clipboard-read").length > 0);
+        tryCompare(window, "permissionOpen", true);
+        const detail = bar.detail;
+        const offered = bar.actions.map(function (action) {
+            return action.label;
+        });
+        window.respondToPermission(BrowserController.AllowPersistently);
+        tryCompare(window, "permissionOpen", false);
+        const settled = engine.permissionsSettledWithoutAsking;
+        const askedAgain = engine.simulateSitePermission(site, "clipboard-read");
+        const card = openSiteCard("");
+        const listed = permissionSummary(card);
+        closeSiteCard();
+        browser.resetSitePermissions(site + "/notes");
+
+        compare(detail, "clipboard-read · remembered for this Space only");
+        compare(offered, ["Allow once", "Always allow", "Block"]);
+        compare(askedAgain, "");
+        compare(engine.permissionsSettledWithoutAsking, settled + 1);
+        compare(listed, ["clipboard-read=Allow"]);
+        compare(browser.permissionDecision(site, "clipboard-read"), BrowserController.Ask);
+    }
+
     function test_siteInformationPermissionTakesEachChoice_data() {
         return [
                     {

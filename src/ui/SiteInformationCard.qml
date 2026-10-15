@@ -270,6 +270,11 @@ Omarchy.BorderSurface {
             "permission": "automatic-downloads",
             "label": qsTr("Automatic downloads"),
             "glyph": "download"
+        },
+        {
+            "permission": "clipboard-read",
+            "label": qsTr("Clipboard"),
+            "glyph": "content_paste"
         }
     ]
 

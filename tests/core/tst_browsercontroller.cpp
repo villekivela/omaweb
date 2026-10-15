@@ -202,6 +202,7 @@ private slots:
     void keepsAddressesOutOfSync();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void remembersOnlyThePermissionsThatMayBeRemembered();
+    void remembersAClipboardReadForItsSiteUntilReset();
     void listsAndResetsOneSitesPermissionsWithinItsSpace();
     void decidesOneSitePermissionFromSiteInformation();
     void refusesEveryCertificateExceptionButAnOverridableLocalMainFrame();
@@ -3837,8 +3838,8 @@ void BrowserControllerTest::holdsBackSoundUntilTheOriginIsDealtWith()
     QVERIFY(!tabs->data(tabs->index(0, 0), TabListModel::MutedRole).toBool());
 }
 
-// Camera, microphone, geolocation and notifications take the three decisions.
-// Clipboard read and screen sharing take approval each time: an allowance the
+// Camera, microphone, geolocation, notifications and clipboard read take the
+// three decisions. Screen sharing takes approval each time: an allowance the
 // reader cannot see being spent is not one they gave. Everything outside the
 // contract is refused without asking, because a question whose only honest
 // answer is no is not a question.
@@ -3847,8 +3848,8 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
     QTemporaryDir root;
     BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
 
-    for (const auto *rememberable :
-        {"camera", "microphone", "camera-and-microphone", "geolocation", "notifications"}) {
+    for (const auto *rememberable : {"camera", "microphone", "camera-and-microphone", "geolocation",
+             "notifications", "clipboard-read"}) {
         const auto permission = QString::fromLatin1(rememberable);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
         QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::Rememberable));
@@ -3861,7 +3862,7 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Block);
     }
 
-    for (const auto *eachTime : {"clipboard-read", "screen-sharing"}) {
+    for (const auto *eachTime : {"screen-sharing"}) {
         const auto permission = QString::fromLatin1(eachTime);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
         QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::AskedEachTime));
@@ -3886,6 +3887,40 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
             outside);
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Block);
     }
+}
+
+// A site that may read the clipboard keeps that answer, as Chrome keeps its
+// clipboard-read permission, and only for itself: a page on another site is
+// asked. Site information's reset takes the answer back.
+void BrowserControllerTest::remembersAClipboardReadForItsSiteUntilReset()
+{
+    QTemporaryDir root;
+    const auto clipboard = QStringLiteral("clipboard-read");
+    const QUrl site(QStringLiteral("https://reader.example/notes"));
+    const QUrl elsewhere(QStringLiteral("https://elsewhere.example/"));
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        QCOMPARE(controller.permissionDecision(site, clipboard), BrowserController::Ask);
+        QVERIFY(controller.setPermissionDecision(
+            site, clipboard, BrowserController::AllowPersistently));
+        QVERIFY(controller.setPermissionDecision(elsewhere, clipboard, BrowserController::Block));
+    }
+
+    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(restored.permissionDecision(
+                 QUrl(QStringLiteral("https://reader.example/other")), clipboard),
+        BrowserController::AllowPersistently);
+    QCOMPARE(restored.permissionDecision(elsewhere, clipboard), BrowserController::Block);
+    QCOMPARE(restored.permissionDecision(QUrl(QStringLiteral("https://third.example/")), clipboard),
+        BrowserController::Ask);
+
+    const auto rows = restored.sitePermissions(site);
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(rows.constFirst().toMap().value(QStringLiteral("permission")).toString(), clipboard);
+
+    QVERIFY(restored.resetSitePermissions(site));
+    QCOMPARE(restored.permissionDecision(site, clipboard), BrowserController::Ask);
+    QCOMPARE(restored.permissionDecision(elsewhere, clipboard), BrowserController::Block);
 }
 
 // What Site information reads and what its reset action does. Both belong to
@@ -3984,7 +4019,7 @@ void BrowserControllerTest::decidesOneSitePermissionFromSiteInformation()
         QVERIFY(!controller.decideSitePermission(
             site, QStringLiteral("camera"), BrowserController::AllowOnce));
         QVERIFY(!controller.decideSitePermission(
-            site, QStringLiteral("clipboard-read"), BrowserController::Block));
+            site, QStringLiteral("screen-sharing"), BrowserController::Block));
         QCOMPARE(engineReset.count(), 3);
 
         // The Space beside it was not decided for.

@@ -373,7 +373,7 @@ QtObject {
         // offers for taking one back: the reader resets a permission, reloads,
         // and is never asked again. Asking every time makes Omaweb's own store
         // the only place a site's decisions live, which is also what lets
-        // allow-once mean once and clipboard read mean every time.
+        // allow-once mean once and screen sharing mean every time.
         persistentPermissionsPolicy: WebEngineProfile.PersistentPermissionsPolicy.AskEveryTime
     }
 

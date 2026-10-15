@@ -388,6 +388,7 @@ private slots:
     void qtKeepsADocumentsOwnCookiesAcrossARedirect();
     void qtNamesEveryPermissionTheShellHasAPolicyFor();
     void qtAsksTheShellAboutEveryPermissionRequest();
+    void qtAnswersAClipboardReadFromTheShellsStandingAnswer();
     void qtRejectsAPushSubscriptionWithoutAsking_data();
     void qtRejectsAPushSubscriptionWithoutAsking();
     void qtAsksForNotificationsInAPrivateWindow();
@@ -10037,6 +10038,100 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     const auto askedBeforeReturn = asked.count();
     QVERIFY(adapter->setProperty("currentUrl", page));
     QTRY_VERIFY_WITH_TIMEOUT(asked.count() > askedBeforeReturn, 20000);
+}
+
+// A page reading the clipboard reaches the shell as clipboard read, and once
+// the reader has answered for the site, the next read is answered from
+// Omaweb's store without a question, as Chrome answers from its own (ADR 0068).
+void QtEngineContractTest::qtAnswersAClipboardReadFromTheShellsStandingAnswer()
+{
+    PageServer server(R"HTML(<!doctype html><html><body><title>reading</title>
+        <script>
+            // Chromium refuses a clipboard read from a page without focus.
+            function read() {
+                navigator.clipboard.readText().then(
+                    () => document.title = "read", error => document.title = error.name);
+            }
+            if (document.hasFocus())
+                read();
+            else
+                window.addEventListener("focus", read, {once: true});
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    // Loopback is a secure context, which the asynchronous clipboard requires.
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    PageServer elsewhere(R"HTML(<!doctype html><title>elsewhere</title>)HTML");
+    QVERIFY(elsewhere.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    // The shell's store, holding no answer until the reader gives one.
+    QQmlComponent storeComponent(&engine);
+    storeComponent.setData(R"QML(
+        import QtQml
+        QtObject {
+            property var answers: ({})
+            function permissionDecision(origin, permission, spaceId) {
+                return answers[permission] || 0;
+            }
+        }
+    )QML",
+        QUrl());
+    const std::unique_ptr<QObject> store(storeComponent.create());
+    QVERIFY2(store, qPrintable(storeComponent.errorString()));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+        {QStringLiteral("permissionController"), QVariant::fromValue(store.get())},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+    window.requestActivate();
+
+    QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
+    QVERIFY(asked.isValid());
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("reading"), 20000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
+    QTRY_VERIFY_WITH_TIMEOUT(asked.count() > 0, 20000);
+    QCOMPARE(asked.first().at(2).toString(), QStringLiteral("clipboard-read"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToPermission",
+        Q_ARG(QVariant, asked.first().at(0)), Q_ARG(QVariant, 3)));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("NotAllowedError"), 20000);
+
+    // The reader allowed the site from now on. Opening it again is a new
+    // document in a new frame, which Chromium asks about afresh, and the
+    // adapter answers from the store.
+    QVERIFY(store->setProperty(
+        "answers", QVariantMap {{QStringLiteral("clipboard-read"), QVariant(2)}}));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://localhost:%1/page.html").arg(elsewhere.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("elsewhere"), 20000);
+    const auto askedBefore = asked.count();
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("read"), 20000);
+    QCOMPARE(asked.count(), askedBefore);
 }
 
 void QtEngineContractTest::qtRejectsAPushSubscriptionWithoutAsking_data()
