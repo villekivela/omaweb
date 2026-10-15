@@ -19,6 +19,21 @@ LocaleChoice localeChoice()
 
 QLocale requestedLocale() { return localeChoice().locale; }
 
+QString acceptLanguage(const QLocale &locale)
+{
+    // The C locale names no language of the reader's, and English is the source text.
+    if (locale.language() == QLocale::C) {
+        return QStringLiteral("en-US");
+    }
+    // `bcp47Name()` leaves out a region that is the language's default, `fi` for `fi_FI`,
+    // where the header names it.
+    const auto language = QLocale::languageToCode(locale.language());
+    if (locale.territory() == QLocale::AnyTerritory || locale.territory() == QLocale::World) {
+        return language;
+    }
+    return language + QLatin1Char('-') + QLocale::territoryToCode(locale.territory());
+}
+
 namespace {
 
     QString capitalized(QString name)

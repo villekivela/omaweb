@@ -323,6 +323,8 @@ private slots:
     void qtReportsTheHeaderUserAgentToThePage();
     void qtTellsEverySiteNotToSellTheReadersData_data();
     void qtTellsEverySiteNotToSellTheReadersData();
+    void qtSendsTheReadersFirstLanguage_data();
+    void qtSendsTheReadersFirstLanguage();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn();
     void qtDocksAnInspectorDrawnInOmawebsColours();
@@ -6397,6 +6399,75 @@ void QtEngineContractTest::qtTellsEverySiteNotToSellTheReadersData()
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
         QStringLiteral("main:true frame:true image:asked fetch:asked"), 15000);
     QCOMPARE(header(QStringLiteral("again")), QStringList(4, QStringLiteral("1")));
+}
+
+void QtEngineContractTest::qtSendsTheReadersFirstLanguage_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// A site that picks its language from the request, or from `navigator.languages`, hears the
+// same one: the first of the locale the browser was started under, as `fi-FI` for `fi_FI`
+// (#735). It rides the profile, so a Space's profile and the Private windows' shared one send
+// the same value.
+void QtEngineContractTest::qtSendsTheReadersFirstLanguage()
+{
+    QFETCH(bool, privateWindow);
+    const auto previous = qgetenv("LC_ALL");
+    qputenv("LC_ALL", "fi_FI.UTF-8");
+    const auto restore = qScopeGuard([&previous] {
+        if (previous.isNull()) {
+            qunsetenv("LC_ALL");
+        } else {
+            qputenv("LC_ALL", previous);
+        }
+    });
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>document.title = navigator.languages.join(",");</script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::GlobalPrivacyControl control(root.filePath(QStringLiteral("config")));
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &control);
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    std::unique_ptr<QObject> profileHost;
+    QVariantMap viewProperties {
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    };
+    if (privateWindow) {
+        profileHost.reset(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+            {QStringLiteral("privateBrowsing"), true},
+            {QStringLiteral("engineContentBlocker"),
+                QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        }));
+        QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
+        viewProperties.insert(QStringLiteral("sharedProfile"), profileHost->property("profile"));
+    }
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties(viewProperties));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("fi-FI"), 15000);
+    QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("Accept-Language")),
+        QStringLiteral("fi-FI"));
 }
 
 void QtEngineContractTest::qtDrawsAPageInTheReadersFonts_data()
