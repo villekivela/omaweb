@@ -118,16 +118,18 @@ reader take the Agent's Space over while the Agent is still attached, so a Space
 wears the Agent mark in its own colour, and has the Agent at work in a second Agent Space of its
 own. `--tabs --browse --show glance` opens a Glance over the last seeded tab's page, and
 `--glance-keep-at <ms>` keeps it as a tab and holds the movement that many milliseconds in, so a
-series of captures shows the Glance growing into its tab a frame at a time. Pass `--capture <path>`
-to render one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by default, which works
-headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes
-without a desktop session. The chrome's movements are reviewed the same way: `--show space-step`,
-`tab-step`, `omnibar-step` and `settings-step` run the switch or the opening shortly before the
-capture, so the frame lands part way through it, and the `-settled` spelling of each runs it early
-enough to land at rest. The leaving list's picture and the Omnibar's growth need the hardware
-renderer, so those two captures go without `QT_QUICK_BACKEND=software`. Development presets load
-QML, themes, and the icon font directly from the source tree. Editing those files requires an
-application restart but no compile or relink.
+series of captures shows the Glance growing into its tab a frame at a time.
+`--text-scaling <factor>` stands in for the desktop's text scaling, 1.3636 for Omarchy's 16 px, so
+the Page scale and the interface size are reviewed under it. Pass `--capture <path>` to render one
+frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by default, which works headlessly with
+`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes without a desktop
+session. The chrome's movements are reviewed the same way: `--show space-step`, `tab-step`,
+`omnibar-step` and `settings-step` run the switch or the opening shortly before the capture, so the
+frame lands part way through it, and the `-settled` spelling of each runs it early enough to land at
+rest. The leaving list's picture and the Omnibar's growth need the hardware renderer, so those two
+captures go without `QT_QUICK_BACKEND=software`. Development presets load QML, themes, and the icon
+font directly from the source tree. Editing those files requires an application restart but no
+compile or relink.
 
 The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
 engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so

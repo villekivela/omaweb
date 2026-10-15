@@ -52,7 +52,7 @@ double PageScale::desktopFactor() const { return m_desktopFactor; }
 
 void PageScale::setDesktopFactor(double factor)
 {
-    if (factor == m_desktopFactor) {
+    if (qFuzzyCompare(factor, m_desktopFactor)) {
         return;
     }
     m_desktopFactor = factor;
@@ -66,6 +66,8 @@ double PageScale::drawn(double scale, double zoom)
 {
     return std::clamp(scale * zoom, minimumDrawn(), maximumDrawn());
 }
+
+double PageScale::drawnAt(double scale, double zoom) const { return drawn(scale, zoom); }
 
 // The file's change handler applies a write, so a write it refused changes
 // nothing, and a value a reader edited in a moment ago is not overwritten from
@@ -81,9 +83,21 @@ void PageScale::set(double scale)
     }
 }
 
-void PageScale::increase() { set((std::floor((value() + tolerance) / step()) + 1) * step()); }
+// A step past an end is no step, so a desktop beyond the range is never moved
+// back towards it by a step the other way.
+void PageScale::increase()
+{
+    if (value() < maximum() - tolerance) {
+        set((std::floor((value() + tolerance) / step()) + 1) * step());
+    }
+}
 
-void PageScale::decrease() { set((std::ceil((value() - tolerance) / step()) - 1) * step()); }
+void PageScale::decrease()
+{
+    if (value() > minimum() + tolerance) {
+        set((std::ceil((value() - tolerance) / step()) - 1) * step());
+    }
+}
 
 void PageScale::reset()
 {

@@ -27,8 +27,6 @@ class PageScale final : public QObject {
     Q_PROPERTY(double minimum READ minimum CONSTANT)
     Q_PROPERTY(double maximum READ maximum CONSTANT)
     Q_PROPERTY(double step READ step CONSTANT)
-    Q_PROPERTY(double minimumDrawn READ minimumDrawn CONSTANT)
-    Q_PROPERTY(double maximumDrawn READ maximumDrawn CONSTANT)
 
 public:
     explicit PageScale(QString configRoot, QObject *parent = nullptr);
@@ -49,6 +47,9 @@ public:
     // zoom, held within what the engine draws. A zoom that does not fit is
     // drawn at the limit and stays the tab's.
     static double drawn(double scale, double zoom);
+    // The same for QML, which passes `value` in so that a binding calling it
+    // follows the Page scale.
+    Q_INVOKABLE double drawnAt(double scale, double zoom) const;
 
     // Takes the nearest step inside the range. A refused write says so, which
     // draws a control the reader moved back where the value stands.

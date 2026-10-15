@@ -855,12 +855,22 @@ Item {
     // pushes past that is drawn at the limit and stays the tab's. A binding
     // that calls this follows the Page scale.
     function drawnZoom(zoom) {
-        const product = root.pageScaleValue * zoom;
-        if (!root.pageScale)
-            return product;
-        return Math.max(root.pageScale.minimumDrawn, Math.min(root.pageScale.maximumDrawn,
-                                                              product));
+        return root.pageScale ? root.pageScale.drawnAt(root.pageScale.value, zoom) : zoom;
+    }
 
+    // An Agent tab's page in a Space that is away has no row to follow the
+    // Page scale for it, and the Agent may read or shoot it before the reader
+    // looks, so it is told here. A row that has the page tells it the same.
+    onPageScaleValueChanged: {
+        if (!root.agentControl)
+            return;
+        for (const tabId in root.agentTabIds) {
+            const engine = root.engines[tabId];
+            if (!engine)
+                continue;
+            const tab = root.agentControl.agentTab(tabId);
+            engine.setZoomFactor(root.drawnZoom(tab.zoom !== undefined ? tab.zoom : 1.0));
+        }
     }
 
     // A page that answers for no tab, a Glance's or an extension's popup, is

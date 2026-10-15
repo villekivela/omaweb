@@ -2472,6 +2472,10 @@
 <context>
     <name>SettingStepper</name>
     <message>
+        <source>pixels</source>
+        <translation>pikseliä</translation>
+    </message>
+    <message>
         <source>Decrease %1, now %2</source>
         <translation>Pienennä: %1, nyt %2</translation>
     </message>
@@ -3134,6 +3138,11 @@ Päivitykset osoitteesta %3</translation>
         <translation>%1 määrää Omawebin väripaletin tämän sijaan.</translation>
     </message>
     <message>
+        <source>%1, from the desktop</source>
+        <comment>a page scale the desktop set, as 136%</comment>
+        <translation>%1, työpöydältä</translation>
+    </message>
+    <message>
         <source>Show where this download landed</source>
         <translation>Näytä, minne tämä lataus tallentui</translation>
     </message>
@@ -3627,10 +3636,6 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>the desktop&apos;s</source>
         <translation>työpöydän</translation>
-    </message>
-    <message>
-        <source>from the desktop</source>
-        <translation>työpöydältä</translation>
     </message>
     <message>
         <source>No text on a page is drawn smaller than this, whatever size the page asks for. The page scale and a tab&apos;s zoom multiply it. A page already open takes it when it next lays out; reload to see it now.</source>

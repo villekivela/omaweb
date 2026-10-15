@@ -337,10 +337,6 @@ int main(int argc, char *argv[])
     omaweb::markStartupPhase("session-read");
     browser.setEngineSuggestions(&engineSuggestions);
     browser.setPaymentCards(&paymentCards);
-    // The Agent socket is always open for browser commands, and Allow agents
-    // decides what else it answers. It opens before the shell loads, so a
-    // temporary Agent Space a crash left behind is gone before anything shows
-    // it. A check of the QML is not a browser anything should reach.
     // The size every page is drawn at beneath its tab's zoom: the desktop's
     // text scaling, followed live, until the reader sets one (ADR 0067).
     omaweb::DesktopTextScaling desktopTextScaling;
@@ -348,6 +344,10 @@ int main(int argc, char *argv[])
     pageScale.setDesktopFactor(desktopTextScaling.factor());
     QObject::connect(&desktopTextScaling, &omaweb::DesktopTextScaling::factorChanged, &pageScale,
         [&] { pageScale.setDesktopFactor(desktopTextScaling.factor()); });
+    // The Agent socket is always open for browser commands, and Allow agents
+    // decides what else it answers. It opens before the shell loads, so a
+    // temporary Agent Space a crash left behind is gone before anything shows
+    // it. A check of the QML is not a browser anything should reach.
     omaweb::AgentControl agentControl(&browser, configRoot());
     agentControl.setPageScale(&pageScale);
 #ifdef OMAWEB_AGENT_SKILL_FROM_BROWSER

@@ -1416,7 +1416,8 @@ Rectangle {
                             overridden: !!root.pageScale && root.pageScale.overridden
                             accessibleName: qsTr("Page scale")
                             defaultName: qsTr("the desktop's")
-                            defaultNote: qsTr("from the desktop")
+                            defaultFormat: qsTr("%1, from the desktop",
+                                                "a page scale the desktop set, as 136%")
                             onIncreased: root.pageScale.increase()
                             onDecreased: root.pageScale.decrease()
                             onReset: root.pageScale.reset()

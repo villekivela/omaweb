@@ -125,10 +125,20 @@ void PageScaleTest::movesOntoTheStepsFromTheDesktopsValue()
     scale.decrease();
     QCOMPARE(scale.value(), 0.5);
 
+    // A desktop beyond the range is the range's end one step down, and a
+    // step up from it is no step: it never makes the page smaller.
     scale.reset();
     scale.setDesktopFactor(2.5);
+    scale.increase();
+    QCOMPARE(scale.value(), 2.5);
+    QVERIFY(!scale.overridden());
     scale.decrease();
     QCOMPARE(scale.value(), 2.0);
+    scale.reset();
+    scale.setDesktopFactor(0.4);
+    scale.decrease();
+    QCOMPARE(scale.value(), 0.4);
+    QVERIFY(!scale.overridden());
 }
 
 void PageScaleTest::resetFollowsTheDesktopAgain()

@@ -90,6 +90,23 @@ QtObject {
         }
     }
 
+    // A retained page runs with no row to follow the Page scale for it, so a
+    // change reaches it here rather than only when its Space is shown again.
+    readonly property Connections pageScaleFollower: Connections {
+        target: root.host
+        function onPageScaleValueChanged() {
+            const wanted = root.browser ? root.browser.retainedTabs : [];
+            for (let index = 0; index < wanted.length; ++index) {
+                const kept = wanted[index];
+                const engine = root.host.engines[kept.tabId];
+                if (engine && root.tabs[kept.tabId] !== undefined && root.tabs[kept.tabId]
+                        !== root.visibleSpaceId)
+                    engine.setZoomFactor(root.host.drawnZoom(kept.zoom !== undefined ? kept.zoom :
+                                                                                       1.0));
+            }
+        }
+    }
+
     // Naming the retained tabs is not enough: each is a renderer process the
     // reader cannot see, so what it holds is asked of the operating system
     // rather than estimated.

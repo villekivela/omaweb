@@ -17476,6 +17476,86 @@ TestCase {
         });
     }
 
+    // Pages no row answers for follow the Page scale too: an Agent tab's in a
+    // Space that is away, the Auxiliary window it opens, and a Keep active
+    // pin running while its Space is away.
+    function test_pagesInASpaceNotOnShowFollowThePageScale() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const homeSpaceId = browser.activeSpaceId;
+
+        openPageInNewTab("https://kept-scale.example");
+        const keptTabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        verify(browser.setTabKeepActive(keptTabId, true));
+        const keptEngine = engineLoader.engines[keptTabId];
+        verify(keptEngine !== undefined);
+
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+        const agentSpaceId = browser.createSpace("Agent");
+        const agentTabId = browser.openTabInSpace(agentSpaceId, "https://agent-scale.example/");
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": agentSpaceId,
+            "url": "https://agent-scale.example/",
+            "zoom": 1.25,
+            "downloadDirectory": "/downloads/Agents/test"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        control.agentTabsChanged();
+        const agentEngine = engineLoader.engines[agentTabId];
+        verify(agentEngine !== undefined);
+        tryVerify(function () {
+            return near(agentEngine.zoomFactor, 1.25);
+        });
+
+        const awaySpaceId = browser.createSpace("Away");
+        verify(browser.switchSpace(awaySpaceId));
+        verify(engineLoader.keepsEngineFor(keptTabId));
+
+        pageScale.set(1.6);
+        tryVerify(function () {
+            return near(agentEngine.zoomFactor, 2.0);
+        }, 5000, "the Agent's page at " + agentEngine.zoomFactor);
+        tryVerify(function () {
+            return near(keptEngine.zoomFactor, 1.6);
+        }, 5000, "the kept page at " + keptEngine.zoomFactor);
+
+        agentEngine.simulateNewWindowRequest("https://agent-scale-window.example/", false);
+        let auxiliary = null;
+        tryVerify(function () {
+            auxiliary = findChild(window, "auxiliaryWindow");
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const auxiliaryEngine = findChild(auxiliary.contentItem, "auxiliaryEngineLoader").item;
+        tryVerify(function () {
+            return near(auxiliaryEngine.zoomFactor, 1.6);
+        });
+        pageScale.reset();
+        tryVerify(function () {
+            return near(auxiliaryEngine.zoomFactor, 1.0);
+        });
+        auxiliaryEngine.simulateWindowCloseRequest();
+        tryVerify(function () {
+            return findChild(window, "auxiliaryWindow") === null;
+        });
+        window.requestActivate();
+
+        control.agentTabIds = [];
+        control.agentTabsChanged();
+        engineLoader.agentControl = null;
+        control.destroy();
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(agentSpaceId, "Agent"));
+        verify(browser.deleteSpace(awaySpaceId, "Away"));
+        verify(browser.setTabKeepActive(keptTabId, false));
+        browser.activateTab(keptTabId);
+        browser.toggleActivePinned();
+        browser.closeTab(keptTabId);
+    }
+
     // Settings shows the desktop's scale while it stands, between steps as it
     // may be, and the first step lands on one. Reset follows the desktop again.
     function test_settingsStepsThePageScaleFromTheDesktops() {

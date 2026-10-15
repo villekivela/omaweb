@@ -15,6 +15,7 @@
 #include "PageImages.h"
 #include "FaviconTint.h"
 #include "FontSettings.h"
+#include "DesktopTextScaling.h"
 #include "PageScale.h"
 #include "SidebarOpacity.h"
 #include "DefaultBrowser.h"
@@ -585,6 +586,16 @@ int main(int argc, char *argv[])
     omaweb::SidebarOpacity sidebarOpacity(dataRootPath);
     theme.followSidebarOpacity(&sidebarOpacity);
     omaweb::PageScale pageScale(dataRootPath);
+    // The desktop's text scaling, as the settings portal would report it, so
+    // the Page scale and the interface size are reviewed under one without
+    // changing the reader's desktop.
+    const auto textScalingIndex = arguments.indexOf(QStringLiteral("--text-scaling"));
+    if (textScalingIndex >= 0 && textScalingIndex + 1 < arguments.size()) {
+        const auto factor
+            = omaweb::portalTextScalingFactor(arguments.at(textScalingIndex + 1).toDouble());
+        pageScale.setDesktopFactor(factor);
+        fontSettings.setDesktopTextScaling(factor);
+    }
     // No engine runs here to report its own fonts, so the group is reviewed
     // over the values a Linux engine reports.
     fontSettings.setEngineFonts(
