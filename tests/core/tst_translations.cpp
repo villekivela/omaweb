@@ -75,6 +75,7 @@ void TranslationsTests::theAcceptLanguageIsTheReadersFirstLanguage_data()
     QTest::newRow("American English") << "en_US" << "en-US";
     QTest::newRow("British English") << "en_GB" << "en-GB";
     QTest::newRow("a language with no region") << "eo" << "eo";
+    QTest::newRow("a region Qt completes") << "fi" << "fi-FI";
     QTest::newRow("C") << "C" << "en-US";
     QTest::newRow("POSIX") << "POSIX" << "en-US";
 }

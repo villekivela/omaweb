@@ -24,9 +24,9 @@ struct LocaleChoice {
 };
 LocaleChoice localeChoice();
 
-// The language the engine tells every site the reader reads: the first of the locale, with
-// its region, as current Chrome sends one language. The language alone where the locale has
-// no region, and English for the C locale. `navigator.languages` holds the same one.
+// The one language the engine tells every site the reader reads: the locale's language with
+// its region, the language alone where Qt knows no region for it (Esperanto), and `en-US` for
+// the C locale. Qt completes a bare `fi` to `fi_FI`, so that one reads as Finland's.
 QString acceptLanguage(const QLocale &locale);
 
 // A locale named by its own language and its code, `Suomi (fi_FI)`. The C locale is English.
