@@ -1400,7 +1400,7 @@ Item {
             return;
         webView.runJavaScript("globalThis.__omawebKeyboardNavigation && "
                               + "globalThis.__omawebKeyboardNavigation.configure(" + JSON.stringify(
-                                  keyboardNavigationConfiguration) + ");",
+                                  root.pageKeyboardNavigationConfiguration()) + ");",
                               WebEngineScript.ApplicationWorld);
     }
     // Content blocking owns the Refusal tally for the document on show, so
@@ -1656,8 +1656,11 @@ Item {
     // mode report is the one line still sent unsealed, from the shared script
     // in `src/engine/api`.
     readonly property string reportHead: "__omaweb_"
-    readonly property string reportToken: {
-        let drawn = "";
+    readonly property string reportToken: root.drawnToken()
+    // A name no page can guess. It starts with a letter, so it can be an
+    // element's id and a selector for one.
+    function drawnToken() {
+        let drawn = String.fromCharCode(97 + Math.floor(Math.random() * 26));
         for (let part = 0; part < 3; ++part)
             drawn += Math.random().toString(36).slice(2);
         return drawn;
@@ -2673,7 +2676,14 @@ Item {
     onDeveloperToolsColorsChanged: root.applyDeveloperToolsTheme()
 
     // Keys, clicks and focus are the document's in every world, so link hints
-    // run in Omaweb's own, where the page cannot find their handle.
+    // run in Omaweb's own, where the page cannot find their handle. What they
+    // draw in the page is named by a token of this view's, not by Omaweb.
+    property string keyboardHintToken: root.drawnToken()
+    function pageKeyboardNavigationConfiguration() {
+        return Object.assign({}, root.keyboardNavigationConfiguration, {
+                                 "elementToken": root.keyboardHintToken
+                             });
+    }
     property var keyboardNavigationScript: {
         const script = WebEngine.script();
         script.name = "Omaweb Keyboard navigation";
@@ -2683,7 +2693,7 @@ Item {
         script.sourceCode = root.keyboardNavigationScriptSource
                 + "\nglobalThis.__omawebKeyboardNavigation && "
                 + "globalThis.__omawebKeyboardNavigation.configure(" + JSON.stringify(
-                    root.keyboardNavigationConfiguration) + ");";
+                    root.pageKeyboardNavigationConfiguration()) + ");";
         return script;
     }
     onKeyboardNavigationScriptChanged: root.installUserScript(root.keyboardNavigationScript.name,
@@ -2868,12 +2878,7 @@ Item {
     // event on the document whose type is drawn here and never given to the
     // page, and it is sent from Omaweb's own world, where a page that wraps
     // `dispatchEvent` or `Event` sees nothing of it.
-    readonly property string mediaKeyToken: {
-        let drawn = "";
-        for (let part = 0; part < 3; ++part)
-            drawn += Math.random().toString(36).slice(2);
-        return drawn;
-    }
+    readonly property string mediaKeyToken: root.drawnToken()
     property var mediaSessionScript: {
         const script = WebEngine.script();
         script.name = "Omaweb media session";

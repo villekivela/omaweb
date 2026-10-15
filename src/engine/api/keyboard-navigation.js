@@ -9,6 +9,14 @@
     hintMode: "",
     hintFocus: null,
     previousFocus: null,
+    overlay: null,
+    indicator: null,
+  };
+  // What this script puts in the page is found again by reference. An id is
+  // only a handle for whoever drives the browser, and is the token the shell
+  // draws for its view and a letter, so a page sees no name of Omaweb's.
+  const name = (element, letter) => {
+    if (state.config.elementToken) element.id = state.config.elementToken + letter;
   };
   const hintAlphabet = "sadfjklewcmpgh";
   const keyName = (event) =>
@@ -71,7 +79,8 @@
   };
   const clearHints = () => {
     const wasActive = Boolean(state.hintMode);
-    document.getElementById("__omaweb_link_hints")?.remove();
+    state.overlay?.remove();
+    state.overlay = null;
     if (state.previousFocus?.isConnected) state.previousFocus.focus({ preventScroll: true });
     state.hints = [];
     state.hintInput = "";
@@ -83,12 +92,14 @@
   const clearPrefix = () => {
     state.prefix = "";
     clearTimeout(state.prefixTimer);
-    document.getElementById("__omaweb_key_sequence")?.remove();
+    state.indicator?.remove();
+    state.indicator = null;
   };
   const showPrefix = (key) => {
-    document.getElementById("__omaweb_key_sequence")?.remove();
+    state.indicator?.remove();
     const indicator = document.createElement("span");
-    indicator.id = "__omaweb_key_sequence";
+    name(indicator, "s");
+    state.indicator = indicator;
     indicator.textContent = key + "…";
     indicator.setAttribute("role", "status");
     indicator.setAttribute("aria-label", "Keyboard sequence " + key);
@@ -109,7 +120,7 @@
       candidates = candidates.filter((target) => Boolean(target.href));
     }
     const overlay = document.createElement("div");
-    overlay.id = "__omaweb_link_hints";
+    name(overlay, "h");
     overlay.setAttribute("role", "status");
     overlay.setAttribute("aria-live", "polite");
     overlay.setAttribute("aria-label", candidates.length + " link hints available");
@@ -127,7 +138,7 @@
       fontSize +
       "px;font-weight:600;";
     const focus = document.createElement("input");
-    focus.id = "__omaweb_link_hint_input";
+    name(focus, "i");
     focus.type = "text";
     focus.tabIndex = -1;
     focus.setAttribute("aria-label", "Type a link hint");
@@ -175,6 +186,7 @@
       return { label, target, hint };
     });
     document.documentElement.append(overlay);
+    state.overlay = overlay;
     state.hintMode = command;
     console.debug("__omaweb_keyboard_hint_mode__:1");
     state.previousFocus = document.activeElement;

@@ -315,6 +315,7 @@ private slots:
     void qtHandsAMediaKeyToThePagesOwnHandler();
     void qtTellsAnEditedContentEditableFromAnUntouchedOne();
     void qtReconfiguresKeyboardNavigationOnAnOpenPage();
+    void qtNamesTheLinkHintsByTheViewsOwnToken();
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
     void qtStripsTheParametersTheListsName();
@@ -1845,7 +1846,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             <script>
                 document.documentElement.style.zoom = '175%';
                 new MutationObserver(() => {
-                    const overlay = document.getElementById('__omaweb_link_hints');
+                    const overlay = document.getElementById('hintsh');
                     const hint = overlay && overlay.querySelector('span');
                     if (overlay && overlay.getAttribute('role') === 'status'
                             && overlay.getAttribute('aria-live') === 'polite'
@@ -1863,8 +1864,8 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target">Target</a><script>
                 new MutationObserver(() => {
-                    if (document.getElementById('__omaweb_link_hints')
-                            && document.activeElement.id === '__omaweb_link_hint_input')
+                    if (document.getElementById('hintsh')
+                            && document.activeElement.id === 'hintsi')
                         document.title = 'hint-focus';
                 }).observe(document.documentElement, { childList: true, subtree: true });
                 setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
@@ -1876,7 +1877,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target">Target</a><script>
                 new MutationObserver(() => {
-                    const hint = document.querySelector('#__omaweb_link_hints > span');
+                    const hint = document.querySelector('#hintsh > span');
                     if (!hint) return;
                     const style = getComputedStyle(hint);
                     // The hint is the website's: an accent plate with the
@@ -1913,11 +1914,11 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     dispatchEvent(new KeyboardEvent('keydown', {
                         key: 'F', shiftKey: true, bubbles: true, cancelable: true
                     }));
-                    if (!document.getElementById('__omaweb_link_hints')) {
+                    if (!document.getElementById('hintsh')) {
                         setTimeout(activateBackgroundHint, 100);
                         return;
                     }
-                    const hint = document.querySelector('#__omaweb_link_hints > span');
+                    const hint = document.querySelector('#hintsh > span');
                     dispatchEvent(new KeyboardEvent('keydown', {
                         key: hint.textContent.toLowerCase(), bubbles: true, cancelable: true
                     }));
@@ -2116,6 +2117,9 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
         {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
         {QStringLiteral("keyboardNavigationConfiguration"), configuration},
         {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+        // The hint layer's ids are the view's token and a letter, so the
+        // pages here, which look for the layer, are told the token.
+        {QStringLiteral("keyboardHintToken"), QStringLiteral("hints")},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -6060,6 +6064,75 @@ void QtEngineContractTest::qtReconfiguresKeyboardNavigationOnAnOpenPage()
     QTest::keyClick(&window, Qt::Key_J);
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("scrolled"), 5000);
+}
+
+// What keyboard navigation draws in a page, the key sequence it is reading
+// and the hint layer, carries no name of Omaweb's: its ids are the view's own
+// token and a letter, and a page that watches every element added to it
+// learns nothing it could look for in another view.
+void QtEngineContractTest::qtNamesTheLinkHintsByTheViewsOwnToken()
+{
+    const QByteArray html(R"HTML(<!doctype html><title>ready</title>
+        <a href="#target">Target</a>
+        <script>
+            const ids = [];
+            const collect = node => {
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                if (node.id) ids.push(node.id);
+                for (const child of node.children) collect(child);
+            };
+            new MutationObserver(records => {
+                for (const record of records) record.addedNodes.forEach(collect);
+            }).observe(document.documentElement, { childList: true, subtree: true });
+            const press = key => dispatchEvent(new KeyboardEvent("keydown", {
+                key, bubbles: true, cancelable: true
+            }));
+            // A sequence's first key, left to run out, then the hints.
+            setTimeout(() => press("g"), 300);
+            setTimeout(() => press("f"), 1300);
+            setTimeout(() => { document.title = "ids:" + ids.join(","); }, 1800);
+        </script>)HTML");
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QFile page(root.filePath(QStringLiteral("keyboard.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    QCOMPARE(page.write(html), html.size());
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const QVariantMap configuration = {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"),
+            QVariantMap {
+                {QStringLiteral("gg"), QStringLiteral("scroll-top")},
+                {QStringLiteral("f"), QStringLiteral("open-link")},
+            }},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
+    };
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const auto token = adapter->property("keyboardHintToken").toString();
+    QVERIFY(token.size() >= 8);
+    QVERIFY(!token.contains(QStringLiteral("omaweb"), Qt::CaseInsensitive));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("pageTitle").toString().startsWith("ids:"), 15000);
+    QCOMPARE(
+        adapter->property("pageTitle").toString(), QStringLiteral("ids:%1s,%1h,%1i").arg(token));
 }
 
 // A page that asks for a tracker and is handed nothing waits forever, which is

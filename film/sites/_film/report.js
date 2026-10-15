@@ -3,9 +3,10 @@
 // are drawn and how many link hints Omaweb has put over it. It reports when it loads, whenever the
 // viewport changes size, and whenever the link hints come up or go.
 (() => {
-  // Omaweb's link hints are one overlay that names its count (keyboard-navigation.js).
+  // Omaweb's link hints are one overlay that names its count (keyboard-navigation.js). It carries
+  // no name a page could know, so it is found by what it announces.
   const hints = () => {
-    const overlay = document.getElementById("__omaweb_link_hints");
+    const overlay = document.querySelector('[role="status"][aria-label$=" link hints available"]');
     return overlay ? parseInt(overlay.getAttribute("aria-label"), 10) || 0 : 0;
   };
   const report = () => {
