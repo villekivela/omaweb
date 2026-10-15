@@ -3171,10 +3171,12 @@ void QtEngineContractTest::qtReportsANameThatCouldNotBeLookedUp()
 void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns_data()
 {
     QTest::addColumn<QByteArray>("tamper");
-    QTest::addColumn<int>("writes");
+    QTest::addColumn<int>("rewritten");
+    // The sheet the page found is written again by the survey, whatever it
+    // carries, unless the page dropped it: then another is adopted.
     QTest::newRow("unchanged") << QByteArray() << 1;
     QTest::newRow("dropped") << QByteArray("document.adoptedStyleSheets = [];") << 0;
-    QTest::newRow("cleared") << QByteArray("sheet.replaceSync('');") << 2;
+    QTest::newRow("cleared") << QByteArray("sheet.replaceSync('');") << 1;
     // A redirect target is a page like any other: its own site sheet from
     // its creation, written once more by its survey.
     QTest::newRow("redirect") << QByteArray("redirect") << 1;
@@ -3183,7 +3185,7 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns_data()
 void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
 {
     QFETCH(QByteArray, tamper);
-    QFETCH(int, writes);
+    QFETCH(int, rewritten);
     // The policy refuses inline style, which is what a page's own <style>
     // element carries and what an ad-hiding rule would arrive as. A rule that
     // stops hiding under a policy hides nothing on the sites that send one, so
@@ -3202,17 +3204,15 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
             const state = () => (hidden("specific") ? "S" : "-")
                 + (hidden("generic") ? "G" : "-") + (hidden("article") ? "A" : "-");
             const first = state();
-            const sheet = document.adoptedStyleSheets.find(
-                adopted => adopted.omawebSheetId === "__omaweb_content_blocking");
-            let writes = 0;
-            const replaceSync = CSSStyleSheet.prototype.replaceSync;
-            CSSStyleSheet.prototype.replaceSync = function (rules) {
-                if (this === sheet) writes += 1;
-                return replaceSync.call(this, rules);
-            };
+            // Omaweb writes the sheet from its own world, so the page sees a
+            // write as rules that are not the ones it saw before.
+            const sheet = document.adoptedStyleSheets.find(adopted =>
+                Array.from(adopted.cssRules).some(rule => rule.selectorText === ".local-ad"));
+            const written = sheet.cssRules[0];
             TAMPER
             const report = () => {
-                document.title = first + "|" + state() + "|" + writes;
+                const rewritten = sheet.cssRules.length > 0 && sheet.cssRules[0] !== written;
+                document.title = first + "|" + state() + "|" + (rewritten ? 1 : 0);
                 requestAnimationFrame(report);
             };
             report();
@@ -3253,8 +3253,8 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
     // one the load set out from, whose rule would hide the article instead.
     if (redirected)
         QTRY_COMPARE_WITH_TIMEOUT(adapter->property("currentUrl").toUrl(), pageUrl, 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(
-        adapter->property("pageTitle").toString(), QStringLiteral("S--|SG-|%1").arg(writes), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("S--|SG-|%1").arg(rewritten), 15000);
 
     // Turning the site off gives both back without a reload, the surveyed
     // rules included.
@@ -3497,8 +3497,8 @@ void QtEngineContractTest::qtHidesElementsAddedAfterLoad()
             const element = document.getElementById(id);
             return element && getComputedStyle(element).display === "none";
         };
-        const surveyed = () => document.adoptedStyleSheets.some(
-            sheet => sheet.omawebSheetId === "__omaweb_content_blocking_generic");
+        const surveyed = () => document.adoptedStyleSheets.some(sheet =>
+            Array.from(sheet.cssRules).some(rule => rule.selectorText === ".early-ad"));
         const started = performance.now();
         const arm = () => {
             if (!surveyed() && performance.now() - started < 2000) {
@@ -3580,8 +3580,8 @@ void QtEngineContractTest::qtHidesElementsAddedAfterLoad()
 void QtEngineContractTest::qtSurveysOnlyWhatThePageAddsAnew()
 {
     PageServer server(R"HTML(<!doctype html><html><body class="ad"><script>
-        const surveyed = () => document.adoptedStyleSheets.some(
-            sheet => sheet.omawebSheetId === "__omaweb_content_blocking_generic");
+        const surveyed = () => document.adoptedStyleSheets.some(sheet =>
+            Array.from(sheet.cssRules).some(rule => rule.selectorText === ".ad"));
         const add = (className, id) => {
             const element = document.createElement("div");
             if (className) element.className = className;
@@ -3726,8 +3726,8 @@ void QtEngineContractTest::qtSkipsTheLateSurveyOnAGenerichideSite()
 void QtEngineContractTest::qtStartsTheWatchOverOnNavigation()
 {
     PageServer server(R"HTML(<!doctype html><html><body class="ad"><script>
-        const surveyed = () => document.adoptedStyleSheets.some(
-            sheet => sheet.omawebSheetId === "__omaweb_content_blocking_generic");
+        const surveyed = () => document.adoptedStyleSheets.some(sheet =>
+            Array.from(sheet.cssRules).some(rule => rule.selectorText === ".ad"));
         const arm = () => {
             if (!surveyed()) {
                 setTimeout(arm, 20);
@@ -5805,15 +5805,23 @@ void QtEngineContractTest::qtKeepsItsPageReportsOutOfThePagesReach()
 // Omaweb's scripts in a page keep their handles where the page's own scripts
 // cannot name them, so no script can tell the browser is Omaweb from its
 // globals, or call one. The page lists every global it holds whose name is
-// Omaweb's, once it is up and again after the shell has configured keyboard
+// Omaweb's, and every property of its own on the style sheets Omaweb adopted
+// into it, once it is up and again after the shell has configured keyboard
 // navigation, handed it a media key and asked whether it was edited, which
-// is when a handle is used.
+// is when a handle is used. The scrollbar's sheet is always there, so the
+// sheets are never an empty list.
 void QtEngineContractTest::qtLeavesThePageNoOmawebGlobal()
 {
     PageServer server(R"HTML(<!doctype html><html><head><title>loading</title>
         <script>
-            globalThis.omawebGlobals = () => Reflect.ownKeys(globalThis).map(String)
-                .filter(name => name.startsWith("__omaweb")).join(",") || "none";
+            globalThis.omawebGlobals = () => {
+                const names = Reflect.ownKeys(globalThis).map(String)
+                    .filter(name => name.startsWith("__omaweb"));
+                const sheets = document.adoptedStyleSheets;
+                for (const sheet of sheets)
+                    names.push(...Reflect.ownKeys(sheet).map(name => "sheet." + String(name)));
+                return (sheets.length > 0 ? "" : "no sheet:") + (names.join(",") || "none");
+            };
             addEventListener("load", () => setTimeout(() => {
                 document.title = "up:" + omawebGlobals();
             }, 300));

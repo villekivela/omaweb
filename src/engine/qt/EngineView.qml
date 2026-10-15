@@ -1473,7 +1473,7 @@ Item {
         // blue first. Subframes draw controls of their own and are their own
         // documents, so they need it too.
         script.injectionPoint = WebEngineScript.DocumentCreation;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = true;
         script.sourceCode = root.styleSheetSnippet(root.controlAccentSheetId,
                                                    root.controlAccentStyleSheet);
@@ -1491,7 +1491,8 @@ Item {
         if (!root.completed)
             return;
         webView.runJavaScript(root.styleSheetSnippet(root.controlAccentSheetId,
-                                                     root.controlAccentStyleSheet));
+                                                     root.controlAccentStyleSheet),
+                              WebEngineScript.ApplicationWorld);
     }
 
     // The collection is written whole once, by its binding, while the view is
@@ -1580,7 +1581,7 @@ Item {
         const script = WebEngine.script();
         script.name = "Omaweb page palette";
         script.injectionPoint = WebEngineScript.DocumentCreation;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = true;
         script.sourceCode = root.pagePaletteSnippet(root.pagePaletteStyleSheet);
         return script;
@@ -1592,7 +1593,8 @@ Item {
     onPagePaletteStyleSheetChanged: {
         if (!root.completed)
             return;
-        webView.runJavaScript(root.pagePaletteSnippet(root.pagePaletteStyleSheet));
+        webView.runJavaScript(root.pagePaletteSnippet(root.pagePaletteStyleSheet),
+                              WebEngineScript.ApplicationWorld);
     }
 
     // ---- the page's own scrollbar ------------------------------------------
@@ -1617,7 +1619,7 @@ Item {
         const script = WebEngine.script();
         script.name = "Omaweb page scrollbar";
         script.injectionPoint = WebEngineScript.DocumentCreation;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         // The document's own scroller only. A subframe is its own document with
         // its own scroller, and the shell draws one bar for the page it is
         // showing rather than one per frame.
@@ -1768,7 +1770,10 @@ Item {
     // replaces the rules in it, rather than adopting a second one.
     //
     // The sheet is found by a mark on the sheet itself because a document
-    // keeps no names for the sheets it adopts. An empty sheet is not worth
+    // keeps no names for the sheets it adopts. Every snippet here runs in
+    // Omaweb's world, and a mark set there is a property of that world's
+    // object for the sheet: the page shares the sheet and its rules, but its
+    // own object for it carries no mark. An empty sheet is not worth
     // adopting, so nothing is adopted until there are rules to carry, and a
     // page that drops the sheet from the list gets it back on the next
     // application. The rules are written every time rather than only when they
@@ -1836,7 +1841,11 @@ Item {
     // installed longest ago go once there are more than the limit; one left
     // stale by a rule or site change is replaced by the next navigation to
     // it, before any document there is created.
+    //
+    // The stylesheet and the scriptlets are two scripts, because the sheet is
+    // adopted in Omaweb's world and a scriptlet runs in the page's.
     readonly property string blockingScriptNamePrefix: "Omaweb content blocking "
+    readonly property string blockingSheetNamePrefix: "Omaweb cosmetic sheet "
     readonly property int blockingScriptLimit: 16
     // The pattern the engine matches against the document's address, which
     // it spells without the scheme's default port.
@@ -1849,32 +1858,37 @@ Item {
             return;
         const css = contentBlocker.cosmeticStyleSheet(url);
         const scriptlets = contentBlocker.scriptletSource(url);
-        // The stylesheet goes first: hiding what the page is about to render
-        // does not depend on a scriptlet, and a scriptlet that throws must not
-        // take the hiding with it.
-        const source = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticSheetId, css) + ";\n" :
-                                         "") + root.scriptletSnippet(scriptlets);
         const pattern = root.blockingScriptPattern(url);
-        const name = root.blockingScriptNamePrefix + pattern;
+        // The stylesheet is a script of its own and goes first: hiding what
+        // the page is about to render does not depend on a scriptlet, and a
+        // scriptlet that throws cannot take the hiding with it.
+        root.installBlockingWorldScript(root.blockingSheetNamePrefix, pattern,
+                                        WebEngineScript.ApplicationWorld, css.length > 0
+                                        ? root.styleSheetSnippet(root.cosmeticSheetId, css) : "");
+        root.installBlockingWorldScript(root.blockingScriptNamePrefix, pattern,
+                                        WebEngineScript.MainWorld, root.scriptletSnippet(
+                                            scriptlets));
+        // The document about to be created carries whatever these scripts add
+        // and nothing else, so what the last one had is no longer there.
+        root.cosmeticRulesInjected = css.length > 0;
+    }
+    function installBlockingWorldScript(prefix, pattern, world, source) {
+        const name = prefix + pattern;
         const scripts = webView.profile.userScripts;
         let script = null;
         if (source.length > 0) {
             script = WebEngine.script();
             script.name = name;
             script.injectionPoint = WebEngineScript.DocumentCreation;
-            script.worldId = WebEngineScript.MainWorld;
+            script.worldId = world;
             script.runsOnSubFrames = false;
             script.sourceCode = "// ==UserScript==\n// @include " + pattern
                     + "\n// ==/UserScript==\n" + source;
         }
         root.replaceScript(scripts, name, script);
-        const blocking = scripts.collection.filter(installed => installed.name.startsWith(
-                                                                    root.blockingScriptNamePrefix));
+        const blocking = scripts.collection.filter(installed => installed.name.startsWith(prefix));
         while (blocking.length > root.blockingScriptLimit)
             scripts.remove(blocking.shift());
-        // The document about to be created carries whatever this script adds
-        // and nothing else, so what the last one had is no longer there.
-        root.cosmeticRulesInjected = css.length > 0;
     }
 
     // Re-application into a document that is already open, for a rule set or a
@@ -1892,7 +1906,8 @@ Item {
         if (css.length === 0 && !cosmeticRulesInjected)
             return;
         cosmeticRulesInjected = css.length > 0;
-        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css));
+        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css),
+                              WebEngineScript.ApplicationWorld);
     }
 
     // The generic rules are the ones written against no particular site, and
@@ -1921,8 +1936,8 @@ Item {
     // The survey and its watch run in the application world, as the
     // reporting scripts do, so a page that replaces `MutationObserver` in its
     // own world, as a page hiding from a content blocker does, takes nothing
-    // away from them. The stylesheets stay in the page's world, where the
-    // page's own scripts and the tests can see them.
+    // away from them. The stylesheets are adopted from there too: the page
+    // sees the sheets and their rules, and not Omaweb's mark on them.
     property int lateCosmeticSurveyLimit: 32
     property int lateCosmeticSurveyInterval: 100
 
@@ -1932,9 +1947,6 @@ Item {
             root.forEachFrame(frame.children[index], act);
     }
     // A frame's runJavaScript is overloaded and needs the callback to pick one.
-    function runInFrame(frame, script) {
-        frame.runJavaScript(script, WebEngineScript.MainWorld, function () {});
-    }
     function runInFrameApplicationWorld(frame, script) {
         frame.runJavaScript(script, WebEngineScript.ApplicationWorld, function () {});
     }
@@ -2061,7 +2073,7 @@ Item {
         const clear = genericCosmeticRulesInjected ? root.styleSheetSnippet(
                                                          root.genericCosmeticSheetId, "") : "";
         if (siteRepair.length > 0 || clear.length > 0)
-            root.runInFrame(frame, siteRepair + clear);
+            root.runInFrameApplicationWorld(frame, siteRepair + clear);
         root.runInFrameApplicationWorld(frame, root.stopCosmeticWatchSnippet);
     }
     // What a frame reported: the whole document, which replaces what the frame
@@ -2084,8 +2096,8 @@ Item {
         if (!survey.whole) {
             if (css.length > 0) {
                 root.genericCosmeticRulesInjected = true;
-                root.runInFrame(frame, root.appendStyleSheetSnippet(root.genericCosmeticSheetId,
-                                                                    css));
+                root.runInFrameApplicationWorld(frame, root.appendStyleSheetSnippet(
+                                                    root.genericCosmeticSheetId, css));
             }
             return;
         }
@@ -2097,7 +2109,7 @@ Item {
         if (css.length > 0)
             root.genericCosmeticRulesInjected = true;
         if (repair.length > 0 || sheet.length > 0)
-            root.runInFrame(frame, repair + sheet);
+            root.runInFrameApplicationWorld(frame, repair + sheet);
     }
     function readCosmeticSurvey(text) {
         let survey;

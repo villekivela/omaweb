@@ -9,9 +9,15 @@
 
 #include "ContentMatcher.h"
 #include "ContentBlockerContract.h"
+#include "EngineBuild.h"
 #include "EngineCapabilities.h"
 #include "ExternalProtocolHandler.h"
+#include "PageImages.h"
+#include "PageSnapshot.h"
+#include "QtAgentInput.h"
+#include "QtCertificates.h"
 #include "QtContentBlocker.h"
+#include "WindowExposure.h"
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
@@ -196,8 +202,18 @@ QByteArray measurementScript(int settleMilliseconds)
         settled: false,
     };
     const publish = () => { document.title = JSON.stringify(state); };
-    const sheetFor = id =>
-        document.adoptedStyleSheets.find(sheet => sheet.omawebSheetId === id);
+    // Omaweb's sheets are found by what they carry: the site sheet holds the
+    // fixture's own site rules, and the generic sheet is the other one that
+    // hides. Omaweb writes them from its own world, where this page cannot
+    // watch a write, so a rewrite is seen as site rules that are no longer the
+    // ones last seen, checked every frame: writes within one frame count once.
+    const rules = sheet => Array.from(sheet.cssRules);
+    const isSite = sheet =>
+        rules(sheet).some(rule => (rule.selectorText || "").includes(".fixture-site-ad-"));
+    const hides = sheet => rules(sheet).some(rule => rule.style && rule.style.display === "none");
+    const siteSheet = () => document.adoptedStyleSheets.find(isSite);
+    const genericSheet = () =>
+        document.adoptedStyleSheets.find(sheet => !isSite(sheet) && hides(sheet));
     const bytes = sheet => {
         if (!sheet) return 0;
         let length = 0;
@@ -205,18 +221,20 @@ QByteArray measurementScript(int settleMilliseconds)
         return length;
     };
     // The document-creation script adopts the site stylesheet before this one
-    // runs, so the sheet is already there to count writes on. A page that
-    // drops it gets another, which is why the count is against the id rather
-    // than the object first seen.
-    state.siteStyleWatched = Boolean(sheetFor("__omaweb_content_blocking"));
-    const replaceSync = CSSStyleSheet.prototype.replaceSync;
-    CSSStyleSheet.prototype.replaceSync = function (rules) {
-        if (this.omawebSheetId === "__omaweb_content_blocking") {
+    // runs, so the sheet is already there to watch. A page that drops it gets
+    // another, which is why the sheet is looked for again every frame.
+    state.siteStyleWatched = Boolean(siteSheet());
+    let seen = siteSheet()?.cssRules[0];
+    const watch = () => {
+        const current = siteSheet()?.cssRules[0];
+        if (current !== seen) {
+            seen = current;
             state.siteStyleMutations += 1;
             publish();
         }
-        return replaceSync.call(this, rules);
+        if (!state.settled) requestAnimationFrame(watch);
     };
+    requestAnimationFrame(watch);
     new PerformanceObserver(list => {
         for (const entry of list.getEntries()) {
             if (entry.name === "first-paint") state.firstPaint = entry.startTime;
@@ -233,8 +251,8 @@ QByteArray measurementScript(int settleMilliseconds)
     setTimeout(() => {
         // What the page ended up hiding, so two builds can be compared on the
         // blocking they actually delivered and not only on what it cost.
-        state.siteStyleBytes = bytes(sheetFor("__omaweb_content_blocking"));
-        state.genericStyleBytes = bytes(sheetFor("__omaweb_content_blocking_generic"));
+        state.siteStyleBytes = bytes(siteSheet());
+        state.genericStyleBytes = bytes(genericSheet());
         const sample = Array.from(document.querySelectorAll("div")).slice(0, 200);
         state.hiddenSample =
             sample.filter(node => getComputedStyle(node).display === "none").length;
@@ -679,6 +697,12 @@ int main(int argc, char *argv[])
     QGuiApplication application(argc, argv);
     omaweb::registerExternalProtocolHandler();
     omaweb::registerEngineCapabilities();
+    omaweb::registerEngineBuild();
+    omaweb::registerQtCertificates();
+    omaweb::registerQtAgentInput();
+    omaweb::registerWindowExposure();
+    omaweb::registerPageSnapshot();
+    omaweb::registerPageImages();
 
     // The server needs the application's event dispatcher before it can accept
     // a connection, so it comes up after it rather than beside the fixture.
