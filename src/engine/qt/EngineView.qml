@@ -2870,6 +2870,8 @@ Item {
         script.runsOnSubFrames = false;
         script.sourceCode = `(() => {
             const session = navigator.mediaSession;
+            // A session this script has already run on carries its wrapper
+            // of setActionHandler, defined below, as a property of its own.
             if (session && Object.hasOwn(session, 'setActionHandler')) return;
             ` + root.reportSnippet() + `
             const handlers = new Map();
@@ -2947,12 +2949,13 @@ Item {
             // a page the desktop hears.
             for (const name of ['play', 'pause', 'ended', 'emptied', 'loadedmetadata'])
                 document.addEventListener(name, declare, {capture: true, passive: true});
+            const actions = {play: 'play', pause: 'pause', stop: 'stop',
+                             next: 'nexttrack', previous: 'previoustrack'};
             const keys = {
                 invoke(command) {
                     const wanted = command === 'playpause'
                         ? (state() === 'playing' ? 'pause' : 'play') : command;
-                    const action = {play: 'play', pause: 'pause', stop: 'stop',
-                                    next: 'nexttrack', previous: 'previoustrack'}[wanted];
+                    const action = actions[wanted];
                     const handler = handlers.get(action);
                     if (handler) {
                         try {
@@ -2976,7 +2979,7 @@ Item {
                 },
             };
             const token = ` + JSON.stringify(root.mediaKeyToken) + `;
-            for (const command of ['play', 'pause', 'playpause', 'stop', 'next', 'previous'])
+            for (const command of ['playpause', ...Object.keys(actions)])
                 document.addEventListener(token + command, () => keys.invoke(command));
             declare();
         })();`;

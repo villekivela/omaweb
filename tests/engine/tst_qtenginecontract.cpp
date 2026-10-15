@@ -311,7 +311,7 @@ private slots:
     void qtHandsOverATypedCardOnlyWhenTheShellAsksAfterASubmit();
     void qtOffersNoCardThePageWroteOrSubmitted();
     void qtKeepsItsPageReportsOutOfThePagesReach();
-    void qtLeavesThePageNoGlobalOfItsOwn();
+    void qtLeavesThePageNoOmawebGlobal();
     void qtHandsAMediaKeyToThePagesOwnHandler();
     void qtTellsAnEditedContentEditableFromAnUntouchedOne();
     void qtServesTheSubstitutesTheListsName();
@@ -5807,7 +5807,7 @@ void QtEngineContractTest::qtKeepsItsPageReportsOutOfThePagesReach()
 // Omaweb's, once it is up and again after the shell has configured keyboard
 // navigation, handed it a media key and asked whether it was edited, which
 // is when a handle is used.
-void QtEngineContractTest::qtLeavesThePageNoGlobalOfItsOwn()
+void QtEngineContractTest::qtLeavesThePageNoOmawebGlobal()
 {
     PageServer server(R"HTML(<!doctype html><html><head><title>loading</title>
         <script>
@@ -5856,9 +5856,16 @@ void QtEngineContractTest::qtLeavesThePageNoGlobalOfItsOwn()
         adapter.get(), "configureKeyboardNavigation", Q_ARG(QVariant, configuration)));
     QVERIFY(QMetaObject::invokeMethod(
         adapter.get(), "invokeMediaAction", Q_ARG(QVariant, QStringLiteral("pause"))));
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "checkForEditedFormState",
-        Q_ARG(QVariant, QVariant::fromValue(engine.evaluate(QStringLiteral("(() => {})"))))));
-    QTest::qWait(300);
+    // Asked last, and answered after the two before it have run, which is
+    // when the page looks again.
+    QObject answers;
+    QJSEngine::setObjectOwnership(&answers, QJSEngine::CppOwnership);
+    const auto callback
+        = engine.evaluate(QStringLiteral("(answers => () => { answers.objectName = 'answered'; })"))
+              .call({engine.newQObject(&answers)});
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "checkForEditedFormState", Q_ARG(QVariant, QVariant::fromValue(callback))));
+    QTRY_COMPARE(answers.objectName(), QStringLiteral("answered"));
 
     auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
     QVERIFY(webView);
