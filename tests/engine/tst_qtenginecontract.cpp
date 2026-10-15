@@ -10042,7 +10042,7 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
 
 // A page reading the clipboard reaches the shell as clipboard read, and once
 // the reader has answered for the site, the next read is answered from
-// Omaweb's store without a question, as Chrome answers from its own (ADR 0068).
+// Omaweb's store without a question, as Chrome answers from its own (ADR 0069).
 void QtEngineContractTest::qtAnswersAClipboardReadFromTheShellsStandingAnswer()
 {
     PageServer server(R"HTML(<!doctype html><html><body><title>reading</title>

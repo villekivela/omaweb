@@ -4170,7 +4170,7 @@ int BrowserController::permissionPolicy(const QString &permission) const
     // The capabilities whose answer belongs to the origin rather than to the
     // moment: the reader can see afterwards that a site holds one, and take it
     // back where Site information lists it. Clipboard read is one, as Chrome
-    // keeps its answer for the site (ADR 0068).
+    // keeps its answer for the site (ADR 0069).
     static const QSet<QString> rememberable {
         QStringLiteral("camera"),
         QStringLiteral("microphone"),
