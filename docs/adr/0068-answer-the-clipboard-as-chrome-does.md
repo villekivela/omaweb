@@ -30,7 +30,7 @@ Read from Chromium 140.0.7339.264, the version QtWebEngine 6.11 is based on:
 ## What Omaweb does
 
 Clipboard read is a rememberable capability, beside camera, microphone, location and notifications.
-The question offers allow once, always allow and block, the answer is kept for the origin in its
+The question offers allow once, persistent allow and block, the answer is kept for the origin in its
 Space, and Site information lists it as Clipboard with the reset every other permission has.
 
 The reason 0030 gave for asking every time was that a read hands over whatever is on the clipboard

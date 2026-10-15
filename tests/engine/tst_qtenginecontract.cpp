@@ -10074,14 +10074,15 @@ void QtEngineContractTest::qtAnswersAClipboardReadFromTheShellsStandingAnswer()
         {QStringLiteral("privateBrowsing"), false},
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
-    // The shell's store, holding no answer until the reader gives one.
+    // The shell's store, keyed by origin as BrowserController's is, holding no
+    // answer until the reader gives one.
     QQmlComponent storeComponent(&engine);
     storeComponent.setData(R"QML(
         import QtQml
         QtObject {
             property var answers: ({})
             function permissionDecision(origin, permission, spaceId) {
-                return answers[permission] || 0;
+                return answers[String(origin) + " " + permission] || 0;
             }
         }
     )QML",
@@ -10112,22 +10113,32 @@ void QtEngineContractTest::qtAnswersAClipboardReadFromTheShellsStandingAnswer()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
     QTRY_VERIFY_WITH_TIMEOUT(asked.count() > 0, 20000);
     QCOMPARE(asked.first().at(2).toString(), QStringLiteral("clipboard-read"));
+    // Blocked, this once: the question bar's answer to this request.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToPermission",
         Q_ARG(QVariant, asked.first().at(0)), Q_ARG(QVariant, 3)));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("NotAllowedError"), 20000);
 
-    // The reader allowed the site from now on. Opening it again is a new
+    // Once the reader allows the site from now on (AllowPersistently, 2), the
+    // store holds it for that origin alone. Opening the site again is a new
     // document in a new frame, which Chromium asks about afresh, and the
-    // adapter answers from the store.
+    // adapter answers from the store without a question.
+    const auto origin = asked.first().at(1).toString();
+    QVERIFY(origin.startsWith(QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort())));
     QVERIFY(store->setProperty(
-        "answers", QVariantMap {{QStringLiteral("clipboard-read"), QVariant(2)}}));
+        "answers", QVariantMap {{origin + QStringLiteral(" clipboard-read"), QVariant(2)}}));
     QVERIFY(adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://localhost:%1/page.html").arg(elsewhere.serverPort()))));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("elsewhere"), 20000);
     const auto askedBefore = asked.count();
+    // Focus leaves the page, so focusing it again reaches the new document.
+    QQuickItem elsewhereInTheWindow(window.contentItem());
+    elsewhereInTheWindow.setFlag(QQuickItem::ItemIsFocusScope);
+    elsewhereInTheWindow.forceActiveFocus();
     QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("reading"), 20000);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("read"), 20000);

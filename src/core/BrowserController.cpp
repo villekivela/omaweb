@@ -4180,9 +4180,9 @@ int BrowserController::permissionPolicy(const QString &permission) const
         QStringLiteral("automatic-downloads"),
         QStringLiteral("clipboard-read"),
     };
-    // Sharing a screen hands over whatever happens to be there at that
-    // instant, which no earlier answer could have covered. So it is asked
-    // every time and no answer is written down.
+    // Answered for the request and never for the origin. Sharing a screen
+    // hands over whatever happens to be there at that instant, which no
+    // earlier answer could have covered, so no answer is written down.
     static const QSet<QString> eachTime {
         QStringLiteral("screen-sharing"),
         QStringLiteral("pointer-lock"),
