@@ -311,6 +311,9 @@ private slots:
     void qtHandsOverATypedCardOnlyWhenTheShellAsksAfterASubmit();
     void qtOffersNoCardThePageWroteOrSubmitted();
     void qtKeepsItsPageReportsOutOfThePagesReach();
+    void qtLeavesThePageNoGlobalOfItsOwn();
+    void qtHandsAMediaKeyToThePagesOwnHandler();
+    void qtTellsAnEditedContentEditableFromAnUntouchedOne();
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
     void qtStripsTheParametersTheListsName();
@@ -5796,6 +5799,189 @@ void QtEngineContractTest::qtKeepsItsPageReportsOutOfThePagesReach()
     QVERIFY2(settled >= 1 && settled <= 2, qPrintable(QString::number(settled)));
     QTest::qWait(2500);
     QCOMPARE(scrollReports(), settled);
+}
+
+// Omaweb's scripts in a page keep their handles where the page's own scripts
+// cannot name them, so no script can tell the browser is Omaweb from its
+// globals, or call one. The page lists every global it holds whose name is
+// Omaweb's, once it is up and again after the shell has configured keyboard
+// navigation, handed it a media key and asked whether it was edited, which
+// is when a handle is used.
+void QtEngineContractTest::qtLeavesThePageNoGlobalOfItsOwn()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>loading</title>
+        <script>
+            globalThis.omawebGlobals = () => Reflect.ownKeys(globalThis).map(String)
+                .filter(name => name.startsWith("__omaweb")).join(",") || "none";
+            addEventListener("load", () => setTimeout(() => {
+                document.title = "up:" + omawebGlobals();
+            }, 300));
+        </script>
+    </head><body><p contenteditable="true">page</p></body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const QVariantMap configuration = {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"),
+            QVariantMap {{QStringLiteral("j"), QStringLiteral("scroll-down")}}},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
+    };
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("pageTitle").toString().startsWith("up:"), 15000);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("up:none"));
+
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "configureKeyboardNavigation", Q_ARG(QVariant, configuration)));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "invokeMediaAction", Q_ARG(QVariant, QStringLiteral("pause"))));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "checkForEditedFormState",
+        Q_ARG(QVariant, QVariant::fromValue(engine.evaluate(QStringLiteral("(() => {})"))))));
+    QTest::qWait(300);
+
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    QVERIFY(QMetaObject::invokeMethod(webView, "runJavaScript",
+        Q_ARG(QString, QStringLiteral("document.title = 'used:' + omawebGlobals();"))));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("pageTitle").toString().startsWith("used:"), 5000);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("used:none"));
+}
+
+// A media key the desktop sends reaches the handler the page registered for
+// it, and a key the page registered nothing for reaches the element on show.
+// No sound plays: the page's media has no source.
+void QtEngineContractTest::qtHandsAMediaKeyToThePagesOwnHandler()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>loading</title></head><body>
+        <video id="video"></video>
+        <script>
+            const heard = [];
+            const tell = () => { document.title = heard.join(",") || "ready"; };
+            navigator.mediaSession.setActionHandler("nexttrack", () => {
+                heard.push("next");
+                tell();
+            });
+            const video = document.getElementById("video");
+            video.pause = () => {
+                heard.push("paused");
+                tell();
+            };
+            addEventListener("load", tell);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "invokeMediaAction", Q_ARG(QVariant, QStringLiteral("next"))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("next"), 5000);
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "invokeMediaAction", Q_ARG(QVariant, QStringLiteral("pause"))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("next,paused"), 5000);
+}
+
+// Closing a tab asks first when the reader has typed into it, and text typed
+// into an editable element has no default value to compare with, so the page
+// is watched for it as it is typed.
+void QtEngineContractTest::qtTellsAnEditedContentEditableFromAnUntouchedOne()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>ready</title></head>
+        <body><div id="note" contenteditable="true">note</div></body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    QTRY_VERIFY(!adapter->property("loading").toBool());
+
+    QObject answers;
+    QJSEngine::setObjectOwnership(&answers, QJSEngine::CppOwnership);
+    const auto ask = [&] {
+        answers.setObjectName({});
+        const auto callback
+            = engine
+                  .evaluate(QStringLiteral(
+                      "(answers => edited => { answers.objectName = String(edited); })"))
+                  .call({engine.newQObject(&answers)});
+        QVERIFY(QMetaObject::invokeMethod(adapter.get(), "checkForEditedFormState",
+            Q_ARG(QVariant, QVariant::fromValue(callback))));
+    };
+
+    ask();
+    QTRY_COMPARE(answers.objectName(), QStringLiteral("false"));
+
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    QVERIFY(QMetaObject::invokeMethod(webView, "runJavaScript",
+        Q_ARG(QString,
+            QStringLiteral("document.getElementById('note').focus();"
+                           "document.execCommand('insertText', false, 'typed');"
+                           "document.title = 'typed';"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("typed"));
+    ask();
+    QTRY_COMPARE(answers.objectName(), QStringLiteral("true"));
 }
 
 // A page that asks for a tracker and is handed nothing waits forever, which is

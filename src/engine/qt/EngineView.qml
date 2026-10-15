@@ -404,11 +404,13 @@ Item {
                     + JSON.stringify(fields) + "," + Number(serial) + ")",
                     WebEngineScript.ApplicationWorld);
     }
+    // A page's typing reaches every world, so the flag is kept where the page
+    // cannot read or set it.
     property var editedStateScript: {
         const script = WebEngine.script();
         script.name = "Omaweb edited form state";
         script.injectionPoint = WebEngineScript.DocumentReady;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = false;
         script.sourceCode = "globalThis.__omawebContentEditableEdited = false;"
                 + "document.addEventListener('input', event => {"
@@ -1383,10 +1385,9 @@ Item {
     function invokeMediaAction(command) {
         if (!webView)
             return;
-        webView.runJavaScript("globalThis.__omawebMediaSession && "
-                              + "globalThis.__omawebMediaSession.invoke(" + JSON.stringify(String(
-                                                                                               command))
-                              + ");");
+        webView.runJavaScript("document.dispatchEvent(new Event(" + JSON.stringify(
+                                  root.mediaKeyToken + String(command)) + "));",
+                              WebEngineScript.ApplicationWorld);
     }
 
     function configureKeyboardNavigation(configuration) {
@@ -1399,7 +1400,8 @@ Item {
             return;
         webView.runJavaScript("globalThis.__omawebKeyboardNavigation && "
                               + "globalThis.__omawebKeyboardNavigation.configure(" + JSON.stringify(
-                                  keyboardNavigationConfiguration) + ");");
+                                  keyboardNavigationConfiguration) + ");",
+                              WebEngineScript.ApplicationWorld);
     }
     // Content blocking owns the Refusal tally for the document on show, so
     // this view says which document that is and keeps no count of its own.
@@ -2171,7 +2173,7 @@ Item {
                               + "for (const option of document.querySelectorAll('select option')) {"
                               + "if (option.selected !== option.defaultSelected) return true;"
                               + "}" + "return Boolean(globalThis.__omawebContentEditableEdited);"
-                              + "})()", callback);
+                              + "})()", WebEngineScript.ApplicationWorld, callback);
     }
     function acceptNewWindowRequest(request) {
         if (request)
@@ -2658,11 +2660,13 @@ Item {
 
     onDeveloperToolsColorsChanged: root.applyDeveloperToolsTheme()
 
+    // Keys, clicks and focus are the document's in every world, so link hints
+    // run in Omaweb's own, where the page cannot find their handle.
     property var keyboardNavigationScript: {
         const script = WebEngine.script();
         script.name = "Omaweb Keyboard navigation";
         script.injectionPoint = WebEngineScript.DocumentReady;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = false;
         script.sourceCode = root.keyboardNavigationScriptSource
                 + "\nglobalThis.__omawebKeyboardNavigation && "
@@ -2847,6 +2851,17 @@ Item {
     // This one runs in the page's world, because the setters it wraps are the
     // page's own and a wrapper in another world would see none of the page's
     // writes. It runs before the page does and keeps the console it found.
+    //
+    // So it holds no global the page could find or call. A key arrives as an
+    // event on the document whose type is drawn here and never given to the
+    // page, and it is sent from Omaweb's own world, where a page that wraps
+    // `dispatchEvent` or `Event` sees nothing of it.
+    readonly property string mediaKeyToken: {
+        let drawn = "";
+        for (let part = 0; part < 3; ++part)
+            drawn += Math.random().toString(36).slice(2);
+        return drawn;
+    }
     property var mediaSessionScript: {
         const script = WebEngine.script();
         script.name = "Omaweb media session";
@@ -2854,9 +2869,9 @@ Item {
         script.worldId = WebEngineScript.MainWorld;
         script.runsOnSubFrames = false;
         script.sourceCode = `(() => {
-            if (globalThis.__omawebMediaSession) return;
-            ` + root.reportSnippet() + `
             const session = navigator.mediaSession;
+            if (session && Object.hasOwn(session, 'setActionHandler')) return;
+            ` + root.reportSnippet() + `
             const handlers = new Map();
             let reported = '';
             const elements = () => Array.from(document.querySelectorAll('video, audio'));
@@ -2932,7 +2947,7 @@ Item {
             // a page the desktop hears.
             for (const name of ['play', 'pause', 'ended', 'emptied', 'loadedmetadata'])
                 document.addEventListener(name, declare, {capture: true, passive: true});
-            globalThis.__omawebMediaSession = {
+            const keys = {
                 invoke(command) {
                     const wanted = command === 'playpause'
                         ? (state() === 'playing' ? 'pause' : 'play') : command;
@@ -2960,6 +2975,9 @@ Item {
                     declare();
                 },
             };
+            const token = ` + JSON.stringify(root.mediaKeyToken) + `;
+            for (const command of ['play', 'pause', 'playpause', 'stop', 'next', 'previous'])
+                document.addEventListener(token + command, () => keys.invoke(command));
             declare();
         })();`;
 
