@@ -313,6 +313,7 @@ private slots:
     void qtKeepsItsPageReportsOutOfThePagesReach();
     void qtLeavesThePageNoOmawebGlobal();
     void qtHandsAMediaKeyToThePagesOwnHandler();
+    void qtShapesTheMediaSessionAsChromiumDoes();
     void qtTellsAnEditedContentEditableFromAnUntouchedOne();
     void qtReconfiguresKeyboardNavigationOnAnOpenPage();
     void qtNamesTheLinkHintsByTheViewsOwnToken();
@@ -5942,6 +5943,81 @@ void QtEngineContractTest::qtHandsAMediaKeyToThePagesOwnHandler()
         adapter.get(), "invokeMediaAction", Q_ARG(QVariant, QStringLiteral("pause"))));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("next,paused"), 5000);
+}
+
+// Omaweb wraps the media session's setters in the page's own world, and a
+// page that inspects the session finds it shaped as Chromium shapes it: the
+// same names on the same objects, with the same flags, and functions of the
+// same name and length. The page's own frame has the wrapper and a blank
+// subframe does not, since the script runs in no subframe, so the subframe
+// is Chromium's own answer. The functions' source is not compared: it is
+// Omaweb's, and the pull request says why it stays.
+void QtEngineContractTest::qtShapesTheMediaSessionAsChromiumDoes()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>loading</title></head><body>
+        <iframe src="about:blank"></iframe>
+        <script>
+            const describe = value => value === undefined ? "-"
+                : typeof value === "function"
+                    ? "function " + value.name + "/" + value.length + "/" + ("prototype" in value)
+                    : typeof value;
+            const shape = view => {
+                const session = view.navigator.mediaSession;
+                const prototype = view.MediaSession.prototype;
+                const names = Object.getOwnPropertyNames(prototype).sort();
+                const lines = [
+                    "own: " + Reflect.ownKeys(session).map(String).join(","),
+                    "prototype: " + names.join(","),
+                    "shared: " + (session.setActionHandler === prototype.setActionHandler),
+                ];
+                try {
+                    session.setActionHandler("unheard-of", () => {});
+                    lines.push("refused: nothing");
+                } catch (error) {
+                    lines.push("refused: " + error.name + " " + error.message);
+                }
+                for (const name of names) {
+                    const property = Object.getOwnPropertyDescriptor(prototype, name);
+                    lines.push(name + ": " + [property.enumerable, property.configurable,
+                        property.writable, describe(property.get), describe(property.set),
+                        describe(property.value)].join(" "));
+                }
+                return lines;
+            };
+            addEventListener("load", () => {
+                const page = shape(window);
+                const chromium = shape(document.querySelector("iframe").contentWindow);
+                const differences = page.filter((line, index) => line !== chromium[index]);
+                document.title = differences.length === 0 && page.length === chromium.length
+                    ? "same" : "differs: " + differences.join(" | ");
+            });
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("pageTitle").toString() == QStringLiteral("same")
+            || adapter->property("pageTitle").toString().startsWith("differs"),
+        15000);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("same"));
 }
 
 // Closing a tab asks first when the reader has typed into it, and text typed

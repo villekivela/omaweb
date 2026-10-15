@@ -2887,9 +2887,11 @@ Item {
         script.runsOnSubFrames = false;
         script.sourceCode = `(() => {
             const session = navigator.mediaSession;
-            // A session this script has already run on carries its wrapper
-            // of setActionHandler, defined below, as a property of its own.
-            if (session && Object.hasOwn(session, 'setActionHandler')) return;
+            // A session this script has already run on has a setActionHandler
+            // that is not the engine's: the wrapper defined below.
+            if (session && !Function.prototype.toString.call(
+                    Object.getPrototypeOf(session).setActionHandler).includes('[native code]'))
+                return;
             ` + root.reportSnippet() + `
             const handlers = new Map();
             let reported = '';
@@ -2939,27 +2941,38 @@ Item {
                 report('media_session', declaration);
             };
             // The API reports no change of its own, so the two properties a
-            // page writes are wrapped where they are defined. The page's own
+            // page writes, and the call that registers a handler, are wrapped
+            // where Chromium defines them: on the prototype, with the flags it
+            // gave them and the engine's own getters. Each wrapper is written
+            // as a setter or a method, so its name and length are the
+            // engine's and it has no prototype of its own. The page's own
             // write happens first and this reports what it left behind.
             if (session) {
-                for (const name of ['metadata', 'playbackState']) {
-                    const property = Object.getOwnPropertyDescriptor(
-                        Object.getPrototypeOf(session), name);
-                    if (!property || !property.set) continue;
-                    Object.defineProperty(session, name, {
-                        configurable: true,
-                        enumerable: true,
-                        get() { return property.get.call(this); },
-                        set(value) { property.set.call(this, value); declare(); },
-                    });
+                const prototype = Object.getPrototypeOf(session);
+                const engine = {};
+                const wrappers = Object.getOwnPropertyDescriptors({
+                    set metadata(value) {
+                        engine.metadata.set.call(this, value);
+                        declare();
+                    },
+                    set playbackState(value) {
+                        engine.playbackState.set.call(this, value);
+                        declare();
+                    },
+                    setActionHandler(action, handler) {
+                        engine.setActionHandler.value.call(this, action, handler);
+                        if (handler) handlers.set(action, handler);
+                        else handlers.delete(action);
+                        declare();
+                    },
+                });
+                for (const [name, wrapper] of Object.entries(wrappers)) {
+                    const property = Object.getOwnPropertyDescriptor(prototype, name);
+                    if (!property || (wrapper.set ? !property.set : !property.value)) continue;
+                    engine[name] = property;
+                    Object.defineProperty(prototype, name, wrapper.set
+                        ? {...property, set: wrapper.set} : {...property, value: wrapper.value});
                 }
-                const setActionHandler = session.setActionHandler.bind(session);
-                session.setActionHandler = (action, handler) => {
-                    setActionHandler(action, handler);
-                    if (handler) handlers.set(action, handler);
-                    else handlers.delete(action);
-                    declare();
-                };
             }
             // Media events do not bubble, so the document listens in the
             // capture phase: a page that plays without a media session is still
