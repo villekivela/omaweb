@@ -314,6 +314,7 @@ private slots:
     void qtLeavesThePageNoOmawebGlobal();
     void qtHandsAMediaKeyToThePagesOwnHandler();
     void qtTellsAnEditedContentEditableFromAnUntouchedOne();
+    void qtReconfiguresKeyboardNavigationOnAnOpenPage();
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
     void qtStripsTheParametersTheListsName();
@@ -5989,6 +5990,68 @@ void QtEngineContractTest::qtTellsAnEditedContentEditableFromAnUntouchedOne()
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("typed"));
     ask();
     QTRY_COMPARE(answers.objectName(), QStringLiteral("true"));
+}
+
+// A binding the reader changes reaches the pages already open, not only the
+// ones loaded after it: a page that came up with keyboard navigation off
+// scrolls on its key once the shell turns it on.
+void QtEngineContractTest::qtReconfiguresKeyboardNavigationOnAnOpenPage()
+{
+    const QByteArray html(R"HTML(<!doctype html><title>ready</title>
+        <body style="margin:0"><div style="height:3000px"></div>
+        <script>
+            addEventListener("scroll", () => {
+                if (scrollY > 0) document.title = "scrolled";
+            });
+        </script>)HTML");
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QFile page(root.filePath(QStringLiteral("keyboard.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    QCOMPARE(page.write(html), html.size());
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QVariantMap configuration = {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), false},
+        {QStringLiteral("bindings"),
+            QVariantMap {{QStringLiteral("j"), QStringLiteral("scroll-down")}}},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
+    };
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+    window.requestActivate();
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
+    QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+
+    // Off, the key is the page's and nothing moves.
+    QTest::keyClick(&window, Qt::Key_J);
+    QTest::qWait(300);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+
+    configuration.insert(QStringLiteral("enabled"), true);
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "configureKeyboardNavigation", Q_ARG(QVariant, configuration)));
+    QTest::qWait(50);
+    QTest::keyClick(&window, Qt::Key_J);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("scrolled"), 5000);
 }
 
 // A page that asks for a tracker and is handed nothing waits forever, which is
