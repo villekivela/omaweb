@@ -5953,7 +5953,8 @@ void QtEngineContractTest::qtHandsAMediaKeyToThePagesOwnHandler()
 // same name and length. The page's own frame has the wrapper and a blank
 // subframe does not, since the script runs in no subframe, so the subframe
 // is Chromium's own answer. The functions' source is not compared: it is
-// Omaweb's, and the pull request says why it stays.
+// Omaweb's, and hiding it would mean replacing Function.prototype.toString
+// for the whole page, which a page can detect in turn.
 void QtEngineContractTest::qtShapesTheMediaSessionAsChromiumDoes()
 {
     PageServer server(R"HTML(<!doctype html><html><head><title>loading</title></head><body>

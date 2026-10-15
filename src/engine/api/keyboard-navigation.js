@@ -14,7 +14,8 @@
   };
   // What this script puts in the page is found again by reference. An id is
   // only a handle for whoever drives the browser, and is the token the shell
-  // draws for its view and a letter, so a page sees no name of Omaweb's.
+  // draws for its view and a letter, so a page sees no name of Omaweb's: "s"
+  // for the key sequence, "h" for the hint layer and "i" for its input.
   const name = (element, letter) => {
     if (state.config.elementToken) element.id = state.config.elementToken + letter;
   };

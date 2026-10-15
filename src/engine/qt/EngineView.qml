@@ -1830,7 +1830,7 @@ Item {
     // or the ads they cover appear and then vanish; a scriptlet has to be
     // there before the page's first script, or the anti-adblock check it
     // neutralises has already run. Document creation is the only injection
-    // point early enough for either, and the script has to be rebuilt for each
+    // point early enough for either, and the scripts have to be rebuilt for each
     // navigation because both depend on the host being loaded.
     //
     // It is installed on the Engine profile, not on the view, and matched to
@@ -1865,17 +1865,17 @@ Item {
         // The stylesheet is a script of its own and goes first: hiding what
         // the page is about to render does not depend on a scriptlet, and a
         // scriptlet that throws cannot take the hiding with it.
-        root.installBlockingWorldScript(root.blockingSheetNamePrefix, pattern,
-                                        WebEngineScript.ApplicationWorld, css.length > 0
-                                        ? root.styleSheetSnippet(root.cosmeticSheetId, css) : "");
-        root.installBlockingWorldScript(root.blockingScriptNamePrefix, pattern,
-                                        WebEngineScript.MainWorld, root.scriptletSnippet(
-                                            scriptlets));
+        root.installBlockingScriptPart(root.blockingSheetNamePrefix, pattern,
+                                       WebEngineScript.ApplicationWorld, css.length > 0
+                                       ? root.styleSheetSnippet(root.cosmeticSheetId, css) : "");
+        root.installBlockingScriptPart(root.blockingScriptNamePrefix, pattern,
+                                       WebEngineScript.MainWorld, root.scriptletSnippet(
+                                           scriptlets));
         // The document about to be created carries whatever these scripts add
         // and nothing else, so what the last one had is no longer there.
         root.cosmeticRulesInjected = css.length > 0;
     }
-    function installBlockingWorldScript(prefix, pattern, world, source) {
+    function installBlockingScriptPart(prefix, pattern, world, source) {
         const name = prefix + pattern;
         const scripts = webView.profile.userScripts;
         let script = null;
@@ -2678,6 +2678,7 @@ Item {
     // Keys, clicks and focus are the document's in every world, so link hints
     // run in Omaweb's own, where the page cannot find their handle. What they
     // draw in the page is named by a token of this view's, not by Omaweb.
+    // Not read-only: a test that drives the hints from the page names it.
     property string keyboardHintToken: root.drawnToken()
     function pageKeyboardNavigationConfiguration() {
         return Object.assign({}, root.keyboardNavigationConfiguration, {
@@ -2870,9 +2871,10 @@ Item {
     // not. A page that registered none is answered by the element that is
     // sounding, which is what a video in a tab with no media session is.
     //
-    // This one runs in the page's world, because the setters it wraps are the
-    // page's own and a wrapper in another world would see none of the page's
-    // writes. It runs before the page does and keeps the console it found.
+    // This one runs in the page's world, because the setters and the method
+    // it wraps are the page's own and a wrapper in another world would see
+    // none of the page's writes. It runs before the page does and keeps the
+    // console it found.
     //
     // So it holds no global the page could find or call. A key arrives as an
     // event on the document whose type is drawn here and never given to the
@@ -2949,18 +2951,18 @@ Item {
             // write happens first and this reports what it left behind.
             if (session) {
                 const prototype = Object.getPrototypeOf(session);
-                const engine = {};
+                const builtIn = {};
                 const wrappers = Object.getOwnPropertyDescriptors({
                     set metadata(value) {
-                        engine.metadata.set.call(this, value);
+                        builtIn.metadata.set.call(this, value);
                         declare();
                     },
                     set playbackState(value) {
-                        engine.playbackState.set.call(this, value);
+                        builtIn.playbackState.set.call(this, value);
                         declare();
                     },
                     setActionHandler(action, handler) {
-                        engine.setActionHandler.value.call(this, action, handler);
+                        builtIn.setActionHandler.value.call(this, action, handler);
                         if (handler) handlers.set(action, handler);
                         else handlers.delete(action);
                         declare();
@@ -2969,7 +2971,7 @@ Item {
                 for (const [name, wrapper] of Object.entries(wrappers)) {
                     const property = Object.getOwnPropertyDescriptor(prototype, name);
                     if (!property || (wrapper.set ? !property.set : !property.value)) continue;
-                    engine[name] = property;
+                    builtIn[name] = property;
                     Object.defineProperty(prototype, name, wrapper.set
                         ? {...property, set: wrapper.set} : {...property, value: wrapper.value});
                 }
@@ -3523,7 +3525,7 @@ Item {
     // two places lost the scripts added to only one of them on the first page
     // load. A script that changes afterwards, a sheet with the theme or the
     // keyboard navigation with its configuration, goes in by installUserScript.
-    // The Content blocking script is the Engine profile's, not the view's.
+    // The Content blocking scripts are the Engine profile's, not the view's.
     function userScriptList() {
         return [root.editedStateScript, root.keyboardNavigationScript,
                 root.externalProtocolOriginScript, root.documentPaintedScript,
