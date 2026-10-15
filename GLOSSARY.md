@@ -185,6 +185,19 @@ window has none. _Avoid_: Space toast, Space banner
 Omaweb opens it, positions it, and draws it in the browser's own theme, but does not normalize its
 interface or debugging protocol across engines. _Avoid_: Diagnostics, DevTools platform
 
+**Problem report**: The text Omaweb writes for the reader to file an issue with: versions, what
+sites see, settings that differ from their defaults, Sync's state, extensions, the last crash, and
+the tab it was started from, with addresses redacted. Omaweb never sends it. _Avoid_: Bug report,
+diagnostics, support info
+
+**Problem recording**: What happened in a window's tabs while the reader reproduced a problem,
+started and stopped by the reader, kept in memory only, and taken into the next Problem report.
+_Avoid_: Log, trace, session recording
+
+**Diagnostic override**: A named change to what Omaweb presents to sites, such as the version it
+reports, made for one run to test a suspicion and listed in any Problem report from that run.
+_Avoid_: Debug flag, spoof, diag build
+
 **Agent**: A program the reader runs, such as a coding agent or their own script, that drives Omaweb
 through its control socket. Browser commands are open to every Agent; reading or driving a page
 needs Allow agents and, outside an Agent Space, a Space grant. Omaweb holds no model and no provider
