@@ -91,6 +91,9 @@ namespace {
             {QLatin1StringView("font-size"), Kind::Number, unstated},
             // How much of the desktop shows through the sidebar, over the theme's.
             {QLatin1StringView("sidebar-opacity"), Kind::Fraction, unstated, {0.5, 1.0}},
+            // The size pages are drawn at before a tab's zoom, over the
+            // desktop's text scaling (ADR 0067).
+            {QLatin1StringView("page-scale"), Kind::Fraction, unstated, {0.5, 2.0}},
             {QLatin1StringView("page-fonts"), Kind::Fonts, unstated},
             {QLatin1StringView("download-directory"), Kind::Text, unstated},
             {QLatin1StringView("engine-suggestions"), Kind::Switch, false},

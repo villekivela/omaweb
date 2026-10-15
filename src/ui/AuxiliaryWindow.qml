@@ -25,6 +25,11 @@ ApplicationWindow {
     // The window's page, so the opener can drop what it asked when the window
     // closes.
     readonly property var pageEngine: engineLoader.item
+    // The size the page is drawn at: the Page scale, since the window's page
+    // has no zoom of its own (ADR 0067).
+    property real drawnZoom: 1
+    onDrawnZoomChanged: if (engineLoader.item)
+                            engineLoader.item.setZoomFactor(auxiliary.drawnZoom)
     // The core's Agent rules and the id this window has there, when an Agent
     // tab's page opened it (ADR 0051). The Agent drives it by that id as it
     // drives the tab, and it is the Agent's for as long as the core lists it.
@@ -117,6 +122,7 @@ ApplicationWindow {
                                          })
 
         onLoaded: {
+            item.setZoomFactor(auxiliary.drawnZoom);
             auxiliary.markAgentEngine();
             if (auxiliary.request)
                 item.acceptNewWindowRequest(auxiliary.request);

@@ -24,6 +24,7 @@ namespace omaweb {
 
 class AgentActivityLog;
 class BrowserController;
+class PageScale;
 
 // What an Agent may do through the control socket, and the one setting that
 // widens it (ADR 0051).
@@ -207,6 +208,9 @@ public:
     // Where every verb is written down once it is answered. Without one,
     // nothing is.
     void setActivityLog(AgentActivityLog *log);
+    // The Page scale `tabs` reports beside each tab's zoom. Without one, it
+    // is 1.
+    void setPageScale(const PageScale *scale);
 
     QStringList agentWindowIds() const;
     // An Auxiliary window the page of `openerTabId` opened. While the opener
@@ -423,6 +427,7 @@ private:
     QString defaultSpace(const Connection &connection) const;
     static QJsonObject noSpace(const QString &named);
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
+    double pageScale() const;
     // What a request is about before it runs: its tab, and the Space it
     // names by the name it has then.
     struct ActivityScope {
@@ -453,6 +458,7 @@ private:
     QFileSystemWatcher m_watcher;
     QString m_shotDirectory;
     AgentActivityLog *m_activity = nullptr;
+    const PageScale *m_pageScale = nullptr;
     int m_nextPageRequest = 1;
     int m_nextCommandRequest = 1;
     // The window's answer to the command request under way, while

@@ -18,6 +18,7 @@ private slots:
     void drawsTheInterfaceAtTheThemesSizeUntilTold();
     void stepsTheInterfaceSizeWithinItsRange();
     void followsAThemeChangeOnlyWhileNoOverrideStands();
+    void scalesTheThemesSizeByTheDesktopsTextScaling();
     void keepsTheInterfaceSizeAcrossARestart();
     void offersAPageTheEnginesFontsUntilTold();
     void offersOnlyInstalledFamilies();
@@ -117,6 +118,41 @@ void FontSettingsTest::followsAThemeChangeOnlyWhileNoOverrideStands()
 
     fonts.resetInterfaceFontSize();
     QCOMPARE(fonts.interfaceFontSize(), 10);
+}
+
+// A reader who enlarges type across the desktop gets Omaweb's own type larger
+// with it while they have not set a size, in whole pixels and within the range
+// a set size has. A size they set is theirs, whatever the desktop does.
+void FontSettingsTest::scalesTheThemesSizeByTheDesktopsTextScaling()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    FontSettings fonts(root.filePath(QStringLiteral("config")), installed);
+    fonts.setThemeFontSize(12);
+    QSignalSpy changed(&fonts, &FontSettings::interfaceFontSizeChanged);
+
+    fonts.setDesktopTextScaling(1.3636);
+    QCOMPARE(fonts.interfaceFontSize(), 16);
+    QCOMPARE(fonts.defaultInterfaceFontSize(), 16);
+    QVERIFY(!fonts.interfaceFontSizeOverridden());
+    QCOMPARE(changed.count(), 1);
+    fonts.setThemeFontSize(14);
+    QCOMPARE(fonts.interfaceFontSize(), 19);
+
+    fonts.setDesktopTextScaling(2.5);
+    QCOMPARE(fonts.interfaceFontSize(), FontSettings::maximumInterfaceFontSize);
+    fonts.setDesktopTextScaling(0.5);
+    QCOMPARE(fonts.interfaceFontSize(), FontSettings::minimumInterfaceFontSize);
+
+    fonts.setInterfaceFontSize(13);
+    const auto set = changed.count();
+    fonts.setDesktopTextScaling(1.5);
+    QCOMPARE(fonts.interfaceFontSize(), 13);
+    QCOMPARE(fonts.defaultInterfaceFontSize(), 21);
+    QCOMPARE(changed.count(), set);
+
+    fonts.resetInterfaceFontSize();
+    QCOMPARE(fonts.interfaceFontSize(), 21);
 }
 
 void FontSettingsTest::keepsTheInterfaceSizeAcrossARestart()

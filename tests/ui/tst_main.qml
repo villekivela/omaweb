@@ -298,6 +298,9 @@ TestCase {
             window.setSpaceColours(true);
         if (fontSettings.interfaceFontSizeOverridden)
             fontSettings.resetInterfaceFontSize();
+        if (pageScale.overridden)
+            pageScale.reset();
+        pageScale.desktopFactor = 1;
         // Whatever the last test pressed, this one starts from the pointer and
         // a desktop that has not asked for reduced motion.
         InputOrigin.pointer = true;
@@ -17300,7 +17303,7 @@ TestCase {
 
         const notice = findChild(window.contentItem, "pageNotice");
         verify(notice !== null);
-        compare(notice.message, "Page zoom 110%");
+        compare(notice.message, "Zoom 110%");
 
         const second = openPageInNewTab("https://zoom-two.example");
         const secondTabId = browser.activeTabId;
@@ -17317,6 +17320,221 @@ TestCase {
         tryCompare(first, "zoomFactor", 1.0);
 
         browser.closeTab(secondTabId);
+    }
+
+    function near(actual, expected) {
+        return Math.abs(actual - expected) < 0.0001;
+    }
+
+    // Every page is drawn at the Page scale times its tab's zoom. Zoom keeps
+    // its meaning, 100 percent being the page at the Page scale, and the
+    // notice names the tab's zoom rather than the size drawn (ADR 0067).
+    function test_aPageIsDrawnAtThePageScaleTimesItsZoom() {
+        const engine = openPage("https://scaled.example");
+        compare(engine.zoomFactor, 1.0);
+
+        pageScale.desktopFactor = 1.5;
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.5);
+        });
+        compare(browser.activeTabZoom, 1.0);
+
+        window.commands.run("zoom-in", -1);
+        compare(browser.activeTabZoom, 1.1);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.65);
+        });
+        compare(findChild(window.contentItem, "pageNotice").message, "Zoom 110%");
+
+        window.commands.run("zoom-reset", -1);
+        compare(browser.activeTabZoom, 1.0);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.5);
+        });
+
+        // A scale the reader sets stands over the desktop's, and reset follows
+        // the desktop again.
+        pageScale.set(0.8);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 0.8);
+        });
+        pageScale.desktopFactor = 1.2;
+        tryVerify(function () {
+            return near(engine.zoomFactor, 0.8);
+        });
+        pageScale.reset();
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.2);
+        });
+    }
+
+    // QtWebEngine draws between 25 and 500 percent. A zoom the scale pushes
+    // past that is drawn at the limit and stays the tab's, so the page comes
+    // back to it when the scale comes down.
+    function test_aZoomPastTheEnginesLimitIsDrawnThereAndKept() {
+        const engine = openPage("https://limit.example");
+        for (let step = 0; step < 20; ++step)
+            window.commands.run("zoom-in", -1);
+        compare(browser.activeTabZoom, 3.0);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 3.0);
+        });
+
+        pageScale.set(2.0);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 5.0);
+        });
+        compare(browser.activeTabZoom, 3.0);
+        window.commands.run("zoom-in", -1);
+        compare(browser.activeTabZoom, 3.0);
+
+        pageScale.reset();
+        tryVerify(function () {
+            return near(engine.zoomFactor, 3.0);
+        });
+        compare(browser.activeTabZoom, 3.0);
+
+        pageScale.set(0.5);
+        for (let step = 0; step < 20; ++step)
+            window.commands.run("zoom-out", -1);
+        compare(browser.activeTabZoom, 0.5);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 0.25);
+        });
+        window.commands.run("zoom-reset", -1);
+    }
+
+    // The Page scale is the whole browser's: a Private window's pages and a
+    // Tab window's page are drawn at it, and follow it as it changes.
+    function test_thePageScaleReachesPrivateAndTabWindows() {
+        pageScale.desktopFactor = 1.3636;
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://private-scale.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        tryVerify(function () {
+            return near(privateEngine.item.zoomFactor, 1.3636);
+        });
+        pageScale.set(1.1);
+        tryVerify(function () {
+            return near(privateEngine.item.zoomFactor, 1.1);
+        });
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+
+        const engine = openPage("https://popped-scale.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading-scale.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.1);
+        });
+        verify(tabWindow.run("zoom-in", -1));
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.21);
+        });
+        pageScale.reset();
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.3636 * 1.1);
+        });
+        verify(tabWindow.run("zoom-reset", -1));
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.3636);
+        });
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A Glance's page is a page and is drawn at the Page scale too.
+    function test_aGlanceIsDrawnAtThePageScale() {
+        openPage("https://glance-opener-scale.example");
+        pageScale.set(1.4);
+        openGlance("https://glanced-scale.example/page");
+        const engine = window.glanceEngine;
+        tryVerify(function () {
+            return near(engine.zoomFactor, 1.4);
+        });
+        pageScale.set(0.9);
+        tryVerify(function () {
+            return near(engine.zoomFactor, 0.9);
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+    }
+
+    // Settings shows the desktop's scale while it stands, between steps as it
+    // may be, and the first step lands on one. Reset follows the desktop again.
+    function test_settingsStepsThePageScaleFromTheDesktops() {
+        pageScale.desktopFactor = 1.3636;
+        window.settingsOpen = true;
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("interface");
+        const stepper = findChild(settings, "pageScale");
+        verify(stepper !== null && stepper.visible);
+        compare(findChild(stepper, "value").text, "136%, from the desktop");
+        verify(!findChild(stepper, "reset").visible);
+        // Above the page fonts, in a group of its own.
+        const label = findChild(settings, "pagesLabel");
+        verify(label !== null && label.visible);
+        const row = findChild(settings, "pageScaleRow");
+        const group = findChild(settings, "pageFontsGroup");
+        const top = function (item) {
+            return item.mapToItem(settings, 0, 0).y;
+        };
+        tryVerify(function () {
+            return top(label) < top(row) && top(row) < top(group);
+        }, 5000, "pages " + top(label) + ", page scale " + top(row) + ", page fonts " + top(group));
+
+        findChild(stepper, "increase").clicked();
+        tryVerify(function () {
+            return near(pageScale.value, 1.4);
+        });
+        verify(pageScale.overridden);
+        compare(findChild(stepper, "value").text, "140%");
+        verify(findChild(stepper, "reset").visible);
+        findChild(stepper, "decrease").clicked();
+        tryVerify(function () {
+            return near(pageScale.value, 1.3);
+        });
+
+        findChild(stepper, "reset").clicked();
+        tryCompare(pageScale, "overridden", false);
+        compare(findChild(stepper, "value").text, "136%, from the desktop");
+        window.settingsOpen = false;
+    }
+
+    // The Start page and its Scene are Omaweb's own surfaces, drawn at the
+    // interface's size and not enlarged with pages.
+    function test_theStartPageIsNotDrawnAtThePageScale() {
+        const startPage = findChild(window.contentItem, "startPage");
+        browser.openInput("about:blank", true);
+        tryCompare(startPage, "open", true);
+        tryCompare(startPage, "visible", true);
+        const scene = findChild(startPage, "startPageScene");
+        verify(scene !== null);
+        const drawn = function () {
+            return [startPage.width, startPage.height, startPage.scale, scene.width, scene.height,
+                    scene.scale].join(",");
+        };
+        const before = drawn();
+
+        pageScale.set(2.0);
+        wait(0);
+        compare(drawn(), before);
     }
 
     // The command registry sends navigation straight to the active engine host

@@ -15,6 +15,7 @@
 #include "PageImages.h"
 #include "FaviconTint.h"
 #include "FontSettings.h"
+#include "PageScale.h"
 #include "SidebarOpacity.h"
 #include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
@@ -583,6 +584,7 @@ int main(int argc, char *argv[])
     omaweb::FontSettings fontSettings(dataRootPath, QFontDatabase::families());
     omaweb::SidebarOpacity sidebarOpacity(dataRootPath);
     theme.followSidebarOpacity(&sidebarOpacity);
+    omaweb::PageScale pageScale(dataRootPath);
     // No engine runs here to report its own fonts, so the group is reviewed
     // over the values a Linux engine reports.
     fontSettings.setEngineFonts(
@@ -639,6 +641,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
+    engine.rootContext()->setContextProperty(QStringLiteral("pageScale"), &pageScale);
     // The file the lab's own settings are written to, under its data root, so
     // Settings names a file and says what is wrong with it as it would.
     omaweb::SettingsFile settingsFile(dataRootPath);

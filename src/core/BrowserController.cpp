@@ -8,6 +8,7 @@
 #include "ExtensionPackage.h"
 #include "HistoryQuery.h"
 #include "HistorySearch.h"
+#include "PageScale.h"
 #include "PaymentCards.h"
 #include "SettingsMigration.h"
 #include "SqliteSessionStore.h"
@@ -35,6 +36,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <ranges>
 
 namespace omaweb {
 
@@ -2824,10 +2826,10 @@ std::optional<TabState> BrowserController::tabWindowTab(const QString &tabId) co
     return std::nullopt;
 }
 
-void BrowserController::stepTabZoom(const QString &tabId, int direction)
+void BrowserController::stepTabZoom(const QString &tabId, int direction, double pageScale)
 {
     if (const auto tab = tabWindowTab(tabId)) {
-        setTabZoom(tabId, steppedZoom(tab->zoom, direction));
+        setTabZoom(tabId, steppedZoom(tab->zoom, direction, pageScale));
     }
 }
 
@@ -3469,7 +3471,13 @@ void BrowserController::setTabZoom(const QString &tabId, double zoom)
 // The ladder every browser zooms along. Stepping rather than multiplying keeps
 // the sizes the same in both directions and keeps the ends where they are: no
 // amount of asking for less makes a page smaller than a quarter.
-double BrowserController::steppedZoom(double zoom, int direction)
+//
+// A page is drawn at the Page scale times its zoom, and the engine draws only
+// so much (ADR 0067), so a rung whose product leaves that range is not one to
+// step to. A step starts from the zoom as drawn, which for a zoom the scale
+// pushed past the engine's range is the limit, so the first step out is one
+// the reader sees. A step with nowhere to go keeps the zoom the tab has.
+double BrowserController::steppedZoom(double zoom, int direction, double pageScale)
 {
     static constexpr double ladder[] = {
         0.25,
@@ -3488,29 +3496,34 @@ double BrowserController::steppedZoom(double zoom, int direction)
         2.5,
         3.0,
     };
-    static constexpr int rungs = static_cast<int>(std::size(ladder));
-    if (direction == 0) {
+    if (direction == 0 || !(pageScale > 0)) {
         return zoom;
     }
+    const auto lowest = PageScale::minimumDrawn() / pageScale;
+    const auto highest = PageScale::maximumDrawn() / pageScale;
+    const auto fits = [lowest, highest](double rung) {
+        return rung >= lowest - zoomTolerance && rung <= highest + zoomTolerance;
+    };
+    const auto drawn = std::clamp(zoom, lowest, highest);
     if (direction > 0) {
         for (const auto rung : ladder) {
-            if (rung > zoom + zoomTolerance) {
+            if (rung > drawn + zoomTolerance && fits(rung)) {
                 return rung;
             }
         }
-        return ladder[rungs - 1];
+        return zoom;
     }
-    for (int index = rungs - 1; index >= 0; --index) {
-        if (ladder[index] < zoom - zoomTolerance) {
-            return ladder[index];
+    for (const auto rung : ladder | std::views::reverse) {
+        if (rung < drawn - zoomTolerance && fits(rung)) {
+            return rung;
         }
     }
-    return ladder[0];
+    return zoom;
 }
 
-void BrowserController::stepActiveZoom(int direction)
+void BrowserController::stepActiveZoom(int direction, double pageScale)
 {
-    setTabZoom(m_activeTabId, steppedZoom(activeTabZoom(), direction));
+    setTabZoom(m_activeTabId, steppedZoom(activeTabZoom(), direction, pageScale));
 }
 
 void BrowserController::resetActiveZoom() { setTabZoom(m_activeTabId, 1.0); }

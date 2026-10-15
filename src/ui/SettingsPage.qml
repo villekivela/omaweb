@@ -152,6 +152,8 @@ Rectangle {
     property var fontSettings: null
     // The reader's say over the sidebar's opacity, over the theme's.
     property var sidebarOpacity: null
+    // The size pages are drawn at beneath a tab's zoom (ADR 0067).
+    property var pageScale: null
     // The installed Omarchy theme the browser draws in (#710).
     property var browserTheme: null
     onBrowserThemeChanged: {
@@ -1359,8 +1361,9 @@ Rectangle {
                         colors: root.colors
                         title: qsTr("Interface font size")
                         note: qsTr(
-                                  "The size Omaweb's own type is drawn at; the theme's is %1px. Pages and their zoom are not changed by it.").arg(
-                                  root.fontSettings ? root.fontSettings.themeFontSize : 0)
+                                  "The size Omaweb's own type is drawn at; the theme's, scaled with the desktop's text, is %1px. Pages and their zoom are not changed by it.").arg(
+                                  root.fontSettings ? root.fontSettings.defaultInterfaceFontSize :
+                                                      0)
 
                         SettingStepper {
                             objectName: "interfaceFontSize"
@@ -1378,6 +1381,45 @@ Rectangle {
                             onIncreased: root.fontSettings.increaseInterfaceFontSize()
                             onDecreased: root.fontSettings.decreaseInterfaceFontSize()
                             onReset: root.fontSettings.resetInterfaceFontSize()
+                        }
+                    }
+
+                    SectionLabel {
+                        objectName: "pagesLabel"
+                        visible: !!root.pageScale
+                        colors: root.colors
+                        text: qsTr("pages", "section label: how pages are drawn")
+                    }
+
+                    // Every page is drawn at this size before its tab's zoom.
+                    // It is the desktop's text scaling until the reader sets
+                    // one, which may fall between the steps; the first step
+                    // from it lands on one (#709).
+                    SettingRow {
+                        objectName: "pageScaleRow"
+                        visible: !!root.pageScale
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Page scale")
+                        note: qsTr(
+                                  "The size every page is drawn at; a tab's zoom enlarges its page from there. Follows the desktop's text scaling until set.")
+
+                        SettingStepper {
+                            objectName: "pageScale"
+                            enabled: root.settingsWritable
+                            colors: root.colors
+                            value: root.pageScale ? Math.round(root.pageScale.value * 100) : 100
+                            minimum: root.pageScale ? Math.round(root.pageScale.minimum * 100) : 0
+                            maximum: root.pageScale ? Math.round(root.pageScale.maximum * 100) : 0
+                            unit: "%"
+                            spokenUnit: qsTr("percent")
+                            overridden: !!root.pageScale && root.pageScale.overridden
+                            accessibleName: qsTr("Page scale")
+                            defaultName: qsTr("the desktop's")
+                            defaultNote: qsTr("from the desktop")
+                            onIncreased: root.pageScale.increase()
+                            onDecreased: root.pageScale.decrease()
+                            onReset: root.pageScale.reset()
                         }
                     }
 
@@ -1547,7 +1589,7 @@ Rectangle {
                             colors: root.colors
                             title: qsTr("Minimum font size")
                             note: qsTr(
-                                      "No text on a page is drawn smaller than this, whatever size the page asks for. A tab's zoom multiplies it. A page already open takes it when it next lays out; reload to see it now.")
+                                      "No text on a page is drawn smaller than this, whatever size the page asks for. The page scale and a tab's zoom multiply it. A page already open takes it when it next lays out; reload to see it now.")
 
                             SettingStepper {
                                 objectName: "pageMinimumFontSize"

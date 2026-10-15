@@ -4,6 +4,7 @@
 #include "AgentProtocol.h"
 #include "BrowserController.h"
 #include "AgentsFile.h"
+#include "PageScale.h"
 #include "SpaceProject.h"
 
 #include <QAbstractItemModel>
@@ -1304,6 +1305,8 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
 
 void AgentControl::setActivityLog(AgentActivityLog *log) { m_activity = log; }
 
+void AgentControl::setPageScale(const PageScale *scale) { m_pageScale = scale; }
+
 QString AgentControl::activityTarget(const QString &verb, const QJsonObject &request) const
 {
     const auto text = [&request](const QString &key) {
@@ -2320,7 +2323,8 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
             {QStringLiteral("current"), it.key() == connection.currentTabId},
         });
     }
-    return success({{QStringLiteral("space"), spaceId}, {QStringLiteral("tabs"), tabs}});
+    return success({{QStringLiteral("space"), spaceId}, {QStringLiteral("tabs"), tabs},
+        {QStringLiteral("pageScale"), pageScale()}});
 }
 
 // Every Space's tabs in the order the reader sees them, for a launcher that
@@ -2339,7 +2343,7 @@ QJsonObject AgentControl::listAllTabs(const Connection &connection) const
             tabs.append(described);
         }
     }
-    return success({{QStringLiteral("tabs"), tabs}});
+    return success({{QStringLiteral("tabs"), tabs}, {QStringLiteral("pageScale"), pageScale()}});
 }
 
 // Opening an address is a browser command, as the desktop's own handover is.
@@ -2571,8 +2575,13 @@ QJsonObject AgentControl::describeTab(const TabState &tab, const Connection &con
         {QStringLiteral("url"), tab.url.toString()},
         {QStringLiteral("title"), tab.title},
         {QStringLiteral("pinned"), tab.pinned},
+        {QStringLiteral("zoom"), tab.zoom},
         {QStringLiteral("current"), tab.id == connection.currentTabId},
     };
 }
+
+// The browser's Page scale, which `tabs` names beside each tab's own zoom
+// rather than folding it in (ADR 0067).
+double AgentControl::pageScale() const { return m_pageScale ? m_pageScale->value() : 1.0; }
 
 } // namespace omaweb

@@ -1425,8 +1425,8 @@
         <translation>Zoomaus</translation>
     </message>
     <message>
-        <source>Page zoom %1%</source>
-        <translation>Sivun zoomaus %1 %</translation>
+        <source>Zoom %1%</source>
+        <translation>Zoomaus %1 %</translation>
     </message>
     <message>
         <source>this tab only</source>
@@ -2845,10 +2845,6 @@
         <translation>Käyttöliittymän fonttikoko</translation>
     </message>
     <message>
-        <source>The size Omaweb&apos;s own type is drawn at; the theme&apos;s is %1px. Pages and their zoom are not changed by it.</source>
-        <translation>Koko, jolla Omawebin oma teksti piirretään; teeman koko on %1 px. Se ei muuta sivuja eikä niiden zoomausta.</translation>
-    </message>
-    <message>
         <source>the theme&apos;s</source>
         <translation>teeman</translation>
     </message>
@@ -2919,10 +2915,6 @@
     <message>
         <source>Minimum font size</source>
         <translation>Pienin fonttikoko</translation>
-    </message>
-    <message>
-        <source>No text on a page is drawn smaller than this, whatever size the page asks for. A tab&apos;s zoom multiplies it. A page already open takes it when it next lays out; reload to see it now.</source>
-        <translation>Mitään sivun tekstiä ei piirretä tätä pienemmäksi, vaikka sivu pyytäisi pienempää. Välilehden zoomaus kertoo sen. Jo avoin sivu ottaa sen käyttöön seuraavan asettelun yhteydessä; lataa uudelleen nähdäksesi sen heti.</translation>
     </message>
     <message>
         <source>none</source>
@@ -3610,6 +3602,39 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Sidebar opacity</source>
         <translation>Sivupalkin peittävyys</translation>
+    </message>
+    <message>
+        <source>The size Omaweb&apos;s own type is drawn at; the theme&apos;s, scaled with the desktop&apos;s text, is %1px. Pages and their zoom are not changed by it.</source>
+        <translation>Koko, jolla Omawebin oma teksti piirretään; teeman koko työpöydän tekstin skaalauksella on %1 px. Se ei muuta sivuja eikä niiden zoomausta.</translation>
+    </message>
+    <message>
+        <source>pages</source>
+        <comment>section label: how pages are drawn</comment>
+        <translation>sivut</translation>
+    </message>
+    <message>
+        <source>Page scale</source>
+        <translation>Sivujen skaalaus</translation>
+    </message>
+    <message>
+        <source>The size every page is drawn at; a tab&apos;s zoom enlarges its page from there. Follows the desktop&apos;s text scaling until set.</source>
+        <translation>Koko, jolla jokainen sivu piirretään; välilehden zoomaus suurentaa sivuaan siitä. Seuraa työpöydän tekstin skaalausta, kunnes asetat sen.</translation>
+    </message>
+    <message>
+        <source>percent</source>
+        <translation>prosenttia</translation>
+    </message>
+    <message>
+        <source>the desktop&apos;s</source>
+        <translation>työpöydän</translation>
+    </message>
+    <message>
+        <source>from the desktop</source>
+        <translation>työpöydältä</translation>
+    </message>
+    <message>
+        <source>No text on a page is drawn smaller than this, whatever size the page asks for. The page scale and a tab&apos;s zoom multiply it. A page already open takes it when it next lays out; reload to see it now.</source>
+        <translation>Mitään sivun tekstiä ei piirretä tätä pienemmäksi, vaikka sivu pyytäisi pienempää. Sivujen skaalaus ja välilehden zoomaus kertovat sen. Jo avoin sivu ottaa sen käyttöön seuraavan asettelun yhteydessä; lataa uudelleen nähdäksesi sen heti.</translation>
     </message>
     <message>
         <source>Add card</source>

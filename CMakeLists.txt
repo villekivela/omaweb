@@ -433,6 +433,8 @@ add_library(omaweb-core STATIC
     src/core/SettingsFile.h
     src/core/SettingsMigration.cpp
     src/core/SettingsMigration.h
+    src/core/PageScale.cpp
+    src/core/PageScale.h
     src/core/SidebarOpacity.cpp
     src/core/SidebarOpacity.h
     src/core/PrivateSessionStore.cpp
@@ -749,6 +751,8 @@ add_library(omaweb-platform STATIC
     src/platform/BrowserTheme.h
     src/platform/DefaultBrowser.cpp
     src/platform/DefaultBrowser.h
+    src/platform/DesktopTextScaling.cpp
+    src/platform/DesktopTextScaling.h
     src/platform/ExternalProtocolHandler.cpp
     src/platform/ExternalProtocolHandler.h
     src/platform/InputMethod.cpp
@@ -798,6 +802,7 @@ if(APPLE)
     find_library(OMAWEB_USER_NOTIFICATIONS_FRAMEWORK UserNotifications REQUIRED)
     target_sources(omaweb-platform PRIVATE
         src/platform/RunningBrowser.cpp
+        src/platform/MacDesktopTextScaling.cpp
         src/platform/MacExternalProtocolHandler.mm
         src/platform/MacPagePrinter.mm
         src/platform/MacSystemMotion.mm
@@ -814,7 +819,10 @@ if(APPLE)
 else()
     target_sources(omaweb-platform PRIVATE
         src/platform/LinuxDefaultBrowser.cpp
+        src/platform/LinuxDesktopTextScaling.cpp
         src/platform/LinuxPagePrinter.cpp
+        src/platform/LinuxPortalSettings.cpp
+        src/platform/LinuxPortalSettings.h
         src/platform/LinuxPortalWindow.cpp
         src/platform/LinuxMediaAnnouncer.cpp
         src/platform/LinuxRunningBrowser.cpp
@@ -1776,6 +1784,11 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-sidebar-opacity-tests)
     add_test(NAME omaweb-sidebar-opacity COMMAND omaweb-sidebar-opacity-tests)
 
+    qt_add_executable(omaweb-page-scale-tests tests/core/tst_pagescale.cpp)
+    target_link_libraries(omaweb-page-scale-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-page-scale-tests)
+    add_test(NAME omaweb-page-scale COMMAND omaweb-page-scale-tests)
+
     qt_add_executable(omaweb-certificate-chain-tests tests/engine/tst_certificatechain.cpp)
     target_link_libraries(omaweb-certificate-chain-tests PRIVATE
         omaweb-engine-api Qt6::Network Qt6::Test)
@@ -1950,6 +1963,20 @@ if(BUILD_TESTING)
         set_tests_properties(omaweb-print-portal PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_NO_XDG_DESKTOP_PORTAL=1"
         )
+
+        # The Desktop text scaling is read from the settings portal and
+        # followed as it changes, so the test stands one up on a bus of its
+        # own and changes the factor the way `omarchy-display-text-size` does.
+        qt_add_executable(omaweb-desktop-text-scaling-tests
+            tests/platform/tst_desktoptextscaling.cpp
+        )
+        target_link_libraries(omaweb-desktop-text-scaling-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-desktop-text-scaling-tests)
+        add_test(NAME omaweb-desktop-text-scaling COMMAND omaweb-desktop-text-scaling-tests)
     endif()
 
     # What the desktop asked Qt for by way of an input method against what it

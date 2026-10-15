@@ -536,6 +536,15 @@ session with the rest of the tab, and hands it to whichever adapter draws that t
 one fixed ladder rather than by a percentage, so both directions land on the same sizes and the ends
 are bounded.
 
+The adapter draws the Page scale times the tab's factor
+([ADR 0067](adr/0067-scale-pages-by-the-desktops-text-scaling.md)). The tab's factor stays the tab's
+own, and nothing about zoom is keyed by origin. `PageScale` in the core holds the reader's
+`page-scale` over the Desktop text scaling, which `DesktopTextScaling` in `omaweb-platform` reads
+from the settings portal and follows; the shell hands each adapter the product, held within
+QtWebEngine's 25 to 500 percent, and hands it again whenever either changes. A page that answers for
+no tab, a Glance's, a popup's or an Auxiliary window's, is drawn at the Page scale alone. The ladder
+skips a rung whose product leaves that range, so zoom stops where the engine does.
+
 Printing is split between the adapter, which renders the page to a PDF in an Omaweb-owned spool
 directory, and `omaweb-platform`, which presents it in the desktop's own print dialog, including
 that dialog's PDF destination, and removes the spooled file afterwards. macOS presents it through

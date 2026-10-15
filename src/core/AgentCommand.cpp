@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <csignal>
 #include <cstdio>
 #include <optional>
@@ -980,6 +981,7 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
         return text;
     }
     if (verb == u"tabs") {
+        const auto pageScale = answer.value(QStringLiteral("pageScale")).toDouble(1.0);
         for (const auto &value : answer.value(QStringLiteral("tabs")).toArray()) {
             const auto tab = value.toObject();
             QStringList flags;
@@ -992,6 +994,15 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
             if (tab.value(QStringLiteral("window")).toBool()) {
                 flags.append(
                     QStringLiteral("window of ") + tab.value(QStringLiteral("opener")).toString());
+            }
+            // A tab's zoom and the Page scale beneath it are separate values,
+            // each named where it enlarges anything.
+            const auto zoom = tab.value(QStringLiteral("zoom")).toDouble(1.0);
+            if (std::abs(zoom - 1.0) > 0.001) {
+                flags.append(QStringLiteral("zoom %1%").arg(std::lround(zoom * 100)));
+            }
+            if (std::abs(pageScale - 1.0) > 0.001) {
+                flags.append(QStringLiteral("page scale %1%").arg(std::lround(pageScale * 100)));
             }
             text += line({tab.value(QStringLiteral("id")).toString(),
                 tab.value(QStringLiteral("url")).toString(),

@@ -170,6 +170,7 @@ private slots:
     void keepsRendererFailureOnAffectedTab();
     void keepsMutingDecisionWhileSoundComesAndGoes();
     void stepsZoomAlongOneLadderPerTab();
+    void stopsZoomWhereThePageScaleLeavesTheEnginesRange();
     void restoresEveryTabsZoomAfterRestart();
     void sharesPrivateIdentityUntilLastWindowCloses();
     void keepsHistorySuggestionsInsideActiveSpace();
@@ -1358,6 +1359,47 @@ void BrowserControllerTest::stepsZoomAlongOneLadderPerTab()
     // A new tab starts at 100 percent whatever the tab beside it is drawn at.
     controller.stepActiveZoom(1);
     controller.openInput(QStringLiteral("https://third.example"), true);
+    QCOMPARE(controller.activeTabZoom(), 1.0);
+}
+
+// QtWebEngine draws a page between 25 and 500 percent of its size, and a page
+// is drawn at the Page scale times its zoom. So zoom stops at the last rung
+// whose product with the Page scale fits, and a zoom that stopped fitting when
+// the scale rose is the tab's still, for when it comes back down.
+void BrowserControllerTest::stopsZoomWhereThePageScaleLeavesTheEnginesRange()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+
+    for (int step = 0; step < 20; ++step) {
+        controller.stepActiveZoom(1, 2.0);
+    }
+    QCOMPARE(controller.activeTabZoom(), 2.5);
+    for (int step = 0; step < 20; ++step) {
+        controller.stepActiveZoom(-1, 2.0);
+    }
+    QCOMPARE(controller.activeTabZoom(), 0.25);
+
+    controller.resetActiveZoom();
+    for (int step = 0; step < 20; ++step) {
+        controller.stepActiveZoom(-1, 0.5);
+    }
+    QCOMPARE(controller.activeTabZoom(), 0.5);
+    for (int step = 0; step < 20; ++step) {
+        controller.stepActiveZoom(1, 0.5);
+    }
+    QCOMPARE(controller.activeTabZoom(), 3.0);
+
+    // The scale rose to 200 percent under a tab at 300: it is drawn at the
+    // engine's 500 and keeps its zoom. Zooming in cannot take it further and
+    // takes nothing away; zooming out leaves the limit by one rung.
+    controller.stepActiveZoom(1, 2.0);
+    QCOMPARE(controller.activeTabZoom(), 3.0);
+    controller.stepActiveZoom(-1, 2.0);
+    QCOMPARE(controller.activeTabZoom(), 2.0);
+
+    controller.resetActiveZoom();
     QCOMPARE(controller.activeTabZoom(), 1.0);
 }
 

@@ -4,6 +4,7 @@
 #include "AgentProtocol.h"
 #include "AgentMcp.h"
 #include "BrowserController.h"
+#include "PageScale.h"
 #include "ControlSocket.h"
 #include "PrivateSessionFixture.h"
 #include "SessionFixture.h"
@@ -35,6 +36,7 @@ using omaweb::AgentActivityLog;
 using omaweb::AgentControl;
 using omaweb::BrowserController;
 using omaweb::ControlSocket;
+using omaweb::PageScale;
 using omaweb::test::PrivateSessionFixture;
 using omaweb::test::SessionFixture;
 using omaweb::test::SessionSpec;
@@ -306,6 +308,7 @@ private slots:
     void keepsACurrentTabForEachConnection();
     void refusesAddressesThatActInsideAPage();
     void listsEverySpacesTabsInOneCall();
+    void reportsEachTabsZoomApartFromThePageScale();
     void leavesTheWindowWhereItIsWhenItFocusesATab();
     void raisesTheTabWindowOfAPoppedOutTabWhenItIsAskedTo();
     void bringsTheWindowForwardWhenItIsAskedTo();
@@ -540,6 +543,35 @@ void AgentControlTest::listsEverySpacesTabsInOneCall()
         failure(ask(control, QStringLiteral("script"), QStringLiteral("tabs"),
             {{QStringLiteral("all"), true}, {QStringLiteral("space"), QStringLiteral("Work")}})),
         QStringLiteral("bad-request"));
+}
+
+// A tab's zoom is its own and the Page scale is the browser's, so an Agent is
+// told both rather than the size they come to (ADR 0067).
+void AgentControlTest::reportsEachTabsZoomApartFromThePageScale()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    PageScale scale(config.path());
+    scale.setDesktopFactor(1.3636);
+    control.setPageScale(&scale);
+    QVERIFY(browser->switchSpace(QStringLiteral("work")));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
+    browser->stepActiveZoom(1, scale.value());
+
+    for (const auto &request : {QJsonObject {{QStringLiteral("all"), true}},
+             QJsonObject {{QStringLiteral("space"), QStringLiteral("Work")}}}) {
+        const auto answer = ask(control, QStringLiteral("script"), QStringLiteral("tabs"), request);
+        QVERIFY(succeeded(answer));
+        QCOMPARE(answer.value(QStringLiteral("pageScale")).toDouble(), 1.3636);
+        for (const auto &value : answer.value(QStringLiteral("tabs")).toArray()) {
+            const auto tab = value.toObject();
+            QCOMPARE(tab.value(QStringLiteral("zoom")).toDouble(),
+                tab.value(QStringLiteral("id")).toString() == u"work-tab" ? 1.1 : 1.0);
+        }
+    }
 }
 
 // ADR 0051: no verb takes the reader's focus. A script or an Agent that selects a tab leaves the

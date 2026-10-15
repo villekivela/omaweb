@@ -266,10 +266,10 @@ Window {
             root.stepFind(false);
             return true;
         case "zoom-in":
-            root.browser.stepTabZoom(root.tabId, 1);
+            root.browser.stepTabZoom(root.tabId, 1, root.engineHost.pageScaleValue);
             return true;
         case "zoom-out":
-            root.browser.stepTabZoom(root.tabId, -1);
+            root.browser.stepTabZoom(root.tabId, -1, root.engineHost.pageScaleValue);
             return true;
         case "zoom-reset":
             root.browser.resetTabZoom(root.tabId);
@@ -305,12 +305,14 @@ Window {
             root.engine.currentUrl = url;
     }
 
-    // The tab's zoom is kept by the core, and its page follows it.
+    // The tab's zoom is kept by the core, and its page follows it over the
+    // Page scale, which the main window's engine host holds.
     readonly property real tabZoom: root.entry.zoom !== undefined ? root.entry.zoom : 1.0
-    onTabZoomChanged: if (root.engine)
-                          root.engine.setZoomFactor(root.tabZoom)
+    readonly property real drawnZoom: root.engineHost.drawnZoom(root.tabZoom)
+    onDrawnZoomChanged: if (root.engine)
+                            root.engine.setZoomFactor(root.drawnZoom)
     onEngineChanged: if (root.engine)
-                         root.engine.setZoomFactor(root.tabZoom)
+                         root.engine.setZoomFactor(root.drawnZoom)
 
     function focusPage() {
         if (root.engine)
@@ -942,7 +944,7 @@ Window {
         Item {
             id: pageHost
             objectName: "tabWindowPageHost"
-            scale: glance.pageScale
+            scale: glance.beneathScale
             anchors.left: parent.left
             anchors.right: developerToolsDock.visible ? developerToolsDock.left : parent.right
             anchors.top: strip.bottom

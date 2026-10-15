@@ -4,6 +4,7 @@
 #include <QQmlEngine>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace omaweb {
@@ -48,7 +49,26 @@ FontSettings::FontSettings(QString configRoot, QStringList installedFamilies, QO
 
 int FontSettings::interfaceFontSize() const
 {
-    return m_interfaceFontSize.value_or(m_themeFontSize);
+    return m_interfaceFontSize.value_or(defaultInterfaceFontSize());
+}
+
+void FontSettings::setDesktopTextScaling(double factor)
+{
+    const auto before = defaultInterfaceFontSize();
+    m_desktopTextScaling = factor;
+    if (defaultInterfaceFontSize() == before) {
+        return;
+    }
+    emit defaultInterfaceFontSizeChanged();
+    if (!m_interfaceFontSize) {
+        emit interfaceFontSizeChanged();
+    }
+}
+
+int FontSettings::defaultInterfaceFontSize() const
+{
+    return std::clamp(static_cast<int>(std::lround(m_themeFontSize * m_desktopTextScaling)),
+        minimumInterfaceFontSize, maximumInterfaceFontSize);
 }
 
 bool FontSettings::interfaceFontSizeOverridden() const { return m_interfaceFontSize.has_value(); }
@@ -60,8 +80,13 @@ void FontSettings::setThemeFontSize(int size)
     if (size == m_themeFontSize) {
         return;
     }
+    const auto before = defaultInterfaceFontSize();
     m_themeFontSize = size;
     emit themeFontSizeChanged();
+    if (defaultInterfaceFontSize() == before) {
+        return;
+    }
+    emit defaultInterfaceFontSizeChanged();
     if (!m_interfaceFontSize) {
         emit interfaceFontSizeChanged();
     }

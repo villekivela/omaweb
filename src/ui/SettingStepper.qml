@@ -18,6 +18,11 @@ Row {
     property int maximum: 100
     property bool overridden: false
     property string unit: "px"
+    // The unit as a screen reader says it.
+    property string spokenUnit: "pixels"
+    // Said after the value while it is the default's, where the default is a
+    // value from elsewhere that may fall between steps: "from the desktop".
+    property string defaultNote: ""
     // What the value reads as at zero, where zero means none rather than a
     // size, as a minimum font size does.
     property string zeroLabel: ""
@@ -31,11 +36,13 @@ Row {
     signal reset
 
     readonly property bool atNone: root.value === 0 && root.zeroLabel.length > 0
-    readonly property string valueText: root.atNone ? root.zeroLabel : root.value + root.unit
+    readonly property string noteText: root.defaultNote.length > 0 ? ", " + root.defaultNote : ""
+    readonly property string valueText: root.atNone ? root.zeroLabel : root.value + root.unit + (
+                                                          root.overridden ? "" : root.noteText)
     readonly property string spokenValue: root.spokenSize() + root.spokenDefault()
 
     function spokenSize() {
-        return root.atNone ? root.zeroLabel : root.value + " pixels";
+        return root.atNone ? root.zeroLabel : root.value + " " + root.spokenUnit;
     }
 
     function spokenDefault() {
@@ -45,7 +52,7 @@ Row {
     // The widest value the range allows, so the buttons do not shuffle as
     // the number changes width.
     function widestValue() {
-        const widestNumber = valueMetrics.advanceWidth(root.maximum + root.unit);
+        const widestNumber = valueMetrics.advanceWidth(root.maximum + root.unit + root.noteText);
         const widestWord = valueMetrics.advanceWidth(root.zeroLabel);
         return Math.ceil(Math.max(widestNumber, widestWord));
     }

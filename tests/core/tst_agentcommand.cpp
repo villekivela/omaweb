@@ -485,6 +485,25 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
     QCOMPARE(formatAgentAnswer(QStringLiteral("tabs"), tabs),
         QStringLiteral("t1\thttps://example.com/\tExample\tcurrent\n"));
 
+    // A tab's zoom and the Page scale beneath it are two values, and each is
+    // named only where it enlarges anything.
+    const QJsonObject zoomed {
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("pageScale"), 1.3636},
+        {QStringLiteral("tabs"),
+            QJsonArray {QJsonObject {{QStringLiteral("id"), QStringLiteral("t1")},
+                            {QStringLiteral("url"), QStringLiteral("https://example.com/")},
+                            {QStringLiteral("title"), QStringLiteral("Example")},
+                            {QStringLiteral("zoom"), 1.25}, {QStringLiteral("current"), true}},
+                QJsonObject {{QStringLiteral("id"), QStringLiteral("t2")},
+                    {QStringLiteral("url"), QStringLiteral("https://example.org/")},
+                    {QStringLiteral("title"), QStringLiteral("Other")},
+                    {QStringLiteral("zoom"), 1.0}}}},
+    };
+    QCOMPARE(formatAgentAnswer(QStringLiteral("tabs"), zoomed),
+        QStringLiteral("t1\thttps://example.com/\tExample\tcurrent,zoom 125%,page scale 136%\n"
+                       "t2\thttps://example.org/\tOther\tpage scale 136%\n"));
+
     const QJsonObject commands {
         {QStringLiteral("ok"), true},
         {QStringLiteral("commands"),

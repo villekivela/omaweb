@@ -19,7 +19,9 @@
 #include "DevelopmentLaunch.h"
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
+#include "DesktopTextScaling.h"
 #include "FontSettings.h"
+#include "PageScale.h"
 #include "SidebarOpacity.h"
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
@@ -339,7 +341,15 @@ int main(int argc, char *argv[])
     // decides what else it answers. It opens before the shell loads, so a
     // temporary Agent Space a crash left behind is gone before anything shows
     // it. A check of the QML is not a browser anything should reach.
+    // The size every page is drawn at beneath its tab's zoom: the desktop's
+    // text scaling, followed live, until the reader sets one (ADR 0067).
+    omaweb::DesktopTextScaling desktopTextScaling;
+    omaweb::PageScale pageScale(configRoot());
+    pageScale.setDesktopFactor(desktopTextScaling.factor());
+    QObject::connect(&desktopTextScaling, &omaweb::DesktopTextScaling::factorChanged, &pageScale,
+        [&] { pageScale.setDesktopFactor(desktopTextScaling.factor()); });
     omaweb::AgentControl agentControl(&browser, configRoot());
+    agentControl.setPageScale(&pageScale);
 #ifdef OMAWEB_AGENT_SKILL_FROM_BROWSER
     {
         const auto skill = QDir::cleanPath(QDir(QCoreApplication::applicationDirPath())
@@ -455,6 +465,10 @@ int main(int argc, char *argv[])
     // fonts over the engine's. One answer for every window, Private ones
     // included, which is why it lives beside the theme and not in a store.
     omaweb::FontSettings fontSettings(configRoot(), QFontDatabase::families());
+    // The interface's type grows with the desktop's while no size is set.
+    fontSettings.setDesktopTextScaling(desktopTextScaling.factor());
+    QObject::connect(&desktopTextScaling, &omaweb::DesktopTextScaling::factorChanged, &fontSettings,
+        [&] { fontSettings.setDesktopTextScaling(desktopTextScaling.factor()); });
     omaweb::QtPageFonts pageFonts(&fontSettings);
     // The reader's sidebar opacity, over the theme's and for every window.
     omaweb::SidebarOpacity sidebarOpacity(configRoot());
@@ -570,6 +584,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("browserTheme"), &browserTheme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
+    engine.rootContext()->setContextProperty(QStringLiteral("pageScale"), &pageScale);
     engine.rootContext()->setContextProperty(QStringLiteral("settingsFile"), &settingsFile);
     engine.rootContext()->setContextProperty(QStringLiteral("pageFonts"), &pageFonts);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);

@@ -33,6 +33,10 @@ class FontSettings final : public QObject {
             interfaceFontSizeChanged)
     Q_PROPERTY(
         int themeFontSize READ themeFontSize WRITE setThemeFontSize NOTIFY interfaceFontSizeChanged)
+    // The size the interface takes while the reader has set none: the theme's
+    // times the Desktop text scaling (ADR 0067).
+    Q_PROPERTY(int defaultInterfaceFontSize READ defaultInterfaceFontSize NOTIFY
+            defaultInterfaceFontSizeChanged)
     Q_PROPERTY(int minimumInterfaceFontSize READ minimumInterfaceSize CONSTANT)
     Q_PROPERTY(int maximumInterfaceFontSize READ maximumInterfaceSize CONSTANT)
     Q_PROPERTY(int minimumPageFontSize READ minimumPageSize CONSTANT)
@@ -81,6 +85,10 @@ public:
     // The active theme's size, which is what the interface takes without an
     // override and what reset returns to.
     void setThemeFontSize(int size);
+    // The factor the desktop enlarges type by, which the theme's size is
+    // multiplied by while no override stands.
+    void setDesktopTextScaling(double factor);
+    int defaultInterfaceFontSize() const;
     // Every step is one pixel of base size; the kit derives the scale from it.
     Q_INVOKABLE void setInterfaceFontSize(int size);
     Q_INVOKABLE void increaseInterfaceFontSize();
@@ -107,6 +115,7 @@ signals:
     // that, and says so through themeFontSizeChanged alone.
     void interfaceFontSizeChanged();
     void themeFontSizeChanged();
+    void defaultInterfaceFontSizeChanged();
     void pageFontsChanged();
 
 private:
@@ -123,6 +132,7 @@ private:
     SettingsFile m_settings;
     QStringList m_installedFamilies;
     int m_themeFontSize = 12;
+    double m_desktopTextScaling = 1.0;
     std::optional<int> m_interfaceFontSize;
     PageFonts m_engineFonts;
     // The reader's page fonts as stored: empty and zero where nothing is set.

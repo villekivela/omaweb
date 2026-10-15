@@ -369,21 +369,32 @@ reports the gap and remains experimental rather than imitating behavior it canno
   peek, a Space, a tab, the Omnibar, sheets and panels arrive settled, the Space notice appears and
   goes where it stands, the page loading indicator holds still, a busy Agent mark is held dim
   instead of pulsing, and a button or a toggle changes state without a fade or a slide.
-- The size Omaweb's own type is drawn at is the theme's until the reader sets it. Settings'
-  interface section steps it up and down a pixel at a time within a supported range and resets it,
-  the change reaches every Omaweb surface at once, Private windows included, and it survives a
-  restart. Reset removes the override, so a theme switch changes the size only while no override
-  stands. A page and its zoom are not changed by it. The control names its value, its default and
-  its actions to accessibility tools.
+- The size Omaweb's own type is drawn at is the theme's times the Desktop text scaling until the
+  reader sets it, rounded to a whole pixel and held within the supported range. Settings' interface
+  section steps it up and down a pixel at a time within that range and resets it, the change reaches
+  every Omaweb surface at once, Private windows included, and it survives a restart. Reset removes
+  the override, so a theme switch or a change of the desktop's text scaling changes the size only
+  while no override stands. A page and its zoom are not changed by it. The control names its value,
+  its default and its actions to accessibility tools.
+- Every page is drawn at the Page scale times its tab's zoom. The Page scale is the Desktop text
+  scaling, read from the desktop's settings portal and followed while Omaweb runs, until the reader
+  sets one; where no portal answers it is 100%. Settings' interface section has a Page scale control
+  in a pages group above the page fonts, from 50% to 200% in steps of 10%. While unset it shows the
+  desktop's value, which may fall between steps ("136%, from the desktop"), and the first step lands
+  on one; reset follows the desktop again. The value is kept as `page-scale` in `settings.json`,
+  absent while it follows the desktop, and an edit of the file applies at once. It reaches every
+  Space and Private window, Tab windows, Glances, Auxiliary windows, extension popups, and frozen or
+  retained pages when they are shown again, without a reload. The Start page and Scenes are Omaweb's
+  own surfaces and follow the interface font size instead.
 - A page's fonts are the engine's own until the reader names one. The same section's page fonts
   group offers a standard family, a fixed-width family, a default size and a minimum size, each
   showing the engine's own value while unset and returning to it on reset. Families are chosen from
   the fonts the host has, the fixed-width slot offers the interface's own family beside them, and a
   chosen family the host has since lost reads as the engine's again. A page that names no family is
-  drawn in the chosen one; a page that names a size under the minimum is drawn at the minimum, and a
-  tab's zoom multiplies that. The values apply to every Space and Private window, reach open pages
-  without a reload, and survive a restart. A page's own declarations are never overridden. The
-  controls name their value, their default and their actions to accessibility tools.
+  drawn in the chosen one; a page that names a size under the minimum is drawn at the minimum, and
+  the Page scale and a tab's zoom multiply that. The values apply to every Space and Private window,
+  reach open pages without a reload, and survive a restart. A page's own declarations are never
+  overridden. The controls name their value, their default and their actions to accessibility tools.
 - The sidebar's width belongs to the reader. The seam between it and the page drags, and
   `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least
@@ -551,9 +562,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
 
 - Find belongs to one tab. Hiding the find interface retains its query and current match for that
   tab; navigation clears the matches and keeps the query ready to run again.
-- Zoom belongs to one tab and supports increase, decrease, and reset. Normal reload respects cache,
-  apart from the first reload after a Content blocking rule change. Reload bypassing cache does not,
-  and Stop loading ends the current load without clearing page state.
+- Zoom belongs to one tab and supports increase, decrease, and reset. It enlarges the page over the
+  Page scale: 100% is the page at the Page scale, and reset returns there. The engine draws a page
+  between 25% and 500%, so zoom stops at the last step whose product with the Page scale fits, and a
+  tab whose zoom no longer fits after the scale changes is drawn at the limit and keeps its zoom.
+  The zoom notice names the tab's zoom ("Zoom 110%"), and `omaweb tabs` reports a tab's zoom and the
+  Page scale as separate values. Normal reload respects cache, apart from the first reload after a
+  Content blocking rule change. Reload bypassing cache does not, and Stop loading ends the current
+  load without clearing page state.
 - Browser fullscreen and site-requested fullscreen are separate. Site-requested fullscreen begins
   with a visible origin notice and always exits with `Escape`.
 - Printing uses the native print dialog and includes the operating system's PDF destination. Where

@@ -23,6 +23,11 @@ Item {
     // this host the page verbs to answer. Null in a Private window, which no
     // Agent reaches.
     property var agentControl: null
+    // The size every page here is drawn at beneath its tab's zoom, the
+    // `PageScale` the browser keeps (ADR 0067). Without one, pages are drawn
+    // at their zoom alone.
+    property var pageScale: null
+    readonly property real pageScaleValue: root.pageScale ? root.pageScale.value : 1
     property bool pageFocusAllowed: true
     property var hintTheme: ({})
     // The palette the engine draws its inspector in, so a docked inspector is
@@ -756,6 +761,10 @@ Item {
         if (held)
             root.releaseWhenReady(engine, host, tabUrl);
         root.giveScrollbar(engine);
+        if (engine)
+            untiedZoomComponent.createObject(engine, {
+                                                 "engine": engine
+                                             });
         return engine;
     }
 
@@ -838,6 +847,44 @@ Item {
                                     * pageBar.pageRange);
 
             }
+        }
+    }
+
+    // The factor an engine is handed for a page at `zoom`: the Page scale
+    // times the zoom, held within what the engine draws. A zoom the scale
+    // pushes past that is drawn at the limit and stays the tab's. A binding
+    // that calls this follows the Page scale.
+    function drawnZoom(zoom) {
+        const product = root.pageScaleValue * zoom;
+        if (!root.pageScale)
+            return product;
+        return Math.max(root.pageScale.minimumDrawn, Math.min(root.pageScale.maximumDrawn,
+                                                              product));
+
+    }
+
+    // A page that answers for no tab, a Glance's or an extension's popup, is
+    // drawn at the Page scale and follows it. Once a tab takes the engine,
+    // the tab's zoom is what it is drawn at, and whoever shows the tab says
+    // so; this leaves it alone from then on.
+    Component {
+        id: untiedZoomComponent
+
+        Connections {
+            required property var engine
+
+            function apply() {
+                for (const tabId in root.engines)
+                    if (root.engines[tabId] === engine)
+                        return;
+                engine.setZoomFactor(root.drawnZoom(1));
+            }
+
+            target: root
+            function onPageScaleValueChanged() {
+                apply();
+            }
+            Component.onCompleted: apply()
         }
     }
 
@@ -1007,7 +1054,7 @@ Item {
         if (!engine)
             return null;
         engine.audioMuted = entry.muted === true;
-        engine.setZoomFactor(entry.zoom !== undefined ? entry.zoom : 1.0);
+        engine.setZoomFactor(root.drawnZoom(entry.zoom !== undefined ? entry.zoom : 1.0));
         return engine;
     }
 
@@ -1299,7 +1346,7 @@ Item {
         if (!engine)
             return null;
         engine.audioMuted = tab.muted === true;
-        engine.setZoomFactor(tab.zoom !== undefined ? tab.zoom : 1.0);
+        engine.setZoomFactor(root.drawnZoom(tab.zoom !== undefined ? tab.zoom : 1.0));
         root.setEngineVisible(tabId, false);
         return engine;
     }
@@ -1434,10 +1481,12 @@ Item {
             // on that origin at once, so a gesture in one page answers for the
             // next tab showing the same site.
             required property bool tabSoundSuppressed
-            // How large this tab's page is drawn. The core owns it and keeps it
-            // in the session; the engine is told it whenever it changes and
-            // whenever a new engine takes the tab over.
+            // How large this tab's page is drawn over the Page scale. The core
+            // owns it and keeps it in the session; the engine is told the
+            // size the two come to whenever either changes and whenever a new
+            // engine takes the tab over.
             required property real tabZoom
+            readonly property real drawnZoom: root.drawnZoom(tabSlot.tabZoom)
             // Whether the reader marked this Pinned tab Keep active. The
             // freezing rule reads the core rather than this, but the setting
             // has to be watched from here: taking it away is the moment a tab
@@ -1549,7 +1598,7 @@ Item {
                 const kept = root.engines[tabId];
                 engine = kept || root.createEngine(tabId, tabSlot.tabUrl);
                 if (engine) {
-                    engine.setZoomFactor(tabSlot.tabZoom);
+                    engine.setZoomFactor(tabSlot.drawnZoom);
                     tabSlot.applySoundPolicy();
                 }
                 // A page that went on while no row answered for it says where
@@ -1589,8 +1638,8 @@ Item {
             onTabKeepActiveChanged: root.applyPageLifecycle(tabId)
             onTabMutedChanged: tabSlot.applySoundPolicy()
             onTabSoundSuppressedChanged: tabSlot.applySoundPolicy()
-            onTabZoomChanged: if (engine)
-                                  engine.setZoomFactor(tabSlot.tabZoom)
+            onDrawnZoomChanged: if (engine)
+                                    engine.setZoomFactor(tabSlot.drawnZoom)
 
             onTabUrlChanged: {
                 // A tab that has lost its address has lost its page, and the

@@ -44,6 +44,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Site information  | Sivuston tiedot       | The card from the address. Its labels are in sentence case, as the English ones are.            |
 | Put away          | Siirtää sivuun        | What Omaweb does with an unused tab. The list is "sivuun siirretyt".                            |
 | Tab window        | Välilehti-ikkuna      | A window of one tab. Popping out is "irrottaa ikkunaan", putting back "palauttaa".              |
+| Page scale        | Sivujen skaalaus      | The size every page is drawn at before a tab's zoom ("zoomaus").                                |
 
 Add a row when a batch has to translate a new Omaweb term.
 

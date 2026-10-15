@@ -393,7 +393,7 @@ public:
     // A Tab window's own commands, for its tab in any Space: the zoom ladder
     // the main window steps along, and the inspector, attached to it as to the
     // tab on show. Refused for a tab no Tab window shows.
-    Q_INVOKABLE void stepTabZoom(const QString &tabId, int direction);
+    Q_INVOKABLE void stepTabZoom(const QString &tabId, int direction, double pageScale = 1.0);
     Q_INVOKABLE void resetTabZoom(const QString &tabId);
     Q_INVOKABLE void toggleTabDeveloperTools(const QString &tabId);
     // What the Omnibar would open for this input, as an address to load in a
@@ -421,7 +421,9 @@ public:
     // Zoom moves along a fixed ladder rather than by a percentage, so every
     // step lands on a size the reader has seen before and the ends are bounded.
     Q_INVOKABLE void setTabZoom(const QString &tabId, double zoom);
-    Q_INVOKABLE void stepActiveZoom(int direction);
+    // A step stops where the Page scale times the zoom would leave what the
+    // engine draws (ADR 0067).
+    Q_INVOKABLE void stepActiveZoom(int direction, double pageScale = 1.0);
     Q_INVOKABLE void resetActiveZoom();
     Q_INVOKABLE void reportTabRendererFailure(const QString &tabId, const QString &reason);
     Q_INVOKABLE void recoverActiveTab();
@@ -910,7 +912,7 @@ private:
     // that Space no longer holds, however they left it: closed, moved, put
     // away or taken by sync.
     TabJumpList &settledTabJumpList();
-    static double steppedZoom(double zoom, int direction);
+    static double steppedZoom(double zoom, int direction, double pageScale);
     static bool isBlank(const QUrl &url);
     // A page a Tab window can show: not blank, and not the browser's own Agent
     // activity, which no engine draws.

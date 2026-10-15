@@ -74,7 +74,7 @@ QtObject {
                 continue;
             root.host.setEngineVisible(kept.tabId, false);
             engine.audioMuted = kept.muted === true;
-            engine.setZoomFactor(kept.zoom !== undefined ? kept.zoom : 1.0);
+            engine.setZoomFactor(root.host.drawnZoom(kept.zoom !== undefined ? kept.zoom : 1.0));
             root.tabs[kept.tabId] = kept.spaceId;
         }
         for (const tabId in root.tabs) {

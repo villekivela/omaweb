@@ -258,6 +258,7 @@ ApplicationWindow {
     // apart from their context properties for the same reason again.
     readonly property var readerFonts: fontSettings
     readonly property var readerSidebarOpacity: sidebarOpacity
+    readonly property var readerPageScale: pageScale
     readonly property var enginePageFonts: pageFonts
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
     // so opening it on one page does not open it over the next — and a tab that
@@ -1172,7 +1173,9 @@ ApplicationWindow {
         // drawn for. Chromium's own maximum is 800 by 600; a password
         // manager's is narrower than that and lays out badly when it is given
         // a page's worth of room.
-        glance.preferredSize = Qt.size(400, 600);
+        // Those are the popup's own pixels, which the Page scale enlarges.
+        const scale = engineLoader.drawnZoom(1);
+        glance.preferredSize = Qt.size(400 * scale, 600 * scale);
         glance.origin = origin && origin.width > 0 ? glance.mapFromItem(null, origin) : Qt.rect(0, 0,
                                                                                                 0, 0);
         window.glanceIsExtension = true;
@@ -1736,7 +1739,7 @@ ApplicationWindow {
             window.reportUnavailable(qsTr("Zoom"));
             return;
         }
-        window.windowBrowser.stepActiveZoom(direction);
+        window.windowBrowser.stepActiveZoom(direction, engineLoader.pageScaleValue);
         window.showZoomNotice();
     }
 
@@ -1749,10 +1752,12 @@ ApplicationWindow {
         window.showZoomNotice();
     }
 
+    // The tab's zoom, which is the reader's to step, and not the size the
+    // page comes to over the Page scale.
     function showZoomNotice() {
-        window.showNotice("zoom_in", qsTr("Page zoom %1%").arg(Math.round(
-                                                                   window.windowBrowser.activeTabZoom
-                                                                   * 100)), qsTr("this tab only"));
+        window.showNotice("zoom_in", qsTr("Zoom %1%").arg(Math.round(
+                                                              window.windowBrowser.activeTabZoom
+                                                              * 100)), qsTr("this tab only"));
     }
 
     // A PDF is drawn inside the engine's own sandbox where there is one, and
@@ -3540,7 +3545,7 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
-                    scale: glance.pageScale
+                    scale: glance.beneathScale
                     // A tab further down the list arrives from below, one
                     // further up from above, and a pin further along the row
                     // from the right, by less than a row: the arriving page
@@ -3562,6 +3567,7 @@ ApplicationWindow {
                     focus: true
                     browserController: window.windowBrowser
                     agentControl: window.agentControlSource
+                    pageScale: window.readerPageScale
                     engineSource: engineViewSource
                     spaceProfiles: spaceProfiles
                     profilePath: window.profilePathOverride.length > 0 ? window.profilePathOverride :
@@ -4566,6 +4572,7 @@ ApplicationWindow {
                             engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                             fontSettings: window.readerFonts
                             sidebarOpacity: window.readerSidebarOpacity
+                            pageScale: window.readerPageScale
                             browserTheme: window.readerBrowserTheme
                             settingsFile: window.readerSettings
                             pageFonts: window.enginePageFonts
@@ -4964,6 +4971,7 @@ ApplicationWindow {
             property var tabWindow: null
             engineSource: engineViewSource
             colors: window.colors
+            drawnZoom: engineLoader.drawnZoom(1)
             permissionController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker

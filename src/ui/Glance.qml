@@ -57,7 +57,7 @@ FocusScope {
     // How far the page beneath stands back while the Glance is over it, for
     // whoever draws that page to scale it by: it stays in sight, behind, as
     // the page the Glance came from, and comes forward again as it closes.
-    readonly property real pageScale: visible ? 1 - 0.04 * arrival * (1 - keep) : 1
+    readonly property real beneathScale: visible ? 1 - 0.04 * arrival * (1 - keep) : 1
 
     signal closed
     signal openAsTabRequested
