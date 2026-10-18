@@ -777,10 +777,10 @@ add_library(omaweb-platform STATIC
     src/platform/SystemMotion.h
     src/platform/SystemNotifier.cpp
     src/platform/SystemNotifier.h
-    src/platform/WindowAppId.cpp
-    src/platform/WindowAppId.h
     src/platform/WindowActivation.cpp
     src/platform/WindowActivation.h
+    src/platform/WindowAppId.cpp
+    src/platform/WindowAppId.h
     src/platform/WindowChrome.h
     src/platform/WindowExposure.cpp
     src/platform/WindowExposure.h

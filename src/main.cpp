@@ -636,10 +636,10 @@ int main(int argc, char *argv[])
     auto *mainWindow = engine.rootObjects().isEmpty()
         ? nullptr
         : qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
-    if (auto *window = mainWindow) {
-        extensionWindows.setMainWindow(window);
+    if (mainWindow) {
+        extensionWindows.setMainWindow(mainWindow);
         QObject::connect(
-            window, &QQuickWindow::frameSwapped, window,
+            mainWindow, &QQuickWindow::frameSwapped, mainWindow,
             [] { omaweb::markStartupPhase("first-frame"); }, Qt::SingleShotConnection);
     }
 
@@ -656,8 +656,8 @@ int main(int argc, char *argv[])
     // open rather than as a browser of its own.
     QObject::connect(&runningBrowser, &omaweb::RunningBrowser::openRequested, &browser,
         [&browser](const QUrl &url) { browser.openInput(url.toString(), true); });
-    // The reader opened it from another app, or started Omaweb again, and is
-    // looking for the browser rather than at the app still in front of it.
+    // The reader opened a link from another app, or started Omaweb again, and
+    // is looking for the browser rather than at the app still in front of it.
     if (mainWindow) {
         QObject::connect(&runningBrowser, &omaweb::RunningBrowser::activationRequested, mainWindow,
             [mainWindow](const QString &activationToken) {

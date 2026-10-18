@@ -22,6 +22,9 @@ namespace {
 const auto kBusName = QStringLiteral("dev.omaweb.browser");
 const auto kObjectPath = QStringLiteral("/dev/omaweb/browser");
 const auto kInterface = QStringLiteral("org.freedesktop.Application");
+const auto kActivationToken = QStringLiteral("activation-token");
+// The connection the stand-in for the running browser holds the name on.
+const auto kRunningConnection = QStringLiteral("running-browser");
 
 // What a launch handed over, as the browser already running received it.
 struct HandedOver {
@@ -96,10 +99,7 @@ void sendAsLauncher(const QString &method, const QVariantList &arguments)
     launcher.asyncCall(message);
 }
 
-QVariantMap withToken(const QString &token)
-{
-    return {{QStringLiteral("activation-token"), token}};
-}
+QVariantMap withToken(const QString &token) { return {{kActivationToken, token}}; }
 
 } // namespace
 
@@ -115,6 +115,7 @@ private slots:
     void comesForwardWithTheTokenALinkArrivesWith();
     void comesForwardWithTheTokenALaunchWithoutAnAddressArrivesWith();
     void asksForTheWindowBehindAnotherApp();
+    void spendsTheTokenOnOneActivation();
 
 private:
     // The running browser holds the name on a connection of its own, on a
@@ -126,8 +127,7 @@ private:
 
 void RunningBrowserTest::initTestCase()
 {
-    auto bus = QDBusConnection::connectToBus(
-        QDBusConnection::SessionBus, QStringLiteral("running-browser"));
+    auto bus = QDBusConnection::connectToBus(QDBusConnection::SessionBus, kRunningConnection);
     QVERIFY(bus.isConnected());
     m_running = new RecordingBrowser;
     new RecordingAdaptor(m_running);
@@ -139,7 +139,7 @@ void RunningBrowserTest::initTestCase()
 
 void RunningBrowserTest::cleanupTestCase()
 {
-    QDBusConnection::disconnectFromBus(QStringLiteral("running-browser"));
+    QDBusConnection::disconnectFromBus(kRunningConnection);
     // Deleted on its own thread, as it finishes.
     m_running->deleteLater();
     m_runningThread.quit();
@@ -152,7 +152,7 @@ void RunningBrowserTest::cleanup()
     qunsetenv("XDG_ACTIVATION_TOKEN");
     // A test that let the browser hold the name has destroyed it by now, and
     // the stand-in takes the name back for the next.
-    QVERIFY(QDBusConnection(QStringLiteral("running-browser")).registerService(kBusName));
+    QVERIFY(QDBusConnection(kRunningConnection).registerService(kBusName));
 }
 
 // A terminal or a launcher that hands the browser an address gives the new
@@ -171,7 +171,7 @@ void RunningBrowserTest::handsOverTheLaunchersActivationToken()
     QVERIFY(received.has_value());
     QCOMPARE(received->method, QStringLiteral("Open"));
     QCOMPARE(received->uris, QStringList {QStringLiteral("https://example.org/")});
-    QCOMPARE(received->platformData.value(QStringLiteral("activation-token")).toString(),
+    QCOMPARE(received->platformData.value(kActivationToken).toString(),
         QStringLiteral("token-from-the-launcher"));
 }
 
@@ -186,7 +186,7 @@ void RunningBrowserTest::asksForTheBrowserWithTheLaunchersActivationToken()
     const auto received = m_running->received();
     QVERIFY(received.has_value());
     QCOMPARE(received->method, QStringLiteral("Activate"));
-    QCOMPARE(received->platformData.value(QStringLiteral("activation-token")).toString(),
+    QCOMPARE(received->platformData.value(kActivationToken).toString(),
         QStringLiteral("token-from-the-launcher"));
 }
 
@@ -194,7 +194,7 @@ void RunningBrowserTest::asksForTheBrowserWithTheLaunchersActivationToken()
 // launcher's token is what it comes forward with.
 void RunningBrowserTest::comesForwardWithTheTokenALinkArrivesWith()
 {
-    auto running = QDBusConnection(QStringLiteral("running-browser"));
+    auto running = QDBusConnection(kRunningConnection);
     QVERIFY(running.unregisterService(kBusName));
     RunningBrowser browser;
     QVERIFY(browser.isPrimary());
@@ -214,7 +214,7 @@ void RunningBrowserTest::comesForwardWithTheTokenALinkArrivesWith()
 
 void RunningBrowserTest::comesForwardWithTheTokenALaunchWithoutAnAddressArrivesWith()
 {
-    auto running = QDBusConnection(QStringLiteral("running-browser"));
+    auto running = QDBusConnection(kRunningConnection);
     QVERIFY(running.unregisterService(kBusName));
     RunningBrowser browser;
     QVERIFY(browser.isPrimary());
@@ -244,6 +244,19 @@ void RunningBrowserTest::asksForTheWindowBehindAnotherApp()
     omaweb::bringForward(&browser, QStringLiteral("token-from-the-launcher"));
 
     QTRY_COMPARE(QGuiApplication::focusWindow(), &browser);
+}
+
+// A token is good for one activation. One left where Qt looks for it would be
+// offered again for a later request it was never issued for.
+void RunningBrowserTest::spendsTheTokenOnOneActivation()
+{
+    QWindow browser;
+    browser.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&browser));
+
+    omaweb::bringForward(&browser, QStringLiteral("token-from-the-launcher"));
+
+    QVERIFY(!qEnvironmentVariableIsSet("XDG_ACTIVATION_TOKEN"));
 }
 
 QTEST_MAIN(RunningBrowserTest)
