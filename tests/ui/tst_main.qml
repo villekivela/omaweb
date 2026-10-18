@@ -9880,6 +9880,137 @@ TestCase {
         verify(browser.deleteSpace(workSpaceId, "History Work"));
     }
 
+    // Stepping onto a row shows it in the field, as Chrome does: a History
+    // entry by its address. Stepping back above the first row, or one Escape,
+    // puts back the typed text with the caret where it was, and the list
+    // stands as it was throughout.
+    function test_steppingOntoAnAddressRowShowsItsAddressInTheField() {
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://shown-start.example/");
+        const pageTabId = browser.activeTabId;
+        browser.recordVisit("https://shown.example/docs", "Shown docs");
+        window.openOmnibar(true);
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        try {
+            input.forceActiveFocus();
+            input.text = "shown";
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "history").length === 1;
+            });
+            input.cursorPosition = 2;
+            const listed = panel.rows;
+            let dismissals = 0;
+            panel.dismissed.connect(function () {
+                ++dismissals;
+            });
+            const asked = [];
+            panel.queryChanged.connect(function (text) {
+                asked.push(text);
+            });
+
+            keyClick(Qt.Key_Down);
+            compare(panel.selected, 0);
+            compare(input.text, "https://shown.example/docs");
+            compare(panel.rows, listed);
+            compare(asked, []);
+
+            keyClick(Qt.Key_Up);
+            compare(panel.selected, -1);
+            compare(input.text, "shown");
+            compare(input.cursorPosition, 2);
+            compare(panel.rows, listed);
+
+            keyClick(Qt.Key_Down);
+            compare(input.text, "https://shown.example/docs");
+            keyClick(Qt.Key_Escape);
+            compare(input.text, "shown");
+            compare(input.cursorPosition, 2);
+            compare(panel.selected, -1);
+            compare(dismissals, 0);
+            keyClick(Qt.Key_Escape);
+            compare(dismissals, 1);
+        } finally {
+            window.closeOmnibar();
+            browser.deleteHistoryOrigin("https://shown.example/docs");
+            browser.closeTab(pageTabId);
+            browser.activateTab(startTabId);
+        }
+    }
+
+    // A search suggestion shows its words, not an address, and editing the
+    // shown text carries on from it: the list follows the edited text.
+    function test_steppingOntoASearchSuggestionShowsItsWords() {
+        useStubSuggestions('["goo", ["google maps", "google"]]');
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        try {
+            window.openOmnibar(false);
+            input.forceActiveFocus();
+            input.text = "goo";
+            tryVerify(function () {
+                return omnibarRowsOf(panel, "suggestion").length === 2;
+            });
+            const first = panel.rows.indexOf(omnibarRowsOf(panel, "suggestion")[0]);
+            panel.selected = first - 1;
+            keyClick(Qt.Key_Down);
+            compare(panel.selected, first);
+            compare(input.text, "google maps");
+
+            keyClick(Qt.Key_Down);
+            compare(input.text, "google");
+            keyClick(Qt.Key_Up);
+            compare(input.text, "google maps");
+
+            const asked = suggestServer.requestCount();
+            keyClick(Qt.Key_X);
+            compare(input.text, "google mapsx");
+            compare(panel.intent.terms, "google mapsx");
+            tryVerify(function () {
+                return suggestServer.requestCount() === asked + 1;
+            });
+            compare(suggestServer.lastTarget(), "/suggest?q=google%20mapsx");
+        } finally {
+            window.closeOmnibar();
+            stopStubSuggestions();
+        }
+    }
+
+    // A command or a Space shows its name.
+    function test_steppingOntoACommandShowsItsName() {
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://shown-command.example/");
+        const pageTabId = browser.activeTabId;
+        window.openOmnibar(false);
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        try {
+            let dismissals = 0;
+            panel.dismissed.connect(function () {
+                ++dismissals;
+            });
+            input.forceActiveFocus();
+            input.text = ":";
+            tryVerify(function () {
+                return panel.commandScope && panel.rows.length > 1;
+            });
+            keyClick(Qt.Key_Down);
+            compare(panel.selected, 1);
+            compare(input.text, panel.rows[1].title);
+            compare(panel.commandScope, true);
+            keyClick(Qt.Key_Escape);
+            compare(input.text, "");
+            compare(panel.commandScope, true);
+            compare(dismissals, 0);
+            keyClick(Qt.Key_Escape);
+            compare(dismissals, 1);
+        } finally {
+            window.closeOmnibar();
+            browser.closeTab(pageTabId);
+            browser.activateTab(startTabId);
+        }
+    }
+
     // Suggestions arrive from the search thread, so the rows on show are the
     // answer to the last thing typed rather than to whichever search finished
     // last, and closing the Omnibar leaves nothing to arrive.
