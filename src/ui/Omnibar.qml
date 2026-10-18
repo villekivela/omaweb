@@ -103,6 +103,12 @@ Item {
     // command scope that is the commands alone.
     property var rows: []
     property int selected: 0
+    // A row's text stands in the field in place of what the reader typed,
+    // which `typedText` and `typedCaret` keep for putting back.
+    property bool filled: false
+    property bool fillingField: false
+    property string typedText: ""
+    property int typedCaret: 0
     // The open tabs' icons by host, read with the destinations.
     property var siteIcons: ({})
     // The tabs, Spaces and commands that hold the text, strongest first, as
@@ -261,6 +267,7 @@ Item {
     function clearField() {
         readDestinations();
         engine = null;
+        filled = false;
         input.text = commandScope ? "" : presetText;
         refresh();
     }
@@ -377,6 +384,7 @@ Item {
     }
 
     function rank() {
+        putBackTyped();
         if (commandScope) {
             rows = commands.search(input.text).map(asCommand);
             selected = 0;
@@ -441,6 +449,8 @@ Item {
     // The rows on show: the answers and the text's own ranking together, then
     // the engine's proposals.
     function list() {
+        // A new list is the text's again, so a row shown gives the field back.
+        putBackTyped();
         if (listsNothing()) {
             rows = [];
             selected = -1;
@@ -708,10 +718,63 @@ Item {
             return;
         if (commandScope) {
             selected = (selected + delta + rows.length) % rows.length;
+        } else {
+            const next = selected + delta;
+            selected = next < -1 ? rows.length - 1 : (next >= rows.length ? -1 : next);
+        }
+        showSelected();
+    }
+
+    // What the field holds while a row is selected, or null where the row
+    // leaves the typed text in place: a search suggestion's words, a page's
+    // address, a command's or a Space's name.
+    function fieldTextFor(row) {
+        if (row.kind === "suggestion" || row.kind === "command" || row.kind === "space")
+            return row.title;
+        return namesAPage(row.kind) ? row.url : null;
+    }
+
+    // Stepping fills the field with the selected row, as the arrows do in
+    // Chrome. Filling is not typing: the field's change handler skips it, so
+    // the list is neither asked nor ranked again.
+    function showSelected() {
+        const shown = selected >= 0 && selected < rows.length ? fieldTextFor(rows[selected]) : null;
+        if (shown === null) {
+            putBackTyped();
             return;
         }
-        const next = selected + delta;
-        selected = next < -1 ? rows.length - 1 : (next >= rows.length ? -1 : next);
+        if (!filled) {
+            typedText = input.text;
+            typedCaret = input.cursorPosition;
+            filled = true;
+        }
+        setFieldText(shown);
+    }
+
+    // Filling the field is not typing, so its change handler skips it.
+    function setFieldText(text) {
+        fillingField = true;
+        input.text = text;
+        fillingField = false;
+    }
+
+    // The typed text and its caret back in the field, as the reader left
+    // them, and no row selected: the list itself stands.
+    function restoreTyped() {
+        if (!filled)
+            return;
+        putBackTyped();
+        selected = commandScope ? 0 : -1;
+    }
+
+    // The text only, for stepping onto a row that leaves it in place and for
+    // a new list or ranking that is about to answer it.
+    function putBackTyped() {
+        if (!filled)
+            return;
+        filled = false;
+        setFieldText(typedText);
+        input.cursorPosition = typedCaret;
     }
 
     function accept() {
@@ -981,6 +1044,10 @@ Item {
                 Accessible.description: root.destination
 
                 onTextChanged: {
+                    if (root.fillingField)
+                        return;
+                    // Editing a shown row carries on from its text.
+                    root.filled = false;
                     // Handing the `:` to the prompt or the keyword to the chip
                     // sets the text again, and that pass is the one that
                     // refreshes.
@@ -1012,7 +1079,10 @@ Item {
                 }
 
                 Keys.onEscapePressed: function (event) {
-                    root.dismissed();
+                    if (root.filled)
+                        root.restoreTyped();
+                    else
+                        root.dismissed();
                     event.accepted = true;
                 }
             }
