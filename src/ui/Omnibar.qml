@@ -1016,7 +1016,7 @@ Item {
                 id: input
                 objectName: "omnibarInput"
                 anchors.left: chip.right
-                anchors.right: modeLabel.left
+                anchors.right: modeMark.visible ? modeMark.left : modeLabel.left
                 anchors.leftMargin: chip.visible ? 8 : 0
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter

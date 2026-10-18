@@ -10686,6 +10686,8 @@ TestCase {
         verify(mark.visible);
         compare(mark.width, 10);
         compare(mark.height, 10);
+        // Typed text runs out before the square, not under it.
+        verify(input.mapToItem(null, input.width, 0).x <= mark.mapToItem(null, 0, 0).x);
         verify(Qt.colorEqual(mark.color, panel.spaceColourOf(opened.alphaSpaceId,
                                                              panel.rows[panel.selected].spaceColor)));
         compare(String(mode.color), String(window.colors.mutedText));
