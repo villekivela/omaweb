@@ -10681,7 +10681,6 @@ TestCase {
         compare(panel.selected, -1);
         compare(mode.text, "This Tab");
         verify(!mark.visible);
-        // Arrowing to it names the Space, in the Space's colour.
         panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
         compare(mode.text, "Switch to Alpha");
         verify(mark.visible);
@@ -10691,7 +10690,15 @@ TestCase {
                                                              panel.rows[panel.selected].spaceColor)));
         compare(String(mode.color), String(window.colors.mutedText));
         compare(mode.font.pixelSize, Style.font.body);
-        window.closeOmnibar();
+        // Return on the typed text stays in the Space on show.
+        let committed = null;
+        panel.committed.connect(function (text) {
+            committed = text;
+        });
+        panel.selected = -1;
+        panel.accept();
+        compare(committed, "plans");
+        compare(browser.activeSpaceId, opened.homeSpaceId);
 
         closeTabsInOtherSpaces(opened);
     }
@@ -10718,7 +10725,7 @@ TestCase {
         window.openOmnibar(false);
         input.text = "orbit";
         select("tab", 0);
-        compare(panel.rows[panel.selected].spaceId === undefined, true);
+        verify(!panel.rows[panel.selected].spaceId);
         compare(mode.text, "Switch to Tab");
         verify(!mark.visible);
 
@@ -10742,7 +10749,6 @@ TestCase {
 
         window.openOmnibar(false);
         input.text = "orbit";
-        compare(omnibarRowsOf(panel, "history").length >= 0, true);
         panel.rows = [
                     {
                         "kind": "history",

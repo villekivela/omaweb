@@ -731,10 +731,13 @@ Item {
         return namesAPage(row.kind) ? row.url : null;
     }
 
+    readonly property var selectedRow: selected >= 0 && selected < rows.length ? rows[selected] :
+                                                                                 null
+
     // The Space the selected row switches to, as its id, name and colour,
     // or null where Return stays in the Space on show.
     readonly property var modeSpace: {
-        const row = selected >= 0 && selected < rows.length ? rows[selected] : null;
+        const row = selectedRow;
         if (row === null || commandScope && row.kind !== "command")
             return null;
         if (row.kind === "tab" && row.spaceId)
@@ -754,7 +757,7 @@ Item {
     // selected row. Typed text with no row selected opens in this tab, or in
     // a new one for a new-tab Omnibar.
     readonly property string modeText: {
-        const row = selected >= 0 && selected < rows.length ? rows[selected] : null;
+        const row = selectedRow;
         if (row !== null && modeSpace !== null)
             return qsTr("Switch to %1").arg(switchName.elidedText);
         if (row !== null && row.kind === "tab")
@@ -1163,15 +1166,16 @@ Item {
                 font.pixelSize: Style.font.body
             }
 
-            // The Space a switch goes to, in its colour, before the words.
             Rectangle {
+                id: modeMark
+                readonly property int modeMarkSize: 10
                 objectName: "omnibarModeMark"
                 anchors.right: modeLabel.left
                 anchors.rightMargin: Style.spacing.sm
                 y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
                 visible: root.modeSpace !== null
-                width: 10
-                height: 10
+                width: modeMarkSize
+                height: modeMarkSize
                 radius: 2
                 color: root.modeSpace !== null ? root.spaceColourOf(root.modeSpace.id,
                                                                     root.modeSpace.colour) :
@@ -1190,8 +1194,8 @@ Item {
                 id: switchName
                 font: modeLabel.font
                 elide: Text.ElideRight
-                elideWidth: Math.max(0, header.width / 3 - switchPrefix.advanceWidth - 10
-                                     - Style.spacing.sm)
+                elideWidth: Math.max(0, header.width / 3 - switchPrefix.advanceWidth
+                                     - modeMark.width - Style.spacing.sm)
                 text: root.modeSpace !== null ? root.modeSpace.name : ""
             }
 
