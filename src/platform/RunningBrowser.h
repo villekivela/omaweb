@@ -37,8 +37,10 @@ public:
 signals:
     // Another launch handed this process an address to open.
     void openRequested(const QUrl &url);
-    // Another launch asked for the browser without naming an address.
-    void activationRequested();
+    // Another launch asked for the browser to come forward, after any address
+    // it handed over. The token is the one the compositor gave that launch to
+    // come forward with, and is empty when it had none.
+    void activationRequested(const QString &activationToken);
 
 private:
     bool m_primary = true;

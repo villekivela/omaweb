@@ -70,6 +70,7 @@
 #include "SyncLauncher.h"
 #include "ThemeController.h"
 #include "Translations.h"
+#include "WindowActivation.h"
 #include "WindowAppId.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
@@ -632,9 +633,10 @@ int main(int argc, char *argv[])
     omaweb::markStartupPhase("qml-load-started");
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
     omaweb::markStartupPhase("qml-loaded");
-    if (auto *window = engine.rootObjects().isEmpty()
-            ? nullptr
-            : qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst())) {
+    auto *mainWindow = engine.rootObjects().isEmpty()
+        ? nullptr
+        : qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+    if (auto *window = mainWindow) {
         extensionWindows.setMainWindow(window);
         QObject::connect(
             window, &QQuickWindow::frameSwapped, window,
@@ -654,6 +656,14 @@ int main(int argc, char *argv[])
     // open rather than as a browser of its own.
     QObject::connect(&runningBrowser, &omaweb::RunningBrowser::openRequested, &browser,
         [&browser](const QUrl &url) { browser.openInput(url.toString(), true); });
+    // The reader opened it from another app, or started Omaweb again, and is
+    // looking for the browser rather than at the app still in front of it.
+    if (mainWindow) {
+        QObject::connect(&runningBrowser, &omaweb::RunningBrowser::activationRequested, mainWindow,
+            [mainWindow](const QString &activationToken) {
+                omaweb::bringForward(mainWindow, activationToken);
+            });
+    }
 
     if (arguments.contains(QStringLiteral("--validate-qml"))) {
         if (engine.rootObjects().isEmpty()) {

@@ -779,6 +779,8 @@ add_library(omaweb-platform STATIC
     src/platform/SystemNotifier.h
     src/platform/WindowAppId.cpp
     src/platform/WindowAppId.h
+    src/platform/WindowActivation.cpp
+    src/platform/WindowActivation.h
     src/platform/WindowChrome.h
     src/platform/WindowExposure.cpp
     src/platform/WindowExposure.h
@@ -1941,6 +1943,23 @@ if(BUILD_TESTING)
             COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-media-announcer-tests>
         )
         set_tests_properties(omaweb-media-announcer PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+
+        # A later launch reaches the running browser over the session bus, so
+        # the test holds the browser's name on a private bus and reads what
+        # the launch sends it, and sends what a launcher would.
+        qt_add_executable(omaweb-running-browser-tests tests/platform/tst_runningbrowser.cpp)
+        target_link_libraries(omaweb-running-browser-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-running-browser-tests)
+        add_test(NAME omaweb-running-browser
+            COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-running-browser-tests>
+        )
+        set_tests_properties(omaweb-running-browser PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
 

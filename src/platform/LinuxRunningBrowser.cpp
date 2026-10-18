@@ -21,6 +21,8 @@ namespace {
     const auto kBusName = QStringLiteral("dev.omaweb.browser");
     const auto kObjectPath = QStringLiteral("/dev/omaweb/browser");
     const auto kInterface = QStringLiteral("org.freedesktop.Application");
+    // Where the freedesktop interface carries a Wayland activation token.
+    const auto kActivationToken = QStringLiteral("activation-token");
 
     // A local call to a process that is already running. Long enough to survive
     // a browser busy with a page, short enough that a wedged one does not leave
@@ -45,13 +47,11 @@ namespace {
     public slots:
         void Activate(const QVariantMap &platformData)
         {
-            Q_UNUSED(platformData)
-            emit m_browser->activationRequested();
+            emit m_browser->activationRequested(activationToken(platformData));
         }
 
         void Open(const QStringList &uris, const QVariantMap &platformData)
         {
-            Q_UNUSED(platformData)
             for (const auto &uri : uris) {
                 // Whatever arrives here came from outside the browser, so it is
                 // read exactly as strictly as a command line is.
@@ -60,6 +60,9 @@ namespace {
                     emit m_browser->openRequested(url);
                 }
             }
+            // The link was opened from another app, which is the one on show,
+            // and the reader wants to see the page.
+            emit m_browser->activationRequested(activationToken(platformData));
         }
 
         void ActivateAction(
@@ -67,13 +70,17 @@ namespace {
         {
             Q_UNUSED(name)
             Q_UNUSED(parameter)
-            Q_UNUSED(platformData)
             // Omaweb's desktop entry declares no actions, so anything named here
             // is a caller guessing. Coming forward is the harmless reading.
-            emit m_browser->activationRequested();
+            emit m_browser->activationRequested(activationToken(platformData));
         }
 
     private:
+        static QString activationToken(const QVariantMap &platformData)
+        {
+            return platformData.value(kActivationToken).toString();
+        }
+
         RunningBrowser *m_browser;
     };
 
@@ -129,7 +136,15 @@ bool RunningBrowser::handOver(const QUrl &url)
     if (url.isValid()) {
         message << QStringList {url.toString()};
     }
-    message << QVariantMap {};
+    // The compositor gives the process it starts a token to come forward
+    // with, and this process exits once it has handed over. The token goes to
+    // the browser that will be on show, or the window stays behind the app the
+    // link came from.
+    QVariantMap platformData;
+    if (const auto token = qEnvironmentVariable("XDG_ACTIVATION_TOKEN"); !token.isEmpty()) {
+        platformData.insert(kActivationToken, token);
+    }
+    message << platformData;
 
     const auto reply = bus.call(message, QDBus::Block, kCallTimeoutMs);
     return reply.type() == QDBusMessage::ReplyMessage;
