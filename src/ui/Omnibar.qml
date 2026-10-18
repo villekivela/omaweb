@@ -728,7 +728,7 @@ Item {
     // What the field holds while a row is selected, or null where the row
     // leaves the typed text in place: a search suggestion's words, a page's
     // address, a command's or a Space's name.
-    function shownBy(row) {
+    function fieldTextFor(row) {
         if (row.kind === "suggestion" || row.kind === "command" || row.kind === "space")
             return row.title;
         return namesAPage(row.kind) ? row.url : null;
@@ -738,9 +738,9 @@ Item {
     // Chrome. Filling is not typing: the field's change handler skips it, so
     // the list is neither asked nor ranked again.
     function showSelected() {
-        const shown = selected >= 0 && selected < rows.length ? shownBy(rows[selected]) : null;
+        const shown = selected >= 0 && selected < rows.length ? fieldTextFor(rows[selected]) : null;
         if (shown === null) {
-            restoreTyped();
+            putBackTyped();
             return;
         }
         if (!filled) {
@@ -748,31 +748,33 @@ Item {
             typedCaret = input.cursorPosition;
             filled = true;
         }
+        setFieldText(shown);
+    }
+
+    // Filling the field is not typing, so its change handler skips it.
+    function setFieldText(text) {
         fillingField = true;
-        input.text = shown;
+        input.text = text;
         fillingField = false;
     }
 
     // The typed text and its caret back in the field, as the reader left
-    // them, with the selection where the text puts it.
+    // them, and no row selected: the list itself stands.
     function restoreTyped() {
         if (!filled)
             return;
         putBackTyped();
-        if (commandScope)
-            selected = 0;
-        else
-            list();
+        selected = commandScope ? 0 : -1;
     }
 
+    // The text only, for stepping onto a row that leaves it in place and for
+    // a new list or ranking that is about to answer it.
     function putBackTyped() {
         if (!filled)
             return;
         filled = false;
-        fillingField = true;
-        input.text = typedText;
+        setFieldText(typedText);
         input.cursorPosition = typedCaret;
-        fillingField = false;
     }
 
     function accept() {
