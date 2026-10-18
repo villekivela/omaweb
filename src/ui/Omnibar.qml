@@ -478,13 +478,10 @@ Item {
         // The typed text is the selection, except where it starts an open
         // tab's title or host: the reader is naming that tab, and Return goes
         // to it rather than opening it a second time. Another Space's tab is
-        // named only where no tab of the Space on show holds the text.
-        let named = widened() && all.length > 0 && all[0].row.kind === "tab" && all[0].strength
-            === 3 ? all[0].row : null;
-        if (named !== null && named.spaceId && all.some(function (entry) {
-            return entry.row.kind === "tab" && !entry.row.spaceId;
-        }))
-            named = null;
+        // never named: Return opens the text in the Space on show, and arrowing
+        // to that tab switches there.
+        const named = widened() && all.length > 0 && all[0].row.kind === "tab" && all[0].strength
+              === 3 && !all[0].row.spaceId ? all[0].row : null;
         keepSpaceOnShowTabsFirst(all);
         const next = [];
         let listedCommands = 0;
@@ -732,6 +729,45 @@ Item {
         if (row.kind === "suggestion" || row.kind === "command" || row.kind === "space")
             return row.title;
         return namesAPage(row.kind) ? row.url : null;
+    }
+
+    // The Space the selected row switches to, as its id, name and colour,
+    // or null where Return stays in the Space on show.
+    readonly property var modeSpace: {
+        const row = selected >= 0 && selected < rows.length ? rows[selected] : null;
+        if (row === null || commandScope && row.kind !== "command")
+            return null;
+        if (row.kind === "tab" && row.spaceId)
+            return {
+                "id": row.spaceId,
+                "name": row.spaceName,
+                "colour": row.spaceColor
+            };
+        return row.kind === "space" ? {
+                                          "id": row.argument,
+                                          "name": row.title,
+                                          "colour": row.color
+                                      } : null;
+    }
+
+    // What Return does, for the field's right-hand label, following the
+    // selected row. Typed text with no row selected opens in this tab, or in
+    // a new one for a new-tab Omnibar.
+    readonly property string modeText: {
+        const row = selected >= 0 && selected < rows.length ? rows[selected] : null;
+        if (row !== null && modeSpace !== null)
+            return qsTr("Switch to %1").arg(switchName.elidedText);
+        if (row !== null && row.kind === "tab")
+            return qsTr("Switch to Tab");
+        if (row !== null && row.kind === "command")
+            return qsTr("Run");
+        if (row !== null && row.kind === "suggestion")
+            return qsTr("Search");
+        if (row !== null && namesAPage(row.kind))
+            return qsTr("Open");
+        if (commandScope)
+            return qsTr("Command");
+        return newTabIntent ? qsTr("New Tab") : qsTr("This Tab");
     }
 
     // Stepping fills the field with the selected row, as the arrows do in
@@ -1121,11 +1157,42 @@ Item {
                 anchors.right: goMark.left
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.commandScope ? qsTr("Command") : (root.newTabIntent ? qsTr("New Tab") :
-                                                                                 qsTr("This Tab"))
+                text: root.modeText
                 color: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
+            }
+
+            // The Space a switch goes to, in its colour, before the words.
+            Rectangle {
+                objectName: "omnibarModeMark"
+                anchors.right: modeLabel.left
+                anchors.rightMargin: Style.spacing.sm
+                y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
+                visible: root.modeSpace !== null
+                width: 10
+                height: 10
+                radius: 2
+                color: root.modeSpace !== null ? root.spaceColourOf(root.modeSpace.id,
+                                                                    root.modeSpace.colour) :
+                                                 "transparent"
+            }
+
+            // The name is cut to what is left of a third of the field once
+            // "Switch to" and the square are whole.
+            TextMetrics {
+                id: switchPrefix
+                font: modeLabel.font
+                text: qsTr("Switch to %1").arg("")
+            }
+
+            TextMetrics {
+                id: switchName
+                font: modeLabel.font
+                elide: Text.ElideRight
+                elideWidth: Math.max(0, header.width / 3 - switchPrefix.advanceWidth - 10
+                                     - Style.spacing.sm)
+                text: root.modeSpace !== null ? root.modeSpace.name : ""
             }
 
             Rectangle {

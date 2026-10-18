@@ -10631,12 +10631,12 @@ TestCase {
         compare(omnibarRowsOf(panel, "tab").map(function (row) {
             return row.argument;
         }), [opened.alphaTabId, opened.betaTabId]);
-        verify(panel.selected >= 0);
-        compare(panel.rows[panel.selected].argument, opened.betaTabId);
+        compare(panel.selected, -1);
 
         input.text = "orbit b";
         compare(omnibarRowsOf(panel, "tab").length, 1);
-        verify(panel.selected >= 0);
+        compare(panel.selected, -1);
+        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
         compare(panel.rows[panel.selected].argument, opened.betaTabId);
         panel.accept();
         tryCompare(window, "omnibarShown", false);
@@ -10661,6 +10661,109 @@ TestCase {
             return row.argument;
         }), [opened.localTabId, opened.betaTabId]);
 
+        closeTabsInOtherSpaces(opened);
+    }
+
+    // Text that starts only another Space's tab opens in the Space on show,
+    // in the way the Omnibar was opened: Return never leaves the Space unasked.
+    function test_omnibarOpensATypedSiteHereWhenAnotherSpaceHoldsIt() {
+        const opened = openTabsInOtherSpaces();
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const mode = findChild(window.contentItem, "omnibarMode");
+        const mark = findChild(window.contentItem, "omnibarModeMark");
+
+        window.openOmnibar(false);
+        input.text = "plans";
+        compare(omnibarRowsOf(panel, "tab").map(function (row) {
+            return row.argument;
+        }), [opened.alphaTabId]);
+        compare(panel.selected, -1);
+        compare(mode.text, "This Tab");
+        verify(!mark.visible);
+        // Arrowing to it names the Space, in the Space's colour.
+        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
+        compare(mode.text, "Switch to Alpha");
+        verify(mark.visible);
+        compare(mark.width, 10);
+        compare(mark.height, 10);
+        verify(Qt.colorEqual(mark.color, panel.spaceColourOf(opened.alphaSpaceId,
+                                                             panel.rows[panel.selected].spaceColor)));
+        compare(String(mode.color), String(window.colors.mutedText));
+        compare(mode.font.pixelSize, Style.font.body);
+        window.closeOmnibar();
+
+        closeTabsInOtherSpaces(opened);
+    }
+
+    // The label names what Return does for the selected row, and a Space's
+    // name is cut so the typed text keeps its room.
+    function test_theFieldsLabelFollowsTheSelectedRow() {
+        const opened = openTabsInOtherSpaces();
+        const longId = browser.createSpace("A very long Space name that would crowd the field");
+        verify(browser.switchSpace(longId));
+        openPage("https://wide.example/orbit");
+        browser.reportTabPageState(browser.activeTabId, "https://wide.example/orbit", "Wide orbit",
+                                   "", false, false);
+        verify(browser.switchSpace(opened.homeSpaceId));
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const mode = findChild(window.contentItem, "omnibarMode");
+        const mark = findChild(window.contentItem, "omnibarModeMark");
+        const field = findChild(window.contentItem, "omnibarField");
+        const select = function (kind, index) {
+            panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, kind)[index || 0]);
+        };
+
+        window.openOmnibar(false);
+        input.text = "orbit";
+        select("tab", 0);
+        compare(panel.rows[panel.selected].spaceId === undefined, true);
+        compare(mode.text, "Switch to Tab");
+        verify(!mark.visible);
+
+        input.text = "wide";
+        select("tab", 0);
+        verify(mode.text.indexOf("Switch to ") === 0);
+        verify(mode.text.indexOf("…") > 0);
+        verify(mode.text.length
+               < "Switch to A very long Space name that would crowd the field".length);
+        verify(mode.width + mark.width <= field.width / 3 + 1);
+        window.closeOmnibar();
+
+        window.openCommandScope();
+        tryCompare(panel, "arrival", 1);
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        panel.selected = 0;
+        compare(mode.text, "Run");
+        window.closeOmnibar();
+
+        window.openOmnibar(false);
+        input.text = "orbit";
+        compare(omnibarRowsOf(panel, "history").length >= 0, true);
+        panel.rows = [
+                    {
+                        "kind": "history",
+                        "title": "Somewhere",
+                        "url": "https://somewhere.example/"
+                    },
+                    {
+                        "kind": "suggestion",
+                        "engineId": "x",
+                        "title": "orbit insertion"
+                    }
+                ];
+        panel.selected = 0;
+        compare(mode.text, "Open");
+        panel.selected = 1;
+        compare(mode.text, "Search");
+        panel.selected = -1;
+        compare(mode.text, "This Tab");
+        window.closeOmnibar();
+
+        verify(browser.deleteSpace(longId, "A very long Space name that would crowd the field"));
         closeTabsInOtherSpaces(opened);
     }
 
@@ -12836,7 +12939,10 @@ TestCase {
 
         window.openCommandScope();
         tryCompare(panel, "arrival", 1);
-        compare(mode.text, "Command");
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        compare(mode.text, "Run");
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
 

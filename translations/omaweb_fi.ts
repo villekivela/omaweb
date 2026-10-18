@@ -2028,6 +2028,10 @@
         <translation>Avaa %1</translation>
     </message>
     <message>
+        <source>Switch to %1</source>
+        <translation>Vaihda Tilaan %1</translation>
+    </message>
+    <message>
         <source>search every action</source>
         <translation>hae kaikista toiminnoista</translation>
     </message>
