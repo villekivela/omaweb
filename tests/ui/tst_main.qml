@@ -9430,6 +9430,9 @@ TestCase {
         verify(!find("audio").visible);
         verify(find("siteTile").visible);
         compare(find("glanceKeep").width, 24);
+        // The tile is the sidebar's own ground, so it shows on the row on show's
+        // wash in a light theme too.
+        compare(String(find("glanceKeep").color), String(window.colors.sidebarOpaque));
         compare(find("glanceKeep").parent, find("tabPointer"));
 
         keyClick(Qt.Key_Escape);
@@ -9457,6 +9460,7 @@ TestCase {
             return keep !== null && keep.visible;
         });
         compare(keep.width, 18);
+        compare(String(keep.color), String(window.colors.sidebarOpaque));
         const corner = keep.mapToItem(row, keep.width, 0);
         verify(corner.x > row.width - 4 && corner.x <= row.width + 4);
         verify(corner.y < 4);

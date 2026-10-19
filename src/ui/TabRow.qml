@@ -611,10 +611,10 @@ Item {
         }
 
         // The Glance's keep button, where the row's hover buttons go while it
-        // stands. A flat tile in the theme's button fill as Zen's is, and it
-        // fades and scales in and out over the row's own short duration. On a
-        // pin it is a smaller tile over the corner, ringed in the panel's
-        // colour to stand apart from the pin.
+        // stands. A flat tile in the sidebar's own ground, so it shows on the
+        // row on show's wash, and it fades and scales in and out over the row's
+        // own short duration. On a pin it is a smaller tile over the corner,
+        // ringed in the panel's colour to stand apart from the pin.
         Omarchy.BorderSurface {
             id: glanceKeep
             objectName: "glanceKeep-" + root.tabId
@@ -640,8 +640,7 @@ Item {
             opacity: shown
             scale: 0.8 + 0.2 * shown
             radius: Style.cornerRadius
-            color: hot ? Style.hoverFillFor(root.colors.text, root.colors.accent) : Style.normalFillFor(
-                             root.colors.text, root.colors.accent)
+            color: root.colors.sidebarOpaque
             borderSpec: root.pinned ? Border.flat(root.colors.windowOpaque, 1) : Border.none()
             Accessible.role: Accessible.Button
             Accessible.name: root.glanceName
@@ -653,6 +652,14 @@ Item {
                     duration: 110
                     easing.type: Easing.OutCubic
                 }
+            }
+
+            // The row buttons' own wash, over the ground.
+            Rectangle {
+                anchors.fill: parent
+                radius: glanceKeep.radius
+                visible: glanceKeep.hot
+                color: Style.hoverFillFor(root.colors.mutedText, root.colors.accent)
             }
 
             SiteTile {
