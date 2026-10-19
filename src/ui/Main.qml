@@ -403,6 +403,15 @@ ApplicationWindow {
     // A popup is a control, so it is not kept as a tab.
     property bool glanceIsExtension: false
     readonly property bool glanceOpen: glanceEngine !== null
+    // What the outline draws of a Glance on the tab it stands over. An
+    // extension's popup is not a page to keep, so it has no button.
+    readonly property var glanceRow: glanceEngine !== null && !glanceIsExtension ? ({
+                                                                                        "tabId": glanceTabId,
+                                                                                        "iconUrl":
+                                                                                        glanceEngine.pageIconUrl,
+                                                                                        "url": glanceEngine.currentUrl,
+                                                                                        "title": glanceEngine.pageTitle
+                                                                                    }) : null
     // What the reader pointed at on the page, and the menu Omaweb draws for it.
     property var pageContext: null
     property var pageContextEngine: null
@@ -3363,6 +3372,8 @@ ApplicationWindow {
                 keyMap: keymap
                 keyLabelsShown: PrimaryHold.held && !window.settingsOpen
                 agentActivity: window.agentTabActivity
+                glance: window.glanceRow
+                onGlanceKeepRequested: window.openGlanceAsTab()
                 agentSpaceIds: window.agentSpaceIds
                 spaceColours: window.spaceColours
                 privateWindow: window.privateWindow

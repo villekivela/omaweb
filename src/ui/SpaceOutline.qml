@@ -18,6 +18,11 @@ Rectangle {
     property var colors
     property string iconFontFamily
     property var browser
+    // The Glance standing over a tab of this Space, or null: its `tabId`, and
+    // the page's `iconUrl`, `url` and `title`. It is the window's, and the
+    // outline only says which row it stands over (ADR 0041).
+    property var glance: null
+    signal glanceKeepRequested
     // The window's keymap, for the labels Primary shows, and whether it is
     // being held for them.
     property var keyMap: null
@@ -1183,6 +1188,8 @@ Rectangle {
                     keyLabel: root.tabLabel(tabId)
                     keyLabelShown: root.keyLabelsShown
                     agent: root.agentOf(tabId)
+                    glance: root.glance !== null && root.glance.tabId === tabId ? root.glance : null
+                    onGlanceKeepRequested: root.glanceKeepRequested()
                     onActivated: function (id) {
                         root.tabActivated(id);
                     }
@@ -1283,6 +1290,10 @@ Rectangle {
                         keyLabel: root.tabLabel(tabId)
                         keyLabelShown: root.keyLabelsShown
                         agent: root.agentOf(tabId)
+                        glance: root.glance !== null && root.glance.tabId === tabId ? root.glance :
+                                                                                      null
+
+                        onGlanceKeepRequested: root.glanceKeepRequested()
                         arrivalWash: tabId === root.washTabId ? root.washLevel : 0
                         onActivated: function (id) {
                             root.tabActivated(id);

@@ -9319,6 +9319,130 @@ TestCase {
         browser.closeTab(keptTabId);
     }
 
+    // A Glance is not a row, but the outline says one stands over the tab on
+    // show: a button at the end of that row, named for the page, that keeps it.
+    function test_anOpenGlanceShowsAKeepButtonOnItsTabsRow() {
+        openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        const keep = function () {
+            return findChild(window.contentItem, "glanceKeep-" + openerTabId);
+        };
+        verify(keep() === null || !keep().visible);
+
+        openGlance("https://kept.example/page");
+        window.glanceEngine.pageTitle = "Kept page";
+        window.glanceEngine.pageIconUrl = "https://kept.example/favicon.ico";
+        tryVerify(function () {
+            return keep() !== null && keep().visible;
+        });
+        compare(keep().Accessible.name, 'Keep "Kept page" as a tab');
+        compare(browser.tabs.rowCount(), tabCount);
+
+        mouseClick(keep(), keep().width / 2, keep().height / 2);
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabCount + 1;
+        });
+        compare(browser.activeUrl.toString(), "https://kept.example/page");
+        tryVerify(function () {
+            return !keep().visible;
+        });
+        browser.closeTab(browser.activeTabId);
+    }
+
+    // The button fades and scales in as the Glance opens and fades out as it
+    // ends; with reduced motion it simply is there and is gone.
+    function test_theGlanceButtonEasesInAndOutUnlessMotionIsReduced() {
+        openPage("https://opener.example");
+        const tabId = browser.activeTabId;
+        const keep = findChild(window.contentItem, "glanceKeep-" + tabId);
+        verify(keep !== null);
+        try {
+            const arrival = watchChanges(keep, "opacity");
+            openGlance("https://kept.example/page");
+            verify(passedBetween(arrival, 0, 1));
+            tryCompare(keep, "opacity", 1);
+            compare(keep.scale, 1);
+            const departure = watchChanges(keep, "opacity");
+            keyClick(Qt.Key_Escape);
+            verify(passedBetween(departure, 1, 0));
+
+            SystemMotion.reduced = true;
+            const still = watchChanges(keep, "opacity");
+            openGlance("https://kept.example/page");
+            tryCompare(keep, "opacity", 1);
+            verify(!still.seen.some(function (at) {
+                return at > 0 && at < 1;
+            }));
+            stopWatching(still);
+            keyClick(Qt.Key_Escape);
+            tryCompare(keep, "opacity", 0);
+        } finally {
+            SystemMotion.reduced = false;
+            browser.closeTab(tabId);
+        }
+    }
+
+    // The button takes the place of the row's hover buttons, the speaker and
+    // the close button, and they come back when the Glance ends.
+    function test_aGlanceButtonTakesThePlaceOfTheRowsHoverButtons() {
+        const opener = openPage("https://opener.example");
+        const tabId = browser.activeTabId;
+        opener.simulateAudible(true);
+        const find = function (name) {
+            return findChild(window.contentItem, name + "-" + tabId);
+        };
+        tryVerify(function () {
+            return find("audio") !== null && find("audio").visible;
+        });
+        verify(find("close").visible);
+        verify(find("siteTile") === null || !find("siteTile").visible);
+
+        openGlance("https://kept.example/page");
+        tryVerify(function () {
+            return find("glanceKeep").visible;
+        });
+        verify(!find("close").visible);
+        verify(!find("audio").visible);
+        verify(find("siteTile").visible);
+        compare(find("glanceKeep").width, 24);
+        compare(find("glanceKeep").parent, find("tabPointer"));
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !find("glanceKeep").visible;
+        });
+        verify(find("close").visible);
+        verify(find("audio").visible);
+        opener.simulateAudible(false);
+        browser.closeTab(tabId);
+    }
+
+    // A pin is a tile of its own, so the button is a smaller one over its
+    // corner rather than a row's end.
+    function test_aGlanceOverAPinnedTabIsASmallerTileOnItsCorner() {
+        openPage("https://pinned.example");
+        const tabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        const row = findChild(window.contentItem, "pinned-" + tabId);
+        verify(row !== null);
+
+        openGlance("https://kept.example/page");
+        const keep = findChild(row, "glanceKeep-" + tabId);
+        tryVerify(function () {
+            return keep !== null && keep.visible;
+        });
+        compare(keep.width, 18);
+        const corner = keep.mapToItem(row, keep.width, 0);
+        verify(corner.x > row.width - 4 && corner.x <= row.width + 4);
+        verify(corner.y < 4);
+        compare(keep.Accessible.name, 'Keep "https://kept.example/page" as a tab');
+
+        keyClick(Qt.Key_Escape);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
+    }
+
     // With motion off, keeping a Glance is a cut (#704): in one frame the
     // panel is gone, the page beneath has stepped forward again, and the
     // Glance's page is the tab on show, listed right after the tab it came

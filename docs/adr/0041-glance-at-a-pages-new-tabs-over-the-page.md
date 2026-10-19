@@ -56,3 +56,16 @@ listed nowhere, saved nowhere and synced nowhere, and every rule about tabs, ret
 restore, reopen, would have to say what it means for one; the outline would still change shape when
 the active tab did. Rejected too: promoting by reloading the address in a new tab. It is simpler,
 and it loses what the reader did in the Glance, which is the one thing they asked to keep.
+
+## Amendment: the outline shows a Glance on its tab's row (#747)
+
+The outline is told that a Glance stands over the tab on show, and only that. The tab's row draws a
+keep button at its end, with the Glance page's favicon (or the two-letter stand-in), named for the
+page: `Keep "<title>" as a tab`. It takes the place of the row's hover buttons while the Glance
+stands, and ends with it. A pin gets a smaller tile over its top-right corner. Pressing it is the
+`glance-to-tab` command.
+
+This adds no row and no tab: the core still does not list, save or sync a Glance. The information
+stays window-side. The window passes the outline the tab it stands over and what the row draws, the
+favicon, the address and the title for the accessible name, and the row reports the press back. No
+Glance state enters the core.

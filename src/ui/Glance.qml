@@ -7,8 +7,9 @@ import "DevicePixels.mjs" as DevicePixels
 // looks end in closing: a tab for each would leave the outline holding pages
 // that were never meant to stay. So the page is drawn here, over the page it
 // came from, in the panel grammar every question about the browser arrives in,
-// and the outline is not told. Keeping it is one command, which makes it an
-// ordinary tab, page and all.
+// and the outline gets no row for it, only a keep button on the row of the tab
+// it stands over (ADR 0041, #747). Keeping it is one command, which makes it
+// an ordinary tab, page and all.
 //
 // The window owns the engine and its life; this is where it is drawn while it
 // is a Glance. The chrome goes on answering for the tab beneath: the address,

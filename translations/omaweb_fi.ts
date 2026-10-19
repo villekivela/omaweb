@@ -4641,6 +4641,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
 <context>
     <name>TabRow</name>
     <message>
+        <source>Keep &quot;%1&quot; as a tab</source>
+        <translation>Säilytä &quot;%1&quot; välilehtenä</translation>
+    </message>
+    <message>
         <source>%1 is driving this tab. It stays rendered while attached.</source>
         <translation>%1 ohjaa tätä välilehteä. Se pysyy piirrettynä, kun yhteys on päällä.</translation>
     </message>

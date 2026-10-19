@@ -42,6 +42,19 @@ Item {
     // still the Space's tab and listed here, and the row says where it is.
     required property bool poppedOut
     readonly property bool inSplit: splitPartnerId.length > 0
+    // A Glance standing over this tab, as the window reports it, or null. It is
+    // not a tab and has no row: the row only says one stands over it, with the
+    // page's icon, address and title, and offers to keep it (ADR 0041).
+    property var glance: null
+    readonly property bool showsGlance: glance !== null
+    onGlanceChanged: if (glance)
+                         glanceKeep.last = glance
+    readonly property string glanceName: showsGlance ? qsTr("Keep \"%1\" as a tab").arg(String(
+                                                                                            glance.title).length
+                                                                                        > 0 ? String(
+                                                                                                  glance.title) :
+                                                                                              String(glance.url)) :
+                                                       ""
     // Whether this row is a split's right half. The list sets it, since it
     // knows where it laid the row out.
     property bool trailingHalf: false
@@ -113,7 +126,7 @@ Item {
     // A tab that is making sound says so, and a muted one keeps saying it:
     // the speaker is the only place the sound can be given back, so it stays
     // on the row for as long as the reader's decision does.
-    readonly property bool showsAudio: tabAudible || tabMuted
+    readonly property bool showsAudio: (tabAudible || tabMuted) && !showsGlance
     readonly property bool silenced: tabMuted || tabSoundSuppressed
 
     // Keep active is a pin's setting alone, and the core gives it up when a tab
@@ -137,6 +150,7 @@ Item {
 
     signal activated(string tabId)
     signal closeRequested(string tabId)
+    signal glanceKeepRequested(string tabId)
     signal muteToggled(string tabId)
     // A drag of this row, reported in scene coordinates. Where the pointer is
     // and where that lands belong to the list: a row knows how tall it is and
@@ -368,7 +382,7 @@ Item {
     // pin carries it in the corner the speaker leaves free.
     Text {
         objectName: "tabWindowMark-" + root.tabId
-        visible: root.poppedOut && (root.pinned || !hoverArea.containsMouse)
+        visible: root.poppedOut && (root.pinned || (!hoverArea.containsMouse && !root.showsGlance))
         anchors.right: parent.right
         anchors.rightMargin: root.pinned ? 4 : DevicePixels.snap(root.endGap + (closeButton.width
                                                                                 - width) / 2,
@@ -410,7 +424,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: 28
         height: 28
-        visible: root.showsAgent
+        visible: root.showsAgent && !root.showsGlance
 
         AgentMark {
             objectName: "agentMark-" + root.tabId
@@ -425,7 +439,7 @@ Item {
         // row's: the whole row answers the pointer for it.
         Omarchy.PanelToolTip {
             objectName: "agentNote-" + root.tabId
-            visible: root.showsAgent && hoverArea.containsMouse && !root.lifted
+            visible: root.showsAgent && !root.showsGlance && hoverArea.containsMouse && !root.lifted
             text: root.agentNote
             fontFamily: Style.font.family
         }
@@ -533,7 +547,9 @@ Item {
             root.reachedByPointer = true;
             root.forceActiveFocus();
             const overClose = !root.pinned && closeButton.covers(mouse.x);
-            if (audioButton.covers(mouse.x, mouse.y)) {
+            if (glanceKeep.covers(mouse.x, mouse.y)) {
+                root.glanceKeepRequested(root.tabId);
+            } else if (audioButton.covers(mouse.x, mouse.y)) {
                 root.muteToggled(root.tabId);
             } else if (overClose) {
                 root.closeRequested(root.tabId);
@@ -590,6 +606,71 @@ Item {
             }
         }
 
+        // The Glance's keep button, where the row's hover buttons go while it
+        // stands. A flat tile in the theme's button fill as Zen's is, and it
+        // fades and scales in and out over the row's own short duration. On a
+        // pin it is a smaller tile over the corner, ringed in the panel's
+        // colour to stand apart from the pin.
+        Omarchy.BorderSurface {
+            id: glanceKeep
+            objectName: "glanceKeep-" + root.tabId
+            property real shown: root.showsGlance ? 1 : 0
+            // Kept while the Glance ends so the tile can leave.
+            property var last: null
+            function covers(x, y) {
+                return glanceKeep.visible && root.showsGlance && x >= glanceKeep.x && x
+                        < glanceKeep.x + glanceKeep.width && y >= glanceKeep.y && y < glanceKeep.y
+                        + glanceKeep.height;
+            }
+            readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX,
+                                                                          hoverArea.mouseY)
+            readonly property int side: root.pinned ? 18 : 24
+            anchors.right: parent.right
+            anchors.rightMargin: root.pinned ? -4 : root.endGap
+            anchors.top: root.pinned ? parent.top : undefined
+            anchors.topMargin: -4
+            anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
+            width: side
+            height: side
+            visible: opacity > 0
+            opacity: shown
+            scale: 0.8 + 0.2 * shown
+            radius: Style.cornerRadius
+            color: hot ? Style.hoverFillFor(root.colors.text, root.colors.accent) : Style.normalFillFor(
+                             root.colors.text, root.colors.accent)
+            borderSpec: root.pinned ? Border.flat(root.colors.windowOpaque, 1) : Border.none()
+            Accessible.role: Accessible.Button
+            Accessible.name: root.glanceName
+            Accessible.onPressAction: root.glanceKeepRequested(root.tabId)
+
+            Behavior on shown {
+                enabled: !SystemMotion.reduced
+                NumberAnimation {
+                    duration: 110
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            SiteTile {
+                objectName: "glanceTile-" + root.tabId
+                anchors.centerIn: parent
+                implicitWidth: showsArtwork ? root.chipSize : glanceKeep.side
+                implicitHeight: implicitWidth
+                colors: root.colors
+                siteUrl: glanceKeep.last ? glanceKeep.last.url : ""
+                iconUrl: glanceKeep.last ? glanceKeep.last.iconUrl : ""
+                useArtwork: root.useFavicons
+                tintArtwork: root.tintFavicons
+            }
+
+            Omarchy.PanelToolTip {
+                objectName: "glanceKeepTip-" + root.tabId
+                visible: glanceKeep.hot && !root.lifted
+                text: root.glanceName
+                fontFamily: Style.font.family
+            }
+        }
+
         Omarchy.BorderSurface {
             id: closeButton
             objectName: "close-" + root.tabId
@@ -597,7 +678,8 @@ Item {
             // The row reaches past the button to the sidebar's edge, and a press
             // out there opens the row rather than closing it.
             function covers(x) {
-                return x >= closeButton.x && x < closeButton.x + closeButton.width;
+                return closeButton.visible && x >= closeButton.x && x < closeButton.x
+                        + closeButton.width;
             }
             readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX)
             property color foreground: hoverArea.containsMouse ? root.colors.mutedText :
@@ -607,7 +689,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: 28
             height: 28
-            visible: !root.pinned
+            visible: !root.pinned && !root.showsGlance
             radius: Style.cornerRadius
             color: hot ? Style.hoverFillFor(root.colors.mutedText, root.colors.accent) :
                          "transparent"
