@@ -156,6 +156,10 @@ Rectangle {
         return SpaceColour.drawn(root.colors, name, root.spaceColours);
     }
 
+    function glanceOf(tabId) {
+        return root.glance !== null && root.glance.tabId === tabId ? root.glance : null;
+    }
+
     function agentOf(tabId) {
         return root.agentActivity[tabId] || null;
     }
@@ -1188,7 +1192,7 @@ Rectangle {
                     keyLabel: root.tabLabel(tabId)
                     keyLabelShown: root.keyLabelsShown
                     agent: root.agentOf(tabId)
-                    glance: root.glance !== null && root.glance.tabId === tabId ? root.glance : null
+                    glance: root.glanceOf(tabId)
                     onGlanceKeepRequested: root.glanceKeepRequested()
                     onActivated: function (id) {
                         root.tabActivated(id);
@@ -1290,9 +1294,7 @@ Rectangle {
                         keyLabel: root.tabLabel(tabId)
                         keyLabelShown: root.keyLabelsShown
                         agent: root.agentOf(tabId)
-                        glance: root.glance !== null && root.glance.tabId === tabId ? root.glance :
-                                                                                      null
-
+                        glance: root.glanceOf(tabId)
                         onGlanceKeepRequested: root.glanceKeepRequested()
                         arrivalWash: tabId === root.washTabId ? root.washLevel : 0
                         onActivated: function (id) {

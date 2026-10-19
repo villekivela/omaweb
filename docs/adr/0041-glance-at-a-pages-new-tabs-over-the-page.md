@@ -65,7 +65,7 @@ page: `Keep "<title>" as a tab`. It takes the place of the row's hover buttons w
 stands, and ends with it. A pin gets a smaller tile over its top-right corner. Pressing it is the
 `glance-to-tab` command.
 
-This adds no row and no tab: the core still does not list, save or sync a Glance. The information
-stays window-side. The window passes the outline the tab it stands over and what the row draws, the
-favicon, the address and the title for the accessible name, and the row reports the press back. No
-Glance state enters the core.
+This adds no row and no tab: the core still does not list, save or sync a Glance, and no Glance
+state enters it. The information stays window-side. The window passes the outline the tab it stands
+over and what the row draws, the favicon, the address and the title for the accessible name, and the
+row reports the press back.

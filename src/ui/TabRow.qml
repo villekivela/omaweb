@@ -48,13 +48,17 @@ Item {
     property var glance: null
     readonly property bool showsGlance: glance !== null
     onGlanceChanged: if (glance)
-                         glanceKeep.last = glance
-    readonly property string glanceName: showsGlance ? qsTr("Keep \"%1\" as a tab").arg(String(
-                                                                                            glance.title).length
-                                                                                        > 0 ? String(
-                                                                                                  glance.title) :
-                                                                                              String(glance.url)) :
-                                                       ""
+                         glanceKeep.lastGlance = glance
+    // The page's title, or its host while it has none, as the row names a tab.
+    readonly property string glanceLabel: {
+        if (!showsGlance)
+            return "";
+        const title = String(glance.title);
+        return title.length > 0 ? title : String(glance.url).replace(/^[a-z]+:\/\//, "").split(
+                                      "/")[0];
+    }
+    readonly property string glanceName: showsGlance ? qsTr("Keep \"%1\" as a tab").arg(
+                                                           glanceLabel) : ""
     // Whether this row is a split's right half. The list sets it, since it
     // knows where it laid the row out.
     property bool trailingHalf: false
@@ -616,7 +620,7 @@ Item {
             objectName: "glanceKeep-" + root.tabId
             property real shown: root.showsGlance ? 1 : 0
             // Kept while the Glance ends so the tile can leave.
-            property var last: null
+            property var lastGlance: null
             function covers(x, y) {
                 return glanceKeep.visible && root.showsGlance && x >= glanceKeep.x && x
                         < glanceKeep.x + glanceKeep.width && y >= glanceKeep.y && y < glanceKeep.y
@@ -653,12 +657,16 @@ Item {
 
             SiteTile {
                 objectName: "glanceTile-" + root.tabId
-                anchors.centerIn: parent
-                implicitWidth: showsArtwork ? root.chipSize : glanceKeep.side
+                // Artwork keeps the chip's size on a row and fits the smaller
+                // pin tile; the stand-in fills the tile.
+                implicitWidth: showsArtwork ? Math.min(root.chipSize, glanceKeep.side - 4) :
+                                              glanceKeep.side
                 implicitHeight: implicitWidth
+                x: DevicePixels.snap((parent.width - width) / 2, root.pixelRatio)
+                y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
                 colors: root.colors
-                siteUrl: glanceKeep.last ? glanceKeep.last.url : ""
-                iconUrl: glanceKeep.last ? glanceKeep.last.iconUrl : ""
+                siteUrl: glanceKeep.lastGlance ? glanceKeep.lastGlance.url : ""
+                iconUrl: glanceKeep.lastGlance ? glanceKeep.lastGlance.iconUrl : ""
                 useArtwork: root.useFavicons
                 tintArtwork: root.tintFavicons
             }

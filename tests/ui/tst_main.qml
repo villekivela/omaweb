@@ -9383,6 +9383,30 @@ TestCase {
         }
     }
 
+    // A Glance ends when the tab on show changes, and the button goes with it.
+    function test_theGlanceButtonGoesWhenTheTabOnShowChanges() {
+        openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        openPageInNewTab("https://other.example");
+        const otherTabId = browser.activeTabId;
+        browser.activateTab(openerTabId);
+        openGlance("https://kept.example/page");
+        const keep = findChild(window.contentItem, "glanceKeep-" + openerTabId);
+        tryVerify(function () {
+            return keep.visible;
+        });
+
+        browser.activateTab(otherTabId);
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        tryVerify(function () {
+            return !keep.visible;
+        });
+        browser.closeTab(otherTabId);
+        browser.closeTab(openerTabId);
+    }
+
     // The button takes the place of the row's hover buttons, the speaker and
     // the close button, and they come back when the Glance ends.
     function test_aGlanceButtonTakesThePlaceOfTheRowsHoverButtons() {
@@ -9436,7 +9460,9 @@ TestCase {
         const corner = keep.mapToItem(row, keep.width, 0);
         verify(corner.x > row.width - 4 && corner.x <= row.width + 4);
         verify(corner.y < 4);
-        compare(keep.Accessible.name, 'Keep "https://kept.example/page" as a tab');
+        // A page with no title yet is named by its host, as a row is.
+        window.glanceEngine.pageTitle = "";
+        tryCompare(keep.Accessible, "name", 'Keep "kept.example" as a tab');
 
         keyClick(Qt.Key_Escape);
         browser.toggleActivePinned();
