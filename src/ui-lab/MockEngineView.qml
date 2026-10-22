@@ -387,18 +387,6 @@ Rectangle {
         root.currentUrl = destination;
         root.redirecting = false;
     }
-    function decisionWord(decision) {
-        switch (decision) {
-        case 1:
-            return "allowed once";
-        case 2:
-            return "allowed";
-        case 3:
-            return "blocked";
-        default:
-            return "dismissed";
-        }
-    }
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
@@ -642,6 +630,19 @@ Rectangle {
         return requestId;
     }
     property var pendingPermissionAsks: ({})
+    // An answer to a permission prompt, as a Problem recording says it.
+    function decisionWord(decision) {
+        switch (decision) {
+        case 1:
+            return "allowed once";
+        case 2:
+            return "allowed";
+        case 3:
+            return "blocked";
+        default:
+            return "dismissed";
+        }
+    }
     function respondToPermission(requestId, decision) {
         root.permissionAnswers[requestId] = decision;
         const asked = root.pendingPermissionAsks[requestId];

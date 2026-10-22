@@ -1218,8 +1218,8 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
             return false;
         }
         print(stdout,
-            problemReportText(problemReportFromDisk(
-                QCoreApplication::applicationVersion(), omawebConfigRoot(), &runForProblemReport)));
+            problemReportText(problemReportFromDisk(QCoreApplication::applicationVersion(),
+                configRootFromEnvironment(), &runForProblemReport)));
         return true;
     };
     QLocalSocket socket;

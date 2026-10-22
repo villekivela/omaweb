@@ -113,7 +113,7 @@ QString dataRoot()
 // User-editable configuration lives beside every other tool's, under
 // XDG_CONFIG_HOME (~/.config/omaweb), rather than in the application data
 // directory that holds profiles, caches and blocklists.
-QString configRoot() { return omaweb::omawebConfigRoot(); }
+QString configRoot() { return omaweb::configRootFromEnvironment(); }
 
 QString readerThemePath() { return QDir(configRoot()).filePath(QStringLiteral("theme.json")); }
 

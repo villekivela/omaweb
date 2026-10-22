@@ -482,18 +482,6 @@ Item {
     // permission asked or answered, as it happens. The shell records it only
     // while a recording runs.
     signal problemEvent(string kind, url address, string detail)
-    function decisionWord(decision) {
-        switch (decision) {
-        case 1:
-            return "allowed once";
-        case 2:
-            return "allowed";
-        case 3:
-            return "blocked";
-        default:
-            return "dismissed";
-        }
-    }
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal securityKeyRequested(string requestId, var step)
@@ -860,6 +848,19 @@ Item {
         }
     }
 
+    // An answer to a permission prompt, as a Problem recording says it.
+    function decisionWord(decision) {
+        switch (decision) {
+        case 1:
+            return "allowed once";
+        case 2:
+            return "allowed";
+        case 3:
+            return "blocked";
+        default:
+            return "dismissed";
+        }
+    }
     function respondToPermission(requestId, decision) {
         const request = pendingPermissions[requestId];
         if (!request)

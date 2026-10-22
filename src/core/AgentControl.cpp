@@ -269,11 +269,11 @@ namespace {
 
     // An address as the activity log keeps it: without its query, fragment or
     // credentials, which is where a form's values and a site's tokens go.
+    // A Problem report's redaction, and no query at all: the log keeps where
+    // an Agent was, not what it asked there.
     QString activityAddress(const QUrl &url)
     {
-        return url.adjusted(QUrl::RemoveUserInfo | QUrl::RemoveQuery | QUrl::RemoveFragment)
-            .toString()
-            .left(maximumAddressLength);
+        return redactedAddress(url.adjusted(QUrl::RemoveQuery)).left(maximumAddressLength);
     }
 
     // Whether a verb is about one tab's page: a page verb, or `console`, which

@@ -2224,8 +2224,8 @@
         <translation>Ongelmaa nauhoitetaan</translation>
     </message>
     <message>
-        <source>Select to end the recording</source>
-        <translation>Lopeta nauhoitus valitsemalla</translation>
+        <source>Select to end the recording and report the problem</source>
+        <translation>Lopeta nauhoitus ja ilmoita ongelmasta valitsemalla</translation>
     </message>
 </context>
 <context>

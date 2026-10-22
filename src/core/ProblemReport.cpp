@@ -57,8 +57,8 @@ namespace {
 
 } // namespace
 
-// What the activity log keeps of an address, without user information or a
-// fragment, and the query too: its names, and the values a report needs.
+// Without user information or a fragment, and with the query's names and the
+// values a report needs.
 QString redactedAddress(const QUrl &url)
 {
     const auto bare
@@ -76,6 +76,23 @@ QString redactedAddress(const QUrl &url)
         }
     }
     return bare + u'?' + pairs.join(u'&');
+}
+
+QString redactedText(const QString &text)
+{
+    // An address runs to white space or a quote. A mark that ends a sentence
+    // is the sentence's.
+    static const QRegularExpression address(
+        QStringLiteral("\\b[a-z][a-z0-9+.-]*://[^\\s\"'<>]*[^\\s\"'<>.,;:!?)]"),
+        QRegularExpression::CaseInsensitiveOption);
+    QString redacted;
+    qsizetype from = 0;
+    for (const auto &match : address.globalMatch(text)) {
+        redacted += text.mid(from, match.capturedStart() - from);
+        redacted += redactedAddress(QUrl(match.captured()));
+        from = match.capturedEnd();
+    }
+    return redacted + text.mid(from);
 }
 
 QString problemReportText(const QList<ProblemReportSection> &sections)
@@ -177,7 +194,7 @@ QStringList systemVersionLines(const ProblemReportRun &run)
     };
 }
 
-QStringList changedSettingLines(const QString &configRoot)
+QStringList changedSettingLines(const QString &configRoot, const ProblemReportDefault &isDefault)
 {
     QFile file(QDir(configRoot).filePath(QStringLiteral("settings.json")));
     if (!file.open(QIODevice::ReadOnly)) {
@@ -197,7 +214,8 @@ QStringList changedSettingLines(const QString &configRoot)
     QStringList lines;
     const auto settings = document.object();
     for (auto it = settings.constBegin(); it != settings.constEnd(); ++it) {
-        if (it.key() == u"version" || it.key() == u"known-extensions") {
+        if (it.key() == u"version" || it.key() == u"known-extensions"
+            || (isDefault && isDefault(it.key(), *it))) {
             continue;
         }
         QString value;
@@ -274,7 +292,7 @@ QStringList lastCrashLines(const ProblemReportRun &run)
     return lines;
 }
 
-QString omawebConfigRoot()
+QString configRootFromEnvironment()
 {
     const auto override = qEnvironmentVariable("OMAWEB_CONFIG_ROOT");
     if (!override.isEmpty()) {
@@ -296,7 +314,8 @@ QList<ProblemReportSection> problemReportFromDisk(
         {.title = QStringLiteral("Last crash"), .lines = lastCrashLines(run)},
         {.title = QStringLiteral("Not running"),
             .lines = {QStringLiteral("No browser answered, so the engine's versions, what sites "
-                                     "see, Sync, extensions, Spaces and tabs are missing.")}},
+                                     "see, the tab, Sync, extensions, Spaces and tabs and any "
+                                     "Problem recording are missing.")}},
     };
 }
 

@@ -24,6 +24,7 @@ private slots:
     void endingOnItsOwnKeepsWhatItRecorded();
     void aReportTakesTheRecordingAndEndsIt();
     void keepsOmawebsOwnWarningsOnlyWhileRunning();
+    void redactsAddressesInWhatItKeeps();
     void leavesNothingOnDisk();
 };
 
@@ -185,6 +186,29 @@ void ProblemRecordingTest::leavesNothingOnDisk()
     QDirIterator written(home.path(), QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden,
         QDirIterator::Subdirectories);
     QVERIFY2(!written.hasNext(), qPrintable(written.hasNext() ? written.next() : QString()));
+}
+
+// A page's error and a warning of Omaweb's quote addresses as they were, and
+// #711's would have carried the session in `dsh`.
+void ProblemRecordingTest::redactsAddressesInWhatItKeeps()
+{
+    ProblemRecording recording;
+    recording.start();
+    recording.record(QStringLiteral("console error"), QStringLiteral("a"), {},
+        QStringLiteral("Refused https://accounts.google.com/v3/signin?dsh=S-1873462851%3A17605"
+                       "&rrk=46, try again"));
+    qWarning("could not load https://reader:secret@example.com/a?token=a1b2c3d4#top");
+
+    const auto lines = recording.take();
+
+    QCOMPARE(lines.size(), 2);
+    QVERIFY2(lines.at(0).endsWith(QStringLiteral(
+                 "console error: Refused https://accounts.google.com/v3/signin?dsh=…&rrk=46, "
+                 "try again")),
+        qPrintable(lines.at(0)));
+    QVERIFY2(lines.at(1).endsWith(
+                 QStringLiteral("Omaweb warning: could not load https://example.com/a?token=…")),
+        qPrintable(lines.at(1)));
 }
 
 QTEST_GUILESS_MAIN(ProblemRecordingTest)

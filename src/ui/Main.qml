@@ -3495,6 +3495,7 @@ ApplicationWindow {
                 }
                 releaseWatch: window.releases
                 problemRecording: window.recording
+                onProblemReportRequested: window.reportProblem()
                 onSettingsRequested: window.requestSettings()
                 onSyncRequested: window.requestSync()
                 onBackRequested: engineLoader.goBack()

@@ -60,6 +60,7 @@ Rectangle {
     property var releaseWatch: null
     // The window's Problem recording, which the footer marks while it runs.
     property var problemRecording: null
+    signal problemReportRequested
     property bool savedFileNoticeShowing: false
     // What the Agents are doing, as the core reports it: each Agent tab by id,
     // with its `spaceId`, the connection's `name`, and `busy` while one of its
@@ -1563,6 +1564,7 @@ Rectangle {
             colors: root.colors
             iconFontFamily: root.iconFontFamily
             recording: root.problemRecording
+            onReportRequested: root.problemReportRequested()
         }
 
         ReleaseMark {

@@ -580,8 +580,9 @@ void AgentClientTest::printsAReportFromDiskWhenNothingAnswers()
              QStringLiteral("- Kernel "),
              QStringLiteral("Settings\n- font-size: 18\n"),
              QStringLiteral("Last crash\n"),
-             QStringLiteral("No browser answered, so the engine's versions, what sites see, "
-                            "Sync, extensions, Spaces and tabs are missing."),
+             QStringLiteral("No browser answered, so the engine's versions, what sites see, the "
+                            "tab, Sync, extensions, Spaces and tabs and any Problem recording "
+                            "are missing."),
          }) {
         QVERIFY2(ran.out.contains(held), qPrintable(held + QStringLiteral(" in:\n") + ran.out));
     }

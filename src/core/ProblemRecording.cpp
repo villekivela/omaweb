@@ -96,7 +96,7 @@ void ProblemRecording::record(
         event += u' ' + redactedAddress(address);
     }
     if (!detail.isEmpty()) {
-        event += QStringLiteral(": ") + detail.simplified().left(maximumDetailLength);
+        event += QStringLiteral(": ") + redactedText(detail.simplified()).left(maximumDetailLength);
     }
     auto number = m_tabNumbers.value(tabId);
     if (number == 0) {
@@ -135,7 +135,8 @@ void ProblemRecording::handleMessage(
         previous = recording ? recording->m_previousHandler : nullptr;
     }
     if (recording && type != QtDebugMsg && type != QtInfoMsg) {
-        const auto event = QStringLiteral("Omaweb warning: ") + message.left(maximumDetailLength);
+        const auto event
+            = QStringLiteral("Omaweb warning: ") + redactedText(message).left(maximumDetailLength);
         if (QThread::currentThread() == recording->thread()) {
             recording->keep(QStringLiteral("browser"), event);
         } else {

@@ -3,6 +3,7 @@
 #include "BrowserController.h"
 #include "PageScale.h"
 #include "ProblemRecording.h"
+#include "SettingsFile.h"
 #include "SpaceListModel.h"
 
 #include <QDir>
@@ -78,14 +79,22 @@ QList<ProblemReportSection> ProblemReporter::sections(const QString &tabId, bool
     if (privateWindow || !tabId.isEmpty()) {
         report.append({.title = QStringLiteral("Tab"), .lines = tabLines(tabId, privateWindow)});
     }
+    const auto atDefault = [](const QString &key, const QJsonValue &value) {
+        return SettingsFile::defaultValue(key) == value;
+    };
+    // What the issue names comes first, so a link too short for the rest
+    // cuts what it does not name.
     report.append({
-        {.title = QStringLiteral("Settings"), .lines = changedSettingLines(m_configRoot)},
-        {.title = QStringLiteral("Extensions"), .lines = extensionLines()},
-        {.title = QStringLiteral("Spaces and tabs"), .lines = sessionLines()},
+        {.title = QStringLiteral("Settings"),
+            .lines = changedSettingLines(m_configRoot, atDefault)},
         {.title = QStringLiteral("Sync"), .lines = syncLines()},
         {.title = QStringLiteral("Last crash"), .lines = lastCrashLines(m_run)},
+        {.title = QStringLiteral("Extensions"), .lines = extensionLines()},
+        {.title = QStringLiteral("Spaces and tabs"), .lines = sessionLines()},
     });
-    const auto recorded = m_recording ? m_recording->take() : QStringList {};
+    // The recording is of the ordinary windows, which are not a Private
+    // window's to report or end.
+    const auto recorded = m_recording && !privateWindow ? m_recording->take() : QStringList {};
     if (!recorded.isEmpty()) {
         report.append(
             {.title = QStringLiteral("Problem recording"), .lines = recorded, .trimOldest = true});

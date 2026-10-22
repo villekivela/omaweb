@@ -19141,9 +19141,10 @@ TestCase {
             verify(recorded.indexOf(event) >= 0, event + " in:\n" + recorded);
     }
 
-    // The mark ends the recording it shows, and its tooltip says how long is
-    // left.
+    // The mark ends the recording it shows and opens the report that takes it
+    // in, and its tooltip says how long is left.
     function test_theProblemRecordingMarkEndsTheRecording() {
+        const tabs = browser.tabs.rowCount();
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "problemRecordingMark");
         window.commands.run("record-problem", -1);
@@ -19158,6 +19159,12 @@ TestCase {
         mouseClick(mark);
         verify(!problemRecording.recording);
         tryCompare(mark, "visible", false);
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabs + 1;
+        });
+        verify(browser.activeUrl.toString().indexOf(
+                   "https://github.com/villekivela/omaweb/issues/new?template=bug.yml&report=")
+               === 0);
     }
 
     // "Report a problem" opens GitHub's bug form in a new tab of the Space on

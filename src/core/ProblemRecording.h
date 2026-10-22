@@ -54,7 +54,8 @@ signals:
     void recordingChanged();
 
 private:
-    void keep(const QString &tab, const QString &event);
+    // `source` is the tab, by its number in this recording, or the browser.
+    void keep(const QString &source, const QString &event);
     static void handleMessage(
         QtMsgType type, const QMessageLogContext &context, const QString &message);
 

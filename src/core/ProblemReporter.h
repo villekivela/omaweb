@@ -36,8 +36,9 @@ public:
     void setRun(ProblemReportRun run);
 
     // The report, started from the tab `tabId`, or from no tab when it is
-    // empty. One from a Private window says only that it was. A recording,
-    // running or ended, is taken in and ended.
+    // empty. One from a Private window says only that it was, and leaves the
+    // recording alone. Any other takes the recording in, running or ended, and
+    // ends it.
     QList<ProblemReportSection> sections(const QString &tabId, bool privateWindow);
     Q_INVOKABLE QString text(const QString &tabId, bool privateWindow);
     // The bug form filled with the report, as `address`, with `cut` when the

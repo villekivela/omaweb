@@ -374,6 +374,7 @@ struct SeededReport {
         QFile settings(config.filePath(QStringLiteral("settings.json")));
         if (settings.open(QIODevice::WriteOnly)) {
             settings.write("{\n  \"version\": 1,\n  \"https-only\": false,\n  \"font-size\": 18,\n"
+                           "  \"glance\": true,\n"
                            "  \"download-directory\": \"/home/reader/Private Stuff\"\n}\n");
             settings.close();
         }
@@ -3168,6 +3169,18 @@ void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
         QVERIFY2(report.contains(held), qPrintable(held + QStringLiteral(" in:\n") + report));
     }
     QVERIFY(!report.contains(QStringLiteral("poll")));
+    // A key the file holds at its default value differs from nothing.
+    QVERIFY(!report.contains(QStringLiteral("glance")));
+    // Filled in the order a link that is too short cuts from the end: what
+    // the issue names first, then what it does not name, then the recording.
+    const QStringList order {QStringLiteral("Versions\n"), QStringLiteral("What sites see\n"),
+        QStringLiteral("Settings\n"), QStringLiteral("Sync\n"), QStringLiteral("Last crash\n"),
+        QStringLiteral("Extensions\n"), QStringLiteral("Spaces and tabs\n"),
+        QStringLiteral("Problem recording\n")};
+    for (qsizetype index = 1; index < order.size(); ++index) {
+        QVERIFY2(report.indexOf(order.at(index - 1)) < report.indexOf(order.at(index)),
+            qPrintable(order.at(index)));
+    }
     // A frame without symbols says nothing.
     QVERIFY(!report.contains(QStringLiteral("n/a")));
     QVERIFY(!report.contains(QStringLiteral("personal.example")));
@@ -3203,9 +3216,17 @@ void AgentControlTest::reportFromAPrivateWindowSaysOnlyThat()
     SeededReport seeded;
     QVERIFY_SESSION_READY(*seeded.fixture);
 
+    seeded.recording.start();
+    seeded.recording.record(QStringLiteral("navigated"), QStringLiteral("personal-tab"),
+        QUrl(QStringLiteral("https://recorded.example/")), {});
+
     const auto report = seeded.reporter->text(QStringLiteral("personal-tab"), true);
 
     QVERIFY2(report.contains(QStringLiteral("Tab\n- In a Private window\n\n")), qPrintable(report));
+    // The recording is of the ordinary windows, which a Private window's
+    // report neither takes nor ends.
+    QVERIFY(!report.contains(QStringLiteral("recorded.example")));
+    QVERIFY(seeded.recording.recording());
     QVERIFY(!report.contains(QStringLiteral("personal.example")));
     QVERIFY(!report.contains(QStringLiteral("geolocation")));
     verifyNothingPrivate(report);

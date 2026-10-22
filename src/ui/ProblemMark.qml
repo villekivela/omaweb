@@ -7,13 +7,15 @@ import qs.Ui as Omarchy
 // theme's urgent colour and held still: a recording is a state the reader
 // chose, not news, and a pulse would draw frames for ten minutes.
 //
-// Selecting it ends the recording, which a report then takes in.
+// Selecting it opens the report, which ends the recording and takes it in.
 ChromeButton {
     id: root
 
     property var colors
     property string iconFontFamily
     property var recording: null
+
+    signal reportRequested
 
     // Truthiness rather than a null check, as for the Release mark: a window
     // built without a recording has `undefined` here.
@@ -34,11 +36,13 @@ ChromeButton {
     fontFamily: root.iconFontFamily
     focusable: root.visible
     accessibleName: root.running ? qsTr("Recording a problem") : ""
-    Accessible.description: root.running ? qsTr("Select to end the recording") : ""
+    Accessible.description: root.running ? qsTr(
+                                               "Select to end the recording and report the problem") :
+                                           ""
 
     onClicked: {
         if (root.running)
-            root.recording.stop();
+            root.reportRequested();
     }
 
     // In the face the rest of the chrome reads in, not the icon face the
