@@ -126,10 +126,13 @@ frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by default, which w
 session. The chrome's movements are reviewed the same way: `--show space-step`, `tab-step`,
 `omnibar-step` and `settings-step` run the switch or the opening shortly before the capture, so the
 frame lands part way through it, and the `-settled` spelling of each runs it early enough to land at
-rest. The leaving list's picture and the Omnibar's growth need the hardware renderer, so those two
-captures go without `QT_QUICK_BACKEND=software`. Development presets load QML, themes, and the icon
-font directly from the source tree. Editing those files requires an application restart but no
-compile or relink.
+rest. With `--spaces --tabs`, `--show swipe` sends two fingers across the sidebar a second in, as
+Wayland sends a touchpad's, far enough for the swipe to commit, and `--show swipe-back` short and
+slow enough for it to spring back, so captures at rising delays are a frame sequence of each. The
+leaving list's picture and the Omnibar's growth need the hardware renderer, so those two captures go
+without `QT_QUICK_BACKEND=software`. Development presets load QML, themes, and the icon font
+directly from the source tree. Editing those files requires an application restart but no compile or
+relink.
 
 The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
 engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so

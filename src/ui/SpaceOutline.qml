@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
+import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
@@ -221,6 +222,24 @@ Rectangle {
     property real departureOpacity: 0
     // The direction of the last switch: 1 to the right, -1 to the left.
     property int switchDirection: 1
+    // A swipe across the sidebar takes the list with the fingers, one pixel
+    // for one, and the neighbouring Space's own rows come in beside it: this
+    // is how far, in pixels, negative towards the next Space. It follows only
+    // where a switch may move; otherwise the swipe still switches once it is
+    // far enough, and the Space arrives settled.
+    readonly property bool swipeFollows: root.easeSpaces && root.spacesCanMove
+    property real swipeOffset: 0
+    // The leaving list's picture is held while the list is away from rest,
+    // and taken again once it is back.
+    onSwipeOffsetChanged: if (swipeOffset === 0)
+                              retakeDeparture()
+    // What a switch the swipe or the wheel asked for hands the arrival: the
+    // direction it went, and how far along the list already stands, as a
+    // fraction of its width, so the slide carries on from where the fingers
+    // left it rather than starting again.
+    property var swipeHandoff: null
+    readonly property bool swipeAllowed: !root.privateWindow && root.browser !== null
+                                         && spaceRepeater.count > 1 && root.draggedRow === null
     // The row is read off the model on each change rather than bound: a
     // binding over model data does not see the model change.
     function activeSpaceRow() {
@@ -236,13 +255,13 @@ Rectangle {
     // The picture of the list at rest, retaken after the list settles from
     // any change, so it is the leaving Space's list when a switch comes.
     function retakeDeparture() {
-        if (!root.arriving && root.spacesCanMove)
+        if (!root.arriving && root.spacesCanMove && root.swipeOffset === 0)
             departureRetake.restart();
     }
     Timer {
         id: departureRetake
         interval: 50
-        onTriggered: if (!root.arriving)
+        onTriggered: if (!root.arriving && root.swipeOffset === 0)
                          departure.scheduleUpdate()
     }
     Component.onCompleted: retakeDeparture()
@@ -256,7 +275,11 @@ Rectangle {
         function onActiveSpaceChanged() {
             const from = root.settledSpaceRow;
             const to = root.activeSpaceRow();
+            const handoff = root.swipeHandoff;
             root.settledSpaceRow = to;
+            root.swipeHandoff = null;
+            swipeSpring.stop();
+            root.swipeOffset = 0;
             if (!root.easeSpaces || from === to) {
                 root.arriving = false;
                 return;
@@ -266,10 +289,13 @@ Rectangle {
             root.settledTabId = "";
             root.settledTabX = -1;
             root.settledTabY = -1;
-            root.switchDirection = to > from ? 1 : -1;
-            root.arrivalOffset = root.switchDirection;
-            root.arrivalOpacity = 0;
-            root.departureOffset = 0;
+            // A swipe or a notch goes the way the hand went, which wraps at
+            // the ends of the footer where the rows do not.
+            root.switchDirection = handoff ? handoff.direction : (to > from ? 1 : -1);
+            const carried = handoff ? handoff.offset : 0;
+            root.arrivalOffset = root.switchDirection + carried;
+            root.arrivalOpacity = carried !== 0 ? 1 : 0;
+            root.departureOffset = carried;
             root.departureOpacity = 1;
             spaceArrival.start();
         }
@@ -1169,7 +1195,7 @@ Rectangle {
             visible: !root.privateWindow && root.pinnedCount > 0
             opacity: root.arrivalOpacity
             transform: Translate {
-                x: root.arrivalOffset * listLayer.width
+                x: root.arrivalOffset * listLayer.width + root.swipeOffset
             }
             readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
             spacing: 4
@@ -1235,7 +1261,7 @@ Rectangle {
             clip: true
             opacity: root.arrivalOpacity
             transform: Translate {
-                x: root.arrivalOffset * listLayer.width
+                x: root.arrivalOffset * listLayer.width + root.swipeOffset
             }
 
             ScrollBar.vertical: ChromeScrollBar {
@@ -1348,6 +1374,106 @@ Rectangle {
         transform: Translate {
             x: root.arriving ? root.departureOffset * listLayer.width : -2 * root.width
         }
+    }
+
+    // The rows of a Space either side of the one on show, as a swipe brings
+    // them in from `side`: 1 the right, the next Space, -1 the left, the
+    // previous one. They are the Space's own, read from the store before the
+    // swipe starts, laid out as the list lays out its own, and take no input.
+    // The sidebar's edge cuts them off as it cuts off a Space arriving.
+    component NeighbourList: Item {
+        id: neighbourList
+
+        property var neighbour: null
+        property int side: 1
+
+        x: listLayer.x + side * listLayer.width + root.swipeOffset
+        y: listLayer.y
+        width: listLayer.width
+        height: listLayer.height
+        visible: root.swipeOffset * side < 0
+        enabled: false
+        Accessible.ignored: true
+
+        Flow {
+            id: neighbourPins
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: root.listMargin
+            anchors.rightMargin: 16
+            anchors.topMargin: neighbourPinRows.count > 0 ? 12 : 0
+            height: childrenRect.height
+            readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
+            spacing: 4
+
+            Repeater {
+                id: neighbourPinRows
+                model: neighbourList.neighbour ? neighbourList.neighbour.pinnedTabs : null
+
+                TabRow {
+                    objectName: "neighbour-" + tabId
+                    width: (neighbourPins.width - neighbourPins.spacing * (neighbourPins.capacity
+                                                                           - 1)) / neighbourPins.capacity
+                    colors: root.colors
+                    iconFontFamily: root.iconFontFamily
+                    useFavicons: root.useFavicons
+                    tintFavicons: root.tintFavicons
+                }
+            }
+        }
+
+        Item {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: neighbourPins.bottom
+            anchors.bottom: parent.bottom
+            anchors.topMargin: 12
+            anchors.bottomMargin: 12
+            clip: true
+
+            Flow {
+                id: neighbourRows
+                width: parent.width
+                leftPadding: root.listMargin
+                rightPadding: 16
+                readonly property real rowWidth: width - leftPadding - rightPadding
+                readonly property real splitMiddle: DevicePixels.snap(leftPadding + rowWidth / 2,
+                                                                      root.pixelRatio)
+                spacing: neighbourPins.spacing
+
+                Repeater {
+                    model: neighbourList.neighbour ? neighbourList.neighbour.unpinnedTabs : null
+
+                    TabRow {
+                        objectName: "neighbour-" + tabId
+                        width: inSplit ? (neighbourRows.rowWidth - neighbourRows.spacing) / 2 :
+                                         neighbourRows.rowWidth
+                        trailingHalf: inSplit && x > neighbourRows.leftPadding
+                        reachLeft: trailingHalf ? x - neighbourRows.splitMiddle :
+                                                  neighbourRows.leftPadding
+                        reachRight: inSplit && !trailingHalf ? neighbourRows.splitMiddle - x
+                                                               - width : neighbourRows.rightPadding
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        useFavicons: root.useFavicons
+                        tintFavicons: root.tintFavicons
+                    }
+                }
+            }
+        }
+    }
+
+    NeighbourList {
+        objectName: "previousSpaceList"
+        neighbour: root.browser ? root.browser.previousSpace : null
+        side: -1
+    }
+
+    NeighbourList {
+        objectName: "nextSpaceList"
+        neighbour: root.browser ? root.browser.nextSpace : null
+        side: 1
     }
 
     // Space switching and settings close the outline.
@@ -1822,6 +1948,65 @@ Rectangle {
                     }
                 }
             }
+        }
+    }
+
+    NumberAnimation {
+        id: swipeSpring
+        target: root
+        property: "swipeOffset"
+        to: 0
+        duration: 240
+        easing.type: Easing.OutCubic
+    }
+
+    // The neighbour a swipe or a notch in `direction` goes to, or null when
+    // there is none to go to.
+    function neighbourTowards(direction) {
+        if (!root.browser)
+            return null;
+        const neighbour = direction > 0 ? root.browser.nextSpace : root.browser.previousSpace;
+        return neighbour && neighbour.spaceId.length > 0 ? neighbour : null;
+    }
+
+    function swipeTo(direction, carried) {
+        const neighbour = root.neighbourTowards(direction);
+        if (neighbour) {
+            const before = root.browser.activeSpaceId;
+            root.swipeHandoff = {
+                "direction": direction,
+                "offset": carried
+            };
+            root.spaceActivated(neighbour.spaceId);
+            if (root.browser.activeSpaceId !== before)
+                return;
+        }
+        root.swipeHandoff = null;
+        swipeSpring.start();
+    }
+
+    // Over the whole sidebar, the navigation row to the footer, and above
+    // everything in it: the wheel reaches it first, and what is not a swipe
+    // or a notch goes on to the list's scrolling under it.
+    SpaceSwipe {
+        id: spaceSwipe
+        objectName: "spaceSwipe"
+        anchors.fill: parent
+        z: 3
+        enabled: root.swipeAllowed
+        settling: root.arriving
+        onOffsetChanged: {
+            if (!swiping || !root.swipeFollows)
+                return;
+            swipeSpring.stop();
+            root.swipeOffset = offset;
+        }
+        onCommitted: function (direction) {
+            root.swipeTo(direction, root.swipeOffset / listLayer.width);
+        }
+        onSprangBack: swipeSpring.start()
+        onStepped: function (direction) {
+            root.swipeTo(direction, 0);
         }
     }
 

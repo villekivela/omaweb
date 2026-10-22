@@ -140,6 +140,25 @@ reports the gap and remains experimental rather than imitating behavior it canno
   left out: it takes the last place there is room for, and the Space that stood there is counted
   instead. Pressing the count opens a menu of the Spaces left out, and each stays reachable by its
   key.
+- A two-finger sideways swipe on a touchpad anywhere over the sidebar, from the navigation row to
+  the footer, switches Space; the page never counts. The order is the footer's, Agent Spaces and
+  those behind the `+N` count included, and it wraps at both ends as `next-space` does. A swipe that
+  would scroll a wide page to the right brings in the next Space, so the direction follows the
+  reader's scroll setting. The Space's pins and tab list follow the fingers one pixel for one, and
+  the neighbouring Space's own rows slide in beside them, cut off at the sidebar's edge: its pins,
+  tabs, titles, favicons and split pairs, read from the store before the swipe starts. The
+  navigation row and the address stay put, and the footer's square, the page and the page's arrival
+  change only on commit. Released with the neighbour at least half in view, or with a flick faster
+  than 1000 px/s towards it, the switch commits and the slide carries on from where the fingers left
+  it; otherwise the list springs back. Both settle in 240 ms. Whichever axis first moves 6 px owns
+  the gesture until the fingers lift, so a diagonal scroll down the tab list never moves Spaces. The
+  fingers lift at the scroll's end phase; without phases, after 120 ms with no movement, and a
+  phased gesture whose end never comes is released after 1 s. A notch of a sideways wheel or a
+  tilt-wheel switches one Space with the pointer's slide, and notches during the slide or within 200
+  ms after it are dropped. With reduced motion the list stays still under the fingers, and a swipe
+  that passes the same threshold switches once and the Space arrives settled. The swipe does nothing
+  in a Private window, with a single Space, or while a tab is being dragged. No setting turns it
+  off.
 - While the sidebar holds the keyboard, `j` and `k` move the Sidebar cursor through its rows, pins
   first, without changing the page. `l` or `Return` opens the row under it and focuses the page, and
   `h` returns the cursor to the tab on show. A single key the reader binds to a command takes

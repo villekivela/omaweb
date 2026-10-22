@@ -33,6 +33,7 @@
 #include "Quickshell.h"
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
+#include "SpaceSwipe.h"
 #include "Scenes.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
@@ -53,6 +54,9 @@
 #include <QFile>
 #include <QFontDatabase>
 #include <QQuickImageProvider>
+#include <QQuickItem>
+#include <QQuickWindow>
+#include <QWheelEvent>
 #include <QQuickStyle>
 #include <QQmlEngine>
 #include <QTemporaryDir>
@@ -270,6 +274,28 @@ public:
     Q_INVOKABLE int shape(QWindow *window) const { return window->cursor().shape(); }
 };
 
+// A wheel event as Wayland sends a touchpad's or a wheel's, which QtTest's
+// `mouseWheel` cannot: pixel deltas, a scroll phase, the system as the source
+// of a touchpad's, and a timestamp the test chooses, so a flick's speed is the
+// one the test meant whatever the machine's load.
+class WheelProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE void send(QQuickItem *item, qreal x, qreal y, int pixelX, int pixelY, int angleX,
+        int angleY, int phase, bool fromTouchpad, double timestamp) const
+    {
+        auto *window = item->window();
+        const auto scenePoint = item->mapToScene(QPointF(x, y));
+        QWheelEvent event(scenePoint, window->mapToGlobal(scenePoint), QPoint(pixelX, pixelY),
+            QPoint(angleX, angleY), Qt::NoButton, Qt::NoModifier,
+            static_cast<Qt::ScrollPhase>(phase), false,
+            fromTouchpad ? Qt::MouseEventSynthesizedBySystem : Qt::MouseEventNotSynthesized);
+        event.setTimestamp(static_cast<quint64>(timestamp));
+        QCoreApplication::sendEvent(window, &event);
+    }
+};
+
 // What the desktop is asked to open. The offscreen platform has no desktop to
 // ask, so a local file or folder handed to it is kept here instead.
 class DesktopProbe final : public QObject {
@@ -452,6 +478,7 @@ public slots:
         omaweb::registerSystemClipboard();
         omaweb::registerInputOrigin();
         omaweb::registerPrimaryHold();
+        omaweb::registerSpaceSwipe();
         omaweb::registerScenes();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
@@ -568,6 +595,7 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(QStringLiteral("imageProbe"), m_imageProbe.get());
         engine->rootContext()->setContextProperty(QStringLiteral("cursorProbe"), &m_cursorProbe);
+        engine->rootContext()->setContextProperty(QStringLiteral("wheelProbe"), &m_wheelProbe);
         engine->rootContext()->setContextProperty(QStringLiteral("desktopProbe"), &m_desktopProbe);
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowFocusProbe"), &m_windowFocusProbe);
@@ -687,6 +715,7 @@ public slots:
 private:
     SyncLauncherProbe m_syncLauncher;
     CursorProbe m_cursorProbe;
+    WheelProbe m_wheelProbe;
     DesktopProbe m_desktopProbe;
     WindowFocusProbe m_windowFocusProbe;
     ReleaseWatchProbe m_releaseWatch;

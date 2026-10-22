@@ -463,6 +463,8 @@ add_library(omaweb-core STATIC
     src/core/Translations.h
     src/core/SoundingTabs.cpp
     src/core/SoundingTabs.h
+    src/core/NeighbourSpace.cpp
+    src/core/NeighbourSpace.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
     src/core/SpaceProject.cpp
@@ -585,6 +587,8 @@ add_library(omaweb-ui STATIC
     src/ui/LifeBoard.h
     src/ui/InputOrigin.cpp
     src/ui/InputOrigin.h
+    src/ui/SpaceSwipe.cpp
+    src/ui/SpaceSwipe.h
     src/ui/PrimaryHold.cpp
     src/ui/PrimaryHold.h
     src/ui/Scenes.cpp

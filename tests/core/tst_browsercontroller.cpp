@@ -4,12 +4,14 @@
 #include "HistoryQuery.h"
 #include "ExtensionInstaller.h"
 #include "KnownExtensions.h"
+#include "NeighbourSpace.h"
 #include "PrivateSessionFixture.h"
 #include "SessionFixture.h"
 #include "SpaceListModel.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
 #include "SuggestServer.h"
+#include "ThreadedSessionStore.h"
 #include "StoredFavicons.h"
 #include "TabListModel.h"
 #include "WindowManager.h"
@@ -24,6 +26,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSemaphore>
 #include <QSet>
 #include <QSignalSpy>
 #include <QSqlDatabase>
@@ -120,6 +123,41 @@ void readIconsAsTheirAddress()
         });
 }
 
+// What a neighbour Space lists in one of its sections for `role`, in order.
+QStringList neighbourRows(QAbstractItemModel *section, int role)
+{
+    QStringList rows;
+    for (int row = 0; row < section->rowCount(); ++row) {
+        rows.append(section->data(section->index(row, 0), role).toString());
+    }
+    return rows;
+}
+
+// Holds the store's thread until released, or for two seconds at most, so a
+// test can tell an interface that waits on the store from one that does not.
+class StoreHold final {
+public:
+    explicit StoreHold(QThread *storeThread)
+    {
+        m_host.moveToThread(storeThread);
+        QMetaObject::invokeMethod(
+            &m_host, [this] { m_release.tryAcquire(1, 2000); }, Qt::QueuedConnection);
+    }
+    ~StoreHold() { release(); }
+    void release()
+    {
+        if (!m_released) {
+            m_released = true;
+            m_release.release();
+        }
+    }
+
+private:
+    QObject m_host;
+    QSemaphore m_release;
+    bool m_released = false;
+};
+
 } // namespace
 
 class BrowserControllerTest final : public QObject {
@@ -127,6 +165,10 @@ class BrowserControllerTest final : public QObject {
 
 private slots:
     void createsPersonalSpaceAndBlankTab();
+    void listsTheNeighbourSpacesWithoutTheInterfaceWaitingOnTheStore();
+    void takesTheNeighboursInFooterOrderAndWrapsAtBothEnds();
+    void keepsAnAwayNeighbourCurrentAsItGainsAndLosesATab();
+    void hasNoNeighboursWithOneSpaceOrInAPrivateWindow();
     void createsAndSwitchesSpaces();
     void readersSpaceIsTheSpaceOnShow();
     void readersSpacePassesOverAnAgentSpaceOnShow_data();
@@ -5349,6 +5391,142 @@ void BrowserControllerTest::listsNoOtherSpacesTabsInAPrivateWindow()
 
     QVERIFY(controller->awaySpaceTabs().isEmpty());
     QVERIFY(!controller->activateTabInSpace(QStringLiteral("work"), QStringLiteral("spec")));
+}
+
+// The Spaces either side of the one on show are read for the sidebar to swipe
+// to, and read off the interface thread: a swipe follows the fingers frame by
+// frame, and a read that waited on the store would stall it.
+void BrowserControllerTest::listsTheNeighbourSpacesWithoutTheInterfaceWaitingOnTheStore()
+{
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = QStringLiteral("personal"),
+                .name = QStringLiteral("Personal"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("personal-tab"),
+                    .url = QUrl(QStringLiteral("https://personal.example/")),
+                    .title = QStringLiteral("Personal page"),
+                }},
+            },
+            SpaceSpec {
+                .id = QStringLiteral("work"),
+                .name = QStringLiteral("Work"),
+                .tabs = {TabSpec {
+                             .id = QStringLiteral("work-pin"),
+                             .url = QUrl(QStringLiteral("https://mail.work.example/")),
+                             .title = QStringLiteral("Work mail"),
+                             .pinned = true,
+                         },
+                    TabSpec {
+                        .id = QStringLiteral("work-tab"),
+                        .url = QUrl(QStringLiteral("https://work.example/plan")),
+                        .title = QStringLiteral("Work plan"),
+                    }},
+                .activeTabId = QStringLiteral("work-tab"),
+            },
+            SpaceSpec {
+                .id = QStringLiteral("reading"),
+                .name = QStringLiteral("Reading"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("reading-tab"),
+                    .url = QUrl(QStringLiteral("https://reading.example/essay")),
+                    .title = QStringLiteral("An essay"),
+                }},
+            },
+        },
+        .activeSpaceId = QStringLiteral("reading"),
+    });
+    QVERIFY_SESSION_READY(fixture);
+    const QTemporaryDir config;
+    auto store = std::make_shared<omaweb::ThreadedSessionStore>(
+        std::make_unique<omaweb::SqliteSessionStore>(fixture.dataRoot()));
+    BrowserController controller(store, false, SessionPermissionDecisions::create(),
+        QSharedPointer<omaweb::SessionSiteState>::create(), config.path());
+    QVERIFY2(controller.ready(), qPrintable(controller.errorMessage()));
+
+    QVERIFY(controller.switchSpace(QStringLiteral("personal")));
+    QVERIFY(!controller.nextSpace()->ready());
+    StoreHold hold(store->thread());
+    QElapsedTimer waited;
+    waited.start();
+    QTest::qWait(100);
+    QVERIFY2(waited.elapsed() < 1000, "the interface waited on the store");
+    hold.release();
+
+    auto *next = controller.nextSpace();
+    auto *previous = controller.previousSpace();
+    QTRY_VERIFY(next->ready() && previous->ready());
+    QCOMPARE(next->spaceId(), QStringLiteral("work"));
+    QCOMPARE(neighbourRows(next->pinnedTabs(), TabListModel::TitleRole),
+        QStringList {QStringLiteral("Work mail")});
+    QCOMPARE(neighbourRows(next->unpinnedTabs(), TabListModel::TitleRole),
+        QStringList {QStringLiteral("Work plan")});
+    QCOMPARE(previous->spaceId(), QStringLiteral("reading"));
+    QCOMPARE(neighbourRows(previous->pinnedTabs(), TabListModel::TitleRole), QStringList {});
+    QCOMPARE(neighbourRows(previous->unpinnedTabs(), TabListModel::TitleRole),
+        QStringList {QStringLiteral("An essay")});
+}
+
+// The footer's order is the reader's Spaces, then the Agent Spaces, and the
+// neighbours wrap at both ends of it as `next-space` does.
+void BrowserControllerTest::takesTheNeighboursInFooterOrderAndWrapsAtBothEnds()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("mock")));
+    const auto first = controller.activeSpaceId();
+    const auto agent = controller.createAgentSpace(QStringLiteral("Agent"), QStringLiteral("test"));
+    const auto second = controller.createSpace(QStringLiteral("Second"));
+    QVERIFY(!agent.isEmpty() && !second.isEmpty());
+
+    QVERIFY(controller.switchSpace(first));
+    QTRY_VERIFY(controller.nextSpace()->ready() && controller.previousSpace()->ready());
+    QCOMPARE(controller.nextSpace()->spaceId(), second);
+    QCOMPARE(controller.previousSpace()->spaceId(), agent);
+
+    QVERIFY(controller.switchSpace(agent));
+    QTRY_VERIFY(controller.nextSpace()->ready() && controller.previousSpace()->ready());
+    QCOMPARE(controller.nextSpace()->spaceId(), first);
+    QCOMPARE(controller.previousSpace()->spaceId(), second);
+}
+
+// A tab opened in or closed from a neighbour while it is away, by an Agent or
+// a link, is in its rows the next time a swipe brings them in.
+void BrowserControllerTest::keepsAnAwayNeighbourCurrentAsItGainsAndLosesATab()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("mock")));
+    const auto home = controller.activeSpaceId();
+    const auto away = controller.createSpace(QStringLiteral("Away"));
+    QVERIFY(controller.switchSpace(home));
+    QTRY_VERIFY(controller.nextSpace()->ready());
+    QCOMPARE(controller.nextSpace()->spaceId(), away);
+
+    const auto opened
+        = controller.openTabInSpace(away, QUrl(QStringLiteral("https://away.example/")));
+    QVERIFY(!opened.isEmpty());
+    QTRY_COMPARE(neighbourRows(controller.nextSpace()->unpinnedTabs(), TabListModel::IdRole),
+        QStringList {opened});
+
+    QVERIFY(controller.closeTabInSpace(opened, away));
+    QTRY_COMPARE(neighbourRows(controller.nextSpace()->unpinnedTabs(), TabListModel::IdRole),
+        QStringList {});
+}
+
+// One Space has nothing to swipe to, and a Private window has no Spaces.
+void BrowserControllerTest::hasNoNeighboursWithOneSpaceOrInAPrivateWindow()
+{
+    QTemporaryDir root;
+    BrowserController single(SpaceStorage(root.path(), QStringLiteral("mock")));
+    QTest::qWait(50);
+    QCOMPARE(single.nextSpace()->spaceId(), QString());
+    QCOMPARE(single.previousSpace()->spaceId(), QString());
+
+    const PrivateSessionFixture privateSession;
+    const auto privateWindow = privateSession.createController();
+    QTest::qWait(50);
+    QCOMPARE(privateWindow->nextSpace()->spaceId(), QString());
+    QCOMPARE(privateWindow->previousSpace()->spaceId(), QString());
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)
