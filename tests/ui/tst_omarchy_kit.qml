@@ -55,7 +55,6 @@ TestCase {
         id: chromeButtonComponent
 
         Omaweb.ChromeButton {
-            foreground: testCase.colorsFixture.mutedText
             accent: testCase.colorsFixture.accent
             icon: "settings"
             accessibleName: "Browsing settings and downloads"
@@ -416,7 +415,9 @@ TestCase {
         // `hoverBackground` no longer exists.
         compare(button.bordered, false);
         verify(button.hoverBackground === undefined);
-        compare(String(button.foreground), "#8d88a3");
+        // It rests in the theme's text, with no call site naming a colour.
+        compare(String(button.foreground), String(theme.palette.text));
+        compare(String(button.restingForeground), String(theme.palette.text));
         compare(String(button.accent), "#9b87ff");
         // A glyph is sized by the kit's larger icon token, not by the body
         // text token: chrome is aimed at rather than read.

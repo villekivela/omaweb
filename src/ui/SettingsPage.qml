@@ -848,7 +848,6 @@ Rectangle {
             icon: "close"
             accessibleName: qsTr("Close settings")
             fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
             accent: root.colors.accent
             onClicked: root.closed()
         }
@@ -3182,7 +3181,6 @@ Rectangle {
                                         height: 26
                                         icon: "keyboard_arrow_up"
                                         fontFamily: root.iconFontFamily
-                                        foreground: root.colors.mutedText
                                         accent: root.colors.accent
                                         accessibleName: qsTr("Move %1 up").arg(spaceRow.spaceName)
                                         enabled: spaceRow.index > 0 && spaceRow.besideOwnKind(-1)
@@ -3196,7 +3194,6 @@ Rectangle {
                                         height: 26
                                         icon: "keyboard_arrow_down"
                                         fontFamily: root.iconFontFamily
-                                        foreground: root.colors.mutedText
                                         accent: root.colors.accent
                                         accessibleName: qsTr("Move %1 down").arg(spaceRow.spaceName)
                                         enabled: spaceRow.index < spaceList.count - 1

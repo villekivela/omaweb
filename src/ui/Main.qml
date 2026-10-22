@@ -4871,7 +4871,6 @@ ApplicationWindow {
                             implicitWidth: 96
                             label: qsTr("Reload")
                             accessibleName: qsTr("Reload crashed page")
-                            foreground: window.colors.text
                             accent: window.colors.accent
                             background: window.colors.surface
                             onClicked: window.windowBrowser.recoverActiveTab()

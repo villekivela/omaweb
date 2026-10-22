@@ -118,7 +118,6 @@ Rectangle {
             icon: "arrow_back"
             accessibleName: qsTr("Back")
             fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
             accent: root.colors.accent
             enabled: root.canGoBack
             onClicked: root.backRequested()
@@ -131,7 +130,6 @@ Rectangle {
             icon: "arrow_forward"
             accessibleName: qsTr("Forward")
             fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
             accent: root.colors.accent
             enabled: root.canGoForward
             onClicked: root.forwardRequested()
@@ -144,7 +142,6 @@ Rectangle {
             icon: "refresh"
             accessibleName: qsTr("Reload")
             fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
             accent: root.colors.accent
             onClicked: root.reloadRequested()
         }
@@ -166,7 +163,6 @@ Rectangle {
                                                                     "left_panel_close")
             accessibleName: root.sidebarCollapsed ? qsTr("Show sidebar") : qsTr("Hide sidebar")
             fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
             accent: root.colors.accent
             onClicked: root.sidebarToggled()
         }
@@ -178,7 +174,6 @@ Rectangle {
             icon: "search"
             accessibleName: qsTr("Search commands")
             fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
             accent: root.colors.accent
             onClicked: root.commandScopeRequested()
         }
