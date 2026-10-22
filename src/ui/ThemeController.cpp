@@ -837,15 +837,12 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // rendering of ordinary text, so everything quiet reads as unavailable and
     // the two states the interface most needs to keep apart collapse into one.
     //
-    // So the theme's colour is a preference and legibility is Omaweb's. The
-    // named colour changes only in lightness until it clears 4.5:1 — WCAG AA
-    // for body text — against every Omaweb surface muted text is read on. A
-    // theme whose colour already reads keeps it exactly; the rest keep their
-    // hue and lose only the part that was unreadable. A theme that names no
-    // muted text starts from the surface instead of from `text`, so what it
-    // gets is the quietest tint of its own text colour that still reads, which
-    // is dark on a light theme and light on a dark one without either being
-    // special-cased.
+    // So legibility is Omaweb's, and so is the colour. Quiet text is the theme's `text`
+    // blended 65% over the opaque sidebar it rests on, in every theme: a theme's own
+    // `mutedText` is not read, because what themes name for it is a decoration colour (a border,
+    // a hover fill) as often as a quiet one. That blend is then held to 4.5:1 — WCAG AA for body
+    // text — against every Omaweb ground quiet text rests on, and moves towards `text` only as
+    // far as the floor needs.
     //
     // A disabled control is `text` at 0.35 alpha, which cannot reach 3:1
     // against the ground it is composited over, so anything clearing this
@@ -871,26 +868,33 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
     const QColor named(palette.value(QStringLiteral("mutedText")).toString());
     const auto hasNamedMutedText = themeNamedMutedText && named.isValid();
-    const QColor quietest(
-        hasNamedMutedText ? named : QColor(palette.value(QStringLiteral("sidebar")).toString()));
-    if (text.isValid() && quietest.isValid() && !grounds.isEmpty()) {
+    const QColor sidebar(palette.value(QStringLiteral("sidebar")).toString());
+    const QColor privateSidebar(palette.value(QStringLiteral("privateSidebar")).toString());
+    if (text.isValid() && sidebar.isValid() && privateSidebar.isValid() && !grounds.isEmpty()) {
         constexpr auto minimumContrast = 4.5;
-        const auto resolved
-            = adjustedForContrast(quietest, text, grounds, minimumContrast, hasNamedMutedText);
-        palette.insert(QStringLiteral("mutedText"), resolved.name(QColor::HexRgb));
-        // What a page following the theme is handed for its quiet text. A page
-        // has one ground, and the floor answers for five, which can push a mid-grey near white;
-        // so the theme's own word where it gave one, and the floored value only where Omaweb had
-        // to invent the colour anyway.
-        palette.insert(QStringLiteral("pageMutedText"),
-            (hasNamedMutedText ? named : resolved).name(QColor::HexRgb));
+        // The chrome's quiet text is derived, not read: the theme's text over the opaque sidebar
+        // it rests on, whatever the theme names for `mutedText`. Where that falls short of the
+        // floor it moves towards the text only as far as the floor needs.
+        constexpr auto quietTextShare = 0.65;
+        const auto quiet = [&](const QColor &ground, const QList<QColor> &floorGrounds) {
+            return adjustedForContrast(blended(ground, text, quietTextShare), text, floorGrounds,
+                minimumContrast, /*preserveHue=*/false);
+        };
+        palette.insert(QStringLiteral("mutedText"), quiet(sidebar, grounds).name(QColor::HexRgb));
+        palette.insert(QStringLiteral("privateMutedText"),
+            quiet(privateSidebar, privateGrounds).name(QColor::HexRgb));
 
-        const QColor privateQuietest(hasNamedMutedText
-                ? named
-                : QColor(palette.value(QStringLiteral("privateSidebar")).toString()));
-        const auto privateResolved = adjustedForContrast(
-            privateQuietest, text, privateGrounds, minimumContrast, hasNamedMutedText);
-        palette.insert(QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
+        // What a page following the theme is handed for its quiet text. A page has one ground,
+        // which the floor's five can push a mid-grey near white on; so the theme's own word where
+        // it gave one, and the quietest tint of the text that reads on every ground, hover fill
+        // included, where Omaweb had to invent the colour.
+        const auto pageGrounds = coloursFor({QStringLiteral("sidebar"), QStringLiteral("surface"),
+            QStringLiteral("surfaceHover"), QStringLiteral("overlay"), QStringLiteral("sheet")});
+        palette.insert(QStringLiteral("pageMutedText"),
+            (hasNamedMutedText
+                    ? named
+                    : adjustedForContrast(sidebar, text, pageGrounds, minimumContrast, false))
+                .name(QColor::HexRgb));
     }
 
     // What the reader types into the Omnibar is read on its glass: the overlay

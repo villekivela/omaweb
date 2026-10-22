@@ -534,15 +534,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   `settings.json`, is local to the machine and is not synced. It does not change the sheet, overlay
   or window opacities, which stay the theme's, and the page viewport stays opaque.
 - Quiet text is content, not decoration: a tab's title, the footer's controls. Whatever a theme
-  names for it, Omaweb holds it to WCAG AA against the grounds it rests on, the window, sidebar,
-  surface, overlay and sheet and their Private counterparts, and therefore clear of the disabled
-  rendering of ordinary text. A hover fill is not one of them, so a theme that fills it from its
-  quiet-text colour keeps that colour. Chrome icon buttons are not quiet text: they rest in the
-  theme's text colour. A reader must never have to guess whether something is merely quiet or
-  actually unavailable. Borders clear the WCAG AA non-text threshold against every surface they
-  separate. Contrast repair keeps a colour's theme-supplied hue. Where a palette's own surfaces put
-  a threshold out of reach, the colour that reads best on the worst of them is used and the rest of
-  the theme is kept: the browser always follows the desktop's colours.
+  names for it, Omaweb derives it from the theme's text, blended 65% over the opaque sidebar it
+  rests on (the Private sidebar in a Private window), and holds it to WCAG AA against the grounds it
+  rests on, the window, sidebar, surface, overlay and sheet and their Private counterparts, and
+  therefore clear of the disabled rendering of ordinary text. A hover fill is not one of them. A
+  page that follows the theme keeps the quiet colour the theme named. Chrome icon buttons are not
+  quiet text: they rest in the theme's text colour. A reader must never have to guess whether
+  something is merely quiet or actually unavailable. Borders clear the WCAG AA non-text threshold
+  against every surface they separate. Contrast repair keeps a colour's theme-supplied hue. Where a
+  palette's own surfaces put a threshold out of reach, the colour that reads best on the worst of
+  them is used and the rest of the theme is kept: the browser always follows the desktop's colours.
 - The Agent accent keeps its theme-supplied hue and clears 4.5:1 against the window and the sidebar,
   since the page frame's label is written on it. It is kept apart from the accent.
 - Private windows must remain visually distinct. Reduced-motion, increased-contrast, and

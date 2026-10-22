@@ -45,13 +45,13 @@ private slots:
     void keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBundledTheme();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateSurfaces();
-    void keepsEtherealsBlueQuietTextInsteadOfNearWhite();
-    void keepsAMutedColourThatOnlyFailsOnTheHoverFill();
+    void derivesQuietTextFromTheTextOverTheSidebar();
+    void liftsAQuietTextBlendThatFallsShortOfTheFloorToTheFloor();
     void handsAPageTheQuietTextTheThemeNamed();
     void keepsQuietTextAheadOfADisabledControl();
     void quietensATextColourAThemeNamesNoMutedTextFor();
-    void keepsAMutedColourAThemeGotRight();
-    void preservesTheHueOfAMutedColourItRepairs();
+    void ignoresAMutedColourAThemeNamed();
+    void derivesPrivateQuietTextFromThePrivateSidebar();
     void keepsBordersVisibleOnEverySurfaceTheySeparate();
     void preservesTheHueOfABorderItRepairs();
     void keepsABorderAThemeAlsoNamedAsItsHoverFill();
@@ -713,11 +713,10 @@ void ThemeControllerTest::keepsQuietTextReadableOnPrivateSurfaces()
     }
 }
 
-// Omarchy's template fills `surfaceHover` from the same token as `mutedText`,
-// so in ethereal both are #6d7db6 and no colour clears the floor on that fill
-// and on the near-black sidebar at once. Quiet text is not drawn on a hover
-// fill, so the floor leaves it out and the theme's own blue stays.
-void ThemeControllerTest::keepsEtherealsBlueQuietTextInsteadOfNearWhite()
+// Quiet text is the theme's text blended 65% over the opaque sidebar it rests on, in every
+// theme: whatever a theme names for `mutedText` is not read. Ethereal names a blue, and the
+// expected colour is worked by hand: #040816 + 0.65 * (#ffcead - #040816) = #a78978.
+void ThemeControllerTest::derivesQuietTextFromTheTextOverTheSidebar()
 {
     QTemporaryDir root;
     QFile theme(root.filePath(QStringLiteral("theme.json")));
@@ -736,9 +735,7 @@ void ThemeControllerTest::keepsEtherealsBlueQuietTextInsteadOfNearWhite()
     ThemeController controller(theme.fileName());
     const auto palette = controller.palette();
     const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
-    const QColor named(QStringLiteral("#6d7db6"));
-    QVERIFY(std::abs(muted.hslHue() - named.hslHue()) <= 2);
-    QVERIFY2(muted.lightnessF() < 0.8, qPrintable(muted.name()));
+    QCOMPARE(muted, QColor(QStringLiteral("#a78978")));
     for (const auto &key : {"windowOpaque", "sidebarOpaque", "surface"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
@@ -746,7 +743,9 @@ void ThemeControllerTest::keepsEtherealsBlueQuietTextInsteadOfNearWhite()
     }
 }
 
-void ThemeControllerTest::keepsAMutedColourThatOnlyFailsOnTheHoverFill()
+// Where the 65% blend does not reach 4.5:1 it moves towards the text only as far as the floor
+// needs, so it lands on the floor rather than at the text.
+void ThemeControllerTest::liftsAQuietTextBlendThatFallsShortOfTheFloorToTheFloor()
 {
     QTemporaryDir root;
     QFile theme(root.filePath(QStringLiteral("theme.json")));
@@ -756,15 +755,19 @@ void ThemeControllerTest::keepsAMutedColourThatOnlyFailsOnTheHoverFill()
         "sidebar": "#101010",
         "overlay": "#101010",
         "surface": "#101010",
-        "surfaceHover": "#888888",
-        "text": "#ffffff",
-        "mutedText": "#999999"
+        "text": "#909090",
+        "mutedText": "#b0b0b0"
     })JSON");
     theme.close();
 
     ThemeController controller(theme.fileName());
-    QCOMPARE(QColor(controller.palette().value(QStringLiteral("mutedText")).toString()),
-        QColor(QStringLiteral("#999999")));
+    const auto palette = controller.palette();
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    const QColor ground(QStringLiteral("#101010"));
+    // The plain blend is #636363, 3.2:1 on the sidebar.
+    QVERIFY(contrastRatio(muted, ground) >= minimumContrast);
+    QVERIFY(contrastRatio(muted, ground) < minimumContrast + 0.15);
+    QVERIFY(muted.red() < 0x90);
 }
 
 // A page following the theme has one ground, so it takes the quiet text the
@@ -799,8 +802,12 @@ void ThemeControllerTest::handsAPageTheQuietTextTheThemeNamed()
     })JSON");
     unnamed.close();
     const auto unnamedPalette = ThemeController(unnamed.fileName()).palette();
-    QCOMPARE(unnamedPalette.value(QStringLiteral("pageMutedText")).toString(),
-        unnamedPalette.value(QStringLiteral("mutedText")).toString());
+    // The page's value is not the chrome's derived one: it still reads on every ground, hover
+    // fill included, and stays quieter than the text.
+    const QColor page(unnamedPalette.value(QStringLiteral("pageMutedText")).toString());
+    QVERIFY(contrastRatio(page, QColor(QStringLiteral("#101010"))) >= minimumContrast);
+    QVERIFY(contrastRatio(page, QColor(QStringLiteral("#101010"))) < 21.0);
+    QVERIFY(page != QColor(QStringLiteral("#ffffff")));
 }
 
 // The defect the floor exists to prevent: muted text drawn fainter than the
@@ -866,9 +873,9 @@ void ThemeControllerTest::quietensATextColourAThemeNamesNoMutedTextFor()
         < contrastRatio(QColor(palette.value(QStringLiteral("text")).toString()), ground));
 }
 
-// The floor repairs; it does not redecorate. A theme whose muted text already
-// reads keeps the exact colour it named, hue and all.
-void ThemeControllerTest::keepsAMutedColourAThemeGotRight()
+// A theme whose muted text already reads still gets the derived colour: the text over the
+// sidebar at 65%, worked by hand as #080e18 + 0.65 * (#e8eef7 - #080e18) = #9aa0a9.
+void ThemeControllerTest::ignoresAMutedColourAThemeNamed()
 {
     QTemporaryDir root;
     QFile theme(root.filePath(QStringLiteral("theme.json")));
@@ -885,10 +892,12 @@ void ThemeControllerTest::keepsAMutedColourAThemeGotRight()
 
     ThemeController controller(theme.fileName());
     QCOMPARE(QColor(controller.palette().value(QStringLiteral("mutedText")).toString()),
-        QColor(QStringLiteral("#b3bdcc")));
+        QColor(QStringLiteral("#9aa0a9")));
 }
 
-void ThemeControllerTest::preservesTheHueOfAMutedColourItRepairs()
+// A Private window's quiet text is the text over the Private sidebar:
+// #181818 + 0.65 * (#d8e8c0 - #181818) = #959f85.
+void ThemeControllerTest::derivesPrivateQuietTextFromThePrivateSidebar()
 {
     QTemporaryDir root;
     QFile theme(root.filePath(QStringLiteral("theme.json")));
@@ -907,10 +916,8 @@ void ThemeControllerTest::preservesTheHueOfAMutedColourItRepairs()
     theme.close();
 
     ThemeController controller(theme.fileName());
-    const QColor named(QStringLiteral("#35105f"));
-    const QColor repaired(controller.palette().value(QStringLiteral("mutedText")).toString());
-    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#181818"))) >= minimumContrast);
-    QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("privateMutedText")).toString()),
+        QColor(QStringLiteral("#959f85")));
 }
 
 void ThemeControllerTest::keepsBordersVisibleOnEverySurfaceTheySeparate()
