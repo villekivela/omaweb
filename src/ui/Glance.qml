@@ -333,7 +333,6 @@ FocusScope {
                 icon: "close"
                 accessibleName: qsTr("Close Glance")
                 fontFamily: root.iconFontFamily
-                foreground: root.colors.mutedText
                 accent: root.colors.accent
                 onClicked: root.closed()
             }
@@ -346,7 +345,6 @@ FocusScope {
                 icon: "open_in_new"
                 accessibleName: qsTr("Open as tab")
                 fontFamily: root.iconFontFamily
-                foreground: root.colors.mutedText
                 accent: root.colors.accent
                 onClicked: root.openAsTabRequested()
             }

@@ -6239,6 +6239,25 @@ TestCase {
         verify(browser.deleteSpace(agentSpaceId, "Agent"));
     }
 
+    // The sidebar's glyphs rest in the theme's text, not in its quiet text, so
+    // a theme that names a quiet colour close to its fills cannot dim them.
+    function test_chromeIconsRestInTheThemesText() {
+        verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
+        const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
+                       "reloadButton", "settingsButton"];
+        for (const name of names) {
+            const button = findChild(window.contentItem, name);
+            verify(button !== null, name);
+            verify(Qt.colorEqual(button.foreground, window.colors.text), name);
+        }
+        const lock = findChild(window.contentItem, "securityIndicator");
+        verify(lock !== null);
+        verify(Qt.colorEqual(lock.color, window.colors.text));
+        const forward = findChild(window.contentItem, "forwardButton");
+        verify(!forward.enabled);
+        compare(forward.opacity, 0.35);
+    }
+
     function test_primaryChromeIsAccessibleFromKeyboard() {
         window.requestActivate();
         tryVerify(function () {

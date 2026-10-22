@@ -861,10 +861,13 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         }
         return colours;
     };
-    const auto grounds = coloursFor({QStringLiteral("sidebar"), QStringLiteral("surface"),
-        QStringLiteral("surfaceHover"), QStringLiteral("overlay"), QStringLiteral("sheet")});
-    const auto privateGrounds = coloursFor({QStringLiteral("privateSidebar"),
-        QStringLiteral("privateSurface"), QStringLiteral("privateSurfaceHover"),
+    // The grounds quiet text rests on. A hover fill is not one: the theme may
+    // fill it from the very token it names for quiet text (ethereal does), and
+    // no colour then reads on it and on the sidebar at once.
+    const auto grounds = coloursFor({QStringLiteral("window"), QStringLiteral("sidebar"),
+        QStringLiteral("surface"), QStringLiteral("overlay"), QStringLiteral("sheet")});
+    const auto privateGrounds = coloursFor({QStringLiteral("privateWindow"),
+        QStringLiteral("privateSidebar"), QStringLiteral("privateSurface"),
         QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
     const QColor named(palette.value(QStringLiteral("mutedText")).toString());
     const auto hasNamedMutedText = themeNamedMutedText && named.isValid();
@@ -876,8 +879,8 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
             = adjustedForContrast(quietest, text, grounds, minimumContrast, hasNamedMutedText);
         palette.insert(QStringLiteral("mutedText"), resolved.name(QColor::HexRgb));
         // What a page following the theme is handed for its quiet text. A page
-        // has one ground, and the floor answers for six, one of them a hover
-        // fill that pushes a mid-grey near white; so the theme's own word
+        // has one ground, and the floor answers for five grounds, which can
+        // push a mid-grey near white; so the theme's own word
         // where it gave one, and the floored value only where Omaweb had to
         // invent the colour anyway.
         palette.insert(QStringLiteral("pageMutedText"),

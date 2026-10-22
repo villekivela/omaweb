@@ -45,6 +45,8 @@ private slots:
     void keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBundledTheme();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
+    void keepsEtherealsBlueQuietTextInsteadOfNearWhite();
+    void keepsAMutedColourThatOnlyFailsOnTheHoverFill();
     void handsAPageTheQuietTextTheThemeNamed();
     void keepsQuietTextAheadOfADisabledControl();
     void quietensATextColourAThemeNamesNoMutedTextFor();
@@ -697,18 +699,72 @@ void ThemeControllerTest::keepsQuietTextReadableOnPrivateAndHoverSurfaces()
     const auto palette = controller.palette();
     const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
     for (const auto &key :
-        {"sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque"}) {
+        {"windowOpaque", "sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
     }
     const QColor privateMuted(palette.value(QStringLiteral("privateMutedText")).toString());
-    for (const auto &key : {"privateSidebarOpaque", "privateSurface", "privateSurfaceHover",
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
              "privateOverlayOpaque", "privateSheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(privateMuted, ground) >= minimumContrast, key);
     }
+}
+
+// Omarchy's template fills `surfaceHover` from the same token as `mutedText`,
+// so in ethereal both are #6d7db6 and no colour clears the floor on that fill
+// and on the near-black sidebar at once. Quiet text is not drawn on a hover
+// fill, so the floor leaves it out and the theme's own blue stays.
+void ThemeControllerTest::keepsEtherealsBlueQuietTextInsteadOfNearWhite()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#030610",
+        "sidebar": "#040816",
+        "overlay": "#040816",
+        "surface": "#131a3a",
+        "surfaceHover": "#6d7db6",
+        "text": "#ffcead",
+        "mutedText": "#6d7db6"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    const QColor named(QStringLiteral("#6d7db6"));
+    QVERIFY(std::abs(muted.hslHue() - named.hslHue()) <= 2);
+    QVERIFY2(muted.lightnessF() < 0.8, qPrintable(muted.name()));
+    for (const auto &key : {"windowOpaque", "sidebarOpaque", "surface"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
+    }
+}
+
+void ThemeControllerTest::keepsAMutedColourThatOnlyFailsOnTheHoverFill()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#101010",
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#101010",
+        "surfaceHover": "#888888",
+        "text": "#ffffff",
+        "mutedText": "#999999"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("mutedText")).toString()),
+        QColor(QStringLiteral("#999999")));
 }
 
 // A page following the theme has one ground, so it takes the quiet text the
@@ -723,14 +779,13 @@ void ThemeControllerTest::handsAPageTheQuietTextTheThemeNamed()
         "sidebar": "#101010",
         "overlay": "#101010",
         "surface": "#101010",
-        "surfaceHover": "#65486f",
         "text": "#ffffff",
-        "mutedText": "#888888"
+        "mutedText": "#555555"
     })JSON");
     named.close();
     const auto namedPalette = ThemeController(named.fileName()).palette();
     QCOMPARE(
-        namedPalette.value(QStringLiteral("pageMutedText")).toString(), QStringLiteral("#888888"));
+        namedPalette.value(QStringLiteral("pageMutedText")).toString(), QStringLiteral("#555555"));
     QVERIFY(namedPalette.value(QStringLiteral("mutedText")).toString()
         != namedPalette.value(QStringLiteral("pageMutedText")).toString());
 
@@ -854,7 +909,7 @@ void ThemeControllerTest::preservesTheHueOfAMutedColourItRepairs()
     ThemeController controller(theme.fileName());
     const QColor named(QStringLiteral("#35105f"));
     const QColor repaired(controller.palette().value(QStringLiteral("mutedText")).toString());
-    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#202020"))) >= minimumContrast);
+    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#181818"))) >= minimumContrast);
     QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
 }
 
@@ -1090,7 +1145,7 @@ void ThemeControllerTest::keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccen
     // palette is satisfiable, so nothing there is allowed to be a compromise.
     const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
     for (const auto &key :
-        {"sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque"}) {
+        {"windowOpaque", "sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
     }

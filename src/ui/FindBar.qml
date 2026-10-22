@@ -142,7 +142,6 @@ Item {
             accessibleName: qsTr("Previous match")
             fontFamily: root.iconFontFamily
             enabled: root.matchCount > 0
-            foreground: root.colors.text
             accent: root.colors.accent
             onClicked: root.searchRequested(field.text, false)
         }
@@ -158,7 +157,6 @@ Item {
             accessibleName: qsTr("Next match")
             fontFamily: root.iconFontFamily
             enabled: root.matchCount > 0
-            foreground: root.colors.text
             accent: root.colors.accent
             onClicked: root.searchRequested(field.text, true)
         }
@@ -174,7 +172,6 @@ Item {
             icon: "close"
             accessibleName: qsTr("Hide find")
             fontFamily: root.iconFontFamily
-            foreground: root.colors.text
             accent: root.colors.accent
             onClicked: root.closed()
         }

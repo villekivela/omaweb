@@ -539,7 +539,6 @@ Rectangle {
                     icon: "close"
                     accessibleName: qsTr("Close shortcuts")
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     onClicked: root.closed()
                 }

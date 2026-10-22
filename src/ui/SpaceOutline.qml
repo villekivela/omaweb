@@ -871,7 +871,6 @@ Rectangle {
                                                                                      "left_panel_close")
                     accessibleName: root.collapsed ? qsTr("Show sidebar") : qsTr("Hide sidebar")
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     onClicked: root.sidebarToggled()
                 }
@@ -884,7 +883,6 @@ Rectangle {
                     icon: "search"
                     accessibleName: qsTr("Search commands")
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     onClicked: root.commandScopeRequested()
                 }
@@ -905,7 +903,6 @@ Rectangle {
                     icon: "arrow_back"
                     accessibleName: qsTr("Back")
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     enabled: root.canGoBack
                     onClicked: root.backRequested()
@@ -919,7 +916,6 @@ Rectangle {
                     icon: "arrow_forward"
                     accessibleName: qsTr("Forward")
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     enabled: root.canGoForward
                     onClicked: root.forwardRequested()
@@ -933,7 +929,6 @@ Rectangle {
                     icon: "refresh"
                     accessibleName: qsTr("Reload")
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     onClicked: root.reloadRequested()
                 }
@@ -1028,7 +1023,7 @@ Rectangle {
                 width: Style.space(18)
                 horizontalAlignment: Text.AlignHCenter
                 text: root.certificateError ? "warning" : (root.secure ? "lock" : "lock_open")
-                color: root.certificateError ? root.colors.urgent : root.colors.mutedText
+                color: root.certificateError ? root.colors.urgent : root.colors.text
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.Button
@@ -1071,7 +1066,7 @@ Rectangle {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "shield"
-                    color: root.colors.mutedText
+                    color: root.colors.text
                     font.family: root.iconFontFamily
                     font.pixelSize: Style.font.iconLarge
                 }
@@ -1079,7 +1074,7 @@ Rectangle {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.refusalTally
-                    color: root.colors.mutedText
+                    color: root.colors.text
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                 }
@@ -1617,7 +1612,7 @@ Rectangle {
                                                               "Settings for %1").arg(
                                                               root.sync.login)
             foreground: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent :
-                                                                         root.colors.mutedText
+                                                                         syncMark.restingForeground
 
             accent: root.colors.accent
             onClicked: root.settingsRequested()
@@ -1694,7 +1689,6 @@ Rectangle {
                                                          "Browsing settings and downloads — needs attention") :
                                                      qsTr("Browsing settings and downloads")
             fontFamily: root.iconFontFamily
-            foreground: root.settingsAttention ? root.colors.text : root.colors.mutedText
             accent: root.colors.accent
             onClicked: root.settingsRequested()
 

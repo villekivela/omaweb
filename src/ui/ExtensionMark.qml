@@ -29,7 +29,6 @@ ChromeButton {
 
     visible: root.hosted.length > 0
     icon: "extension"
-    foreground: root.colors.text
     accent: root.colors.accent
     fontFamily: root.iconFontFamily
     focusable: root.visible
