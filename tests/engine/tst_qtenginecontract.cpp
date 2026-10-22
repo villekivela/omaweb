@@ -94,6 +94,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -8029,6 +8030,7 @@ void QtEngineContractTest::qtAsksBeforeAPageHandsOverToAnApp()
     ViewInWindow shown;
     QVERIFY(shown.create(QUrl()));
     QSignalSpy prompts(shown.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    QSignalSpy events(shown.adapter.get(), SIGNAL(problemEvent(QString, QUrl, QString)));
     shown.adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(server.serverPort()).arg(path)));
 
@@ -8054,6 +8056,19 @@ void QtEngineContractTest::qtAsksBeforeAPageHandsOverToAnApp()
         prompt.value(QStringLiteral("destination")).toString(), QString::fromUtf8(slackSignIn));
     QEXPECT_FAIL("server redirect", "Qt hands Omaweb a redirect's address lowercased", Continue);
     QCOMPARE(handed(), slackSignIn);
+
+    // A Problem recording holds what was asked and what the reader did, under
+    // the page's address.
+    QList<QPair<QString, QUrl>> handOffs;
+    for (const auto &event : events) {
+        if (event.at(0).toString().contains(QStringLiteral("hand"))) {
+            handOffs.append({event.at(0).toString(), event.at(1).toUrl()});
+        }
+    }
+    const QUrl recorded(QString::fromUtf8(slackSignIn));
+    QCOMPARE(handOffs,
+        (QList<QPair<QString, QUrl>> {{QStringLiteral("hand-off asked"), recorded},
+            {QStringLiteral("handed off"), recorded}}));
 }
 
 // A page that sends the address again while the reader is still deciding, as
@@ -8068,12 +8083,19 @@ setInterval(() => location.href = 'slack://T0123/magic-login/abc', 200);
     ViewInWindow shown;
     QVERIFY(shown.create(QUrl()));
     QSignalSpy prompts(shown.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    QSignalSpy events(shown.adapter.get(), SIGNAL(problemEvent(QString, QUrl, QString)));
     shown.adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort())));
 
     QTRY_COMPARE_WITH_TIMEOUT(prompts.count(), 1, 10000);
     QTest::qWait(1000);
     QCOMPARE(prompts.count(), 1);
+    // The recording has the one question the reader saw, not each retry.
+    QCOMPARE(std::count_if(events.cbegin(), events.cend(),
+                 [](const QList<QVariant> &event) {
+                     return event.at(0).toString() == QStringLiteral("hand-off asked");
+                 }),
+        1);
 
     QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "respondToBrowserPrompt",
         Q_ARG(QVariant, prompts.first().at(0)), Q_ARG(QVariant, false),
