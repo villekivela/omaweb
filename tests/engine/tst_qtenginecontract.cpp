@@ -10842,39 +10842,58 @@ void QtEngineContractTest::qtAnswersAClipboardReadFromTheShellsStandingAnswer()
 
 namespace {
 
-// A page over loopback, a secure context, in a shown and active window, with
-// a button over the whole page. Blink lets only a focused document use the
-// asynchronous clipboard, and grants a write without asking only during the
-// transient activation a real click gives, which runJavaScript does not.
-class ClipboardPage {
-public:
-    explicit ClipboardPage(QByteArray script)
-        : m_server("<!doctype html><html><body style=\"margin: 0\">"
-                   "<button style=\"width: 100vw; height: 100vh\">copy</button>"
-                   "<script>"
-              + script + "document.title = \"ready\";</script></body></html>")
+// A Space's profile, with any Known extensions added before it is opened, and
+// a view on it in a shown and active window. Blink lets only a focused
+// document use the asynchronous clipboard, and grants a write without asking
+// only during the transient activation a real click gives, which
+// runJavaScript does not.
+struct ClipboardWindow final {
+    using Files = QList<std::pair<QString, QByteArray>>;
+
+    QTemporaryDir root;
+    QVariantList knownExtensions;
+    QQmlEngine engine;
+    std::unique_ptr<QObject> host;
+    QQuickWindow window;
+    std::unique_ptr<QObject> adapter;
+    std::unique_ptr<QSignalSpy> asked;
+
+    // Writes an extension's files for the profile to host as a Known one.
+    bool addExtension(const QString &name, const Files &files)
     {
+        QDir extension(root.filePath(name));
+        if (!extension.mkpath(QStringLiteral(".")))
+            return false;
+        for (const auto &[file, contents] : files) {
+            QFile out(extension.filePath(file));
+            if (!out.open(QIODevice::WriteOnly) || out.write(contents) != contents.size())
+                return false;
+        }
+        knownExtensions.append(QVariantMap {
+            {QStringLiteral("key"), name},
+            {QStringLiteral("name"), name},
+            {QStringLiteral("path"), extension.path()},
+        });
+        return true;
     }
 
     bool open()
     {
-        QGuiApplication::clipboard()->clear();
-        if (!m_server.listen(QHostAddress::LocalHost) || !m_root.isValid())
-            return false;
         QQmlComponent profileComponent(
-            &m_engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
-        m_host.reset(profileComponent.createWithInitialProperties({
-            {QStringLiteral("profilePath"), m_root.filePath(QStringLiteral("space"))},
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+        host.reset(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
             {QStringLiteral("privateBrowsing"), false},
+            {QStringLiteral("knownExtensions"), knownExtensions},
         }));
-        if (!m_host) {
+        if (!host) {
             qWarning() << profileComponent.errorString();
             return false;
         }
         QQmlComponent viewComponent(
-            &m_engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
         adapter.reset(viewComponent.createWithInitialProperties({
-            {QStringLiteral("sharedProfile"), m_host->property("profile")},
+            {QStringLiteral("sharedProfile"), host->property("profile")},
         }));
         if (!adapter) {
             qWarning() << viewComponent.errorString();
@@ -10888,11 +10907,34 @@ public:
         window.requestActivate();
         asked = std::make_unique<QSignalSpy>(
             adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
-        return adapter->setProperty("currentUrl",
-            QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(m_server.serverPort())));
+        return true;
+    }
+
+    bool load(const QUrl &url) { return url.isValid() && adapter->setProperty("currentUrl", url); }
+
+    // The address of a page of the extension whose manifest has this name,
+    // once the profile hosts every extension added.
+    QUrl extensionPage(const QString &name, const QString &path) const
+    {
+        const auto hosted = [this] { return host->property("hostedExtensions").toList(); };
+        if (!QTest::qWaitFor([&] { return hosted().size() == knownExtensions.size(); }, 20000))
+            return {};
+        for (const auto &entry : hosted()) {
+            const auto extension = entry.toMap();
+            if (extension.value(QStringLiteral("name")).toString() == name)
+                return QUrl(QStringLiteral("chrome-extension://%1/%2")
+                        .arg(extension.value(QStringLiteral("id")).toString(), path));
+        }
+        return {};
     }
 
     QString title() const { return adapter->property("pageTitle").toString(); }
+
+    bool focusPage()
+    {
+        return QMetaObject::invokeMethod(adapter.get(), "focusPage")
+            && QTest::qWaitFor([this] { return adapter->property("pageHasFocus").toBool(); });
+    }
 
     // Runs a script with no user activation behind it.
     bool run(const QString &script)
@@ -10903,7 +10945,7 @@ public:
     }
 
     // A click that arrives before the page has drawn its first frame is
-    // dropped, so the button is clicked again until the page answers.
+    // dropped, so the page is clicked again until it answers.
     bool clickUntil(const std::function<bool()> &answered)
     {
         QDeadlineTimer deadline(20000);
@@ -10914,111 +10956,25 @@ public:
         }
         return false;
     }
-
-    QQuickWindow window;
-    std::unique_ptr<QObject> adapter;
-    std::unique_ptr<QSignalSpy> asked;
-
-private:
-    PageServer m_server;
-    QTemporaryDir m_root;
-    QQmlEngine m_engine;
-    std::unique_ptr<QObject> m_host;
 };
+
+// A page with a button over the whole of it, which says it is ready once
+// the script has run.
+QByteArray pageWithAButton(const QByteArray &script)
+{
+    return "<!doctype html><html><body style=\"margin: 0\">"
+           "<button style=\"width: 100vw; height: 100vh\">copy</button>"
+           "<script>"
+        + script + "document.title = \"ready\";</script></body></html>";
+}
+
+// Loopback is a secure context, which the asynchronous clipboard requires.
+QUrl pageAt(const PageServer &server)
+{
+    return QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+}
 
 QString clipboardText() { return QGuiApplication::clipboard()->text(); }
-
-#if OMAWEB_KNOWN_EXTENSIONS
-// Known extensions written to a temporary directory and hosted by a Space's
-// profile, with a view in a shown, active window to open their pages in.
-class ClipboardExtensions {
-public:
-    using Files = QList<std::pair<QString, QByteArray>>;
-
-    bool add(const QString &name, const Files &files)
-    {
-        QDir extension(m_root.filePath(name));
-        if (!extension.mkpath(QStringLiteral(".")))
-            return false;
-        for (const auto &[file, contents] : files) {
-            QFile out(extension.filePath(file));
-            if (!out.open(QIODevice::WriteOnly) || out.write(contents) != contents.size())
-                return false;
-        }
-        m_known.append(QVariantMap {
-            {QStringLiteral("key"), name},
-            {QStringLiteral("name"), name},
-            {QStringLiteral("path"), extension.path()},
-        });
-        return true;
-    }
-
-    bool host()
-    {
-        QGuiApplication::clipboard()->clear();
-        QQmlComponent profileComponent(
-            &m_engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
-        m_host.reset(profileComponent.createWithInitialProperties({
-            {QStringLiteral("profilePath"), m_root.filePath(QStringLiteral("space"))},
-            {QStringLiteral("privateBrowsing"), false},
-            {QStringLiteral("knownExtensions"), m_known},
-        }));
-        if (!m_host) {
-            qWarning() << profileComponent.errorString();
-            return false;
-        }
-        QQmlComponent viewComponent(
-            &m_engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
-        adapter.reset(viewComponent.createWithInitialProperties({
-            {QStringLiteral("sharedProfile"), m_host->property("profile")},
-        }));
-        if (!adapter) {
-            qWarning() << viewComponent.errorString();
-            return false;
-        }
-        window.resize(640, 480);
-        auto *view = qobject_cast<QQuickItem *>(adapter.get());
-        view->setParentItem(window.contentItem());
-        view->setSize(QSizeF(640, 480));
-        window.show();
-        window.requestActivate();
-        asked = std::make_unique<QSignalSpy>(
-            adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
-        return true;
-    }
-
-    // The address of a page of the extension whose manifest has this name,
-    // once the profile hosts every extension added.
-    QUrl page(const QString &name, const QString &path) const
-    {
-        if (!QTest::qWaitFor(
-                [this] {
-                    return m_host->property("hostedExtensions").toList().size() == m_known.size();
-                },
-                20000))
-            return {};
-        for (const auto &hosted : m_host->property("hostedExtensions").toList()) {
-            const auto extension = hosted.toMap();
-            if (extension.value(QStringLiteral("name")).toString() == name)
-                return QUrl(QStringLiteral("chrome-extension://%1/%2")
-                        .arg(extension.value(QStringLiteral("id")).toString(), path));
-        }
-        return {};
-    }
-
-    QString title() const { return adapter->property("pageTitle").toString(); }
-
-    QQuickWindow window;
-    std::unique_ptr<QObject> adapter;
-    std::unique_ptr<QSignalSpy> asked;
-
-private:
-    QTemporaryDir m_root;
-    QVariantList m_known;
-    QQmlEngine m_engine;
-    std::unique_ptr<QObject> m_host;
-};
-#endif
 
 } // namespace
 
@@ -11028,16 +10984,19 @@ private:
 void QtEngineContractTest::qtLetsAClickWriteToTheClipboardWithoutAsking()
 {
 #if OMAWEB_KNOWN_EXTENSIONS
-    ClipboardPage page(R"JS(
+    PageServer server(pageWithAButton(R"JS(
         document.querySelector("button").addEventListener("click", () => {
             navigator.clipboard.writeText("copied").then(
                 () => document.title = "written", error => document.title = error.name);
         });
-    )JS");
+    )JS"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QGuiApplication::clipboard()->clear();
+    ClipboardWindow page;
     QVERIFY(page.open());
+    QVERIFY(page.load(pageAt(server)));
     QTRY_COMPARE_WITH_TIMEOUT(page.title(), QStringLiteral("ready"), 20000);
-    QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), "focusPage"));
-    QTRY_VERIFY(page.adapter->property("pageHasFocus").toBool());
+    QVERIFY(page.focusPage());
     QVERIFY(page.clickUntil(
         [&page] { return page.title() != QStringLiteral("ready") || page.asked->count() > 0; }));
     QCOMPARE(page.asked->count(), 0);
@@ -11053,7 +11012,7 @@ void QtEngineContractTest::qtLetsAClickWriteToTheClipboardWithoutAsking()
 // the clipboard as it was (ADR 0069).
 void QtEngineContractTest::qtAsksBeforeAWriteWithoutAGesture()
 {
-    ClipboardPage page(R"JS(
+    PageServer server(pageWithAButton(R"JS(
         // Chromium refuses the asynchronous clipboard to a page without focus.
         function write() {
             navigator.clipboard.writeText("written").then(
@@ -11063,8 +11022,12 @@ void QtEngineContractTest::qtAsksBeforeAWriteWithoutAGesture()
             write();
         else
             window.addEventListener("focus", write, {once: true});
-    )JS");
+    )JS"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QGuiApplication::clipboard()->clear();
+    ClipboardWindow page;
     QVERIFY(page.open());
+    QVERIFY(page.load(pageAt(server)));
     QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), "focusPage"));
     QTRY_VERIFY_WITH_TIMEOUT(page.asked->count() > 0, 20000);
     QCOMPARE(page.asked->first().at(2).toString(), QStringLiteral("clipboard-read"));
@@ -11079,7 +11042,7 @@ void QtEngineContractTest::qtAsksBeforeAWriteWithoutAGesture()
 // JavascriptCanAccessClipboard, which is why the shell leaves it off.
 void QtEngineContractTest::qtCopiesThroughExecCommandOnlyDuringAClick()
 {
-    ClipboardPage page(R"JS(
+    PageServer server(pageWithAButton(R"JS(
         document.addEventListener("copy", event => {
             event.clipboardData.setData("text/plain", "copied");
             event.preventDefault();
@@ -11088,15 +11051,18 @@ void QtEngineContractTest::qtCopiesThroughExecCommandOnlyDuringAClick()
             document.title = "clicked " + document.execCommand("copy");
         });
         window.copyWithoutAGesture = () => document.execCommand("copy");
-    )JS");
+    )JS"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QGuiApplication::clipboard()->clear();
+    ClipboardWindow page;
     QVERIFY(page.open());
+    QVERIFY(page.load(pageAt(server)));
     QTRY_COMPARE_WITH_TIMEOUT(page.title(), QStringLiteral("ready"), 20000);
     QVERIFY(page.run(QStringLiteral("document.title = 'by script ' + copyWithoutAGesture();")));
     QTRY_COMPARE_WITH_TIMEOUT(page.title(), QStringLiteral("by script false"), 20000);
     QCOMPARE(clipboardText(), QString());
 
-    QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), "focusPage"));
-    QTRY_VERIFY(page.adapter->property("pageHasFocus").toBool());
+    QVERIFY(page.focusPage());
     QVERIFY(page.clickUntil([&page] { return page.title() != QStringLiteral("by script false"); }));
     QCOMPARE(page.title(), QStringLiteral("clicked true"));
     QTRY_COMPARE(clipboardText(), QStringLiteral("copied"));
@@ -11106,42 +11072,56 @@ void QtEngineContractTest::qtCopiesThroughExecCommandOnlyDuringAClick()
 // Bitwarden copies a password from its offscreen document, which has no
 // focus and no click behind it, by selecting it in a text area and calling
 // document.execCommand("copy"). Chrome lets an extension that declares
-// clipboardWrite write from any of its documents (ADR 0069). The engine does
-// from patch 0031 of its series; before patch 0032 the selection took the
-// browser down, because the document's view has no delegate.
+// clipboardWrite write from any of its documents, and an offscreen document
+// of one that does not declare it cannot (ADR 0069). The engine answers from
+// patch 0031 of its series; before patch 0032 the selection took the browser
+// down, because the document's view has no delegate.
 void QtEngineContractTest::qtLetsAnExtensionWithClipboardWriteCopyFromItsOffscreenDocument()
 {
 #if OMAWEB_KNOWN_EXTENSIONS
-    ClipboardExtensions extensions;
     // Outside any macro: moc misreads a raw string with quotes in a macro's
     // arguments.
-    const ClipboardExtensions::Files files {
-        {QStringLiteral("manifest.json"),
-            R"JSON({"manifest_version": 3, "name": "copier", "version": "1",
-                "permissions": ["offscreen", "clipboardWrite"]})JSON"},
-        {QStringLiteral("page.html"),
-            R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML"},
-        {QStringLiteral("page.js"), R"JS(
-            chrome.runtime.onMessage.addListener((message) => document.title = message);
-            chrome.offscreen.createDocument({
-                url: "offscreen.html", reasons: ["CLIPBOARD"], justification: "test"
-            }).catch((error) => document.title = "failed: " + error.message);
-        )JS"},
-        {QStringLiteral("offscreen.html"),
-            R"HTML(<!doctype html><textarea></textarea><script src="offscreen.js"></script>)HTML"},
-        // Bitwarden selects the password in a text area and copies it.
-        {QStringLiteral("offscreen.js"), R"JS(
-            const area = document.querySelector("textarea");
-            area.value = "password";
-            area.select();
-            chrome.runtime.sendMessage("copied " + document.execCommand("copy"));
-        )JS"},
+    const auto copier = [](const QByteArray &manifest) {
+        return ClipboardWindow::Files {
+            {QStringLiteral("manifest.json"), manifest},
+            {QStringLiteral("page.html"),
+                R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML"},
+            {QStringLiteral("page.js"), R"JS(
+                chrome.runtime.onMessage.addListener((message) => document.title = message);
+                chrome.offscreen.createDocument({
+                    url: "offscreen.html", reasons: ["CLIPBOARD"], justification: "test"
+                }).catch((error) => document.title = "failed: " + error.message);
+            )JS"},
+            {QStringLiteral("offscreen.html"),
+                R"HTML(<!doctype html><textarea></textarea>
+                    <script src="offscreen.js"></script>)HTML"},
+            {QStringLiteral("offscreen.js"), R"JS(
+                const area = document.querySelector("textarea");
+                area.value = "password";
+                area.select();
+                chrome.runtime.sendMessage("copied " + document.execCommand("copy"));
+            )JS"},
+        };
     };
-    QVERIFY(extensions.add(QStringLiteral("copier"), files));
-    QVERIFY(extensions.host());
-    const auto page = extensions.page(QStringLiteral("copier"), QStringLiteral("page.html"));
-    QVERIFY(page.isValid());
-    QVERIFY(extensions.adapter->setProperty("currentUrl", page));
+    const QByteArray withClipboardWrite = R"JSON({"manifest_version": 3, "name": "copier",
+        "version": "1", "permissions": ["offscreen", "clipboardWrite"]})JSON";
+    const QByteArray withoutIt = R"JSON({"manifest_version": 3, "name": "other",
+        "version": "1", "permissions": ["offscreen"]})JSON";
+    QGuiApplication::clipboard()->clear();
+    ClipboardWindow extensions;
+    QVERIFY(extensions.addExtension(QStringLiteral("copier"), copier(withClipboardWrite)));
+    QVERIFY(extensions.addExtension(QStringLiteral("other"), copier(withoutIt)));
+    QVERIFY(extensions.open());
+
+    QVERIFY(extensions.load(
+        extensions.extensionPage(QStringLiteral("other"), QStringLiteral("page.html"))));
+    QTRY_VERIFY_WITH_TIMEOUT(extensions.title().startsWith(QStringLiteral("copied")), 20000);
+    QCOMPARE(extensions.title(), QStringLiteral("copied false"));
+    QCOMPARE(clipboardText(), QString());
+
+    QVERIFY(extensions.load(
+        extensions.extensionPage(QStringLiteral("copier"), QStringLiteral("page.html"))));
+    QTRY_COMPARE_WITH_TIMEOUT(extensions.title(), QStringLiteral("waiting"), 20000);
     QTRY_VERIFY_WITH_TIMEOUT(extensions.title().startsWith(QStringLiteral("copied")), 20000);
     QCOMPARE(extensions.title(), QStringLiteral("copied true"));
     QTRY_COMPARE(clipboardText(), QStringLiteral("password"));
@@ -11157,41 +11137,39 @@ void QtEngineContractTest::qtLetsAnExtensionWithClipboardWriteCopyFromItsOffscre
 void QtEngineContractTest::qtLetsAnExtensionWithClipboardReadReadWithoutAsking()
 {
 #if OMAWEB_KNOWN_EXTENSIONS
-    const QByteArray readingPage
-        = R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML";
-    // Chromium refuses the asynchronous clipboard to a page without focus.
-    const QByteArray readingScript = R"JS(
-        function read() {
-            navigator.clipboard.readText().then(
-                text => document.title = "read " + text, error => document.title = error.name);
-        }
-        if (document.hasFocus())
-            read();
-        else
-            window.addEventListener("focus", read, {once: true});
-    )JS";
-    ClipboardExtensions extensions;
-    QVERIFY(extensions.add(QStringLiteral("reader"),
-        {
-            {QStringLiteral("manifest.json"),
-                R"JSON({"manifest_version": 3, "name": "reader", "version": "1",
-                    "permissions": ["clipboardRead"]})JSON"},
-            {QStringLiteral("page.html"), readingPage},
-            {QStringLiteral("page.js"), readingScript},
-        }));
-    QVERIFY(extensions.add(QStringLiteral("other"),
-        {
-            {QStringLiteral("manifest.json"),
-                R"JSON({"manifest_version": 3, "name": "other", "version": "1"})JSON"},
-            {QStringLiteral("page.html"), readingPage},
-            {QStringLiteral("page.js"), readingScript},
-        }));
-    QVERIFY(extensions.host());
+    // Outside any macro: moc misreads a raw string with quotes in a macro's
+    // arguments.
+    const auto reading = [](const QByteArray &manifest) {
+        return ClipboardWindow::Files {
+            {QStringLiteral("manifest.json"), manifest},
+            {QStringLiteral("page.html"),
+                R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML"},
+            // Chromium refuses the asynchronous clipboard to a page without focus.
+            {QStringLiteral("page.js"), R"JS(
+                function read() {
+                    navigator.clipboard.readText().then(
+                        text => document.title = "read " + text,
+                        error => document.title = error.name);
+                }
+                if (document.hasFocus())
+                    read();
+                else
+                    window.addEventListener("focus", read, {once: true});
+            )JS"},
+        };
+    };
+    const QByteArray withClipboardRead = R"JSON({"manifest_version": 3, "name": "reader",
+        "version": "1", "permissions": ["clipboardRead"]})JSON";
+    const QByteArray withoutIt = R"JSON({"manifest_version": 3, "name": "other",
+        "version": "1"})JSON";
+    ClipboardWindow extensions;
+    QVERIFY(extensions.addExtension(QStringLiteral("reader"), reading(withClipboardRead)));
+    QVERIFY(extensions.addExtension(QStringLiteral("other"), reading(withoutIt)));
+    QVERIFY(extensions.open());
     QGuiApplication::clipboard()->setText(QStringLiteral("from the reader"));
 
-    const auto reader = extensions.page(QStringLiteral("reader"), QStringLiteral("page.html"));
-    QVERIFY(reader.isValid());
-    QVERIFY(extensions.adapter->setProperty("currentUrl", reader));
+    QVERIFY(extensions.load(
+        extensions.extensionPage(QStringLiteral("reader"), QStringLiteral("page.html"))));
     QTRY_COMPARE_WITH_TIMEOUT(extensions.title(), QStringLiteral("waiting"), 20000);
     QVERIFY(QMetaObject::invokeMethod(extensions.adapter.get(), "focusPage"));
     QTRY_VERIFY_WITH_TIMEOUT(
@@ -11199,9 +11177,8 @@ void QtEngineContractTest::qtLetsAnExtensionWithClipboardReadReadWithoutAsking()
     QCOMPARE(extensions.asked->count(), 0);
     QCOMPARE(extensions.title(), QStringLiteral("read from the reader"));
 
-    const auto other = extensions.page(QStringLiteral("other"), QStringLiteral("page.html"));
-    QVERIFY(other.isValid());
-    QVERIFY(extensions.adapter->setProperty("currentUrl", other));
+    QVERIFY(extensions.load(
+        extensions.extensionPage(QStringLiteral("other"), QStringLiteral("page.html"))));
     QTRY_VERIFY_WITH_TIMEOUT(extensions.asked->count() > 0, 20000);
     QCOMPARE(extensions.asked->first().at(2).toString(), QStringLiteral("clipboard-read"));
 #else
