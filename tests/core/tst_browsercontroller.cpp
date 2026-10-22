@@ -784,6 +784,7 @@ void BrowserControllerTest::opensAHandedOverLinkWhole_data()
                       "&report=Versions%0A-%20Omaweb%20test");
     QTest::newRow("ampersand and plus")
         << QByteArray("https://example.com/search?q=a%26b+c&r=1%2B1%20%3D%202");
+    QTest::newRow("escaped space at the end") << QByteArray("https://example.com/find?q=a%20");
 }
 
 void BrowserControllerTest::opensAHandedOverLinkWhole()
@@ -792,10 +793,9 @@ void BrowserControllerTest::opensAHandedOverLinkWhole()
     QTemporaryDir root;
     BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
 
-    // What main.cpp does with an address another app hands over.
     const QUrl handed = QUrl::fromEncoded(link, QUrl::StrictMode);
     const auto before = controller.tabs()->rowCount();
-    controller.openInput(handed.toString(), true);
+    controller.openLink(handed, true);
 
     QCOMPARE(controller.tabs()->rowCount(), before + 1);
     QCOMPARE(controller.activeUrl().toEncoded(), link);

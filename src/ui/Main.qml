@@ -1693,7 +1693,7 @@ ApplicationWindow {
         if (form.cut)
             SystemClipboard.copyText(form.text);
         window.settingsOpen = false;
-        reporting.openInput(String(form.address), true);
+        reporting.openLink(form.address, true);
     }
 
     function toggleProblemRecording() {

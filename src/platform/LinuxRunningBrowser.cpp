@@ -134,7 +134,7 @@ bool RunningBrowser::handOver(const QUrl &url)
     const auto method = url.isValid() ? QStringLiteral("Open") : QStringLiteral("Activate");
     auto message = QDBusMessage::createMethodCall(kBusName, kObjectPath, kInterface, method);
     if (url.isValid()) {
-        // Encoded, as the running browser reads it: the decoded form of a link
+        // Encoded, because the running browser parses it strictly: the decoded form of a link
         // with a space or a newline in its query is not an address to it, and
         // the link is dropped without a tab.
         message << QStringList {QString::fromLatin1(url.toEncoded())};
