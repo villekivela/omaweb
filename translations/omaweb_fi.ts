@@ -355,6 +355,14 @@
         <translation>Lataukset</translation>
     </message>
     <message>
+        <source>Report a problem</source>
+        <translation>Ilmoita ongelmasta</translation>
+    </message>
+    <message>
+        <source>Record a problem</source>
+        <translation>Nauhoita ongelma</translation>
+    </message>
+    <message>
         <source>New Private window</source>
         <translation>Uusi yksityinen ikkuna</translation>
     </message>
@@ -2206,6 +2214,21 @@
     </message>
 </context>
 <context>
+    <name>ProblemMark</name>
+    <message>
+        <source>Recording a problem, %1 min left</source>
+        <translation>Ongelmaa nauhoitetaan, %1 min jäljellä</translation>
+    </message>
+    <message>
+        <source>Recording a problem</source>
+        <translation>Ongelmaa nauhoitetaan</translation>
+    </message>
+    <message>
+        <source>Select to end the recording and report the problem</source>
+        <translation>Lopeta nauhoitus ja ilmoita ongelmasta valitsemalla</translation>
+    </message>
+</context>
+<context>
     <name>RefusalTally</name>
     <message>
         <source>1 request blocked on this page</source>
@@ -3973,6 +3996,18 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Make Omaweb the default browser</source>
         <translation>Aseta Omaweb oletusselaimeksi</translation>
+    </message>
+    <message>
+        <source>problems</source>
+        <translation>ongelmat</translation>
+    </message>
+    <message>
+        <source>A Problem report holds the versions, settings and state an issue needs, with addresses redacted. It opens GitHub&apos;s bug form with the report filled in, and Omaweb sends nothing itself.</source>
+        <translation>Ongelmaraportissa ovat versiot, asetukset ja tila, joita ilmoitus tarvitsee, osoitteet peitettyinä. Se avaa GitHubin vikalomakkeen raportti valmiiksi täytettynä, eikä Omaweb lähetä itse mitään.</translation>
+    </message>
+    <message>
+        <source>Report a problem</source>
+        <translation>Ilmoita ongelmasta</translation>
     </message>
     <message>
         <source>project</source>

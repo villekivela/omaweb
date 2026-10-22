@@ -200,7 +200,7 @@ void AgentMcpTest::servesEachVerbAsOneTool()
             QStringLiteral("commands"), QStringLiteral("run"), QStringLiteral("space_new"),
             QStringLiteral("space_delete"), QStringLiteral("look"), QStringLiteral("read"),
             QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval"),
-            QStringLiteral("console")}));
+            QStringLiteral("console"), QStringLiteral("report")}));
 }
 
 // Every conversation the server is registered in pays for the list, and #383
@@ -360,6 +360,9 @@ void AgentMcpTest::readsEachToolIntoARequest_data()
                {{QStringLiteral("level"), QStringLiteral("error")}, {QStringLiteral("since"), 12}})
         << QStringList {QStringLiteral("console"), QStringLiteral("--level"),
                QStringLiteral("error"), QStringLiteral("--since"), QStringLiteral("12")};
+
+    row("report", QStringLiteral("report")) << QJsonObject {} << base(QStringLiteral("report"))
+                                            << QStringList {QStringLiteral("report")};
 
     const auto tools = toolNames();
     QCOMPARE(covered, QSet<QString>(tools.cbegin(), tools.cend()));

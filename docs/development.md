@@ -425,7 +425,15 @@ omaweb do <step>... [--settle <ms>] [--timeout <ms>]
 omaweb shot [--full] [--output <file>]
 omaweb eval <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
+omaweb report
 ```
+
+`report` prints the Problem report
+([ADR 0068](adr/0068-gather-problem-reports-from-the-readers-own-browser.md)). With no browser
+answering it prints what it reads from disk instead, says what only a running browser knows, and
+exits 0, since a browser that will not start is a problem to report too. Every request on the socket
+is an Agent's, from the CLI as from MCP, so this report leaves a Problem recording out and running,
+and says that one is there for "Report a problem" in the browser to take in.
 
 `omaweb help`, `omaweb --help` and `omaweb -h` list the verbs and say how to launch the browser, and
 `omaweb help <verb>` lists a verb's options, read from the grammar the parser takes. They exit 0
@@ -446,9 +454,10 @@ would, exiting 0 when it ran. `select-tab` and `select-space` take a position, 1
 `pop-out-tab` and `put-back-tab` take a tab's id, of any Space, and otherwise act on the tab on show
 or the Tab window used last. Every command of `src/ui/BrowserCommands.qml` is public except
 `private-window`, since a Private window is never an Agent's, the four screenshot commands, which
-read the page and are `shot`'s, and `toggle-tab-window-strip`, which is the reader's in the Tab
-window. `run` refuses any other by name. These four need nothing turned on, so a keybind can use
-them:
+read the page and are `shot`'s, `toggle-tab-window-strip`, which is the reader's in the Tab window,
+and `record-problem` and `report-problem`: a Problem recording watches the reader's tabs, a report
+from the window may take their clipboard, and `report` reads the same report less the recording.
+`run` refuses any other by name. These four need nothing turned on, so a keybind can use them:
 
 ```sh
 omaweb space Work && omaweb run toggle-sidebar

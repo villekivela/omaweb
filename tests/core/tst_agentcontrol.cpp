@@ -6,9 +6,12 @@
 #include "BrowserController.h"
 #include "PageScale.h"
 #include "ControlSocket.h"
+#include "ProblemRecording.h"
+#include "ProblemReporter.h"
 #include "PrivateSessionFixture.h"
 #include "SessionFixture.h"
 
+#include <QDateTime>
 #include <QDeadlineTimer>
 #include <QDir>
 #include <QFile>
@@ -20,10 +23,12 @@
 #include <QLocalSocket>
 #include <QRegularExpression>
 #include <QSignalSpy>
+#include <QSysInfo>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
 #include <QThread>
+#include <QTimeZone>
 
 #include <cstdio>
 #include <memory>
@@ -37,6 +42,8 @@ using omaweb::AgentControl;
 using omaweb::BrowserController;
 using omaweb::ControlSocket;
 using omaweb::PageScale;
+using omaweb::ProblemRecording;
+using omaweb::ProblemReporter;
 using omaweb::test::PrivateSessionFixture;
 using omaweb::test::SessionFixture;
 using omaweb::test::SessionSpec;
@@ -297,10 +304,131 @@ QStringList recordedArguments(const QString &program)
 
 } // namespace
 
+// What the Sync module's controller says of itself, as Settings reads it.
+class FakeSync final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool enabled MEMBER enabled CONSTANT)
+    Q_PROPERTY(QString status MEMBER status CONSTANT)
+    Q_PROPERTY(QString errorMessage MEMBER errorMessage CONSTANT)
+    Q_PROPERTY(QString login MEMBER login CONSTANT)
+    Q_PROPERTY(QDateTime lastSuccessfulSync MEMBER lastSuccessfulSync CONSTANT)
+
+public:
+    bool enabled = true;
+    QString status = QStringLiteral("Paused after an error");
+    QString errorMessage = QStringLiteral("GitHub refused the token");
+    QString login = QStringLiteral("reader-login");
+    QDateTime lastSuccessfulSync = QDateTime(QDate(2026, 10, 14), QTime(6, 30), QTimeZone::UTC);
+};
+
+namespace {
+
+// The programs a report asks, answering as they did on the maintainer's
+// machine: Omarchy, Hyprland and systemd-coredump's last crash of Omaweb's.
+QString answerProgram(const QString &program, const QStringList &arguments)
+{
+    if (program == u"omarchy-version") {
+        return QStringLiteral("4.0.6-1\n");
+    }
+    if (program == u"Hyprland") {
+        return QStringLiteral("Hyprland 0.56.2 built from branch v0.56.2 at commit efb5099 clean.\n"
+                              "Date: Wed Aug 5 14:13:21 2026\n");
+    }
+    if (program == u"coredumpctl" && arguments.contains(QStringLiteral("list"))) {
+        return QStringLiteral(
+            "[{\"time\":1791386137983702,\"pid\":7682,\"sig\":11,"
+            "\"exe\":\"/usr/lib/omaweb/omaweb-browser\"},"
+            "{\"time\":1791436736198546,\"pid\":114254,\"sig\":11,\"exe\":\"/usr/bin/ghostty\"}]");
+    }
+    if (program == u"coredumpctl" && arguments.contains(QStringLiteral("info"))) {
+        return QStringLiteral(
+            "           PID: 7682 (omaweb-browser)\n"
+            "  Command Line: /usr/lib/omaweb/omaweb-browser https://personal.example/\n"
+            "       Message: Process 7682 (omaweb-browser) of user 1000 dumped core.\n"
+            "                \n"
+            "                Stack trace of thread 7682:\n"
+            "                #0  0x00007f1 _ZN6omaweb10TabRowItem5paintEv (libomaweb.so + 0x1)\n"
+            "                #1  0x00007f2 QQuickItem::update (libQt6Quick.so.6 + 0x2)\n"
+            "                #2  0x00007f3 main (omaweb-browser + 0x3)\n"
+            "                #3  0x0000000000000000 n/a (n/a + 0x0)\n"
+            "                \n"
+            "                Stack trace of thread 7690:\n"
+            "                #0  0x00007f4 poll (libc.so.6 + 0x4)\n");
+    }
+    return {};
+}
+
+// A profile with something private in every place a report must not look:
+// tab addresses, Space names, permissions of another site, a Sync login, a
+// folder named in settings.
+struct SeededReport {
+    QTemporaryDir config;
+    std::unique_ptr<SessionFixture> fixture;
+    std::unique_ptr<BrowserController> browser;
+    ProblemRecording recording;
+    FakeSync sync;
+    std::unique_ptr<ProblemReporter> reporter;
+
+    SeededReport()
+    {
+        QFile settings(config.filePath(QStringLiteral("settings.json")));
+        if (settings.open(QIODevice::WriteOnly)) {
+            settings.write(
+                "{\n  \"version\": 1,\n  \"https-only\": false,\n  \"font-size\": 18,\n"
+                "  \"glance\": true,\n"
+                "  \"download-directory\": \"/home/reader/Private Stuff\",\n"
+                "  \"secure-dns-template\": \"https://dns.example/u/a1b2c3d4e5f6/dns-query\",\n"
+                "  \"browser-theme\": \"Reader's Night 2\",\n"
+                "  \"sidebar-side\": \"right\",\n"
+                "  \"page-fonts\": {\"standard-family\": \"Reader Handwriting\"},\n"
+                "  \"allowed-sites\": [\"https://bank.example/\", "
+                "\"https://clinic.example/\"]\n}\n");
+            settings.close();
+        }
+        fixture = std::make_unique<SessionFixture>(readersSession(), config.path());
+        browser = fixture->createController();
+        browser->setPermissionDecision(QUrl(QStringLiteral("https://personal.example/")),
+            QStringLiteral("geolocation"), BrowserController::AllowPersistently);
+        browser->setPermissionDecision(QUrl(QStringLiteral("https://work.example/")),
+            QStringLiteral("notifications"), BrowserController::Block, QStringLiteral("work"));
+        reporter = std::make_unique<ProblemReporter>(browser.get(), config.path());
+        reporter->setRecording(&recording);
+        reporter->setSync(&sync);
+        reporter->setEngineVersions({QStringLiteral("Omaweb 0.17.0"),
+            QStringLiteral("QtWebEngine 6.11.2"), QStringLiteral("Chromium 151.0.7922.71"),
+            QStringLiteral("Chromium security patch 151.0.7922.72")});
+        reporter->setSites(QVariantMap {
+            {QStringLiteral("userAgent"),
+                QStringLiteral("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like "
+                               "Gecko) Chrome/151.0.0.0 Safari/537.36")},
+            {QStringLiteral("brands"), QStringLiteral("Chromium 151, Not.A/Brand 99")},
+            {QStringLiteral("fullVersionList"),
+                QStringLiteral("Chromium 151.0.7922.71, Not.A/Brand 99.0.0.0")},
+            {QStringLiteral("platform"), QStringLiteral("Linux")},
+            {QStringLiteral("language"), QStringLiteral("en-GB,en")},
+        });
+        reporter->setRun(&answerProgram);
+    }
+};
+
+void verifyNothingPrivate(const QString &report)
+{
+    for (const auto *never : {"mail.example", "work.example", "Personal", "Work", "notifications",
+             "reader-login", "Private Stuff", "/home/reader", "bank.example", "clinic.example",
+             "Reader Handwriting", "Reader's Night", "/u/a1b2c3d4e5f6/"}) {
+        QVERIFY2(!report.contains(QLatin1StringView(never)), never);
+    }
+}
+
+} // namespace
+
 class AgentControlTest final : public QObject {
     Q_OBJECT
 
 private slots:
+    void reportHoldsWhatAReportNeedsAndNothingElse();
+    void reportFromATabAddsThatTabAlone();
+    void reportFromAPrivateWindowSaysOnlyThat();
     void gatesOnlyAgentSpacesBehindAllowAgents();
     void keepsAllowAgentsOffUntilTheReaderTurnsItOn();
     void runsBrowserCommandsWithAllowAgentsOff();
@@ -2168,12 +2296,15 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     // Taking an Agent Space over is the reader's answer to an Agent, and an
     // Agent that could give it would take its own mark off. Asking an agent
     // starts a program on the reader's word, which no Agent may do for itself.
-    // A Tab window's strip is the reader's to hide in that window.
+    // A Tab window's strip is the reader's to hide in that window. A Problem
+    // recording watches the reader's tabs, and a report from the window may
+    // take their clipboard: an Agent reads the report with `report` instead.
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
         QStringLiteral("private-window"), QStringLiteral("take-over-space"),
         QStringLiteral("agent-activity"), QStringLiteral("ask"),
-        QStringLiteral("toggle-tab-window-strip")};
+        QStringLiteral("toggle-tab-window-strip"), QStringLiteral("report-problem"),
+        QStringLiteral("record-problem")};
     QStringList decided = AgentControl::publicCommands() + keptIn;
     decided.sort();
     registry.sort();
@@ -2987,6 +3118,138 @@ void AgentControlTest::saysWhyTheReadersAgentDidNotStart()
     QCOMPARE(refusal(QStringLiteral("personal-tab")), QStringLiteral("started"));
     QTRY_VERIFY(!recordedArguments(terminal).isEmpty());
     QCOMPARE(recordedArguments(terminal).constFirst(), agent);
+}
+
+void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
+{
+    SeededReport seeded;
+    QVERIFY_SESSION_READY(*seeded.fixture);
+    seeded.recording.start();
+    seeded.recording.record(QStringLiteral("navigated"), QStringLiteral("personal-tab"),
+        QUrl(QStringLiteral("https://recorded.example/signin?sid=a1b2c3d4e5f6&hl=en-GB")), {});
+    AgentControl control(seeded.browser.get(), seeded.config.path());
+    AgentActivityLog activity(QString {});
+    control.setActivityLog(&activity);
+    control.setProblemReporter(seeded.reporter.get());
+
+    // A browser command: Allow agents is off.
+    const auto answer = ask(control, QStringLiteral("cli"), QStringLiteral("report"));
+
+    QVERIFY2(succeeded(answer), qPrintable(failure(answer)));
+    const auto report = answer.value(QStringLiteral("report")).toString();
+    for (const auto &held : {
+             // Versions.
+             QStringLiteral("- Omaweb 0.17.0\n"),
+             QStringLiteral("- QtWebEngine 6.11.2\n"),
+             QStringLiteral("- Chromium 151.0.7922.71\n"),
+             QStringLiteral("- Chromium security patch 151.0.7922.72\n"),
+             QStringLiteral("- Qt %1\n").arg(QString::fromLatin1(qVersion())),
+             QStringLiteral("- Omarchy 4.0.6-1\n"),
+             QStringLiteral("- Hyprland 0.56.2\n"),
+             QStringLiteral("- Kernel %1\n").arg(QSysInfo::kernelVersion()),
+             QStringLiteral("- Architecture %1\n").arg(QSysInfo::currentCpuArchitecture()),
+             // What sites see.
+             QStringLiteral("- User agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                            "(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\n"),
+             QStringLiteral("- Brands: Chromium 151, Not.A/Brand 99\n"),
+             QStringLiteral("- Full version list: Chromium 151.0.7922.71, Not.A/Brand 99.0.0.0\n"),
+             QStringLiteral("- Platform: Linux\n"),
+             QStringLiteral("- Language: en-GB,en\n"),
+             // Settings that differ from their defaults, a folder by whether
+             // it is set.
+             QStringLiteral("- https-only: false\n"),
+             QStringLiteral("- font-size: 18\n"),
+             QStringLiteral("- download-directory: set\n"),
+             // An address is redacted, a name that is not a plain word and a
+             // folder are said to be set, and a list or an object is counted.
+             QStringLiteral("- secure-dns-template: https://dns.example/u/…/dns-query\n"),
+             QStringLiteral("- browser-theme: set\n"),
+             QStringLiteral("- sidebar-side: right\n"),
+             QStringLiteral("- page-fonts: set, 1 entry\n"),
+             QStringLiteral("- allowed-sites: set, 2 entries\n"),
+             // Sync.
+             QStringLiteral("- On: Paused after an error\n"),
+             QStringLiteral("- Last error: GitHub refused the token\n"),
+             QStringLiteral("- Last synced: 2026-10-14T06:30:00Z\n"),
+             // Extensions, Spaces and tabs.
+             QStringLiteral("Extensions\n"),
+             QStringLiteral("- 2 Spaces, 3 tabs\n"),
+             // The last crash, without the command line it ran with.
+             QStringLiteral("- omaweb-browser, SIGSEGV, at 2026-10-07"),
+             QStringLiteral("- #0 _ZN6omaweb10TabRowItem5paintEv (libomaweb.so + 0x1)\n"),
+             QStringLiteral("- #2 main (omaweb-browser + 0x3)\n"),
+             // The recording, which the report ends and takes in.
+             // An Agent's report says a recording is running and leaves it to
+             // the reader's own report.
+             QStringLiteral("Problem recording\n- Running in the browser: Report a problem "
+                            "there takes it in\n"),
+         }) {
+        QVERIFY2(report.contains(held), qPrintable(held + QStringLiteral(" in:\n") + report));
+    }
+    QVERIFY(!report.contains(QStringLiteral("poll")));
+    // A key the file holds at its default value differs from nothing.
+    QVERIFY(!report.contains(QStringLiteral("glance")));
+    // Filled in the order a link that is too short cuts from the end: what
+    // the issue names first, then what it does not name, then the recording.
+    const QStringList order {QStringLiteral("Versions\n"), QStringLiteral("What sites see\n"),
+        QStringLiteral("Settings\n"), QStringLiteral("Sync\n"), QStringLiteral("Last crash\n"),
+        QStringLiteral("Extensions\n"), QStringLiteral("Spaces and tabs\n"),
+        QStringLiteral("Problem recording\n")};
+    for (qsizetype index = 1; index < order.size(); ++index) {
+        QVERIFY2(report.indexOf(order.at(index - 1)) < report.indexOf(order.at(index)),
+            qPrintable(order.at(index)));
+    }
+    // A frame without symbols says nothing.
+    QVERIFY(!report.contains(QStringLiteral("n/a")));
+    QVERIFY(!report.contains(QStringLiteral("personal.example")));
+    QVERIFY(!report.contains(QStringLiteral("\nTab\n")));
+    verifyNothingPrivate(report);
+    QVERIFY(!report.contains(QStringLiteral("recorded.example")));
+    QVERIFY(seeded.recording.recording());
+    QCOMPARE(seeded.recording.take().size(), 1);
+
+    QCOMPARE(activity.entries().size(), 1);
+    QCOMPARE(activity.entries().constLast().verb, QStringLiteral("report"));
+    QCOMPARE(activity.entries().constLast().outcome, QStringLiteral("ok"));
+}
+
+void AgentControlTest::reportFromATabAddsThatTabAlone()
+{
+    SeededReport seeded;
+    QVERIFY_SESSION_READY(*seeded.fixture);
+    PageScale scale(seeded.config.path());
+    scale.set(1.5);
+    seeded.reporter->setPageScale(&scale);
+    seeded.browser->setTabZoom(QStringLiteral("personal-tab"), 1.1);
+
+    const auto report = seeded.reporter->text(QStringLiteral("personal-tab"), false);
+
+    QVERIFY2(report.contains(QStringLiteral("Tab\n- Address: https://personal.example/\n"
+                                            "- Space: ordinary\n- geolocation: allowed\n"
+                                            "- Zoom: 110%\n- Page scale: 150%\n")),
+        qPrintable(report));
+    verifyNothingPrivate(report);
+}
+
+void AgentControlTest::reportFromAPrivateWindowSaysOnlyThat()
+{
+    SeededReport seeded;
+    QVERIFY_SESSION_READY(*seeded.fixture);
+
+    seeded.recording.start();
+    seeded.recording.record(QStringLiteral("navigated"), QStringLiteral("personal-tab"),
+        QUrl(QStringLiteral("https://recorded.example/")), {});
+
+    const auto report = seeded.reporter->text(QStringLiteral("personal-tab"), true);
+
+    QVERIFY2(report.contains(QStringLiteral("Tab\n- In a Private window\n\n")), qPrintable(report));
+    // The recording is of the ordinary windows, which a Private window's
+    // report neither takes nor ends.
+    QVERIFY(!report.contains(QStringLiteral("recorded.example")));
+    QVERIFY(seeded.recording.recording());
+    QVERIFY(!report.contains(QStringLiteral("personal.example")));
+    QVERIFY(!report.contains(QStringLiteral("geolocation")));
+    verifyNothingPrivate(report);
 }
 
 QTEST_GUILESS_MAIN(AgentControlTest)

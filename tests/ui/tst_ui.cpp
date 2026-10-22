@@ -17,6 +17,8 @@
 #include "SecureDns.h"
 #include "FontSettings.h"
 #include "PageScale.h"
+#include "ProblemRecording.h"
+#include "ProblemReporter.h"
 #include "SidebarOpacity.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
@@ -506,6 +508,15 @@ public slots:
         m_theme->followSidebarOpacity(m_sidebarOpacity.get());
         m_pageScale
             = std::make_unique<omaweb::PageScale>(m_dataRoot->filePath(QStringLiteral("config")));
+        m_problemRecording = std::make_unique<omaweb::ProblemRecording>();
+        m_problemReporter = std::make_unique<omaweb::ProblemReporter>(
+            m_browser.get(), m_dataRoot->filePath(QStringLiteral("config")));
+        m_problemReporter->setRecording(m_problemRecording.get());
+        m_problemReporter->setPageScale(m_pageScale.get());
+        m_problemReporter->setEngineVersions({QStringLiteral("Omaweb test")});
+        // The machine's own programs are not asked: the report's sections are
+        // checked in tst_agentcontrol, and this one only reaches the chrome.
+        m_problemReporter->setRun([](const QString &, const QStringList &) { return QString(); });
         m_windowManager = std::make_unique<omaweb::WindowManager>();
         // A real choice under the throwaway config root, so a test can name a
         // resolver and read what the chrome says about it.
@@ -567,6 +578,10 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("sidebarOpacity"), m_sidebarOpacity.get());
         engine->rootContext()->setContextProperty(QStringLiteral("pageScale"), m_pageScale.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("problemRecording"), m_problemRecording.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("problemReporter"), m_problemReporter.get());
         // These tests run no engine, so there is nothing to draw a page's
         // fonts with; the page shows the controls and they reach nothing.
         engine->rootContext()->setContextProperty(
@@ -648,6 +663,8 @@ public slots:
         m_probeClock.reset();
         m_kitTheme.reset();
         m_runtimeSecurity.reset();
+        m_problemReporter.reset();
+        m_problemRecording.reset();
         m_pageScale.reset();
         m_sidebarOpacity.reset();
         m_fontSettings.reset();
@@ -691,6 +708,8 @@ private:
     std::unique_ptr<omaweb::FontSettings> m_fontSettings;
     std::unique_ptr<omaweb::SidebarOpacity> m_sidebarOpacity;
     std::unique_ptr<omaweb::PageScale> m_pageScale;
+    std::unique_ptr<omaweb::ProblemRecording> m_problemRecording;
+    std::unique_ptr<omaweb::ProblemReporter> m_problemReporter;
     std::unique_ptr<omaweb::KitTheme> m_kitTheme;
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;

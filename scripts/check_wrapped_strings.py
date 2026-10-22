@@ -80,9 +80,12 @@ SCANNED_CPP = ("src", "modules")
 CPP_SUFFIXES = {".cpp", ".mm"}
 
 # Files whose text is not the chrome's: an Agent's wire text must not change with the
-# reader's locale, and the rest is SQL. The UI lab is a developer tool and is not shipped.
+# reader's locale, a Problem report is written in English for the tracker (ADR 0068), and the
+# rest is SQL. The UI lab is a developer tool and is not shipped.
 CPP_NOT_CHROME = (
     "Agent",
+    "ProblemRecording",
+    "ProblemReport",
     "ControlSocket",
     "SqliteSessionStore",
     "HistoryQuery",
@@ -123,6 +126,9 @@ CPP_ENGLISH = {
     "SyncModule.cpp": {"Omaweb Sync": "the author name written into a commit"},
     "LinuxMediaAnnouncer.cpp": {"D-Bus Interface": "the name of a D-Bus interface"},
     "LinuxRunningBrowser.cpp": {"D-Bus Interface": "the name of a D-Bus interface"},
+    "main.cpp": {
+        "Chromium security patch %1": "a Problem report's line, written in English for the tracker",
+    },
     "GitHubForge.cpp": {
         "Encrypted Omaweb browser synchronization": "the description sent to GitHub",
     },

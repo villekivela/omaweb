@@ -84,6 +84,8 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
     };
     QTest::newRow("spaces") << QStringList {QStringLiteral("spaces")}
                             << base(QStringLiteral("spaces")) << false;
+    QTest::newRow("report") << QStringList {QStringLiteral("report")}
+                            << base(QStringLiteral("report")) << false;
     QTest::newRow("tabs in a space")
         << QStringList {QStringLiteral("tabs"), QStringLiteral("--space"), QStringLiteral("Work"),
                QStringLiteral("--json")}
@@ -514,6 +516,10 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
     QCOMPARE(formatAgentAnswer(QStringLiteral("commands"), commands),
         QStringLiteral("toggle-sidebar\tHide or show the sidebar\n"));
     QCOMPARE(formatAgentAnswer(QStringLiteral("run"), {{QStringLiteral("ok"), true}}), QString());
+    QCOMPARE(formatAgentAnswer(QStringLiteral("report"),
+                 {{QStringLiteral("ok"), true},
+                     {QStringLiteral("report"), QStringLiteral("Versions\n- Omaweb 0.17.0\n")}}),
+        QStringLiteral("Versions\n- Omaweb 0.17.0\n"));
     QCOMPARE(formatAgentAnswer(QStringLiteral("focus"),
                  {{QStringLiteral("ok"), true}, {QStringLiteral("tab"), QStringLiteral("t1")}}),
         QStringLiteral("t1\n"));

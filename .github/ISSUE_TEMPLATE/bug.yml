@@ -1,0 +1,43 @@
+name: Problem
+description: Something in Omaweb did not do what you expected.
+labels: ["bug", "needs-triage"]
+body:
+  - type: textarea
+    id: did
+    attributes:
+      label: What you did
+      description: The steps, from a fresh tab if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: saw
+    attributes:
+      label: What you saw
+      description: What happened instead. A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Problem report
+      description: >-
+        Run "Report a problem" from the Omnibar or Settings' About section, or `omaweb report`, and
+        Omaweb fills this in. If you can't run it, write "I can't run it" and why.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: sync
+    attributes:
+      label: Sync
+      options:
+        - "On"
+        - "Off"
+    validations:
+      required: true

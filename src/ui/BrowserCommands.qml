@@ -226,6 +226,11 @@ QtObject {
         case "downloads":
             window.requestDownloads();
             return true;
+        case "report-problem":
+            window.reportProblem();
+            return true;
+        case "record-problem":
+            return window.toggleProblemRecording();
         case "private-window":
             windowManager.openPrivateWindow();
             return true;
@@ -554,6 +559,16 @@ QtObject {
                                              "downloads": {
                                                  group: "interface",
                                                  title: qsTr("Downloads")
+                                             },
+                                             "report-problem": {
+                                                 group: "interface",
+                                                 title: qsTr("Report a problem")
+                                             },
+                                             // The same command ends a recording.
+                                             "record-problem": {
+                                                 group: "interface",
+                                                 title: qsTr("Record a problem"),
+                                                 requires: "ordinary-window"
                                              },
                                              "private-window": {
                                                  group: "interface",

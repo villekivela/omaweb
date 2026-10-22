@@ -1,0 +1,23 @@
+name: Idea
+description: Something you would like Omaweb to do.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: trying
+    attributes:
+      label: What you are trying to do
+      description: The task, not the feature. What would be easier?
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What you use today
+      description: How you do it now, in Omaweb or anything else.
+    validations:
+      required: true
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art in other browsers
+      description: Another browser that does this, and how it does it.
