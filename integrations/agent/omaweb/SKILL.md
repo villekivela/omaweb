@@ -77,6 +77,7 @@ omaweb do <step>... [--settle <ms>] [--timeout <ms>]
 omaweb shot [--full] [--output <file>]
 omaweb eval <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
+omaweb report
 ```
 
 - Steps: `click <label>`, `fill <label> <text>`, `press <key>` (`Enter`, `Control+a`),
@@ -98,6 +99,8 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 - `read` prints the page, or what a CSS selector matches, as Markdown. Use it for text; use `look`
   for what can be acted on.
 - `shot` prints the path of the PNG it wrote. Open that file to see the page.
+- `report` prints the Problem report the reader files an Omaweb issue with. Paste it into the issue
+  as it is: its addresses are already redacted.
 - `console` prints level, source and text, one message a line, then `cursor <n>`. Pass that number
   as `--since` to get only newer messages.
 - `eval` runs JavaScript in an isolated world: it sees the DOM, not the page's own variables.

@@ -416,6 +416,7 @@ Rectangle {
     signal downloadRetried(int row)
     signal downloadRevealed(string path)
     signal settingsFileRevealed(string path)
+    signal problemReportRequested
     signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
     signal syncCodeCopied(string notice)
@@ -3910,6 +3911,28 @@ Rectangle {
                         label: qsTr("Make Omaweb the default")
                         accessibleName: qsTr("Make Omaweb the default browser")
                         onClicked: DefaultBrowser.makeDefault()
+                    }
+
+                    SectionLabel {
+                        colors: root.colors
+                        text: qsTr("problems")
+                    }
+
+                    Text {
+                        width: pane.width
+                        text: qsTr(
+                                  "A Problem report holds the versions, settings and state an issue needs, with addresses redacted. It opens GitHub's bug form with the report filled in, and Omaweb sends nothing itself.")
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                    }
+
+                    ActionButton {
+                        objectName: "reportProblemButton"
+                        colors: root.colors
+                        label: qsTr("Report a problem")
+                        onClicked: root.problemReportRequested()
                     }
 
                     SectionLabel {

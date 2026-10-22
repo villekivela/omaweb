@@ -58,6 +58,8 @@ Rectangle {
     // What Omaweb knows about its own age. Null in the UI lab and in tests,
     // where nothing asks GitHub anything.
     property var releaseWatch: null
+    // The window's Problem recording, which the footer marks while it runs.
+    property var problemRecording: null
     property bool savedFileNoticeShowing: false
     // What the Agents are doing, as the core reports it: each Agent tab by id,
     // with its `spaceId`, the connection's `name`, and `busy` while one of its
@@ -1542,6 +1544,25 @@ Rectangle {
             font.pixelSize: Style.font.iconLarge
             Accessible.role: Accessible.StaticText
             Accessible.name: qsTr("Private window")
+        }
+
+        ProblemMark {
+            id: problemMark
+            objectName: "problemRecordingMark"
+            anchors.right: releaseMark.visible ? releaseMark.left : (extensionMark.visible
+                                                                     ? extensionMark.left : (
+                                                                           downloadMark.visible
+                                                                           ? downloadMark.left : (
+                                                                                 syncMark.visible
+                                                                                 ? syncMark.left :
+                                                                                   settingsButton.left)))
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 26
+            height: 26
+            colors: root.colors
+            iconFontFamily: root.iconFontFamily
+            recording: root.problemRecording
         }
 
         ReleaseMark {

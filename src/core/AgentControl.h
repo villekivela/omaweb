@@ -25,6 +25,7 @@ namespace omaweb {
 class AgentActivityLog;
 class BrowserController;
 class PageScale;
+class ProblemReporter;
 
 // What an Agent may do through the control socket, and the one setting that
 // widens it (ADR 0051).
@@ -211,6 +212,8 @@ public:
     // The Page scale `tabs` reports beside each tab's zoom. Without one, it
     // is 1.
     void setPageScale(const PageScale *scale);
+    // What `report` answers with. Without one, it is refused.
+    void setProblemReporter(ProblemReporter *reporter);
 
     QStringList agentWindowIds() const;
     // An Auxiliary window the page of `openerTabId` opened. While the opener
@@ -459,6 +462,7 @@ private:
     QString m_shotDirectory;
     AgentActivityLog *m_activity = nullptr;
     const PageScale *m_pageScale = nullptr;
+    ProblemReporter *m_problemReporter = nullptr;
     int m_nextPageRequest = 1;
     int m_nextCommandRequest = 1;
     // The window's answer to the command request under way, while

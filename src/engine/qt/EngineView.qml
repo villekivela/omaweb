@@ -477,6 +477,23 @@ Item {
     signal windowCloseRequested
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
+    // What a Problem recording keeps of this view (ADR 0068): a navigation,
+    // a redirect, a failed load, a hand-off to another application and a
+    // permission asked or answered, as it happens. The shell records it only
+    // while a recording runs.
+    signal problemEvent(string kind, url address, string detail)
+    function decisionWord(decision) {
+        switch (decision) {
+        case 1:
+            return "allowed once";
+        case 2:
+            return "allowed";
+        case 3:
+            return "blocked";
+        default:
+            return "dismissed";
+        }
+    }
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal securityKeyRequested(string requestId, var step)
@@ -848,6 +865,8 @@ Item {
         if (!request)
             return;
         delete pendingPermissions[requestId];
+        root.problemEvent("permission answered", request.origin, root.permissionName(
+                              request.permissionType) + ": " + root.decisionWord(decision));
         if (decision === 1 || decision === 2)
             request.grant();
         else
@@ -862,6 +881,8 @@ Item {
         if (pending.kind.startsWith("javascript-") && response.stopPrompts === true)
             root.javaScriptDialogsBlocked = true;
         if (pending.kind === "external-protocol") {
+            root.problemEvent(accepted ? "handed off" : "hand-off refused", pending.destination,
+                              "");
             if (accepted) {
                 if (response.remember === true && root.permissionController)
                     root.permissionController.rememberExternalProtocolDecision(pending.origin,
@@ -894,9 +915,11 @@ Item {
             return;
         if (root.permissionController && origin.length > 0
                 && root.permissionController.externalProtocolAllowed(origin, scheme)) {
+            root.problemEvent("handed off", address, "remembered for the site");
             ExternalProtocolHandler.open(address);
             return;
         }
+        root.problemEvent("hand-off asked", address, "");
         const requestId = String(++root.nextBrowserPromptId);
         const application = ExternalProtocolHandler.applicationName(address);
         const displayOrigin = origin.length > 0 ? origin : qsTr("Unknown embedded origin");
@@ -4574,6 +4597,7 @@ Item {
         onLoadingChanged: function (loadRequest) {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
+                root.problemEvent("navigated", loadRequest.url, "");
                 root.pageGeneration += 1;
                 root.documentReported = false;
                 root.blockingRulesChangedSinceLoad = false;
@@ -4642,6 +4666,7 @@ Item {
                 root.arrivedThroughHttpsUpgrade = false;
             }
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
+                root.problemEvent("load failed", loadRequest.url, loadRequest.errorString);
                 root.lastLoadFailed = true;
                 // Chromium reports a name it could not look up as a connection
                 // error: ERR_NAME_NOT_RESOLVED, or ERR_NAME_RESOLUTION_FAILED
@@ -4716,8 +4741,10 @@ Item {
             // runs its own scripts; the address property moves only once the
             // document has committed, when those scripts have run already.
             if (request.isMainFrame && request.navigationType
-                    === WebEngineNavigationRequest.RedirectNavigation)
+                    === WebEngineNavigationRequest.RedirectNavigation) {
+                root.problemEvent("redirected", request.url, "");
                 root.announceDocument(request.url);
+            }
             const address = String(request.url);
             const scheme = address.substring(0, address.indexOf(":")).toLowerCase();
             // chrome-extension is the engine's own scheme for a Known
@@ -4904,6 +4931,7 @@ Item {
             else {
                 const requestId = String(++root.nextPermissionRequestId);
                 root.pendingPermissions[requestId] = request;
+                root.problemEvent("permission asked", request.origin, permission);
                 root.sitePermissionRequested(requestId, request.origin.toString(), permission);
             }
         }

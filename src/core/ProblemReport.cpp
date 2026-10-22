@@ -1,13 +1,48 @@
 #include "ProblemReport.h"
 
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProcess>
 #include <QRegularExpression>
+#include <QSysInfo>
+#include <QTimeZone>
 #include <QUrlQuery>
+
+#include <csignal>
 
 namespace omaweb {
 
 namespace {
 
     constexpr qsizetype plainValueLength = 16;
+    constexpr int runTimeoutMs = 3000;
+    // The frames of a crash a report keeps, from the top.
+    constexpr qsizetype crashFrames = 8;
+
+    QString signalName(int number)
+    {
+        switch (number) {
+        case SIGSEGV:
+            return QStringLiteral("SIGSEGV");
+        case SIGABRT:
+            return QStringLiteral("SIGABRT");
+        case SIGBUS:
+            return QStringLiteral("SIGBUS");
+        case SIGILL:
+            return QStringLiteral("SIGILL");
+        case SIGFPE:
+            return QStringLiteral("SIGFPE");
+        case SIGTRAP:
+            return QStringLiteral("SIGTRAP");
+        default:
+            return QStringLiteral("signal %1").arg(number);
+        }
+    }
 
     // A number, or a word made of letters and the marks a locale or a flow
     // name is written with: `46`, `en-GB`, `GlifWebSignIn`. Digits among
@@ -107,6 +142,160 @@ ProblemReportForm problemReportForm(const QList<ProblemReportSection> &sections)
         break;
     }
     return {.address = address(problemReportText(kept) + pasteBelow), .cut = true};
+}
+
+QString runForProblemReport(const QString &program, const QStringList &arguments)
+{
+    QProcess process;
+    process.setProgram(program);
+    process.setArguments(arguments);
+    process.setStandardInputFile(QProcess::nullDevice());
+    process.start();
+    if (!process.waitForFinished(runTimeoutMs) || process.exitStatus() != QProcess::NormalExit
+        || process.exitCode() != 0) {
+        process.kill();
+        process.waitForFinished();
+        return {};
+    }
+    return QString::fromLocal8Bit(process.readAllStandardOutput());
+}
+
+QStringList systemVersionLines(const ProblemReportRun &run)
+{
+    const auto missing = QStringLiteral("not found");
+    const auto omarchy = run(QStringLiteral("omarchy-version"), {}).trimmed();
+    // `Hyprland 0.56.2 built from branch …`: the second word.
+    const auto hyprland = run(QStringLiteral("Hyprland"), {QStringLiteral("--version")})
+                              .section(u'\n', 0, 0)
+                              .section(u' ', 1, 1);
+    return {
+        QStringLiteral("Qt %1").arg(QString::fromLatin1(qVersion())),
+        QStringLiteral("Omarchy %1").arg(omarchy.isEmpty() ? missing : omarchy),
+        QStringLiteral("Hyprland %1").arg(hyprland.isEmpty() ? missing : hyprland),
+        QStringLiteral("Kernel %1").arg(QSysInfo::kernelVersion()),
+        QStringLiteral("Architecture %1").arg(QSysInfo::currentCpuArchitecture()),
+    };
+}
+
+QStringList changedSettingLines(const QString &configRoot)
+{
+    QFile file(QDir(configRoot).filePath(QStringLiteral("settings.json")));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {QStringLiteral("All at their defaults")};
+    }
+    QJsonParseError error;
+    const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+    if (error.error != QJsonParseError::NoError || !document.isObject()) {
+        return {QStringLiteral("settings.json does not parse: %1").arg(error.errorString())};
+    }
+    // A folder is named for the reader, and a resolver's template may carry
+    // their account. Whether they set one is the fact.
+    static const QStringList named {
+        QStringLiteral("download-directory"),
+        QStringLiteral("secure-dns-template"),
+    };
+    QStringList lines;
+    const auto settings = document.object();
+    for (auto it = settings.constBegin(); it != settings.constEnd(); ++it) {
+        if (it.key() == u"version" || it.key() == u"known-extensions") {
+            continue;
+        }
+        QString value;
+        if (named.contains(it.key())) {
+            value = QStringLiteral("set");
+        } else if (it->isObject() || it->isArray()) {
+            const auto nested
+                = it->isObject() ? QJsonDocument(it->toObject()) : QJsonDocument(it->toArray());
+            value = QString::fromUtf8(nested.toJson(QJsonDocument::Compact));
+        } else {
+            value = it->toVariant().toString();
+        }
+        lines.append(it.key() + QStringLiteral(": ") + value);
+    }
+    if (lines.isEmpty()) {
+        lines.append(QStringLiteral("All at their defaults"));
+    }
+    return lines;
+}
+
+QStringList lastCrashLines(const ProblemReportRun &run)
+{
+    const auto list = QJsonDocument::fromJson(run(QStringLiteral("coredumpctl"),
+        {QStringLiteral("--json=short"), QStringLiteral("--no-pager"), QStringLiteral("list")})
+            .toUtf8());
+    QJsonObject last;
+    for (const auto &entry : list.array()) {
+        const auto program = QFileInfo(entry.toObject().value(QStringLiteral("exe")).toString());
+        // The browser, and the engine's processes, which run from its folder.
+        if (program.fileName().startsWith(QStringLiteral("omaweb"))
+            || program.absolutePath().contains(QStringLiteral("omaweb"))) {
+            last = entry.toObject();
+        }
+    }
+    if (last.isEmpty()) {
+        return {QStringLiteral("None that systemd-coredump keeps")};
+    }
+    const auto pid = QString::number(last.value(QStringLiteral("pid")).toInteger());
+    const auto when = QDateTime::fromMSecsSinceEpoch(
+        last.value(QStringLiteral("time")).toInteger() / 1000, QTimeZone::UTC);
+    QStringList lines {QStringLiteral("%1, %2, at %3")
+            .arg(QFileInfo(last.value(QStringLiteral("exe")).toString()).fileName(),
+                signalName(last.value(QStringLiteral("sig")).toInt()), when.toString(Qt::ISODate))};
+    // The first thread's trace is the one that crashed. The rest of what
+    // `info` says, the command line above all, may name a page.
+    const auto info = run(
+        QStringLiteral("coredumpctl"), {QStringLiteral("info"), QStringLiteral("--no-pager"), pid});
+    auto inTrace = false;
+    for (const auto &line : info.split(u'\n')) {
+        const auto trimmed = line.trimmed();
+        if (trimmed.startsWith(QStringLiteral("Stack trace of thread"))) {
+            if (inTrace) {
+                break;
+            }
+            inTrace = true;
+            continue;
+        }
+        if (!inTrace) {
+            continue;
+        }
+        if (trimmed.isEmpty() || lines.size() > crashFrames) {
+            break;
+        }
+        // `#0  0x00007f1 function (library + 0x1)`, without the address,
+        // which differs from run to run.
+        static const QRegularExpression frame(QStringLiteral("^(#\\d+)\\s+0x[0-9a-f]+\\s+(.*)$"));
+        const auto match = frame.match(trimmed);
+        if (match.hasMatch()) {
+            lines.append(match.captured(1) + u' ' + match.captured(2));
+        }
+    }
+    return lines;
+}
+
+QString omawebConfigRoot()
+{
+    const auto override = qEnvironmentVariable("OMAWEB_CONFIG_ROOT");
+    if (!override.isEmpty()) {
+        return override;
+    }
+    const auto xdg = qEnvironmentVariable("XDG_CONFIG_HOME");
+    const auto base = xdg.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : xdg;
+    return QDir(base).filePath(QStringLiteral("omaweb"));
+}
+
+QList<ProblemReportSection> problemReportFromDisk(
+    const QString &omawebVersion, const QString &configRoot, const ProblemReportRun &run)
+{
+    return {
+        {.title = QStringLiteral("Versions"),
+            .lines = QStringList {QStringLiteral("Omaweb %1, the client").arg(omawebVersion)}
+                + systemVersionLines(run)},
+        {.title = QStringLiteral("Settings"), .lines = changedSettingLines(configRoot)},
+        {.title = QStringLiteral("Last crash"), .lines = lastCrashLines(run)},
+        {.title = QStringLiteral("Not running"),
+            .lines = {QStringLiteral("No browser answered, so the engine's versions, what sites "
+                                     "see, Sync, extensions, Spaces and tabs are missing.")}},
+    };
 }
 
 } // namespace omaweb

@@ -22,6 +22,9 @@
 #include "DesktopTextScaling.h"
 #include "FontSettings.h"
 #include "PageScale.h"
+#include "ProblemRecording.h"
+#include "ProblemReport.h"
+#include "ProblemReporter.h"
 #include "SidebarOpacity.h"
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
@@ -110,16 +113,7 @@ QString dataRoot()
 // User-editable configuration lives beside every other tool's, under
 // XDG_CONFIG_HOME (~/.config/omaweb), rather than in the application data
 // directory that holds profiles, caches and blocklists.
-QString configRoot()
-{
-    const auto override = qEnvironmentVariable("OMAWEB_CONFIG_ROOT");
-    if (!override.isEmpty()) {
-        return override;
-    }
-    const auto xdg = qEnvironmentVariable("XDG_CONFIG_HOME");
-    const auto base = xdg.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : xdg;
-    return QDir(base).filePath(QStringLiteral("omaweb"));
-}
+QString configRoot() { return omaweb::omawebConfigRoot(); }
 
 QString readerThemePath() { return QDir(configRoot()).filePath(QStringLiteral("theme.json")); }
 
@@ -525,6 +519,23 @@ int main(int argc, char *argv[])
         : QStringLiteral(OMAWEB_SYNC_INSTALLED_MODULE_PATH);
     omaweb::SyncLauncher syncLauncher(
         &browser, &contentBlocker, &keyboardNavigation, dataRoot(), configRoot(), syncModulePath);
+    // The Problem recording lives in memory for this run alone, and the report
+    // reads the browser's state rather than any page's (ADR 0068).
+    omaweb::ProblemRecording problemRecording;
+    omaweb::ProblemReporter problemReporter(&browser, configRoot());
+    problemReporter.setRecording(&problemRecording);
+    problemReporter.setPageScale(&pageScale);
+    problemReporter.setEngineVersions({
+        QStringLiteral("Omaweb %1").arg(QStringLiteral(OMAWEB_VERSION)),
+        QStringLiteral("QtWebEngine %1").arg(QString::fromLatin1(qWebEngineVersion())),
+        QStringLiteral("Chromium %1").arg(QString::fromLatin1(qWebEngineChromiumVersion())),
+        QStringLiteral("Chromium security patch %1")
+            .arg(QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion())),
+    });
+    problemReporter.setSync(syncLauncher.controller());
+    QObject::connect(&syncLauncher, &omaweb::SyncLauncher::controllerChanged, &problemReporter,
+        [&] { problemReporter.setSync(syncLauncher.controller()); });
+    agentControl.setProblemReporter(&problemReporter);
     // Omaweb is alpha and releases often, and a reader who installed one has no
     // other way to learn that another exists. The version it compares against
     // is the one the tag gave this build (ADR 0028).
@@ -590,6 +601,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("pageFonts"), &pageFonts);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
+    engine.rootContext()->setContextProperty(QStringLiteral("problemRecording"), &problemRecording);
+    engine.rootContext()->setContextProperty(QStringLiteral("problemReporter"), &problemReporter);
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);

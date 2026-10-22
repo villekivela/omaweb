@@ -5,6 +5,8 @@
 #include <QStringList>
 #include <QUrl>
 
+#include <functional>
+
 namespace omaweb {
 
 // An address as a Problem report and a Problem recording carry it (ADR 0068).
@@ -33,5 +35,31 @@ struct ProblemReportForm {
 };
 
 ProblemReportForm problemReportForm(const QList<ProblemReportSection> &sections);
+
+// Runs a program for what it prints, or nothing when it is not there, fails or
+// takes more than a few seconds.
+using ProblemReportRun
+    = std::function<QString(const QString &program, const QStringList &arguments)>;
+QString runForProblemReport(const QString &program, const QStringList &arguments);
+
+// The versions a report reads from the system rather than from the browser:
+// Qt, Omarchy, Hyprland, the kernel and the architecture.
+QStringList systemVersionLines(const ProblemReportRun &run);
+// The settings the reader changed, which are those `settings.json` in
+// `configRoot` holds. A folder or an address is said to be set rather than
+// named.
+QStringList changedSettingLines(const QString &configRoot);
+// When an Omaweb process last crashed, which one, and the top of the crashing
+// thread's backtrace, as systemd-coredump keeps them.
+QStringList lastCrashLines(const ProblemReportRun &run);
+
+// The directory the reader's settings are in: `OMAWEB_CONFIG_ROOT`, or
+// `omaweb` in the XDG configuration directory.
+QString omawebConfigRoot();
+
+// The report `omaweb report` prints with no browser running: what can be read
+// from disk, and a line saying what only a running browser knows.
+QList<ProblemReportSection> problemReportFromDisk(
+    const QString &omawebVersion, const QString &configRoot, const ProblemReportRun &run);
 
 } // namespace omaweb

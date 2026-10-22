@@ -17,6 +17,8 @@
 #include "FontSettings.h"
 #include "DesktopTextScaling.h"
 #include "PageScale.h"
+#include "ProblemRecording.h"
+#include "ProblemReporter.h"
 #include "SidebarOpacity.h"
 #include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
@@ -670,6 +672,19 @@ int main(int argc, char *argv[])
         QStringLiteral("0.0.1"), omaweb::ReleaseWatch::Ask::Never);
     releaseWatch.showRelease(QStringLiteral("v9.9.9"));
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
+    // `--problem-recording` starts a Problem recording, so its mark is there to
+    // be reviewed. The report asks the lab's machine nothing.
+    static omaweb::ProblemRecording problemRecording;
+    static omaweb::ProblemReporter problemReporter(&browser, dataRootPath);
+    problemReporter.setRecording(&problemRecording);
+    problemReporter.setPageScale(&pageScale);
+    problemReporter.setEngineVersions({QStringLiteral("Omaweb UI lab")});
+    problemReporter.setRun([](const QString &, const QStringList &) { return QString(); });
+    if (arguments.contains(QStringLiteral("--problem-recording"))) {
+        problemRecording.start();
+    }
+    engine.rootContext()->setContextProperty(QStringLiteral("problemRecording"), &problemRecording);
+    engine.rootContext()->setContextProperty(QStringLiteral("problemReporter"), &problemReporter);
     // The switch is reviewed here; what it flips is written under the lab's
     // own data root rather than the reader's configuration.
     static omaweb::GlobalPrivacyControl globalPrivacyControl(dataRootPath);

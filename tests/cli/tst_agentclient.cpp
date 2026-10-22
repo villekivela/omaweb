@@ -169,6 +169,8 @@ private slots:
     void warnsOnceForAWholeMcpSession();
     void leavesAnMcpSessionItCannotStartABrowserFor();
     void saysWhereItLookedWhenNothingAnswers();
+    void printsAReportFromDiskWhenNothingAnswers_data();
+    void printsAReportFromDiskWhenNothingAnswers();
 };
 
 void AgentClientTest::handsALaunchToTheBrowserBesideIt_data()
@@ -355,6 +357,7 @@ void AgentClientTest::sendsEveryVerbAsTheBrowserDoes_data()
     row("focus",
         {QStringLiteral("focus"), QStringLiteral("--raise"), QStringLiteral("github.com")});
     row("dev", {QStringLiteral("dev"), QStringLiteral("localhost:5173")});
+    row("report", {QStringLiteral("report")});
 }
 
 // The same request on the socket and the same answer printed, from the client
@@ -538,6 +541,50 @@ void AgentClientTest::saysWhereItLookedWhenNothingAnswers()
     QVERIFY2(fallen.err.contains(QStringLiteral("omaweb/control.sock")), qPrintable(fallen.err));
     QVERIFY2(fallen.err.contains(QStringLiteral("the default")), qPrintable(fallen.err));
     QVERIFY2(fallen.err.contains(QStringLiteral("OMAWEB_CONTROL_SOCKET")), qPrintable(fallen.err));
+}
+
+void AgentClientTest::printsAReportFromDiskWhenNothingAnswers_data()
+{
+    QTest::addColumn<QString>("runner");
+    for (const auto &runner : verbRunners()) {
+        QTest::newRow(qPrintable(QFileInfo(runner).fileName())) << runner;
+    }
+}
+
+// The reader whose browser will not start is the one who most needs a report.
+void AgentClientTest::printsAReportFromDiskWhenNothingAnswers()
+{
+    QFETCH(QString, runner);
+    QTemporaryDir directory;
+    QVERIFY(QDir(directory.path()).mkdir(QStringLiteral("config")));
+    QFile settings(directory.filePath(QStringLiteral("config/settings.json")));
+    QVERIFY(settings.open(QIODevice::WriteOnly));
+    settings.write("{\"version\": 1, \"font-size\": 18}\n");
+    settings.close();
+    auto environment = environmentFor(directory);
+    environment.insert(
+        QStringLiteral("OMAWEB_CONFIG_ROOT"), directory.filePath(QStringLiteral("config")));
+    // A browser that took `report` for a launch would start on these, and
+    // never reach the reader's own browser or profile.
+    environment.insert(
+        QStringLiteral("OMAWEB_DATA_ROOT"), directory.filePath(QStringLiteral("data")));
+    environment.insert(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"), QStringLiteral("disabled:"));
+    environment.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+
+    const auto ran = run(runner, {QStringLiteral("report")}, environment);
+
+    QCOMPARE(ran.code, 0);
+    for (const auto &held : {
+             QStringLiteral("Versions\n- Omaweb %1").arg(QStringLiteral(OMAWEB_VERSION)),
+             QStringLiteral("- Qt "),
+             QStringLiteral("- Kernel "),
+             QStringLiteral("Settings\n- font-size: 18\n"),
+             QStringLiteral("Last crash\n"),
+             QStringLiteral("No browser answered, so the engine's versions, what sites see, "
+                            "Sync, extensions, Spaces and tabs are missing."),
+         }) {
+        QVERIFY2(ran.out.contains(held), qPrintable(held + QStringLiteral(" in:\n") + ran.out));
+    }
 }
 
 QTEST_GUILESS_MAIN(AgentClientTest)

@@ -259,6 +259,10 @@ ApplicationWindow {
     readonly property var readerFonts: fontSettings
     readonly property var readerSidebarOpacity: sidebarOpacity
     readonly property var readerPageScale: pageScale
+    // The Problem recording and the report (ADR 0068), named apart from their
+    // context properties. A Private window records nothing.
+    readonly property var recording: window.privateWindow ? null : problemRecording
+    readonly property var reporter: problemReporter
     readonly property var enginePageFonts: pageFonts
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
     // so opening it on one page does not open it over the next — and a tab that
@@ -1679,6 +1683,26 @@ ApplicationWindow {
         }
     }
 
+    // GitHub's bug form in a new tab of the Space on show, with the report in
+    // its field. A report the link cannot carry whole is cut, and the whole of
+    // it goes to the clipboard for the reader to paste below.
+    function reportProblem() {
+        const reporting = window.windowBrowser;
+        const tabId = window.privateWindow || reporting.activeTabBlank ? "" : reporting.activeTabId;
+        const form = window.reporter.form(tabId, window.privateWindow);
+        if (form.cut)
+            SystemClipboard.copyText(form.text);
+        window.settingsOpen = false;
+        reporting.openInput(String(form.address), true);
+    }
+
+    function toggleProblemRecording() {
+        if (!window.recording)
+            return false;
+        window.recording.toggle();
+        return true;
+    }
+
     function copyAddress() {
         if (window.windowBrowser.activeTabBlank)
             return;
@@ -2896,8 +2920,35 @@ ApplicationWindow {
         if (window.privateWindow)
             return;
         const host = spaceProfiles.hostFor(window.windowBrowser.activeSpaceId);
-        if (host)
+        if (host) {
             window.spaceProfileHost = host;
+            window.reportWhatSitesSee(host.profile);
+        }
+    }
+
+    // What a page reads of the browser, for the Problem report: the engine's
+    // user agent, client hints and languages, which every Space's profile
+    // presents alike. An engine that keeps no client hints reports none.
+    function reportWhatSitesSee(profile) {
+        if (!profile || !window.reporter)
+            return;
+        const hints = profile.clientHints || null;
+        const versions = hints && hints.fullVersionList ? hints.fullVersionList : ({});
+        const brands = Object.keys(versions);
+        window.reporter.setSites({
+                                     "userAgent": String(profile.httpUserAgent || ""),
+                                     "brands": brands.map(function (brand) {
+                                         return brand + " " + String(versions[brand]).split(".")[0];
+                                     }).join(", "),
+                                     "fullVersionList": brands.map(function (brand) {
+                                         return brand + " " + versions[brand];
+                                     }).join(", "),
+                                     "platform": hints ? [hints.platform, hints.platformVersion,
+                                                          hints.arch].filter(function (part) {
+                                                              return !!part;
+                                                          }).join(" ") : "",
+                                     "language": String(profile.httpAcceptLanguage || "")
+                                 });
     }
 
     // Whoever built a Space's profile — this window on the way to showing that
@@ -3443,6 +3494,7 @@ ApplicationWindow {
                     window.windowBrowser.switchSpace(spaceId);
                 }
                 releaseWatch: window.releases
+                problemRecording: window.recording
                 onSettingsRequested: window.requestSettings()
                 onSyncRequested: window.requestSync()
                 onBackRequested: engineLoader.goBack()
@@ -3579,6 +3631,7 @@ ApplicationWindow {
                     browserController: window.windowBrowser
                     agentControl: window.agentControlSource
                     pageScale: window.readerPageScale
+                    problemRecording: window.recording
                     engineSource: engineViewSource
                     spaceProfiles: spaceProfiles
                     profilePath: window.profilePathOverride.length > 0 ? window.profilePathOverride :
@@ -4670,6 +4723,7 @@ ApplicationWindow {
                             onDownloadRevealed: function (path) {
                                 window.revealDownload(path);
                             }
+                            onProblemReportRequested: window.reportProblem()
                             onSettingsFileRevealed: function (path) {
                                 SavedDownload.reveal(path);
                             }

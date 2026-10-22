@@ -194,6 +194,12 @@ namespace {
                     .properties = {tab, property(QStringLiteral("level"), Kind::Level),
                         property(QStringLiteral("since"), integer)},
                     .required = {}},
+                {.name = QStringLiteral("report"),
+                    .verb = QStringLiteral("report"),
+                    .description = QStringLiteral("A Problem report: versions, settings, Sync, "
+                                                  "the last crash; addresses redacted."),
+                    .properties = {},
+                    .required = {}},
             };
         }();
         return list;

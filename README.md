@@ -371,6 +371,15 @@ system, installed web applications, Reader mode, translation, browser-data impor
 spellchecking, a custom user agent, print preview, DRM, or macOS distribution. These are deliberate
 scope decisions, not unfinished features.
 
+## Report a problem
+
+Run "Report a problem" from the Omnibar, select **Report a problem** in Settings' About section, or
+run `omaweb report`. Omaweb writes a Problem report, with versions, what sites see, settings you
+changed, Sync's state and the last crash, and addresses redacted. It opens GitHub's bug form with
+the report filled in. Omaweb sends nothing itself, and you read the report before you submit it. To
+show what happened, run "Record a problem" first, reproduce the problem, then report it: the
+recording of your tabs is kept in memory only and ends after ten minutes.
+
 ## Privacy and security
 
 Omaweb has no telemetry, advertising identifier, browser account, hosted Omaweb service,

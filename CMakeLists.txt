@@ -442,6 +442,10 @@ add_library(omaweb-core STATIC
     src/core/SettingsMigration.h
     src/core/PageScale.cpp
     src/core/PageScale.h
+    src/core/ProblemRecording.cpp
+    src/core/ProblemRecording.h
+    src/core/ProblemReporter.cpp
+    src/core/ProblemReporter.h
     src/core/SidebarOpacity.cpp
     src/core/SidebarOpacity.h
     src/core/PrivateSessionStore.cpp
@@ -925,6 +929,7 @@ set(omaweb_ui_files
     src/ui/PanelResizer.qml
     src/ui/SiteNotifications.qml
     src/ui/SiteTile.qml
+    src/ui/ProblemMark.qml
     src/ui/ReleaseMark.qml
     src/ui/SpaceNotice.qml
     src/ui/SpaceOutline.qml
@@ -1797,6 +1802,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-page-scale-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-page-scale-tests)
     add_test(NAME omaweb-page-scale COMMAND omaweb-page-scale-tests)
+
+    qt_add_executable(omaweb-problem-recording-tests tests/core/tst_problemrecording.cpp)
+    target_link_libraries(omaweb-problem-recording-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-problem-recording-tests)
+    add_test(NAME omaweb-problem-recording COMMAND omaweb-problem-recording-tests)
 
     qt_add_executable(omaweb-certificate-chain-tests tests/engine/tst_certificatechain.cpp)
     target_link_libraries(omaweb-certificate-chain-tests PRIVATE
