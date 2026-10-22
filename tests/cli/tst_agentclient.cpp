@@ -115,9 +115,18 @@ bool placeBrowser(const QTemporaryDir &directory)
     return browser.setPermissions(browser.permissions() | QFileDevice::ExeOwner);
 }
 
+// A browser that takes a command line for a launch, as one does for a verb it
+// does not know, starts on these: never on the reader's profile, their session
+// bus or their display.
 QProcessEnvironment environmentFor(const QTemporaryDir &directory)
 {
     auto environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(
+        QStringLiteral("OMAWEB_DATA_ROOT"), directory.filePath(QStringLiteral("data")));
+    environment.insert(
+        QStringLiteral("OMAWEB_CONFIG_ROOT"), directory.filePath(QStringLiteral("config")));
+    environment.insert(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"), QStringLiteral("disabled:"));
+    environment.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
     environment.insert(QStringLiteral("OMAWEB_CONTROL_SOCKET"),
         directory.filePath(QStringLiteral("control.sock")));
     environment.insert(
@@ -561,15 +570,7 @@ void AgentClientTest::printsAReportFromDiskWhenNothingAnswers()
     QVERIFY(settings.open(QIODevice::WriteOnly));
     settings.write("{\"version\": 1, \"font-size\": 18}\n");
     settings.close();
-    auto environment = environmentFor(directory);
-    environment.insert(
-        QStringLiteral("OMAWEB_CONFIG_ROOT"), directory.filePath(QStringLiteral("config")));
-    // A browser that took `report` for a launch would start on these, and
-    // never reach the reader's own browser or profile.
-    environment.insert(
-        QStringLiteral("OMAWEB_DATA_ROOT"), directory.filePath(QStringLiteral("data")));
-    environment.insert(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"), QStringLiteral("disabled:"));
-    environment.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    const auto environment = environmentFor(directory);
 
     const auto ran = run(runner, {QStringLiteral("report")}, environment);
 
