@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QDesktopServices>
+#include <QProcess>
 #include <QQmlEngine>
 
 namespace omaweb {
@@ -22,9 +23,19 @@ QString ExternalProtocolHandler::applicationName(const QUrl &destination) const
 #endif
 }
 
-bool ExternalProtocolHandler::open(const QUrl &destination) const
+bool ExternalProtocolHandler::open(const QString &destination) const
 {
-    return destination.isValid() && QDesktopServices::openUrl(destination);
+    const QUrl url(destination);
+    if (!url.isValid() || url.scheme().isEmpty()) {
+        return false;
+    }
+#if defined(Q_OS_MACOS)
+    return QDesktopServices::openUrl(url);
+#else
+    // What QDesktopServices runs for it outside a sandbox, given the address
+    // before Qt has parsed it.
+    return QProcess::startDetached(QStringLiteral("xdg-open"), {destination});
+#endif
 }
 
 void registerExternalProtocolHandler()

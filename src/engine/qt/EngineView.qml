@@ -883,38 +883,66 @@ Item {
         return match ? match[1] : String(url);
     }
 
+    // A frame's request is named by what the frame reported of it, under the
+    // address folded to lower case, which is how Qt hands it over.
+    function externalProtocolKey(address) {
+        return String(address).toLowerCase();
+    }
+
     function requestExternalProtocol(destination, mainFrame) {
-        const address = String(destination);
+        const key = root.externalProtocolKey(destination);
+        const named = root.externalProtocolOrigins[key];
+        delete root.externalProtocolOrigins[key];
+        // A server's redirect is seen by no script, so only Qt's reading of
+        // its address is left.
+        const address = named ? named.destination : String(destination);
         const separator = address.indexOf(":");
         const scheme = separator > 0 ? address.substring(0, separator).toLowerCase() : "";
-        const rememberedOrigin = root.externalProtocolOrigins[address];
-        delete root.externalProtocolOrigins[address];
-        const origin = mainFrame ? root.originAddress(webView.url) : String(rememberedOrigin || "");
         if (scheme.length === 0)
             return;
+        const pageOrigin = root.originAddress(webView.url);
+        // A frame hands over for the page's own site, or when the reader asked
+        // for it there, as Chrome allows. A frame from another site, such as
+        // an advert, would otherwise put a prompt in front of the reader for
+        // an app the page never meant to open, and a frame that reported
+        // nothing is from a site Omaweb cannot name.
+        if (!mainFrame && (!named || (!named.userInitiated && named.origin !== pageOrigin)))
+            return;
+        const origin = mainFrame ? pageOrigin : named.origin;
         if (root.permissionController && origin.length > 0
                 && root.permissionController.externalProtocolAllowed(origin, scheme)) {
             ExternalProtocolHandler.open(address);
             return;
         }
+        // A page that keeps sending the address while the reader decides,
+        // as one with a retry timer does, gets no second prompt over the
+        // first. Each attempt starts and stops a load, so the page is told
+        // apart by its address rather than its generation, and a prompt left
+        // from a page since left holds nothing up.
+        const page = String(webView.url);
+        for (const id in root.pendingBrowserPrompts) {
+            const pending = root.pendingBrowserPrompts[id];
+            if (pending.kind === "external-protocol" && pending.page === page)
+                return;
+        }
         const requestId = String(++root.nextBrowserPromptId);
         const application = ExternalProtocolHandler.applicationName(address);
-        const displayOrigin = origin.length > 0 ? origin : qsTr("Unknown embedded origin");
         root.pendingBrowserPrompts[requestId] = {
             "kind": "external-protocol",
             "origin": origin,
             "scheme": scheme,
-            "destination": address
+            "destination": address,
+            "page": page
         };
         root.browserPromptRequested(requestId, {
                                         "kind": "external-protocol",
                                         "application": application,
                                         "scheme": scheme,
-                                        "origin": displayOrigin,
+                                        "origin": origin,
                                         "destination": address,
                                         "rememberable": origin.length > 0,
                                         "message": qsTr("Open %1?").arg(application),
-                                        "detail": scheme + " · " + displayOrigin + " · " + address
+                                        "detail": scheme + " · " + origin + " · " + address
                                     });
     }
 
@@ -3535,20 +3563,35 @@ Item {
                 root.cosmeticSurveyScript, root.proceduralFiltersScript];
     }
 
+    // What a frame knows of an address in another app's scheme before Qt
+    // hears of it: the address as the page wrote it, since Qt lowercases the
+    // part after the scheme as it parses it, the frame's own site, and whether
+    // the reader asked for it. A click on a link is reported as it happens,
+    // and any other way a document sends itself there, a script or a refresh,
+    // through the Navigation API. Installed as the document is made, so a
+    // script that sends the page on before it has finished is heard too.
     property var externalProtocolOriginScript: {
         const script = WebEngine.script();
         script.name = "Omaweb external protocol origin";
-        script.injectionPoint = WebEngineScript.DocumentReady;
+        script.injectionPoint = WebEngineScript.DocumentCreation;
         script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = true;
-        script.sourceCode = root.reporting(`document.addEventListener('click', event => {
-            const link = event.target && event.target.closest
-                ? event.target.closest('a[href]') : null;
-            if (!link) return;
-            const scheme = String(link.protocol || '').replace(':', '').toLowerCase();
-            if (['http', 'https', 'file', 'about', 'data', 'omaweb'].includes(scheme)) return;
-            report('external_protocol', {destination: link.href, origin: location.origin});
-        }, true);`);
+        script.sourceCode = root.reporting(`
+            const web = ['http', 'https', 'file', 'about', 'data', 'omaweb'];
+            const name = (destination, userInitiated) => {
+                const scheme = String(destination).split(':')[0].toLowerCase();
+                if (web.includes(scheme)) return;
+                report('external_protocol',
+                    {destination: String(destination), origin: location.origin, userInitiated});
+            };
+            document.addEventListener('click', event => {
+                const link = event.target && event.target.closest
+                    ? event.target.closest('a[href]') : null;
+                if (link) name(link.href, true);
+            }, true);
+            if (window.navigation)
+                navigation.addEventListener('navigate',
+                    event => name(event.destination.url, event.userInitiated));`);
 
         return script;
     }
@@ -4474,6 +4517,12 @@ Item {
         // downloads the document instead, which is what an engine with no such
         // viewer does.
         settings.pdfViewerEnabled: true
+        // A site hands the reader to a desktop app with an address in the
+        // app's own scheme, often from a script or a redirect rather than a
+        // click, as Slack's sign-in does (#746). Qt's default lets only a
+        // click through, and drops the rest before Omaweb hears of them;
+        // here every one reaches `requestExternalProtocol`, which asks.
+        settings.unknownUrlSchemePolicy: WebEngineSettings.AllowAllUnknownUrlSchemes
         // A page may ask for the screen. Omaweb answers the request rather than
         // the engine, so the shell can say whose page took it and hand it back.
         settings.fullScreenSupportEnabled: true
@@ -4805,7 +4854,11 @@ Item {
             } else if (report.channel === "external_protocol") {
                 try {
                     const named = JSON.parse(report.body);
-                    root.externalProtocolOrigins[String(named.destination)] = String(named.origin);
+                    root.externalProtocolOrigins[root.externalProtocolKey(named.destination)] = {
+                        "destination": String(named.destination),
+                        "origin": String(named.origin),
+                        "userInitiated": named.userInitiated === true
+                    };
                 } catch (error) {
                     console.warn("Could not read external protocol origin: " + error);
                 }

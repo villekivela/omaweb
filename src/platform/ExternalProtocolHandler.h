@@ -16,7 +16,10 @@ class ExternalProtocolHandler final : public QObject {
 public:
     explicit ExternalProtocolHandler(QObject *parent = nullptr);
     Q_INVOKABLE QString applicationName(const QUrl &destination) const;
-    Q_INVOKABLE bool open(const QUrl &destination) const;
+    // Opens the address in the app the desktop has for its scheme, as the
+    // page wrote it. A QUrl would lowercase what follows the scheme, which an
+    // app may read as a name: Slack's sign-in puts a workspace ID there.
+    Q_INVOKABLE bool open(const QString &destination) const;
 };
 
 void registerExternalProtocolHandler();
