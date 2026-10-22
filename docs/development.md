@@ -572,19 +572,23 @@ One build makes two packages: the browser, and the small client with the Agent s
 only `qt6-base` so a sandbox can install it alone. The browser's package depends on the client's at
 the same version. `omaweb-git` and `omaweb-cli-git` are what `makepkg -si` builds from a checkout,
 and they keep the `-git` name because that is what pacman reads as a package to be rebuilt from
-source. `omaweb` and `omaweb-cli` are the binary packages the pacman repository serves, and
+source. `omaweb-git` names its launcher entry "Omaweb Dev" and shows its `pkgver`, such as
+`0.16.1.r14.gc8c9084`, in Settings > About, so a build of `main` is not taken for a release. The
+entry's file name, app id and window class stay `omaweb`, so the default browser, window rules and
+data carry over when switching. `omaweb` and `omaweb-cli` are the binary packages the pacman
+repository serves, and
 
 ```sh
 scripts/make_release_pkgbuild.sh --version 0.5.0 --output <dir>
 ```
 
 writes their PKGBUILD. The two files differ in a few lines: the names, a version fixed by the tag
-instead of computed from a checkout the reader of a binary package does not have, a `conflicts` on
-each source twin, and a source naming the tag. Everything else is the same file: every dependency,
-the release preset, the inventory and the window-rule notice. So the two cannot drift apart while
-nothing reports it. The script checks that each line it rewrites was there to rewrite, so a rename
-in `packaging/PKGBUILD` fails the derivation rather than quietly producing a package missing the
-change.
+instead of computed from a checkout the reader of a binary package does not have, a launcher that
+stays "Omaweb", a `conflicts` on each source twin, and a source naming the tag. Everything else is
+the same file: every dependency, the release preset, the inventory and the window-rule notice. So
+the two cannot drift apart while nothing reports it. The script checks that each line it rewrites
+was there to rewrite, so a rename in `packaging/PKGBUILD` fails the derivation rather than quietly
+producing a package missing the change.
 
 Qt is a dependency rather than a bundle, apart from the engine. The engine is `omaweb-qtwebengine`,
 Omaweb's own build, a package of its own installed under `/usr/lib/omaweb` and published in the same

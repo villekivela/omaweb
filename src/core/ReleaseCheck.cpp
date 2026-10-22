@@ -16,7 +16,8 @@ namespace {
     // The numbers a version begins with, and nothing else. `v0.5.0`, `0.5.0` and
     // `0.5.0-14-gabc1234` all read as {0, 5, 0}: the description a build carries
     // past its tag says which commit it is, not which release, and comparing
-    // releases is what this is for.
+    // releases is what this is for. The `omaweb-git` package writes the same
+    // description the way pacman does, `0.5.0.r14.gabc1234`, and reads alike.
     //
     // Empty when there are no numbers to read, which is how the fallback version a
     // tagless tree builds with, and an answer from a rate-limited endpoint, both
@@ -28,6 +29,7 @@ namespace {
             text.remove(0, 1);
         }
         text = text.section(QLatin1Char('-'), 0, 0);
+        text.remove(QRegularExpression(QStringLiteral(R"(\.r\d+\.g[0-9a-f]+$)")));
         if (text.isEmpty()) {
             return {};
         }
