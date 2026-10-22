@@ -6244,7 +6244,7 @@ TestCase {
     function test_chromeIconsRestInTheThemesText() {
         verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
         const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
-                       "reloadButton", "settingsButton"];
+                       "reloadButton", "settingsButton", "extensionMark"];
         for (const name of names) {
             const button = findChild(window.contentItem, name);
             verify(button !== null, name);

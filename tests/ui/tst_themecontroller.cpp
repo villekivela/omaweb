@@ -44,7 +44,7 @@ private slots:
     void movesASpaceColourJustClearOfAnAccent();
     void keepsTheTypedTextReadableOnTheOmnibarsGlassInEveryBundledTheme();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
-    void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
+    void keepsQuietTextReadableOnPrivateSurfaces();
     void keepsEtherealsBlueQuietTextInsteadOfNearWhite();
     void keepsAMutedColourThatOnlyFailsOnTheHoverFill();
     void handsAPageTheQuietTextTheThemeNamed();
@@ -677,7 +677,7 @@ void ThemeControllerTest::keepsQuietTextReadableOnEverySurfaceItIsDrawnOn()
             QColor(palette.value(QStringLiteral("sidebarOpaque")).toString())));
 }
 
-void ThemeControllerTest::keepsQuietTextReadableOnPrivateAndHoverSurfaces()
+void ThemeControllerTest::keepsQuietTextReadableOnPrivateSurfaces()
 {
     QTemporaryDir root;
     QFile theme(root.filePath(QStringLiteral("theme.json")));
@@ -768,7 +768,7 @@ void ThemeControllerTest::keepsAMutedColourThatOnlyFailsOnTheHoverFill()
 }
 
 // A page following the theme has one ground, so it takes the quiet text the
-// theme named rather than the one floored for Omaweb's six; where the theme
+// theme named rather than the one floored for Omaweb's five grounds; where the theme
 // named none, the floored value is the only one there is.
 void ThemeControllerTest::handsAPageTheQuietTextTheThemeNamed()
 {

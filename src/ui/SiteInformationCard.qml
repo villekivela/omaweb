@@ -632,8 +632,10 @@ Omarchy.BorderSurface {
                         height: 66
                         // Quiet text is not held to the hover fill, so it steps up to
                         // the theme's text while the fill is under it.
-                        readonly property color quiet: tileMouse.containsMouse && modelData.drills
-                                                       ? root.colors.text : root.colors.mutedText
+                        readonly property color glyphAndLabel: tileMouse.containsMouse
+                                                               && modelData.drills
+                                                               ? root.colors.text :
+                                                                 root.colors.mutedText
                         radius: Style.cornerRadius
                         color: tileMouse.containsMouse && tile.modelData.drills
                                ? root.colors.surfaceHover : root.colors.surface
@@ -647,7 +649,7 @@ Omarchy.BorderSurface {
                             x: 10
                             y: 8
                             text: tile.modelData.glyph
-                            color: tile.quiet
+                            color: tile.glyphAndLabel
                             font.family: root.iconFontFamily
                             font.pixelSize: Style.font.icon
                             Accessible.ignored: true
@@ -659,7 +661,7 @@ Omarchy.BorderSurface {
                             y: 6
                             visible: tile.modelData.drills
                             text: "›"
-                            color: tile.quiet
+                            color: tile.glyphAndLabel
                             font.family: Style.font.family
                             font.pixelSize: Style.font.title
                             Accessible.ignored: true
@@ -683,7 +685,7 @@ Omarchy.BorderSurface {
                             y: 46
                             width: parent.width - 20
                             text: tile.modelData.label
-                            color: tile.quiet
+                            color: tile.glyphAndLabel
                             elide: Text.ElideRight
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption

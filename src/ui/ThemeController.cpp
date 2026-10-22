@@ -879,10 +879,9 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
             = adjustedForContrast(quietest, text, grounds, minimumContrast, hasNamedMutedText);
         palette.insert(QStringLiteral("mutedText"), resolved.name(QColor::HexRgb));
         // What a page following the theme is handed for its quiet text. A page
-        // has one ground, and the floor answers for five grounds, which can
-        // push a mid-grey near white; so the theme's own word
-        // where it gave one, and the floored value only where Omaweb had to
-        // invent the colour anyway.
+        // has one ground, and the floor answers for five, which can push a mid-grey near white;
+        // so the theme's own word where it gave one, and the floored value only where Omaweb had
+        // to invent the colour anyway.
         palette.insert(QStringLiteral("pageMutedText"),
             (hasNamedMutedText ? named : resolved).name(QColor::HexRgb));
 
