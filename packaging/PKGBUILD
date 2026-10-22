@@ -36,8 +36,10 @@ depends=(
     # scheme changes, and 6.11.2-15 the first that shows a page's SVG icon
     # rather than a raster one beside it (#700), tells a page what its
     # passkeys can reach rather than leave it waiting (#711), and rejects a
-    # push subscription in a Private window as a Space does (#421).
-    'omaweb-qtwebengine>=6.11.2-15'
+    # push subscription in a Private window as a Space does (#421), and
+    # 6.11.2-16 the first that lets a click copy without a question and an
+    # extension use the clipboard its permissions allow (#745).
+    'omaweb-qtwebengine>=6.11.2-16'
     # Native Wayland is the primary display platform. X11 stays a fallback Qt
     # supplies through qt6-base.
     'qt6-wayland'

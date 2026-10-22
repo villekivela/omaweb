@@ -39,7 +39,7 @@ in front of it and is remembered. What makes a standing answer acceptable is tha
 it and take it back, which Site information provides, and that only the page the reader is looking
 at may read.
 
-## Writes wait for the engine
+## Writes are answered in the engine
 
 QtWebEngine 6.11 reports both of Chrome's clipboard permissions as one `ClipboardReadWrite`
 (`src/core/permission_manager_qt.cpp`, `toQt`), so the embedder cannot tell a copy button from a
@@ -47,8 +47,14 @@ read. The engine grants the sanitized write by itself only when `JavascriptCanAc
 on, and that setting also lets `execCommand("copy")` write with no gesture at all, which is how a
 page fills the clipboard behind the reader's back. Omaweb leaves it off.
 
-The write side is therefore a patch to Omaweb's engine build
-([0049](0049-ship-omawebs-own-engine-build.md)): grant `CLIPBOARD_SANITIZED_WRITE` without asking,
-as Chrome does, and answer an extension's `clipboardWrite` and `clipboardRead` the way Chrome's
-renderer does. Until it lands, a page's copy still arrives as the clipboard question, and the
-reader's standing answer for the site covers its copies as well as its reads.
+The write side is therefore three patches to Omaweb's engine build
+([0049](0049-ship-omawebs-own-engine-build.md)), first shipped in engine 6.11.2-16:
+
+- 0030 grants `CLIPBOARD_SANITIZED_WRITE` without asking, as Chrome does. A write without a gesture,
+  or in a format Chrome cannot sanitize, is still `CLIPBOARD_READ_WRITE`, reaches Omaweb as
+  clipboard read, and is answered from the reader's standing answer for the site or asked.
+- 0031 answers an extension's `clipboardWrite` and `clipboardRead` in the renderer, the way Chrome's
+  does. Blink asks there before it requests a permission, so a Known extension's offscreen document,
+  which has no view to ask from, copies without one.
+- 0032 lets that document select text. A password manager copies by selecting the password in a text
+  area, and a selection in a view without a delegate took the browser down.
