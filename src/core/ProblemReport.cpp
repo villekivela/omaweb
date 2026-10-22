@@ -265,7 +265,9 @@ QStringList lastCrashLines(const ProblemReportRun &run)
         // which differs from run to run.
         static const QRegularExpression frame(QStringLiteral("^(#\\d+)\\s+0x[0-9a-f]+\\s+(.*)$"));
         const auto match = frame.match(trimmed);
-        if (match.hasMatch()) {
+        // A frame without symbols names nothing a reader of the report could
+        // look up.
+        if (match.hasMatch() && !match.captured(2).startsWith(QStringLiteral("n/a"))) {
             lines.append(match.captured(1) + u' ' + match.captured(2));
         }
     }

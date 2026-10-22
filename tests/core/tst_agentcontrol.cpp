@@ -350,6 +350,7 @@ QString answerProgram(const QString &program, const QStringList &arguments)
             "                #0  0x00007f1 _ZN6omaweb10TabRowItem5paintEv (libomaweb.so + 0x1)\n"
             "                #1  0x00007f2 QQuickItem::update (libQt6Quick.so.6 + 0x2)\n"
             "                #2  0x00007f3 main (omaweb-browser + 0x3)\n"
+            "                #3  0x0000000000000000 n/a (n/a + 0x0)\n"
             "                \n"
             "                Stack trace of thread 7690:\n"
             "                #0  0x00007f4 poll (libc.so.6 + 0x4)\n");
@@ -3167,6 +3168,8 @@ void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
         QVERIFY2(report.contains(held), qPrintable(held + QStringLiteral(" in:\n") + report));
     }
     QVERIFY(!report.contains(QStringLiteral("poll")));
+    // A frame without symbols says nothing.
+    QVERIFY(!report.contains(QStringLiteral("n/a")));
     QVERIFY(!report.contains(QStringLiteral("personal.example")));
     QVERIFY(!report.contains(QStringLiteral("\nTab\n")));
     verifyNothingPrivate(report);

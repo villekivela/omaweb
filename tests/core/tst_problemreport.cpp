@@ -144,6 +144,8 @@ void ProblemReportTest::cutsTheRecordingFromItsOldestEnd()
     QVERIFY(field.contains(QStringLiteral("event 9 ")));
     QVERIFY(field.contains(QStringLiteral("event 5 ")));
     QVERIFY(!field.contains(QStringLiteral("event 0 ")));
+    // In the order they happened.
+    QVERIFY(field.indexOf(QStringLiteral("event 8 ")) < field.indexOf(QStringLiteral("event 9 ")));
     // What is kept runs unbroken to the newest.
     for (auto index = 0; index < 9; ++index) {
         if (field.contains(QStringLiteral("event %1 ").arg(index))) {
