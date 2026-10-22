@@ -19189,6 +19189,10 @@ TestCase {
         verify(report.indexOf("Versions\n") === 0, report);
         verify(report.indexOf("Tab\n- Address: https://reported.example/after?id=7&token=…\n") > 0,
                report);
+        // Whole, to the newline that ends it, with its `&` carried as an escape.
+        verify(address.endsWith("%0A"), address);
+        verify(address.indexOf("id%3D7%26token") > 0, address);
+        verify(report.endsWith("\n"), JSON.stringify(report.slice(-40)));
         verify(report.indexOf("redirected https://reported.example/after?id=7&token=…") > 0,
                report);
         verify(!problemRecording.recording);
