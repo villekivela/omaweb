@@ -38,6 +38,8 @@ ProblemRecording::~ProblemRecording() { stop(); }
 
 bool ProblemRecording::recording() const { return m_recording; }
 
+bool ProblemRecording::pending() const { return m_recording || !m_lines.isEmpty(); }
+
 QDateTime ProblemRecording::endsAt() const { return m_endsAt; }
 
 std::chrono::milliseconds ProblemRecording::limit() const { return m_limit; }

@@ -19133,8 +19133,8 @@ TestCase {
         const recorded = problemRecording.take().join("\n");
         for (const event of ["navigated https://signin.example/start",
                              "redirected https://signin.example/done?rrk=46&sid=…",
-                             "hand-off asked slack://magic-login/abc123",
-                             "handed off slack://magic-login/abc123",
+                             "hand-off asked slack://magic-login/…",
+                             "handed off slack://magic-login/…",
                              "permission asked https://signin.example: notifications",
                              "permission answered https://signin.example: notifications: blocked",
                              "console error https://signin.example/app.js: Uncaught TypeError: boom"])

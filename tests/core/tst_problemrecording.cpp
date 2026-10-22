@@ -78,8 +78,7 @@ void ProblemRecordingTest::capturesWhatHappenedInTheTabs()
     QVERIFY(lines.at(0).endsWith(QStringLiteral("navigated https://app.slack.com/signin?team=…")));
     QVERIFY(
         lines.at(1).endsWith(QStringLiteral("redirected https://slack.com/ssb/redirect?rrk=46")));
-    QVERIFY(lines.at(2).endsWith(
-        QStringLiteral("handed off slack://magic-login/abcdef123456: allowed")));
+    QVERIFY(lines.at(2).endsWith(QStringLiteral("handed off slack://magic-login/…: allowed")));
     QVERIFY(lines.at(3).endsWith(
         QStringLiteral("permission answered https://app.slack.com/: notifications: allow")));
     QVERIFY(
@@ -203,7 +202,7 @@ void ProblemRecordingTest::redactsAddressesInWhatItKeeps()
 
     QCOMPARE(lines.size(), 2);
     QVERIFY2(lines.at(0).endsWith(QStringLiteral(
-                 "console error: Refused https://accounts.google.com/v3/signin?dsh=…&rrk=46, "
+                 "console error: Refused https://accounts.google.com/…/signin?dsh=…&rrk=46, "
                  "try again")),
         qPrintable(lines.at(0)));
     QVERIFY2(lines.at(1).endsWith(

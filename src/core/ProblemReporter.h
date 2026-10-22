@@ -35,12 +35,18 @@ public:
     void setPageScale(const PageScale *scale);
     void setRun(ProblemReportRun run);
 
+    // Who asked: the reader, in the browser's own window, or an Agent, which
+    // every request over the socket is, from the CLI as from MCP.
+    enum class Requester { Reader, Agent };
+
     // The report, started from the tab `tabId`, or from no tab when it is
-    // empty. One from a Private window says only that it was, and leaves the
-    // recording alone. Any other takes the recording in, running or ended, and
-    // ends it.
-    QList<ProblemReportSection> sections(const QString &tabId, bool privateWindow);
+    // empty. The reader's takes the recording in, running or ended, and ends
+    // it. One from a Private window says only that it was, and an Agent's says
+    // only that a recording is there to take; both leave it alone.
+    QList<ProblemReportSection> sections(
+        const QString &tabId, bool privateWindow, Requester requester = Requester::Reader);
     Q_INVOKABLE QString text(const QString &tabId, bool privateWindow);
+    QString text(const QString &tabId, bool privateWindow, Requester requester);
     // The bug form filled with the report, as `address`, with `cut` when the
     // link could not carry it all and `text`, the whole report.
     Q_INVOKABLE QVariantMap form(const QString &tabId, bool privateWindow);

@@ -69,7 +69,8 @@ void ProblemReporter::setPageScale(const PageScale *scale) { m_pageScale = scale
 
 void ProblemReporter::setRun(ProblemReportRun run) { m_run = std::move(run); }
 
-QList<ProblemReportSection> ProblemReporter::sections(const QString &tabId, bool privateWindow)
+QList<ProblemReportSection> ProblemReporter::sections(
+    const QString &tabId, bool privateWindow, Requester requester)
 {
     QList<ProblemReportSection> report {
         {.title = QStringLiteral("Versions"),
@@ -93,8 +94,23 @@ QList<ProblemReportSection> ProblemReporter::sections(const QString &tabId, bool
         {.title = QStringLiteral("Spaces and tabs"), .lines = sessionLines()},
     });
     // The recording is of the ordinary windows, which are not a Private
-    // window's to report or end.
-    const auto recorded = m_recording && !privateWindow ? m_recording->take() : QStringList {};
+    // window's to report or end. It watched the reader's tabs, so it is theirs
+    // to take: an Agent is told where it is.
+    if (!m_recording || privateWindow) {
+        return report;
+    }
+    if (requester == Requester::Agent) {
+        if (m_recording->pending()) {
+            report.append({.title = QStringLiteral("Problem recording"),
+                .lines = {m_recording->recording()
+                        ? QStringLiteral(
+                              "Running in the browser: Report a problem there takes it in")
+                        : QStringLiteral(
+                              "Kept in the browser: Report a problem there takes it in")}});
+        }
+        return report;
+    }
+    const auto recorded = m_recording->take();
     if (!recorded.isEmpty()) {
         report.append(
             {.title = QStringLiteral("Problem recording"), .lines = recorded, .trimOldest = true});
@@ -104,7 +120,12 @@ QList<ProblemReportSection> ProblemReporter::sections(const QString &tabId, bool
 
 QString ProblemReporter::text(const QString &tabId, bool privateWindow)
 {
-    return problemReportText(sections(tabId, privateWindow));
+    return text(tabId, privateWindow, Requester::Reader);
+}
+
+QString ProblemReporter::text(const QString &tabId, bool privateWindow, Requester requester)
+{
+    return problemReportText(sections(tabId, privateWindow, requester));
 }
 
 QVariantMap ProblemReporter::form(const QString &tabId, bool privateWindow)

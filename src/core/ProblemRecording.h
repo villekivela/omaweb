@@ -34,6 +34,9 @@ public:
     ~ProblemRecording() override;
 
     bool recording() const;
+    // Whether a report would find anything: a recording running, or an ended
+    // one no report has taken yet.
+    bool pending() const;
     QDateTime endsAt() const;
     std::chrono::milliseconds limit() const;
 

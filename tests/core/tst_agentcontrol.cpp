@@ -373,9 +373,16 @@ struct SeededReport {
     {
         QFile settings(config.filePath(QStringLiteral("settings.json")));
         if (settings.open(QIODevice::WriteOnly)) {
-            settings.write("{\n  \"version\": 1,\n  \"https-only\": false,\n  \"font-size\": 18,\n"
-                           "  \"glance\": true,\n"
-                           "  \"download-directory\": \"/home/reader/Private Stuff\"\n}\n");
+            settings.write(
+                "{\n  \"version\": 1,\n  \"https-only\": false,\n  \"font-size\": 18,\n"
+                "  \"glance\": true,\n"
+                "  \"download-directory\": \"/home/reader/Private Stuff\",\n"
+                "  \"secure-dns-template\": \"https://dns.example/u/a1b2c3d4e5f6/dns-query\",\n"
+                "  \"browser-theme\": \"Reader's Night 2\",\n"
+                "  \"sidebar-side\": \"right\",\n"
+                "  \"page-fonts\": {\"standard-family\": \"Reader Handwriting\"},\n"
+                "  \"allowed-sites\": [\"https://bank.example/\", "
+                "\"https://clinic.example/\"]\n}\n");
             settings.close();
         }
         fixture = std::make_unique<SessionFixture>(readersSession(), config.path());
@@ -407,7 +414,8 @@ struct SeededReport {
 void verifyNothingPrivate(const QString &report)
 {
     for (const auto *never : {"mail.example", "work.example", "Personal", "Work", "notifications",
-             "reader-login", "Private Stuff", "/home/reader"}) {
+             "reader-login", "Private Stuff", "/home/reader", "bank.example", "clinic.example",
+             "Reader Handwriting", "Reader's Night", "/u/a1b2c3d4e5f6/"}) {
         QVERIFY2(!report.contains(QLatin1StringView(never)), never);
     }
 }
@@ -3152,6 +3160,13 @@ void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
              QStringLiteral("- https-only: false\n"),
              QStringLiteral("- font-size: 18\n"),
              QStringLiteral("- download-directory: set\n"),
+             // An address is redacted, a name that is not a plain word and a
+             // folder are said to be set, and a list or an object is counted.
+             QStringLiteral("- secure-dns-template: https://dns.example/u/…/dns-query\n"),
+             QStringLiteral("- browser-theme: set\n"),
+             QStringLiteral("- sidebar-side: right\n"),
+             QStringLiteral("- page-fonts: set, 1 entry\n"),
+             QStringLiteral("- allowed-sites: set, 2 entries\n"),
              // Sync.
              QStringLiteral("- On: Paused after an error\n"),
              QStringLiteral("- Last error: GitHub refused the token\n"),
@@ -3164,7 +3179,10 @@ void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
              QStringLiteral("- #0 _ZN6omaweb10TabRowItem5paintEv (libomaweb.so + 0x1)\n"),
              QStringLiteral("- #2 main (omaweb-browser + 0x3)\n"),
              // The recording, which the report ends and takes in.
-             QStringLiteral("navigated https://recorded.example/signin?sid=…&hl=en-GB\n"),
+             // An Agent's report says a recording is running and leaves it to
+             // the reader's own report.
+             QStringLiteral("Problem recording\n- Running in the browser: Report a problem "
+                            "there takes it in\n"),
          }) {
         QVERIFY2(report.contains(held), qPrintable(held + QStringLiteral(" in:\n") + report));
     }
@@ -3186,7 +3204,9 @@ void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
     QVERIFY(!report.contains(QStringLiteral("personal.example")));
     QVERIFY(!report.contains(QStringLiteral("\nTab\n")));
     verifyNothingPrivate(report);
-    QVERIFY(!seeded.recording.recording());
+    QVERIFY(!report.contains(QStringLiteral("recorded.example")));
+    QVERIFY(seeded.recording.recording());
+    QCOMPARE(seeded.recording.take().size(), 1);
 
     QCOMPARE(activity.entries().size(), 1);
     QCOMPARE(activity.entries().constLast().verb, QStringLiteral("report"));

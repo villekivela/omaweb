@@ -51,7 +51,8 @@ QString runForProblemReport(const QString &program, const QStringList &arguments
 QStringList systemVersionLines(const ProblemReportRun &run);
 // The settings the reader changed: those `settings.json` in `configRoot` holds,
 // less any `isDefault` says is at its default, which a file edited by hand can
-// hold. A folder or an address is said to be set rather than named.
+// hold. A list or an object is counted, an address redacted, and text that is
+// not a plain word is said to be set rather than shown.
 using ProblemReportDefault = std::function<bool(const QString &key, const QJsonValue &value)>;
 QStringList changedSettingLines(
     const QString &configRoot, const ProblemReportDefault &isDefault = {});

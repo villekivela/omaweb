@@ -55,16 +55,49 @@ namespace {
             && (number.match(value).hasMatch() || word.match(value).hasMatch());
     }
 
+    // A setting's value as a report may carry it. A list or an object, which
+    // is where sites, fonts and per-site values live, is counted. An address
+    // is redacted. Other text stays when it is a plain word, such as a choice,
+    // and is said to be set when it may be a name, a folder or an account.
+    QString shownSetting(const QJsonValue &value)
+    {
+        if (value.isObject() || value.isArray()) {
+            const auto count = value.isObject() ? value.toObject().size() : value.toArray().size();
+            return count == 1 ? QStringLiteral("set, 1 entry")
+                              : QStringLiteral("set, %1 entries").arg(count);
+        }
+        if (!value.isString()) {
+            return value.toVariant().toString();
+        }
+        const auto text = value.toString();
+        if (text.isEmpty()) {
+            return QStringLiteral("none");
+        }
+        if (text.contains(QStringLiteral("://"))) {
+            return redactedAddress(QUrl(text));
+        }
+        return plain(text) ? text : QStringLiteral("set");
+    }
+
 } // namespace
 
-// Without user information or a fragment, and with the query's names and the
-// values a report needs.
+// Without user information or a fragment, and with the path's segments, the
+// query's names and the values a report needs.
 QString redactedAddress(const QUrl &url)
 {
-    const auto bare
-        = url.adjusted(QUrl::RemoveUserInfo | QUrl::RemoveQuery | QUrl::RemoveFragment).toString();
+    // The host stays whatever it is: it names the site or the application a
+    // hand-off went to, which is what a report is about.
+    auto redacted = url.adjusted(QUrl::RemoveUserInfo | QUrl::RemovePath | QUrl::RemoveQuery
+                           | QUrl::RemoveFragment)
+                        .toString();
+    QStringList segments;
+    for (const auto &segment : url.path(QUrl::FullyEncoded).split(u'/')) {
+        const auto decoded = QUrl::fromPercentEncoding(segment.toLatin1());
+        segments.append(decoded.isEmpty() || plain(decoded) ? segment : QStringLiteral("…"));
+    }
+    redacted += segments.join(u'/');
     if (!url.hasQuery()) {
-        return bare;
+        return redacted;
     }
     QStringList pairs;
     for (const auto &[name, value] : QUrlQuery(url).queryItems(QUrl::FullyDecoded)) {
@@ -75,7 +108,7 @@ QString redactedAddress(const QUrl &url)
             pairs.append(shown + u'=' + (plain(value) ? value : QStringLiteral("…")));
         }
     }
-    return bare + u'?' + pairs.join(u'&');
+    return redacted + u'?' + pairs.join(u'&');
 }
 
 QString redactedText(const QString &text)
@@ -205,12 +238,6 @@ QStringList changedSettingLines(const QString &configRoot, const ProblemReportDe
     if (error.error != QJsonParseError::NoError || !document.isObject()) {
         return {QStringLiteral("settings.json does not parse: %1").arg(error.errorString())};
     }
-    // A folder is named for the reader, and a resolver's template may carry
-    // their account. Whether they set one is the fact.
-    static const QStringList named {
-        QStringLiteral("download-directory"),
-        QStringLiteral("secure-dns-template"),
-    };
     QStringList lines;
     const auto settings = document.object();
     for (auto it = settings.constBegin(); it != settings.constEnd(); ++it) {
@@ -218,17 +245,7 @@ QStringList changedSettingLines(const QString &configRoot, const ProblemReportDe
             || (isDefault && isDefault(it.key(), *it))) {
             continue;
         }
-        QString value;
-        if (named.contains(it.key())) {
-            value = QStringLiteral("set");
-        } else if (it->isObject() || it->isArray()) {
-            const auto nested
-                = it->isObject() ? QJsonDocument(it->toObject()) : QJsonDocument(it->toArray());
-            value = QString::fromUtf8(nested.toJson(QJsonDocument::Compact));
-        } else {
-            value = it->toVariant().toString();
-        }
-        lines.append(it.key() + QStringLiteral(": ") + value);
+        lines.append(it.key() + QStringLiteral(": ") + shownSetting(*it));
     }
     if (lines.isEmpty()) {
         lines.append(QStringLiteral("All at their defaults"));

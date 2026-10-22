@@ -100,7 +100,8 @@ omaweb report
   for what can be acted on.
 - `shot` prints the path of the PNG it wrote. Open that file to see the page.
 - `report` prints the Problem report the reader files an Omaweb issue with. Paste it into the issue
-  as it is: its addresses are already redacted.
+  as it is: its addresses are already redacted. A Problem recording is the reader's: when the report
+  says one is running, ask the reader to run "Report a problem" in the browser to take it in.
 - `console` prints level, source and text, one message a line, then `cursor <n>`. Pass that number
   as `--since` to get only newer messages.
 - `eval` runs JavaScript in an isolated world: it sees the DOM, not the page's own variables.

@@ -12,6 +12,7 @@ class ProblemReportTest final : public QObject {
 private slots:
     void redactionKeepsShortPlainValues();
     void redactionDropsUserInformationAndFragment();
+    void redactionCoversThePath();
     void writesEachSectionUnderItsTitle();
     void fillsTheBugFormsReportField();
     void cutsLaterSectionsFirst();
@@ -50,7 +51,7 @@ void ProblemReportTest::redactionKeepsShortPlainValues()
         "&rhlk=le&rip=1&rrk=46"));
 
     QCOMPARE(omaweb::redactedAddress(refused),
-        QStringLiteral("https://accounts.google.com/v3/signin/rejected?authuser=0&continue=…"
+        QStringLiteral("https://accounts.google.com/…/signin/rejected?authuser=0&continue=…"
                        "&dsh=…&ec=GAlAwAE&epd=…&flowEntry=AddSession&flowName=GlifWebSignIn"
                        "&hl=en-GB&idnf=…&rhlk=le&rip=1&rrk=46"));
 }
@@ -65,6 +66,24 @@ void ProblemReportTest::redactionDropsUserInformationAndFragment()
     QCOMPARE(omaweb::redactedAddress(
                  QUrl(QStringLiteral("https://example.com/?page=12345678901234567"))),
         QStringLiteral("https://example.com/?page=…"));
+}
+
+// A path segment is kept by the query value's rule, and the host whatever it
+// is: a token in a hand-off's path goes, the application it went to stays. The
+// host is written as an address is read, in lowercase.
+void ProblemReportTest::redactionCoversThePath()
+{
+    QCOMPARE(omaweb::redactedAddress(
+                 QUrl(QStringLiteral("https://github.com/villekivela/omaweb/pull/770"))),
+        QStringLiteral("https://github.com/villekivela/omaweb/pull/770"));
+    QCOMPARE(omaweb::redactedAddress(
+                 QUrl(QStringLiteral("slack://T0123/magic-login/xoxe-1-My4xLTE2MTk0OTg"))),
+        QStringLiteral("slack://t0123/magic-login/…"));
+    QCOMPARE(omaweb::redactedAddress(
+                 QUrl(QStringLiteral("https://example.com/reset/a1b2c3d4e5f6/?step=2"))),
+        QStringLiteral("https://example.com/reset/…/?step=2"));
+    QCOMPARE(omaweb::redactedAddress(QUrl(QStringLiteral("https://example.com/"))),
+        QStringLiteral("https://example.com/"));
 }
 
 void ProblemReportTest::writesEachSectionUnderItsTitle()

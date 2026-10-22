@@ -160,7 +160,8 @@ void AgentActivityLogTest::keepsWhatAnAgentTypedOutOfEveryLine()
                            .toString();
     ask(control, QStringLiteral("open"),
         {{QStringLiteral("url"),
-             QStringLiteral("https://shop.example/search?q=secret-query#secret-fragment")},
+             QStringLiteral(
+                 "https://shop.example/search/a1b2c3d4e5f6?q=secret-query#secret-fragment")},
             {QStringLiteral("space"), space}});
     // A file the reader has, named for what it must not leave in the log.
     QTemporaryDir files;
@@ -203,10 +204,12 @@ void AgentActivityLogTest::keepsWhatAnAgentTypedOutOfEveryLine()
     QVERIFY(!written.isEmpty());
     QVERIFY2(!written.contains("secret"), written.constData());
     const auto &entries = log.entries();
-    QCOMPARE(entries.at(1).target, QStringLiteral("https://shop.example/search"));
+    // The log keeps a path as it was written: a Problem report's redaction of
+    // the path is the report's.
+    QCOMPARE(entries.at(1).target, QStringLiteral("https://shop.example/search/a1b2c3d4e5f6"));
     QCOMPARE(entries.at(2).target,
         QStringLiteral("select 4, press, wait, click, dialog accept, upload 5"));
-    QCOMPARE(entries.at(2).address, QStringLiteral("https://shop.example/search"));
+    QCOMPARE(entries.at(2).address, QStringLiteral("https://shop.example/search/a1b2c3d4e5f6"));
     QCOMPARE(entries.constLast().outcome, QStringLiteral("refused"));
 }
 

@@ -377,8 +377,9 @@ Run "Report a problem" from the Omnibar, select **Report a problem** in Settings
 run `omaweb report`. Omaweb writes a Problem report, with versions, what sites see, settings you
 changed, Sync's state and the last crash, and addresses redacted. It opens GitHub's bug form with
 the report filled in. Omaweb sends nothing itself, and you read the report before you submit it. To
-show what happened, run "Record a problem" first, reproduce the problem, then report it: the
-recording of your tabs is kept in memory only and ends after ten minutes.
+show what happened, run "Record a problem" first, reproduce the problem, then report it from the
+browser or select the recording's mark in the sidebar. The recording of your tabs is kept in memory
+only and ends after ten minutes. `omaweb report` and an Agent's report leave it out.
 
 ## Privacy and security
 
