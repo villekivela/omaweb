@@ -45,6 +45,8 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Put away          | Siirtää sivuun        | What Omaweb does with an unused tab. The list is "sivuun siirretyt".                            |
 | Tab window        | Välilehti-ikkuna      | A window of one tab. Popping out is "irrottaa ikkunaan", putting back "palauttaa".              |
 | Page scale        | Sivujen skaalaus      | The size every page is drawn at before a tab's zoom ("zoomaus").                                |
+| Problem report    | Ongelmaraportti       | The text a reader files an issue with. Filing it is "ilmoittaa ongelmasta".                     |
+| Problem recording | Ongelman nauhoitus    | What happened while the reader reproduced a problem. Recording is "nauhoittaa".                 |
 
 Add a row when a batch has to translate a new Omaweb term.
 

@@ -27,6 +27,8 @@ Item {
     // `PageScale` the browser keeps (ADR 0067). Without one, pages are drawn
     // at their zoom alone.
     property var pageScale: null
+    // The window's Problem recording, which a Private window has none of.
+    property var problemRecording: null
     readonly property real pageScaleValue: root.pageScale ? root.pageScale.value : 1
     property bool pageFocusAllowed: true
     property var hintTheme: ({})
@@ -1869,6 +1871,18 @@ Item {
 
                 function onSitePermissionRequested(requestId, origin, permission) {
                     root.sitePermissionRequested(tabSlot.engine, requestId, origin, permission);
+                }
+
+                // While a Problem recording runs, what happens in each tab.
+                function onProblemEvent(kind, address, detail) {
+                    if (root.problemRecording)
+                        root.problemRecording.record(kind, tabSlot.tabId, address, detail);
+                }
+
+                function onPageConsoleMessage(level, message, lineNumber, sourceId, document) {
+                    if (root.problemRecording && level === 2)
+                        root.problemRecording.record("console error", tabSlot.tabId, sourceId,
+                                                     message);
                 }
 
                 function onCertificateErrorRaised(requestId, failure) {

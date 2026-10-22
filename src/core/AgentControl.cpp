@@ -5,6 +5,7 @@
 #include "BrowserController.h"
 #include "AgentsFile.h"
 #include "PageScale.h"
+#include "ProblemReporter.h"
 #include "SpaceProject.h"
 
 #include <QAbstractItemModel>
@@ -1153,6 +1154,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
         QStringLiteral("space"),
         QStringLiteral("focus"),
         QStringLiteral("dev"),
+        QStringLiteral("report"),
 #ifdef OMAWEB_FILM_HOOKS
         QStringLiteral("film-hover"),
 #endif
@@ -1306,6 +1308,8 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
 void AgentControl::setActivityLog(AgentActivityLog *log) { m_activity = log; }
 
 void AgentControl::setPageScale(const PageScale *scale) { m_pageScale = scale; }
+
+void AgentControl::setProblemReporter(ProblemReporter *reporter) { m_problemReporter = reporter; }
 
 QString AgentControl::activityTarget(const QString &verb, const QJsonObject &request) const
 {
@@ -1504,6 +1508,14 @@ QJsonObject AgentControl::answerBrowserCommand(const QString &verb, const QStrin
     }
     if (verb == u"dev") {
         return openProject(request);
+    }
+    if (verb == u"report") {
+        if (!m_problemReporter) {
+            return refusal(QStringLiteral("unavailable"),
+                QStringLiteral("This browser writes no Problem report."));
+        }
+        return success({{QStringLiteral("report"),
+            m_problemReporter->text({}, false, ProblemReporter::Requester::Agent)}});
     }
     return askWindow(verb, request);
 }

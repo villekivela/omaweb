@@ -368,6 +368,25 @@ Rectangle {
     signal windowCloseRequested
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
+    signal problemEvent(string kind, url address, string detail)
+    // A redirect the page's load resolved to: the engine names it before the
+    // address moves, and the arrival is the same navigation.
+    property bool redirecting: false
+    // A load is said to start on a later turn, as the engine says it, so a
+    // view the shell is still connecting to is heard.
+    function announceNavigation(address) {
+        if (String(address).length === 0 || String(address) === "about:blank")
+            return;
+        Qt.callLater(function () {
+            root.problemEvent("navigated", address, "");
+        });
+    }
+    function simulateRedirect(destination) {
+        root.problemEvent("redirected", destination, "");
+        root.redirecting = true;
+        root.currentUrl = destination;
+        root.redirecting = false;
+    }
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
@@ -602,11 +621,36 @@ Rectangle {
             return "";
         }
         const requestId = String(++root.nextPermissionRequestId);
+        root.pendingPermissionAsks[requestId] = {
+            "origin": String(origin),
+            "permission": String(permission)
+        };
+        root.problemEvent("permission asked", origin, permission);
         root.sitePermissionRequested(requestId, String(origin), String(permission));
         return requestId;
     }
+    property var pendingPermissionAsks: ({})
+    // An answer to a permission prompt, as a Problem recording says it.
+    function decisionWord(decision) {
+        switch (decision) {
+        case 1:
+            return "allowed once";
+        case 2:
+            return "allowed";
+        case 3:
+            return "blocked";
+        default:
+            return "dismissed";
+        }
+    }
     function respondToPermission(requestId, decision) {
         root.permissionAnswers[requestId] = decision;
+        const asked = root.pendingPermissionAsks[requestId];
+        if (!asked)
+            return;
+        delete root.pendingPermissionAsks[requestId];
+        root.problemEvent("permission answered", asked.origin, asked.permission + ": "
+                          + root.decisionWord(decision));
     }
     property bool javaScriptDialogsBlocked: false
     property bool lastPromptAccepted: false
@@ -626,6 +670,8 @@ Rectangle {
         const external = root.pendingExternalProtocols[requestId];
         if (external) {
             delete root.pendingExternalProtocols[requestId];
+            root.problemEvent(accepted ? "handed off" : "hand-off refused", external.destination,
+                              "");
             if (accepted) {
                 if (response.remember === true && root.permissionController)
                     root.permissionController.rememberExternalProtocolDecision(external.origin,
@@ -687,9 +733,11 @@ Rectangle {
         const scheme = address.substring(0, address.indexOf(":"));
         if (root.permissionController && root.permissionController.externalProtocolAllowed(
                     root.currentUrl, scheme)) {
+            root.problemEvent("handed off", address, "remembered for the site");
             root.externalOpenCount += 1;
             return;
         }
+        root.problemEvent("hand-off asked", address, "");
         const requestId = String(++root.nextBrowserPromptId);
         const page = String(root.currentUrl);
         const match = page.match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i);
@@ -739,6 +787,8 @@ Rectangle {
     }
 
     onCurrentUrlChanged: {
+        if (!root.redirecting)
+            root.announceNavigation(root.currentUrl);
         root.pageGeneration += 1;
         root.paymentCardFills = [];
         root.documentPainted = root.paintsAtOnce(root.currentUrl);

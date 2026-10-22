@@ -275,6 +275,7 @@ TestCase {
         window.settingsOpen = false;
         window.historyOpen = false;
         window.dialogMode = "";
+        problemRecording.take();
         window.closeSiteInformation();
         window.tabMenuOpen = false;
         window.pageMenuOpen = false;
@@ -19112,6 +19113,150 @@ TestCase {
     // The mark's own rules, asked of a stand-in watch. What is behind it — the
     // version comparison, the once-a-day question, the dismissal — is answered
     // in C++ and checked in tst_releasecheck.
+    // What #711 and #746 had to be asked for over days: where the tab went,
+    // where it was sent on, the hand-off to Slack, how a permission prompt was
+    // answered and what the page logged. "Record a problem" starts and ends it,
+    // and the sidebar shows it running.
+    function test_aProblemRecordingCapturesWhatHappensInTheWindowsTabs() {
+        const outline = findChild(window.contentItem, "sidebar");
+        const mark = findChild(outline, "problemRecordingMark");
+        verify(mark !== null);
+        compare(mark.visible, false);
+        verify(window.commands.available("record-problem"));
+
+        window.commands.run("record-problem", -1);
+        verify(problemRecording.recording);
+        tryCompare(mark, "visible", true);
+        verify(mark.accessibleName.indexOf("Recording a problem") === 0, mark.accessibleName);
+
+        const engine = openPage("https://signin.example/start");
+        // An engine says a load has started on a later turn.
+        wait(0);
+        engine.simulateRedirect("https://signin.example/done?rrk=46&sid=a1b2c3d4e5f6");
+        engine.simulateExternalProtocol("Slack", "slack://magic-login/abc123");
+        tryVerify(function () {
+            return window.browserPromptOpen;
+        });
+        window.respondToBrowserPrompt(true, "", "", "", false, false);
+        verify(engine.simulateSitePermission("https://signin.example", "notifications").length > 0);
+        tryCompare(window, "permissionOpen", true);
+        window.respondToPermission(BrowserController.Block);
+        engine.pageConsoleMessage(2, "Uncaught TypeError: boom", 3, "https://signin.example/app.js",
+                                  engine.pageGeneration);
+
+        window.commands.run("record-problem", -1);
+        verify(!problemRecording.recording);
+        tryCompare(mark, "visible", false);
+        const recorded = problemRecording.take().join("\n");
+        for (const event of ["navigated https://signin.example/start",
+                             "redirected https://signin.example/done?rrk=46&sid=…",
+                             "hand-off asked slack://magic-login/…",
+                             "handed off slack://magic-login/…",
+                             "permission asked https://signin.example: notifications",
+                             "permission answered https://signin.example: notifications: blocked",
+                             "console error https://signin.example/app.js: Uncaught TypeError: boom"])
+            verify(recorded.indexOf(event) >= 0, event + " in:\n" + recorded);
+    }
+
+    // The mark ends the recording it shows and opens the report that takes it
+    // in, and its tooltip says how long is left.
+    function test_theProblemRecordingMarkEndsTheRecording() {
+        const tabs = browser.tabs.rowCount();
+        const outline = findChild(window.contentItem, "sidebar");
+        const mark = findChild(outline, "problemRecordingMark");
+        window.commands.run("record-problem", -1);
+        tryCompare(mark, "visible", true);
+        const tip = findChild(mark, "problemRecordingMarkToolTip");
+        verify(tip !== null);
+        mouseMove(mark, mark.width / 2, mark.height / 2);
+        tryVerify(function () {
+            return tip.text.indexOf("min left") > 0;
+        });
+        verify(tip.fontFamily !== mark.iconFontFamily);
+        mouseClick(mark);
+        verify(!problemRecording.recording);
+        tryCompare(mark, "visible", false);
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabs + 1;
+        });
+        verify(browser.activeUrl.toString().indexOf(
+                   "https://github.com/villekivela/omaweb/issues/new?template=bug.yml&report=")
+               === 0);
+    }
+
+    // "Report a problem" opens GitHub's bug form in a new tab of the Space on
+    // show, the report in its field, and takes in the recording.
+    function test_reportAProblemOpensTheFilledBugForm() {
+        const engine = openPage("https://reported.example/page");
+        const tabs = browser.tabs.rowCount();
+        window.commands.run("record-problem", -1);
+        engine.simulateRedirect("https://reported.example/after?id=7&token=a1b2c3d4");
+
+        verify(window.commands.available("report-problem"));
+        window.commands.run("report-problem", -1);
+
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabs + 1;
+        });
+        const address = browser.activeUrl.toString();
+        verify(address.indexOf(
+                   "https://github.com/villekivela/omaweb/issues/new?template=bug.yml&report=")
+               === 0, address);
+        const report = decodeURIComponent(address.substring(address.indexOf("&report=") + 8));
+        verify(report.indexOf("Versions\n") === 0, report);
+        verify(report.indexOf("Tab\n- Address: https://reported.example/after?id=7&token=…\n") > 0,
+               report);
+        verify(report.indexOf("redirected https://reported.example/after?id=7&token=…") > 0,
+               report);
+        verify(!problemRecording.recording);
+    }
+
+    // A report too long for the link is cut, and the whole of it goes to the
+    // clipboard to paste below.
+    function test_aReportTooLongForTheLinkIsCopiedWhole() {
+        SystemClipboard.copyText("something the reader already had");
+        const engine = openPage("https://long.example/");
+        window.commands.run("record-problem", -1);
+        for (let index = 0; index < 120; ++index)
+            engine.pageConsoleMessage(2, "error " + index + " " + "x".repeat(100), 1, "https://long.example/app.js",
+                                      engine.pageGeneration);
+
+        window.commands.run("report-problem", -1);
+
+        tryVerify(function () {
+            return browser.activeUrl.toString().indexOf("https://github.com/") === 0;
+        });
+        const address = browser.activeUrl.toString();
+        verify(address.length <= 8000, address.length);
+        const field = decodeURIComponent(address.substring(address.indexOf("&report=") + 8));
+        verify(field.indexOf("error 119 ") > 0);
+        verify(field.indexOf("error 0 ") < 0);
+        verify(field.indexOf("paste it below") > 0);
+        const copied = SystemClipboard.text();
+        verify(copied.indexOf("Versions\n") === 0, copied);
+        verify(copied.indexOf("error 0 ") > 0);
+        verify(copied.indexOf("error 119 ") > 0);
+    }
+
+    // Settings' About section starts the same report.
+    function test_settingsAboutReportsAProblem() {
+        const tabs = browser.tabs.rowCount();
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("about");
+        const button = findChild(settings, "reportProblemButton");
+        verify(button !== null);
+        tryCompare(button, "visible", true);
+        button.clicked();
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabs + 1;
+        });
+        verify(browser.activeUrl.toString().indexOf(
+                   "https://github.com/villekivela/omaweb/issues/new?template=bug.yml&report=")
+               === 0);
+        compare(window.settingsOpen, false);
+    }
+
     function test_theFooterMarksAReleaseTheReaderHasNotSeen() {
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "releaseMark");

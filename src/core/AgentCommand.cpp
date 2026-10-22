@@ -3,7 +3,9 @@
 #include "AgentConsole.h"
 #include "AgentPick.h"
 #include "AgentProtocol.h"
+#include "ProblemReport.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -71,7 +73,7 @@ namespace {
     {
         const auto space = QStringLiteral("space");
         const auto tab = QStringLiteral("tab");
-        if (verb == u"spaces") {
+        if (verb == u"spaces" || verb == u"report") {
             return {.valued = {},
                 .flags = {},
                 .minimumPositionals = 0,
@@ -539,6 +541,7 @@ namespace {
             QStringLiteral("run"),
             QStringLiteral("focus"),
             QStringLiteral("dev"),
+            QStringLiteral("report"),
 #ifdef OMAWEB_FILM_HOOKS
             QStringLiteral("film-hover"),
 #endif
@@ -594,6 +597,7 @@ namespace {
         {"console", "read the page's console"},
         {"mcp", "serve the verbs to an MCP client over stdio"},
         {"dev", "open the folder it runs in as a project Space"},
+        {"report", "write a Problem report to file an issue with"},
 #ifdef OMAWEB_FILM_HOOKS
         {"film-hover", "hold a Space's name on show for the introductory film"},
 #endif
@@ -1025,6 +1029,9 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
     if (verb == u"close") {
         return line({answer.value(QStringLiteral("closed")).toString()});
     }
+    if (verb == u"report") {
+        return answer.value(QStringLiteral("report")).toString();
+    }
     if (verb == u"commands") {
         for (const auto &value : answer.value(QStringLiteral("commands")).toArray()) {
             const auto command = value.toObject();
@@ -1204,14 +1211,31 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
         }
     }
 
+    // With no browser, a report is what can be read from disk: a browser
+    // that will not start is a problem to report too.
+    const auto reportFromDisk = [&command] {
+        if (command.request.value(QStringLiteral("verb")).toString() != u"report") {
+            return false;
+        }
+        print(stdout,
+            problemReportText(problemReportFromDisk(QCoreApplication::applicationVersion(),
+                configRootFromEnvironment(), &runForProblemReport)));
+        return true;
+    };
     QLocalSocket socket;
     socket.connectToServer(socketPath);
     if (!socket.waitForConnected(answerTimeoutMs)) {
+        if (reportFromDisk()) {
+            return 0;
+        }
         print(stderr, QStringLiteral("omaweb: %1\n").arg(agentSocketUnreachable(socketPath)));
         return 3;
     }
     const auto mismatch = greetAgentBrowser(socket, answerTimeoutMs);
     if (!mismatch) {
+        if (reportFromDisk()) {
+            return 0;
+        }
         print(stderr, QStringLiteral("omaweb: the browser did not answer.\n"));
         return 3;
     }
