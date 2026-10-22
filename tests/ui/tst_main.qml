@@ -1716,6 +1716,23 @@ TestCase {
         compare(password.text, "");
     }
 
+    // A prompt that takes a tab's place answers the one it replaces, which
+    // the page that asked would otherwise wait on for good (#746).
+    function test_promptReplacedInATabIsDeclined() {
+        const engine = openPage("https://meeting.example/room");
+        engine.simulateExternalProtocol("Meeting", "meeting-app://meeting.example/room");
+        tryVerify(function () {
+            return window.browserPromptOpen;
+        });
+        compare(Object.keys(engine.pendingExternalProtocols).length, 1);
+
+        engine.simulateJavaScriptPrompt("alert", "https://meeting.example", "Saved", "");
+        compare(window.pendingBrowserPrompt.kind, "javascript-alert");
+        compare(Object.keys(engine.pendingExternalProtocols).length, 0);
+        verify(!engine.lastPromptAccepted);
+        compare(engine.externalOpenCount, 0);
+    }
+
     function test_externalProtocolConfirmationNamesDestinationAndCanBeRemembered() {
         const engine = openPage("https://calendar.example/event");
         const destination = "webcal://calendar.example/team?id=42";

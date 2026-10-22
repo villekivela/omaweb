@@ -640,7 +640,7 @@ Item {
     property int nextBrowserPromptId: 0
     property bool javaScriptDialogsBlocked: false
     property var pendingFileSelections: ({})
-    property var externalProtocolOrigins: ({})
+    property var externalProtocolReports: ({})
     // QtWebEngine is built without Bluetooth (`use_bluez=false`), so a phone
     // cannot answer over hybrid transport, and Chromium has no platform
     // authenticator on Linux. A security key over USB is what reaches Omaweb.
@@ -891,8 +891,8 @@ Item {
 
     function requestExternalProtocol(destination, mainFrame) {
         const key = root.externalProtocolKey(destination);
-        const named = root.externalProtocolOrigins[key];
-        delete root.externalProtocolOrigins[key];
+        const named = root.externalProtocolReports[key];
+        delete root.externalProtocolReports[key];
         // A server's redirect is seen by no script, so only Qt's reading of
         // its address is left.
         const address = named ? named.destination : String(destination);
@@ -916,13 +916,10 @@ Item {
         }
         // A page that keeps sending the address while the reader decides,
         // as one with a retry timer does, gets no second prompt over the
-        // first. Each attempt starts and stops a load, so the page is told
-        // apart by its address rather than its generation, and a prompt left
-        // from a page since left holds nothing up.
-        const page = String(webView.url);
+        // first. The shell answers every prompt it puts away, so this one
+        // stands only while the reader can see it.
         for (const id in root.pendingBrowserPrompts) {
-            const pending = root.pendingBrowserPrompts[id];
-            if (pending.kind === "external-protocol" && pending.page === page)
+            if (root.pendingBrowserPrompts[id].kind === "external-protocol")
                 return;
         }
         const requestId = String(++root.nextBrowserPromptId);
@@ -931,8 +928,7 @@ Item {
             "kind": "external-protocol",
             "origin": origin,
             "scheme": scheme,
-            "destination": address,
-            "page": page
+            "destination": address
         };
         root.browserPromptRequested(requestId, {
                                         "kind": "external-protocol",
@@ -3556,7 +3552,7 @@ Item {
     // The Content blocking scripts are the Engine profile's, not the view's.
     function userScriptList() {
         return [root.editedStateScript, root.keyboardNavigationScript,
-                root.externalProtocolOriginScript, root.documentPaintedScript,
+                root.externalProtocolReportScript, root.documentPaintedScript,
                 root.userActivationScript, root.pressOriginScript, root.formHistoryScript,
                 root.controlAccentScript, root.pagePaletteScript, root.pageScrollbarScript,
                 root.pageScrollReportScript, root.mediaSessionScript, root.mediaPlayingScript,
@@ -3566,32 +3562,28 @@ Item {
     // What a frame knows of an address in another app's scheme before Qt
     // hears of it: the address as the page wrote it, since Qt lowercases the
     // part after the scheme as it parses it, the frame's own site, and whether
-    // the reader asked for it. A click on a link is reported as it happens,
-    // and any other way a document sends itself there, a script or a refresh,
-    // through the Navigation API. Installed as the document is made, so a
-    // script that sends the page on before it has finished is heard too.
-    property var externalProtocolOriginScript: {
+    // the reader asked for it. The Navigation API hears every way a document
+    // sends itself there, a click, a script or a refresh, and only a click
+    // of the reader's own counts as asking. Installed as the document is
+    // made, so a script that sends the page on before it has finished is
+    // heard too.
+    property var externalProtocolReportScript: {
         const script = WebEngine.script();
-        script.name = "Omaweb external protocol origin";
+        script.name = "Omaweb external protocol report";
         script.injectionPoint = WebEngineScript.DocumentCreation;
         script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = true;
         script.sourceCode = root.reporting(`
             const web = ['http', 'https', 'file', 'about', 'data', 'omaweb'];
-            const name = (destination, userInitiated) => {
+            const reportAddress = (destination, userInitiated) => {
                 const scheme = String(destination).split(':')[0].toLowerCase();
                 if (web.includes(scheme)) return;
                 report('external_protocol',
                     {destination: String(destination), origin: location.origin, userInitiated});
             };
-            document.addEventListener('click', event => {
-                const link = event.target && event.target.closest
-                    ? event.target.closest('a[href]') : null;
-                if (link) name(link.href, true);
-            }, true);
             if (window.navigation)
                 navigation.addEventListener('navigate',
-                    event => name(event.destination.url, event.userInitiated));`);
+                    event => reportAddress(event.destination.url, event.userInitiated));`);
 
         return script;
     }
@@ -4623,6 +4615,11 @@ Item {
         onLoadingChanged: function (loadRequest) {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
+                // A new document leaves behind what the last one reported.
+                // An attempt to open an app starts a load too, but its report
+                // has been taken by then.
+                if (/^(https?|file):/i.test(String(loadRequest.url)))
+                    root.externalProtocolReports = ({});
                 root.pageGeneration += 1;
                 root.documentReported = false;
                 root.blockingRulesChangedSinceLoad = false;
@@ -4854,7 +4851,7 @@ Item {
             } else if (report.channel === "external_protocol") {
                 try {
                     const named = JSON.parse(report.body);
-                    root.externalProtocolOrigins[root.externalProtocolKey(named.destination)] = {
+                    root.externalProtocolReports[root.externalProtocolKey(named.destination)] = {
                         "destination": String(named.destination),
                         "origin": String(named.origin),
                         "userInitiated": named.userInitiated === true

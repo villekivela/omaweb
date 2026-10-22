@@ -2598,6 +2598,11 @@ ApplicationWindow {
         }
         const tabId = window.windowBrowser.activeTabId;
         const prompts = Object.assign({}, window.browserPromptsByTab);
+        // The prompt this one takes the place of is answered, or the page
+        // that asked would wait on it for good.
+        const replaced = prompts[tabId];
+        if (replaced && replaced.responder)
+            replaced.responder.respondToBrowserPrompt(replaced.requestId, false, {});
         prompts[tabId] = {
             "responder": engine,
             "requestId": requestId,
