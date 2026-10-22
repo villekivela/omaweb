@@ -51,7 +51,6 @@ ChromeButton {
 
     visible: root.running > 0 || root.holding
     icon: root.holding ? "download_done" : "download"
-    foreground: root.colors.text
     accent: root.colors.accent
     fontFamily: root.iconFontFamily
     focusable: root.visible

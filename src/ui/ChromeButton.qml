@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui as Omarchy
 
 // The small chrome control — the arrows in the navigation strip, the Space
@@ -19,12 +20,20 @@ import qs.Ui as Omarchy
 // The kit paints hover, focus and pressed fills itself from `foreground` and
 // `accent`, so Omaweb's `hoverBackground` is gone: chrome is borderless and
 // transparent at rest and tints under the cursor like the rest of the kit.
+//
+// Every chrome button rests in the theme's text colour, which the kit's
+// `Commons.Color.foreground` carries, so a call site names no resting
+// `foreground` of its own. A state that changes the colour, such as the sync
+// error, falls back to `restingForeground` when it clears.
 Omarchy.Button {
     id: root
 
     property string label: ""
     property string icon: ""
     property string accessibleName: ""
+    readonly property color restingForeground: Commons.Color.foreground
+
+    foreground: root.restingForeground
 
     text: label
     iconText: icon

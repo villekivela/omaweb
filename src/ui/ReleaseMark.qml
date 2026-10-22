@@ -28,7 +28,6 @@ ChromeButton {
 
     visible: root.announcing
     icon: "upgrade"
-    foreground: root.colors.text
     accent: root.colors.accent
     fontFamily: root.iconFontFamily
     focusable: root.visible
