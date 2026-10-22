@@ -22,6 +22,10 @@
 #   conflicts  Each package conflicts with its source twin, so a reader who
 #              built from source is asked before the repository replaces it.
 #   source     The commit the tag names, rather than a branch.
+#   dev build  `omaweb-git` renames its launcher entry "Omaweb Dev" and passes
+#              its `pkgver` to CMake for About, so a build of the repository is
+#              not taken for a release. The release drops both and builds as
+#              the tag describes it, with the launcher "Omaweb" (#772).
 #   install    The browser's install file is named for its package, so it
 #              becomes omaweb.install.
 #
@@ -149,6 +153,9 @@ replace "client provides" '^    provides=\("omaweb-cli=\$pkgver"\)$' \
     "    conflicts=('omaweb-cli-git')" "$generated"
 remove "client conflicts" "^    conflicts=\\('omaweb-cli'\\)$" "$generated"
 replace "install" '^    install=omaweb-git\.install$' '    install=omaweb.install' "$generated"
+
+remove "launcher rename" "^    sed -i 's/\\^Name=Omaweb\\\$/Name=Omaweb Dev/' " "$generated"
+remove "version override" '^        -DOMAWEB_VERSION_OVERRIDE="\$pkgver" \\$' "$generated"
 
 # The version is the tag, so the function that computed one from a checkout has
 # nothing left to do. Left in, it would run `git describe` in the source tree and

@@ -126,6 +126,7 @@ build() {
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb \
         -DOMAWEB_KNOWN_EXTENSIONS=ON \
+        -DOMAWEB_VERSION_OVERRIDE="$pkgver" \
         -DBUILD_TESTING=OFF \
         -DOMAWEB_BUILD_UI_LAB=OFF \
         -DCMAKE_CXX_COMPILER_LAUNCHER=
@@ -148,6 +149,11 @@ package_omaweb-git() {
 
     cd "$_pkgname"
     DESTDIR="$pkgdir" cmake --install build/release --component browser
+    # A build of the repository says so in the launcher, so it is not taken for a
+    # release. Only the entry's `Name` changes: the file's name, the app id and
+    # the window class stay, so the default browser, window rules and data keep
+    # working when a reader switches between this and a release (#772).
+    sed -i 's/^Name=Omaweb$/Name=Omaweb Dev/' "$pkgdir/usr/share/applications/omaweb.desktop"
     install -Dm644 build/release/sbom.json "$pkgdir/usr/share/omaweb/sbom.json"
 }
 

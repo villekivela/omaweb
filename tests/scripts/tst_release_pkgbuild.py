@@ -152,5 +152,67 @@ class EngineAndCapability(unittest.TestCase):
         self.assertRegex((ROOT / "CMakeLists.txt").read_text(), rf"(?m)^option\({OPTION}\s")
 
 
+class GitBuildIsNamedDev(unittest.TestCase):
+    """The git package says on its launcher and in About that it is not a release (#772)."""
+
+    GIT_VERSION = "0.16.1.r14.gc8c9084"
+
+    def test_the_source_package_names_its_launcher_dev(self) -> None:
+        body = package_function(SOURCE_PKGBUILD.read_text(), "omaweb-git")
+        self.assertRegex(
+            body,
+            r'sed -i .*s/\^Name=Omaweb\$/Name=Omaweb Dev/.* '
+            r'"\$pkgdir/usr/share/applications/omaweb\.desktop"',
+        )
+
+    def test_the_release_package_names_its_launcher_omaweb(self) -> None:
+        pkgbuild = release_pkgbuild()
+        self.assertNotIn("Omaweb Dev", pkgbuild)
+        self.assertNotIn("share/applications", pkgbuild)
+
+    def test_the_source_launcher_file_keeps_its_name_and_class(self) -> None:
+        entry = (ROOT / "packaging" / "omaweb.desktop").read_text()
+        self.assertIn("\nName=Omaweb\n", entry)
+        self.assertIn("\nStartupWMClass=omaweb\n", entry)
+
+    def test_the_source_package_builds_with_its_own_version(self) -> None:
+        self.assertIn('-DOMAWEB_VERSION_OVERRIDE="$pkgver"', configure_arguments(SOURCE_PKGBUILD.read_text()))
+
+    def test_the_release_package_builds_with_the_version_its_tag_gives(self) -> None:
+        self.assertFalse(
+            [a for a in configure_arguments(release_pkgbuild()) if "VERSION_OVERRIDE" in a]
+        )
+
+    def resolved(self, *arguments: str) -> dict[str, str]:
+        with tempfile.TemporaryDirectory() as scratch:
+            script = Path(scratch) / "resolve.cmake"
+            script.write_text(
+                f'set(CMAKE_CURRENT_SOURCE_DIR "{ROOT}")\n'
+                f'include("{ROOT}/cmake/OmawebVersion.cmake")\n'
+                "omaweb_resolve_version()\n"
+                'message(STATUS "version=${OMAWEB_VERSION}")\n'
+                'message(STATUS "string=${OMAWEB_VERSION_STRING}")\n'
+            )
+            done = subprocess.run(
+                ("cmake", *arguments, "-P", str(script)),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        output = done.stdout + done.stderr
+        return dict(re.findall(r"-- (version|string)=(\S*)", output))
+
+    def test_about_shows_the_override_whole(self) -> None:
+        found = self.resolved(f"-DOMAWEB_VERSION_OVERRIDE={self.GIT_VERSION}")
+        self.assertEqual(found["string"], self.GIT_VERSION)
+        # Bundle versions and the project version stay a plain x.y.z.
+        self.assertRegex(found["version"], r"^\d+\.\d+\.\d+$")
+
+    def test_without_an_override_the_version_comes_from_the_tag(self) -> None:
+        found = self.resolved()
+        self.assertNotIn(".r", found["string"])
+        self.assertTrue(found["string"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,11 @@
 #   OMAWEB_BUILD_NUMBER   commits reachable from HEAD, monotonic across releases
 #   OMAWEB_VERSION_DERIVED whether a tag was found, rather than the fallback used
 #
+# OMAWEB_VERSION_OVERRIDE, when set, replaces OMAWEB_VERSION_STRING, which is
+# what About shows. The `omaweb-git` package passes its `pkgver`, so About
+# names the commit the same way pacman does. The plain x.y.z still comes from
+# the tag.
+#
 # A tarball with no .git, a clone with no tags, and a machine with no git all
 # fall back to OMAWEB_FALLBACK_VERSION below. Raise it when cutting a release
 # from a tree that will be distributed without history.
@@ -58,6 +63,10 @@ function(omaweb_resolve_version)
         if(counted)
             set(build_number "${counted}")
         endif()
+    endif()
+
+    if(OMAWEB_VERSION_OVERRIDE)
+        set(description "${OMAWEB_VERSION_OVERRIDE}")
     endif()
 
     set(OMAWEB_VERSION "${version}" PARENT_SCOPE)

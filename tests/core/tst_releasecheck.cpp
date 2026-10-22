@@ -62,6 +62,9 @@ void ReleaseCheckTest::tellsTheReaderWhenTheirVersionIsBehind_data()
     // A build between releases is still behind the release that came after it.
     QTest::newRow("a described build behind")
         << QStringLiteral("0.4.0-14-gabc1234") << QStringLiteral("v0.5.0");
+    // The git package names its build the way pacman does (#772).
+    QTest::newRow("a package version behind")
+        << QStringLiteral("0.4.0.r14.gabc1234") << QStringLiteral("v0.5.0");
 }
 
 void ReleaseCheckTest::tellsTheReaderWhenTheirVersionIsBehind()
@@ -189,6 +192,8 @@ void ReleaseCheckTest::readsTheReleaseNumberOffABuildDescription_data()
     QTest::newRow("past a tag") << QStringLiteral("0.4.0-14-gabc1234") << QStringLiteral("0.4.0");
     QTest::newRow("past a tag and dirty")
         << QStringLiteral("0.4.0-14-gabc1234-dirty") << QStringLiteral("0.4.0");
+    QTest::newRow("a package version")
+        << QStringLiteral("0.4.0.r14.gabc1234") << QStringLiteral("0.4.0");
     QTest::newRow("a tag") << QStringLiteral("v0.5.0") << QStringLiteral("0.5.0");
     QTest::newRow("nothing readable") << QStringLiteral("unknown") << QString();
 }
