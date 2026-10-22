@@ -134,7 +134,10 @@ bool RunningBrowser::handOver(const QUrl &url)
     const auto method = url.isValid() ? QStringLiteral("Open") : QStringLiteral("Activate");
     auto message = QDBusMessage::createMethodCall(kBusName, kObjectPath, kInterface, method);
     if (url.isValid()) {
-        message << QStringList {url.toString()};
+        // Encoded, as the running browser reads it: the decoded form of a link
+        // with a space or a newline in its query is not an address to it, and
+        // the link is dropped without a tab.
+        message << QStringList {QString::fromLatin1(url.toEncoded())};
     }
     // The compositor gives the process it starts a token to come forward
     // with, and this process exits once it has handed over. The token goes to

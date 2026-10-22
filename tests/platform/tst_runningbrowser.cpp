@@ -112,6 +112,7 @@ private slots:
     void cleanup();
     void handsOverTheLaunchersActivationToken();
     void asksForTheBrowserWithTheLaunchersActivationToken();
+    void handsAnEncodedLinkOverWhole();
     void comesForwardWithTheTokenALinkArrivesWith();
     void comesForwardWithTheTokenALaunchWithoutAnAddressArrivesWith();
     void asksForTheWindowBehindAnotherApp();
@@ -188,6 +189,25 @@ void RunningBrowserTest::asksForTheBrowserWithTheLaunchersActivationToken()
     QCOMPARE(received->method, QStringLiteral("Activate"));
     QCOMPARE(received->platformData.value(kActivationToken).toString(),
         QStringLiteral("token-from-the-launcher"));
+}
+
+// A link carries its spaces, newlines, `&` and `+` as escapes. The running
+// browser reads what it is sent strictly, so an address sent decoded is not an
+// address to it and the link is dropped without a tab.
+const auto kEncodedLink = QByteArray("https://github.com/villekivela/omaweb/issues/new"
+                                     "?template=bug.yml&report=Versions%0A-%20Omaweb%20test"
+                                     "%26more+and%2Bmore");
+
+void RunningBrowserTest::handsAnEncodedLinkOverWhole()
+{
+    RunningBrowser browser;
+    QVERIFY(!browser.isPrimary());
+
+    QVERIFY(browser.handOver(QUrl::fromEncoded(kEncodedLink, QUrl::StrictMode)));
+
+    const auto received = m_running->received();
+    QVERIFY(received.has_value());
+    QCOMPARE(received->uris, QStringList {QString::fromLatin1(kEncodedLink)});
 }
 
 // The running browser is the one on show once a link reaches it, so the

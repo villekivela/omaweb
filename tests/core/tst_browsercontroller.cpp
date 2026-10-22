@@ -146,6 +146,8 @@ private slots:
     void saysWhereAnEngineProfileBelongsWithoutMakingOne();
     void makesAnEngineProfileOnlyWhenAskedToPrepareOne();
     void createsTabOnlyAfterCommittedInput();
+    void opensAHandedOverLinkWhole_data();
+    void opensAHandedOverLinkWhole();
     void opensKeyboardHintTargetsInBackground();
     void closesRequestedBackgroundTab();
     void persistsTabsAndPins();
@@ -772,6 +774,31 @@ void BrowserControllerTest::createsTabOnlyAfterCommittedInput()
     controller.openInput(QStringLiteral("omaweb browser"), true);
     QCOMPARE(controller.tabs()->rowCount(), 2);
     QCOMPARE(controller.activeUrl().host(), QStringLiteral("duckduckgo.com"));
+}
+
+void BrowserControllerTest::opensAHandedOverLinkWhole_data()
+{
+    QTest::addColumn<QByteArray>("link");
+    QTest::newRow("encoded spaces and newlines")
+        << QByteArray("https://github.com/villekivela/omaweb/issues/new?template=bug.yml"
+                      "&report=Versions%0A-%20Omaweb%20test");
+    QTest::newRow("ampersand and plus")
+        << QByteArray("https://example.com/search?q=a%26b+c&r=1%2B1%20%3D%202");
+}
+
+void BrowserControllerTest::opensAHandedOverLinkWhole()
+{
+    QFETCH(QByteArray, link);
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+
+    // What main.cpp does with an address another app hands over.
+    const QUrl handed = QUrl::fromEncoded(link, QUrl::StrictMode);
+    const auto before = controller.tabs()->rowCount();
+    controller.openInput(handed.toString(), true);
+
+    QCOMPARE(controller.tabs()->rowCount(), before + 1);
+    QCOMPARE(controller.activeUrl().toEncoded(), link);
 }
 
 void BrowserControllerTest::persistsTabsAndPins()
