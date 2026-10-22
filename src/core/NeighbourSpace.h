@@ -33,11 +33,17 @@ public:
     void name(const QString &spaceId);
     // The Space's tabs as the store keeps them. A Space resting on a blank tab
     // lists no ordinary row, as the Space on show does, except a tab shown in
-    // a Tab window.
+    // a Tab window. Tabs that draw as the rows already do change nothing.
     void show(QVector<TabState> tabs);
 
 signals:
     void changed();
+    // The rows are about to be replaced, and have been. The sidebar takes its
+    // rows down on the first, so the list does not build them again inside
+    // the change, and builds them between frames after the second: the store
+    // answers while other chrome may be moving.
+    void rowsAboutToChange();
+    void rowsChanged();
 
 private:
     QString m_spaceId;

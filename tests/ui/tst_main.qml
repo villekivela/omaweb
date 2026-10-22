@@ -767,6 +767,11 @@ TestCase {
             return browser.nextSpace.ready && browser.previousSpace.ready;
         });
         compare(browser.nextSpace.spaceId, second);
+        // The neighbour's rows are built between frames once they are read.
+        const incoming = findChild(findChild(window.contentItem, "sidebar"), "nextSpaceList");
+        tryVerify(function () {
+            return findChild(incoming, "neighbour-" + secondTab) !== null;
+        });
         return {
             "home": home,
             "first": first,
@@ -16219,6 +16224,13 @@ TestCase {
             return browser.previousSpace.ready && browser.previousSpace.spaceId === spaces.first
                     && browser.previousSpace.pinnedTabs.rowCount() === 1;
         });
+        const previousList = findChild(sidebar, "previousSpaceList");
+        tryVerify(function () {
+            return findChild(previousList, "neighbour-" + pinId) !== null && findChild(previousList,
+                                                                                       "neighbour-"
+                                                                                       + halfId)
+                    !== null;
+        });
 
         swipeAcross(sidebar, 10, 6, 16);
         const incoming = findChild(sidebar, "previousSpaceList");
@@ -16344,6 +16356,24 @@ TestCase {
         compare(across.seen.length, 0);
         stopWatching(across);
         compare(browser.activeSpaceId, spaces.first);
+        forgetSwipeSpaces(spaces);
+    }
+
+    // A neighbour's rows are built between frames, never inside the change
+    // that brought them. The store's answer after a switch comes while other
+    // chrome moves, the Space's own arrival or the Omnibar opening, and
+    // building every row of a Space there held their frames.
+    function test_aNeighboursRowsAreBuiltBetweenFrames() {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const incoming = findChild(sidebar, "nextSpaceList");
+
+        const opened = browser.openTabInSpace(spaces.second, "https://swipe-between.example/");
+        verify(opened.length > 0);
+        compare(findChild(incoming, "neighbour-" + opened), null);
+        tryVerify(function () {
+            return findChild(incoming, "neighbour-" + opened) !== null;
+        });
         forgetSwipeSpaces(spaces);
     }
 

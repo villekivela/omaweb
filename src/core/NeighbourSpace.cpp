@@ -2,6 +2,8 @@
 
 #include <QRegularExpression>
 
+#include <algorithm>
+
 namespace omaweb {
 
 NeighbourSpace::NeighbourSpace(QObject *parent)
@@ -30,9 +32,28 @@ void NeighbourSpace::name(const QString &spaceId)
     }
     m_spaceId = spaceId;
     m_ready = false;
-    m_tabs.reset({});
+    if (!m_tabs.items().isEmpty()) {
+        emit rowsAboutToChange();
+        m_tabs.reset({});
+        emit rowsChanged();
+    }
     emit changed();
 }
+
+namespace {
+
+    // Whether two tabs draw as the same row.
+    bool drawnAlike(const TabState &left, const TabState &right)
+    {
+        return left.id == right.id && left.url == right.url && left.title == right.title
+            && left.iconUrl == right.iconUrl && left.pinned == right.pinned
+            && left.active == right.active && left.audible == right.audible
+            && left.muted == right.muted && left.soundSuppressed == right.soundSuppressed
+            && left.keepActive == right.keepActive && left.splitPartnerId == right.splitPartnerId
+            && left.poppedOut == right.poppedOut;
+    }
+
+} // namespace
 
 void NeighbourSpace::show(QVector<TabState> tabs)
 {
@@ -50,7 +71,12 @@ void NeighbourSpace::show(QVector<TabState> tabs)
         const auto blankId = onlyOrdinary->id;
         tabs.removeIf([&blankId](const TabState &tab) { return tab.id == blankId; });
     }
-    m_tabs.reset(std::move(tabs));
+    const bool unchanged = std::ranges::equal(tabs, m_tabs.items(), drawnAlike);
+    if (!unchanged) {
+        emit rowsAboutToChange();
+        m_tabs.reset(std::move(tabs));
+        emit rowsChanged();
+    }
     if (!m_ready) {
         m_ready = true;
         emit changed();

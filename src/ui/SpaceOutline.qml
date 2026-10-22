@@ -1395,69 +1395,92 @@ Rectangle {
         enabled: false
         Accessible.ignored: true
 
-        Flow {
-            id: neighbourPins
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: root.listMargin
-            anchors.rightMargin: 16
-            anchors.topMargin: neighbourPinRows.count > 0 ? 12 : 0
-            height: childrenRect.height
-            readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
-            spacing: 4
-
-            Repeater {
-                id: neighbourPinRows
-                model: neighbourList.neighbour ? neighbourList.neighbour.pinnedTabs : null
-
-                TabRow {
-                    objectName: "neighbour-" + tabId
-                    width: (neighbourPins.width - neighbourPins.spacing * (neighbourPins.capacity
-                                                                           - 1)) / neighbourPins.capacity
-                    colors: root.colors
-                    iconFontFamily: root.iconFontFamily
-                    useFavicons: root.useFavicons
-                    tintFavicons: root.tintFavicons
-                }
+        // Built between frames, as Qt incubates what an asynchronous loader
+        // makes, and taken down before the rows change so the list never
+        // builds them inside the change.
+        Connections {
+            target: neighbourList.neighbour
+            function onRowsAboutToChange() {
+                neighbourContent.active = false;
+            }
+            function onRowsChanged() {
+                neighbourContent.active = true;
             }
         }
 
-        Item {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: neighbourPins.bottom
-            anchors.bottom: parent.bottom
-            anchors.topMargin: 12
-            anchors.bottomMargin: 12
-            clip: true
+        Loader {
+            id: neighbourContent
+            anchors.fill: parent
+            asynchronous: true
+            sourceComponent: Item {
+                Flow {
+                    id: neighbourPins
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.leftMargin: root.listMargin
+                    anchors.rightMargin: 16
+                    anchors.topMargin: neighbourPinRows.count > 0 ? 12 : 0
+                    height: childrenRect.height
+                    readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
+                    spacing: 4
 
-            Flow {
-                id: neighbourRows
-                width: parent.width
-                leftPadding: root.listMargin
-                rightPadding: 16
-                readonly property real rowWidth: width - leftPadding - rightPadding
-                readonly property real splitMiddle: DevicePixels.snap(leftPadding + rowWidth / 2,
-                                                                      root.pixelRatio)
-                spacing: neighbourPins.spacing
+                    Repeater {
+                        id: neighbourPinRows
+                        model: neighbourList.neighbour ? neighbourList.neighbour.pinnedTabs : null
 
-                Repeater {
-                    model: neighbourList.neighbour ? neighbourList.neighbour.unpinnedTabs : null
+                        TabRow {
+                            objectName: "neighbour-" + tabId
+                            width: (neighbourPins.width - neighbourPins.spacing * (
+                                        neighbourPins.capacity - 1)) / neighbourPins.capacity
+                            colors: root.colors
+                            iconFontFamily: root.iconFontFamily
+                            useFavicons: root.useFavicons
+                            tintFavicons: root.tintFavicons
+                        }
+                    }
+                }
 
-                    TabRow {
-                        objectName: "neighbour-" + tabId
-                        width: inSplit ? (neighbourRows.rowWidth - neighbourRows.spacing) / 2 :
-                                         neighbourRows.rowWidth
-                        trailingHalf: inSplit && x > neighbourRows.leftPadding
-                        reachLeft: trailingHalf ? x - neighbourRows.splitMiddle :
-                                                  neighbourRows.leftPadding
-                        reachRight: inSplit && !trailingHalf ? neighbourRows.splitMiddle - x
-                                                               - width : neighbourRows.rightPadding
-                        colors: root.colors
-                        iconFontFamily: root.iconFontFamily
-                        useFavicons: root.useFavicons
-                        tintFavicons: root.tintFavicons
+                Item {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: neighbourPins.bottom
+                    anchors.bottom: parent.bottom
+                    anchors.topMargin: 12
+                    anchors.bottomMargin: 12
+                    clip: true
+
+                    Flow {
+                        id: neighbourRows
+                        width: parent.width
+                        leftPadding: root.listMargin
+                        rightPadding: 16
+                        readonly property real rowWidth: width - leftPadding - rightPadding
+                        readonly property real splitMiddle: DevicePixels.snap(leftPadding
+                                                                              + rowWidth / 2,
+                                                                              root.pixelRatio)
+                        spacing: neighbourPins.spacing
+
+                        Repeater {
+                            model: neighbourList.neighbour ? neighbourList.neighbour.unpinnedTabs :
+                                                             null
+
+                            TabRow {
+                                objectName: "neighbour-" + tabId
+                                width: inSplit ? (neighbourRows.rowWidth - neighbourRows.spacing)
+                                                 / 2 : neighbourRows.rowWidth
+                                trailingHalf: inSplit && x > neighbourRows.leftPadding
+                                reachLeft: trailingHalf ? x - neighbourRows.splitMiddle :
+                                                          neighbourRows.leftPadding
+                                reachRight: inSplit && !trailingHalf ? neighbourRows.splitMiddle
+                                                                       - x - width :
+                                                                       neighbourRows.rightPadding
+                                colors: root.colors
+                                iconFontFamily: root.iconFontFamily
+                                useFavicons: root.useFavicons
+                                tintFavicons: root.tintFavicons
+                            }
+                        }
                     }
                 }
             }
