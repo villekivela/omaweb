@@ -94,6 +94,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -343,6 +344,10 @@ private slots:
     void qtReportsThePageContextAndDrawsNoMenuOfItsOwn();
     void qtReportsTargetsInsideCrossOriginFrames();
     void qtOwnsJavaScriptPromptsAndReturnsTheirAnswer();
+    void qtAsksBeforeAPageHandsOverToAnApp_data();
+    void qtAsksBeforeAPageHandsOverToAnApp();
+    void qtAsksOnceAtATimeWhileAPageKeepsHandingOver();
+    void qtAsksForAFrameOnlyOnItsOwnSitesBehalf();
     void qtOpensOneLocalFileWithoutDirectoryWideAccess();
     void qtLoadsTheRemoteResourcesALocalPageNames();
     void adaptersAnswerForEveryEverydayPageOperation_data();
@@ -7975,6 +7980,205 @@ void QtEngineContractTest::qtOwnsJavaScriptPromptsAndReturnsTheirAnswer()
         Q_ARG(QVariant, request.at(0)), Q_ARG(QVariant, false), Q_ARG(QVariant, QVariantMap {})));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("cancelled"), 10000);
+}
+
+// A site hands the reader over to a desktop app with an address in the app's
+// own scheme, often with no click at all: Slack's sign-in sends it from a page
+// that loads after the reader signs in (#746). Omaweb asks before opening the
+// app, whichever way the page sends the address, and hands the app the address
+// as the page wrote it.
+namespace {
+const QByteArray slackSignIn = "slack://T0123/magic-login/abc-DEF?team=T0123";
+} // namespace
+
+void QtEngineContractTest::qtAsksBeforeAPageHandsOverToAnApp_data()
+{
+    QTest::addColumn<QByteArray>("body");
+    QTest::addColumn<QByteArray>("redirectTo");
+    QTest::addColumn<QString>("path");
+    QTest::newRow("script") << "<!doctype html><script>location.href = '" + slackSignIn
+            + "';</script>" << QByteArray()
+                            << QStringLiteral("/page.html");
+    QTest::newRow("server redirect")
+        << QByteArray("<!doctype html>") << slackSignIn << QStringLiteral("/redirect");
+    QTest::newRow("meta refresh") << "<!doctype html><meta http-equiv=\"refresh\" content=\"0; url="
+            + slackSignIn + "\">" << QByteArray()
+                                  << QStringLiteral("/page.html");
+}
+
+void QtEngineContractTest::qtAsksBeforeAPageHandsOverToAnApp()
+{
+    QFETCH(QByteArray, body);
+    QFETCH(QByteArray, redirectTo);
+    QFETCH(QString, path);
+    // The desktop's opener, stood in for by one that writes down what it was
+    // handed.
+    QTemporaryDir opener;
+    QVERIFY(opener.isValid());
+    const auto opened = opener.filePath(QStringLiteral("opened"));
+    QFile script(opener.filePath(QStringLiteral("xdg-open")));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write("#!/bin/sh\nprintf '%s' \"$1\" > \"$(dirname \"$0\")/opened\"\n");
+    script.close();
+    QVERIFY(script.setPermissions(script.permissions() | QFileDevice::ExeOwner));
+    const auto inheritedPath = qgetenv("PATH");
+    qputenv("PATH", QFile::encodeName(opener.path()) + ':' + inheritedPath);
+    const auto restorePath = qScopeGuard([inheritedPath] { qputenv("PATH", inheritedPath); });
+
+    PageServer server(body, redirectTo);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl()));
+    QSignalSpy prompts(shown.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    QSignalSpy events(shown.adapter.get(), SIGNAL(problemEvent(QString, QUrl, QString)));
+    shown.adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(server.serverPort()).arg(path)));
+
+    QTRY_COMPARE_WITH_TIMEOUT(prompts.count(), 1, 10000);
+    const auto prompt = prompts.first().at(1).toMap();
+    QCOMPARE(prompt.value(QStringLiteral("kind")).toString(), QStringLiteral("external-protocol"));
+    QCOMPARE(prompt.value(QStringLiteral("scheme")).toString(), QStringLiteral("slack"));
+    QCOMPARE(prompt.value(QStringLiteral("origin")).toString(),
+        QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()));
+
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "respondToBrowserPrompt",
+        Q_ARG(QVariant, prompts.first().at(0)), Q_ARG(QVariant, true),
+        Q_ARG(QVariant, QVariantMap {})));
+    const auto handed = [&opened] {
+        QFile file(opened);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(!handed().isEmpty(), 5000);
+    // Qt lowercases what follows the scheme as it parses the address, and no
+    // script sees a server's redirect to say how the server wrote it.
+    QEXPECT_FAIL("server redirect", "Qt hands Omaweb a redirect's address lowercased", Continue);
+    QCOMPARE(
+        prompt.value(QStringLiteral("destination")).toString(), QString::fromUtf8(slackSignIn));
+    QEXPECT_FAIL("server redirect", "Qt hands Omaweb a redirect's address lowercased", Continue);
+    QCOMPARE(handed(), slackSignIn);
+
+    // A Problem recording holds what was asked and what the reader did, under
+    // the page's address.
+    QList<QPair<QString, QUrl>> handOffs;
+    for (const auto &event : events) {
+        if (event.at(0).toString().contains(QStringLiteral("hand"))) {
+            handOffs.append({event.at(0).toString(), event.at(1).toUrl()});
+        }
+    }
+    const QUrl recorded(QString::fromUtf8(slackSignIn));
+    QCOMPARE(handOffs,
+        (QList<QPair<QString, QUrl>> {{QStringLiteral("hand-off asked"), recorded},
+            {QStringLiteral("handed off"), recorded}}));
+}
+
+// A page that sends the address again while the reader is still deciding, as
+// one with a retry timer does, gets no second prompt over the first. Once the
+// reader has answered, the page may ask again.
+void QtEngineContractTest::qtAsksOnceAtATimeWhileAPageKeepsHandingOver()
+{
+    PageServer server(R"HTML(<!doctype html><script>
+setInterval(() => location.href = 'slack://T0123/magic-login/abc', 200);
+</script>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl()));
+    QSignalSpy prompts(shown.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    QSignalSpy events(shown.adapter.get(), SIGNAL(problemEvent(QString, QUrl, QString)));
+    shown.adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort())));
+
+    QTRY_COMPARE_WITH_TIMEOUT(prompts.count(), 1, 10000);
+    QTest::qWait(1000);
+    QCOMPARE(prompts.count(), 1);
+    // The recording has the one question the reader saw, not each retry.
+    QCOMPARE(std::count_if(events.cbegin(), events.cend(),
+                 [](const QList<QVariant> &event) {
+                     return event.at(0).toString() == QStringLiteral("hand-off asked");
+                 }),
+        1);
+
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "respondToBrowserPrompt",
+        Q_ARG(QVariant, prompts.first().at(0)), Q_ARG(QVariant, false),
+        Q_ARG(QVariant, QVariantMap {})));
+    QTRY_COMPARE_WITH_TIMEOUT(prompts.count(), 2, 5000);
+}
+
+// A frame without the reader's click hands over only for the page's own site,
+// as Chrome allows.
+void QtEngineContractTest::qtAsksForAFrameOnlyOnItsOwnSitesBehalf()
+{
+    // The top page frames itself from the address in its query; the frame
+    // sends the reader to the app.
+    PageServer server(R"HTML(<!doctype html><body><script>
+if (top === self) {
+    const frame = document.createElement('iframe');
+    frame.src = new URLSearchParams(location.search).get('frame');
+    document.body.append(frame);
+} else if (location.search !== '') {
+    const link = document.createElement('a');
+    link.href = 'slack://T0123/magic-login/abc';
+    link.style = 'position: fixed; inset: 0';
+    document.body.append(link);
+    if (location.search === '?click')
+        link.click();
+} else {
+    location.href = 'slack://T0123/magic-login/abc';
+}
+</script>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const auto port = server.serverPort();
+    const auto frameFrom = [port](const QString &host, const QString &query = {}) {
+        return QUrl(QStringLiteral("http://127.0.0.1:%1/page.html?frame=http://%2:%1/page.html%3")
+                .arg(port)
+                .arg(host, QString::fromLatin1(QUrl::toPercentEncoding(query))));
+    };
+
+    ViewInWindow sameSite;
+    QVERIFY(sameSite.create(QUrl()));
+    QSignalSpy sameSitePrompts(
+        sameSite.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    sameSite.adapter->setProperty("currentUrl", frameFrom(QStringLiteral("127.0.0.1")));
+    QTRY_COMPARE_WITH_TIMEOUT(sameSitePrompts.count(), 1, 10000);
+    QCOMPARE(sameSitePrompts.first().at(1).toMap().value(QStringLiteral("origin")).toString(),
+        QStringLiteral("http://127.0.0.1:%1").arg(port));
+
+    ViewInWindow otherSite;
+    QVERIFY(otherSite.create(QUrl()));
+    QSignalSpy otherSitePrompts(
+        otherSite.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    otherSite.adapter->setProperty("currentUrl", frameFrom(QStringLiteral("upgrade.example")));
+    QTRY_VERIFY_WITH_TIMEOUT(server.requested().count() >= 4, 10000);
+    QTest::qWait(1000);
+    QCOMPARE(otherSitePrompts.count(), 0);
+
+    // A click the frame's script makes is not the reader's.
+    ViewInWindow scriptedClick;
+    QVERIFY(scriptedClick.create(QUrl()));
+    QSignalSpy scriptedClickPrompts(
+        scriptedClick.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    scriptedClick.adapter->setProperty(
+        "currentUrl", frameFrom(QStringLiteral("upgrade.example"), QStringLiteral("?click")));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        server.requested().contains(QStringLiteral("/page.html?click")), 10000);
+    QTest::qWait(1000);
+    QCOMPARE(scriptedClickPrompts.count(), 0);
+
+    // The reader's own click there is theirs to answer, for that site.
+    ViewInWindow readersClick;
+    QVERIFY(readersClick.create(QUrl()));
+    QSignalSpy readersClickPrompts(
+        readersClick.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    readersClick.adapter->setProperty(
+        "currentUrl", frameFrom(QStringLiteral("upgrade.example"), QStringLiteral("?link")));
+    QTRY_VERIFY_WITH_TIMEOUT(server.requested().contains(QStringLiteral("/page.html?link")), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        [&] {
+            QTest::mouseClick(&readersClick.window, Qt::LeftButton, {}, QPoint(60, 60));
+            return readersClickPrompts.count() > 0;
+        }(),
+        10000);
+    QCOMPARE(readersClickPrompts.first().at(1).toMap().value(QStringLiteral("origin")).toString(),
+        QStringLiteral("http://upgrade.example:%1").arg(port));
 }
 
 void QtEngineContractTest::qtOpensOneLocalFileWithoutDirectoryWideAccess()

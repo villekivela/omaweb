@@ -681,10 +681,6 @@
 <context>
     <name>EngineView</name>
     <message>
-        <source>Unknown embedded origin</source>
-        <translation>Tuntematon upotettu sivusto</translation>
-    </message>
-    <message>
         <source>Open %1?</source>
         <translation>Avataanko %1?</translation>
     </message>
