@@ -300,6 +300,9 @@ public:
         const QString &tabId, const QString &destinationSpaceId, bool hasEditedFormState);
     Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
+    // An address that already is one, opened exactly as written: its escapes
+    // stay, where typed text would be decoded and trimmed.
+    Q_INVOKABLE void openLink(const QUrl &url, bool inNewTab);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
     static QUrl agentActivityAddress();
     // The title a tab carries until its page names itself.

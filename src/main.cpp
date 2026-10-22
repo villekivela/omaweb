@@ -662,13 +662,13 @@ int main(int argc, char *argv[])
     // buried under the tabs coming back.
     if (launchUrl.isValid() && !engine.rootObjects().isEmpty()) {
         QTimer::singleShot(
-            0, &browser, [&browser, launchUrl] { browser.openInput(launchUrl.toString(), true); });
+            0, &browser, [&browser, launchUrl] { browser.openLink(launchUrl, true); });
     }
 
     // Every later launch arrives here instead, as the address it was asked to
     // open rather than as a browser of its own.
     QObject::connect(&runningBrowser, &omaweb::RunningBrowser::openRequested, &browser,
-        [&browser](const QUrl &url) { browser.openInput(url.toString(), true); });
+        [&browser](const QUrl &url) { browser.openLink(url, true); });
     // The reader opened a link from another app, or started Omaweb again, and
     // is looking for the browser rather than at the app still in front of it.
     if (mainWindow) {

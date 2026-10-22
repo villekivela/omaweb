@@ -2107,6 +2107,11 @@ bool BrowserController::confirmTabMoveToSpace(
     return true;
 }
 
+void BrowserController::openLink(const QUrl &url, bool inNewTab)
+{
+    openInput(QString::fromLatin1(url.toEncoded()), inNewTab);
+}
+
 void BrowserController::openInput(const QString &input, bool inNewTab)
 {
     const auto url = resolveConfiguredInput(input);
