@@ -90,6 +90,8 @@ add_library(omaweb-agent-client STATIC
     src/core/AgentProtocol.h
     src/core/LaunchRequest.cpp
     src/core/LaunchRequest.h
+    src/core/ProblemReport.cpp
+    src/core/ProblemReport.h
 )
 set_target_properties(omaweb-agent-client PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(omaweb-agent-client PUBLIC src/core)
@@ -132,6 +134,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-agent-pick-tests PRIVATE omaweb-agent-client Qt6::Test)
     omaweb_strict_target(omaweb-agent-pick-tests)
     add_test(NAME omaweb-agent-pick COMMAND omaweb-agent-pick-tests)
+
+    qt_add_executable(omaweb-problem-report-tests tests/core/tst_problemreport.cpp)
+    target_link_libraries(omaweb-problem-report-tests PRIVATE omaweb-agent-client Qt6::Test)
+    omaweb_strict_target(omaweb-problem-report-tests)
+    add_test(NAME omaweb-problem-report COMMAND omaweb-problem-report-tests)
 
     qt_add_executable(omaweb-agent-mcp-tests tests/core/tst_agentmcp.cpp)
     target_link_libraries(omaweb-agent-mcp-tests PRIVATE omaweb-agent-client Qt6::Test)
