@@ -52,7 +52,8 @@ The write side is therefore three patches to Omaweb's engine build
 
 - 0030 grants `CLIPBOARD_SANITIZED_WRITE` without asking, as Chrome does. A write without a gesture,
   or in a format Chrome cannot sanitize, is still `CLIPBOARD_READ_WRITE`, reaches Omaweb as
-  clipboard read, and is answered from the reader's standing answer for the site or asked.
+  clipboard read, and is answered from the reader's standing answer for the site or asked. A site
+  the reader has blocked from reading the clipboard can still copy on a click, as in Chrome.
 - 0031 answers an extension's `clipboardWrite` and `clipboardRead` in the renderer, the way Chrome's
   does. Blink asks there before it requests a permission, so a Known extension's offscreen document,
   which has no view to ask from, copies without one.
