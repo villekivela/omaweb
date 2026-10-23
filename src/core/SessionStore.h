@@ -93,6 +93,14 @@ public:
     virtual bool forgetSpaceProject(const QString &spaceId) = 0;
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
+    // Answers what `loadTabs` would, on the thread the adapter reads on, as
+    // `findFavicon` does: in place here, later and on the store's own thread
+    // for `ThreadedSessionStore`.
+    virtual void findTabs(
+        const QString &spaceId, std::function<void(QVector<TabState> tabs)> answer) const
+    {
+        answer(loadTabs(spaceId));
+    }
     virtual QVector<TabState> loadClosedTabs(const QString &spaceId) const = 0;
     virtual bool recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) = 0;
     // The tabs Omaweb put away in a Space, newest first. Kept beside the

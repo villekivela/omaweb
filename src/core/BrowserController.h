@@ -7,6 +7,7 @@
 #include "SessionStore.h"
 #include "SettingsFile.h"
 #include "ExtensionInstaller.h"
+#include "NeighbourSpace.h"
 #include "SpaceListModel.h"
 #include "SpaceProject.h"
 #include "SpaceStorage.h"
@@ -48,6 +49,10 @@ class BrowserController final : public QObject, public DownloadPermissions {
     Q_PROPERTY(QAbstractItemModel *tabs READ tabs CONSTANT)
     Q_PROPERTY(QAbstractItemModel *pinnedTabs READ pinnedTabs CONSTANT)
     Q_PROPERTY(QAbstractItemModel *unpinnedTabs READ unpinnedTabs CONSTANT)
+    // The Spaces before and after the one on show in footer order, wrapping at
+    // both ends, which a swipe across the sidebar brings in.
+    Q_PROPERTY(omaweb::NeighbourSpace *previousSpace READ previousSpace CONSTANT)
+    Q_PROPERTY(omaweb::NeighbourSpace *nextSpace READ nextSpace CONSTANT)
     Q_PROPERTY(QString activeSpaceId READ activeSpaceId NOTIFY activeSpaceChanged)
     Q_PROPERTY(QString activeSpaceName READ activeSpaceName NOTIFY activeSpaceChanged)
     // The Space that this session's browsing state keys on: the Space on show,
@@ -204,6 +209,8 @@ public:
     QAbstractItemModel *tabs();
     QAbstractItemModel *pinnedTabs();
     QAbstractItemModel *unpinnedTabs();
+    NeighbourSpace *previousSpace();
+    NeighbourSpace *nextSpace();
     QString activeSpaceId() const;
     QString sessionSpaceId() const;
     QString activeSpaceName() const;
@@ -930,6 +937,16 @@ private:
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
     bool saveAwayTabs(const QString &spaceId, QVector<TabState> tabs);
+    // Names the Spaces either side of the one on show, and asks the store for
+    // their tabs once the interface is free, which it answers off the
+    // interface thread.
+    void nameNeighbourSpaces();
+    void askForNeighbourTabs();
+    // The tabs just written for a Space while it is away. A neighbour shows
+    // them, and an answer the store has yet to give for it was read before the
+    // write, so it is dropped.
+    void noteAwayTabs(const QString &spaceId, QVector<TabState> tabs);
+    void showNeighbourTabs(const QString &spaceId, QVector<TabState> tabs);
     // Reads the Agent Space labels, and which are temporary, from the store.
     void loadAgentSpaces();
     // The colour fewest of the reader's Spaces have, leaving one Space out of
@@ -995,6 +1012,12 @@ private:
     TabListModel m_tabs;
     QSortFilterProxyModel m_pinnedTabs;
     QSortFilterProxyModel m_unpinnedTabs;
+    NeighbourSpace m_previousSpace;
+    NeighbourSpace m_nextSpace;
+    // The latest question asked of the store for each Space's tabs as a
+    // neighbour. An answer to an earlier one is dropped.
+    QHash<QString, quint64> m_neighbourQuestions;
+    QTimer m_neighbourRefresh;
     QString m_activeSpaceId;
     QString m_activeSpaceName;
     QString m_activeTabId;

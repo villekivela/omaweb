@@ -36,6 +36,7 @@
 #include "SoundingTabs.h"
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
+#include "SpaceSwipe.h"
 #include "Scenes.h"
 #include "SystemClipboard.h"
 #include "SystemMotion.h"
@@ -70,11 +71,14 @@
 #include <QQmlContext>
 #include <QQmlExpression>
 #include <QTemporaryDir>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QThread>
 #include <QTimer>
+#include <QWheelEvent>
 
 #include <cstdio>
+#include <memory>
 #include <optional>
 
 namespace {
@@ -613,6 +617,7 @@ int main(int argc, char *argv[])
     omaweb::registerSystemClipboard();
     omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
+    omaweb::registerSpaceSwipe();
     omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
@@ -1296,6 +1301,14 @@ int main(int argc, char *argv[])
             {QStringLiteral("tab-settled"), {}},
             {QStringLiteral("settings-step"), {}},
             {QStringLiteral("settings-settled"), {}},
+            // Two fingers across the sidebar a second in, once the leaving
+            // list's picture is taken, as Wayland sends a touchpad's: far
+            // enough for the next Space to come in and the switch to commit,
+            // or for `swipe-back` short and slow, so the list springs back. A
+            // series of captures at rising delays is a frame sequence of the
+            // movement.
+            {QStringLiteral("swipe"), {}},
+            {QStringLiteral("swipe-back"), {}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -1523,6 +1536,36 @@ int main(int argc, char *argv[])
                     });
                 }
             });
+        } else if (requested == QLatin1String("swipe")
+            || requested == QLatin1String("swipe-back")) {
+            const auto commits = requested == QLatin1String("swipe");
+            const auto steps = commits ? 12 : 6;
+            const auto stride = commits ? -14 : -8;
+            const auto interval = commits ? 16 : 40;
+            auto *window = qobject_cast<QQuickWindow *>(root);
+            auto *sidebar = root->findChild<QQuickItem *>(QStringLiteral("sidebar"));
+            if (window == nullptr || sidebar == nullptr) {
+                qCritical("No sidebar to swipe across");
+                return 1;
+            }
+            auto clock = std::make_shared<QElapsedTimer>();
+            clock->start();
+            const auto send = [window, sidebar, clock](int pixelX, Qt::ScrollPhase phase) {
+                const auto at
+                    = sidebar->mapToScene(QPointF(sidebar->width() / 2, sidebar->height() / 2));
+                QWheelEvent event(at, window->mapToGlobal(at), QPoint(pixelX, 0),
+                    QPoint(pixelX * 12, 0), Qt::NoButton, Qt::NoModifier, phase, false,
+                    Qt::MouseEventSynthesizedBySystem);
+                event.setTimestamp(static_cast<quint64>(clock->elapsed()));
+                QCoreApplication::sendEvent(window, &event);
+            };
+            QTimer::singleShot(1000, root, [send] { send(0, Qt::ScrollBegin); });
+            for (int step = 1; step <= steps; ++step) {
+                QTimer::singleShot(1000 + step * interval, root,
+                    [send, stride] { send(stride, Qt::ScrollUpdate); });
+            }
+            QTimer::singleShot(
+                1000 + (steps + 1) * interval, root, [send] { send(0, Qt::ScrollEnd); });
         } else if (requested == QLatin1String("agent-activity")) {
             browser.openAgentActivity();
             const auto filterIndex = arguments.indexOf(QStringLiteral("--agent-filter"));

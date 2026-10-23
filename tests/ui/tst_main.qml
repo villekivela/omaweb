@@ -185,6 +185,64 @@ TestCase {
         }
     }
 
+    // A sidebar standing on a browser of `spaceCount` Spaces with nothing
+    // open, so the count is the test's whatever the window's own browser has.
+    Component {
+        id: countedSpacesOutlineComponent
+
+        Omaweb.SpaceOutline {
+            id: countedOutline
+
+            property int spaceCount: 1
+
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            width: 300
+            height: 600
+            browser: QtObject {
+                readonly property ListModel spaces: ListModel {
+                    Component.onCompleted: {
+                        for (let row = 0; row < countedOutline.spaceCount; ++row)
+                            append({
+                                       "spaceId": "counted-" + row,
+                                       "spaceName": "Counted " + row,
+                                       "spaceColor": "green",
+                                       "active": row === 0
+                                   });
+                    }
+                }
+                readonly property ListModel pinnedTabs: ListModel {}
+                readonly property ListModel unpinnedTabs: ListModel {}
+                readonly property ListModel tabs: ListModel {}
+                readonly property var tabWindows: []
+                readonly property bool atRest: true
+                readonly property url activeUrl: ""
+                readonly property string activeSpaceId: "counted-0"
+                readonly property string activeSpaceName: "Counted 0"
+                readonly property string sessionSpaceId: "counted-0"
+                readonly property var previousSpace: QtObject {
+                    readonly property string spaceId: countedOutline.spaceCount > 1 ? "counted-" + (
+                                                                                          countedOutline.spaceCount
+                                                                                          - 1) : ""
+                }
+                readonly property var nextSpace: QtObject {
+                    readonly property string spaceId: countedOutline.spaceCount > 1 ? "counted-1" :
+                                                                                      ""
+                }
+                signal spaceSuspended
+                signal activeSpaceChanged
+                signal activeTabChanged
+                function setDraggedTab(tabId) {
+                }
+            }
+        }
+    }
+
+    SignalSpy {
+        id: countedSwitchSpy
+        signalName: "spaceActivated"
+    }
+
     Component {
         id: attentionOutlineComponent
 
@@ -656,6 +714,93 @@ TestCase {
             return Math.abs(at - to) <= margin;
         });
         return ended >= 0 && watch.seenAt[ended] - watch.since >= 60;
+    }
+
+    // The clock the wheel events a test sends carry, so a flick is as fast as
+    // the test meant it to be whatever the machine's load.
+    property real wheelClock: 1000000
+
+    // One event from two fingers on the touchpad over `item`, `after`
+    // milliseconds after the last. A platform sends a touchpad's movement as
+    // an angle too, and Qt Quick drops an update with none once the gesture's
+    // last event was taken, as a copy for software that reads angles only.
+    function touchpadWheel(item, pixelX, pixelY, phase, after) {
+        wheelClock += after;
+        wheelProbe.send(item, item.width / 2, item.height / 2, pixelX, pixelY, pixelX * 2, pixelY
+                        * 2, phase, true, wheelClock);
+    }
+
+    // Fingers down on the touchpad and `steps` moves of `pixelX` across and
+    // `pixelY` down, `interval` milliseconds apart. Wayland sends the first
+    // move as the gesture's beginning. The fingers stay down.
+    function swipeAcross(item, pixelX, steps, interval, pixelY) {
+        for (let step = 0; step < steps; ++step)
+            touchpadWheel(item, pixelX, pixelY || 0, step === 0 ? Qt.ScrollBegin : Qt.ScrollUpdate,
+                          step === 0 ? 50 : interval);
+    }
+
+    function liftFingers(item) {
+        touchpadWheel(item, 0, 0, Qt.ScrollEnd, 1);
+    }
+
+    // One notch of a horizontal wheel or a tilt-wheel as Wayland sends it: an
+    // angle step, the pixels it would scroll, and no phase.
+    function wheelNotch(item, angleX) {
+        wheelClock += 50;
+        wheelProbe.send(item, item.width / 2, item.height / 2, angleX / 8, 0, angleX, 0,
+                        Qt.NoScrollPhase, false, wheelClock);
+    }
+
+    // Two Spaces of the reader's next to each other in the footer, each with a
+    // page, and the first of them on show with both neighbours' rows ready.
+    // Answers their ids and the ids of their pages' tabs.
+    function swipeSpaces() {
+        const home = browser.activeSpaceId;
+        const first = browser.createSpace("Swipe first");
+        const second = browser.createSpace("Swipe second");
+        const firstTab = browser.openTabInSpace(first, "https://swipe-first.example/");
+        const secondTab = browser.openTabInSpace(second, "https://swipe-second.example/");
+        verify(browser.switchSpace(first));
+        browser.activateTab(firstTab);
+        settleMotion();
+        tryVerify(function () {
+            return browser.nextSpace.ready && browser.previousSpace.ready;
+        });
+        compare(browser.nextSpace.spaceId, second);
+        // The neighbour's rows are built between frames once they are read.
+        const incoming = findChild(findChild(window.contentItem, "sidebar"), "nextSpaceList");
+        tryVerify(function () {
+            return findChild(incoming, "neighbour-" + secondTab) !== null;
+        });
+        return {
+            "home": home,
+            "first": first,
+            "second": second,
+            "firstTab": firstTab,
+            "secondTab": secondTab
+        };
+    }
+
+    function forgetSwipeSpaces(spaces) {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        tryCompare(sidebar, "arriving", false);
+        verify(browser.switchSpace(spaces.home));
+        verify(browser.deleteSpace(spaces.first, "Swipe first"));
+        verify(browser.deleteSpace(spaces.second, "Swipe second"));
+        tryCompare(sidebar, "arriving", false);
+    }
+
+    // Where an item's left edge stands across the sidebar.
+    function leftInSidebar(item) {
+        return item.mapToItem(findChild(window.contentItem, "sidebar"), 0, 0).x;
+    }
+
+    // The sidebar at rest after a swipe ended, with nothing left moving.
+    function settleSwipe() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        tryVerify(function () {
+            return !sidebar.arriving && sidebar.swipeOffset === 0;
+        });
     }
 
     // A row whose place in the list has stopped moving. The outline fills in
@@ -16022,6 +16167,337 @@ TestCase {
 
         verify(browser.deleteSpace(otherId, "Keyed Space"));
         tryCompare(findChild(window.contentItem, "spaceNotice"), "visible", false, 5000);
+    }
+
+    // Two fingers across the sidebar take the Space's list with them, one
+    // pixel for one, and the next Space's own rows slide in beside it. The
+    // navigation row, the address, the footer's square and the page stay put
+    // until the swipe commits.
+    function test_aSwipeTakesTheListWithTheFingersAndBringsInTheNextSpace() {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const list = findChild(sidebar, "tabScroll");
+        const address = findChild(sidebar, "addressButton");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const listAtRest = leftInSidebar(list);
+        const addressAtRest = leftInSidebar(address);
+        const viewportAtRest = viewport.x;
+        const firstMark = findChild(sidebar, "spaceMark-" + spaces.first);
+        const litSide = firstMark.width;
+
+        swipeAcross(sidebar, -10, 6, 16);
+        compare(leftInSidebar(list), listAtRest - 60);
+        const incoming = findChild(findChild(sidebar, "nextSpaceList"), "neighbour-"
+                                   + spaces.secondTab);
+        verify(incoming !== null);
+        verify(incoming.visible);
+        const incomingAt = leftInSidebar(incoming);
+        verify(incomingAt < sidebar.width && incomingAt > sidebar.width - 60 - 1);
+        compare(leftInSidebar(address), addressAtRest);
+        compare(viewport.x, viewportAtRest);
+        compare(firstMark.width, litSide);
+        compare(browser.activeSpaceId, spaces.first);
+
+        liftFingers(sidebar);
+        settleSwipe();
+        compare(browser.activeSpaceId, spaces.first);
+        compare(leftInSidebar(list), listAtRest);
+        forgetSwipeSpaces(spaces);
+    }
+
+    // The rows a swipe brings in are the neighbour's own as its list will
+    // draw them: its pins, its split as one row of two halves, and the
+    // favicons its Space keeps, read before its pages have loaded.
+    function test_aSwipeBringsInTheNeighboursPinsSplitsAndFavicons() {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        browser.openInput("https://swipe-pin.example/", true);
+        const pinId = browser.activeTabId;
+        browser.toggleActivePinned();
+        browser.activateTab(spaces.firstTab);
+        browser.openInput("https://swipe-split.example/", true);
+        const halfId = browser.activeTabId;
+        verify(browser.addSplit(spaces.firstTab));
+        verify(browser.switchSpace(spaces.second));
+        tryCompare(sidebar, "arriving", false);
+        tryVerify(function () {
+            return browser.previousSpace.ready && browser.previousSpace.spaceId === spaces.first
+                    && browser.previousSpace.pinnedTabs.rowCount() === 1;
+        });
+        const previousList = findChild(sidebar, "previousSpaceList");
+        tryVerify(function () {
+            return findChild(previousList, "neighbour-" + pinId) !== null && findChild(previousList,
+                                                                                       "neighbour-"
+                                                                                       + halfId)
+                    !== null;
+        });
+
+        swipeAcross(sidebar, 10, 6, 16);
+        const incoming = findChild(sidebar, "previousSpaceList");
+        verify(incoming.visible);
+        const pin = findChild(incoming, "neighbour-" + pinId);
+        verify(pin !== null && pin.pinned);
+        const left = findChild(incoming, "neighbour-" + spaces.firstTab);
+        const right = findChild(incoming, "neighbour-" + halfId);
+        verify(left !== null && right !== null);
+        verify(left.inSplit && right.inSplit);
+        compare(left.y, right.y);
+        verify(left.width < incoming.width / 2);
+        verify(String(left.tabIconUrl).startsWith("image://omaweb-favicon/"));
+
+        liftFingers(sidebar);
+        settleSwipe();
+        compare(browser.activeSpaceId, spaces.second);
+        forgetSwipeSpaces(spaces);
+    }
+
+    // Let go with the next Space at least half in view, the swipe switches to
+    // it and the slide carries on from where the fingers left it. A flick
+    // towards a neighbour switches however little of it is in view. Short of
+    // both, the list springs back.
+    function test_aSwipeCommitsHalfInOrOnAFlickAndSpringsBackShortOfBoth() {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const width = findChild(sidebar, "spaceSwipe").width;
+
+        swipeAcross(sidebar, -10, 4, 50);
+        const spring = watchChanges(sidebar, "swipeOffset");
+        liftFingers(sidebar);
+        verify(passedBetween(spring, -40, 0));
+        settleSwipe();
+        compare(browser.activeSpaceId, spaces.first);
+
+        const steps = Math.ceil(width / 20) + 1;
+        swipeAcross(sidebar, -10, steps, 50);
+        const arrival = watchChanges(sidebar, "arrivalOffset");
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, spaces.second);
+        verify(sidebar.arriving);
+        fuzzyCompare(arrival.seen[0], 1 - steps * 10 / width, 0.01);
+        stopWatching(arrival);
+        settleSwipe();
+
+        swipeAcross(sidebar, 15, 4, 10);
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, spaces.first);
+        verify(sidebar.arriving);
+        settleSwipe();
+
+        // As slow, as short and the other way, it springs back.
+        swipeAcross(sidebar, 15, 4, 50);
+        liftFingers(sidebar);
+        settleSwipe();
+        compare(browser.activeSpaceId, spaces.first);
+        forgetSwipeSpaces(spaces);
+    }
+
+    // The swipe goes along the footer as `next-space` does: the reader's
+    // Spaces, then the Agent Spaces, those behind the count included, and
+    // round from either end to the other. The sign of the movement is the
+    // direction: a swipe that would scroll a page to the right goes on.
+    function test_aSwipeWrapsAtBothEndsOfTheFooterAndReachesEverySpace() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        window.setSidebarWidth(window.sidebarMinimumWidth);
+        const home = browser.activeSpaceId;
+        const made = [];
+        const overflow = findChild(sidebar, "spaceOverflow");
+        while (!overflow.visible)
+            made.push(browser.createSpace("Swipe filler " + made.length));
+        const agent = agentSpaceProbe.create("Swipe agent", "claude-code", false);
+        const spaces = browser.spaces;
+        const first = spaces.data(spaces.index(0, 0), Qt.UserRole + 1);
+        const last = spaces.data(spaces.index(spaces.rowCount() - 1, 0), Qt.UserRole + 1);
+        compare(last, agent);
+        verify(!findChild(sidebar, "space-" + agent).visible);
+
+        verify(browser.switchSpace(first));
+        tryCompare(sidebar, "arriving", false);
+        tryVerify(function () {
+            return browser.previousSpace.ready && browser.previousSpace.spaceId === agent;
+        });
+        swipeAcross(sidebar, 20, 4, 10);
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, agent);
+        settleSwipe();
+
+        tryVerify(function () {
+            return browser.nextSpace.ready && browser.nextSpace.spaceId === first;
+        });
+        swipeAcross(sidebar, -20, 4, 10);
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, first);
+        settleSwipe();
+
+        verify(browser.switchSpace(home));
+        tryCompare(sidebar, "arriving", false);
+        verify(browser.deleteSpace(agent, "Swipe agent"));
+        for (let index = 0; index < made.length; ++index)
+            verify(browser.deleteSpace(made[index], "Swipe filler " + index));
+        window.setSidebarWidth(window.sidebarDefaultWidth);
+    }
+
+    // Whichever way the fingers first move a few pixels owns the gesture until
+    // they lift: one that starts down the list, and then goes sideways, never
+    // moves the list across or switches Space.
+    function test_aGestureThatStartsDownTheListNeverMovesSpaces() {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const list = findChild(sidebar, "tabScroll");
+        const listAtRest = leftInSidebar(list);
+        const across = watchChanges(sidebar, "swipeOffset");
+
+        touchpadWheel(sidebar, 0, 0, Qt.ScrollBegin, 50);
+        touchpadWheel(sidebar, -1, 8, Qt.ScrollUpdate, 16);
+        for (let step = 0; step < 20; ++step)
+            touchpadWheel(sidebar, -20, 2, Qt.ScrollUpdate, 10);
+        compare(leftInSidebar(list), listAtRest);
+        liftFingers(sidebar);
+        wait(300);
+        compare(across.seen.length, 0);
+        stopWatching(across);
+        compare(browser.activeSpaceId, spaces.first);
+        forgetSwipeSpaces(spaces);
+    }
+
+    // A neighbour's rows are built between frames, never inside the change
+    // that brought them. The store's answer after a switch comes while other
+    // chrome moves, the Space's own arrival or the Omnibar opening, and
+    // building every row of a Space there held their frames.
+    function test_aNeighboursRowsAreBuiltBetweenFrames() {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const incoming = findChild(sidebar, "nextSpaceList");
+
+        const opened = browser.openTabInSpace(spaces.second, "https://swipe-between.example/");
+        verify(opened.length > 0);
+        compare(findChild(incoming, "neighbour-" + opened), null);
+        tryVerify(function () {
+            return findChild(incoming, "neighbour-" + opened) !== null;
+        });
+        forgetSwipeSpaces(spaces);
+    }
+
+    // A wheel's notch sideways, or a tilt of it, switches one Space with the
+    // pointer's slide. Notches during the slide, or within 200 ms after it,
+    // are dropped, so a wheel spun past one notch switches once.
+    function test_aWheelNotchSwitchesOneSpaceAndWaitsOutTheSlide() {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        // The switch that brought the first Space on show was a slide too.
+        wait(250);
+
+        wheelNotch(sidebar, -120);
+        compare(browser.activeSpaceId, spaces.second);
+        verify(sidebar.arriving);
+        compare(sidebar.switchDirection, 1);
+        wheelNotch(sidebar, -120);
+        compare(browser.activeSpaceId, spaces.second);
+        tryCompare(sidebar, "arriving", false);
+        wheelNotch(sidebar, 120);
+        compare(browser.activeSpaceId, spaces.second);
+
+        wait(250);
+        wheelNotch(sidebar, 120);
+        compare(browser.activeSpaceId, spaces.first);
+        verify(sidebar.arriving);
+        compare(sidebar.switchDirection, -1);
+        settleSwipe();
+        forgetSwipeSpaces(spaces);
+    }
+
+    // With reduced motion, or with the Space slide off, the list stays where
+    // it is under the fingers. A swipe as far as one that would switch still
+    // switches, once, and the Space arrives settled.
+    function test_aSwipeSwitchesSettledWithReducedMotionOrTheSlideOff_data() {
+        return [
+                    {
+                        "tag": "reduced motion"
+                    },
+                    {
+                        "tag": "slide off"
+                    }
+                ];
+    }
+
+    function test_aSwipeSwitchesSettledWithReducedMotionOrTheSlideOff(data) {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const width = findChild(sidebar, "spaceSwipe").width;
+        if (data.tag === "reduced motion")
+            SystemMotion.reduced = true;
+        else
+            sidebar.easeSpaces = false;
+        const across = watchChanges(sidebar, "swipeOffset");
+
+        swipeAcross(sidebar, -10, Math.ceil(width / 20) + 1, 50);
+        compare(browser.activeSpaceId, spaces.first);
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, spaces.second);
+        verify(!sidebar.arriving);
+        compare(across.seen.length, 0);
+        stopWatching(across);
+
+        swipeAcross(sidebar, -10, 4, 50);
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, spaces.second);
+
+        SystemMotion.reduced = false;
+        sidebar.easeSpaces = Qt.binding(function () {
+            return window.chromeEase;
+        });
+        forgetSwipeSpaces(spaces);
+    }
+
+    // A swipe does nothing where there is no Space to go to: in a sidebar of
+    // one Space, in a Private window, and while a tab is in the hand.
+    function test_aSwipeDoesNothingWithOneSpacePrivatelyOrDuringATabDrag() {
+        for (const count of [2, 1]) {
+            const outline = createTemporaryObject(countedSpacesOutlineComponent, window.contentItem,
+                                                  {
+                                                      "spaceCount": count,
+                                                      "z": 100
+                                                  });
+            countedSwitchSpy.clear();
+            countedSwitchSpy.target = outline;
+            swipeAcross(outline, -20, 4, 10);
+            compare(outline.swipeOffset, count > 1 ? -80 : 0, count + " Spaces");
+            liftFingers(outline);
+            compare(countedSwitchSpy.count, count > 1 ? 1 : 0, count + " Spaces");
+            countedSwitchSpy.target = null;
+            outline.destroy();
+        }
+
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateWindow = window.privateWindows[0];
+        const privateSidebar = findChild(privateWindow.contentItem, "sidebar");
+        tryVerify(function () {
+            return privateSidebar.width > 0;
+        });
+        swipeAcross(privateSidebar, -20, 4, 10);
+        compare(privateSidebar.swipeOffset, 0);
+        liftFingers(privateSidebar);
+        compare(findChild(privateSidebar, "spaceSwipe").enabled, false);
+        privateWindow.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        browser.openInput("https://swipe-drag.example/", true);
+        const row = findChild(sidebar, "tab-" + spaces.firstTab);
+        settleRow(row);
+        const grabbed = row.mapToItem(window.contentItem, row.width / 2, row.height / 2);
+        mousePress(row, row.width / 2, row.height / 2);
+        mouseMove(window.contentItem, grabbed.x, grabbed.y + 2);
+        wait(1);
+        dragRowBy(grabbed, row.height * 2);
+        verify(row.lifted);
+        swipeAcross(sidebar, -20, 4, 10);
+        compare(sidebar.swipeOffset, 0);
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, spaces.first);
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y + row.height * 2);
+        forgetSwipeSpaces(spaces);
     }
 
     // A tab chosen by its key is on show where it rests. A click on its row

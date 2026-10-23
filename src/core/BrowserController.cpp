@@ -263,6 +263,18 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshTabWindows(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshTabWindows(); });
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshTabWindows(); });
+    // The neighbours follow the Space on show, which a switch reports as a
+    // change of data, and the order of the list. They are named with the
+    // change, and their tabs asked for once it is over, so a switch's own
+    // calls to the store never wait behind their reads.
+    m_neighbourRefresh.setSingleShot(true);
+    m_neighbourRefresh.setInterval(0);
+    connect(&m_neighbourRefresh, &QTimer::timeout, this, &BrowserController::askForNeighbourTabs);
+    connect(&m_spaces, &QAbstractItemModel::modelReset, this, [this] { nameNeighbourSpaces(); });
+    connect(&m_spaces, &QAbstractItemModel::dataChanged, this, [this] { nameNeighbourSpaces(); });
+    connect(&m_spaces, &QAbstractItemModel::rowsMoved, this, [this] { nameNeighbourSpaces(); });
+    connect(&m_spaces, &QAbstractItemModel::rowsInserted, this, [this] { nameNeighbourSpaces(); });
+    connect(&m_spaces, &QAbstractItemModel::rowsRemoved, this, [this] { nameNeighbourSpaces(); });
     // A Tab window names its Space and wears its colour.
     connect(&m_spaces, &QAbstractItemModel::modelReset, this, [this] { refreshTabWindows(); });
     connect(&m_spaces, &QAbstractItemModel::dataChanged, this, [this] { refreshTabWindows(); });
@@ -338,6 +350,10 @@ QAbstractItemModel *BrowserController::tabs() { return &m_tabs; }
 QAbstractItemModel *BrowserController::pinnedTabs() { return &m_pinnedTabs; }
 
 QAbstractItemModel *BrowserController::unpinnedTabs() { return &m_unpinnedTabs; }
+
+NeighbourSpace *BrowserController::previousSpace() { return &m_previousSpace; }
+
+NeighbourSpace *BrowserController::nextSpace() { return &m_nextSpace; }
 
 QString BrowserController::activeSpaceId() const { return m_activeSpaceId; }
 
@@ -1373,7 +1389,84 @@ bool BrowserController::saveAwayTabs(const QString &spaceId, QVector<TabState> t
         active = tabs.begin();
         active->active = true;
     }
-    return m_store->saveTabs(spaceId, tabs, active->id);
+    if (!m_store->saveTabs(spaceId, tabs, active->id)) {
+        return false;
+    }
+    noteAwayTabs(spaceId, std::move(tabs));
+    return true;
+}
+
+void BrowserController::nameNeighbourSpaces()
+{
+    QString previousId;
+    QString nextId;
+    const auto &spaces = m_spaces.items();
+    const auto count = spaces.size();
+    if (m_capabilities.allows(Capability::Spaces) && count > 1) {
+        const auto row = m_spaces.rowOf(m_activeSpaceId);
+        if (row >= 0) {
+            previousId = spaces.at((row + count - 1) % count).id;
+            nextId = spaces.at((row + 1) % count).id;
+        }
+    }
+    m_previousSpace.name(previousId);
+    m_nextSpace.name(nextId);
+    // A Space no longer beside the one on show has no question worth
+    // answering, and one deleted never will again.
+    m_neighbourQuestions.removeIf([&previousId, &nextId](const auto &question) {
+        return question.key() != previousId && question.key() != nextId;
+    });
+    m_neighbourRefresh.start();
+}
+
+void BrowserController::askForNeighbourTabs()
+{
+    // Between two Spaces both neighbours are the same one, read once.
+    QStringList asked;
+    for (const auto &spaceId : {m_previousSpace.spaceId(), m_nextSpace.spaceId()}) {
+        if (spaceId.isEmpty() || asked.contains(spaceId)) {
+            continue;
+        }
+        asked.append(spaceId);
+        const auto question = ++m_neighbourQuestions[spaceId];
+        // The answer comes on the store's thread, and a store can outlive the
+        // window that asked, so it is carried to the interface thread on the
+        // application and finds the window there, if the window is still there.
+        const QPointer<BrowserController> window(this);
+        m_store->findTabs(spaceId, [window, question, spaceId](QVector<TabState> tabs) {
+            QMetaObject::invokeMethod(
+                QCoreApplication::instance(),
+                [window, question, spaceId, tabs = std::move(tabs)]() mutable {
+                    if (window && window->m_neighbourQuestions.value(spaceId) == question) {
+                        window->showNeighbourTabs(spaceId, std::move(tabs));
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+    }
+}
+
+void BrowserController::noteAwayTabs(const QString &spaceId, QVector<TabState> tabs)
+{
+    if (!m_neighbourQuestions.contains(spaceId)) {
+        return;
+    }
+    ++m_neighbourQuestions[spaceId];
+    showNeighbourTabs(spaceId, std::move(tabs));
+}
+
+void BrowserController::showNeighbourTabs(const QString &spaceId, QVector<TabState> tabs)
+{
+    if (spaceId.isEmpty() || spaceId == m_activeSpaceId) {
+        return;
+    }
+    showRestoredPages(tabs);
+    if (m_previousSpace.spaceId() == spaceId) {
+        m_previousSpace.show(tabs);
+    }
+    if (m_nextSpace.spaceId() == spaceId) {
+        m_nextSpace.show(std::move(tabs));
+    }
 }
 
 void BrowserController::activateTab(const QString &tabId)
@@ -2084,6 +2177,7 @@ bool BrowserController::confirmTabMoveToSpace(
             destinationTabs, destinationActiveTabId)) {
         return false;
     }
+    noteAwayTabs(destinationSpaceId, destinationTabs);
 
     // The tab reloads under the destination Space's identity and its engine
     // profile, so nothing the inspector was attached to survives the move.
@@ -2611,6 +2705,7 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
         if (!found || !m_store->saveTabs(spaceId, tabs, activeTabId)) {
             return false;
         }
+        noteAwayTabs(spaceId, tabs);
         m_livePageStates.remove(tabId);
         refreshRetainedTabs();
         return true;
