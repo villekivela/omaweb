@@ -4859,14 +4859,15 @@ void BrowserController::reloadSyncedState()
     // the Space on show keeps its pages (#763). Only a Space Sync took away
     // is put away.
     const auto sameSpace = m_activeSpaceId == previousSpace;
-    QStringList closedTabIds;
     if (sameSpace) {
+        QStringList keptTabIds;
         for (const auto &tab : m_tabs.items()) {
-            if (std::ranges::find(tabs, tab.id, &TabState::id) == tabs.end()) {
-                closedTabIds.append(tab.id);
+            const auto incoming = std::ranges::find(tabs, tab.id, &TabState::id);
+            if (incoming != tabs.end() && incoming->url == tab.url) {
+                keptTabIds.append(tab.id);
             }
         }
-        emit tabsReplacing();
+        emit tabsReplacing(keptTabIds);
     }
     m_tabs.reset(std::move(tabs));
     loadClosedTabs();
@@ -4874,7 +4875,7 @@ void BrowserController::reloadSyncedState()
     refreshRetainedTabs();
     refreshSplit();
     if (sameSpace) {
-        emit tabsReplaced(closedTabIds);
+        emit tabsReplaced();
     } else {
         emit spaceSuspended(previousSpace, {});
         emit spaceRestored(m_activeSpaceId);

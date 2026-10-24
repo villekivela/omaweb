@@ -760,10 +760,11 @@ signals:
     void spaceSuspended(const QString &spaceId, const QStringList &retainedTabIds);
     void spaceRestored(const QString &spaceId);
     // Sync rebuilding the rows of the Space on show from the store. The Space
-    // stays on show, so a page whose tab is still listed afterwards stays the
-    // document it is, and the pages of the tabs it no longer lists go.
-    void tabsReplacing();
-    void tabsReplaced(const QStringList &closedTabIds);
+    // stays on show, so the tabs that come back on the address they had keep
+    // their pages. A tab closed or taken elsewhere on the other machine is
+    // not among them: its page goes, and its row loads where it is now.
+    void tabsReplacing(const QStringList &keptTabIds);
+    void tabsReplaced();
     void spaceDiscarded(const QString &spaceId);
     void tabMoveConfirmationRequested(const QString &tabId, const QString &destinationSpaceId);
     // Recovery clears core-owned failure state, then asks the active engine to

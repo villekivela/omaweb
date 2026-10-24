@@ -300,9 +300,11 @@ Item {
     // Set while a Space is being put away: a delegate disappearing then means
     // the Space changed, not that the user closed the tab.
     property bool preservingEngines: false
-    // Set while Sync rebuilds the rows of the Space on show: a delegate
-    // disappearing then comes back for the same tab, and its page with it.
-    property bool replacingTabs: false
+    // While Sync rebuilds the rows of the Space on show, the tabs whose row
+    // comes back on the address it had, by id. Their delegates disappear and
+    // come back, and their pages stay. Any other row going is a tab closed or
+    // taken elsewhere, and its page goes as it would for the reader's own.
+    property var keptThroughReplacement: ({})
     property var engineComponent: null
 
     // A page that opens a window completes the request against the engine of
@@ -1203,14 +1205,15 @@ Item {
                 Qt.callLater(root.restoreRetainedTabs);
         }
 
-        function onTabsReplacing() {
-            root.replacingTabs = true;
+        function onTabsReplacing(keptTabIds) {
+            const kept = {};
+            for (const tabId of keptTabIds)
+                kept[tabId] = true;
+            root.keptThroughReplacement = kept;
         }
 
-        function onTabsReplaced(closedTabIds) {
-            root.replacingTabs = false;
-            for (const tabId of closedTabIds)
-                root.discardEngine(tabId);
+        function onTabsReplaced() {
+            root.keptThroughReplacement = {};
         }
     }
 
@@ -1728,17 +1731,21 @@ Item {
 
             Component.onCompleted: {
                 lastPartnerId = splitPartnerId;
+                // A row Sync built again takes the page its tab kept, shown or
+                // not, so that page still has a row to tell where it goes.
+                if (root.keptThroughReplacement[tabId] && root.engines[tabId])
+                    everActive = true;
                 loadEngine();
             }
 
             // A retained tab's engine survives the Space switch that takes its
             // delegate; every other engine of that Space has already been
             // discarded by the suspension, so there is nothing here to hide.
-            // Outside a suspension a disappearing delegate means the reader
-            // closed the tab, and the page goes with it.
+            // Outside a suspension a disappearing delegate means the tab was
+            // closed, and the page goes with it. A row Sync is building again
+            // keeps its page on show for the row built in its place.
             Component.onDestruction: {
-                // The page stays on show, for the row built in this one's place.
-                if (root.replacingTabs)
+                if (root.keptThroughReplacement[tabId])
                     return;
                 if (root.preservingEngines) {
                     root.setEngineVisible(tabId, false);

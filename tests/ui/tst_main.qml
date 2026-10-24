@@ -6650,6 +6650,12 @@ TestCase {
         browser.closeTab(backgroundTabId);
     }
 
+    // Sync applies only after 30 quiet seconds, by which time the tabs are
+    // written: they are written 400 ms after the last change.
+    function waitForTabsWritten() {
+        wait(600);
+    }
+
     // Sync bringing in what the other machine changed is not the reader asking
     // for anything: the pages open here stay the documents they are, where the
     // reader left them, the tab on show and the one behind it alike (#763).
@@ -6671,9 +6677,7 @@ TestCase {
         const frontGeneration = front.pageGeneration;
         const behindGeneration = behind.pageGeneration;
         const spaceCount = browser.spaces.rowCount();
-        // Sync applies only after 30 quiet seconds, by which time the tabs
-        // are written; they are written 400 ms after the last change.
-        wait(600);
+        waitForTabsWritten();
         awayPageSpy.clear();
         awayPageSpy.target = front;
 
@@ -6697,32 +6701,32 @@ TestCase {
         // again can lose what it was playing.
         compare(awayPageSpy.count, 0);
         awayPageSpy.target = null;
+        // The row built again for the tab behind answers for its page: where
+        // the page goes, the tab says so.
+        behind.currentUrl = "https://synced-behind.example/next";
+        compare(tabIdWithUrl("https://synced-behind.example/next"), behindTabId);
 
         verify(browser.deleteSpace(syncedSpaceId, "From the other machine"));
         browser.closeTab(behindTabId);
     }
 
-    // The other machine took the tab the reader is on here somewhere else. The
-    // page here is the one being read, so it stays, and the tab says where
-    // that page is: the next Sync carries this machine's page back.
-    function test_aTabMovedOnTheOtherMachineKeepsThePageReadHere() {
+    // The reader took a tab somewhere else on the other machine, and it goes
+    // there here too. Keeping this machine's page would send its address
+    // back, and the other machine would answer in kind at every Sync.
+    function test_aTabTakenElsewhereOnTheOtherMachineGoesThereHere() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         verify(engineLoader !== null);
-        const page = openPage("https://read-here.example/");
+        openPage("https://read-here.example/");
         const tabId = browser.activeTabId;
-        page.pageLocalState = "typed here";
-        const generation = page.pageGeneration;
-        wait(600);
+        waitForTabsWritten();
 
         verify(syncApplyProbe.applyTabAddress(browser.activeSpaceId, tabId,
                                               "https://went-elsewhere.example/"));
         wait(0);
 
-        compare(engineLoader.engines[tabId], page);
-        compare(page.pageGeneration, generation);
-        compare(page.pageLocalState, "typed here");
-        compare(page.currentUrl.toString(), "https://read-here.example/");
-        compare(browser.activeUrl.toString(), "https://read-here.example/");
+        compare(browser.activeTabId, tabId);
+        compare(engineLoader.item.currentUrl.toString(), "https://went-elsewhere.example/");
+        compare(browser.activeUrl.toString(), "https://went-elsewhere.example/");
     }
 
     // A tab closed on the other machine is closed here too, and its page goes
@@ -6741,9 +6745,7 @@ TestCase {
         const open = engineLoader.item;
         open.pageLocalState = "still reading";
         verify(engineLoader.engines[closedTabId] !== undefined);
-        // Sync applies only after 30 quiet seconds, by which time the tabs
-        // are written; they are written 400 ms after the last change.
-        wait(600);
+        waitForTabsWritten();
 
         verify(syncApplyProbe.applyTabClosed(browser.activeSpaceId, closedTabId));
         wait(0);

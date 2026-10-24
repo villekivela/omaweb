@@ -68,6 +68,7 @@
 #include <QtQuickTest/quicktest.h>
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 
 namespace {
@@ -450,25 +451,28 @@ public:
     // A tab the reader took to another address on the other machine.
     Q_INVOKABLE bool applyTabAddress(const QString &spaceId, const QString &tabId, const QUrl &url)
     {
-        omaweb::SqliteSessionStore store(m_dataRoot);
-        if (!store.open()) {
-            return false;
-        }
-        auto tabs = store.loadTabs(spaceId);
-        const auto tab = std::ranges::find(tabs, tabId, &omaweb::TabState::id);
-        if (tab == tabs.end()) {
-            return false;
-        }
-        tab->url = url;
-        const auto active = std::ranges::find_if(tabs, &omaweb::TabState::active);
-        if (!store.saveTabs(spaceId, tabs, active == tabs.end() ? QString {} : active->id)) {
-            return false;
-        }
-        m_exchange.refresh(omaweb::BrowserStateSection::Browser);
-        return true;
+        return applyTabs(spaceId, [&](QVector<omaweb::TabState> &tabs) {
+            const auto tab = std::ranges::find(tabs, tabId, &omaweb::TabState::id);
+            if (tab == tabs.end()) {
+                return false;
+            }
+            tab->url = url;
+            return true;
+        });
     }
     // A tab the reader closed on the other machine.
     Q_INVOKABLE bool applyTabClosed(const QString &spaceId, const QString &tabId)
+    {
+        return applyTabs(spaceId, [&](QVector<omaweb::TabState> &tabs) {
+            return tabs.removeIf([&](const omaweb::TabState &tab) { return tab.id == tabId; }) == 1;
+        });
+    }
+
+private:
+    // The Space's tabs as the other machine left them, after `change`, which
+    // answers whether it found what it was to change.
+    bool applyTabs(
+        const QString &spaceId, const std::function<bool(QVector<omaweb::TabState> &)> &change)
     {
         omaweb::SqliteSessionStore store(m_dataRoot);
         if (!store.open()) {
@@ -477,15 +481,13 @@ public:
         auto tabs = store.loadTabs(spaceId);
         const auto active = std::ranges::find_if(tabs, &omaweb::TabState::active);
         const auto activeTabId = active == tabs.end() ? QString {} : active->id;
-        if (tabs.removeIf([&tabId](const omaweb::TabState &tab) { return tab.id == tabId; }) != 1
-            || !store.saveTabs(spaceId, tabs, activeTabId)) {
+        if (!change(tabs) || !store.saveTabs(spaceId, tabs, activeTabId)) {
             return false;
         }
         m_exchange.refresh(omaweb::BrowserStateSection::Browser);
         return true;
     }
 
-private:
     QString m_dataRoot;
     omaweb::BrowserStateExchangeAdapter m_exchange;
 };
