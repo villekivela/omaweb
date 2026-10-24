@@ -1,6 +1,5 @@
 #include "QtContentBlocker.h"
 
-#include "ChromeApp.h"
 #include "ContentBlocker.h"
 #include "ContentMatcher.h"
 #include "GlobalPrivacyControl.h"
@@ -221,13 +220,6 @@ QtContentBlocker::QtContentBlocker(ContentBlocker *contentBlocker,
     m_globalPrivacyControlScript.setWorldId(QWebEngineScript::MainWorld);
     m_globalPrivacyControlScript.setRunsOnSubFrames(true);
     m_globalPrivacyControlScript.setSourceCode(GlobalPrivacyControl::scriptSource());
-    // The same point and world as Global Privacy Control: before the page's
-    // first script, in every frame. What it defines, and why, is on ChromeApp.
-    m_chromeAppScript.setName(QStringLiteral("Omaweb chrome.app"));
-    m_chromeAppScript.setInjectionPoint(QWebEngineScript::DocumentCreation);
-    m_chromeAppScript.setWorldId(QWebEngineScript::MainWorld);
-    m_chromeAppScript.setRunsOnSubFrames(true);
-    m_chromeAppScript.setSourceCode(ChromeApp::scriptSource());
     if (m_globalPrivacyControl) {
         connect(m_globalPrivacyControl, &GlobalPrivacyControl::enabledChanged, this,
             &QtContentBlocker::applyGlobalPrivacyControl);
@@ -332,7 +324,6 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &sp
         if (!attached) {
             m_profiles.emplace_back(profileObject);
             installScript(profileObject, m_globalPrivacyControlScript, sendsGlobalPrivacyControl());
-            installScript(profileObject, m_chromeAppScript, true);
             // The engine derives the header and `navigator.languages` from this one value, so
             // every Space, Agent Space and Private profile tells sites the interface's language.
             profile->setHttpAcceptLanguage(acceptLanguage(requestedLocale()));

@@ -329,10 +329,10 @@ private slots:
     void qtSendsNoEngineTokenInTheUserAgent();
     void qtReportsTheHeaderUserAgentToThePage_data();
     void qtReportsTheHeaderUserAgentToThePage();
+    void qtGivesAPageTheWindowChromeChromeDoes_data();
+    void qtGivesAPageTheWindowChromeChromeDoes();
     void qtTellsEverySiteNotToSellTheReadersData_data();
     void qtTellsEverySiteNotToSellTheReadersData();
-    void qtDefinesChromeAppForAPageThatIsNotAnInstalledApp_data();
-    void qtDefinesChromeAppForAPageThatIsNotAnInstalledApp();
     void qtSendsTheReadersFirstLanguage_data();
     void qtSendsTheReadersFirstLanguage();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
@@ -6720,6 +6720,111 @@ void QtEngineContractTest::qtReportsTheHeaderUserAgentToThePage()
     QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("User-Agent")), agent);
 }
 
+void QtEngineContractTest::qtGivesAPageTheWindowChromeChromeDoes_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// Chrome's renderer gives every page `chrome.app`, `chrome.csi` and
+// `chrome.loadTimes`, and Google's sign-in turns away a Chrome-like browser
+// without `chrome.app` (#711). A page can tell a script's stand-in from
+// Chrome's own by reading a function's source, so each must read as native
+// code (#766). The expected answers are Chromium 154's, read from a page with
+// no extension installed. The engine defines them with no help from Omaweb,
+// in the main world and in a frame.
+void QtEngineContractTest::qtGivesAPageTheWindowChromeChromeDoes()
+{
+#if OMAWEB_KNOWN_EXTENSIONS
+    QFETCH(bool, privateWindow);
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>
+            const describe = () => {
+                const chrome = window.chrome;
+                if (!chrome)
+                    return "no chrome";
+                const keys = (object) => object ? Object.keys(object).sort().join(",") : "";
+                const app = chrome.app;
+                return [
+                    "chrome:" + keys(chrome),
+                    "app:" + typeof app,
+                    "members:" + (app ? Object.getOwnPropertyNames(app).sort().join(",") : ""),
+                    "installed:" + (app && app.isInstalled),
+                    "getDetails:" + (app && app.getDetails.toString()),
+                    "details:" + (app && app.getDetails()),
+                    "running:" + (app && app.runningState()),
+                    "csi:" + typeof chrome.csi,
+                    "csiSource:" + (chrome.csi && chrome.csi.toString()),
+                    "csiKeys:" + keys(chrome.csi && chrome.csi()),
+                    "loadTimes:" + typeof chrome.loadTimes,
+                    "loadTimesSource:" + (chrome.loadTimes && chrome.loadTimes.toString()),
+                ].join(" ");
+            };
+            if (window.top === window) {
+                window.mainAnswer = describe();
+                window.report = (answer) => {
+                    document.title = "main=" + window.mainAnswer + "|frame=" + answer;
+                };
+                const frame = document.createElement("iframe");
+                frame.src = "/frame.html";
+                document.body.appendChild(frame);
+            } else {
+                parent.report(describe());
+            }
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("privateBrowsing"), privateWindow},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    auto *profile = host->property("profile").value<QObject *>();
+    QVERIFY(profile);
+
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), QVariant::fromValue(profile)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString().startsWith(QStringLiteral("main=")), 15000);
+    const auto chrome = QStringList {
+        QStringLiteral("chrome:app,csi,loadTimes"),
+        QStringLiteral("app:object"),
+        QStringLiteral("members:InstallState,RunningState,getDetails,getIsInstalled,installState,"
+                       "isInstalled,runningState"),
+        QStringLiteral("installed:false"),
+        QStringLiteral("getDetails:function getDetails() { [native code] }"),
+        QStringLiteral("details:null"),
+        QStringLiteral("running:cannot_run"),
+        QStringLiteral("csi:function"),
+        QStringLiteral("csiSource:function () { [native code] }"),
+        QStringLiteral("csiKeys:onloadT,pageT,startE,tran"),
+        QStringLiteral("loadTimes:function"),
+        QStringLiteral("loadTimesSource:function () { [native code] }"),
+    }.join(QLatin1Char(' '));
+    QCOMPARE(
+        adapter->property("pageTitle").toString(), QStringLiteral("main=%1|frame=%1").arg(chrome));
+#else
+    QSKIP("Only Omaweb's own engine gives a page Chrome's window.chrome.");
+#endif
+}
+
 void QtEngineContractTest::qtTellsEverySiteNotToSellTheReadersData_data()
 {
     QTest::addColumn<bool>("privateWindow");
@@ -6827,192 +6932,6 @@ void QtEngineContractTest::qtTellsEverySiteNotToSellTheReadersData()
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
         QStringLiteral("main:true frame:true image:asked fetch:asked"), 15000);
     QCOMPARE(header(QStringLiteral("again")), QStringList(4, QStringLiteral("1")));
-}
-
-void QtEngineContractTest::qtDefinesChromeAppForAPageThatIsNotAnInstalledApp_data()
-{
-    QTest::addColumn<bool>("privateWindow");
-    QTest::newRow("a Space's profile") << false;
-    QTest::newRow("the private profile") << true;
-}
-
-// `window.chrome.app` is what Chrome's renderer gives every page, and what
-// Google's sign-in reads before it lets a Chrome-like browser in (#711). It
-// rides the profile beside Global Privacy Control, so a Space's profile and
-// the Private windows' shared one define it alike. The main world and a
-// same-site frame both see an object whose `isInstalled` is false. A
-// document-creation script that defined `chrome.app` first is kept, which a
-// page's own script cannot show: that script runs later and would replace the
-// property either way. An `about:blank` frame, read after Qt has had a turn
-// to run the script, and a `srcdoc` frame's own script see the same object.
-// Chrome defines `chrome.app` on those documents, and this script reaches
-// them too.
-void QtEngineContractTest::qtDefinesChromeAppForAPageThatIsNotAnInstalledApp()
-{
-    QFETCH(bool, privateWindow);
-    PageServer server(R"HTML(<!doctype html><html><body>
-        <script>
-            const readApp = (win) => {
-                try {
-                    const app = win.chrome && win.chrome.app;
-                    if (app === undefined || app === null)
-                        return "undefined";
-                    const marker = app.marker ? String(app.marker) : "";
-                    return typeof app + ":" + String(app.isInstalled) + ":" + marker;
-                } catch (error) {
-                    return "threw";
-                }
-            };
-            if (window.top === window) {
-                const answers = {};
-                const keys = ["main", "frame", "blank", "srcdoc", "srcdocLater"];
-                window.readApp = readApp;
-                window.report = (name, value) => {
-                    answers[name] = value;
-                    if (Object.keys(answers).length < keys.length)
-                        return;
-                    document.title = keys.map((key) => key + "=" + answers[key]).join(" ");
-                };
-                report("main", readApp(window));
-                const frame = document.createElement("iframe");
-                frame.src = "/frame.html";
-                document.body.appendChild(frame);
-                const blank = document.createElement("iframe");
-                blank.onload = () => setTimeout(() => {
-                    try {
-                        report("blank", readApp(blank.contentWindow));
-                    } catch (error) {
-                        report("blank", "threw");
-                    }
-                }, 50);
-                blank.src = "about:blank";
-                document.body.appendChild(blank);
-                const srcdoc = document.createElement("iframe");
-                srcdoc.srcdoc = "<!doctype html><script>"
-                    + "parent.report('srcdoc', parent.readApp(window))<\/script>";
-                document.body.appendChild(srcdoc);
-                setTimeout(() => {
-                    try {
-                        report("srcdocLater", readApp(srcdoc.contentWindow));
-                    } catch (error) {
-                        report("srcdocLater", "threw");
-                    }
-                }, 50);
-            } else {
-                parent.report("frame", readApp(window));
-            }
-        </script>
-    </body></html>)HTML");
-    QVERIFY(server.listen(QHostAddress::LocalHost));
-
-    QTemporaryDir root;
-    QVERIFY(root.isValid());
-    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
-    omaweb::GlobalPrivacyControl control(root.filePath(QStringLiteral("config")));
-    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &control);
-
-    QQmlEngine engine;
-    QQmlComponent profileComponent(
-        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
-    QQmlComponent component(
-        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
-    const auto pageUrl
-        = QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
-
-    struct Page {
-        std::unique_ptr<QObject> profileHost;
-        std::unique_ptr<QObject> adapter;
-        QQuickWindow window;
-    };
-    // `alreadyDefined` inserts a document-creation script before the blocker
-    // attaches, so it runs first and stands in for a `chrome.app` the page
-    // already had. It does not replace one that is already there, or a script
-    // that ran ahead of it would hide whether ours kept it.
-    const auto prepare = [&](Page &page, const QString &directory, bool alreadyDefined) -> QString {
-        QVariantMap profileProperties {
-            {QStringLiteral("profilePath"), root.filePath(directory)},
-            {QStringLiteral("privateBrowsing"), privateWindow},
-        };
-        if (!alreadyDefined) {
-            profileProperties.insert(QStringLiteral("engineContentBlocker"),
-                QVariant::fromValue<QObject *>(&engineContentBlocker));
-        }
-        page.profileHost.reset(profileComponent.createWithInitialProperties(profileProperties));
-        if (!page.profileHost) {
-            return profileComponent.errorString();
-        }
-        auto *profile = page.profileHost->property("profile").value<QObject *>();
-        if (!profile) {
-            return QStringLiteral("profile was not built");
-        }
-        if (alreadyDefined) {
-            auto *collection = profile->property("userScripts").value<QObject *>();
-            if (!collection) {
-                return QStringLiteral("profile has no script collection");
-            }
-            QWebEngineScript existing;
-            existing.setName(QStringLiteral("Existing chrome.app"));
-            existing.setInjectionPoint(QWebEngineScript::DocumentCreation);
-            existing.setWorldId(QWebEngineScript::MainWorld);
-            existing.setRunsOnSubFrames(true);
-            existing.setSourceCode(QStringLiteral("window.chrome = window.chrome || {};"
-                                                  "if (!window.chrome.app)"
-                                                  " window.chrome.app = { isInstalled: true,"
-                                                  " marker: 'kept' };"));
-            if (!QMetaObject::invokeMethod(
-                    collection, "insert", Q_ARG(QWebEngineScript, existing))) {
-                return QStringLiteral("the page's chrome.app could not be installed");
-            }
-            if (!engineContentBlocker.attachToProfile(profile, QString())) {
-                return QStringLiteral("the blocker did not attach");
-            }
-        }
-        page.adapter.reset(component.createWithInitialProperties({
-            {QStringLiteral("profilePath"), root.filePath(directory)},
-            {QStringLiteral("sharedProfile"), QVariant::fromValue(profile)},
-        }));
-        if (!page.adapter) {
-            return component.errorString();
-        }
-        auto *view = qobject_cast<QQuickItem *>(page.adapter.get());
-        if (!view) {
-            return QStringLiteral("the view is not an item");
-        }
-        view->setParentItem(page.window.contentItem());
-        page.window.show();
-        return {};
-    };
-    const auto show = [&](Page &page, const QString &directory, bool alreadyDefined) {
-        const auto error = prepare(page, directory, alreadyDefined);
-        if (!error.isEmpty()) {
-            return error;
-        }
-        if (!page.adapter->setProperty("currentUrl", pageUrl)) {
-            return QStringLiteral("the page did not navigate");
-        }
-        return QString {};
-    };
-
-    const QString defined = QStringLiteral("object:false:");
-    const QString kept = QStringLiteral("object:true:kept");
-    const auto titled = [](const QString &value) {
-        return QStringLiteral("main=%1 frame=%2 blank=%3 srcdoc=%4 srcdocLater=%5")
-            .arg(value, value, value, value, value);
-    };
-    {
-        Page shim;
-        const auto error = show(shim, QStringLiteral("profile"), false);
-        QVERIFY2(error.isEmpty(), qPrintable(error));
-        QTRY_COMPARE_WITH_TIMEOUT(
-            shim.adapter->property("pageTitle").toString(), titled(defined), 15000);
-    }
-    {
-        Page own;
-        const auto error = show(own, QStringLiteral("own"), true);
-        QVERIFY2(error.isEmpty(), qPrintable(error));
-        QTRY_COMPARE_WITH_TIMEOUT(
-            own.adapter->property("pageTitle").toString(), titled(kept), 15000);
-    }
 }
 
 void QtEngineContractTest::qtSendsTheReadersFirstLanguage_data()
