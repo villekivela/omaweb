@@ -300,6 +300,11 @@ Item {
     // Set while a Space is being put away: a delegate disappearing then means
     // the Space changed, not that the user closed the tab.
     property bool preservingEngines: false
+    // While Sync rebuilds the rows of the Space on show, the tabs whose row
+    // comes back on the address it had, by id. Their delegates disappear and
+    // come back, and their pages stay. Any other row going is a tab closed or
+    // taken elsewhere, and its page goes as it would for the reader's own.
+    property var keptThroughReplacement: ({})
     property var engineComponent: null
 
     // A page that opens a window completes the request against the engine of
@@ -1199,6 +1204,24 @@ Item {
             if (!root.suspended)
                 Qt.callLater(root.restoreRetainedTabs);
         }
+
+        function onTabsReplacing(keptTabIds) {
+            const kept = {};
+            for (const tabId of keptTabIds)
+                kept[tabId] = true;
+            root.keptThroughReplacement = kept;
+        }
+
+        function onTabsReplaced() {
+            root.keptThroughReplacement = {};
+            // Rows built again while the pages are put away show nothing, so
+            // no page answers for the window until they come back, as after
+            // a suspension's own rows are taken.
+            if (root.suspended) {
+                root.activeEngine = null;
+                root.besideEngine = null;
+            }
+        }
     }
 
     // The Agent tabs, by id, as the core last named them.
@@ -1552,10 +1575,14 @@ Item {
             function showEngine() {
                 if (!engine)
                     return;
-                root.shownTabIds[tabSlot.tabId] = tabSlot.shown;
-                root.setEngineVisible(tabSlot.tabId, tabSlot.shown);
-                engine.z = tabSlot.active ? 1 : (tabSlot.shown || !root.agentAttached(
-                                                     tabSlot.tabId) ? 0 : -1);
+                // Read rather than taken from `shown`, which a handler for
+                // `active` can run ahead of: a row built again for a page on
+                // show would hide that page, and stop it, for a moment.
+                const onShow = tabSlot.active || tabSlot.tabBeside;
+                root.shownTabIds[tabSlot.tabId] = onShow;
+                root.setEngineVisible(tabSlot.tabId, onShow);
+                engine.z = tabSlot.active ? 1 : (onShow || !root.agentAttached(tabSlot.tabId) ? 0 :
+                                                                                                -1);
                 if (tabSlot.active) {
                     root.activeEngine = engine;
                     Qt.callLater(function () {
@@ -1711,15 +1738,22 @@ Item {
 
             Component.onCompleted: {
                 lastPartnerId = splitPartnerId;
+                // A row Sync built again takes the page its tab kept, shown or
+                // not, so that page still has a row to tell where it goes.
+                if (root.keptThroughReplacement[tabId] && root.engines[tabId])
+                    everActive = true;
                 loadEngine();
             }
 
             // A retained tab's engine survives the Space switch that takes its
             // delegate; every other engine of that Space has already been
             // discarded by the suspension, so there is nothing here to hide.
-            // Outside a suspension a disappearing delegate means the reader
-            // closed the tab, and the page goes with it.
+            // Outside a suspension a disappearing delegate means the tab was
+            // closed, and the page goes with it. A row Sync is building again
+            // keeps its page on show for the row built in its place.
             Component.onDestruction: {
+                if (root.keptThroughReplacement[tabId])
+                    return;
                 if (root.preservingEngines) {
                     root.setEngineVisible(tabId, false);
                     if (root.activeEngine === engine)

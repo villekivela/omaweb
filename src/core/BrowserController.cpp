@@ -4855,13 +4855,31 @@ void BrowserController::reloadSyncedState()
     }
     showRestoredPages(tabs);
     repairSplits(tabs, m_activeTabId);
+    // Another machine's changes are not the reader asking for anything, so
+    // the Space on show keeps its pages (#763). Only a Space Sync took away
+    // is put away.
+    const auto sameSpace = m_activeSpaceId == previousSpace;
+    if (sameSpace) {
+        QStringList keptTabIds;
+        for (const auto &tab : m_tabs.items()) {
+            const auto incoming = std::ranges::find(tabs, tab.id, &TabState::id);
+            if (incoming != tabs.end() && incoming->url == tab.url) {
+                keptTabIds.append(tab.id);
+            }
+        }
+        emit tabsReplacing(keptTabIds);
+    }
     m_tabs.reset(std::move(tabs));
     loadClosedTabs();
     loadPutAwayTabs();
     refreshRetainedTabs();
     refreshSplit();
-    emit spaceSuspended(previousSpace, {});
-    emit spaceRestored(m_activeSpaceId);
+    if (sameSpace) {
+        emit tabsReplaced();
+    } else {
+        emit spaceSuspended(previousSpace, {});
+        emit spaceRestored(m_activeSpaceId);
+    }
     emit activeSpaceChanged();
     emit activeTabChanged();
     // Sync's restore wrote its settings into settings.json, and reading the

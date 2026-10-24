@@ -1,6 +1,7 @@
 #include "AgentActivityLog.h"
 #include "AgentControl.h"
 #include "BrowserController.h"
+#include "BrowserStateExchange.h"
 #include "ContentBlocker.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
@@ -20,6 +21,7 @@
 #include "ProblemRecording.h"
 #include "ProblemReporter.h"
 #include "SidebarOpacity.h"
+#include "SqliteSessionStore.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
 #include "PagePrinter.h"
@@ -60,10 +62,13 @@
 #include <QQuickStyle>
 #include <QQmlEngine>
 #include <QTemporaryDir>
+#include <QUuid>
 #include <QUrl>
 #include <QWindow>
 #include <QtQuickTest/quicktest.h>
 
+#include <algorithm>
+#include <functional>
 #include <memory>
 
 namespace {
@@ -416,6 +421,103 @@ private:
     omaweb::BrowserController *m_browser;
 };
 
+// Sync bringing in another machine's state: it writes the store the way Sync's
+// apply does, through a connection of its own, then hands the browser the
+// same refresh.
+class SyncApplyProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    SyncApplyProbe(omaweb::BrowserController *browser, QString dataRoot)
+        : m_browser(browser)
+        , m_dataRoot(dataRoot)
+        , m_exchange(browser, nullptr, nullptr, std::move(dataRoot), QString {})
+    {
+    }
+    // Whether the store holds the tabs of the Space on show as the window
+    // has them. The browser writes them a moment after they change, and Sync
+    // applies only once they are written.
+    Q_INVOKABLE bool tabsWritten() const
+    {
+        omaweb::SqliteSessionStore store(m_dataRoot);
+        if (!store.open()) {
+            return false;
+        }
+        const auto stored = store.loadTabs(m_browser->activeSpaceId());
+        const auto *shown = m_browser->tabs();
+        if (stored.size() != shown->rowCount()) {
+            return false;
+        }
+        for (int row = 0; row < shown->rowCount(); ++row) {
+            const auto index = shown->index(row, 0);
+            if (stored.at(row).id != shown->data(index, omaweb::TabListModel::IdRole).toString()
+                || stored.at(row).url
+                    != shown->data(index, omaweb::TabListModel::UrlRole).toUrl()) {
+                return false;
+            }
+        }
+        return true;
+    }
+    // A Space made on the other machine, which leaves every tab here as it
+    // was. Answers the new Space's id, or nothing if the store refused it.
+    Q_INVOKABLE QString applySpace(const QString &name)
+    {
+        omaweb::SqliteSessionStore store(m_dataRoot);
+        omaweb::SpaceState space;
+        space.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        space.name = name;
+        space.color = omaweb::spaceColourNames().constFirst();
+        if (!store.open() || !store.saveSpace(space)) {
+            return {};
+        }
+        m_exchange.refresh(omaweb::BrowserStateSection::Browser);
+        return space.id;
+    }
+    // A tab the reader took to another address on the other machine.
+    Q_INVOKABLE bool applyTabAddress(const QString &spaceId, const QString &tabId, const QUrl &url)
+    {
+        return applyTabs(spaceId, [&](QVector<omaweb::TabState> &tabs) {
+            const auto tab = std::ranges::find(tabs, tabId, &omaweb::TabState::id);
+            if (tab == tabs.end()) {
+                return false;
+            }
+            tab->url = url;
+            return true;
+        });
+    }
+    // A tab the reader closed on the other machine.
+    Q_INVOKABLE bool applyTabClosed(const QString &spaceId, const QString &tabId)
+    {
+        return applyTabs(spaceId, [&](QVector<omaweb::TabState> &tabs) {
+            return tabs.removeIf([&](const omaweb::TabState &tab) { return tab.id == tabId; }) == 1;
+        });
+    }
+
+private:
+    // The Space's tabs as the other machine left them, after `change`, which
+    // answers whether it found what it was to change.
+    bool applyTabs(
+        const QString &spaceId, const std::function<bool(QVector<omaweb::TabState> &)> &change)
+    {
+        omaweb::SqliteSessionStore store(m_dataRoot);
+        if (!store.open()) {
+            return false;
+        }
+        auto tabs = store.loadTabs(spaceId);
+        const auto active = std::ranges::find_if(tabs, &omaweb::TabState::active);
+        const auto activeTabId = active == tabs.end() ? QString {} : active->id;
+        if (!change(tabs) || !store.saveTabs(spaceId, tabs, activeTabId)) {
+            return false;
+        }
+        m_exchange.refresh(omaweb::BrowserStateSection::Browser);
+        return true;
+    }
+
+    omaweb::BrowserController *m_browser;
+    QString m_dataRoot;
+    omaweb::BrowserStateExchangeAdapter m_exchange;
+};
+
 // A request as the Agent socket hands it to the core, so a test reaches the
 // window the way `omaweb run` does and reads the answer the CLI would.
 class AgentSocketProbe final : public QObject {
@@ -578,6 +680,9 @@ public slots:
         m_agentSpaceProbe = std::make_unique<AgentSpaceProbe>(m_browser.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("agentSpaceProbe"), m_agentSpaceProbe.get());
+        m_syncApplyProbe = std::make_unique<SyncApplyProbe>(m_browser.get(), m_dataRoot->path());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("syncApplyProbe"), m_syncApplyProbe.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("agentActivity"), m_agentActivity.get());
         engine->rootContext()->setContextProperty(
@@ -699,6 +804,7 @@ public slots:
         m_theme.reset();
         m_windowManager.reset();
         m_agentSpaceProbe.reset();
+        m_syncApplyProbe.reset();
         m_browser.reset();
         m_paymentCards.reset();
         m_engineSuggestions.reset();
@@ -725,6 +831,7 @@ private:
     std::unique_ptr<omaweb::PaymentCards> m_paymentCards;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<AgentSpaceProbe> m_agentSpaceProbe;
+    std::unique_ptr<SyncApplyProbe> m_syncApplyProbe;
     std::unique_ptr<omaweb::AgentActivityLog> m_agentActivity;
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;
     std::unique_ptr<ImageProbe> m_imageProbe;
