@@ -121,10 +121,7 @@ CPP_ENGLISH = {
     },
     "ContentBlocker.cpp": {"EasyList Cookie": "a filter list's name"},
     "ThemeController.cpp": {"JetBrains Mono": "a font family", "DejaVu Sans Mono": "a font family"},
-    "QtContentBlocker.cpp": {
-        "Omaweb Global Privacy Control": "a script's name inside the engine",
-        "Omaweb chrome.app": "a script's name inside the engine",
-    },
+    "QtContentBlocker.cpp": {"Omaweb Global Privacy Control": "a script's name inside the engine"},
     "LinuxSecretStore.cpp": {"Omaweb Sync": "the label the keyring stores a secret under"},
     "SyncModule.cpp": {"Omaweb Sync": "the author name written into a commit"},
     "LinuxMediaAnnouncer.cpp": {"D-Bus Interface": "the name of a D-Bus interface"},
