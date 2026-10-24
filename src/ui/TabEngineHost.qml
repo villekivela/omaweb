@@ -300,6 +300,9 @@ Item {
     // Set while a Space is being put away: a delegate disappearing then means
     // the Space changed, not that the user closed the tab.
     property bool preservingEngines: false
+    // Set while Sync rebuilds the rows of the Space on show: a delegate
+    // disappearing then comes back for the same tab, and its page with it.
+    property bool replacingTabs: false
     property var engineComponent: null
 
     // A page that opens a window completes the request against the engine of
@@ -1199,6 +1202,16 @@ Item {
             if (!root.suspended)
                 Qt.callLater(root.restoreRetainedTabs);
         }
+
+        function onTabsReplacing() {
+            root.replacingTabs = true;
+        }
+
+        function onTabsReplaced(closedTabIds) {
+            root.replacingTabs = false;
+            for (const tabId of closedTabIds)
+                root.discardEngine(tabId);
+        }
     }
 
     // The Agent tabs, by id, as the core last named them.
@@ -1552,10 +1565,14 @@ Item {
             function showEngine() {
                 if (!engine)
                     return;
-                root.shownTabIds[tabSlot.tabId] = tabSlot.shown;
-                root.setEngineVisible(tabSlot.tabId, tabSlot.shown);
-                engine.z = tabSlot.active ? 1 : (tabSlot.shown || !root.agentAttached(
-                                                     tabSlot.tabId) ? 0 : -1);
+                // Read rather than taken from `shown`, which a handler for
+                // `active` can run ahead of: a row built again for a page on
+                // show would hide that page, and stop it, for a moment.
+                const onShow = tabSlot.active || tabSlot.tabBeside;
+                root.shownTabIds[tabSlot.tabId] = onShow;
+                root.setEngineVisible(tabSlot.tabId, onShow);
+                engine.z = tabSlot.active ? 1 : (onShow || !root.agentAttached(tabSlot.tabId) ? 0 :
+                                                                                                -1);
                 if (tabSlot.active) {
                     root.activeEngine = engine;
                     Qt.callLater(function () {
@@ -1720,6 +1737,9 @@ Item {
             // Outside a suspension a disappearing delegate means the reader
             // closed the tab, and the page goes with it.
             Component.onDestruction: {
+                // The page stays on show, for the row built in this one's place.
+                if (root.replacingTabs)
+                    return;
                 if (root.preservingEngines) {
                     root.setEngineVisible(tabId, false);
                     if (root.activeEngine === engine)

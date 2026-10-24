@@ -759,6 +759,11 @@ signals:
     // that Space is still the active one.
     void spaceSuspended(const QString &spaceId, const QStringList &retainedTabIds);
     void spaceRestored(const QString &spaceId);
+    // Sync rebuilding the rows of the Space on show from the store. The Space
+    // stays on show, so a page whose tab is still listed afterwards stays the
+    // document it is, and the pages of the tabs it no longer lists go.
+    void tabsReplacing();
+    void tabsReplaced(const QStringList &closedTabIds);
     void spaceDiscarded(const QString &spaceId);
     void tabMoveConfirmationRequested(const QString &tabId, const QString &destinationSpaceId);
     // Recovery clears core-owned failure state, then asks the active engine to

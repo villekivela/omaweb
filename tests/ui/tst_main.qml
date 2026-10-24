@@ -6650,6 +6650,110 @@ TestCase {
         browser.closeTab(backgroundTabId);
     }
 
+    // Sync bringing in what the other machine changed is not the reader asking
+    // for anything: the pages open here stay the documents they are, where the
+    // reader left them, the tab on show and the one behind it alike (#763).
+    function test_syncBringingInAnotherMachinesStateLeavesThePagesAsTheyWere() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        verify(engineLoader !== null);
+        openPage("https://synced-behind.example");
+        const behindTabId = browser.activeTabId;
+        const behind = engineLoader.item;
+        behind.pageLocalState = "typed behind";
+        browser.openInput("https://synced-front.example", true);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item !== behind;
+        });
+        const frontTabId = browser.activeTabId;
+        const front = engineLoader.item;
+        front.pageLocalState = "typed in front";
+        front.pageScrollOffset = 640;
+        const frontGeneration = front.pageGeneration;
+        const behindGeneration = behind.pageGeneration;
+        const spaceCount = browser.spaces.rowCount();
+        // Sync applies only after 30 quiet seconds, by which time the tabs
+        // are written; they are written 400 ms after the last change.
+        wait(600);
+        awayPageSpy.clear();
+        awayPageSpy.target = front;
+
+        const syncedSpaceId = syncApplyProbe.applySpace("From the other machine");
+        verify(syncedSpaceId.length > 0);
+        compare(browser.spaces.rowCount(), spaceCount + 1);
+        wait(0);
+
+        compare(browser.activeTabId, frontTabId);
+        const frontNow = engineLoader.engines[frontTabId];
+        const behindNow = engineLoader.engines[behindTabId];
+        compare(frontNow.pageLocalState, "typed in front");
+        compare(frontNow.pageScrollOffset, 640);
+        compare(behindNow.pageLocalState, "typed behind");
+        verify(frontNow === front);
+        verify(behindNow === behind);
+        compare(front.pageGeneration, frontGeneration);
+        compare(behind.pageGeneration, behindGeneration);
+        compare(engineLoader.item, front);
+        // Not even stopped for a moment: a page that is frozen and thawed
+        // again can lose what it was playing.
+        compare(awayPageSpy.count, 0);
+        awayPageSpy.target = null;
+
+        verify(browser.deleteSpace(syncedSpaceId, "From the other machine"));
+        browser.closeTab(behindTabId);
+    }
+
+    // The other machine took the tab the reader is on here somewhere else. The
+    // page here is the one being read, so it stays, and the tab says where
+    // that page is: the next Sync carries this machine's page back.
+    function test_aTabMovedOnTheOtherMachineKeepsThePageReadHere() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        verify(engineLoader !== null);
+        const page = openPage("https://read-here.example/");
+        const tabId = browser.activeTabId;
+        page.pageLocalState = "typed here";
+        const generation = page.pageGeneration;
+        wait(600);
+
+        verify(syncApplyProbe.applyTabAddress(browser.activeSpaceId, tabId,
+                                              "https://went-elsewhere.example/"));
+        wait(0);
+
+        compare(engineLoader.engines[tabId], page);
+        compare(page.pageGeneration, generation);
+        compare(page.pageLocalState, "typed here");
+        compare(page.currentUrl.toString(), "https://read-here.example/");
+        compare(browser.activeUrl.toString(), "https://read-here.example/");
+    }
+
+    // A tab closed on the other machine is closed here too, and its page goes
+    // with it; the page the reader is on stays.
+    function test_aTabClosedOnTheOtherMachineTakesItsPageHere() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        verify(engineLoader !== null);
+        openPage("https://closed-elsewhere.example");
+        const closedTabId = browser.activeTabId;
+        browser.openInput("https://still-open.example", true);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item
+                    !== engineLoader.engines[closedTabId];
+        });
+        const openTabId = browser.activeTabId;
+        const open = engineLoader.item;
+        open.pageLocalState = "still reading";
+        verify(engineLoader.engines[closedTabId] !== undefined);
+        // Sync applies only after 30 quiet seconds, by which time the tabs
+        // are written; they are written 400 ms after the last change.
+        wait(600);
+
+        verify(syncApplyProbe.applyTabClosed(browser.activeSpaceId, closedTabId));
+        wait(0);
+
+        compare(engineLoader.engines[closedTabId], undefined);
+        compare(engineLoader.engines[openTabId].pageLocalState, "still reading");
+        compare(browser.activeTabId, openTabId);
+        compare(engineLoader.item, open);
+    }
+
     // The core's Agent rules as the page area hears them: the tabs that are
     // Agent tabs, the page verbs to hand on, and the answers that come back.
     Component {
