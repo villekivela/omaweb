@@ -1,5 +1,6 @@
 #include "QtContentBlocker.h"
 
+#include "ChromeApp.h"
 #include "ContentBlocker.h"
 #include "ContentMatcher.h"
 #include "GlobalPrivacyControl.h"
@@ -220,6 +221,13 @@ QtContentBlocker::QtContentBlocker(ContentBlocker *contentBlocker,
     m_globalPrivacyControlScript.setWorldId(QWebEngineScript::MainWorld);
     m_globalPrivacyControlScript.setRunsOnSubFrames(true);
     m_globalPrivacyControlScript.setSourceCode(GlobalPrivacyControl::scriptSource());
+    // The same point and world as Global Privacy Control: before the page's
+    // first script, in every frame. What it defines, and why, is on ChromeApp.
+    m_chromeAppScript.setName(QStringLiteral("Omaweb chrome.app"));
+    m_chromeAppScript.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    m_chromeAppScript.setWorldId(QWebEngineScript::MainWorld);
+    m_chromeAppScript.setRunsOnSubFrames(true);
+    m_chromeAppScript.setSourceCode(ChromeApp::scriptSource());
     if (m_globalPrivacyControl) {
         connect(m_globalPrivacyControl, &GlobalPrivacyControl::enabledChanged, this,
             &QtContentBlocker::applyGlobalPrivacyControl);
@@ -244,30 +252,33 @@ void QtContentBlocker::applyGlobalPrivacyControl()
     m_sendGlobalPrivacyControl.store(enabled, std::memory_order_relaxed);
     std::erase_if(m_profiles, [](const QPointer<QObject> &profile) { return profile.isNull(); });
     for (const auto &profile : m_profiles) {
-        installGlobalPrivacyControlScript(profile.data(), enabled);
+        installScript(profile.data(), m_globalPrivacyControlScript, enabled);
     }
 }
 
 // The QML profile's script collection is a class Qt keeps private, so it is
 // reached through the meta-object, the way QML itself reaches it.
-void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool wanted) const
+void QtContentBlocker::installScript(
+    QObject *profile, const QWebEngineScript &script, bool wanted) const
 {
     if (auto *widgetProfile = qobject_cast<QWebEngineProfile *>(profile)) {
         if (wanted) {
-            widgetProfile->scripts()->insert(m_globalPrivacyControlScript);
+            widgetProfile->scripts()->insert(script);
         } else {
-            widgetProfile->scripts()->remove(m_globalPrivacyControlScript);
+            widgetProfile->scripts()->remove(script);
         }
         return;
     }
     auto *collection = profile->property("userScripts").value<QObject *>();
     // A name the collection no longer answers to would otherwise fail in
-    // silence, and the page would go on reading `undefined` while the header
-    // still says the reader opted out.
+    // silence, and the page would go on without the script. For Global
+    // Privacy Control that leaves `navigator.globalPrivacyControl` reading
+    // `undefined` while the header still says the reader opted out.
     if (!collection
-        || !QMetaObject::invokeMethod(collection, wanted ? "insert" : "remove",
-            Q_ARG(QWebEngineScript, m_globalPrivacyControlScript))) {
-        qWarning("Global Privacy Control could not reach the profile's script collection.");
+        || !QMetaObject::invokeMethod(
+            collection, wanted ? "insert" : "remove", Q_ARG(QWebEngineScript, script))) {
+        qWarning(
+            "%s could not reach the profile's script collection.", qUtf8Printable(script.name()));
     }
 }
 
@@ -320,7 +331,8 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &sp
             [profileObject](const QPointer<QObject> &known) { return known == profileObject; });
         if (!attached) {
             m_profiles.emplace_back(profileObject);
-            installGlobalPrivacyControlScript(profileObject, sendsGlobalPrivacyControl());
+            installScript(profileObject, m_globalPrivacyControlScript, sendsGlobalPrivacyControl());
+            installScript(profileObject, m_chromeAppScript, true);
             // The engine derives the header and `navigator.languages` from this one value, so
             // every Space, Agent Space and Private profile tells sites the interface's language.
             profile->setHttpAcceptLanguage(acceptLanguage(requestedLocale()));

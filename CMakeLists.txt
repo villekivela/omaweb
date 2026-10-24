@@ -397,6 +397,8 @@ add_library(omaweb-core STATIC
     src/core/Downloads.h
     src/core/FontSettings.cpp
     src/core/FontSettings.h
+    src/core/ChromeApp.cpp
+    src/core/ChromeApp.h
     src/core/GlobalPrivacyControl.cpp
     src/core/HttpsOnly.cpp
     src/core/HttpsOnly.h
