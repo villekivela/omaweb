@@ -141,10 +141,10 @@ class EngineAndCapability(unittest.TestCase):
         # Private window asked the reader before it refused a push subscription
         # (#421), before 6.11.2-16 a copy button asked the reader every time,
         # an extension that declares clipboardWrite could not copy from its
-        # offscreen document (#745) and a page had no chrome.app unless Omaweb
-        # defined one, which Google's sign-in needs (#766), and an Omaweb built
-        # against 6.11.2-12 calls the window geometry API that 6.11.2-7 does not
-        # have, so it would not start on it (#684). pacman upgrades Omaweb
+        # offscreen document (#745) and the engine gave a page no chrome.app,
+        # and Omaweb defines none of its own (#766), and an Omaweb built against
+        # 6.11.2-12 calls the window geometry API that 6.11.2-7 does not have,
+        # so it would not start on it (#684). pacman upgrades Omaweb
         # without the engine unless the dependency asks for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
             self.assertIn(f"{ENGINE}>=6.11.2-16", depends(pkgbuild))

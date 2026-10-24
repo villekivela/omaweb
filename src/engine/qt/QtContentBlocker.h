@@ -75,7 +75,7 @@ signals:
 
 private:
     void applyGlobalPrivacyControl();
-    void installScript(QObject *profile, const QWebEngineScript &script, bool wanted) const;
+    void installGlobalPrivacyControlScript(QObject *profile, bool wanted) const;
 
     ContentBlocker *m_contentBlocker;
     const GlobalPrivacyControl *m_globalPrivacyControl;

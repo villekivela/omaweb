@@ -6733,15 +6733,17 @@ void QtEngineContractTest::qtGivesAPageTheWindowChromeChromeDoes_data()
 // Chrome's own by reading a function's source, so each must read as native
 // code (#766). The expected answers are Chromium 154's, read from a page with
 // no extension installed. The engine defines them with no help from Omaweb,
-// in the main world and in a frame.
+// in the main world and in a same-site, an `about:blank` and a `srcdoc` frame,
+// and `installState()` asks the browser, which answers as Chrome does for a
+// page that is not an installed app.
 void QtEngineContractTest::qtGivesAPageTheWindowChromeChromeDoes()
 {
 #if OMAWEB_KNOWN_EXTENSIONS
     QFETCH(bool, privateWindow);
     PageServer server(R"HTML(<!doctype html><html><body>
         <script>
-            const describe = () => {
-                const chrome = window.chrome;
+            const describe = (win) => {
+                const chrome = win.chrome;
                 if (!chrome)
                     return "no chrome";
                 const keys = (object) => object ? Object.keys(object).sort().join(",") : "";
@@ -6762,15 +6764,33 @@ void QtEngineContractTest::qtGivesAPageTheWindowChromeChromeDoes()
                 ].join(" ");
             };
             if (window.top === window) {
-                window.mainAnswer = describe();
-                window.report = (answer) => {
-                    document.title = "main=" + window.mainAnswer + "|frame=" + answer;
+                const answers = {};
+                const names = ["main", "frame", "blank", "srcdoc", "installState"];
+                window.describe = describe;
+                window.report = (name, answer) => {
+                    answers[name] = answer;
+                    if (names.every((key) => key in answers))
+                        document.title = names.map((key) => key + "=" + answers[key]).join("|");
                 };
+                report("main", describe(window));
+                if (window.chrome && window.chrome.app)
+                    chrome.app.installState((state) => report("installState", state));
+                else
+                    report("installState", "none");
                 const frame = document.createElement("iframe");
                 frame.src = "/frame.html";
                 document.body.appendChild(frame);
+                const blank = document.createElement("iframe");
+                blank.onload = () => setTimeout(
+                    () => report("blank", describe(blank.contentWindow)), 50);
+                blank.src = "about:blank";
+                document.body.appendChild(blank);
+                const srcdoc = document.createElement("iframe");
+                srcdoc.srcdoc = "<!doctype html><script>"
+                    + "parent.report('srcdoc', parent.describe(window))<\/script>";
+                document.body.appendChild(srcdoc);
             } else {
-                parent.report(describe());
+                parent.report("frame", describe(window));
             }
         </script>
     </body></html>)HTML");
@@ -6818,8 +6838,9 @@ void QtEngineContractTest::qtGivesAPageTheWindowChromeChromeDoes()
         QStringLiteral("loadTimes:function"),
         QStringLiteral("loadTimesSource:function () { [native code] }"),
     }.join(QLatin1Char(' '));
-    QCOMPARE(
-        adapter->property("pageTitle").toString(), QStringLiteral("main=%1|frame=%1").arg(chrome));
+    QCOMPARE(adapter->property("pageTitle").toString(),
+        QStringLiteral("main=%1|frame=%1|blank=%1|srcdoc=%1|installState=not_installed")
+            .arg(chrome));
 #else
     QSKIP("Only Omaweb's own engine gives a page Chrome's window.chrome.");
 #endif

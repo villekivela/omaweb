@@ -244,33 +244,30 @@ void QtContentBlocker::applyGlobalPrivacyControl()
     m_sendGlobalPrivacyControl.store(enabled, std::memory_order_relaxed);
     std::erase_if(m_profiles, [](const QPointer<QObject> &profile) { return profile.isNull(); });
     for (const auto &profile : m_profiles) {
-        installScript(profile.data(), m_globalPrivacyControlScript, enabled);
+        installGlobalPrivacyControlScript(profile.data(), enabled);
     }
 }
 
 // The QML profile's script collection is a class Qt keeps private, so it is
 // reached through the meta-object, the way QML itself reaches it.
-void QtContentBlocker::installScript(
-    QObject *profile, const QWebEngineScript &script, bool wanted) const
+void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool wanted) const
 {
     if (auto *widgetProfile = qobject_cast<QWebEngineProfile *>(profile)) {
         if (wanted) {
-            widgetProfile->scripts()->insert(script);
+            widgetProfile->scripts()->insert(m_globalPrivacyControlScript);
         } else {
-            widgetProfile->scripts()->remove(script);
+            widgetProfile->scripts()->remove(m_globalPrivacyControlScript);
         }
         return;
     }
     auto *collection = profile->property("userScripts").value<QObject *>();
     // A name the collection no longer answers to would otherwise fail in
-    // silence, and the page would go on without the script. For Global
-    // Privacy Control that leaves `navigator.globalPrivacyControl` reading
-    // `undefined` while the header still says the reader opted out.
+    // silence, and the page would go on reading `undefined` while the header
+    // still says the reader opted out.
     if (!collection
-        || !QMetaObject::invokeMethod(
-            collection, wanted ? "insert" : "remove", Q_ARG(QWebEngineScript, script))) {
-        qWarning(
-            "%s could not reach the profile's script collection.", qUtf8Printable(script.name()));
+        || !QMetaObject::invokeMethod(collection, wanted ? "insert" : "remove",
+            Q_ARG(QWebEngineScript, m_globalPrivacyControlScript))) {
+        qWarning("Global Privacy Control could not reach the profile's script collection.");
     }
 }
 
@@ -323,7 +320,7 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &sp
             [profileObject](const QPointer<QObject> &known) { return known == profileObject; });
         if (!attached) {
             m_profiles.emplace_back(profileObject);
-            installScript(profileObject, m_globalPrivacyControlScript, sendsGlobalPrivacyControl());
+            installGlobalPrivacyControlScript(profileObject, sendsGlobalPrivacyControl());
             // The engine derives the header and `navigator.languages` from this one value, so
             // every Space, Agent Space and Private profile tells sites the interface's language.
             profile->setHttpAcceptLanguage(acceptLanguage(requestedLocale()));

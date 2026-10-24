@@ -891,10 +891,10 @@ The default page commands include:
   is the engine's own, so an engine update reports its own Chrome version, and `navigator.userAgent`
   matches the header. Client hints stay as the engine sets them. There is no per-site override and
   no setting.
-- Every page has Chrome's `window.chrome.app`, `chrome.csi` and `chrome.loadTimes`, defined by the
-  engine as Chrome's renderer defines them, native functions included, and answering as Chrome does
-  for a page that is not an installed app. Google's sign-in refuses a browser without `chrome.app`
-  (#711, #766). Omaweb adds no script of its own for them and offers no user-agent tricks.
+- Every page and frame has Chrome's `window.chrome.app`, `chrome.csi` and `chrome.loadTimes`, whose
+  functions read as native code and answer as Chrome does for a page that is not an installed app.
+  Google's sign-in refuses a browser without `chrome.app` (#711, #766). The engine defines them, and
+  Omaweb adds no script of its own and offers no user-agent tricks.
 - Every Engine profile, in a Space, a Private window or an Agent Space, sends one language in
   `Accept-Language`: the first of the locale that chooses the interface language, with its region
   (`fi-FI` for `fi_FI`, `en-GB` for `en_GB`), the language alone where the locale has no region, and
