@@ -1214,6 +1214,13 @@ Item {
 
         function onTabsReplaced() {
             root.keptThroughReplacement = {};
+            // Rows built again while the pages are put away show nothing, so
+            // no page answers for the window until they come back, as after
+            // a suspension's own rows are taken.
+            if (root.suspended) {
+                root.activeEngine = null;
+                root.besideEngine = null;
+            }
         }
     }
 

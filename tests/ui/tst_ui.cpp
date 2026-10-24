@@ -429,9 +429,34 @@ class SyncApplyProbe final : public QObject {
 
 public:
     SyncApplyProbe(omaweb::BrowserController *browser, QString dataRoot)
-        : m_dataRoot(dataRoot)
+        : m_browser(browser)
+        , m_dataRoot(dataRoot)
         , m_exchange(browser, nullptr, nullptr, std::move(dataRoot), QString {})
     {
+    }
+    // Whether the store holds the tabs of the Space on show as the window
+    // has them. The browser writes them a moment after they change, and Sync
+    // applies only once they are written.
+    Q_INVOKABLE bool tabsWritten() const
+    {
+        omaweb::SqliteSessionStore store(m_dataRoot);
+        if (!store.open()) {
+            return false;
+        }
+        const auto stored = store.loadTabs(m_browser->activeSpaceId());
+        const auto *shown = m_browser->tabs();
+        if (stored.size() != shown->rowCount()) {
+            return false;
+        }
+        for (int row = 0; row < shown->rowCount(); ++row) {
+            const auto index = shown->index(row, 0);
+            if (stored.at(row).id != shown->data(index, omaweb::TabListModel::IdRole).toString()
+                || stored.at(row).url
+                    != shown->data(index, omaweb::TabListModel::UrlRole).toUrl()) {
+                return false;
+            }
+        }
+        return true;
     }
     // A Space made on the other machine, which leaves every tab here as it
     // was. Answers the new Space's id, or nothing if the store refused it.
@@ -488,6 +513,7 @@ private:
         return true;
     }
 
+    omaweb::BrowserController *m_browser;
     QString m_dataRoot;
     omaweb::BrowserStateExchangeAdapter m_exchange;
 };

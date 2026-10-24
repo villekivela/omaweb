@@ -6651,9 +6651,11 @@ TestCase {
     }
 
     // Sync applies only after 30 quiet seconds, by which time the tabs are
-    // written: they are written 400 ms after the last change.
+    // written: they are written a moment after the last change.
     function waitForTabsWritten() {
-        wait(600);
+        tryVerify(function () {
+            return syncApplyProbe.tabsWritten();
+        });
     }
 
     // Sync bringing in what the other machine changed is not the reader asking
@@ -6708,6 +6710,44 @@ TestCase {
 
         verify(browser.deleteSpace(syncedSpaceId, "From the other machine"));
         browser.closeTab(behindTabId);
+    }
+
+    // Sync can land while the page area is put away, between a Space being
+    // restored and its pages coming back. No page answers for the window
+    // until then, and the pages that come back are the ones left.
+    function test_syncWhileThePagesArePutAwayLeavesNoPageAnswering() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        verify(engineLoader !== null);
+        openPage("https://split-beside.example/");
+        const besideTabId = browser.activeTabId;
+        const beside = engineLoader.item;
+        browser.openInput("https://split-front.example/", true);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item !== beside;
+        });
+        const frontTabId = browser.activeTabId;
+        const front = engineLoader.item;
+        verify(browser.addSplit(besideTabId));
+        tryVerify(function () {
+            return engineLoader.besideEngine === beside;
+        });
+        waitForTabsWritten();
+
+        engineLoader.suspend(browser.activeSpaceId, []);
+        const syncedSpaceId = syncApplyProbe.applySpace("From the other machine");
+        verify(syncedSpaceId.length > 0);
+        compare(engineLoader.activeEngine, null);
+        compare(engineLoader.besideEngine, null);
+
+        engineLoader.resume();
+        tryCompare(engineLoader, "activeEngine", front);
+        tryCompare(engineLoader, "besideEngine", beside);
+        compare(engineLoader.engines[frontTabId], front);
+        compare(engineLoader.engines[besideTabId], beside);
+
+        verify(browser.separateSplit(frontTabId));
+        verify(browser.deleteSpace(syncedSpaceId, "From the other machine"));
+        browser.closeTab(besideTabId);
     }
 
     // The reader took a tab somewhere else on the other machine, and it goes
