@@ -1,18 +1,32 @@
 {
-  "description": "Conway's Game of Life behind the Start page (#606): a board of cells in the palette, evolving behind the Omnibar. The browser draws it (src/ui/GameOfLife.qml, on src/ui/LifeBoard.h); the website does not. A cell is one of the Scene's pixels and the board wraps at its edges. Times are in seconds. `crt` is the CRT glass it declares, which the host draws, with the road's amounts. `rest` is where the Omnibar rests, as a share of the height. `night` is the ground, as the sky's: a light theme's from its dark text. `generations` is how fast the board evolves: `rest` a second at rest and `rush` a second, one a frame, from a commit until the page paints, the pace easing back down from it at `ease` once the page has painted, over a frame of at most `longestStep`. `cells`: a live cell is the accent; a cell that has just died leaves a trail, one generation for each of `trail`, the accent mixed toward the ground by that amount; in a Private window the board is frozen and a live cell is the light mixed toward the ground by `unlit`, with no trail. `soups` are the random squares the board starts from, `size` cells across at `density`, one for every `every` cells of board, placed where the seeds `across` and `down` scatter them, with `tries` places tried for each and run `settle` generations before the board is shown, a whole number of the guns' period of 30, so a gun is shown as placed. `guns` are Gosper glider guns: `places` are where each stands, its top left corner `across` and `down` as shares of the width and height, and whether it is `turned` about to fire the other way; a board narrower than `twoFrom` columns takes only the first, and none smaller than the gun. Soups keep `clear` cells away from a gun. The board is seeded again when it dies out, or when it stalls, coming back to a board it was within the last `stall` generations. `still` is the frame a reader who asked for less motion sees, and the thumbnail: `gliders`, each `across` and `down` as shares of the width and height, `mirrored` left to right and `flipped` top to bottom, run `run` generations so each leaves its trail.",
+  "description": "Conway's Game of Life behind the Start page (#606): a board of cells in the palette, evolving behind the Omnibar. The browser draws it (src/ui/GameOfLife.qml, on src/ui/LifeBoard.h); the website does not. A cell is one of the Scene's pixels and the board wraps at its edges. Times are in seconds. `screen` is `raster`, and `crt` is the CRT glass it declares, which the host draws, with the road's amounts. `rest` is where the Omnibar rests, as a share of the height. `night` is the ground, as the sky's: a light theme's from its dark text. `generations` is how fast the board evolves: `rest` a second at rest and `rush` a second, one a frame, from a commit until the page paints, the pace easing back down from it at `ease` once the page has painted, over a frame of at most `longestStep`. `cells`: a live cell is the accent; a cell that has just died leaves a trail, one generation for each of `trail`, the accent mixed toward the ground by that amount; in a Private window the board is frozen and a live cell is the light mixed toward the ground by `unlit`, with no trail. `soups` are the random squares the board starts from, `size` cells across at `density`, one for every `every` cells of board, placed where the seeds `across` and `down` scatter them, with `tries` places tried for each and run `settle` generations before the board is shown, a whole number of the guns' period of 30, so a gun is shown as placed. `guns` are Gosper glider guns: `places` are where each stands, its top left corner `across` and `down` as shares of the width and height, and whether it is `turned` about to fire the other way; a board narrower than `twoFrom` columns takes only the first, and none smaller than the gun. Soups keep `clear` cells away from a gun. The board is seeded again when it dies out, or when it stalls, coming back to a board it was within the last `stall` generations. `still` is the frame a reader who asked for less motion sees, and the thumbnail: `gliders`, each `across` and `down` as shares of the width and height, `mirrored` left to right and `flipped` top to bottom, run `run` generations so each leaves its trail.",
   "id": "game-of-life",
   "name": "Game of Life",
   "pitch": 4,
   "fps": 30,
   "glass": "crt",
+  "screen": "raster",
   "crt": {
     "bloom": {
       "scale": 3,
       "opacity": 0.22
     },
     "scanlines": {
-      "every": 3,
-      "shade": 0.38
+      "shade": 0.608,
+      "narrowest": 0.5,
+      "widest": 1.15,
+      "falloff": 2.2,
+      "lift": 1.15
+    },
+    "mask": {
+      "dim": 0.72,
+      "lift": 1.22
+    },
+    "halation": {
+      "threshold": 0.35,
+      "strength": 0.25,
+      "reach": 32,
+      "spacing": 24
     },
     "vignette": {
       "clear": 0.55,

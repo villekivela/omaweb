@@ -87,6 +87,18 @@ Item {
     // The glass's amounts, which a Scene that declares the glass gives as
     // `crt`: share/scenes/crt-road.json's, which the website's glass reads too.
     readonly property var crt: root.glassShown ? root.sceneItem.crt : null
+    // A raster Scene is drawn by a beam, one line to each of its rows, through
+    // a phosphor mask. A vector Scene's screen traced its lines with the beam
+    // and had no raster, and its phosphor persisted: it leaves a trail while
+    // the Scene moves, and none under reduced motion.
+    readonly property bool vectorScreen: root.glassShown && root.sceneItem.screen === "vector"
+    readonly property bool trailShown: root.vectorScreen && root.drawing
+
+    // One of the glass's amounts, or `fallback` where the Scene's `crt` has
+    // none: a vector Scene declares no scanlines or mask.
+    function amount(group, name, fallback) {
+        return root.crt && root.crt[group] ? root.crt[group][name] : fallback;
+    }
 
     readonly property bool drawing: root.running && !root.reducedMotion && !!root.sceneItem
 
@@ -126,6 +138,8 @@ Item {
             root.time += Math.min(0.1, Math.max(0, now - last) / 1000);
             last = now;
             root.frames += 1;
+            if (root.trailShown)
+                trailPicture.scheduleUpdate();
         }
     }
 
@@ -220,6 +234,49 @@ Item {
                                                                                            / scale)))
     }
 
+    // A copy at the Scene's full size with its mipmaps, for the halation: a
+    // blurred level is then an average of the picture, where a smaller copy
+    // would pick points from it and put the glow off what casts it.
+    ShaderEffectSource {
+        id: haloPicture
+        objectName: "haloPicture"
+        sourceItem: root.glassShown ? sceneLoader : null
+        smooth: true
+        mipmap: true
+        textureSize: Qt.size(root.sceneWidth, root.sceneHeight)
+    }
+
+    // A vector Scene's persistence: each frame keeps the brighter of the
+    // picture and the last frame, faded. The copy is taken at the Scene's
+    // tick rather than live, since a live copy of itself would draw the
+    // window at the display's rate.
+    ShaderEffectSource {
+        id: trailPicture
+        objectName: "trailPicture"
+        sourceItem: root.trailShown ? trailEffect : null
+        recursive: true
+        live: false
+        hideSource: true
+        smooth: false
+        textureSize: Qt.size(root.sceneWidth, root.sceneHeight)
+        onSourceItemChanged: scheduleUpdate()
+        onTextureSizeChanged: scheduleUpdate()
+    }
+
+    ShaderEffect {
+        id: trailEffect
+        objectName: "trailEffect"
+        width: root.sceneWidth
+        height: root.sceneHeight
+        visible: root.trailShown
+
+        property var current: picture
+        property var previous: trailPicture
+        property real fade: root.amount("trail", "fade", 0)
+
+        fragmentShader: "qrc:/omaweb/shaders/trail.frag.qsb"
+    }
+
     ShaderEffect {
         id: crtGlass
         objectName: "crtGlass"
@@ -227,8 +284,9 @@ Item {
         visible: root.glassShown
 
         readonly property bool moving: !root.reducedMotion
-        property var source: picture
+        property var source: root.trailShown ? trailPicture : picture
         property var bloom: bloomPicture
+        property var halo: haloPicture
         property size sceneSize: Qt.size(root.sceneWidth, root.sceneHeight)
         property real glassHeight: height
         // The frame in the glass's own coordinates, 0 to 1.
@@ -236,8 +294,27 @@ Item {
                                                                                                 height), root.frame.width
                                      / Math.max(1, width), root.frame.height / Math.max(1, height))
         property real bloomMix: root.crt ? root.crt.bloom.opacity : 0
-        property real scanEvery: root.crt ? root.crt.scanlines.every : 1
-        property real scanShade: root.crt ? root.crt.scanlines.shade : 0
+        // 1 on a raster Scene, 0 on a vector one, which has no scanlines,
+        // mask or band.
+        property real raster: root.vectorScreen ? 0 : 1
+        // The beam's lines stand one to each of the Scene's rows.
+        property real scanPeriod: height / root.sceneHeight
+        property real scanShade: root.amount("scanlines", "shade", 0)
+        property real beamNarrowest: root.amount("scanlines", "narrowest", 1)
+        property real beamWidest: root.amount("scanlines", "widest", 1)
+        property real beamFalloff: root.amount("scanlines", "falloff", 1)
+        property real beamLift: root.amount("scanlines", "lift", 1)
+        property real maskDim: root.amount("mask", "dim", 1)
+        property real maskLift: root.amount("mask", "lift", 1)
+        property real haloThreshold: root.amount("halation", "threshold", 0)
+        property real haloStrength: root.amount("halation", "strength", 0)
+        // The halation's reach and spacing are in logical pixels, whatever the
+        // Scene's pitch: a faceplate scatters light over a physical distance.
+        readonly property real haloSpacing: root.amount("halation", "spacing", 0) / root.pitch
+        property real haloLod: Math.log2(Math.max(1, root.amount("halation", "reach", 1)
+                                                  / root.pitch))
+        property size haloStep: Qt.size(haloSpacing / root.sceneWidth, haloSpacing
+                                        / root.sceneHeight)
         property real vignetteClear: root.crt ? root.crt.vignette.clear : 1
         property real vignetteShade: root.crt ? root.crt.vignette.shade : 0
         // The refresh band rolls down the picture, and the flicker darkens it

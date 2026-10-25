@@ -623,6 +623,7 @@ qt_add_shaders(omaweb-ui "omaweb_shaders"
         "src/ui/shaders/crtglass.frag"
         "src/ui/shaders/dither.frag"
         "src/ui/shaders/rimlight.frag"
+        "src/ui/shaders/trail.frag"
 )
 
 # The vendored Omarchy component kit imports Quickshell types. Omaweb supplies

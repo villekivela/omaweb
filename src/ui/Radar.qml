@@ -13,10 +13,10 @@ import "SceneColour.mjs" as Colour
 //
 // It keeps NightRoad.qml's contract with SceneHost.qml: it receives `colors`,
 // `dark`, `time`, `navigating`, `beat`, `options`, `reducedMotion` and
-// `unlit`, and declares `pitch`, `fps`, `glass` with the glass's amounts as
-// `crt`, its options, and `horizonY`, where the Omnibar rests. It casts
-// `light`, the sweep's light on the Omnibar's rim where the beam leaves it.
-// What it draws by is share/scenes/radar.json. The face, and the rings and
+// `unlit`, and declares `pitch`, `fps`, `glass`, `screen` with the glass's
+// amounts as `crt`, its options, and `horizonY`, where the Omnibar rests. It
+// casts `light`, the sweep's light on the Omnibar's rim where the beam leaves
+// it. What it draws by is share/scenes/radar.json. The face, and the rings and
 // spokes over the sweep, are drawn once per size and theme into canvases, and
 // the afterglow once into a canvas the clock turns; the blips are scene-graph
 // items over them.
@@ -61,6 +61,7 @@ Item {
     readonly property int pitch: root.parameters.pitch
     readonly property int fps: root.parameters.fps
     readonly property string glass: root.parameters.glass
+    readonly property string screen: root.parameters.screen
     readonly property var crt: root.parameters.crt
     readonly property var declaredOptions: root.parameters.options
 

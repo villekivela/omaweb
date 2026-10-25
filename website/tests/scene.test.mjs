@@ -12,6 +12,7 @@ import {
   frameDue,
   glassLayers,
   glassRoll,
+  halation,
   sceneInput,
 } from "../scene.js";
 
@@ -139,26 +140,95 @@ test("input: a host held still tells the Scene to hold still and draws no frames
 
 // The CRT glass draws by the shared file's `crt` block, as the browser's glass does (#496): change
 // an amount there and the glass changes with it.
+const sharedCrt = (id) =>
+  JSON.parse(readFileSync(new URL(`../../share/scenes/${id}.json`, import.meta.url), "utf8")).crt;
+
+// The alpha of each stop in a gradient of `rgb(0 0 0 / a%) at` stops, and where the last one ends.
+function stops(gradient) {
+  const alphas = [...gradient.matchAll(/rgb\(0 0 0 \/ ([\d.]+)%\)/g)].map((m) => Number(m[1]));
+  const ends = [...gradient.matchAll(/([\d.]+)px/g)].map((m) => Number(m[1]));
+  return { alphas, period: ends[ends.length - 1] };
+}
+
 test("glass: its layers take their amounts from the shared file", () => {
-  const crt = JSON.parse(
-    readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
-  ).crt;
-  assert.deepEqual(glassLayers(crt), {
-    bloom: "0.22",
-    scan: "repeating-linear-gradient(transparent 0 2px, rgb(0 0 0 / 38%) 2px 3px)",
-    vignette: "radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%) 100%)",
-  });
-  const changed = {
-    ...crt,
-    bloom: { scale: 3, opacity: 0.3 },
-    scanlines: { every: 4, shade: 0.5 },
-    vignette: { clear: 0.6, shade: 0.4 },
-  };
-  assert.deepEqual(glassLayers(changed), {
-    bloom: "0.3",
-    scan: "repeating-linear-gradient(transparent 0 3px, rgb(0 0 0 / 50%) 3px 4px)",
-    vignette: "radial-gradient(ellipse at center, transparent 60%, rgb(0 0 0 / 40%) 100%)",
-  });
+  const crt = sharedCrt("crt-road");
+  const layers = glassLayers(crt, { pitch: 4, ratio: 1 });
+  assert.equal(layers.bloom, "0.22");
+  assert.equal(
+    layers.vignette,
+    "radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%) 100%)",
+  );
+  // The beam's lift and the mask's, which the picture is brightened by before they darken it.
+  assert.equal(layers.lift, "brightness(1.403)");
+  assert.deepEqual(layers.halo, { scale: 8, blur: "24px", opacity: "0.25" });
+  const changed = glassLayers(
+    {
+      ...crt,
+      bloom: { scale: 3, opacity: 0.3 },
+      scanlines: { ...crt.scanlines, lift: 1 },
+      mask: { dim: 0.5, lift: 1.5 },
+      halation: { threshold: 0.5, strength: 0.4, reach: 16, spacing: 12 },
+      vignette: { clear: 0.6, shade: 0.4 },
+    },
+    { pitch: 4, ratio: 1 },
+  );
+  assert.equal(changed.bloom, "0.3");
+  assert.equal(
+    changed.vignette,
+    "radial-gradient(ellipse at center, transparent 60%, rgb(0 0 0 / 40%) 100%)",
+  );
+  assert.equal(changed.lift, "brightness(1.5)");
+  assert.deepEqual(changed.halo, { scale: 4, blur: "12px", opacity: "0.4" });
+  assert.match(changed.mask, /rgb\(255 128 128\)/);
+});
+
+// A tube draws one pass of its beam to each row of the picture, so the lines stand as far apart as
+// the Scene's pixels are tall, darkest at the edges between rows and clear at their middles.
+test("glass: a raster Scene's lines stand one to each of its rows", () => {
+  const crt = sharedCrt("crt-road");
+  for (const pitch of [4, 3]) {
+    const { alphas, period } = stops(glassLayers(crt, { pitch, ratio: 1 }).scan);
+    assert.equal(period, pitch);
+    assert.equal(Math.min(...alphas), alphas[Math.floor(alphas.length / 2)]);
+    assert.equal(Math.max(...alphas), alphas[0]);
+    assert.equal(alphas[0], alphas[alphas.length - 1]);
+  }
+});
+
+// The mask is a tube's, whatever the Scene's pitch: one red, one green and one blue stripe, each
+// one device pixel wide.
+test("glass: the mask's stripes are one device pixel wide", () => {
+  const crt = sharedCrt("crt-road");
+  assert.equal(
+    glassLayers(crt, { pitch: 4, ratio: 2 }).mask,
+    "repeating-linear-gradient(90deg, rgb(255 184 184) 0 0.5px, rgb(184 255 184) 0.5px 1px, rgb(184 184 255) 1px 1.5px)",
+  );
+  assert.match(
+    glassLayers(crt, { pitch: 4, ratio: 1 }).mask,
+    /1px 2px, rgb\(184 184 255\) 2px 3px\)$/,
+  );
+});
+
+// The halation counts only what is brighter than the threshold, rescaled to 0 to 1.
+test("glass: the halation counts only what is brighter than its threshold", () => {
+  const crt = sharedCrt("crt-road");
+  assert.equal(halation(0.35, crt), 0);
+  assert.equal(halation(0.2, crt), 0);
+  assert.equal(halation(1, crt), 1);
+  assert.ok(Math.abs(halation(0.675, crt) - 0.5) < 1e-9);
+});
+
+// A vector screen traced its lines with the beam and had no raster: no scanlines, no mask and no
+// refresh band, and nothing to lift back. Its flicker stays.
+test("glass: a vector Scene has no scanlines, mask or band", () => {
+  const crt = sharedCrt("radar");
+  const layers = glassLayers(crt, { pitch: 2, ratio: 1, vector: true });
+  assert.equal(layers.scan, "none");
+  assert.equal(layers.mask, "none");
+  assert.equal(layers.lift, "none");
+  const roll = glassRoll(crt, { time: 1, height: 100 });
+  assert.equal(roll.strength, 0);
+  assert.ok(roll.flicker >= 0.02 && roll.flicker <= 0.045);
 });
 
 test("glass: the band and the flicker take theirs from the shared file", () => {

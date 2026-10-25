@@ -105,6 +105,7 @@ TestCase {
         tryCompare(terrain, "width", 800 / terrain.pitch);
         compare(terrain.horizonY, 250);
         compare(terrain.glass, "crt");
+        compare(terrain.screen, "vector");
         compare(terrain.crt, terrain.parameters.crt);
         verify(findChild(host, "crtGlass").visible);
         compare(host.light, null);

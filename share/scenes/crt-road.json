@@ -1,13 +1,16 @@
 {
-  "description": "The CRT road: the night drive behind the Start page, as the website draws it (website/crt-road.js) and the browser is to (#496). Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, sunTop, sunLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. `crt` is the CRT glass the road declares, which the host draws: scanlines and the vignette in CSS pixels and shares of the frame, the band in the Scene's pixels. `light` is the light the road casts on the Start page's Omnibar: `rim` its falloff along the Omnibar's edge, on an ellipse centred on the sun, `across` of the Omnibar's width and `reach` sun radii down, and `bloom` the blurred ring over it, `width` and `blur` in CSS pixels, its opacity at rest and how much the beat adds. website/README.md documents the contract.",
+  "description": "The CRT road: the night drive behind the Start page, as the website draws it (website/crt-road.js) and the browser is to (#496). Lengths are shares of the scene's width or height unless named otherwise; times are in seconds. A colour is a role (ground, light, glow, skyTop, skyLow, groundNear, sunTop, sunLow, black, white) or a mix of two at an amount. A gradient stop is [position, colour] or [position, colour, alpha]. `screen` is `raster`: the glass's beam draws one line to each of the Scene's rows. `crt` is the CRT glass the road declares, which the host draws. The scanlines' beam is `narrowest` to `widest` of a row wide as its row is dark to bright, falls off by `falloff`, darkens the gap by `shade` and is lifted by `lift`. The mask's stripes dim the other two channels to `dim` and lift the whole by `lift`. The halation counts only what is brighter than `threshold`, screens `strength` of it over the picture, and is an average over `reach` CSS pixels sampled `spacing` CSS pixels apart. The vignette is in shares of the frame, the band in the Scene's pixels. `light` is the light the road casts on the Start page's Omnibar: `rim` its falloff along the Omnibar's edge, on an ellipse centred on the sun, `across` of the Omnibar's width and `reach` sun radii down, and `bloom` the blurred ring over it, `width` and `blur` in CSS pixels, its opacity at rest and how much the beat adds. website/README.md documents the contract.",
   "id": "crt-road",
   "name": "CRT road",
   "pitch": 4,
   "fps": 30,
   "glass": "crt",
+  "screen": "raster",
   "crt": {
     "bloom": { "scale": 3, "opacity": 0.22 },
-    "scanlines": { "every": 3, "shade": 0.38 },
+    "scanlines": { "shade": 0.608, "narrowest": 0.5, "widest": 1.15, "falloff": 2.2, "lift": 1.15 },
+    "mask": { "dim": 0.72, "lift": 1.22 },
+    "halation": { "threshold": 0.35, "strength": 0.25, "reach": 32, "spacing": 24 },
     "vignette": { "clear": 0.55, "shade": 0.55 },
     "band": {
       "every": 7,

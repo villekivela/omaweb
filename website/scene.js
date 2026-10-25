@@ -150,7 +150,7 @@ export class SceneHost {
     this.onScreen = false;
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)");
     this.phone = matchMedia(PHONE);
-    this.glass = scene.glass === "crt" && !held ? new CrtGlass(canvas, scene.crt) : null;
+    this.glass = scene.glass === "crt" && !held ? new CrtGlass(canvas, scene) : null;
     this.light = lit && new SceneLight(lit);
 
     new IntersectionObserver((entries) => {
@@ -253,63 +253,145 @@ export class SceneHost {
   }
 }
 
-// The glass's static layers from the Scene's `crt` amounts, as styles: the bloom's opacity, one
-// darker line in every `scanlines.every` CSS pixels, and a vignette clear to `vignette.clear` of
-// the way out and `vignette.shade` dark at the corners.
-export function glassLayers(crt) {
+// The glass's static layers from the Scene's `crt` amounts, as styles, for a Scene whose rows are
+// `row` CSS pixels tall on a screen of `ratio` device pixels to the CSS pixel:
+//
+// - `bloom`, the bloom's opacity;
+// - `lift`, a filter that brightens the picture by the beam's and the mask's lifts, before they
+//   darken it;
+// - `scan`, one pass of the beam to each of the Scene's rows, darkest between rows. A tube's beam
+//   widens over a bright row and thins over a dark one; one layer for the whole picture cannot
+//   follow each row, so every line is as wide as the beam half way between its narrowest and
+//   widest;
+// - `mask`, an aperture grille of red, green and blue stripes one device pixel wide, multiplied
+//   over the picture;
+// - `halo`, the halation: how many times smaller than the Scene its averaged copy is, so that a
+//   pixel of it is `reach` CSS pixels, the blur that spreads it `spacing` CSS pixels, and how much
+//   of it is screened over the picture;
+// - `vignette`, clear to `vignette.clear` of the way out and `vignette.shade` dark at the corners.
+//
+// A vector Scene had no raster, so it has no scanlines and no mask.
+export function glassLayers(crt, { pitch, row = pitch, ratio = 1, vector = false }) {
   const percent = (share) => `${Math.round(share * 100)}%`;
-  const { every, shade } = crt.scanlines;
-  return {
+  const px = (value) => `${Number(value.toFixed(3))}px`;
+  const layers = {
     bloom: String(crt.bloom.opacity),
-    scan: `repeating-linear-gradient(transparent 0 ${every - 1}px, rgb(0 0 0 / ${percent(shade)}) ${every - 1}px ${every}px)`,
+    halo: {
+      scale: crt.halation.reach / pitch,
+      blur: px(crt.halation.spacing),
+      opacity: String(crt.halation.strength),
+    },
     vignette: `radial-gradient(ellipse at center, transparent ${percent(crt.vignette.clear)}, rgb(0 0 0 / ${percent(crt.vignette.shade)}) 100%)`,
   };
+  if (vector) return { ...layers, lift: "none", scan: "none", mask: "none" };
+  const { shade, narrowest, widest, falloff, lift } = crt.scanlines;
+  const width = (narrowest + widest) / 2;
+  const steps = 8;
+  const scan = Array.from({ length: steps + 1 }, (_, i) => {
+    const across = Math.abs(i / steps - 0.5) * 2;
+    const beam = Math.exp(-((across / width) ** 2) * falloff);
+    const alpha = Math.round(shade * (1 - beam) * 1000) / 10;
+    return `rgb(0 0 0 / ${alpha}%) ${px((row * i) / steps)}`;
+  });
+  const dim = Math.round(crt.mask.dim * 255);
+  const stripe = 1 / ratio;
+  return {
+    ...layers,
+    lift: `brightness(${Number((lift * crt.mask.lift).toFixed(3))})`,
+    scan: `repeating-linear-gradient(${scan.join(", ")})`,
+    mask: `repeating-linear-gradient(90deg, rgb(255 ${dim} ${dim}) 0 ${px(stripe)}, rgb(${dim} 255 ${dim}) ${px(stripe)} ${px(2 * stripe)}, rgb(${dim} ${dim} 255) ${px(2 * stripe)} ${px(3 * stripe)})`,
+  };
+}
+
+// How much of a channel's `value`, 0 to 1, the halation counts: only what is brighter than its
+// threshold, rescaled to 0 to 1.
+export function halation(value, crt) {
+  const { threshold } = crt.halation;
+  return Math.max(value - threshold, 0) / (1 - threshold);
 }
 
 // Where the refresh band is at `time` on a picture `height` of the Scene's pixels tall, how far it
 // reaches and how strong it is, and how much the flicker darkens: never less than its least, and
-// never a flash.
+// never a flash. A Scene that declares no band, as a vector one, has none.
 export function glassRoll(crt, { time, height }) {
   const { band, flicker } = crt;
   const [fast, slow] = flicker.frequencies;
   return {
-    y: ((time / band.every) % 1) * height * band.travel + height * band.from,
-    reach: Math.max(band.reachAtLeast, height * band.reach),
-    strength: band.strength,
+    y: band ? ((time / band.every) % 1) * height * band.travel + height * band.from : 0,
+    reach: band ? Math.max(band.reachAtLeast, height * band.reach) : 1,
+    strength: band ? band.strength : 0,
     flicker:
       flicker.least + flicker.range * Math.abs(Math.sin(time * fast) * Math.sin(time * slow)),
   };
 }
 
 // The CRT a Scene can declare, composited by the browser rather than drawn: the Scene's small
-// canvas scaled up pixelated, a tiny copy of it scaled up smooth for the bloom, and static
-// scanline and vignette layers. Only the rolling band and the flicker are drawn, into the small
-// picture itself, so a frame costs a few hundred thousand pixels however large the window.
+// canvas scaled up pixelated and lifted, a tiny copy of it scaled up smooth for the bloom, static
+// scanline, mask and vignette layers, and the halation, a copy of the picture averaged down and cut
+// at its threshold, blurred and screened over it. Only the rolling band, the flicker and a vector
+// Scene's trail are drawn, into the small picture itself, and the halation's copy is smaller still,
+// so a frame costs a few hundred thousand pixels however large the window.
 class CrtGlass {
-  constructor(canvas, crt) {
-    this.crt = crt;
-    const layers = glassLayers(crt);
-    const frame = canvas.parentElement;
-    frame.classList.add("crt");
-    this.bloom = document.createElement("canvas");
-    this.bloom.className = "crt__bloom";
-    this.bloom.setAttribute("aria-hidden", "true");
-    this.bloom.style.opacity = layers.bloom;
-    frame.append(this.bloom);
-    for (const [name, background] of [
-      ["crt__scan", layers.scan],
-      ["crt__vignette", layers.vignette],
-    ]) {
-      const layer = document.createElement("div");
-      layer.className = name;
-      layer.style.background = background;
-      frame.append(layer);
-    }
+  constructor(canvas, scene) {
+    this.crt = scene.crt;
+    this.pitch = scene.pitch || 1;
+    this.vector = scene.screen === "vector";
+    this.canvas = canvas;
+    this.frame = canvas.parentElement;
+    this.frame.classList.add("crt");
+    const layer = (tag, name) => {
+      const element = document.createElement(tag);
+      element.className = name;
+      element.setAttribute("aria-hidden", "true");
+      this.frame.append(element);
+      return element;
+    };
+    this.bloom = layer("canvas", "crt__bloom");
+    this.scan = layer("div", "crt__scan");
+    this.halo = layer("canvas", "crt__halo");
+    this.mask = layer("div", "crt__mask");
+    this.vignette = layer("div", "crt__vignette");
+    // A vector screen's phosphor persisted: the last frame, which the next keeps where it is the
+    // brighter.
+    this.trail = this.vector ? document.createElement("canvas") : null;
   }
 
   layout(input) {
+    const rect = this.canvas.getBoundingClientRect();
+    const layers = glassLayers(this.crt, {
+      pitch: this.pitch,
+      row: rect.height / input.height || this.pitch,
+      ratio: devicePixelRatio || 1,
+      vector: this.vector,
+    });
+    this.bloom.style.opacity = layers.bloom;
+    this.canvas.style.filter = this.bloom.style.filter = layers.lift;
+    this.scan.style.background = layers.scan;
+    this.mask.style.background = layers.mask;
+    this.vignette.style.background = layers.vignette;
+    this.halo.style.filter = `blur(${layers.halo.blur})`;
+    this.halo.style.opacity = layers.halo.opacity;
     this.bloom.width = Math.max(1, Math.ceil(input.width / this.crt.bloom.scale));
     this.bloom.height = Math.max(1, Math.ceil(input.height / this.crt.bloom.scale));
+    // The halation's copy is made by halving the picture until it is small enough: a pixel of
+    // each half is the average of four, where one step down would pick points from the picture
+    // and put the glow off what casts it.
+    this.halving = [];
+    for (let scale = 2; scale / 2 < layers.halo.scale; scale *= 2) {
+      const step = document.createElement("canvas");
+      step.width = Math.max(1, Math.ceil(input.width / Math.min(scale, layers.halo.scale)));
+      step.height = Math.max(1, Math.ceil(input.height / Math.min(scale, layers.halo.scale)));
+      this.halving.push(step);
+    }
+    const smallest = this.halving[this.halving.length - 1] || this.canvas;
+    // The smallest is read back every frame, so it is kept in memory rather than on the GPU.
+    smallest.getContext("2d", { willReadFrequently: true });
+    this.halo.width = smallest.width;
+    this.halo.height = smallest.height;
+    if (this.trail) {
+      this.trail.width = input.width;
+      this.trail.height = input.height;
+    }
   }
 
   draw(context, input) {
@@ -317,17 +399,50 @@ class CrtGlass {
       const { width } = input;
       // The refresh band rolls down the picture, and the flicker darkens it a little.
       const { y, reach, strength, flicker } = glassRoll(this.crt, input);
-      const band = context.createLinearGradient(0, y - reach, 0, y + reach);
-      band.addColorStop(0, "rgba(255, 255, 255, 0)");
-      band.addColorStop(0.5, `rgba(${input.palette.text.join(", ")}, ${strength})`);
-      band.addColorStop(1, "rgba(255, 255, 255, 0)");
-      context.fillStyle = band;
-      context.fillRect(0, y - reach, width, reach * 2);
+      if (strength > 0) {
+        const band = context.createLinearGradient(0, y - reach, 0, y + reach);
+        band.addColorStop(0, "rgba(255, 255, 255, 0)");
+        band.addColorStop(0.5, `rgba(${input.palette.text.join(", ")}, ${strength})`);
+        band.addColorStop(1, "rgba(255, 255, 255, 0)");
+        context.fillStyle = band;
+        context.fillRect(0, y - reach, width, reach * 2);
+      }
       context.fillStyle = `rgba(0, 0, 0, ${flicker.toFixed(3)})`;
       context.fillRect(0, 0, width, input.height);
+      if (this.trail) this.persist(context);
     }
     this.bloom
       .getContext("2d")
       .drawImage(context.canvas, 0, 0, this.bloom.width, this.bloom.height);
+    this.halate(context);
+  }
+
+  // Each frame keeps the brighter of the picture and the last frame, faded by `trail.fade`.
+  persist(context) {
+    const trail = this.trail.getContext("2d");
+    trail.globalCompositeOperation = "source-over";
+    trail.fillStyle = `rgba(0, 0, 0, ${1 - this.crt.trail.fade})`;
+    trail.fillRect(0, 0, this.trail.width, this.trail.height);
+    context.save();
+    context.globalCompositeOperation = "lighten";
+    context.drawImage(this.trail, 0, 0);
+    context.restore();
+    trail.globalCompositeOperation = "copy";
+    trail.drawImage(context.canvas, 0, 0);
+  }
+
+  halate(context) {
+    let source = context.canvas;
+    for (const step of this.halving) {
+      step.getContext("2d").drawImage(source, 0, 0, step.width, step.height);
+      source = step;
+    }
+    const image = source.getContext("2d").getImageData(0, 0, source.width, source.height);
+    for (let i = 0; i < image.data.length; i += 4) {
+      for (let channel = 0; channel < 3; ++channel) {
+        image.data[i + channel] = 255 * halation(image.data[i + channel] / 255, this.crt);
+      }
+    }
+    this.halo.getContext("2d").putImageData(image, 0, 0);
   }
 }
