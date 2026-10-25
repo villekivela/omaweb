@@ -11394,18 +11394,24 @@ void QtEngineContractTest::qtLetsAnExtensionWithClipboardReadReadWithoutAsking()
         return ClipboardWindow::Files {
             {QStringLiteral("manifest.json"), manifest},
             {QStringLiteral("page.html"),
-                R"HTML(<!doctype html><title>waiting</title><script src="page.js"></script>)HTML"},
-            // Chromium refuses the asynchronous clipboard to a page without focus.
+                R"HTML(<!doctype html><script src="page.js"></script>)HTML"},
+            // The page loads with focus, so a read it started itself could
+            // answer before the test saw it ready (#786). It reads when the
+            // test asks. Chromium refuses the asynchronous clipboard to a page
+            // without focus.
             {QStringLiteral("page.js"), R"JS(
-                function read() {
+                function readText() {
                     navigator.clipboard.readText().then(
                         text => document.title = "read " + text,
                         error => document.title = error.name);
                 }
-                if (document.hasFocus())
-                    read();
-                else
-                    window.addEventListener("focus", read, {once: true});
+                window.read = () => {
+                    if (document.hasFocus())
+                        readText();
+                    else
+                        window.addEventListener("focus", readText, {once: true});
+                };
+                document.title = "ready";
             )JS"},
         };
     };
@@ -11421,15 +11427,19 @@ void QtEngineContractTest::qtLetsAnExtensionWithClipboardReadReadWithoutAsking()
 
     QVERIFY(extensions.load(
         extensions.extensionPage(QStringLiteral("reader"), QStringLiteral("page.html"))));
-    QTRY_COMPARE_WITH_TIMEOUT(extensions.title(), QStringLiteral("waiting"), 20000);
-    QVERIFY(QMetaObject::invokeMethod(extensions.adapter.get(), "focusPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(extensions.title(), QStringLiteral("ready"), 20000);
+    QVERIFY(extensions.focusPage());
+    QVERIFY(extensions.run(QStringLiteral("read();")));
     QTRY_VERIFY_WITH_TIMEOUT(
-        extensions.title() != QStringLiteral("waiting") || extensions.asked->count() > 0, 20000);
+        extensions.title() != QStringLiteral("ready") || extensions.asked->count() > 0, 20000);
     QCOMPARE(extensions.asked->count(), 0);
     QCOMPARE(extensions.title(), QStringLiteral("read from the reader"));
 
     QVERIFY(extensions.load(
         extensions.extensionPage(QStringLiteral("other"), QStringLiteral("page.html"))));
+    QTRY_COMPARE_WITH_TIMEOUT(extensions.title(), QStringLiteral("ready"), 20000);
+    QVERIFY(extensions.focusPage());
+    QVERIFY(extensions.run(QStringLiteral("read();")));
     QTRY_VERIFY_WITH_TIMEOUT(extensions.asked->count() > 0, 20000);
     QCOMPARE(extensions.asked->first().at(2).toString(), QStringLiteral("clipboard-read"));
 #else
