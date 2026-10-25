@@ -3065,17 +3065,79 @@ TestCase {
 
     // The lock is as quiet as the host beside it, an exception to the chrome's
     // glyphs resting in the theme's text, and a certificate error draws it in
-    // the urgent colour (#779).
+    // the urgent colour (#779). It is as large as a tab row's favicon.
     function test_theAddressTriggersLockIsAsQuietAsItsHost() {
         const engine = openPage("https://quiet-lock.example/page");
         const lock = findChild(window.contentItem, "securityIndicator");
+        const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
         tryCompare(lock, "text", "lock");
         verify(Qt.colorEqual(lock.color, window.colors.mutedText));
+        compare(lock.font.pixelSize, tile.width);
         engine.simulateCertificateError({});
         tryCompare(lock, "text", "warning");
         verify(Qt.colorEqual(lock.color, window.colors.urgent));
         openPage("https://quiet-lock-after.example/page");
+    }
+
+    // A click on the host opens the Omnibar, and nothing else (#779).
+    function test_aClickOnTheAddressTriggersHostOpensTheOmnibar() {
+        openPage("https://click-host.example/page");
+        settleMotion();
+        const host = findChild(window.contentItem, "addressText");
+        verify(!window.omnibarOpen);
+        mouseClick(host, host.width / 2, host.height / 2);
+        verify(window.omnibarOpen);
+        verify(!window.siteInformationOpen);
+        mouseClick(window.contentItem, window.width - 20, window.height - 20);
+        verify(!window.omnibarOpen);
+    }
+
+    // A click on the lock opens Site information, not the Omnibar (#779).
+    function test_aClickOnTheAddressTriggersLockOpensSiteInformation() {
+        openPage("https://click-lock.example/page");
+        settleMotion();
+        const lock = findChild(window.contentItem, "securityIndicator");
+        verify(!window.siteInformationOpen);
+        mouseClick(lock, lock.width / 2, lock.height / 2);
+        tryCompare(window, "siteInformationOpen", true);
+        verify(!window.omnibarOpen);
+        keyClick(Qt.Key_Escape);
+        tryCompare(window, "siteInformationOpen", false);
+    }
+
+    // Pinned tabs stand 8 px apart, so each is a capacity's share of the
+    // list less those gaps (#779).
+    function test_aPinsWidthLeavesAnEightPixelGapToTheNext() {
+        const list = findChild(window.contentItem, "pinnedList");
+        const ids = [];
+        for (let i = 0; i < 2; ++i) {
+            openPageInNewTab("https://gap-pin-" + i + ".example");
+            ids.push(browser.activeTabId);
+            browser.toggleActivePinned();
+        }
+        const pins = function () {
+            return ids.map(function (id) {
+                return findChild(window.contentItem, "pinned-" + id);
+            });
+        };
+        // The list lays its pins out a frame after they arrive.
+        tryVerify(function () {
+            const both = pins();
+            return both[0] !== null && both[1] !== null && both[0].x !== both[1].x;
+        });
+        const [left, right] = pins().sort(function (a, b) {
+            return a.x - b.x;
+        });
+        fuzzyCompare(left.width, (list.width - 8 * (list.capacity - 1)) / list.capacity, 0.01);
+        fuzzyCompare(right.x - (left.x + left.width), 8, 0.01);
+        // A pin does not close, so each tab is unpinned first.
+        for (const id of ids) {
+            browser.activateTab(id);
+            browser.toggleActivePinned();
+            browser.closeTab(id);
+        }
+        compare(browser.pinnedTabs.rowCount(), 0);
     }
 
     function test_addressTriggerReportsOnlyWhatTheEngineKnows() {

@@ -8,6 +8,7 @@ import "DevicePixels.mjs" as DevicePixels
 import "SpaceColour.mjs" as SpaceColour
 import "AddressTrigger.mjs" as AddressTrigger
 import "SidebarFill.mjs" as SidebarFill
+import "SiteChip.mjs" as SiteChip
 
 Rectangle {
     id: root
@@ -1065,7 +1066,7 @@ Rectangle {
                 text: root.certificateError ? "warning" : (root.secure ? "lock" : "lock_open")
                 color: root.certificateError ? root.colors.urgent : root.colors.mutedText
                 font.family: root.iconFontFamily
-                font.pixelSize: Style.font.iconSmall
+                font.pixelSize: SiteChip.side(Style.font.caption)
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Site information: %1").arg(root.siteInformationVerdict)
                 Accessible.onPressAction: root.siteInformationRequested("")

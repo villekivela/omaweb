@@ -4,6 +4,7 @@ import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
 import "SidebarFill.mjs" as SidebarFill
+import "SiteChip.mjs" as SiteChip
 
 Item {
     id: root
@@ -139,12 +140,9 @@ Item {
     readonly property bool showsKeepActive: pinned && tabKeepActive
 
     // The slot an ordinary row gives its site chip, and where it starts. The
-    // stand-in the chip draws is two characters of the theme's smallest type,
-    // so the box is derived from that size rather than fixed: a theme with a
-    // larger font would otherwise clip its own letters. The speaker takes the
-    // same box, so the two never sit in different places and the title beside
-    // them never moves.
-    readonly property int chipSize: Math.round(Style.font.caption * 1.6)
+    // speaker takes the same box, so the two never sit in different places and
+    // the title beside them never moves.
+    readonly property int chipSize: SiteChip.side(Style.font.caption)
     readonly property int chipInset: Style.space(8)
     // Where the close button and the Agent mark end: 12 px, scaled with the
     // interface font, inside the edge the row's wash reaches, which for an

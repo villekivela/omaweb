@@ -110,10 +110,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the last part of its path, a file's name or the name of one of Omaweb's own pages, and any other
   page its scheme. A blank page shows "search or enter address". The host and the lock before it
   rest in the quiet text colour, and the host turns to the text colour under the pointer. The lock
-  opens Site information, and a click anywhere else on the line opens the Omnibar. The trigger and
-  the Pinned tabs have no border at rest or under the pointer. They rest on one fill, the theme's
-  text at 7%, 11% under the pointer. The active pin's wash lies over its fill. The trigger takes the
-  focus border while it holds the keyboard.
+  is as large as a tab row's favicon. It opens Site information, and a click anywhere else on the
+  line opens the Omnibar. The trigger and the Pinned tabs have no border at rest or under the
+  pointer. They rest on one fill, the theme's text at 7%, 11% under the pointer. The active pin's
+  wash lies over its fill. The trigger takes the focus border while it holds the keyboard.
 - One 8 px gap separates the navigation row from the address, the address from the pins, each pin
   from the next, and the pins from the ordinary tabs. Ordinary tabs stand 4 px apart.
 - Each Space has a Space colour, one of six that Omaweb owns: orange, yellow, green, teal, blue and
