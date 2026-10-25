@@ -2668,18 +2668,33 @@ Item {
     // reach them. So the frontend's own `attachShadow` is wrapped before any of
     // its scripts run, and every tree it opens from then on adopts one more
     // stylesheet. Nothing is rewritten and nothing is read back: the frontend
-    // builds exactly what it would have built, in Omaweb's colours.
-    function developerToolsMarkupStyleSheet() {
+    // builds exactly what it would have built, in Omaweb's colours. The same
+    // sheet carries the one rule about stacking that those trees need.
+    function developerToolsShadowStyleSheet() {
         const delimiter = root.developerToolsSyntaxColor("type", root.developerToolsColor(
                                                              "mutedText", "#aaa5b7"));
         const tag = root.developerToolsSyntaxColor("tag", root.developerToolsColor("text",
                                                                                    "#f3f1fa"));
         return ".webkit-html-tag{color:" + delimiter + " !important}"
-                + ".webkit-html-tag-name,.webkit-html-close-tag-name{color:" + tag + " !important}";
+                + ".webkit-html-tag-name,.webkit-html-close-tag-name{color:" + tag + " !important}"
+                + root.developerToolsHoverLayerRule();
+    }
+
+    // A button's hover is a layer the frontend draws over it, in a colour that
+    // Chromium makes a tenth of white so the glyph shows through. The theme's
+    // hover colour is solid, and over the glyph it leaves a bare disc where the
+    // icon was. So the layer goes under what the button holds: the button
+    // becomes a stacking context of its own, and the layer sits at its bottom.
+    // Only the toolbar and icon buttons, where the layer is the whole fill:
+    // another button's `::after` may be a badge or a ring that has to stay on top.
+    function developerToolsHoverLayerRule() {
+        const layered = "button.icon,button.only-icon,button.toolbar";
+        return layered.split(",").map(selector => selector + "{isolation:isolate}" + selector
+                                                  + "::after{z-index:-1}").join("");
     }
 
     function developerToolsShadowSnippet() {
-        return "(() => {" + "const css = " + JSON.stringify(root.developerToolsMarkupStyleSheet())
+        return "(() => {" + "const css = " + JSON.stringify(root.developerToolsShadowStyleSheet())
                 + ";" + "const host = globalThis.__omawebDeveloperToolsShadow;"
                 + "if (host) { host.sheet.replaceSync(css); return; }"
                 + "if (typeof CSSStyleSheet !== 'function') return;" + "let sheet;"

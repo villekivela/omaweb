@@ -338,6 +338,7 @@ private slots:
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn();
     void qtDocksAnInspectorDrawnInOmawebsColours();
+    void qtInspectorHoverFillLeavesTheToolbarGlyphVisible();
     void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
     void qtFreezesAHiddenPageTheShellHasFinishedWith();
     void qtRefusesToFreezeAPageThatIsCapturing();
@@ -7593,6 +7594,128 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
     QVERIFY(!adapter->property("developerToolsAttached").toBool());
     QVERIFY(adapter->property("developerToolsView").value<QObject *>() == nullptr);
+}
+
+// The frontend draws a toolbar button's hover as a layer over the button, in
+// `--sys-color-state-hover-on-subtle`, and Chromium's own value for it is a
+// tenth of white. Omaweb names the theme's solid hover colour instead, so a
+// layer drawn above the glyph covers it: the reader sees a bare filled disc
+// where the button's icon was (#765). The fill is the theme's and the size is
+// the button's, and the glyph stays on top of both.
+void QtEngineContractTest::qtInspectorHoverFillLeavesTheToolbarGlyphVisible()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("developerToolsColors"), inspectorPalette()},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(1200, 800);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(700, 800));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Inspected</title><p>inspect me</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Inspected"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    auto *tools = adapter->property("developerToolsView").value<QObject *>();
+    QVERIFY(tools);
+    auto *toolsItem = qobject_cast<QQuickItem *>(tools);
+    QVERIFY(toolsItem);
+    toolsItem->setParentItem(window.contentItem());
+    toolsItem->setPosition(QPointF(700, 0));
+    toolsItem->setSize(QSizeF(500, 800));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        tools->property("url").toUrl().scheme() == QLatin1String("devtools"), 20000);
+    QTRY_VERIFY_WITH_TIMEOUT(!tools->property("loading").toBool(), 20000);
+
+    const auto consoleSignal = signalNamed(tools, "javaScriptConsoleMessage");
+    QVERIFY(consoleSignal.isValid());
+    QSignalSpy consoleSpy(tools, consoleSignal);
+    QVERIFY(consoleSpy.isValid());
+
+    // What the inspector says about its element picker, the first button of
+    // its top toolbar. The buttons live in shadow trees, so the page is walked.
+    const auto ask = [&](const QString &body) {
+        const auto script = QStringLiteral(
+            "console.log('omaweb-answer:' + (() => {"
+            "const find = (root) => { for (const e of root.querySelectorAll('*')) {"
+            "if (e.tagName === 'BUTTON' && /^Select an element/.test(e.title)) return e;"
+            "const found = e.shadowRoot && find(e.shadowRoot); if (found) return found; }"
+            "return null; };"
+            "const picker = find(document); if (!picker) return 'none';"
+            "const box = picker.getBoundingClientRect();"
+            "const layer = getComputedStyle(picker, '::after');"
+            "%1 })())")
+                                .arg(body);
+        for (int attempt = 0; attempt < 40; ++attempt) {
+            consoleSpy.clear();
+            QMetaObject::invokeMethod(tools, "runJavaScript", Q_ARG(QString, script));
+            QTest::qWait(250);
+            for (const auto &message : consoleSpy) {
+                const auto text = message.at(1).toString();
+                if (text.startsWith(QLatin1String("omaweb-answer:"))
+                    && text != QLatin1String("omaweb-answer:none")) {
+                    return text.mid(14);
+                }
+            }
+        }
+        return QString();
+    };
+
+    const auto box = ask(
+        QStringLiteral(
+            "return Math.round(box.x) + ',' + Math.round(box.y) + ',' + Math.round(box.width) + ','"
+            " + Math.round(box.height);"))
+                         .split(QLatin1Char(','));
+    QCOMPARE(box.size(), 4);
+    const QRect button(box.at(0).toInt(), box.at(1).toInt(), box.at(2).toInt(), box.at(3).toInt());
+    QVERIFY(!button.isEmpty());
+    const QColor fill(inspectorPalette().value(QStringLiteral("surfaceHover")).toString());
+    const QPoint pointer(toolsItem->x() + button.center().x(), button.center().y());
+    QTest::mouseMove(&window, pointer - QPoint(4, 4));
+    QTest::mouseMove(&window, pointer);
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        ask(QStringLiteral("return layer.backgroundColor + ' ' + layer.width + ' ' + layer.height"
+                           " + ' ' + layer.borderRadius;")),
+        QStringLiteral("rgb(%1, %2, %3) %4px %5px 9999px")
+            .arg(fill.red())
+            .arg(fill.green())
+            .arg(fill.blue())
+            .arg(button.width())
+            .arg(button.height()),
+        10000);
+
+    QTest::qWait(500);
+    const auto image = window.grabWindow();
+    const auto scale = image.devicePixelRatio();
+    int glyph = 0;
+    // The icon's box is square and the fill round, so only its middle is sampled.
+    const QRect icon(toolsItem->x() + button.x() + 10, button.y() + 7, 12, 12);
+    for (int y = icon.top(); y < icon.bottom(); ++y) {
+        for (int x = icon.left(); x < icon.right(); ++x) {
+            const QColor pixel = image.pixelColor(QPoint(x * scale, y * scale));
+            if (qAbs(pixel.red() - fill.red()) + qAbs(pixel.green() - fill.green())
+                    + qAbs(pixel.blue() - fill.blue())
+                > 60) {
+                ++glyph;
+            }
+        }
+    }
+    const QPoint beside(toolsItem->x() + button.x() + 3, button.center().y());
+    QCOMPARE(image.pixelColor(QPoint(beside.x() * scale, beside.y() * scale)), fill);
+    QVERIFY2(glyph > 10,
+        qPrintable(QStringLiteral("%1 pixels of the icon differ from the fill").arg(glyph)));
 }
 
 // An inspected tab keeps running while another tab or Space is on show, and
