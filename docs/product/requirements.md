@@ -248,11 +248,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   none. Every Scene has a halation, a wide, faint glow around its bright parts: light scattered in
   the faceplate, the same width on every Scene. Every Scene also has a bloom, darker corners and a
   faint flicker. With the glass off, a Scene is its plain pixels.
+- Every Scene is graded toward a second theme hue, as a sunset: its bright parts take the hue at
+  their own brightness, more of them lower in the frame, so a Scene drawn in the accent has a second
+  colour in it. The hue is the theme's syntax keyword colour, and follows a live theme change. Where
+  that colour's hue is within about 30 degrees of the accent's, or it is nearly grey, the hue is the
+  accent's turned half way round, at the theme's tint. The grade is drawn with the CRT glass off
+  too. A Private window's Scene has no grade.
 - The road is drawn from the palette and follows a live theme change: a horizon and a banded sun,
   mountains falling to where the road runs out, a star field, the road from the bottom edge toward
-  the horizon and lane marks drifting toward the reader. It is shown as a monochrome pixel display
-  in the accent, dithered. The road is always night: a light theme's night is drawn from its dark
-  text. A Private window's road has its lights off, with no sun, stars, lane marks or posts.
+  the horizon and lane marks drifting toward the reader. It is shown as a pixel display in the
+  accent, dithered, graded toward the second hue lower in the frame. The road is always night: a
+  light theme's night is drawn from its dark text. A Private window's road has its lights off, with
+  no sun, stars, lane marks or posts.
 - The night sky is drawn from the palette in the same way and follows a live theme change, and it is
   always night, a light theme's night drawn from its dark text. A dark planet rises from the bottom,
   after Navigator's globe: its face from the palette's dark, a thin glow in the palette along its

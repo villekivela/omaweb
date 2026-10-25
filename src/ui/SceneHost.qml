@@ -5,8 +5,9 @@ import QtQuick
 // sizes it in the Scene's own pixels, keeps its clock, decides when it may
 // draw, and shows its small picture square-pixelled across the host, through
 // the CRT glass when the Scene declares one and the reader has not turned it
-// off. It is the website's host (website/scene.js) in Qt Quick, so the two
-// show one Scene the same way.
+// off, graded toward a second theme hue with the glass or without it. It is
+// the website's host (website/scene.js) in Qt Quick, so the two show one Scene
+// the same way.
 Item {
     id: root
 
@@ -99,6 +100,51 @@ Item {
     function amount(group, name, fallback) {
         return root.crt && root.crt[group] ? root.crt[group][name] : fallback;
     }
+
+    // The grade toward a second theme hue, as a sunset: the bright parts take
+    // the hue, more of them lower in the frame. A Scene declares its amounts
+    // in `crt` with the glass's, and the grade is drawn whether the glass is
+    // or not, since it is about colour, not the tube. A Private window's
+    // Scene has none, so the window keeps looking different from an ordinary
+    // one.
+    readonly property var grade: !root.unlit && root.sceneItem && root.sceneItem.crt
+                                 && root.sceneItem.crt.grade ? root.sceneItem.crt.grade : null
+    readonly property color gradeHue: root.secondHue(root.colors)
+    readonly property real gradeTop: root.grade ? root.grade.top : 0
+    readonly property real gradeDepth: root.grade ? root.grade.depth : 1
+    readonly property vector3d gradeHighlights: root.gradeRange("highlights")
+    readonly property vector3d gradeMidtones: root.gradeRange("midtones")
+
+    function gradeRange(name) {
+        const range = root.grade ? root.grade[name] : null;
+        return range ? Qt.vector3d(range.from, range.to, range.strength) : Qt.vector3d(0, 1, 0);
+    }
+
+    // The theme's keyword colour, or, where it would add nothing, its hue
+    // within 30 degrees of the accent's or itself nearly grey, the accent's
+    // hue turned half way round at the theme's tint.
+    function secondHue(colors) {
+        const accent = Qt.color(colors && colors.accent ? colors.accent : "white");
+        const keyword = colors && colors.syntax && colors.syntax.keyword ? Qt.color(
+                                                                               colors.syntax.keyword) :
+                                                                           null;
+        if (keyword && keyword.hslSaturation >= 0.15) {
+            const apart = Math.abs(keyword.hslHue - accent.hslHue);
+            if (accent.hslHue < 0 || Math.min(apart, 1 - apart) >= 30 / 360)
+                return keyword;
+        }
+        const tint = colors && colors.tint ? colors.tint : {};
+        return Qt.hsla((Math.max(0, accent.hslHue) + 0.5) % 1, tint.saturation !== undefined
+                       ? tint.saturation : 0.32, tint.lightness !== undefined ? tint.lightness :
+                                                                                0.62, 1);
+    }
+
+    // The part of the host the reader sees in the host's own coordinates, 0
+    // to 1, which the vignette and the grade are measured in.
+    readonly property rect unitFrame: Qt.rect(root.frame.x / Math.max(1, width), root.frame.y
+                                              / Math.max(1, height), root.frame.width / Math.max(1,
+                                                                                                 width), root.frame.height
+                                              / Math.max(1, height))
 
     readonly property bool drawing: root.running && !root.reducedMotion && !!root.sceneItem
 
@@ -208,7 +254,9 @@ Item {
         when: !!root.sceneItem
     }
 
-    // The Scene's picture, a texel to each of its pixels.
+    // The Scene's picture, a texel to each of its pixels. It is drawn under
+    // the grade too, which covers it, so a renderer that draws no shader, as
+    // the software one, still shows the Scene.
     ShaderEffectSource {
         id: picture
         objectName: "sceneDisplay"
@@ -218,6 +266,24 @@ Item {
         hideSource: true
         smooth: false
         textureSize: Qt.size(root.sceneWidth, root.sceneHeight)
+    }
+
+    // With the glass off, the picture graded.
+    ShaderEffect {
+        id: sceneGrade
+        objectName: "sceneGrade"
+        anchors.fill: parent
+        visible: !root.glassShown && !!root.grade
+
+        property var source: picture
+        property rect frame: root.unitFrame
+        property color gradeHue: root.gradeHue
+        property real gradeTop: root.gradeTop
+        property real gradeDepth: root.gradeDepth
+        property vector3d gradeHighlights: root.gradeHighlights
+        property vector3d gradeMidtones: root.gradeMidtones
+
+        fragmentShader: "qrc:/omaweb/shaders/grade.frag.qsb"
     }
 
     // A smaller copy, smoothed, for the glass's bloom.
@@ -289,10 +355,7 @@ Item {
         property var halo: haloPicture
         property size sceneSize: Qt.size(root.sceneWidth, root.sceneHeight)
         property real glassHeight: height
-        // The frame in the glass's own coordinates, 0 to 1.
-        property rect frame: Qt.rect(root.frame.x / Math.max(1, width), root.frame.y / Math.max(1,
-                                                                                                height), root.frame.width
-                                     / Math.max(1, width), root.frame.height / Math.max(1, height))
+        property rect frame: root.unitFrame
         property real bloomMix: root.crt ? root.crt.bloom.opacity : 0
         // 1 on a raster Scene, 0 on a vector one, which has no scanlines,
         // mask or band.
@@ -332,6 +395,11 @@ Item {
                                                         * Math.sin(root.time
                                                                    * flickers.frequencies[1])) : 0
         property color bandColour: root.colors ? root.colors.text : "white"
+        property color gradeHue: root.gradeHue
+        property real gradeTop: root.gradeTop
+        property real gradeDepth: root.gradeDepth
+        property vector3d gradeHighlights: root.gradeHighlights
+        property vector3d gradeMidtones: root.gradeMidtones
 
         fragmentShader: "qrc:/omaweb/shaders/crtglass.frag.qsb"
     }

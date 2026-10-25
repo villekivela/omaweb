@@ -192,13 +192,16 @@ SUGGESTIONS = (
 # The palette roles the website spends, taken from the palette Omaweb resolved.
 # The opaque grounds rather than the translucent ones: what the page draws is
 # flat, and the translucency a theme names is already in the captures, which
-# keep their alpha.
+# keep their alpha. The keyword colour is the second hue the Start page's
+# Scenes are graded toward, as the browser grades them; a dotted role is one
+# inside a group of the palette.
 RESOLVED_ROLES = {
     "--bg": "windowOpaque",
     "--sidebar": "sidebarOpaque",
     "--fg": "text",
     "--accent": "accent",
     "--urgent": "urgent",
+    "--keyword": "syntax.keyword",
 }
 
 # And the roles the page takes from the theme's own name for them instead.
@@ -443,7 +446,10 @@ def stylesheet(palettes: dict[str, tuple[dict, dict]], borders: dict[str, str]) 
         palette, named = palettes[name]
         lines.append(f'[data-theme="{name}"] {{')
         for token, role in RESOLVED_ROLES.items():
-            lines.append(f"  {token}: var(--omaweb-{token[2:]}, {hex_color(palette[role])});")
+            colour = palette
+            for key in role.split("."):
+                colour = colour[key]
+            lines.append(f"  {token}: var(--omaweb-{token[2:]}, {hex_color(colour)});")
         for token, role in NAMED_ROLES.items():
             lines.append(f"  {token}: var(--omaweb-{token[2:]}, {hex_color(named[role])});")
         lines.append(f"  --border: {borders[name]};")

@@ -41,8 +41,9 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 - `assets/fonts/` holds the self-hosted faces, each beside its SIL Open Font License: Tomorrow for
   headlines, Ioskeley Mono for text.
 - `assets/shots/` holds the captures of the real interface, one directory per Omarchy theme, and
-  `themes.css`, each theme's roles on whichever element carries `data-theme`. The page wears Retro
-  82 unless the reader picks another theme, and the road, the cards and the captures follow it.
+  `themes.css`, each theme's roles on whichever element carries `data-theme`, its keyword colour
+  among them for the glass's grade. The page wears Retro 82 unless the reader picks another theme,
+  and the road, the cards and the captures follow it.
 - `tests/` holds the page's tests and `build/` the build: `site.mjs` copies the site into `dist/`
   and writes the release pages with `releases.mjs`, `release.html` and `render.mjs`. Neither is
   served.
@@ -110,6 +111,14 @@ A rolling band and a faint flicker are drawn into the Scene's picture. The flick
 Scene draws only its small picture and a frame costs the same however large the window. A Scene that
 declares the glass also gives its amounts as `crt`, which the host draws by.
 
+The glass also grades the picture toward a second hue, as a sunset: the bright parts take the hue at
+their own brightness, more of them lower in the frame. The hue is the theme's keyword colour,
+`--keyword`, or, where that is within 30 degrees of the accent's hue, nearly grey or missing, the
+accent's hue turned half way round at the tint every Omarchy theme is rendered with. Omaweb hands a
+release page no keyword colour, so a release page read in Omaweb, in the reader's own accent, is
+graded toward that accent's opposite. The grade is drawn into the Scene's picture after the halation
+is taken from it and before the bloom, as the browser's glass draws it.
+
 `screen: "vector"` declares a Scene of lines, which a vector screen traced with its beam and had no
 raster. The glass then draws no scanlines, mask or band, and keeps the brighter of each frame and
 the last one faded, as the phosphor persisted. It keeps no trail under `reducedMotion`. A Scene that
@@ -148,7 +157,8 @@ own Start page road reads the same file (#496). The script holds only how it dra
   half width at the foreground each `road` option means.
 - `crt` is the glass's amounts, which both hosts draw by: the bloom's scale and opacity, the beam's
   narrowest and widest, falloff, gap shade and lift, the mask's dimming and lift, the halation's
-  threshold, strength, reach and spacing, the vignette, the band's timing and strength, and the
+  threshold, strength, reach and spacing, the grade's top and depth in the frame and its highlights'
+  and midtones' brightness range and strength, the vignette, the band's timing and strength, and the
   flicker's least, range and frequencies.
 - `night` is how the night's colours are mixed from the theme's roles; every other colour names a
   role (`ground`, `light`, `glow`, `skyTop`, `skyLow`, `groundNear`, `sunTop`, `sunLow`, `black`,

@@ -375,16 +375,17 @@ TestCase {
     }
 
     // The glass is the Scene's to declare and the reader's to turn off; off,
-    // the road is its plain pixels.
+    // the road is its plain pixels, graded.
     function test_theGlassCanBeTurnedOff() {
         const host = makeHost();
         const glass = findChild(host, "crtGlass");
-        const plain = findChild(host, "sceneDisplay");
+        const grade = findChild(host, "sceneGrade");
         verify(glass.visible);
-        verify(!plain.visible);
+        verify(!grade.visible);
         host.glass = false;
         verify(!glass.visible);
-        verify(plain.visible);
+        verify(grade.visible);
+        compare(grade.source, findChild(host, "sceneDisplay"));
     }
 
     // A Scene that declares the glass with amounts of its own, which no
@@ -504,6 +505,140 @@ TestCase {
         verify(halo.mipmap);
         compare(halo.textureSize, Qt.size(host.sceneWidth, host.sceneHeight));
         compare(glass.halo, halo);
+    }
+
+    // A theme with the accent and keyword colour given, and the tint, if
+    // given, that the fallback hue is drawn at.
+    function themed(accent, keyword, tint) {
+        const colours = Object.assign({}, crtRoadKeyColours.dark.theme, {
+                                          accent: accent,
+                                          syntax: {
+                                              keyword: keyword
+                                          }
+                                      });
+        if (tint)
+            colours.tint = tint;
+        return colours;
+    }
+
+    // The grade takes the bright parts toward the theme's keyword colour, and
+    // follows the theme as it changes.
+    function test_theGradeFollowsTheThemesKeywordColour() {
+        const host = makeHost({
+                                  colors: themed("#9b87ff", "#c678dd")
+                              });
+        const glass = findChild(host, "crtGlass");
+        compareColour(glass.gradeHue, "#c678dd", "grade hue");
+        host.colors = themed("#9b87ff", "#e5c07b");
+        compareColour(glass.gradeHue, "#e5c07b", "grade hue after the theme changed");
+    }
+
+    // Where the keyword colour would add nothing, its hue too near the
+    // accent's or itself nearly grey, the grade takes the accent's hue turned
+    // half way round, at the theme's tint: blue's opposite, yellow, at half
+    // saturation and half lightness.
+    function test_theGradeFallsBackToTheAccentsOpposite_data() {
+        return [
+                    {
+                        tag: "a keyword near the accent",
+                        keyword: "#4d33ff"
+                    },
+                    {
+                        tag: "a nearly grey keyword",
+                        keyword: "#8c8c73"
+                    }
+                ];
+    }
+
+    function test_theGradeFallsBackToTheAccentsOpposite(data) {
+        const host = makeHost({
+                                  colors: themed("#0000ff", data.keyword, {
+                                                     saturation: 0.5,
+                                                     lightness: 0.5
+                                                 })
+                              });
+        compareColour(findChild(host, "crtGlass").gradeHue, "#bfbf40", "grade hue");
+    }
+
+    // A Scene that declares the glass and the prototype's grade.
+    Component {
+        id: gradedScene
+
+        Item {
+            property var colors
+            property bool dark
+            property real time
+            property real navigating
+            property real beat
+            property var options
+            property bool reducedMotion
+            property bool unlit
+            readonly property int pitch: 4
+            readonly property int fps: 30
+            readonly property string glass: "crt"
+            readonly property string screen: "raster"
+            readonly property var declaredOptions: ({})
+            readonly property var crt: ({
+                                            grade: {
+                                                top: 0.15,
+                                                depth: 0.55,
+                                                highlights: {
+                                                    from: 0.25,
+                                                    to: 0.85,
+                                                    strength: 0.7
+                                                },
+                                                midtones: {
+                                                    from: 0.08,
+                                                    to: 0.5,
+                                                    strength: 0.55
+                                                }
+                                            }
+                                        })
+        }
+    }
+
+    // The graded Scene with the glass off, graded toward red.
+    function gradedHost(properties) {
+        const host = makeHost(Object.assign({
+                                                glass: false,
+                                                colors: themed("#0000ff", "#ff0000"),
+                                                scene: gradedScene
+                                            }, properties || {}));
+        tryVerify(function () {
+            return host.sceneItem !== null && host.sceneItem.crt !== undefined;
+        });
+        return host;
+    }
+
+    // The grade is about colour, not the tube: with the glass off the Scene
+    // is still shown graded, by the amounts it declares. The test renderer
+    // draws no shader, so what the pass is handed is what is checked; the
+    // website's tests work the grade's colours through.
+    function test_theGradeIsDrawnWithTheGlassOff() {
+        const host = gradedHost();
+        const grade = findChild(host, "sceneGrade");
+        const plain = findChild(host, "sceneDisplay");
+        verify(grade.visible);
+        compare(grade.source, plain);
+        compareColour(grade.gradeHue, "#ff0000", "grade hue");
+        compare(grade.gradeTop, 0.15);
+        compare(grade.gradeDepth, 0.55);
+        compare(grade.gradeHighlights, Qt.vector3d(0.25, 0.85, 0.7));
+        compare(grade.gradeMidtones, Qt.vector3d(0.08, 0.5, 0.55));
+        compare(findChild(host, "crtGlass").gradeHighlights, grade.gradeHighlights);
+    }
+
+    // A Private window's Scene has no grade, so the window keeps looking
+    // different from an ordinary one, with the glass or without it.
+    function test_aPrivateWindowsSceneHasNoGrade() {
+        const host = gradedHost({
+                                    unlit: true
+                                });
+        verify(!findChild(host, "sceneGrade").visible);
+        verify(findChild(host, "sceneDisplay").visible);
+        const glass = findChild(host, "crtGlass");
+        compare(glass.gradeHighlights.z, 0);
+        compare(glass.gradeMidtones.z, 0);
     }
 
     // A Private window's road has its lights off: no sun, no stars and no
