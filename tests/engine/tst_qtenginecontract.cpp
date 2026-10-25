@@ -11395,22 +11395,14 @@ void QtEngineContractTest::qtLetsAnExtensionWithClipboardReadReadWithoutAsking()
             {QStringLiteral("manifest.json"), manifest},
             {QStringLiteral("page.html"),
                 R"HTML(<!doctype html><script src="page.js"></script>)HTML"},
-            // The page loads with focus, so a read it started itself could
-            // answer before the test saw it ready (#786). It reads when the
-            // test asks. Chromium refuses the asynchronous clipboard to a page
-            // without focus.
+            // The page loads with focus, so a read it started at load could
+            // answer before the test saw the page load (#786). It reads when
+            // the test asks, after the test gives it focus: Chromium refuses
+            // the asynchronous clipboard to a page without focus.
             {QStringLiteral("page.js"), R"JS(
-                function readText() {
-                    navigator.clipboard.readText().then(
-                        text => document.title = "read " + text,
-                        error => document.title = error.name);
-                }
-                window.read = () => {
-                    if (document.hasFocus())
-                        readText();
-                    else
-                        window.addEventListener("focus", readText, {once: true});
-                };
+                window.read = () => navigator.clipboard.readText().then(
+                    text => document.title = "read " + text,
+                    error => document.title = error.name);
                 document.title = "ready";
             )JS"},
         };
