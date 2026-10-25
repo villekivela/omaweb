@@ -3,6 +3,7 @@ import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
+import "SidebarFill.mjs" as SidebarFill
 
 Item {
     id: root
@@ -241,6 +242,18 @@ Item {
         root.menuRequested(root.tabId, point.x, point.y);
     }
 
+    // A pin is a borderless tile on the fill the address line rests on, deeper
+    // under the pointer (#779). The active pin's wash lies over it. An
+    // ordinary row is a line of text, and its marks are the plates around it.
+    Rectangle {
+        objectName: "pinFill-" + root.tabId
+        anchors.fill: parent
+        visible: root.pinned
+        radius: Style.cornerRadius
+        border.width: 0
+        color: SidebarFill.resting(root.colors.text, hoverArea.containsMouse)
+    }
+
     // The tab on show is marked as the Omnibar marks its selected row: the
     // accent at 14%, edge to edge with square corners. The tab beside a split's
     // active half is on show too, at half the strength. A pin keeps the mark
@@ -283,26 +296,6 @@ Item {
         anchors.rightMargin: -root.reachRight
         visible: !root.pinned && hoverArea.containsMouse && !root.cursorShown
         color: Qt.alpha(root.colors.accent, 0.07)
-    }
-
-    // A pin is a bordered tile at rest, as the reader's own address field is,
-    // and carries the kit's control fill and hover. The active pin's wash is on
-    // the plate beneath, so the tile takes its border in the same colour rather
-    // than the kit's selected fill. An ordinary row is a line of text, and its
-    // marks are the plates around it.
-    Omarchy.Button {
-        id: tabButton
-        objectName: "tabButton-" + root.tabId
-        anchors.fill: parent
-        visible: root.pinned
-        hasCursor: root.activeFocus || hoverArea.containsMouse
-        bordered: true
-        foreground: !root.active ? root.colors.mutedText : (root.siteColored ? root.siteColor :
-                                                                               root.colors.accent)
-        background: Style.normalFillFor(root.colors.text, root.colors.accent)
-        accent: root.siteColored && root.active ? root.siteColor : root.colors.accent
-        horizontalPadding: 0
-        verticalPadding: 0
     }
 
     // The bar, on the sidebar's edge. Square, as the wash it leads is.

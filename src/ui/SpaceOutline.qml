@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
 import "SpaceColour.mjs" as SpaceColour
+import "SidebarFill.mjs" as SidebarFill
 
 Rectangle {
     id: root
@@ -15,6 +16,9 @@ Rectangle {
     // Where the pins and the rows start across, on a whole pixel of the
     // display, so a pinned tab's icon centred in its tile rests on one.
     readonly property real listMargin: DevicePixels.snap(16, pixelRatio)
+    // The one gap between the sidebar's blocks: the navigation row, the
+    // address, each pin, and the tab list (#779).
+    readonly property int blockGap: 8
 
     property var colors
     property string iconFontFamily
@@ -388,6 +392,26 @@ Rectangle {
     readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl)
                                   === "about:blank"
+
+    // What the address line shows of a page: its host, without `www.`, and
+    // its port if it has one. A local file or one of Omaweb's own pages has
+    // no host and shows the last part of its path, and any other page with
+    // none, such as `data:`, its scheme (#779).
+    function shownAddress(url) {
+        const parts = /^([a-z][a-z0-9+.-]*):(?:\/\/([^/?#]*))?([^?#]*)/i.exec(String(url));
+        if (!parts)
+            return String(url);
+        const host = (parts[2] || "").replace(/^[^@]*@/, "").replace(/^www\./i, "");
+        if (host.length > 0)
+            return host;
+        const scheme = parts[1].toLowerCase();
+        if (scheme !== "file" && scheme !== "omaweb")
+            return scheme;
+        const segments = parts[3].split("/").filter(function (segment) {
+            return segment.length > 0;
+        });
+        return segments.length > 0 ? decodeURIComponent(segments[segments.length - 1]) : scheme;
+    }
 
     // The footer's button for a Space, or null when the Space has none.
     function spaceButton(spaceId) {
@@ -863,7 +887,7 @@ Rectangle {
         anchors.leftMargin: 16
         anchors.rightMargin: 16
         anchors.topMargin: 10
-        spacing: 8
+        spacing: root.blockGap
 
         // The navigation controls hold the row the Space heading used to: the
         // commands that act on the page open the outline, and the browsing
@@ -999,10 +1023,11 @@ Rectangle {
             }
         }
 
-        // The address is a form control, so it is drawn as the kit draws one:
-        // a border at rest rather than a borderless plate that only grows an
-        // edge once it is focused. A field the reader can type into says so
-        // before they touch it.
+        // The address is a quiet line, not a field: where the page is, at a
+        // glance, and the way into the Omnibar. It has no border at rest or
+        // under the pointer and rests on the fill a pin rests on, so the two
+        // read as one surface (#779). Holding the keyboard, it takes the
+        // kit's focus border, which nothing else on it would show.
         Omarchy.BorderSurface {
             id: addressButton
             objectName: "addressButton"
@@ -1010,13 +1035,11 @@ Rectangle {
             readonly property bool focused: root.siteInformationOpen || addressButton.activeFocus
             width: parent.width
             height: Style.space(36)
-            radius: 2
-            color: Style.controlFill(addressButton.focused, addressMouse.containsMouse,
-                                     root.colors.text, root.colors.accent)
-            borderSpec: Border.controlSpec(addressButton.focused ? "focus" : (
-                                                                       addressMouse.containsMouse
-                                                                       ? "hover-cursor" : "normal"),
-                                           root.colors.text, root.colors.accent)
+            radius: Style.cornerRadius
+            color: SidebarFill.resting(root.colors.text, addressMouse.containsMouse)
+            readonly property var focusBorder: Border.controlSpec("focus", root.colors.text,
+                                                                  root.colors.accent)
+            borderSpec: addressButton.focused ? addressButton.focusBorder : Border.none()
             activeFocusOnTab: true
             Accessible.role: Accessible.Button
             Accessible.name: addressButton.accessibleName
@@ -1052,9 +1075,9 @@ Rectangle {
                 width: Style.space(18)
                 horizontalAlignment: Text.AlignHCenter
                 text: root.certificateError ? "warning" : (root.secure ? "lock" : "lock_open")
-                color: root.certificateError ? root.colors.urgent : root.colors.text
+                color: root.certificateError ? root.colors.urgent : root.colors.mutedText
                 font.family: root.iconFontFamily
-                font.pixelSize: Style.font.iconLarge
+                font.pixelSize: Style.font.iconSmall
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Site information: %1").arg(root.siteInformationVerdict)
                 Accessible.onPressAction: root.siteInformationRequested("")
@@ -1070,15 +1093,17 @@ Rectangle {
             }
 
             Text {
+                objectName: "addressText"
                 anchors.left: securityGlyph.right
                 anchors.leftMargin: Style.space(9)
                 anchors.right: blockedCount.left
                 anchors.rightMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.blank ? qsTr("search or enter address") : String(root.activeUrl).replace(
-                                       /^[a-z]+:\/\//, "")
-                color: root.blank ? root.colors.mutedText : root.colors.text
-                elide: Text.ElideMiddle
+                text: root.blank ? qsTr("search or enter address") : root.shownAddress(
+                                       root.activeUrl)
+                color: root.blank || !addressMouse.containsMouse ? root.colors.mutedText :
+                                                                   root.colors.text
+                elide: Text.ElideRight
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
             }
@@ -1190,7 +1215,7 @@ Rectangle {
             anchors.top: parent.top
             anchors.leftMargin: root.listMargin
             anchors.rightMargin: 16
-            anchors.topMargin: visible ? 12 : 0
+            anchors.topMargin: visible ? root.blockGap : 0
             height: childrenRect.height
             visible: !root.privateWindow && root.pinnedCount > 0
             opacity: root.arrivalOpacity
@@ -1198,7 +1223,7 @@ Rectangle {
                 x: root.arrivalOffset * listLayer.width + root.swipeOffset
             }
             readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
-            spacing: 4
+            spacing: root.blockGap
 
             Repeater {
                 model: root.browser ? root.browser.pinnedTabs : null
@@ -1250,7 +1275,7 @@ Rectangle {
             anchors.right: parent.right
             anchors.top: pinnedSection.bottom
             anchors.bottom: parent.bottom
-            anchors.topMargin: 12
+            anchors.topMargin: root.blockGap
             anchors.bottomMargin: 12
             // The view spans the sidebar, and the list's margins are inside
             // it: a row's wash, and the pointer it answers, reach past them to
@@ -1286,10 +1311,10 @@ Rectangle {
                 readonly property real splitMiddle: DevicePixels.snap(leftPadding + rowWidth / 2,
                                                                       root.pixelRatio)
 
-                // The list gaps its rows as the pinned section gaps its pins, so
-                // the two halves of the sidebar read as one list. The halves of a
-                // split keep the gap between them, and their washes meet across it.
-                spacing: pinnedSection.spacing
+                // Rows stand closer than the sidebar's blocks: they are one
+                // list. The halves of a split keep the gap between them, and
+                // their washes meet across it.
+                spacing: 4
 
                 // At rest the tabs a Tab window shows are still listed, and the
                 // blank one standing in for a page is not.

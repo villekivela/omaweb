@@ -105,6 +105,17 @@ reports the gap and remains experimental rather than imitating behavior it canno
   command-scope buttons first, followed by back, forward, and reload. The footer contains the
   Spaces, active Download mark, and settings. Private windows replace the Spaces with a mask. New
   tabs remain available through the Omnibar and keyboard commands rather than a sidebar button.
+- The sidebar is quiet. The current-address trigger is a line, not a field: it shows the page's host
+  alone, without the scheme, `www.`, path, query or fragment, and keeps a port. A page with no host
+  shows the last part of its path, a file's name or the name of one of Omaweb's own pages, and any
+  other page its scheme. A blank page shows "search or enter address". The host is in the quiet text
+  colour, and in the text colour under the pointer, beside the lock, also in the quiet text colour,
+  which opens Site information. A click anywhere else on the line opens the Omnibar. The line and
+  the Pinned tabs have no border at rest or under the pointer and rest on one fill, the theme's text
+  at 7%, 11% under the pointer. The active pin's wash lies over its fill. The address takes the
+  focus border while it holds the keyboard.
+- One 8 px gap separates the navigation row from the address, the address from the pins, each pin
+  from the next, and the pins from the ordinary tabs. Ordinary tabs stand 4 px apart.
 - Each Space has a Space colour, one of six that Omaweb owns: orange, yellow, green, teal, blue and
   violet. A theme does not choose them, and a theme's `spaces` are not read. Each is a fixed hue and
   chroma in OKLCH, and per theme only its lightness moves, until it reaches 3:1 against every ground
@@ -558,11 +569,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
   rests on, the window, sidebar, surface, overlay and sheet and their Private counterparts, and
   therefore clear of the disabled rendering of ordinary text. A hover fill is not one of them. A
   page that follows the theme keeps the quiet colour the theme named. Chrome icon buttons are not
-  quiet text: they rest in the theme's text colour. A reader must never have to guess whether
-  something is merely quiet or actually unavailable. Borders clear the WCAG AA non-text threshold
-  against every surface they separate. Contrast repair keeps a colour's theme-supplied hue. Where a
-  palette's own surfaces put a threshold out of reach, the colour that reads best on the worst of
-  them is used and the rest of the theme is kept: the browser always follows the desktop's colours.
+  quiet text: they rest in the theme's text colour. The address line's lock is the exception: it is
+  as quiet as the host beside it, and a certificate error draws it in the urgent colour. A reader
+  must never have to guess whether something is merely quiet or actually unavailable. Borders clear
+  the WCAG AA non-text threshold against every surface they separate. Contrast repair keeps a
+  colour's theme-supplied hue. Where a palette's own surfaces put a threshold out of reach, the
+  colour that reads best on the worst of them is used and the rest of the theme is kept: the browser
+  always follows the desktop's colours.
 - The Agent accent keeps its theme-supplied hue and clears 4.5:1 against the window and the sidebar,
   since the page frame's label is written on it. It is kept apart from the accent.
 - Private windows must remain visually distinct. Reduced-motion, increased-contrast, and
