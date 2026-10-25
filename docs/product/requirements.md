@@ -238,12 +238,21 @@ reports the gap and remains experimental rather than imitating behavior it canno
   centred on it; the road has the composition the website draws in a viewport of that size. With the
   sidebar hidden the page area is the whole window. A Scene moves only while the Start page is on
   show and the window is on screen and holds the keyboard.
+- The CRT glass shows a Scene as an old screen. The road, the night sky and Game of Life are raster
+  Scenes, drawn by the beam with one line to each of the Scene's rows. The beam widens over a bright
+  row to fill the gap below it and thins over a dark one, so a dark row leaves its gap dark. A
+  phosphor mask of red, green and blue stripes, each one device pixel wide, lies over the picture,
+  and a band rolls down it. The vector terrain, the radar and hyperspace are vector Scenes: a vector
+  screen traced its lines with the beam and had no raster, so they have no scanlines, mask or band.
+  While a vector Scene moves its lines leave a fading trail, and under reduced motion they leave
+  none. Every Scene has a halation, a wide, faint glow around its bright parts: light scattered in
+  the faceplate, the same width on every Scene. Every Scene also has a bloom, darker corners and a
+  faint flicker. With the glass off, a Scene is its plain pixels.
 - The road is drawn from the palette and follows a live theme change: a horizon and a banded sun,
   mountains falling to where the road runs out, a star field, the road from the bottom edge toward
   the horizon and lane marks drifting toward the reader. It is shown as a monochrome pixel display
-  in the accent, dithered, with a dark seam between display pixels. The road is always night: a
-  light theme's night is drawn from its dark text. A Private window's road has its lights off, with
-  no sun, stars, lane marks or posts.
+  in the accent, dithered. The road is always night: a light theme's night is drawn from its dark
+  text. A Private window's road has its lights off, with no sun, stars, lane marks or posts.
 - The night sky is drawn from the palette in the same way and follows a live theme change, and it is
   always night, a light theme's night drawn from its dark text. A dark planet rises from the bottom,
   after Navigator's globe: its face from the palette's dark, a thin glow in the palette along its

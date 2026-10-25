@@ -10,10 +10,10 @@ import "SceneColour.mjs" as Colour
 //
 // It keeps NightRoad.qml's contract with SceneHost.qml: it receives `colors`,
 // `dark`, `time`, `navigating`, `beat`, `options`, `reducedMotion` and
-// `unlit`, and declares `pitch`, `fps`, `glass` with the glass's amounts as
-// `crt`, its options, and `horizonY`, where the Omnibar rests. It casts no
-// light. What it draws by is share/scenes/game-of-life.json; the board and
-// its rules are LifeBoard's.
+// `unlit`, and declares `pitch`, `fps`, `glass`, `screen` with the glass's
+// amounts as `crt`, its options, and `horizonY`, where the Omnibar rests. It
+// casts no light. What it draws by is share/scenes/game-of-life.json; the
+// board and its rules are LifeBoard's.
 Item {
     id: root
     objectName: "gameOfLife"
@@ -43,6 +43,7 @@ Item {
     readonly property int pitch: root.parameters.pitch
     readonly property int fps: root.parameters.fps
     readonly property string glass: root.parameters.glass
+    readonly property string screen: root.parameters.screen
     readonly property var crt: root.parameters.crt
     readonly property var declaredOptions: root.parameters.options
 

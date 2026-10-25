@@ -449,7 +449,8 @@ p code {
 }
 
 /* The CRT glass scene.js composites over a Scene that asks for it: the Scene's small canvas scaled
-   up pixelated, a smaller copy scaled up smooth for the bloom, scanlines and darker corners. */
+   up pixelated, a smaller copy scaled up smooth for the bloom, the beam's scanlines, the halation
+   screened over them, the phosphor mask multiplied over that, and darker corners. */
 .crt canvas:first-child {
   image-rendering: crisp-edges;
   image-rendering: pixelated;
@@ -457,6 +458,8 @@ p code {
 
 .crt__bloom,
 .crt__scan,
+.crt__halo,
+.crt__mask,
 .crt__vignette {
   position: absolute;
   inset: 0;
@@ -465,8 +468,17 @@ p code {
   pointer-events: none;
 }
 
-/* The bloom's opacity, the scanlines and the vignette are the Scene's, from the `crt` block of
-   share/scenes/crt-road.json, which scene.js sets on these layers. */
+.crt__halo {
+  mix-blend-mode: screen;
+}
+
+.crt__mask {
+  mix-blend-mode: multiply;
+}
+
+/* The bloom's opacity, the lift, the scanlines, the halation's blur and strength, the mask and the
+   vignette are the Scene's, from the `crt` block of share/scenes/crt-road.json, which scene.js sets
+   on these layers. */
 
 /* The Start page: the headline in the sky above the sun, whose radius is 15% of the road's
    height, the Omnibar resting on the horizon, and the way in below. The road fills the window, so

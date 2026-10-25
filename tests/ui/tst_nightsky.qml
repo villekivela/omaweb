@@ -74,6 +74,7 @@ TestCase {
         tryCompare(sky, "width", 800 / sky.pitch);
         compare(sky.horizonY, 250);
         compare(sky.glass, "crt");
+        compare(sky.screen, "raster");
         compare(sky.crt, sky.parameters.crt);
         verify(findChild(host, "crtGlass").visible);
     }

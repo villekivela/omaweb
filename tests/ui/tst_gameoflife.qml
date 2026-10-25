@@ -91,6 +91,7 @@ TestCase {
         compare(life.rows, Math.ceil(500 / life.pitch));
         compare(life.horizonY, 250);
         compare(life.glass, "crt");
+        compare(life.screen, "raster");
         compare(life.crt, life.parameters.crt);
         verify(findChild(host, "crtGlass").visible);
         compare(host.light, null);

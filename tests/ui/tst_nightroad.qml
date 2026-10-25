@@ -404,6 +404,7 @@ TestCase {
             readonly property int pitch: 4
             readonly property int fps: 30
             readonly property string glass: "crt"
+            readonly property string screen: "raster"
             readonly property var declaredOptions: ({})
             readonly property var crt: ({
                                             bloom: {
@@ -411,8 +412,21 @@ TestCase {
                                                 opacity: 0.31
                                             },
                                             scanlines: {
-                                                every: 4,
-                                                shade: 0.27
+                                                shade: 0.27,
+                                                narrowest: 0.4,
+                                                widest: 1.3,
+                                                falloff: 1.9,
+                                                lift: 1.1
+                                            },
+                                            mask: {
+                                                dim: 0.66,
+                                                lift: 1.3
+                                            },
+                                            halation: {
+                                                threshold: 0.41,
+                                                strength: 0.19,
+                                                reach: 16,
+                                                spacing: 20
                                             },
                                             vignette: {
                                                 clear: 0.61,
@@ -450,8 +464,19 @@ TestCase {
         const glass = findChild(host, "crtGlass");
         tryCompare(host, "sceneHeight", 125);
         compare(glass.bloomMix, 0.31);
-        compare(glass.scanEvery, 4);
         compare(glass.scanShade, 0.27);
+        compare(glass.beamNarrowest, 0.4);
+        compare(glass.beamWidest, 1.3);
+        compare(glass.beamFalloff, 1.9);
+        compare(glass.beamLift, 1.1);
+        compare(glass.maskDim, 0.66);
+        compare(glass.maskLift, 1.3);
+        compare(glass.haloThreshold, 0.41);
+        compare(glass.haloStrength, 0.19);
+        // 16 logical pixels at a pitch of 4 is a texel of 4 of the Scene's,
+        // the second mipmap level, and its taps stand 5 of them apart.
+        compare(glass.haloLod, 2);
+        compare(glass.haloStep, Qt.size(5 / host.sceneWidth, 5 / host.sceneHeight));
         compare(glass.vignetteClear, 0.61);
         compare(glass.vignetteShade, 0.43);
         compare(glass.bandStrength, 0.08);
@@ -461,6 +486,24 @@ TestCase {
             return host.frames > 2;
         });
         verify(glass.flicker >= 0.07 && glass.flicker <= 0.08, glass.flicker);
+    }
+
+    // A raster Scene's beam draws one line to each of its rows, so the lines
+    // are as far apart as the Scene's pixels are tall, and the phosphor mask
+    // lies over it. The halation reads a copy at the Scene's full size whose
+    // mipmaps average it, rather than a smaller copy that picks points.
+    function test_theBeamDrawsOneLineToEachOfTheScenesRows() {
+        const host = makeHost();
+        const glass = findChild(host, "crtGlass");
+        compare(host.sceneItem.screen, "raster");
+        compare(host.pitch, 4);
+        tryCompare(host, "sceneHeight", testCase.height / 4);
+        compare(glass.scanPeriod, 4);
+        compare(glass.raster, 1);
+        const halo = findChild(host, "haloPicture");
+        verify(halo.mipmap);
+        compare(halo.textureSize, Qt.size(host.sceneWidth, host.sceneHeight));
+        compare(glass.halo, halo);
     }
 
     // A Private window's road has its lights off: no sun, no stars and no
