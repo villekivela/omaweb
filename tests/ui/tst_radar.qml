@@ -102,6 +102,7 @@ TestCase {
         tryCompare(radar, "width", 800 / radar.pitch);
         compare(radar.horizonY, 250);
         compare(radar.glass, "crt");
+        compare(radar.screen, "vector");
         compare(radar.crt, radar.parameters.crt);
         verify(findChild(host, "crtGlass").visible);
         verify(host.light !== null, "no light on the rim");
@@ -438,5 +439,26 @@ TestCase {
         wait(100);
         image = grabImage(host);
         verify(sample(blip.x, blip.y) < face + 0.1, "a blip in a Private window");
+    }
+
+    // The radar is a vector screen, which traced its lines with the beam and
+    // had no raster: no scanlines, no mask and no refresh band. Its phosphor
+    // persisted, so the glass shows a trail, and none under reduced motion.
+    function test_theRadarIsShownAsAVectorScreen() {
+        const host = makeHost({
+                                  running: true
+                              });
+        const glass = findChild(host, "crtGlass");
+        const trail = findChild(host, "trailPicture");
+        compare(host.sceneItem.screen, "vector");
+        compare(glass.raster, 0);
+        compare(glass.bandStrength, 0);
+        verify(trail.sourceItem !== null);
+        compare(glass.source, trail);
+        compare(findChild(host, "trailEffect").fade, 0.9);
+
+        host.reducedMotion = true;
+        compare(trail.sourceItem, null);
+        compare(glass.source, findChild(host, "sceneDisplay"));
     }
 }

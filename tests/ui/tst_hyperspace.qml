@@ -125,6 +125,7 @@ TestCase {
         compare(field.horizonY, 250);
         compare(field.centre, Qt.point(400, 250));
         compare(field.glass, "crt");
+        compare(field.screen, "vector");
         compare(field.crt, field.parameters.crt);
         verify(findChild(host, "crtGlass").visible);
         compare(host.light, null);

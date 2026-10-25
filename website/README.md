@@ -84,6 +84,7 @@ export const myScene = {
   pitch: 4, // CSS pixels to one of the Scene's pixels; 1 by default
   fps: 30, // the most frames a second its motion needs; uncapped by default
   glass: "crt", // shown through the CRT glass; leave it out for none
+  screen: "raster", // "vector" for a Scene of lines, which the glass shows without a raster
   options: { bands: ["4", "3"] }, // the reader's choices, the first the default
   draw(context, input) {},
   light(input) {}, // the light it casts on the page; leave it out for none
@@ -101,12 +102,27 @@ the sky around the sun, not at all below the glow's threshold or under `reducedM
 page lights the Omnibar with it: its rim catches the sun's light, brightest over the sun and
 brighter on the beat.
 
-`glass: "crt"` asks the host to show the canvas through a CRT: scaled up pixelated, with a bloom,
-scanlines and darker corners the browser composites, and a rolling band and a faint flicker drawn
-into the Scene's picture. The flicker darkens by 2 to 4.5 percent and never flashes, and both stop
-under `reducedMotion`. The CRT is the host's, so a Scene draws only its small picture and a frame
-costs the same however large the window. A Scene that declares the glass also gives its amounts as
-`crt`, which the host draws by.
+`glass: "crt"` asks the host to show the canvas through a CRT. The browser composites the canvas
+scaled up pixelated, a bloom, the beam's scanlines with one line to each of the Scene's rows, the
+halation, a phosphor mask of red, green and blue stripes one device pixel wide, and darker corners.
+A rolling band and a faint flicker are drawn into the Scene's picture. The flicker darkens by 2 to
+4.5 percent and never flashes, and both stop under `reducedMotion`. The CRT is the host's, so a
+Scene draws only its small picture and a frame costs the same however large the window. A Scene that
+declares the glass also gives its amounts as `crt`, which the host draws by.
+
+`screen: "vector"` declares a Scene of lines, which a vector screen traced with its beam and had no
+raster. The glass then draws no scanlines, mask or band, and keeps the brighter of each frame and
+the last one faded, as the phosphor persisted. It keeps no trail under `reducedMotion`. A Scene that
+leaves `screen` out is a raster one.
+
+This glass differs from the browser's (src/ui/shaders/crtglass.frag) in two ways, both because one
+layer drawn for the whole window cannot follow each of the Scene's pixels:
+
+- The browser's beam widens over a bright row and thins over a dark one. Here every line is as wide
+  as the beam half way between its narrowest and widest.
+- The browser's halation averages 3 by 3 taps over a mipmap level and then cuts it at the threshold.
+  Here the picture is halved until a pixel is `halation.reach` CSS pixels, cut at the threshold, and
+  then blurred by `halation.spacing`, so a small bright source glows a little more.
 
 ### What a Scene may not do
 
@@ -128,11 +144,12 @@ takes the defaults.
 Everything it draws by is in `share/scenes/crt-road.json`, outside `website/`, because the browser's
 own Start page road reads the same file (#496). The script holds only how it draws:
 
-- `pitch`, `fps`, `glass` and `options` are the Scene's declarations, and `roadWidth` the half width
-  at the foreground each `road` option means.
-- `crt` is the glass's amounts, which both hosts draw by: the bloom's scale and opacity, the
-  scanlines' spacing and shade, the vignette, the band's timing and strength, and the flicker's
-  least, range and frequencies.
+- `pitch`, `fps`, `glass`, `screen` and `options` are the Scene's declarations, and `roadWidth` the
+  half width at the foreground each `road` option means.
+- `crt` is the glass's amounts, which both hosts draw by: the bloom's scale and opacity, the beam's
+  narrowest and widest, falloff, gap shade and lift, the mask's dimming and lift, the halation's
+  threshold, strength, reach and spacing, the vignette, the band's timing and strength, and the
+  flicker's least, range and frequencies.
 - `night` is how the night's colours are mixed from the theme's roles; every other colour names a
   role (`ground`, `light`, `glow`, `skyTop`, `skyLow`, `groundNear`, `sunTop`, `sunLow`, `black`,
   `white`) or a `mix` of two at an amount, and a gradient is a list of `[position, colour]` or
