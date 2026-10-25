@@ -48,15 +48,20 @@ engine is 6.11.2-15. [v0.16.0](https://github.com/villekivela/omaweb/releases/ta
 the browser theme, which follows Omarchy's or is any installed Omarchy theme picked for the browser
 alone ([ADR 0066](adr/0066-pick-the-browser-theme-from-installed-omarchy-themes.md)), a playing tab
 kept audible through its silences, and the Omarchy kit caught up with quattro. Its engine is still
-6.11.2-15. v0.17.0 is the release in progress.
+6.11.2-15. [v0.17.0](https://github.com/villekivela/omaweb/releases/tag/v0.17.0) shipped a
+two-finger swipe across the sidebar that switches Space, pages drawn at a scale that follows the
+desktop's text scaling, Problem reports, a click that copies without asking, Google's sign-in
+answered with Chrome's own `chrome.app`, and open pages kept when Sync brings another machine's
+state. Its engine is 6.11.2-16, built against Qt 6.12.0. v0.18.0 is the release in progress.
 
-[v0.17.0](https://github.com/villekivela/omaweb/milestone/16) brings a two-finger swipe across the
-sidebar that switches Space with the fingers
-([#734](https://github.com/villekivela/omaweb/issues/734)), and pages drawn at a default scale that
-follows the desktop's text scaling ([#709](https://github.com/villekivela/omaweb/issues/709),
-[ADR 0067](adr/0067-scale-pages-by-the-desktops-text-scaling.md)). It also sends sites the reader's
-first language ([#735](https://github.com/villekivela/omaweb/issues/735)) and leaves no Omaweb
-global for a page to find ([#736](https://github.com/villekivela/omaweb/issues/736)).
+[v0.18.0](https://github.com/villekivela/omaweb/milestone/18) brings a quieter sidebar: the address
+as a bare domain line and pinned tabs without borders
+([#779](https://github.com/villekivela/omaweb/issues/779)). The Start page's CRT glass gets beam
+scanlines, a phosphor mask and halation ([#780](https://github.com/villekivela/omaweb/issues/780)),
+and its Scenes a sunset grade toward a second theme hue
+([#781](https://github.com/villekivela/omaweb/issues/781)). The inspector's toolbar hover is fixed
+([#765](https://github.com/villekivela/omaweb/issues/765)). Last, the engine moves to QtWebEngine
+6.12 ([#484](https://github.com/villekivela/omaweb/issues/484)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
