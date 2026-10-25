@@ -83,12 +83,17 @@
       [rect.left + 0.1, rect.right - 0.1].some((x) => onTop(x, y)),
     );
   };
-  // A control the page switched off takes no click. An element is hinted for a
-  // role or a control it has, never for a tabindex alone.
-  const switchedOff = (element) =>
-    element.matches(":disabled") ||
-    element.readOnly === true ||
-    ["", "true"].includes((element.getAttribute("aria-disabled") ?? "x").toLowerCase());
+  // A control the page switched off, or made read-only, is not one to click
+  // into. An element is hinted for a role or a control it has, never for a
+  // tabindex alone, so the selector below has no tabindex.
+  const switchedOff = (element) => {
+    const ariaDisabled = element.getAttribute("aria-disabled");
+    return (
+      element.matches(":disabled") ||
+      (field(element) && element.readOnly === true) ||
+      (ariaDisabled !== null && ["", "true"].includes(ariaDisabled.toLowerCase()))
+    );
+  };
   // Breadth-first allocation permits short and long hints on the same page
   // without making a complete hint the prefix of another one.
   const labelsFor = (count) => {
@@ -217,7 +222,10 @@
       overlay.append(hint);
       return { label, target, hint };
     });
-    document.documentElement.append(overlay);
+    // A modal dialog makes all that lies outside it inert, a popover included,
+    // and the input in it could not take the focus. Inside the dialog the layer
+    // is still in the top layer, and the input is live.
+    (document.querySelector("dialog:modal") ?? document.documentElement).append(overlay);
     overlay.showPopover();
     state.overlay = overlay;
     state.hintMode = command;

@@ -2030,8 +2030,12 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
         << hintsPage(R"HTML(
             <a href="#1">Behind one</a><a href="#2">Behind two</a>
             <dialog><button>OK</button> <button>Cancel</button></dialog>)HTML",
-               "document.querySelector('dialog').showModal();")
-        << int(Qt::Key_unknown) << QStringLiteral("top:OK,Cancel") << false << QStringList {};
+               R"JS(document.querySelector('dialog').showModal();
+                    const report = hinted;
+                    hinted = () => report()
+                        + (document.activeElement.id === 'hintsi' ? '+typing' : '-typing');)JS")
+        << int(Qt::Key_unknown) << QStringLiteral("top:OK,Cancel+typing") << false
+        << QStringList {};
     // GitHub's review menu: a positioned panel over the page, not modal.
     QTest::newRow("a dropdown over the page hints only its menu items")
         << hintsPage(R"HTML(
