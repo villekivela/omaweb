@@ -11,6 +11,12 @@
     "scanlines": { "shade": 0.608, "narrowest": 0.5, "widest": 1.15, "falloff": 2.2, "lift": 1.15 },
     "mask": { "dim": 0.72, "lift": 1.22 },
     "halation": { "threshold": 0.35, "strength": 0.25, "reach": 32, "spacing": 24 },
+    "grade": {
+      "top": 0.15,
+      "depth": 0.55,
+      "highlights": { "from": 0.25, "to": 0.85, "strength": 0.7 },
+      "midtones": { "from": 0.08, "to": 0.5, "strength": 0.55 }
+    },
     "vignette": { "clear": 0.55, "shade": 0.55 },
     "band": {
       "every": 7,
