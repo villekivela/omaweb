@@ -7672,32 +7672,33 @@ void QtEngineContractTest::qtInspectorHoverFillLeavesTheToolbarGlyphVisible()
         return QString();
     };
 
-    const auto centre = ask(
+    const auto box = ask(
         QStringLiteral(
             "return Math.round(box.x) + ',' + Math.round(box.y) + ',' + Math.round(box.width) + ','"
             " + Math.round(box.height);"))
-                            .split(QLatin1Char(','));
-    QCOMPARE(centre.size(), 4);
-    const QRect button(
-        centre.at(0).toInt(), centre.at(1).toInt(), centre.at(2).toInt(), centre.at(3).toInt());
+                         .split(QLatin1Char(','));
+    QCOMPARE(box.size(), 4);
+    const QRect button(box.at(0).toInt(), box.at(1).toInt(), box.at(2).toInt(), box.at(3).toInt());
     QVERIFY(!button.isEmpty());
+    const QColor fill(inspectorPalette().value(QStringLiteral("surfaceHover")).toString());
     const QPoint pointer(toolsItem->x() + button.center().x(), button.center().y());
     QTest::mouseMove(&window, pointer - QPoint(4, 4));
     QTest::mouseMove(&window, pointer);
 
-    // The fill is the theme's hover colour and is as large as the button.
     QTRY_COMPARE_WITH_TIMEOUT(
         ask(QStringLiteral("return layer.backgroundColor + ' ' + layer.width + ' ' + layer.height"
                            " + ' ' + layer.borderRadius;")),
-        QStringLiteral("rgb(36, 82, 36) %1px %2px 9999px").arg(button.width()).arg(button.height()),
+        QStringLiteral("rgb(%1, %2, %3) %4px %5px 9999px")
+            .arg(fill.red())
+            .arg(fill.green())
+            .arg(fill.blue())
+            .arg(button.width())
+            .arg(button.height()),
         10000);
 
-    // And the glyph is still drawn over it: every pixel of the icon's box being
-    // the hover colour means the fill covers the button's icon.
     QTest::qWait(500);
     const auto image = window.grabWindow();
     const auto scale = image.devicePixelRatio();
-    const QColor fill(0x24, 0x52, 0x24);
     int glyph = 0;
     // The icon's box is square and the fill round, so only its middle is sampled.
     const QRect icon(toolsItem->x() + button.x() + 10, button.y() + 7, 12, 12);
@@ -7711,8 +7712,6 @@ void QtEngineContractTest::qtInspectorHoverFillLeavesTheToolbarGlyphVisible()
             }
         }
     }
-    // The fill is still there beside the glyph: the layer went under the icon,
-    // it was not taken away.
     const QPoint beside(toolsItem->x() + button.x() + 3, button.center().y());
     QCOMPARE(image.pixelColor(QPoint(beside.x() * scale, beside.y() * scale)), fill);
     QVERIFY2(glyph > 10,
