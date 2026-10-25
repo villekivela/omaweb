@@ -1710,6 +1710,37 @@ void QtEngineContractTest::qtAnswersASecurityKeyOutsideTheEnginesOwnCall()
     QTRY_COMPARE(request.cancels, 2);
 }
 
+namespace {
+
+// A page that presses `f` and then names, in the title, what the hint layer
+// plated: the layer's state, then the text of each hinted element in document
+// order. Whatever the page needs to set up goes in `body`, and `setup` runs
+// before the key.
+QByteArray hintsPage(const char *body, const char *setup = "")
+{
+    return QByteArrayLiteral("<!doctype html><title>ready</title>") + body
+        + QByteArrayLiteral(R"HTML(<script>
+            const press = key => dispatchEvent(new KeyboardEvent('keydown', {
+                key, bubbles: true, cancelable: true
+            }));
+            let hinted = () => {
+                const layer = document.getElementById('hintsh');
+                if (!layer) return 'none';
+                const names = [...layer.querySelectorAll(':scope > span')].map(plate =>
+                    plate.getAttribute('aria-label').replace(/^Link hint \w+ for /, ''));
+                return (layer.matches(':popover-open') ? 'top' : 'flat') + ':' + names.join(',');
+            };
+            )HTML")
+        + setup + QByteArrayLiteral(R"HTML(
+            setTimeout(() => {
+                press('f');
+                setTimeout(() => document.title = hinted(), 100);
+            }, 300);
+        </script>)HTML");
+}
+
+} // namespace
+
 void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
 {
     QTest::addColumn<QByteArray>("html");
@@ -1995,6 +2026,76 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             })), 300);
         </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("site-page") << true << QStringList {};
+    QTest::newRow("a modal dialog hints only its own controls, above itself")
+        << hintsPage(R"HTML(
+            <a href="#1">Behind one</a><a href="#2">Behind two</a>
+            <dialog><button>OK</button> <button>Cancel</button></dialog>)HTML",
+               "document.querySelector('dialog').showModal();")
+        << int(Qt::Key_unknown) << QStringLiteral("top:OK,Cancel") << false << QStringList {};
+    // GitHub's review menu: a positioned panel over the page, not modal.
+    QTest::newRow("a dropdown over the page hints only its menu items")
+        << hintsPage(R"HTML(
+            <style>
+                body { margin: 0 }
+                a.row { display: inline-block; width: 150px; height: 40px }
+                #menu { position: fixed; left: 0; top: 0; width: 640px; height: 300px;
+                        background: white; z-index: 10 }
+                #menu button { display: block; width: 280px; height: 40px }
+            </style>
+            <a class="row" href="#1">Page one</a><a class="row" href="#2">Page two</a>
+            <a class="row" href="#3">Page three</a><a class="row" href="#4">Page four</a>
+            <div id="menu"><button>Approve</button><button>Comment</button></div>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("top:Approve,Comment") << false << QStringList {};
+    QTest::newRow("a link half under a sticky header keeps its hint, one wholly under loses it")
+        << hintsPage(R"HTML(
+            <style>
+                body { margin: 0 }
+                header { position: fixed; left: 0; top: 0; width: 640px; height: 50px;
+                         background: white; z-index: 1 }
+                a { position: absolute; left: 10px; width: 100px; height: 40px;
+                    display: block }
+            </style>
+            <header>Header</header>
+            <a style="top:30px" href="#half">Half</a>
+            <a style="top:5px" href="#under">Under</a>
+            <a style="top:100px" href="#clear">Clear</a>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("top:Half,Clear") << false << QStringList {};
+    QTest::newRow("a link scrolled out of a panel has no hint")
+        << hintsPage(R"HTML(
+            <style>body { margin: 0 }</style>
+            <p style="margin:0;height:50px">Heading</p>
+            <div id="panel" style="height:60px;width:300px;overflow:auto">
+                <a style="display:block;height:40px" href="#in">Inside</a>
+                <a style="display:block;height:40px" href="#out">Outside</a>
+                <div style="height:400px"></div>
+            </div>
+            <a href="#after">After</a>)HTML",
+               "document.getElementById('panel').scrollTop = 50;")
+        << int(Qt::Key_unknown) << QStringLiteral("top:Outside,After") << false << QStringList {};
+    QTest::newRow("disabled, aria-disabled and tabindex-only elements have no hint")
+        << hintsPage(R"HTML(
+            <button disabled>Off</button>
+            <input readonly aria-label="Readonly" value="x">
+            <a href="#a" aria-disabled="true">Aria off</a>
+            <div tabindex="-1">Negative</div>
+            <div tabindex="0">Zero</div>
+            <button>On</button>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("top:On") << false << QStringList {};
+    QTest::newRow("a plate sits at the start of a wrapped link's first line")
+        << hintsPage(R"HTML(
+            <div style="width:200px;margin-left:100px;padding-top:20px;font-size:20px">
+                Before <a href="#wrap">alpha beta gamma delta</a>
+            </div>)HTML",
+               R"JS(window.plateAt = () => {
+                        const plate = document.querySelector('#hintsh > span');
+                        const first = document.querySelector('a').getClientRects()[0];
+                        return Math.abs(parseFloat(plate.style.left) - first.left) < 1
+                            && Math.abs(parseFloat(plate.style.top) - first.top) < 1;
+                    };
+                    const report = hinted;
+                    hinted = () => (plateAt() ? 'first line ' : 'elsewhere ') + report();)JS")
+        << int(Qt::Key_unknown) << QStringLiteral("first line top:alpha beta gamma delta") << false
+        << QStringList {};
 }
 
 void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
