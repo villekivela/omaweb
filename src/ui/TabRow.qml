@@ -242,7 +242,7 @@ Item {
         root.menuRequested(root.tabId, point.x, point.y);
     }
 
-    // A pin is a borderless tile on the fill the address line rests on, deeper
+    // A pin is a borderless tile on the fill the address trigger rests on, deeper
     // under the pointer (#779). The active pin's wash lies over it. An
     // ordinary row is a line of text, and its marks are the plates around it.
     Rectangle {
@@ -251,7 +251,7 @@ Item {
         visible: root.pinned
         radius: Style.cornerRadius
         border.width: 0
-        color: SidebarFill.resting(root.colors.text, hoverArea.containsMouse)
+        color: SidebarFill.fill(root.colors.text, hoverArea.containsMouse)
     }
 
     // The tab on show is marked as the Omnibar marks its selected row: the

@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
 import "SpaceColour.mjs" as SpaceColour
+import "AddressTrigger.mjs" as AddressTrigger
 import "SidebarFill.mjs" as SidebarFill
 
 Rectangle {
@@ -17,8 +18,10 @@ Rectangle {
     // display, so a pinned tab's icon centred in its tile rests on one.
     readonly property real listMargin: DevicePixels.snap(16, pixelRatio)
     // The one gap between the sidebar's blocks: the navigation row, the
-    // address, each pin, and the tab list (#779).
+    // address trigger, each pin, and the tab list. Ordinary rows stand closer,
+    // as one list (#779).
     readonly property int blockGap: 8
+    readonly property int rowGap: 4
 
     property var colors
     property string iconFontFamily
@@ -392,26 +395,6 @@ Rectangle {
     readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl)
                                   === "about:blank"
-
-    // What the address line shows of a page: its host, without `www.`, and
-    // its port if it has one. A local file or one of Omaweb's own pages has
-    // no host and shows the last part of its path, and any other page with
-    // none, such as `data:`, its scheme (#779).
-    function shownAddress(url) {
-        const parts = /^([a-z][a-z0-9+.-]*):(?:\/\/([^/?#]*))?([^?#]*)/i.exec(String(url));
-        if (!parts)
-            return String(url);
-        const host = (parts[2] || "").replace(/^[^@]*@/, "").replace(/^www\./i, "");
-        if (host.length > 0)
-            return host;
-        const scheme = parts[1].toLowerCase();
-        if (scheme !== "file" && scheme !== "omaweb")
-            return scheme;
-        const segments = parts[3].split("/").filter(function (segment) {
-            return segment.length > 0;
-        });
-        return segments.length > 0 ? decodeURIComponent(segments[segments.length - 1]) : scheme;
-    }
 
     // The footer's button for a Space, or null when the Space has none.
     function spaceButton(spaceId) {
@@ -1023,7 +1006,7 @@ Rectangle {
             }
         }
 
-        // The address is a quiet line, not a field: where the page is, at a
+        // The address trigger is a quiet line, not a field: where the page is, at a
         // glance, and the way into the Omnibar. It has no border at rest or
         // under the pointer and rests on the fill a pin rests on, so the two
         // read as one surface (#779). Holding the keyboard, it takes the
@@ -1036,13 +1019,18 @@ Rectangle {
             width: parent.width
             height: Style.space(36)
             radius: Style.cornerRadius
-            color: SidebarFill.resting(root.colors.text, addressMouse.containsMouse)
+            color: SidebarFill.fill(root.colors.text, addressHover.hovered)
             readonly property var focusBorder: Border.controlSpec("focus", root.colors.text,
                                                                   root.colors.accent)
             borderSpec: addressButton.focused ? addressButton.focusBorder : Border.none()
             activeFocusOnTab: true
             Accessible.role: Accessible.Button
             Accessible.name: addressButton.accessibleName
+
+            // Anywhere on the line, the lock and the shield included.
+            HoverHandler {
+                id: addressHover
+            }
             Accessible.onPressAction: root.addressRequested()
 
             Keys.onPressed: function (event) {
@@ -1099,11 +1087,11 @@ Rectangle {
                 anchors.right: blockedCount.left
                 anchors.rightMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.blank ? qsTr("search or enter address") : root.shownAddress(
+                text: root.blank ? qsTr("search or enter address") : AddressTrigger.shown(
                                        root.activeUrl)
-                color: root.blank || !addressMouse.containsMouse ? root.colors.mutedText :
-                                                                   root.colors.text
-                elide: Text.ElideRight
+                color: root.blank || !addressHover.hovered ? root.colors.mutedText :
+                                                             root.colors.text
+                elide: Text.ElideMiddle
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
             }
@@ -1155,7 +1143,7 @@ Rectangle {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 hoverEnabled: true
-                cursorShape: Qt.IBeamCursor
+                cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     addressButton.forceActiveFocus();
                     root.addressRequested();
@@ -1311,10 +1299,9 @@ Rectangle {
                 readonly property real splitMiddle: DevicePixels.snap(leftPadding + rowWidth / 2,
                                                                       root.pixelRatio)
 
-                // Rows stand closer than the sidebar's blocks: they are one
-                // list. The halves of a split keep the gap between them, and
-                // their washes meet across it.
-                spacing: 4
+                // The halves of a split keep the gap between them, and their
+                // washes meet across it.
+                spacing: root.rowGap
 
                 // At rest the tabs a Tab window shows are still listed, and the
                 // blank one standing in for a page is not.
