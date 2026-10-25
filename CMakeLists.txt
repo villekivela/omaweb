@@ -880,9 +880,12 @@ set(omaweb_ui_files
     src/ui/ChromeScrollBar.qml
     src/ui/Omnibar.qml
     src/ui/DeveloperToolsDock.qml
+    src/ui/AddressTrigger.mjs
     src/ui/DevicePixels.mjs
     src/ui/SceneColour.mjs
     src/ui/SettingsAttention.mjs
+    src/ui/SidebarFill.mjs
+    src/ui/SiteChip.mjs
     src/ui/SpaceColour.mjs
     src/ui/DownloadMark.qml
     src/ui/ExtensionMark.qml

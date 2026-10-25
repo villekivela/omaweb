@@ -2986,6 +2986,160 @@ TestCase {
         });
     }
 
+    // The address is where the page is, at a glance: its host, with no
+    // scheme, www., path, query or fragment. A port stays, so two local
+    // servers don't read the same. A page with no host shows the last part
+    // of its path (#779).
+    function test_theAddressShowsTheHostAlone() {
+        const text = findChild(window.contentItem, "addressText");
+        verify(text !== null);
+
+        openPage("https://www.example.com/a/b?q=1#x");
+        tryCompare(text, "text", "example.com");
+        openPage("http://localhost:3000/app?debug=1");
+        tryCompare(text, "text", "localhost:3000");
+        openPage("file:///home/reader/notes/todo.html");
+        tryCompare(text, "text", "todo.html");
+        openPage("data:text/html,quiet");
+        tryCompare(text, "text", "data");
+        browser.openInput("omaweb:agent-activity", false);
+        tryCompare(text, "text", "agent-activity");
+        // A blank page is the Start page, with no engine to wait for.
+        browser.openInput("about:blank", false);
+        tryCompare(text, "text", "search or enter address");
+    }
+
+    // The fill a quiet surface of the sidebar rests on, the address trigger
+    // or a pin: the theme's text at 7%, and 11% with the pointer over `over`.
+    function compareSidebarFill(item, over) {
+        const text = Qt.color(String(window.colors.text));
+        mouseMove(window.contentItem, window.width - 20, window.height - 20);
+        tryVerify(function () {
+            return Math.abs(item.color.a - 0.07) < 0.01;
+        });
+        compareWash(item, text, 0.07);
+        mouseMove(over, over.width / 2, over.height / 2);
+        tryVerify(function () {
+            return Math.abs(item.color.a - 0.11) < 0.01;
+        });
+        compareWash(item, text, 0.11);
+    }
+
+    // The address trigger is a quiet line rather than a field: no border at
+    // rest or under the pointer, on the fill a resting pin has, anywhere on
+    // it, the lock included. The host lights to the text colour under the
+    // pointer. Holding the keyboard still draws the focus border (#779).
+    function test_theAddressTriggerIsABorderlessLineOnTheSidebarsFill() {
+        openPage("https://quiet-address.example/page");
+        settleMotion();
+        const address = findChild(window.contentItem, "addressButton");
+        const host = findChild(window.contentItem, "addressText");
+        const lock = findChild(window.contentItem, "securityIndicator");
+        const borders = function () {
+            return [address.borderTop, address.borderRight, address.borderBottom,
+                    address.borderLeft];
+        };
+
+        compareSidebarFill(address, host);
+        verify(Qt.colorEqual(host.color, window.colors.text));
+        compare(borders(), [0, 0, 0, 0]);
+        compareSidebarFill(address, lock);
+        mouseMove(window.contentItem, window.width - 20, window.height - 20);
+        tryVerify(function () {
+            return Qt.colorEqual(host.color, window.colors.mutedText);
+        });
+        compare(borders(), [0, 0, 0, 0]);
+        compare(radiusWhenRounded(address), 6);
+
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        address.forceActiveFocus();
+        tryVerify(function () {
+            return address.activeFocus;
+        });
+        verify(address.borderTop > 0);
+        address.focus = false;
+    }
+
+    // The lock is as quiet as the host beside it, an exception to the chrome's
+    // glyphs resting in the theme's text, and a certificate error draws it in
+    // the urgent colour (#779). It is as large as a tab row's favicon.
+    function test_theAddressTriggersLockIsAsQuietAsItsHost() {
+        const engine = openPage("https://quiet-lock.example/page");
+        const lock = findChild(window.contentItem, "securityIndicator");
+        const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
+        verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
+        tryCompare(lock, "text", "lock");
+        verify(Qt.colorEqual(lock.color, window.colors.mutedText));
+        compare(lock.font.pixelSize, tile.width);
+        engine.simulateCertificateError({});
+        tryCompare(lock, "text", "warning");
+        verify(Qt.colorEqual(lock.color, window.colors.urgent));
+        openPage("https://quiet-lock-after.example/page");
+    }
+
+    // A click on the host opens the Omnibar, and nothing else (#779).
+    function test_aClickOnTheAddressTriggersHostOpensTheOmnibar() {
+        openPage("https://click-host.example/page");
+        settleMotion();
+        const host = findChild(window.contentItem, "addressText");
+        verify(!window.omnibarOpen);
+        mouseClick(host, host.width / 2, host.height / 2);
+        verify(window.omnibarOpen);
+        verify(!window.siteInformationOpen);
+        mouseClick(window.contentItem, window.width - 20, window.height - 20);
+        verify(!window.omnibarOpen);
+    }
+
+    // A click on the lock opens Site information, not the Omnibar (#779).
+    function test_aClickOnTheAddressTriggersLockOpensSiteInformation() {
+        openPage("https://click-lock.example/page");
+        settleMotion();
+        const lock = findChild(window.contentItem, "securityIndicator");
+        verify(!window.siteInformationOpen);
+        mouseClick(lock, lock.width / 2, lock.height / 2);
+        tryCompare(window, "siteInformationOpen", true);
+        verify(!window.omnibarOpen);
+        keyClick(Qt.Key_Escape);
+        tryCompare(window, "siteInformationOpen", false);
+    }
+
+    // Pinned tabs stand 8 px apart, so each is a capacity's share of the
+    // list less those gaps (#779).
+    function test_aPinsWidthLeavesAnEightPixelGapToTheNext() {
+        const list = findChild(window.contentItem, "pinnedList");
+        const ids = [];
+        for (let i = 0; i < 2; ++i) {
+            openPageInNewTab("https://gap-pin-" + i + ".example");
+            ids.push(browser.activeTabId);
+            browser.toggleActivePinned();
+        }
+        const pins = function () {
+            return ids.map(function (id) {
+                return findChild(window.contentItem, "pinned-" + id);
+            });
+        };
+        // The list lays its pins out a frame after they arrive.
+        tryVerify(function () {
+            const both = pins();
+            return both[0] !== null && both[1] !== null && both[0].x !== both[1].x;
+        });
+        const [left, right] = pins().sort(function (a, b) {
+            return a.x - b.x;
+        });
+        fuzzyCompare(left.width, (list.width - 8 * (list.capacity - 1)) / list.capacity, 0.01);
+        fuzzyCompare(right.x - (left.x + left.width), 8, 0.01);
+        // A pin does not close, so each tab is unpinned first.
+        for (const id of ids) {
+            browser.activateTab(id);
+            browser.toggleActivePinned();
+            browser.closeTab(id);
+        }
+        compare(browser.pinnedTabs.rowCount(), 0);
+    }
+
     function test_addressTriggerReportsOnlyWhatTheEngineKnows() {
         const engine = openPage("https://reported-secure.example/page");
         const security = findChild(window.contentItem, "securityIndicator");
@@ -5163,7 +5317,7 @@ TestCase {
         compare(String(bar.color), String(accent));
         compare(acrossSidebar(bar).left, 0);
 
-        verify(!findChild(tabs.second, "tabButton-" + tabs.secondId).visible);
+        verify(!findChild(tabs.second, "pinFill-" + tabs.secondId).visible);
         const tile = findChild(tabs.second, "siteTile-" + tabs.secondId);
         compare(acrossSidebar(tile).left, sidebar.listMargin + tabs.second.chipInset);
 
@@ -5193,7 +5347,7 @@ TestCase {
         compareAccentWash(hover, 0.07);
         compare(acrossSidebar(hover).left, 0);
         compare(acrossSidebar(hover).right, sidebar.width);
-        verify(!findChild(tabs.first, "tabButton-" + tabs.firstId).visible);
+        verify(!findChild(tabs.first, "pinFill-" + tabs.firstId).visible);
 
         const activeHover = findChild(tabs.second, "tabHover-" + tabs.secondId);
         const activeWash = findChild(tabs.second, "tabWash-" + tabs.secondId);
@@ -5326,8 +5480,8 @@ TestCase {
             verify(leftBar.visible);
             compare(acrossSidebar(leftBar).left, 0);
             verify(!rightBar.visible);
-            verify(!findChild(left, "tabButton-" + leftId).visible);
-            verify(!findChild(right, "tabButton-" + rightId).visible);
+            verify(!findChild(left, "pinFill-" + leftId).visible);
+            verify(!findChild(right, "pinFill-" + rightId).visible);
         };
         compare(browser.activeTabId, leftId);
         checkPair(leftWash, rightWash);
@@ -6413,9 +6567,6 @@ TestCase {
             verify(button !== null, name);
             verify(Qt.colorEqual(button.foreground, window.colors.text), name);
         }
-        const lock = findChild(window.contentItem, "securityIndicator");
-        verify(lock !== null);
-        verify(Qt.colorEqual(lock.color, window.colors.text));
         const forward = findChild(window.contentItem, "forwardButton");
         verify(!forward.enabled);
         compare(forward.opacity, 0.35);
@@ -17089,6 +17240,104 @@ TestCase {
         browser.closeActiveTab();
     }
 
+    // One 8 px gap stands between the navigation row and the address trigger,
+    // the trigger and the pins, each pin and the next, across and down, and
+    // the pins and the tab list. Ordinary rows keep their 4 px (#779).
+    function test_theSidebarsBlocksStandOneGapApart() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const top = function (item) {
+            return item.mapToItem(sidebar, 0, 0).y;
+        };
+        const bottom = function (item) {
+            return item.mapToItem(sidebar, 0, item.height).y;
+        };
+        const navigation = findChild(sidebar, "sidebarNavigation");
+        const address = findChild(sidebar, "addressButton");
+        const section = findChild(sidebar, "pinnedList");
+        const opened = [];
+        const open = function (url) {
+            openPageInNewTab(url);
+            opened.push(browser.activeTabId);
+            return browser.activeTabId;
+        };
+        // One more than a row holds, so the pins take a second row.
+        const pins = [];
+        for (let index = 0; index <= section.capacity; ++index)
+            pins.push(open("https://gap-pin-" + index + ".example/"));
+        for (const pin of pins) {
+            browser.activateTab(pin);
+            browser.toggleActivePinned();
+        }
+        const rows = [open("https://gap-row-one.example/"), open("https://gap-row-two.example/")];
+        settleMotion();
+        const pinRow = function (id) {
+            return findChild(sidebar, "pinned-" + id);
+        };
+        const tabRow = function (id) {
+            return findChild(sidebar, "tab-" + id);
+        };
+        tryVerify(function () {
+            return section.visible && pinRow(pins[pins.length - 1]) !== null && tabRow(rows[1])
+                    !== null;
+        });
+        const firstPin = pinRow(pins[0]);
+        const lastPin = pinRow(pins[pins.length - 1]);
+
+        compare(top(address) - bottom(navigation), 8);
+        compare(top(firstPin) - bottom(address), 8);
+        compare(pinRow(pins[1]).mapToItem(sidebar, 0, 0).x - pinRow(pins[0]).mapToItem(sidebar, pinRow(
+                                                                                           pins[0]).width,
+                                                                                       0).x, 8);
+        compare(top(lastPin) - bottom(firstPin), 8);
+        compare(top(findChild(sidebar, "ordinaryList")) - bottom(lastPin), 8);
+        compare(top(tabRow(rows[1])) - bottom(tabRow(rows[0])), 4);
+
+        for (const id of opened) {
+            if (browser.tabPinned(id)) {
+                browser.activateTab(id);
+                browser.toggleActivePinned();
+            }
+            browser.closeTab(id);
+        }
+    }
+
+    // A pin is a borderless tile on the fill the address line rests on: the
+    // theme's text at 7%, 11% under the pointer. The active pin's wash lies
+    // over the fill (#779).
+    function test_aPinIsABorderlessTileOnTheSidebarsFill() {
+        openPage("https://quiet-pin.example/page");
+        const pinId = browser.activeTabId;
+        browser.toggleActivePinned();
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + pinId) !== null;
+        });
+        const pin = findChild(window.contentItem, "pinned-" + pinId);
+        const fill = findChild(pin, "pinFill-" + pinId);
+        const wash = findChild(pin, "tabWash-" + pinId);
+        verify(fill !== null);
+
+        verify(fill.visible);
+        compare(fill.border.width, 0);
+        compare(radiusWhenRounded(fill), 6);
+        compare(fill.width, pin.width);
+        compare(fill.height, pin.height);
+        verify(wash.visible);
+        compareAccentWash(wash, 0.14);
+        verify(pin.children.indexOf(wash) > pin.children.indexOf(fill));
+
+        openPageInNewTab("https://quiet-pin-elsewhere.example/page");
+        tryVerify(function () {
+            return !wash.visible;
+        });
+        compareSidebarFill(fill, pin);
+        mouseMove(window.contentItem, window.width - 20, window.height - 20);
+
+        browser.closeActiveTab();
+        browser.activateTab(pinId);
+        browser.toggleActivePinned();
+        browser.closeActiveTab();
+    }
+
     // A pin is a square with no title, so Omaweb paints it in the site's own
     // colour — which is artwork colour, and therefore the tint setting's to
     // give. Switched off, the pin is chrome: no wash, no site-coloured mark.
@@ -17107,20 +17356,16 @@ TestCase {
         const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(tile !== null);
         compare(tile.siteColoredMark, false);
-        // The active pin then takes the accent at 14% and an accent border in
-        // place of the kit's selected fill, inset in the tile as the
-        // site-coloured pin's wash is.
+        // The active pin then takes the accent at 14% over its resting fill,
+        // inset in the tile as the site-coloured pin's wash is.
         const pinWash = findChild(pinnedRow, "tabWash-" + browser.activeTabId);
-        const pinButton = findChild(pinnedRow, "tabButton-" + browser.activeTabId);
+        const pinFill = findChild(pinnedRow, "pinFill-" + browser.activeTabId);
         verify(pinWash.visible);
         compareAccentWash(pinWash, 0.14);
         compare(radiusWhenRounded(pinWash), 6);
         compare(pinWash.mapToItem(pinnedRow, 0, 0).x, 0);
         compare(pinWash.width, pinnedRow.width);
-        verify(pinButton.visible);
-        verify(pinButton.bordered);
-        verify(!pinButton.active);
-        verify(Qt.colorEqual(pinButton.foreground, window.colors.accent));
+        verify(pinFill.visible);
         verify(!findChild(pinnedRow, "tabBar-" + browser.activeTabId).visible);
 
         tintFavicons.clicked();
@@ -17130,8 +17375,7 @@ TestCase {
         tryCompare(tile, "siteColoredMark", true);
         // The site-coloured pin is as it was: its own colour at 18%.
         compareWash(pinWash, pinnedRow.siteColor, 0.18);
-        verify(!pinButton.active);
-        verify(Qt.colorEqual(pinButton.foreground, pinnedRow.siteColor));
+        verify(pinFill.visible);
 
         tintFavicons.clicked();
         compare(window.tintFavicons, false);
