@@ -2,10 +2,11 @@
 
 // The CRT glass a Scene can declare, as one pass over the Scene's small
 // picture: its pixels shown square, a rolling refresh band, a flicker, the
-// bloom of a smaller copy, a grade toward a second hue, the beam's scanlines,
-// the halation, a phosphor mask and a vignette. A vector Scene has no raster: no scanlines, mask or
-// band. The amounts are the Scene's `crt` block, which the website's glass
-// draws by too, so the road reads the same through either glass.
+// bloom of a smaller copy, a grade toward a second hue, the beam's
+// scanlines, the halation, a phosphor mask and a vignette. A vector Scene
+// has no raster: no scanlines, mask or band. The amounts are the Scene's
+// `crt` block, which the website's glass draws by too, so the road reads the
+// same through either glass.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;

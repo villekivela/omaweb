@@ -228,9 +228,9 @@ test("grade: the second hue is the theme's keyword colour", () => {
   );
 });
 
-// Where the keyword colour would add nothing, or the page has none, as a release page read in
-// another browser, the hue is the accent's turned half way round at the tint: blue's opposite,
-// yellow, at half saturation and half lightness.
+// Where the keyword colour would add nothing, or the page names none, the hue is the accent's
+// turned half way round at the tint: blue's opposite, yellow, at half saturation and half
+// lightness.
 test("grade: without a keyword colour that adds anything, the accent's opposite", () => {
   const tint = { saturation: 0.5, lightness: 0.5 };
   for (const keyword of [[77, 51, 255], [140, 140, 115], undefined]) {
@@ -252,6 +252,12 @@ test("grade: the bright parts take the hue, more of them lower in the frame", ()
     [1, 0.3, 0.3],
   );
   assert.deepEqual(grade([0.05, 0.05, 0.05], 0.95, crt, red), [0.05, 0.05, 0.05]);
+});
+
+// A Scene whose `crt` gives no grade keeps its colours, as the browser's glass draws it.
+test("grade: a Scene that declares no grade keeps its colours", () => {
+  const { grade: _, ...crt } = sharedCrt("crt-road");
+  assert.deepEqual(grade([1, 1, 1], 0.95, crt, [255, 0, 0]), [1, 1, 1]);
 });
 
 // A vector screen traced its lines with the beam and had no raster: no scanlines, no mask and no

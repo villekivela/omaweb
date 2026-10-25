@@ -29,7 +29,7 @@ export function holdsStill(environment) {
 export function sceneInput(scene, environment) {
   const pitch = scene.pitch || 1;
   const still = holdsStill(environment);
-  // A role the page does not name, as the keyword colour on a release page, is left out.
+  // A role the page does not name, as `--keyword` on an element that wears no theme, is left out.
   const palette = Object.fromEntries(
     Object.entries(environment.palette)
       .filter(([, colour]) => colour.trim())
@@ -375,8 +375,10 @@ function luma([red, green, blue]) {
 
 // A colour, 0 to 1, graded toward `hue` as a sunset at `y`, 0 to 1 down the frame: the bright parts
 // take the hue at their own brightness, more of them lower in the frame, by the `crt` block's
-// `grade` amounts. A channel past full clips, as the screen's does.
+// `grade` amounts. A channel past full clips, as the screen's does. A Scene that declares no grade
+// keeps its colours.
 export function grade(colour, y, crt, hue) {
+  if (!crt.grade) return colour;
   const { top, depth, highlights, midtones } = crt.grade;
   const level = luma(colour);
   const tone = hue.map((channel) => channel / 255);
@@ -500,8 +502,10 @@ class CrtGlass {
       .drawImage(context.canvas, 0, 0, this.bloom.width, this.bloom.height);
   }
 
-  // The grade toward the second hue, over the Scene's picture.
+  // The grade toward the second hue, over the Scene's picture. A Scene that declares none is not
+  // graded, as in the browser.
   grade(context, input) {
+    if (!this.crt.grade) return;
     const { width, height } = input;
     const image = context.getImageData(0, 0, width, height);
     const { data } = image;

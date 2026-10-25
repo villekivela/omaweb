@@ -114,10 +114,12 @@ declares the glass also gives its amounts as `crt`, which the host draws by.
 The glass also grades the picture toward a second hue, as a sunset: the bright parts take the hue at
 their own brightness, more of them lower in the frame. The hue is the theme's keyword colour,
 `--keyword`, or, where that is within 30 degrees of the accent's hue, nearly grey or missing, the
-accent's hue turned half way round at the tint every Omarchy theme is rendered with. Omaweb hands a
-release page no keyword colour, so a release page read in Omaweb, in the reader's own accent, is
-graded toward that accent's opposite. The grade is drawn into the Scene's picture after the halation
-is taken from it and before the bloom, as the browser's glass draws it.
+accent's hue turned half way round at the tint every Omarchy theme is rendered with. A release page
+wears the landing page's theme, so its `--keyword` is that theme's: Omaweb hands a release page the
+reader's own accent but no keyword colour, so in Omaweb the site theme's keyword is checked against
+the reader's accent. The release page's header holds the road still without the glass, so it draws
+no grade. A Scene whose `crt` gives no `grade` is not graded. The grade is drawn into the Scene's
+picture after the halation is taken from it and before the bloom, as the browser's glass draws it.
 
 `screen: "vector"` declares a Scene of lines, which a vector screen traced with its beam and had no
 raster. The glass then draws no scanlines, mask or band, and keeps the brighter of each frame and
