@@ -204,7 +204,8 @@ PHASES_AFTER_MAPPING = 5.0
 WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 
 # What the browser logs of each key it hands an object and each move of its focus,
-# `src/ui/KeyEventLog.h`.
+# `src/ui/KeyEventLog.h`. Only a browser configured with `-DOMAWEB_KEY_EVENT_LOG=ON`, as CI's budget
+# job's is, has the log; elsewhere a failed attempt prints the compositor's side alone.
 KEY_LOG_PREFIX = "omaweb.keys: "
 
 # The compositor's side of the same keys: which surface the keyboard entered and left, each keymap,
