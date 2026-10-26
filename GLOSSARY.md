@@ -131,10 +131,10 @@ own surfaces towards it, so a theme identifies private browsing by naming a hue 
 naming a palette, and a Private window keeps the darkness the theme drew its chrome in. A theme that
 names a ground itself keeps it. _Avoid_: Private colour, incognito accent
 
-**Agent accent**: The one colour a theme names for an Agent's hands: the mark on an Agent tab's row
-and on the Space holding it, and the frame and label around its page on show. It is the Omarchy
-terminal's cyan, kept apart from the accent and legible on the window and the sidebar. _Avoid_:
-Agent colour, bot colour
+**Agent accent**: The one colour a theme names for an Agent's hands: the mark, stripe, last act and
+Stop on an Agent tab's row, the mark on the Space holding it, and the bar over an Auxiliary window
+an Agent drives. It is the Omarchy terminal's cyan, kept apart from the accent and legible on the
+window and the sidebar. _Avoid_: Agent colour, bot colour
 
 **Glance**: A page opened by a link that asked for a new tab, shown over the tab it came from
 instead of as a tab. It runs on the Space's engine profile and records its visits, but it is not
@@ -221,12 +221,14 @@ given once from a prompt and kept until revoked in Settings. It belongs to the S
 any Agent, stays on this machine and is outside the Sync projection. A Private window can never be
 granted. _Avoid_: Agent permission, Site permission, pairing
 
-**Agent tab**: A tab an Agent is attached to. It is marked as such in the sidebar, and the Space
-holding it is marked too. It is not frozen and stays rendered behind the page on show, so an Agent
-can work in a Space the reader is not looking at, and an Agent tab never takes the reader's focus.
-Its JS dialogs go to the Agent, its downloads to a directory of the connection's own, its file
-chooser takes only files the Agent names in an Agent Space, and an Auxiliary window it opens is the
-Agent's too. _Avoid_: Automated tab, bot tab, controlled tab
+**Agent tab**: A tab an Agent is attached to. Its row in the sidebar carries the mark, a stripe and
+the Agent's last act, and Stop on hover, and the Space holding it is marked too; its page is left as
+the site drew it. Stop closes the Agent's whole connection, as if the Agent had quit, and revokes
+nothing. It is not frozen and stays rendered behind the page on show, so an Agent can work in a
+Space the reader is not looking at, and an Agent tab never takes the reader's focus. Its JS dialogs
+go to the Agent, its downloads to a directory of the connection's own, its file chooser takes only
+files the Agent names in an Agent Space, and an Auxiliary window it opens is the Agent's too.
+_Avoid_: Automated tab, bot tab, controlled tab
 
 **Web extension**: A third-party browser package that can modify pages or add browser behavior
 through a supported WebExtensions contract. _Avoid_: Feature module, plugin

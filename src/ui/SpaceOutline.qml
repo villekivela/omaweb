@@ -81,6 +81,9 @@ Rectangle {
     // square. Only the introductory film's recording sets it, since the film
     // has no pointer (Main.qml's holdSpaceNote).
     property string heldSpaceId: ""
+    // The tab whose row the introductory film's recording holds as a pointer
+    // resting on it would (Main.qml's holdTabRow). Empty holds none.
+    property string heldTabId: ""
 
     // How wide a Space is in the footer, and the count of those left out.
     readonly property int spaceSlot: 18
@@ -397,6 +400,16 @@ Rectangle {
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl)
                                   === "about:blank"
 
+    // The ordinary row of a tab of the Space on show, or null.
+    function tabRow(tabId) {
+        for (let index = 0; index < ordinaryRows.count; ++index) {
+            const row = ordinaryRows.itemAt(index);
+            if (row && row.tabId === tabId)
+                return row;
+        }
+        return null;
+    }
+
     // The footer's button for a Space, or null when the Space has none.
     function spaceButton(spaceId) {
         for (let index = 0; index < spaceRepeater.count; ++index) {
@@ -426,6 +439,7 @@ Rectangle {
     signal siteInformationDismissed
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
+    signal agentStopRequested(string tabId)
     signal tabMuteToggled(string tabId)
     signal tabMenuRequested(string tabId, real anchorX, real anchorY)
     // Where a dragged row was let go, counted inside its own section. The list
@@ -1230,6 +1244,10 @@ Rectangle {
                     keyLabel: root.tabLabel(tabId)
                     keyLabelShown: root.keyLabelsShown
                     agent: root.agentOf(tabId)
+                    held: root.heldTabId === tabId
+                    onAgentStopRequested: function (id) {
+                        root.agentStopRequested(id);
+                    }
                     glance: root.glanceOf(tabId)
                     onGlanceKeepRequested: root.glanceKeepRequested()
                     onActivated: function (id) {
@@ -1307,6 +1325,7 @@ Rectangle {
                 // At rest the tabs a Tab window shows are still listed, and the
                 // blank one standing in for a page is not.
                 Repeater {
+                    id: ordinaryRows
                     model: !root.browser || (root.atRest && !root.hasTabWindows) ? null :
                                                                                    root.browser.unpinnedTabs
 
@@ -1331,6 +1350,10 @@ Rectangle {
                         keyLabel: root.tabLabel(tabId)
                         keyLabelShown: root.keyLabelsShown
                         agent: root.agentOf(tabId)
+                        held: root.heldTabId === tabId
+                        onAgentStopRequested: function (id) {
+                            root.agentStopRequested(id);
+                        }
                         glance: root.glanceOf(tabId)
                         onGlanceKeepRequested: root.glanceKeepRequested()
                         arrivalWash: tabId === root.washTabId ? root.washLevel : 0

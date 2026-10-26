@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QObject>
 #include <QSet>
 #include <QString>
@@ -45,6 +46,9 @@ private:
     // The connections waiting on a page's answer, which read nothing more
     // until it comes.
     QSet<QLocalSocket *> m_waiting;
+    // Every open connection by its number, for the ones a stopped Agent's
+    // requests came over.
+    QHash<quint64, QLocalSocket *> m_sockets;
     quint64 m_connections = 0;
 };
 

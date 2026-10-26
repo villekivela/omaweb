@@ -27,11 +27,12 @@ option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sy
 # engine, turns this on; every other build leaves the capability unreported, so
 # the surfaces are absent rather than dead.
 option(OMAWEB_KNOWN_EXTENSIONS "Report that the engine can host a Known extension" OFF)
-# The introductory film is recorded without a pointer, so its build takes one
-# more verb, `film-hover`, which holds a Space's name on show in the footer as
-# a pointer resting on it would (scripts/record_film.py). Only
-# scripts/record_film.sh turns it on; a browser built to ship has no such verb.
-option(OMAWEB_FILM_HOOKS "Take the verb the introductory film's recording needs" OFF)
+# The introductory film is recorded without a pointer, so its build takes two
+# more verbs: `film-hover`, which holds a Space's name on show in the footer,
+# and `film-row`, which holds an Agent tab's row with Stop on show and presses
+# Stop, as a pointer would (scripts/record_film.py). Only scripts/record_film.sh
+# turns it on; a browser built to ship has neither verb.
+option(OMAWEB_FILM_HOOKS "Take the verbs the introductory film's recording needs" OFF)
 if(OMAWEB_FILM_HOOKS)
     add_compile_definitions(OMAWEB_FILM_HOOKS)
 endif()
@@ -917,7 +918,9 @@ set(omaweb_ui_files
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
     src/ui/AgentMark.qml
-    src/ui/AgentPageFrame.qml
+    src/ui/AgentCaption.qml
+    src/ui/AgentStopButton.qml
+    src/ui/AgentWindowBar.qml
     src/ui/CommandDialog.qml
     src/ui/DialogPanel.qml
     src/ui/PageBackdrop.qml

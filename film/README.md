@@ -18,13 +18,17 @@ order:
    reached.
 1. A theme change on one Start page, from Retro 82 to Tokyo Night, across the whole browser.
 1. An Agent at work in a Space of its own. Each command it runs, `omaweb space new`, `open`, `look`
-   and one batched `do`, takes the caption's place as it runs, and the invoice is sent.
+   and one batched `do`, takes the caption's place as it runs, its tab's row in the sidebar names
+   its last act after each, and the invoice is sent. The camera then closes on the row, the pointer
+   rests on it so Stop shows beside Close, and a click on Stop hands the tab back to the reader.
 1. The end card: the logo and the line that installs Omaweb.
 
-The recording has no pointer. Its browser is built with `OMAWEB_FILM_HOOKS`, which adds one verb,
-`omaweb film-hover`: the window holds a Space's name on show through the footer button's own hover
-state and answers where the button is. The edit then draws `pointer.png` there, gliding between the
-squares. `pointer.svg` is its source. No shipped build has the verb.
+The recording has no pointer. Its browser is built with `OMAWEB_FILM_HOOKS`, which adds two verbs.
+`omaweb film-hover` has the window hold a Space's name on show through the footer button's own hover
+state and answer where the button is. `omaweb film-row <tab>` has it hold an Agent tab's row as
+hovered, so Stop shows, and answer where Stop is and what the row says; `--where` only answers, and
+`--stop` presses Stop as a click would. The edit draws `pointer.png` where the window answered,
+gliding between the places. `pointer.svg` is its source. No shipped build has either verb.
 
 ## Recording it
 
@@ -55,12 +59,13 @@ stops with a sentence that names `/dev/shm`.
 
 Each beat is checked as it plays, and a beat that did not happen stops the run before anything is
 encoded: a Space not on show, a tab at the wrong address, a page that did not widen, an ad that was
-fetched, link hints that never came up, chrome that kept its colour, or an Agent command that
-failed. The browser's own log is left in `build/film/browser.log`. The encoder steps each file's
-quality down until it fits its share of the 5 MB budget, and the run fails if one still does not.
-The finished MP4 is then read frame by frame with ffmpeg's `signalstats`, and the run fails if any
-frame's mean brightness is over 120 of 255 or more than 18 above the frames around it, which is a
-white frame flashing on a dark site.
+fetched, link hints that never came up, chrome that kept its colour, an Agent command that failed,
+an Agent's row that did not name each new act, or a tab still the Agent's after Stop. The browser's
+own log is left in `build/film/browser.log`. The encoder steps each file's quality down until it
+fits its share of the 5 MB budget, and the run fails if one still does not. The finished MP4 is then
+read frame by frame with ffmpeg's `signalstats`, and the run fails if any frame's mean brightness is
+over 120 of 255 or more than 18 above the frames around it, which is a white frame flashing on a
+dark site.
 
 The WebM is VP9 rather than AV1, because the aarch64 Arch ffmpeg has no software AV1 encoder.
 Browsers that play AV1 in WebM play VP9 too.

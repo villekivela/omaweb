@@ -279,13 +279,13 @@ def expect_hints(beat: str, reports: list[dict], host: str) -> None:
 
 
 def hover_point(beat: str, held: dict) -> tuple[float, float]:
-    """Where a pointer resting on the Space the window held would be, as a fraction of the window.
+    """Where a pointer resting on what the window held would be, as a fraction of the window.
 
-    `held` is the window's answer to `film-hover`: the footer button's rectangle and the window's
-    size, in the same logical pixels.
+    `held` is the window's answer to `film-hover` or `film-row`: the rectangle of the Space's
+    footer button or of the row's Stop, and the window's size, in the same logical pixels.
     """
     if not held.get("ok"):
-        raise BeatMissed(beat, f"the window held no Space's name: {held.get('error', held)}")
+        raise BeatMissed(beat, f"the window held nothing to point at: {held.get('error', held)}")
     return ((held["x"] + held["width"] / 2) / held["windowWidth"],
             (held["y"] + held["height"] / 2) / held["windowHeight"])
 
@@ -332,6 +332,32 @@ def expect_ran(beat: str, result: subprocess.CompletedProcess) -> None:
         command = " ".join(result.args[:2])
         said = (result.stderr or result.stdout or "").strip()
         raise BeatMissed(beat, f"{command} exited {result.returncode}: {said}")
+
+
+def expect_acts_on_the_row(beat: str, lines: list[str]) -> None:
+    """The Agent tab's row named the Agent's last act after each command, and a new one each time.
+
+    `lines` is the row's line under its title, from the window's answer to `film-row --where`,
+    read after each command in turn.
+    """
+    for line in lines:
+        if not line.startswith(f"{AGENT} · "):
+            raise BeatMissed(beat, f"the Agent's row read {line!r}, not {AGENT}'s last act")
+    if len(set(lines)) != len(lines):
+        raise BeatMissed(beat, f"the Agent's row did not change between commands: {lines}")
+
+
+def expect_handed_back(beat: str, result: subprocess.CompletedProcess) -> None:
+    """After Stop, the window has no Agent's row for the tab: it is the reader's again.
+
+    `result` is `film-row` asked for the tab once more, which the browser refuses for a tab no
+    Agent is attached to.
+    """
+    if result.returncode == 0:
+        raise BeatMissed(beat, "the Agent was still attached to its tab after Stop")
+    said = (result.stderr or result.stdout or "").strip()
+    if "No Agent is attached" not in said:
+        raise BeatMissed(beat, f"film-row after Stop said {said!r}")
 
 
 def expect_invoice(beat: str, server: FixtureServer, wanted: dict[str, str]) -> None:
@@ -423,6 +449,8 @@ RESULTS = (0.2, 0.17, 0.4, 0.4)
 SPACES = (0.0, 0.4, 0.6, 0.6)
 SHIELD = (0.0, 0.0, 0.22, 0.22)
 FORM = (0.32, 0.03, 0.66, 0.66)
+# The Agent tab's row near the top of the sidebar, with the start of its page beside it.
+ROW = (0.0, 0.0, 0.42, 0.42)
 
 BEATS = [
     Beat("Omnibar", "One Omnibar for tabs, Spaces and search",
@@ -438,7 +466,9 @@ BEATS = [
     Beat("Blocking", "Ads and trackers stopped before they load",
          [(0.0, None), (CAPTION_LEAD, SHIELD)]),
     Beat("Theme", "Your Omarchy theme reaches the whole browser", [(0.0, None)]),
-    # Each command the Agent runs takes the caption's place as it runs.
+    # Each command the Agent runs takes the caption's place as it runs, and its row in the sidebar
+    # says what it did last. The camera then closes on the row for Stop, at a moment the beat
+    # times as it plays (`play`).
     Beat("Agent", "An Agent works in a Space of its own",
          [(0.0, None), (CAPTION_LEAD + 1.4, FORM)]),
     Beat("End", "", [(0.0, None)]),
@@ -846,6 +876,10 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     def show_command(*command: str) -> None:
         lines.append({"at": round(recorder.now() - start, 3), "text": "$ " + " ".join(command)})
 
+    def row_where() -> dict:
+        """Where the Agent tab's row has Stop, and its line, without holding it."""
+        return answer(beat.name, browser, "film-row", tab, "--where")
+
     start = recorder.now()
     time.sleep(CAPTION_LEAD)
     show_command("omaweb", "space", "new", "Invoices")
@@ -865,9 +899,11 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     keys("Primary+e", settle=0)
     wait_for(beat.name, "the invoice form to load",
              reported(server, "tallyhaus.test", urllib.parse.urlsplit(INVOICE_PAGE).path))
+    acts = [row_where()["line"]]
     time.sleep(COMMAND_READ)
     show_command("omaweb", "look")
     look = answer(beat.name, browser, "look", "--tab", tab, name=AGENT)["look"]
+    acts.append(row_where()["line"])
     time.sleep(COMMAND_READ)
     # One batch, as the skill teaches, sent with Enter from the last field as a person would: a
     # click waits while the reader is in Omaweb's own controls, and here the reader is in the
@@ -881,11 +917,35 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     ]
     show_command("omaweb", "do", *(f"'{step}'" for step in steps[:2]), "…")
     expect_ran(beat.name, omaweb(browser, "do", *steps, "--tab", tab, name=AGENT))
-    # The invoice it sent, long enough to read before the end card.
+    acts.append(row_where()["line"])
+    # The invoice it sent, long enough to read.
     time.sleep(1.7)
+    # Then the reader stops it from its row: the camera closes on the row, the pointer comes to
+    # rest on it, Stop shows beside Close, and a click on Stop hands the tab back. The recording
+    # has no pointer, so the window holds the row as hovered and the edit draws the pointer where
+    # the window says Stop is.
+    focus = [(0.0, None), (CAPTION_LEAD + 1.4, FORM), (round(recorder.now() - start, 3), ROW)]
+    stop = hover_point(beat.name, row_where())
+    time.sleep(MOVE)
+    moves = []
+
+    def glide(to: tuple[float, float]) -> None:
+        moves.append({"at": round(recorder.now() - start, 3), "x": to[0], "y": to[1]})
+
+    glide((stop[0] + 0.08, stop[1] + 0.1))
+    glide(stop)
+    time.sleep(MOVE)
+    expect_ran(beat.name, omaweb(browser, "film-row", tab))
+    time.sleep(1.2)
+    expect_ran(beat.name, omaweb(browser, "film-row", tab, "--stop"))
+    # The row plain again, the reader's tab.
+    time.sleep(1.2)
     end = recorder.now()
+    expect_handed_back(beat.name, omaweb(browser, "film-row", tab, "--where"))
+    expect_ran(beat.name, omaweb(browser, "film-row"))
     expect_invoice(beat.name, server, INVOICE)
-    mark(beat, start, end, lines=lines)
+    expect_acts_on_the_row(beat.name, acts)
+    mark(beat, start, end, lines=lines, pointer=moves, focus=focus)
 
     # Off camera: the end card in a tab of the reader's own, with the sidebar out of the way.
     expect_ran("Stage", omaweb(browser, "open", END_CARD, "--space", "Personal", "--new"))
@@ -965,14 +1025,14 @@ def eased(keyframes: list[tuple[float, float]], variable: str) -> str:
     return expression
 
 
-def camera(beat: Beat) -> str:
+def camera(focus: list[tuple[float, tuple[float, float, float, float] | None]]) -> str:
     """The zoompan filter that follows a beat's focus, each place framed at the film's aspect.
 
     The window and the film are both 16:9, so a place keeps its shape when it is as wide, as a
     fraction of the window, as it is high: the shorter side is grown about the place's centre.
     """
     keyframes = []
-    for at, place in beat.focus:
+    for at, place in focus:
         left, top, wide, high = place or (0.0, 0.0, 1.0, 1.0)
         side = max(wide, high)
         left = min(max(left + (wide - side) / 2, 0.0), 1.0 - side)
@@ -1070,7 +1130,10 @@ def compose(out: Path) -> None:
         if overlay:
             chains.append(f"{trimmed}[r{index}]")
             trimmed = f"[r{index}][p{pointed.index(entry)}]{overlay}"
-        chains.append(f"{trimmed},{camera(beat)},setsar=1,format=yuv420p[b{index}]")
+        # A beat whose moments are timed as it plays brings its focus with it.
+        focus = [(at, tuple(place) if place else None)
+                 for at, place in entry.get("focus", beat.focus)]
+        chains.append(f"{trimmed},{camera(focus)},setsar=1,format=yuv420p[b{index}]")
     joined = "[b0]"
     for index in range(1, len(marks)):
         chains.append(f"{joined}[b{index}]xfade=transition=fade:duration={FADE}"

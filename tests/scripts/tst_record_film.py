@@ -346,6 +346,37 @@ class BeatChecks(unittest.TestCase):
         self.assertIn("omaweb do", message)
         self.assertIn("denied", message)
 
+    def test_the_agents_row_names_each_new_act(self):
+        film.expect_acts_on_the_row("Agent", [f"{film.AGENT} · looked at the page",
+                                              f"{film.AGENT} · filled \"Amount\""])
+        message = self.assertMissed("Agent", film.expect_acts_on_the_row,
+                                    [f"{film.AGENT} is driving"])
+        self.assertIn("last act", message)
+        same = f"{film.AGENT} · looked at the page"
+        message = self.assertMissed("Agent", film.expect_acts_on_the_row, [same, same])
+        self.assertIn("did not change", message)
+
+    def test_stop_hands_the_agents_tab_back(self):
+        film.expect_handed_back("Agent", subprocess.CompletedProcess(
+            ["omaweb", "film-row"], 1, "", 'No Agent is attached to tab "t1".\n'))
+        message = self.assertMissed("Agent", film.expect_handed_back, subprocess.CompletedProcess(
+            ["omaweb", "film-row"], 0, "{}", ""))
+        self.assertIn("still attached", message)
+        self.assertMissed("Agent", film.expect_handed_back, subprocess.CompletedProcess(
+            ["omaweb", "film-row"], 1, "", "Omaweb has no verb \"film-row\".\n"))
+
+    def test_a_held_stop_is_pointed_at_its_middle(self):
+        held = {"ok": True, "x": 150, "y": 90, "width": 50, "height": 24,
+                "windowWidth": 1600, "windowHeight": 900, "line": f"{film.AGENT} · sent"}
+        self.assertEqual(film.hover_point("Agent", held), (175 / 1600, 102 / 900))
+
+    def test_the_camera_follows_a_focus_timed_as_the_beat_played(self):
+        whole = film.camera([(0.0, None)])
+        closer = film.camera([(0.0, None), (9.5, film.ROW)])
+        self.assertNotEqual(whole, closer)
+        self.assertIn("9.500", closer)
+        self.assertNotIn("9.500", whole)
+
     def test_the_agents_invoice_is_the_one_it_was_asked_to_send(self):
         server = mock.Mock()
         wanted = {"customer": "Kiln Coffee", "amount": "640.00"}

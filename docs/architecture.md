@@ -357,14 +357,23 @@ window's controller only, and refuses every verb if given a Private window's.
 for it. The label says so in the store, and the Space is deleted with its whole directory, the
 Engine profile, history and site data, and with the records of what was downloaded in it, when that
 connection closes, when the reader quits, or when the next browser starts after one that crashed.
-The downloaded files stay where the reader keeps downloads. The engine writes into a profile as it
-lets it go, which is after the directory is removed, so the store keeps the pending deletion and the
-next start removes whatever grew back. The deletion at start runs before the shell loads, and only
-in the browser that got the socket: a second process on the same data finds the socket answered and
-leaves the running browser's Spaces alone, at start and at exit. Taking a temporary Space over makes
-it an ordinary Space, and Sync never captures one, or the selection of one on show, so no copy
-outlives it on another machine. The CLI is one process per verb, so for a temporary Space it prints
-the id and holds its connection open until it is interrupted, terminated or hung up on.
+Files downloaded in the Space are not deleted with it; they stay where the reader keeps downloads.
+The engine still writes into the Engine profile while releasing it, after the directory is gone, so
+the store keeps the pending deletion and the next start removes whatever grew back. The deletion at
+start runs before the shell loads, and only in the browser that got the socket: a second process on
+the same data finds the socket answered and leaves the running browser's Spaces alone, at start and
+at exit. Taking a temporary Space over makes it an ordinary Space, and Sync never captures one, or
+the selection of one on show, so no copy outlives it on another machine. The CLI is one process per
+verb, so for a temporary Space it prints the id and holds its connection open until it is
+interrupted, terminated or hung up on.
+
+Stop on an Agent tab's row, or on the bar over an Agent's Auxiliary window, closes that Agent's
+connection as if the Agent had quit. `AgentControl.stopAgent` refuses the page requests still out
+for the connection's name, detaches every tab attached under that name, and asks `ControlSocket` to
+close every socket that has asked under it. Each socket then closes as a disconnect does, so a
+temporary Agent Space made over one of them is deleted as above. Allow agents and Space grants are
+left as they are, and a request that was waiting on a grant prompt is refused once the reader
+answers it.
 
 The socket answers one line at a time. A line longer than 64 KiB is answered as too long and the
 connection is closed, rather than cut and read on from the middle. A client that leaves 4 MiB of
@@ -471,9 +480,9 @@ the next verb. Closing the tab or turning Allow agents off ends it at once.
 `AgentControl.agentActivity` reports each Agent tab's Space, the name of the connection that last
 used it, its last act in words and whether one of its page verbs is in flight. The act is told from
 what the verb did: a `do` batch reports its last step that succeeded, named by the element the page
-reached, so a click reads as `clicked "Files changed"` rather than by its label. The sidebar, the
-page frame and the footer draw their marks from it, and `BrowserController.agentSpaceIds` names the
-Agent Spaces the reader has not taken over.
+reached, so a click reads as `clicked "Files changed"` rather than by its label. The sidebar, an
+Agent's Auxiliary window and the footer draw their marks from it, and
+`BrowserController.agentSpaceIds` names the Agent Spaces the reader has not taken over.
 
 The page area keeps an Agent tab's engine running wherever its Space is. It builds one through the
 tab's row in the Space on show, so the sidebar hears the page change, and as a retained tab's is in

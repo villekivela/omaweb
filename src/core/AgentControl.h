@@ -205,6 +205,11 @@ public:
     // What the interface needs to build an Agent tab's page: `tabId`,
     // `spaceId`, `url`, `zoom` and `muted`. Empty for a tab that is not one.
     Q_INVOKABLE QVariantMap agentTab(const QString &tabId) const;
+    // The reader's Stop on an Agent tab: closes the whole connection that
+    // drives it, as when the Agent quits. Every tab it drives is the reader's
+    // again and a temporary Agent Space it made is deleted. Allow agents and
+    // Space grants stay as they are, so the Agent can connect again at once.
+    Q_INVOKABLE void stopAgent(const QString &tabId);
 
     // Where every verb is written down once it is answered. Without one,
     // nothing is.
@@ -296,6 +301,10 @@ signals:
     // The page requests still out for these tabs and Auxiliary windows have
     // been refused, and those pages stop as the ones above do.
     void pageRequestsCancelledIn(const QStringList &targetIds);
+    // The socket connections that carried a stopped Agent's requests, which
+    // the socket closes as if the Agent had gone. Each then comes back
+    // through `connectionClosed`.
+    void connectionsStopped(const QList<quint64> &connections);
     // `commands` or `run` for the ordinary window, which holds the command
     // registry: `verb`, the `commands` it may list or run, and for `run` the
     // `command` and its `argument`, a position counted from 0, or -1. The
@@ -316,6 +325,10 @@ private:
         // asked about them again, so a denial is not a prompt it can repeat
         // over the reader's page.
         QSet<QString> deniedSpaceIds;
+        // How many times the reader has stopped this connection, so a request
+        // that was waiting on a grant prompt when it was stopped is refused
+        // rather than carried out once the reader answers.
+        int stops = 0;
     };
 
     enum class GrantAnswer { Allowed, Denied, Undecided, Withdrawn, Failed, Gone };
@@ -429,6 +442,8 @@ private:
     // Nothing when its own Space is gone.
     QString defaultSpace(const Connection &connection) const;
     static QJsonObject noSpace(const QString &named);
+    // What a request of a connection the reader stopped is answered.
+    static QJsonObject stoppedRefusal();
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
     double pageScale() const;
     // What a request is about before it runs: its tab, and the Space it
@@ -453,6 +468,10 @@ private:
     QString m_configRoot;
     bool m_allowAgents = false;
     QHash<QString, Connection> m_connections;
+    // Every name each open socket connection has asked under, so Stop finds
+    // the sockets of the Agent it stops, the one a temporary Space was made
+    // over included.
+    QHash<quint64, QSet<QString>> m_socketNames;
     quint64 m_requests = 0;
     // Every tab an Agent opened in this run, so a reader's own tab is never
     // one an Agent can load or close. It is not kept across a restart, after

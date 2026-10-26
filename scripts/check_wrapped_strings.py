@@ -58,6 +58,7 @@ COMPARED = re.compile(
 TOKENS = {
     ("FindBar.qml", "search"),
     ("TabRow.qml", "close"),
+    ("AgentStopButton.qml", "stop"),
     ("SpaceOutline.qml", "warning"),
     ("SpaceOutline.qml", "lock"),
     ("SpaceOutline.qml", "shield"),
