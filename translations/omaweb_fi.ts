@@ -1409,6 +1409,10 @@
         <translation>Tarkista elementti</translation>
     </message>
     <message>
+        <source>Address copied</source>
+        <translation>Osoite kopioitu</translation>
+    </message>
+    <message>
         <source>%1 is not available</source>
         <translation>%1 ei ole käytettävissä</translation>
     </message>
