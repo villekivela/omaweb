@@ -1177,6 +1177,31 @@ class DesktopKeyboard(unittest.TestCase):
             desktop.expect_keyboard()
 
 
+class RecordKeyboard(unittest.TestCase):
+    def test_record_checks_the_keyboard_from_the_moment_the_window_is_placed(self):
+        desktop = mock.Mock()
+        desktop.place.return_value = (480, 283, 1600, 900)
+        armed = []
+
+        def start(_recorder):
+            armed.append(film.BEFORE_KEYS)
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(film, "expect_shared_memory"), \
+                mock.patch.object(film, "FixtureServer", return_value=mock.MagicMock(port=0)), \
+                mock.patch.object(film, "seed", return_value=(Path(directory), Path(directory))), \
+                mock.patch.object(film.subprocess, "Popen", return_value=mock.Mock(pid=4242)), \
+                mock.patch.object(film, "omaweb", return_value=mock.Mock(returncode=0)), \
+                mock.patch.object(film.time, "sleep"), \
+                mock.patch.object(film.Recorder, "start", start), \
+                mock.patch.object(film.os, "killpg"), \
+                self.assertRaises(KeyboardInterrupt):
+            film.record(Path("/build/omaweb-browser"), Path(directory), desktop)
+        self.assertEqual(armed, [desktop.expect_keyboard])
+        self.assertIsNone(film.BEFORE_KEYS)
+
+
 class DesktopAnswers(unittest.TestCase):
     """Hyprland answers a dispatch it could not do with exit 0 and the error on stdout."""
 
