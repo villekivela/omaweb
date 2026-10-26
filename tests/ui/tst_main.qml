@@ -4307,6 +4307,54 @@ TestCase {
         compare(texts, ["ads.example/banner.js", "through collect.tracker.example"]);
     }
 
+    // The film's Blocking beat has no pointer either: the window answers where
+    // the lock is and presses it as a click would, then does the same for the
+    // blocked tile of the card it opened, and says what the card shows.
+    function test_theFilmPressesTheLockThenTheBlockedTile() {
+        openPage("https://news.example/story");
+        const card = siteCard();
+        const cardBlocker = card.blocker;
+        card.blocker = refusingBlockerComponent.createObject(testCase);
+        const lock = findChild(window.contentItem, "securityIndicator");
+
+        const where = window.filmSite("lock", false);
+        const corner = lock.mapToItem(window.contentItem, 0, 0);
+        const shut = !window.siteInformationOpen;
+        const blockedBeforeTheCard = window.filmSite("blocked", false);
+        verify(window.filmSite("lock", true).ok);
+        tryVerify(function () {
+            return card.visible && card.open;
+        });
+        const tile = findChild(card, "siteInformationTile_blocked");
+        const tileCorner = tile.mapToItem(window.contentItem, 0, 0);
+        const atTheTile = window.filmSite("blocked", false);
+        const pressed = window.filmSite("blocked", true);
+        const shown = window.filmSite("", false);
+        const cardCorner = card.mapToItem(window.contentItem, 0, 0);
+        verify(window.filmSite("lock", true).ok);
+        tryVerify(function () {
+            return !card.visible;
+        });
+        card.blocker = cardBlocker;
+
+        verify(where.ok);
+        verify(shut);
+        compare([where.x, where.y, where.width, where.height], [corner.x, corner.y, lock.width,
+                                                                lock.height]);
+        compare([where.windowWidth, where.windowHeight], [window.contentItem.width,
+                                                          window.contentItem.height]);
+        verify(!blockedBeforeTheCard.ok);
+        compare([atTheTile.x, atTheTile.y, atTheTile.width], [tileCorner.x, tileCorner.y,
+                                                              tile.width]);
+        compare([atTheTile.open, atTheTile.detail], [true, ""]);
+        compare(pressed.detail, "blocked");
+        compare([shown.open, shown.detail], [true, "blocked"]);
+        compare(shown.listed.slice(0, 2), ["ads.example/banner.js",
+                                           "metrics.news.example/collect.js"]);
+        compare([shown.card.x, shown.card.width], [cardCorner.x, card.width]);
+        verify(!window.filmSite("padlock", false).ok);
+    }
+
     // The command and its key open the card at its top, and both are named
     // where the reader looks keys up: the Shortcut sheet, and the command's
     // own row in command scope.

@@ -478,6 +478,7 @@ private slots:
     void runsOnlyThePublicCommandsInTheWindow();
     void holdsASpacesNameOnlyForTheFilm();
     void holdsAnAgentTabsRowOnlyForTheFilm();
+    void pressesSiteInformationOnlyForTheFilm();
     void decidesEveryCommandOfTheRegistry();
     void reportsWhatEachAgentTabsAgentIsDoing();
     void uploadsOnlyInAnAgentSpace();
@@ -2387,6 +2388,53 @@ void AgentControlTest::holdsASpacesNameOnlyForTheFilm()
     QCOMPARE(asked.size(), 2);
 #else
     QCOMPARE(failure(hover), QStringLiteral("unknown-verb"));
+    QVERIFY(asked.isEmpty());
+#endif
+}
+
+// Nor has its Blocking beat: `film-site` has the window answer where the lock
+// or Site information's blocked tile is, and press it with `--press`, and
+// what the card shows with neither.
+void AgentControlTest::pressesSiteInformationOnlyForTheFilm()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    const auto script = QStringLiteral("film");
+    QList<QVariantMap> asked;
+    connect(&control, &AgentControl::commandRequested, &control,
+        [&](int requestId, const QVariantMap &request) {
+            asked.append(request);
+            control.answerCommand(requestId, {{QStringLiteral("ok"), true}});
+        });
+
+    const auto pressed = ask(control, script, QStringLiteral("film-site"),
+        {{QStringLiteral("target"), QStringLiteral("lock")}, {QStringLiteral("press"), true}});
+#ifdef OMAWEB_FILM_HOOKS
+    QVERIFY(succeeded(pressed));
+    QCOMPARE(asked.size(), 1);
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("verb")).toString(), QStringLiteral("film-site"));
+    QCOMPARE(asked.constLast().value(QStringLiteral("target")).toString(), QStringLiteral("lock"));
+    QCOMPARE(asked.constLast().value(QStringLiteral("press")).toBool(), true);
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("film-site"),
+        {{QStringLiteral("target"), QStringLiteral("blocked")}})));
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("target")).toString(), QStringLiteral("blocked"));
+    QCOMPARE(asked.constLast().value(QStringLiteral("press")).toBool(), false);
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("film-site"))));
+    QCOMPARE(asked.constLast().value(QStringLiteral("target")).toString(), QString());
+    QCOMPARE(failure(ask(control, script, QStringLiteral("film-site"),
+                 {{QStringLiteral("target"), QStringLiteral("padlock")}})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(failure(ask(
+                 control, script, QStringLiteral("film-site"), {{QStringLiteral("press"), true}})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(asked.size(), 3);
+#else
+    QCOMPARE(failure(pressed), QStringLiteral("unknown-verb"));
     QVERIFY(asked.isEmpty());
 #endif
 }

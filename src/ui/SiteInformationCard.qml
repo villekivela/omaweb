@@ -361,6 +361,16 @@ Omarchy.BorderSurface {
         return String(address).replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/[?#].*$/, "");
     }
 
+    // The tile for one detail, or null when the card has none.
+    function tileItem(key) {
+        for (let index = 0; index < tileRepeater.count; ++index) {
+            const tile = tileRepeater.itemAt(index);
+            if (tile && tile.modelData.key === key)
+                return tile;
+        }
+        return null;
+    }
+
     function openTile(index) {
         const tile = root.tiles[index];
         if (!tile || !tile.drills)
@@ -619,6 +629,8 @@ Omarchy.BorderSurface {
                 spacing: root.tileGap
 
                 Repeater {
+                    id: tileRepeater
+
                     model: root.tiles
 
                     Rectangle {

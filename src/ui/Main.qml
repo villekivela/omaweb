@@ -2090,6 +2090,64 @@ ApplicationWindow {
         };
     }
 
+    // The film's Blocking beat clicks the lock, then Site information's blocked
+    // tile. Its recording has no pointer, so this answers where `target`
+    // ("lock" or "blocked") is, for the edit to draw one there, and with
+    // `press` clicks it as a pointer would. Either way, or with no target, it
+    // answers what the card shows and where it is. Only a browser built with
+    // OMAWEB_FILM_HOOKS passes the request on (scripts/record_film.py).
+    function filmSite(target, press) {
+        const card = siteInformationCard;
+        const lock = sidebar.siteInformationButton;
+        const named = String(target || "");
+        function rectangle(item) {
+            const corner = item.mapToItem(window.contentItem, 0, 0);
+            return {
+                x: corner.x,
+                y: corner.y,
+                width: item.width,
+                height: item.height
+            };
+        }
+        if (named.length > 0 && named !== "lock" && named !== "blocked") {
+            return {
+                ok: false,
+                code: "bad-request",
+                error: "There is no " + named + " to point at."
+            };
+        }
+        const item = named === "lock" ? lock : named === "blocked" && window.siteInformationOpen
+                                        ? card.tileItem("blocked") : null;
+        if (named.length > 0 && (!item || !item.visible)) {
+            return {
+                ok: false,
+                code: "not-found",
+                error: named === "lock" ? "The address shows no lock." :
+                                          "Site information shows no blocked tile."
+            };
+        }
+        const answer = item ? rectangle(item) : {};
+        if (press && named === "lock") {
+            if (window.siteInformationOpen)
+                window.dismissSiteInformation();
+            else
+                window.openSiteInformation("");
+        } else if (press && named === "blocked") {
+            card.openTile(card.tiles.findIndex(tile => tile.key === "blocked"));
+        }
+        answer.ok = true;
+        answer.open = window.siteInformationOpen;
+        answer.detail = card.detail;
+        const listed = card.detail === "blocked" ? card.refusals.requests : [];
+        answer.listed = listed.slice(0, card.listedRefusals).map(refusal => card.requestLabel(
+                                                                                refusal.address));
+        answer.lock = rectangle(lock);
+        answer.card = rectangle(card);
+        answer.windowWidth = window.contentItem.width;
+        answer.windowHeight = window.contentItem.height;
+        return answer;
+    }
+
     // `omaweb commands` and `omaweb run` reach this window's command registry,
     // and only the ordinary window's.
     Connections {
@@ -2099,6 +2157,11 @@ ApplicationWindow {
             if (request.verb === "film-row") {
                 window.agentControlSource.answerCommand(requestId, window.holdTabRow(request.tabId,
                                                                                      request.mode));
+                return;
+            }
+            if (request.verb === "film-site") {
+                window.agentControlSource.answerCommand(requestId, window.filmSite(request.target,
+                                                                                   request.press));
                 return;
             }
             if (request.verb === "film-hover") {

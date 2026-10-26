@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """The introductory film's fixture sites, their server and the beat checks, without a browser.
 
-`scripts/record_film.py` records the real browser in a container, and a recording that went wrong
-still produces a video. What decides whether it went wrong is here: the sites the film browses
-reach nothing real, the server answers each one under its own name and says what was asked of it,
-and each beat check refuses the answer a broken beat would give. The recording itself needs the
-engine and a compositor and runs through `scripts/record_film.sh`.
+`scripts/record_film.py` records the real browser in a container or on the maintainer's desktop,
+and a recording that went wrong still produces a video. What decides whether it went wrong is here:
+the sites the film browses reach nothing real, the server answers each one under its own name and
+says what was asked of it, and each beat check refuses the answer a broken beat would give. The
+desktop mode is held to the commands it runs and to giving the desktop back, against a stand-in
+for Hyprland, since a test must never move the reader's windows. The recording itself needs the
+engine and a compositor and runs through `scripts/record_film.sh` or `record_film.py desktop`.
 """
 
 from __future__ import annotations
@@ -15,10 +17,13 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -370,6 +375,38 @@ class BeatChecks(unittest.TestCase):
                 "windowWidth": 1600, "windowHeight": 900, "line": f"{film.AGENT} · sent"}
         self.assertEqual(film.hover_point("Agent", held), (175 / 1600, 102 / 900))
 
+    # The window's answer to `film-site` with Site information open at the blocked list, in the
+    # film window's logical pixels.
+    SITE = {"ok": True, "open": True, "detail": "blocked", "windowWidth": 1600,
+            "windowHeight": 900, "lock": {"x": 16, "y": 40, "width": 18, "height": 18},
+            "card": {"x": 8, "y": 64, "width": 360, "height": 420},
+            "listed": ["adsprout.test/serve.js?slot=top", "pixelmint.test/pixel.gif",
+                       "adsprout.test/serve.js?slot=side"]}
+
+    def test_the_blocked_list_on_show_names_the_ad_network_and_the_tracker(self):
+        film.expect_blocked_list("Blocking", self.SITE, film.AD_HOSTS)
+
+    def test_site_information_that_never_opened_misses_the_blocking_beat(self):
+        with self.assertRaisesRegex(film.BeatMissed, "not open"):
+            film.expect_blocked_list("Blocking", dict(self.SITE, open=False), film.AD_HOSTS)
+
+    def test_site_information_left_at_its_top_misses_the_blocking_beat(self):
+        with self.assertRaisesRegex(film.BeatMissed, "blocked list"):
+            film.expect_blocked_list("Blocking", dict(self.SITE, detail="", listed=[]),
+                                     film.AD_HOSTS)
+
+    def test_a_blocked_list_without_the_tracker_misses_the_blocking_beat(self):
+        listed = ["adsprout.test/serve.js?slot=top"]
+        with self.assertRaisesRegex(film.BeatMissed, "pixelmint.test"):
+            film.expect_blocked_list("Blocking", dict(self.SITE, listed=listed), film.AD_HOSTS)
+
+    def test_the_camera_frames_the_lock_and_the_card_it_opened(self):
+        left, top, wide, high = film.framing(self.SITE)
+        self.assertEqual(left, 0.0)
+        self.assertAlmostEqual(top, 40 / 900 - 0.03)
+        self.assertAlmostEqual(left + wide, 368 / 1600 + 0.03)
+        self.assertAlmostEqual(top + high, 484 / 900 + 0.03)
+
     def test_the_camera_follows_a_focus_timed_as_the_beat_played(self):
         whole = film.camera([(0.0, None)])
         closer = film.camera([(0.0, None), (9.5, film.ROW)])
@@ -594,6 +631,444 @@ class FilmFiles(unittest.TestCase):
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                  str(out / "omaweb.mp4")], capture_output=True, text=True, check=True).stdout)
             self.assertAlmostEqual(duration, start - film.FADE * (len(marks) - 1), delta=0.2)
+
+
+
+# The XPS's monitor as `hyprctl monitors -j` describes it: 3840 by 2160 at a scale of 1.5, so 2560
+# by 1440 logical pixels, with Omarchy's bar keeping 26 at the top.
+MONITOR = {"name": "DP-1", "x": 0, "y": 0, "width": 3840, "height": 2160, "scale": 1.5,
+           "transform": 0, "reserved": [0, 26, 0, 0], "focused": True,
+           "activeWorkspace": {"id": 2, "name": "2"}}
+
+
+class DesktopWindow(unittest.TestCase):
+    def test_the_window_is_the_films_frame_in_the_middle_of_the_free_monitor(self):
+        self.assertEqual(film.window_frame(MONITOR), (480, 283, 1600, 900))
+
+    def test_a_monitor_to_the_right_places_the_window_on_itself(self):
+        right = dict(MONITOR, x=2560, y=0, width=2560, height=1440, scale=1.0,
+                     reserved=[0, 0, 0, 0])
+        self.assertEqual(film.window_frame(right), (3040, 270, 1600, 900))
+
+    def test_a_turned_monitor_is_measured_as_it_stands(self):
+        turned = dict(MONITOR, width=2160, height=3840, scale=1.0, transform=1,
+                      reserved=[0, 0, 0, 0])
+        self.assertEqual(film.window_frame(turned), (1120, 630, 1600, 900))
+
+    def test_a_monitor_without_room_for_the_frame_stops_the_film(self):
+        small = dict(MONITOR, width=2880, height=1800, scale=2.0)
+        with self.assertRaisesRegex(film.BeatMissed, "1440 by 874"):
+            film.window_frame(small)
+
+    def test_the_pointer_is_parked_off_the_window_on_the_same_monitor(self):
+        frame = film.window_frame(MONITOR)
+        self.assertEqual(film.parking(MONITOR, frame), (2559, 1439))
+
+
+
+class FakeDesktop:
+    """The commands a `Desktop` runs, answered as the XPS's Hyprland and Omarchy shell answer them.
+
+    A query it knows is answered; anything else is an action, which is kept, and fails or is
+    interrupted when a test says so.
+    """
+
+    def __init__(self, dnd="off", workspaces=None, notifier="omarchy-shell"):
+        self.answers = {
+            ("hyprctl", "monitors", "-j"): json.dumps([MONITOR]),
+            ("hyprctl", "activeworkspace", "-j"): json.dumps({"id": 2, "name": "2"}),
+            ("hyprctl", "workspaces", "-j"): json.dumps(
+                workspaces or [{"id": 1, "name": "1", "windows": 1}]),
+            ("hyprctl", "cursorpos", "-j"): json.dumps({"x": 1280, "y": 730}),
+            ("omarchy-shell", "notifications", "dndState"): dnd + "\n",
+            ("makoctl", "mode"): "default\n",
+        }
+        self.notifier = notifier
+        # What `hyprctl clients -j` answers each time it is asked, the last one from then on.
+        self.clients = [[]]
+        self.acted = []
+        self.interrupt_at = None
+        self.failing = set()
+        self.signals_while_acting = []
+
+    def which(self, program):
+        return f"/usr/bin/{program}" if program == self.notifier else None
+
+    def run(self, command, **_):
+        command = tuple(command)
+        if command == ("hyprctl", "clients", "-j"):
+            answer = self.clients.pop(0) if len(self.clients) > 1 else self.clients[0]
+            return subprocess.CompletedProcess(command, 0, json.dumps(answer), "")
+        if command in self.answers:
+            return subprocess.CompletedProcess(command, 0, self.answers[command], "")
+        self.acted.append(list(command))
+        self.signals_while_acting.append(signal.getsignal(signal.SIGINT))
+        if self.interrupt_at is not None and len(self.acted) == self.interrupt_at:
+            raise KeyboardInterrupt
+        if command in self.failing:
+            raise subprocess.CalledProcessError(1, command)
+        return subprocess.CompletedProcess(command, 0, "ok\n", "")
+
+
+TAKE = [
+    ["omarchy-shell", "notifications", "setDnd", "on"],
+    ["omarchy-shell", "-q", "omarchy.indicators", "refresh"],
+    ["hyprctl", "eval", "hl.dispatch(hl.dsp.cursor.move({ x = 2559, y = 1439 }))"],
+    ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "name:omaweb-film" })'],
+]
+GIVE_BACK = [
+    ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "2" })'],
+    ["hyprctl", "eval", "hl.dispatch(hl.dsp.cursor.move({ x = 1280, y = 730 }))"],
+    ["omarchy-shell", "notifications", "setDnd", "off"],
+    ["omarchy-shell", "-q", "omarchy.indicators", "refresh"],
+]
+
+
+class DesktopTaken(unittest.TestCase):
+    def desktop(self, fake):
+        desktop = film.Desktop(run=fake.run, which=fake.which)
+        desktop.survey()
+        return desktop
+
+    def test_a_run_holds_notifications_parks_the_pointer_and_takes_a_workspace_of_its_own(self):
+        fake = FakeDesktop()
+        with self.desktop(fake).taken():
+            self.assertEqual(fake.acted, TAKE)
+        self.assertEqual(fake.acted, TAKE + GIVE_BACK)
+
+    def test_a_run_stopped_with_ctrl_c_puts_everything_back(self):
+        fake = FakeDesktop()
+        with self.assertRaises(KeyboardInterrupt), self.desktop(fake).taken():
+            raise KeyboardInterrupt
+        self.assertEqual(fake.acted, TAKE + GIVE_BACK)
+
+    def test_a_run_that_fails_puts_everything_back(self):
+        fake = FakeDesktop()
+        with self.assertRaises(film.BeatMissed), self.desktop(fake).taken():
+            raise film.BeatMissed("Theme", "the chrome kept its colour")
+        self.assertEqual(fake.acted, TAKE + GIVE_BACK)
+
+    def test_a_run_terminated_puts_everything_back(self):
+        fake = FakeDesktop()
+        with self.assertRaises(KeyboardInterrupt), self.desktop(fake).taken():
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(1)
+        self.assertEqual(fake.acted, TAKE + GIVE_BACK)
+
+    def test_ctrl_c_while_the_desktop_is_being_taken_puts_back_what_was_taken(self):
+        fake = FakeDesktop()
+        fake.interrupt_at = 3
+        with self.assertRaises(KeyboardInterrupt), self.desktop(fake).taken():
+            self.fail("the run went on after Ctrl+C")
+        self.assertEqual(fake.acted, TAKE[:3] + GIVE_BACK[1:])
+
+    def test_a_second_ctrl_c_cannot_stop_the_desktop_being_put_back(self):
+        fake = FakeDesktop()
+        before = signal.getsignal(signal.SIGINT)
+        with self.assertRaises(KeyboardInterrupt), self.desktop(fake).taken():
+            raise KeyboardInterrupt
+        self.assertEqual(fake.signals_while_acting[len(TAKE):],
+                         [signal.SIG_IGN] * len(GIVE_BACK))
+        self.assertIs(signal.getsignal(signal.SIGINT), before)
+
+    def test_what_cannot_be_put_back_does_not_keep_the_rest_from_it(self):
+        fake = FakeDesktop()
+        fake.failing.add(tuple(GIVE_BACK[0]))
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as said, \
+                self.desktop(fake).taken():
+            pass
+        self.assertEqual(fake.acted, TAKE + GIVE_BACK)
+        self.assertIn("could not put back", said.getvalue())
+
+    def test_do_not_disturb_already_on_stays_on(self):
+        fake = FakeDesktop(dnd="on")
+        with self.desktop(fake).taken():
+            pass
+        self.assertIn(["omarchy-shell", "notifications", "setDnd", "on"], fake.acted[len(TAKE):])
+
+    def test_mako_modes_are_held_and_restored_where_there_is_no_omarchy_shell(self):
+        fake = FakeDesktop(notifier="makoctl")
+        with self.desktop(fake).taken():
+            pass
+        self.assertEqual(fake.acted[0], ["makoctl", "mode", "-a", "do-not-disturb"])
+        self.assertEqual(fake.acted[-1], ["makoctl", "mode", "-s", "default"])
+
+    def test_a_desktop_with_nothing_to_hold_notifications_stops_the_film(self):
+        fake = FakeDesktop(notifier=None)
+        with self.assertRaisesRegex(film.BeatMissed, "notifications"):
+            self.desktop(fake)
+        self.assertEqual(fake.acted, [])
+
+    def test_a_film_workspace_left_with_windows_stops_the_film(self):
+        fake = FakeDesktop(workspaces=[{"id": 7, "name": "omaweb-film", "windows": 1}])
+        with self.assertRaisesRegex(film.BeatMissed, "omaweb-film"):
+            self.desktop(fake)
+        self.assertEqual(fake.acted, [])
+
+
+
+# The reader's own Omaweb, which has the same class as the film's and must never be touched.
+READERS_WINDOW = {"address": "0x5566aa", "pid": 2236555, "class": "omaweb", "floating": False,
+                  "at": [11, 32], "size": [2538, 1397]}
+FILMS_WINDOW = {"address": "0x5566bb", "pid": 4100, "class": "omaweb", "floating": False,
+                "at": [11, 32], "size": [1269, 1397]}
+PLACED = dict(FILMS_WINDOW, floating=True, at=[480, 283], size=[1600, 900])
+# The film's browser was started in a session of its own, which its window's process is in.
+SESSIONS = {2236555: 1700, 4100: 4000}
+
+PLACE = [
+    ["hyprctl", "dispatch", 'hl.dsp.window.move({ window = "address:0x5566bb", '
+                            'workspace = "name:omaweb-film", follow = false })'],
+    ["hyprctl", "dispatch", 'hl.dsp.window.float({ window = "address:0x5566bb", '
+                            'action = "toggle" })'],
+    ["hyprctl", "dispatch", 'hl.dsp.window.resize({ window = "address:0x5566bb", '
+                            'x = 1600, y = 900 })'],
+    ["hyprctl", "dispatch", 'hl.dsp.window.move({ window = "address:0x5566bb", '
+                            'x = 480, y = 283 })'],
+    ["hyprctl", "dispatch", 'hl.dsp.focus({ window = "address:0x5566bb" })'],
+]
+
+
+class DesktopPlacement(unittest.TestCase):
+    def place(self, fake, **options):
+        desktop = film.Desktop(run=fake.run, which=fake.which, **options)
+        desktop.survey()
+        return desktop.place(4000, getpgid=SESSIONS.__getitem__, timeout=1)
+
+    def test_the_films_window_is_found_by_its_session_and_put_in_the_films_frame(self):
+        fake = FakeDesktop()
+        fake.clients = [[READERS_WINDOW], [READERS_WINDOW, FILMS_WINDOW],
+                        [READERS_WINDOW, PLACED]]
+        self.assertEqual(self.place(fake), (480, 283, 1600, 900))
+        self.assertEqual(fake.acted, PLACE)
+
+    def test_a_window_that_floats_already_is_not_tiled_again(self):
+        fake = FakeDesktop()
+        fake.clients = [[dict(FILMS_WINDOW, floating=True)], [PLACED]]
+        self.place(fake)
+        self.assertEqual(fake.acted, PLACE[:1] + PLACE[2:])
+
+    def test_a_window_hyprland_would_not_size_stops_the_film(self):
+        fake = FakeDesktop()
+        fake.clients = [[FILMS_WINDOW], [dict(PLACED, size=[1600, 880])]]
+        with self.assertRaisesRegex(film.BeatMissed, "1600 by 880"):
+            self.place(fake)
+
+    def test_a_browser_that_never_opens_a_window_stops_the_film(self):
+        fake = FakeDesktop()
+        fake.clients = [[READERS_WINDOW]]
+        with self.assertRaisesRegex(film.BeatMissed, "window"):
+            self.place(fake)
+        self.assertEqual(fake.acted, [])
+
+    def test_a_dry_run_names_what_it_would_do_to_the_window_and_does_none_of_it(self):
+        fake = FakeDesktop()
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as said:
+            self.assertEqual(self.place(fake, dry_run=True), (480, 283, 1600, 900))
+        self.assertEqual(fake.acted, [])
+        self.assertIn("would run: hyprctl dispatch 'hl.dsp.window.resize({ window = "
+                      '"address:<film window>", x = 1600, y = 900 })\'', said.getvalue())
+
+
+
+class DesktopBrowser(unittest.TestCase):
+    # The maintainer's session as the recording inherits it.
+    SESSION = {"HOME": "/home/reader", "XDG_CONFIG_HOME": "/home/reader/.config",
+               "XDG_DATA_HOME": "/home/reader/.local/share", "XDG_RUNTIME_DIR": "/run/user/1000",
+               "WAYLAND_DISPLAY": "wayland-1", "QTWEBENGINE_CHROMIUM_FLAGS": "--enable-x",
+               "QT_SCALE_FACTOR": "2", "PATH": "/usr/bin"}
+
+    def environment(self):
+        return film.desktop_environment(self.SESSION, Path("/tmp/omaweb-film-1"), 43210)
+
+    def test_the_films_browser_keeps_nothing_in_the_readers_home(self):
+        for name, value in self.environment().items():
+            with self.subTest(name=name):
+                self.assertNotIn("/home/reader", value)
+
+    def test_the_films_browser_answers_on_a_socket_of_its_own(self):
+        environment = self.environment()
+        self.assertEqual(environment["OMAWEB_CONTROL_SOCKET"], "/tmp/omaweb-film-1/control.sock")
+        self.assertEqual(environment["OMAWEB_DATA_ROOT"], "/tmp/omaweb-film-1/data")
+        self.assertEqual(environment["OMAWEB_CONFIG_ROOT"], "/tmp/omaweb-film-1/config")
+
+    def test_the_films_sites_are_reached_on_the_server_and_nothing_else_is_reached(self):
+        self.assertEqual(self.environment()["QTWEBENGINE_CHROMIUM_FLAGS"],
+                         '"--host-resolver-rules=MAP *.test 127.0.0.1:43210, MAP * ~NOTFOUND"')
+
+    def test_the_films_browser_draws_on_the_readers_wayland_session_at_its_own_scale(self):
+        environment = self.environment()
+        self.assertEqual(environment["WAYLAND_DISPLAY"], "wayland-1")
+        self.assertEqual(environment["XDG_RUNTIME_DIR"], "/run/user/1000")
+        self.assertEqual(environment["QT_QPA_PLATFORM"], "wayland")
+        self.assertNotIn("QT_SCALE_FACTOR", environment)
+
+
+
+class DesktopRecording(unittest.TestCase):
+    FRAME = (480, 283, 1600, 900)
+
+    def test_under_cage_the_whole_output_is_recorded_as_it_was(self):
+        self.assertEqual(
+            film.recorder_command(Path("/film/raw.mkv")),
+            ["wf-recorder", "-y", "-r", "30", "-c", "libx264", "-p", "preset=ultrafast",
+             "-p", "crf=12", "-x", "yuv420p", "-f", "/film/raw.mkv"])
+        self.assertEqual(film.frame_command(), ["grim", "-t", "ppm", "-"])
+
+    def test_on_the_desktop_only_the_films_window_is_recorded(self):
+        command = film.recorder_command(Path("/film/raw.mkv"), self.FRAME)
+        self.assertEqual(command[command.index("-g") + 1], "480,283 1600x900")
+        self.assertEqual(film.frame_command(self.FRAME),
+                         ["grim", "-g", "480,283 1600x900", "-t", "ppm", "-"])
+
+    def test_the_chrome_is_sampled_at_the_same_place_in_a_frame_of_any_size(self):
+        def ppm(width, height, at):
+            pixels = bytearray(width * height * 3)
+            start = (at[1] * width + at[0]) * 3
+            pixels[start:start + 3] = bytes((10, 20, 30))
+            return f"P6 {width} {height} 255\n".encode() + bytes(pixels)
+
+        # A hundredth of the way in and half way down: 24, 675 of the cage's 2400 by 1350.
+        self.assertEqual(film.chrome_sample(ppm(2400, 1350, (24, 675))), (10, 20, 30))
+        self.assertEqual(film.chrome_sample(ppm(1600, 900, (16, 450))), (10, 20, 30))
+
+    def test_a_recording_at_the_films_size_is_cut_as_it_is(self):
+        self.assertEqual(film.fitted(film.OUTPUT_MODE), "")
+
+    def test_a_recording_from_a_monitor_of_another_scale_is_brought_to_the_films_size(self):
+        self.assertEqual(film.fitted((3200, 1800)), ",scale=2400:1350:flags=lanczos")
+
+
+
+class Commands:
+    """Every command the build or the preflight runs, answered with the first answer matched."""
+
+    def __init__(self, *answers):
+        self.answers = list(answers)
+        self.ran = []
+
+    def __call__(self, command, **options):
+        self.ran.append((list(command), options))
+        for start, code, said in self.answers:
+            if list(command[:len(start)]) == start:
+                return subprocess.CompletedProcess(command, code, said, "")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+
+class DesktopBuild(unittest.TestCase):
+    ENGINE = ["Qt6WebEngineCore", "Qt6WebEngineQuick"]
+
+    def build(self, run, **options):
+        with tempfile.TemporaryDirectory() as engine:
+            for name in self.ENGINE:
+                (Path(engine) / name).mkdir()
+            return film.build_for_desktop(run=run, engine=Path(engine), **options), engine
+
+    def test_the_film_build_is_of_the_commit_on_omawebs_engine_with_two_jobs(self):
+        run = Commands()
+        browser, engine = self.build(run)
+        self.assertEqual(browser, film.ROOT / "build" / "film-desktop" / "omaweb-browser")
+        commands = [command for command, _ in run.ran]
+        configure = next(command for command in commands if command[:2] == ["cmake", "--preset"])
+        self.assertIn("-DOMAWEB_FILM_HOOKS=ON", configure)
+        self.assertIn(f"-DQt6WebEngineCore_DIR:PATH={engine}/Qt6WebEngineCore", configure)
+        self.assertIn(["scripts/check_omaweb_engine.sh", str(film.ROOT / "build" / "film-desktop")],
+                      commands)
+        built = next(options for command, options in run.ran if command[:2] == ["cmake", "--build"])
+        self.assertEqual(built["env"]["CMAKE_BUILD_PARALLEL_LEVEL"], "2")
+
+    def test_a_checkout_with_changes_is_not_filmed(self):
+        run = Commands((["git", "status"], 0, " M src/main.cpp\n"))
+        with self.assertRaisesRegex(film.BeatMissed, "commit"):
+            self.build(run)
+        self.assertFalse([command for command, _ in run.ran if command[0] == "cmake"])
+
+    def test_a_dry_run_names_the_build_and_builds_nothing(self):
+        run = Commands()
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as said:
+            self.build(run, dry_run=True)
+        self.assertEqual([command[0] for command, _ in run.ran], ["git"])
+        self.assertIn("would run: cmake --build", said.getvalue())
+
+    def test_what_the_desktop_lacks_for_the_film_is_named_with_its_install_line(self):
+        run = Commands((["pacman", "-T"], 127, "wf-recorder\ninter-font\n"))
+        with self.assertRaisesRegex(film.BeatMissed,
+                                    "sudo pacman -S --needed wf-recorder inter-font"):
+            film.expect_desktop_packages(run=run)
+
+    def test_a_desktop_with_everything_the_film_needs_passes(self):
+        film.expect_desktop_packages(run=Commands((["pacman", "-T"], 0, "")))
+
+
+class DesktopRun(unittest.TestCase):
+    def setUp(self):
+        self.fake = FakeDesktop()
+        self.desktop = film.Desktop(run=self.fake.run, which=self.fake.which)
+        self.out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.out)
+        for patch in (mock.patch.object(film, "build_for_desktop",
+                                        return_value=Path("/build/omaweb-browser")),
+                      mock.patch.object(film, "expect_desktop_packages"),
+                      mock.patch.object(film, "compose")):
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.said = io.StringIO()
+        patch = mock.patch("sys.stdout", self.said)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_the_run_says_it_takes_the_keyboard_and_waits_before_it_changes_anything(self):
+        def at_the_prompt(_prompt=""):
+            self.assertEqual(self.fake.acted, [])
+            self.assertIn("keyboard", self.said.getvalue())
+            return ""
+
+        with mock.patch("builtins.input", side_effect=at_the_prompt) as asked, \
+                mock.patch.object(film, "record") as recorded:
+            film.record_on_desktop(self.desktop, self.out)
+        asked.assert_called_once()
+        recorded.assert_called_once_with(Path("/build/omaweb-browser"), self.out, self.desktop)
+        self.assertEqual(self.fake.acted, TAKE + GIVE_BACK)
+        self.assertIn(str(self.out / "omaweb.webm"), self.said.getvalue())
+
+    def test_ctrl_c_at_the_prompt_changes_nothing(self):
+        with mock.patch("builtins.input", side_effect=KeyboardInterrupt), \
+                mock.patch.object(film, "record") as recorded, \
+                self.assertRaises(KeyboardInterrupt):
+            film.record_on_desktop(self.desktop, self.out)
+        recorded.assert_not_called()
+        self.assertEqual(self.fake.acted, [])
+
+    def test_a_film_stopped_with_ctrl_c_puts_the_desktop_back_and_is_not_composed(self):
+        with mock.patch("builtins.input", return_value=""), \
+                mock.patch.object(film, "record", side_effect=KeyboardInterrupt), \
+                self.assertRaises(KeyboardInterrupt):
+            film.record_on_desktop(self.desktop, self.out)
+        self.assertEqual(self.fake.acted, TAKE + GIVE_BACK)
+        film.compose.assert_not_called()
+
+    def test_a_dry_run_prints_every_command_it_would_issue_and_issues_none(self):
+        self.desktop.dry_run = True
+        with mock.patch("builtins.input", side_effect=AssertionError("waited for a key")):
+            film.record_on_desktop(self.desktop, self.out)
+        self.assertEqual(self.fake.acted, [])
+        printed = [line.removeprefix("would run: ") for line in self.said.getvalue().splitlines()
+                   if line.startswith("would run: ")]
+        expected = [shlex.join(command) for command in TAKE] + [
+            shlex.join(command).replace("0x5566bb", "<film window>")
+            for command in PLACE] + [
+            shlex.join(film.recorder_command(self.out / "raw.mkv", (480, 283, 1600, 900)))] + [
+            shlex.join(command) for command in GIVE_BACK]
+        self.assertEqual(printed, expected)
+        film.compose.assert_not_called()
+
+    def test_a_stopped_film_says_the_desktop_is_as_it_was(self):
+        with mock.patch.object(film, "Desktop", return_value=self.desktop), \
+                mock.patch.object(film, "record_on_desktop", side_effect=KeyboardInterrupt), \
+                mock.patch.object(sys, "argv", ["record_film.py", "desktop"]), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as said:
+            self.assertEqual(film.main(), 130)
+        self.assertIn("stopped", said.getvalue())
 
 
 if __name__ == "__main__":

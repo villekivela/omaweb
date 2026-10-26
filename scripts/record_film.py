@@ -10,12 +10,14 @@ by this script rather than by hand.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
 import html
 import http.server
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -278,6 +280,39 @@ def expect_hints(beat: str, reports: list[dict], host: str) -> None:
                                f"{', '.join(map(str, counts)) or 'nothing'}")
 
 
+def expect_blocked_list(beat: str, site: dict, hosts: tuple[str, ...]) -> None:
+    """`site` is the window's answer to `film-site`: Site information has to be open at its
+    blocked list, and the list has to name a request to each of `hosts`."""
+    if not site.get("open"):
+        raise BeatMissed(beat, "Site information is not open")
+    if site.get("detail") != "blocked":
+        raise BeatMissed(beat, f"Site information is at {site.get('detail') or 'its top'}, "
+                               "not the blocked list")
+    listed = site.get("listed", [])
+    missing = [host for host in hosts
+               if not any(label.startswith(host + "/") or label == host for label in listed)]
+    if missing:
+        raise BeatMissed(beat, f"the blocked list names no request to {', '.join(missing)}; "
+                               f"it lists {', '.join(listed) or 'nothing'}")
+
+
+# How far the camera keeps from what it frames, as a fraction of the window.
+FRAME_MARGIN = 0.03
+
+
+def framing(site: dict) -> tuple[float, float, float, float]:
+    """The place that frames the lock and the Site information card from `film-site`'s answer,
+    as a fraction of the window: (left, top, width, height)."""
+    width, height = site["windowWidth"], site["windowHeight"]
+    rectangles = [site["lock"], site["card"]]
+    left = max(0.0, min(rect["x"] for rect in rectangles) / width - FRAME_MARGIN)
+    top = max(0.0, min(rect["y"] for rect in rectangles) / height - FRAME_MARGIN)
+    right = min(1.0, max(rect["x"] + rect["width"] for rect in rectangles) / width + FRAME_MARGIN)
+    bottom = min(1.0, max(rect["y"] + rect["height"] for rect in rectangles) / height
+                 + FRAME_MARGIN)
+    return (left, top, right - left, bottom - top)
+
+
 def hover_point(beat: str, held: dict) -> tuple[float, float]:
     """Where a pointer resting on what the window held would be, as a fraction of the window.
 
@@ -305,6 +340,17 @@ def expect_repainted(beat: str, before: tuple[int, int, int], after: tuple[int, 
         raise BeatMissed(beat, f"the chrome was {before} before the change, not the old theme")
     if distance(after, new) >= distance(after, old):
         raise BeatMissed(beat, f"the chrome is {after} after the change, not the new theme")
+
+
+# Where the Theme beat samples the chrome, as a fraction of the frame: in the sidebar, which is the
+# theme's darkest background.
+CHROME_SAMPLE = (0.01, 0.5)
+
+
+def chrome_sample(frame: bytes) -> tuple[int, int, int]:
+    """The chrome's colour in a frame, at the same place whatever size the frame was taken at."""
+    width, height = (int(field) for field in frame.split(maxsplit=3)[1:3])
+    return pixel(frame, int(width * CHROME_SAMPLE[0]), int(height * CHROME_SAMPLE[1]))
 
 
 def pixel(frame: bytes, x: int, y: int) -> tuple[int, int, int]:
@@ -442,12 +488,12 @@ class Beat:
 
 # Where the parts the camera follows sit in the window, with the sidebar at its default width: the
 # Omnibar a little below the middle of the page, the search results at the top left of the page,
-# the Space squares at the foot of the sidebar with the page beside them, the blocked count at the
-# end of the address, and the Agent's form.
+# the Space squares at the foot of the sidebar with the page beside them, the address at the top
+# of the sidebar, and the Agent's form.
 OMNIBAR = (0.29, 0.28, 0.6, 0.6)
 RESULTS = (0.2, 0.17, 0.4, 0.4)
 SPACES = (0.0, 0.4, 0.6, 0.6)
-SHIELD = (0.0, 0.0, 0.22, 0.22)
+ADDRESS = (0.0, 0.0, 0.42, 0.42)
 FORM = (0.32, 0.03, 0.66, 0.66)
 # The Agent tab's row near the top of the sidebar, with the start of its page beside it.
 ROW = (0.0, 0.0, 0.42, 0.42)
@@ -462,9 +508,9 @@ BEATS = [
     # The footer stays on camera through the switch, so the Space's colour is seen to change.
     Beat("Space switch", "Each Space keeps its own logins and tabs", [(0.0, SPACES)]),
     Beat("Sidebar", "Split view, sidebar out of the way", [(0.0, None)]),
-    # Close on the count before the reload, so it is seen counting what it stops.
-    Beat("Blocking", "Ads and trackers stopped before they load",
-         [(0.0, None), (CAPTION_LEAD, SHIELD)]),
+    # The magazine reloads with its ad slots empty, then the camera closes on the lock and Site
+    # information, at moments the beat times as it plays (`play`).
+    Beat("Blocking", "Ads and trackers stopped before they load", [(0.0, None)]),
     Beat("Theme", "Your Omarchy theme reaches the whole browser", [(0.0, None)]),
     # Each command the Agent runs takes the caption's place as it runs, and its row in the sidebar
     # says what it did last. The camera then closes on the row for Stop, at a moment the beat
@@ -537,9 +583,14 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+# What the script's commands to the browser run in: the session's own under cage, and on the
+# desktop the film browser's, so they reach its socket rather than the reader's Omaweb.
+CLIENT_ENVIRONMENT: dict | None = None
+
+
 def omaweb(browser: Path, *arguments: str, name: str = "film") -> subprocess.CompletedProcess:
     """One run of the command the browser was started from, as a client of that browser."""
-    return subprocess.run([str(browser), *arguments, "--name", name],
+    return subprocess.run([str(browser), *arguments, "--name", name], env=CLIENT_ENVIRONMENT,
                           capture_output=True, text=True, timeout=90, check=False)
 
 
@@ -571,8 +622,18 @@ def type_text(text: str, delay: int = 160) -> None:
     subprocess.run(["wtype", "-d", str(delay), text], check=True)
 
 
-def frame() -> bytes:
-    return subprocess.run(["grim", "-t", "ppm", "-"], capture_output=True, check=True).stdout
+def region(geometry: tuple[int, int, int, int]) -> str:
+    """A rectangle of the layout as wf-recorder and grim take it: `x,y wxh`."""
+    return "{},{} {}x{}".format(*geometry)
+
+
+def frame_command(geometry: tuple[int, int, int, int] | None = None) -> list[str]:
+    """What takes a frame: the whole output under cage, and the film's window on the desktop."""
+    return ["grim", *(["-g", region(geometry)] if geometry else []), "-t", "ppm", "-"]
+
+
+def frame(geometry: tuple[int, int, int, int] | None = None) -> bytes:
+    return subprocess.run(frame_command(geometry), capture_output=True, check=True).stdout
 
 
 def theme_colour(name: str, role: str) -> tuple[int, int, int]:
@@ -625,6 +686,13 @@ def seed(root: Path) -> tuple[Path, Path]:
     return data, config
 
 
+def recorder_command(path: Path, geometry: tuple[int, int, int, int] | None = None) -> list[str]:
+    """What records: the whole output under cage, and only the film's window on the desktop."""
+    return ["wf-recorder", "-y", *(["-g", region(geometry)] if geometry else []), "-r", str(FPS),
+            "-c", "libx264", "-p", "preset=ultrafast", "-p", "crf=12", "-x", "yuv420p",
+            "-f", str(path)]
+
+
 class Recorder:
     """The compositor's output, recorded from before the first beat to after the last.
 
@@ -633,8 +701,10 @@ class Recorder:
     the file is shorter than the time the recorder ran was lost at its start, before a first frame.
     """
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, geometry: tuple[int, int, int, int] | None = None) -> None:
         self.path = path
+        # The film's window on the desktop, and `None` for cage's whole output.
+        self.geometry = geometry
         # Its own log, beside the recording.
         self.log_path = path.with_suffix(".log")
         self.process: subprocess.Popen | None = None
@@ -647,8 +717,7 @@ class Recorder:
         # it mid-film.
         with open(self.log_path, "w") as written:
             self.process = subprocess.Popen(
-                ["wf-recorder", "-y", "-r", str(FPS), "-c", "libx264", "-p", "preset=ultrafast",
-                 "-p", "crf=12", "-x", "yuv420p", "-f", str(self.path)],
+                recorder_command(self.path, self.geometry),
                 stdin=subprocess.DEVNULL, stdout=written, stderr=written)
         time.sleep(1.5)
         if self.process.poll() is not None:
@@ -833,27 +902,58 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     expect_ran("Stage", omaweb(browser, "focus", MAGAZINE))
     time.sleep(LOAD_SETTLE)
 
-    # The magazine as it stands, its ad slots empty, then the camera on the blocked count, and the
-    # page loaded again under it so the count is seen to climb.
+    # The magazine loaded again, its ad slots empty. Then the pointer clicks the lock, Site
+    # information opens, and the pointer opens its blocked tile, whose list of refused requests
+    # names the ad network and the tracker and is held long enough to read. The recording has no
+    # pointer, so the window says where the lock and the tile are, presses each as a click would,
+    # and the edit draws the pointer there.
     beat = beats["Blocking"]
+
+    def site(*arguments: str) -> dict:
+        return answer(beat.name, browser, "film-site", *arguments)
+
+    moves = []
+
+    def glide(to: tuple[float, float]) -> None:
+        moves.append({"at": round(recorder.now() - start, 3), "x": to[0], "y": to[1]})
+
     since = len(server.reports())
     start = recorder.now()
-    time.sleep(CAPTION_LEAD + MOVE + 0.2)
+    time.sleep(CAPTION_LEAD)
     expect_ran(beat.name, omaweb(browser, "run", "reload"))
     path = urllib.parse.urlsplit(MAGAZINE).path
     wait_for(beat.name, "the magazine to load", reported(server, "halyard.test", path, since))
-    time.sleep(2.4)
+    time.sleep(1.6)
+    focus = [(0.0, None), (round(recorder.now() - start, 3), ADDRESS)]
+    lock = hover_point(beat.name, site("lock"))
+    # In from the page below and to the right of the lock, then onto it.
+    glide((lock[0] + 0.08, lock[1] + 0.1))
+    glide(lock)
+    time.sleep(MOVE + 0.2)
+    site("lock", "--press")
+    time.sleep(1.0)
+    focus.append((round(recorder.now() - start, 3), framing(site())))
+    glide(hover_point(beat.name, site("blocked")))
+    time.sleep(MOVE + 0.2)
+    site("blocked", "--press")
+    time.sleep(0.4)
+    shown = site()
+    if framing(shown) != focus[-1][1]:
+        focus.append((round(recorder.now() - start, 3), framing(shown)))
+    time.sleep(2.8)
     end = recorder.now()
     expect_blocked(beat.name, server, server.reports()[since:], "halyard.test", AD_HOSTS)
-    mark(beat, start, end)
+    expect_blocked_list(beat.name, shown, AD_HOSTS)
+    mark(beat, start, end, pointer=moves, focus=focus)
+
+    # Off camera: Site information put away as it was opened.
+    site("lock", "--press")
 
     # Off camera: a new tab, whose Start page is the theme's road and sun, so the change shows.
     keys("Primary+t", settle=LOAD_SETTLE)
 
     beat = beats["Theme"]
-    # A point in the sidebar, which is the theme's darkest background.
-    sample = (int(OUTPUT_MODE[0] * 0.01), int(OUTPUT_MODE[1] * 0.5))
-    was = pixel(frame(), *sample)
+    was = chrome_sample(frame(recorder.geometry))
     start = recorder.now()
     # Long enough to read the caption over the old theme, so the change it names comes after it,
     # on the same frame.
@@ -861,7 +961,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     write_theme("tokyo-night", config)
     time.sleep(3.0)
     end = recorder.now()
-    expect_repainted(beat.name, was, pixel(frame(), *sample),
+    expect_repainted(beat.name, was, chrome_sample(frame(recorder.geometry)),
                      theme_colour("retro-82", "dark_background"),
                      theme_colour("tokyo-night", "dark_background"))
     mark(beat, start, end)
@@ -963,18 +1063,30 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     return marks
 
 
-def record(browser: Path, out: Path) -> None:
-    """Runs under the compositor: the browser, the beats and the raw recording, and the marks."""
-    expect_sites_on_loopback("Sites")
+def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
+    """Runs under the compositor: the browser, the beats and the raw recording, and the marks.
+
+    Under cage the output is the film's frame. On the `desktop`, which the caller has taken, the
+    film's window is put in it and only the window is recorded.
+    """
+    global CLIENT_ENVIRONMENT
+    if desktop is None:
+        expect_sites_on_loopback("Sites")
     expect_shared_memory("Stage")
     root = Path(tempfile.mkdtemp(prefix="omaweb-film-"))
-    server = FixtureServer(("127.0.0.1", 80))
+    # Port 80 needs the container's root; on the desktop the browser is told the port instead.
+    server = FixtureServer(("127.0.0.1", 80 if desktop is None else 0))
     server.start()
     data, config = seed(root)
-    subprocess.run(["wlr-randr", "--output", "HEADLESS-1", "--custom-mode",
-                    "{}x{}".format(*OUTPUT_MODE), "--scale", str(OUTPUT_SCALE)], check=True)
-    environment = dict(os.environ, OMAWEB_DATA_ROOT=str(data), OMAWEB_CONFIG_ROOT=str(config),
-                       OMAWEB_NO_OMARCHY_TEMPLATE="1", QT_QPA_PLATFORM="wayland")
+    if desktop is None:
+        subprocess.run(["wlr-randr", "--output", "HEADLESS-1", "--custom-mode",
+                        "{}x{}".format(*OUTPUT_MODE), "--scale", str(OUTPUT_SCALE)], check=True)
+        environment = dict(os.environ, OMAWEB_DATA_ROOT=str(data), OMAWEB_CONFIG_ROOT=str(config),
+                           OMAWEB_NO_OMARCHY_TEMPLATE="1", QT_QPA_PLATFORM="wayland")
+    else:
+        environment = desktop_environment(os.environ, root, server.port)
+        (root / "home").mkdir()
+        CLIENT_ENVIRONMENT = environment
     with open(out / "browser.log", "w") as browser_log:
         process = subprocess.Popen(["dbus-run-session", "--", str(browser)], env=environment,
                                    stdout=subprocess.DEVNULL, stderr=browser_log,
@@ -983,6 +1095,8 @@ def record(browser: Path, out: Path) -> None:
     try:
         wait_for("Stage", "the browser to answer",
                  lambda: omaweb(browser, "spaces").returncode == 0, timeout=60)
+        if desktop is not None:
+            recorder.geometry = desktop.place(process.pid)
         time.sleep(LOAD_SETTLE)
         recorder.start()
         marks = drive(browser, server, recorder, config)
@@ -1009,8 +1123,341 @@ def record(browser: Path, out: Path) -> None:
         os.killpg(process.pid, signal.SIGTERM)
         server.stop()
         shutil.rmtree(root, ignore_errors=True)
+        CLIENT_ENVIRONMENT = None
 
 
+# The window the desktop recording takes, in the desktop's logical pixels: the browser's layout
+# under cage, so every place a beat looks at is where it is there.
+WINDOW = (round(OUTPUT_MODE[0] / OUTPUT_SCALE), round(OUTPUT_MODE[1] / OUTPUT_SCALE))
+
+
+def monitor_area(monitor: dict) -> tuple[int, int, int, int]:
+    """Where a monitor from `hyprctl monitors -j` is in the layout, as it stands, in logical pixels.
+
+    Hyprland gives its mode in the display's own pixels, unturned, and its place and what its bar
+    keeps (`reserved`, left, top, right, bottom) in logical ones.
+    """
+    wide, high = monitor["width"], monitor["height"]
+    if monitor.get("transform", 0) % 2:
+        wide, high = high, wide
+    return (monitor["x"], monitor["y"], int(wide / monitor["scale"]),
+            int(high / monitor["scale"]))
+
+
+def window_frame(monitor: dict, size: tuple[int, int] = WINDOW) -> tuple[int, int, int, int]:
+    """The film's window in the middle of what the monitor's bar leaves free: (x, y, w, h)."""
+    x, y, wide, high = monitor_area(monitor)
+    left, top, right, bottom = monitor.get("reserved", [0, 0, 0, 0])
+    free = (wide - left - right, high - top - bottom)
+    if size[0] > free[0] or size[1] > free[1]:
+        raise BeatMissed("Desktop", f"the film's window is {size[0]} by {size[1]}, and "
+                                    f"{monitor['name']} has {free[0]} by {free[1]} free")
+    return (x + left + (free[0] - size[0]) // 2, y + top + (free[1] - size[1]) // 2, *size)
+
+
+def parking(monitor: dict, frame: tuple[int, int, int, int]) -> tuple[int, int]:
+    """A corner of the monitor off the window, where the pointer hovers nothing the film shows.
+
+    A bottom corner first, since the top ones are on Omarchy's bar, whose buttons a resting
+    pointer would open.
+    """
+    x, y, wide, high = monitor_area(monitor)
+    for corner in ((x + wide - 1, y + high - 1), (x, y + high - 1), (x + wide - 1, y), (x, y)):
+        inside = (frame[0] <= corner[0] < frame[0] + frame[2]
+                  and frame[1] <= corner[1] < frame[1] + frame[3])
+        if not inside:
+            return corner
+    raise BeatMissed("Desktop", f"the film's window covers all of {monitor['name']}")
+
+
+def desktop_environment(session: dict, root: Path, port: int) -> dict:
+    """The film's browser on the maintainer's desktop, as cut off from the reader's as under cage.
+
+    It draws on the session's Wayland, so it keeps the runtime directory, and everything else it
+    could read or write is under `root`: its home, so no XDG directory of the reader's is found;
+    its Agent socket, so neither it nor the script's commands reach the reader's Omaweb; and its
+    D-Bus, which `record` starts. The fixture sites resolve to the server on `port`, which needs no
+    hosts file, and any other name resolves to nothing, as no name outside the container does.
+    The display's scale is Hyprland's, so a Qt scale from the session is dropped.
+    """
+    home = root / "home"
+    environment = {name: value for name, value in session.items()
+                   if not name.startswith(("XDG_", "QT_", "QTWEBENGINE_"))}
+    environment.update(
+        HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"),
+        XDG_DATA_HOME=str(home / ".local" / "share"), XDG_STATE_HOME=str(home / ".local" / "state"),
+        XDG_CACHE_HOME=str(home / ".cache"),
+        OMAWEB_DATA_ROOT=str(root / "data"), OMAWEB_CONFIG_ROOT=str(root / "config"),
+        OMAWEB_CONTROL_SOCKET=str(root / "control.sock"), OMAWEB_NO_OMARCHY_TEMPLATE="1",
+        QT_QPA_PLATFORM="wayland",
+        QTWEBENGINE_CHROMIUM_FLAGS=f'"--host-resolver-rules=MAP *.test 127.0.0.1:{port}, '
+                                   'MAP * ~NOTFOUND"')
+    if "XDG_RUNTIME_DIR" in session:
+        environment["XDG_RUNTIME_DIR"] = session["XDG_RUNTIME_DIR"]
+    return environment
+
+
+# The signals that stop a desktop recording. Each puts the desktop back on its way out.
+STOPS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+def stop_recording(signum, _frame) -> None:
+    """Stops the run the first time, and lets nothing stop the desktop being put back after it."""
+    for stop in STOPS:
+        signal.signal(stop, signal.SIG_IGN)
+    raise KeyboardInterrupt
+
+
+class Desktop:
+    """The maintainer's Hyprland session, which a desktop recording borrows and gives back.
+
+    What it reads it reads at once; what it changes, it changes only through `act`, which a dry
+    run prints instead. Hyprland 0.56 takes its dispatchers as Lua, as Omarchy 4's own scripts send
+    them.
+    """
+
+    WORKSPACE = "name:omaweb-film"
+
+    def __init__(self, run=subprocess.run, which=shutil.which, dry_run: bool = False) -> None:
+        self._run = run
+        self._which = which
+        self.dry_run = dry_run
+
+    def query(self, *command: str):
+        return json.loads(self.read(*command))
+
+    def read(self, *command: str) -> str:
+        return self._run(list(command), capture_output=True, text=True, check=True).stdout
+
+    def act(self, *command: str) -> None:
+        if self.dry_run:
+            log("would run: " + shlex.join(command))
+            return
+        self._run(list(command), capture_output=True, text=True, check=True)
+
+    @staticmethod
+    def dispatch(lua: str) -> tuple[str, ...]:
+        return ("hyprctl", "dispatch", lua)
+
+    @staticmethod
+    def move_pointer(x: int, y: int) -> tuple[str, ...]:
+        return ("hyprctl", "eval", f"hl.dispatch(hl.dsp.cursor.move({{ x = {x}, y = {y} }}))")
+
+    def survey(self) -> None:
+        """Reads what the run changes and where its window goes, and stops before changing any."""
+        self.monitor = next(monitor for monitor in self.query("hyprctl", "monitors", "-j")
+                            if monitor.get("focused"))
+        self.frame = window_frame(self.monitor)
+        self.parked = parking(self.monitor, self.frame)
+        film = self.WORKSPACE.removeprefix("name:")
+        held = [space for space in self.query("hyprctl", "workspaces", "-j")
+                if space["name"] == film and space["windows"]]
+        if held:
+            raise BeatMissed("Desktop", f"the workspace {film} already holds "
+                                        f"{held[0]['windows']} windows; close them first")
+        active = self.query("hyprctl", "activeworkspace", "-j")
+        self.workspace = str(active["id"]) if active["id"] > 0 else f"name:{active['name']}"
+        cursor = self.query("hyprctl", "cursorpos", "-j")
+        self.pointer = (cursor["x"], cursor["y"])
+        if self._which("omarchy-shell"):
+            # Omarchy 4's shell is its notification daemon.
+            state = self.read("omarchy-shell", "notifications", "dndState").strip()
+            if state not in ("on", "off"):
+                raise BeatMissed("Desktop", f"omarchy-shell said do-not-disturb is {state!r}")
+            refresh = ("omarchy-shell", "-q", "omarchy.indicators", "refresh")
+            self.hold = [("omarchy-shell", "notifications", "setDnd", "on"), refresh]
+            self.release = [("omarchy-shell", "notifications", "setDnd", state), refresh]
+        elif self._which("makoctl"):
+            modes = self.read("makoctl", "mode").split()
+            self.hold = [("makoctl", "mode", "-a", "do-not-disturb")]
+            self.release = [("makoctl", "mode", "-s", *modes)]
+        else:
+            raise BeatMissed("Desktop", "neither omarchy-shell nor makoctl is here to hold "
+                                        "notifications for the run")
+
+    def place(self, session: int, getpgid=os.getpgid,
+              timeout: float = 20.0) -> tuple[int, int, int, int]:
+        """Puts the film's window on its workspace in the film's frame, and answers where it is.
+
+        The window is the one whose process is in the browser's `session`. Its class is no help,
+        since the reader's own Omaweb has the same one.
+        """
+
+        def in_session(client: dict) -> bool:
+            try:
+                return getpgid(client["pid"]) == session
+            except (OSError, KeyError):
+                return False
+
+        def films_window() -> dict | None:
+            return next((client for client in self.query("hyprctl", "clients", "-j")
+                         if in_session(client)), None)
+
+        if self.dry_run:
+            window, floating = "address:<film window>", False
+        else:
+            found = wait_for("Desktop", "the film's window", films_window, timeout)
+            window, floating = f"address:{found['address']}", found.get("floating")
+        x, y, wide, high = self.frame
+        self.act(*self.dispatch(f'hl.dsp.window.move({{ window = "{window}", '
+                                f'workspace = "{self.WORKSPACE}", follow = false }})'))
+        if not floating:
+            self.act(*self.dispatch(f'hl.dsp.window.float({{ window = "{window}", '
+                                    'action = "toggle" })'))
+        self.act(*self.dispatch(f'hl.dsp.window.resize({{ window = "{window}", '
+                                f'x = {wide}, y = {high} }})'))
+        self.act(*self.dispatch(f'hl.dsp.window.move({{ window = "{window}", x = {x}, y = {y} }})'))
+        self.act(*self.dispatch(f'hl.dsp.focus({{ window = "{window}" }})'))
+        if self.dry_run:
+            return self.frame
+
+        # Hyprland eases a window to its place, so where it is is read once it has arrived.
+        def arrived() -> dict | None:
+            client = films_window()
+            return client if client and client["size"] == [wide, high] else None
+
+        try:
+            client = wait_for("Desktop", "the film's window to take its size", arrived,
+                              min(timeout, 5.0))
+        except BeatMissed:
+            client = films_window() or {"size": ["no", "window"]}
+            raise BeatMissed("Desktop", "Hyprland made the film's window {} by {}, not {} by {}"
+                             .format(*client["size"], wide, high)) from None
+        return (*client["at"], *client["size"])
+
+    @contextlib.contextmanager
+    def taken(self):
+        """Notifications held, the pointer off the window and a workspace for the film, then each
+        put back, whether the run ends, fails, or is stopped with Ctrl+C or a signal.
+
+        What puts a change back is noted before the change is made, so a run stopped halfway
+        through taking the desktop puts back what it had taken.
+        """
+        handlers = {stop: signal.getsignal(stop) for stop in STOPS}
+        for stop in STOPS:
+            signal.signal(stop, stop_recording)
+        undo: list[list[tuple[str, ...]]] = []
+        try:
+            undo.append(self.release)
+            for command in self.hold:
+                self.act(*command)
+            undo.append([self.move_pointer(*self.pointer)])
+            self.act(*self.move_pointer(*self.parked))
+            undo.append([self.dispatch(f'hl.dsp.focus({{ workspace = "{self.workspace}" }})')])
+            self.act(*self.dispatch(f'hl.dsp.focus({{ workspace = "{self.WORKSPACE}" }})'))
+            yield
+        finally:
+            for stop in STOPS:
+                signal.signal(stop, signal.SIG_IGN)
+            for commands in reversed(undo):
+                for command in commands:
+                    try:
+                        self.act(*command)
+                    except (OSError, subprocess.CalledProcessError) as failed:
+                        log(f"could not put back {shlex.join(command)}: {failed}")
+            for stop, handler in handlers.items():
+                signal.signal(stop, handler)
+
+
+
+
+# Where the desktop's film build is, apart from the reader's own builds.
+DESKTOP_BUILD = ROOT / "build" / "film-desktop"
+ENGINE = Path("/usr/lib/omaweb")
+# What the desktop needs beyond a development machine's tools: the recorder, the keyboard and the
+# frame grabber cage has, and the fonts the container installs for the chrome and the sites.
+DESKTOP_PACKAGES = ("wf-recorder", "wtype", "grim", "ffmpeg", "ttf-jetbrains-mono", "inter-font",
+                    "ttf-ibm-plex", "noto-fonts", "gnu-free-fonts")
+
+
+def expect_desktop_packages(run=subprocess.run) -> None:
+    """Everything the desktop recording runs or draws with is installed. `pacman -T` names what
+    is not."""
+    missing = run(["pacman", "-T", *DESKTOP_PACKAGES], capture_output=True, text=True,
+                  check=False).stdout.split()
+    if missing:
+        raise BeatMissed("Desktop", "the film needs " + ", ".join(missing) + "; install them with "
+                         "sudo pacman -S --needed " + " ".join(missing))
+
+
+def build_for_desktop(run=subprocess.run, engine: Path = ENGINE / "lib" / "cmake",
+                      dry_run: bool = False) -> Path:
+    """Builds the film's browser from the commit checked out, as the container does, and answers
+    where it is.
+
+    The film is of a commit, so a checkout with changes is refused. A machine with a stock
+    QtWebEngine beside Omaweb's finds the stock one first, so each engine package is named, and
+    `check_omaweb_engine.sh` says the build found Omaweb's. The build takes two jobs unless
+    `CMAKE_BUILD_PARALLEL_LEVEL` says otherwise.
+    """
+    changes = run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True,
+                  check=True).stdout
+    if changes.strip():
+        refusal = BeatMissed("Build", "the checkout has changes, and the film is of a commit: "
+                                      "commit or put them away first")
+        if not dry_run:
+            raise refusal
+        log(f"a real run would stop here: {refusal}")
+    environment = dict(os.environ)
+    environment.setdefault("CMAKE_BUILD_PARALLEL_LEVEL", "2")
+    commands = [
+        ["scripts/bootstrap_content_blocker.sh"],
+        ["cmake", "--preset", "ci", "-B", str(DESKTOP_BUILD), "-DOMAWEB_FILM_HOOKS=ON",
+         f"-DQT_ADDITIONAL_PACKAGES_PREFIX_PATH={ENGINE}",
+         f"-DCMAKE_CXX_FLAGS=-I{ENGINE}/include/qt6",
+         *(f"-D{package.name}_DIR:PATH={package}"
+           for package in sorted(engine.glob("Qt6WebEngine*")))],
+        ["scripts/check_omaweb_engine.sh", str(DESKTOP_BUILD)],
+        # The film's verbs are tested here, in the one build that has them, as in the container.
+        ["cmake", "--build", str(DESKTOP_BUILD), "--target", "omaweb-browser",
+         "omaweb-translations", "omaweb-agent-command-tests", "omaweb-agent-control-tests"],
+        ["ctest", "--test-dir", str(DESKTOP_BUILD), "-R", "^omaweb-agent-(command|control)$"],
+    ]
+    for command in commands:
+        if dry_run:
+            log("would run: " + shlex.join(command))
+        else:
+            run(command, cwd=ROOT, env=environment, check=True)
+    return DESKTOP_BUILD / "omaweb-browser"
+
+
+TAKES_THE_KEYBOARD = """\
+The film is recorded on this desktop now, in about a minute and a half.
+
+It opens a film build of Omaweb, with a profile of its own, on a workspace of its own
+(omaweb-film), and records only its window. Your own Omaweb and its profile are not touched.
+For the run it takes the keyboard and types into that window, holds notifications, and moves
+the pointer to a corner of the screen. Leave the keyboard and the pointer alone until it ends.
+Ctrl+C stops it at any time, and the workspace, the pointer and notifications are put back.
+
+Press Enter to begin, or Ctrl+C to leave everything as it is."""
+
+
+def record_on_desktop(desktop: Desktop, out: Path) -> None:
+    """The film recorded on the maintainer's own Hyprland session, and cut as the container's is.
+
+    Nothing on the desktop changes before the reader has been told and pressed a key. A dry run
+    builds nothing and changes nothing, and prints each command it would have run instead.
+    """
+    try:
+        expect_desktop_packages()
+    except BeatMissed as missing:
+        if not desktop.dry_run:
+            raise
+        log(f"a real run would stop here: {missing}")
+    browser = build_for_desktop(dry_run=desktop.dry_run)
+    desktop.survey()
+    if desktop.dry_run:
+        with desktop.taken():
+            frame = desktop.place(0)
+            log("would run: " + shlex.join(recorder_command(out / "raw.mkv", frame)))
+        return
+    print(TAKES_THE_KEYBOARD, flush=True)
+    input()
+    with desktop.taken():
+        record(browser, out, desktop)
+    compose(out)
+    log("The film is in " + ", ".join(str(out / name) for name in (*BUDGET, "captions.vtt")))
 
 
 def eased(keyframes: list[tuple[float, float]], variable: str) -> str:
@@ -1110,9 +1557,26 @@ def timestamp(seconds: float) -> str:
     return f"{int(minutes):02d}:{seconds:06.3f}"
 
 
+def fitted(size: tuple[int, int]) -> str:
+    """The scaling a recording of `size` takes to the recording's own, for a monitor at another
+    scale than cage's, so the pointer and the camera find what they look for where they look."""
+    if tuple(size) == OUTPUT_MODE:
+        return ""
+    return ",scale={}:{}:flags=lanczos".format(*OUTPUT_MODE)
+
+
+def recording_size(path: Path) -> tuple[int, int]:
+    answer = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                             "stream=width,height", "-of", "csv=p=0", str(path)],
+                            capture_output=True, text=True, check=True).stdout
+    width, height = answer.strip().split(",")[:2]
+    return int(width), int(height)
+
+
 def compose(out: Path) -> None:
     """Cuts the raw recording to its beats, follows each beat's focus, and captions it."""
     marks = json.loads((out / "marks.json").read_text(encoding="utf-8"))
+    fit = fitted(recording_size(out / "raw.mkv"))
     fonts = ROOT / "website" / "assets" / "fonts"
     font = {False: fonts / "Tomorrow-SemiBold.woff2", True: fonts / "IoskeleyMono-Medium.woff2"}
     starts = positions(marks)
@@ -1125,7 +1589,7 @@ def compose(out: Path) -> None:
     for index, entry in enumerate(marks):
         beat = BEAT_NAMED[entry["beat"]]
         trimmed = (f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},"
-                   "setpts=PTS-STARTPTS")
+                   f"setpts=PTS-STARTPTS{fit}")
         overlay = pointer(entry)
         if overlay:
             chains.append(f"{trimmed}[r{index}]")
@@ -1238,19 +1702,27 @@ def encode(out: Path, master: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("step", choices=("record", "compose"))
+    parser.add_argument("step", choices=("record", "compose", "desktop"))
     parser.add_argument("--browser", type=Path, default=ROOT / "build" / "ci" / "omaweb-browser")
     parser.add_argument("--out", type=Path, default=ROOT / "build" / "film")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="desktop: print what the run would do, and do none of it")
     arguments = parser.parse_args()
     arguments.out.mkdir(parents=True, exist_ok=True)
     try:
         if arguments.step == "record":
             record(arguments.browser.resolve(), arguments.out)
+        elif arguments.step == "desktop":
+            record_on_desktop(Desktop(dry_run=arguments.dry_run), arguments.out.resolve())
         else:
             compose(arguments.out)
     except BeatMissed as missed:
         print(f"the film was not made: {missed}", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        put_back = ", and the desktop is as it was" if arguments.step == "desktop" else ""
+        print(f"the film was stopped{put_back}", file=sys.stderr)
+        return 130
     return 0
 
 

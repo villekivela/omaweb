@@ -1216,6 +1216,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
 #ifdef OMAWEB_FILM_HOOKS
         QStringLiteral("film-hover"),
         QStringLiteral("film-row"),
+        QStringLiteral("film-site"),
 #endif
     };
     if (!verbs.contains(verb)) {
@@ -1666,6 +1667,22 @@ QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &requ
         asked.insert(QStringLiteral("mode"),
             stop ? QStringLiteral("stop")
                  : (where ? QStringLiteral("where") : QStringLiteral("hold")));
+    }
+    // And Site information's lock or blocked tile, which the window says
+    // where it is, or presses with `press`. Neither asks what the card shows.
+    if (verb == u"film-site") {
+        const auto target = request.value(QStringLiteral("target")).toString();
+        const auto press = request.value(QStringLiteral("press")).toBool();
+        if (!target.isEmpty() && target != u"lock" && target != u"blocked") {
+            return refusal(QStringLiteral("bad-request"),
+                QStringLiteral("Give lock or blocked, not \"%1\".").arg(target));
+        }
+        if (press && target.isEmpty()) {
+            return refusal(
+                QStringLiteral("bad-request"), QStringLiteral("Give lock or blocked to press."));
+        }
+        asked.insert(QStringLiteral("target"), target);
+        asked.insert(QStringLiteral("press"), press);
     }
 #endif
     if (!isSignalConnected(QMetaMethod::fromSignal(&AgentControl::commandRequested))) {
