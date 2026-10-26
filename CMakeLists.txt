@@ -1482,7 +1482,8 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_qt_symbol_versions.py
         )
-        if(NOT OMAWEB_KEY_EVENT_LOG)
+        # The engine-free UI lab builds no browser to check.
+        if(OMAWEB_BUILD_BROWSER AND NOT OMAWEB_KEY_EVENT_LOG)
             add_test(NAME omaweb-ships-no-key-log
                 COMMAND ${Python3_EXECUTABLE}
                     ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_ships_no_key_log.py
