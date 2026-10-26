@@ -633,7 +633,6 @@ class FilmFiles(unittest.TestCase):
             self.assertAlmostEqual(duration, start - film.FADE * (len(marks) - 1), delta=0.2)
 
 
-
 # The XPS's monitor as `hyprctl monitors -j` describes it: 3840 by 2160 at a scale of 1.5, so 2560
 # by 1440 logical pixels, with Omarchy's bar keeping 26 at the top.
 MONITOR = {"name": "DP-1", "x": 0, "y": 0, "width": 3840, "height": 2160, "scale": 1.5,
@@ -673,7 +672,6 @@ class DesktopWindow(unittest.TestCase):
         whole = dict(MONITOR, width=2400, height=1350, reserved=[0, 0, 0, 0])
         with self.assertRaisesRegex(film.BeatMissed, "covers all"):
             film.parking(whole, film.window_frame(whole))
-
 
 
 class FakeDesktop:
@@ -851,7 +849,6 @@ class DesktopTaken(unittest.TestCase):
         self.assertEqual(fake.acted, [])
 
 
-
 # The reader's own Omaweb, which has the same class as the film's and must never be touched.
 READERS_WINDOW = {"address": "0x5566aa", "pid": 2236555, "class": "omaweb", "floating": False,
                   "at": [11, 32], "size": [2538, 1397]}
@@ -921,7 +918,6 @@ class DesktopPlacement(unittest.TestCase):
                       '"address:<film window>", x = 1600, y = 900 })\'', said.getvalue())
 
 
-
 class DesktopBrowser(unittest.TestCase):
     # The maintainer's session as the recording inherits it.
     SESSION = {"HOME": "/home/reader", "XDG_CONFIG_HOME": "/home/reader/.config",
@@ -958,7 +954,6 @@ class DesktopBrowser(unittest.TestCase):
         self.assertNotIn("QT_SCALE_FACTOR", environment)
 
 
-
 class DesktopRecording(unittest.TestCase):
     FRAME = (480, 283, 1600, 900)
 
@@ -991,7 +986,6 @@ class DesktopRecording(unittest.TestCase):
 
     def test_a_recording_from_a_monitor_of_another_scale_is_brought_to_the_films_size(self):
         self.assertEqual(film.fitted((3200, 1800)), ",scale=2400:1350:flags=lanczos")
-
 
 
 class Commands:
@@ -1131,7 +1125,6 @@ class DesktopRun(unittest.TestCase):
         self.assertIn("stopped", said.getvalue())
 
 
-
 class DesktopKeyboard(unittest.TestCase):
     """Each key goes to the film's window or nowhere: a pointer nudged onto another window, or a
     window that takes focus, would otherwise have the reader's own windows typed into."""
@@ -1229,7 +1222,6 @@ class DesktopAnswers(unittest.TestCase):
             film.Desktop(run=fake.run, which=fake.which).survey()
 
 
-
 class DesktopLastWord(unittest.TestCase):
     """However the run ends, the reader gets a sentence, and what was not put back."""
 
@@ -1295,7 +1287,6 @@ class RecordCleanup(unittest.TestCase):
 
         server = self.record(gone)
         server.stop.assert_called_once()
-
 
 
 class DesktopLedger(unittest.TestCase):

@@ -918,9 +918,9 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
 
     # The magazine loaded again, its ad slots empty. Then the pointer clicks the Site information
     # button, the card opens, and the pointer opens its blocked tile, whose list of refused
-    # requests names the ad network and the tracker and is held long enough to read. The recording has no
-    # pointer, so the window says where the button and the tile are, presses each as a click would,
-    # and the edit draws the pointer there.
+    # requests names the ad network and the tracker and is held long enough to read. The
+    # recording has no pointer, so the window says where the button and the tile are, presses each
+    # as a click would, and the edit draws the pointer there.
     beat = beats["Blocking"]
 
     def site(*arguments: str) -> dict:
