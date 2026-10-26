@@ -347,6 +347,16 @@ class KeyboardTest(unittest.TestCase):
                 mock.patch.object(runtime.subprocess, "run", return_value=answer):
             self.assertFalse(runtime.Keyboard(1).hyprland)
 
+    # A headless compositor offers no keyboard until `wtype` makes one, and the keys of that first
+    # call go out before the browser has bound it, so a Shift that does nothing goes first.
+    def test_wtype_makes_the_keyboard_before_the_first_key_that_matters(self):
+        answer = mock.Mock(returncode=1, stdout="")
+        with mock.patch.object(runtime.shutil, "which", return_value="/usr/bin/tool"), \
+                mock.patch.object(runtime.subprocess, "run", return_value=answer) as run, \
+                mock.patch.object(runtime.time, "sleep"):
+            runtime.Keyboard(1)
+        self.assertEqual(run.call_args_list[-1].args[0], ["wtype", "-k", "Shift_L"])
+
 
 class TitleTest(unittest.TestCase):
     """What the run waits for to know a tab's page is on show."""

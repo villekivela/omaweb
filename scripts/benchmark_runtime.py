@@ -397,6 +397,12 @@ class Keyboard:
         if not self.hyprland and shutil.which("wtype") is None:
             raise Unavailable(
                 "neither Hyprland nor wtype is here, and these measurements need a keyboard")
+        if not self.hyprland:
+            # A headless compositor has no keyboard until a virtual one appears, and the keys of
+            # the `wtype` that makes it go out before the browser has bound it. A Shift that does
+            # nothing makes it, so the first key that matters is not lost.
+            subprocess.run(["wtype", "-k", "Shift_L"], capture_output=True, check=False)
+            time.sleep(SETTLE)
 
     def focus(self) -> None:
         """Gives the window under test the keyboard, where the compositor has a way to be asked.
