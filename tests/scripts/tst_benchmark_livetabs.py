@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+import tempfile
 import unittest
 import urllib.error
 import urllib.parse
@@ -259,6 +260,76 @@ class OpenTabTest(unittest.TestCase):
         with mock.patch.object(runtime, "TAB_RECORDED_WAIT", 0.0), \
                 self.assertRaises(runtime.MeasurementFailed):
             self.open(runtime.LiveTab(12, 3), 3, [10])
+
+
+class KeyTraceTest(unittest.TestCase):
+    """What a failed attempt prints from the browser's log: the keys, focus and titles only."""
+
+    LOG = [
+        "[10:08:55.300000] {Default Queue} wl_keyboard#18.key(37, 1000, 29, 1)\n",
+        "[10:08:55.300100] {Default Queue}  -> wl_surface#20.commit()\n",
+        'omaweb.keys: press Ctrl+Alt+N text "\\x0e" to QQuickWindowQmlImpl "", focus none, '
+        'dialog ""\n',
+        "omaweb.startup: phase first-request at 1793009333898\n",
+        "[10:08:55.344064] {Default Queue}  -> xdg_toplevel#25.set_title(\"Tab — Personal\")\n",
+        "[10:08:55.400000] {Default Queue} wl_keyboard#18.leave(38, wl_surface#20)\n",
+        "MESA-EGL: warning: failed to get driver name for fd -1\n",
+    ]
+
+    def test_only_keys_focus_and_titles_are_kept(self):
+        self.assertEqual(runtime.key_trace(self.LOG),
+                         [self.LOG[0].rstrip(), self.LOG[2].rstrip(), self.LOG[4].rstrip(),
+                          self.LOG[5].rstrip()])
+
+    # The keys are what an attempt is printed for, and forty of them would push the browser's own
+    # last messages out of the tail printed when a step fails.
+    def test_the_messages_leave_the_keys_out(self):
+        with tempfile.TemporaryDirectory() as root:
+            browser = runtime.Browser("omaweb", root)
+            Path(browser.log_path).write_text("".join(self.LOG), encoding="utf-8")
+            self.assertEqual(browser.messages(),
+                             [self.LOG[3].rstrip(), self.LOG[4].rstrip(), self.LOG[6].rstrip()])
+
+
+class TracingBrowser(FakeBrowser):
+    """A browser whose log gains one key line per attempt."""
+
+    def __init__(self):
+        super().__init__()
+        self.lines: list[str] = []
+
+    def log_position(self) -> int:
+        self.lines.append(f"omaweb.keys: attempt {len(self.lines) + 1}")
+        return len(self.lines) - 1
+
+    def key_trace_since(self, position: int) -> list[str]:
+        return self.lines[position:]
+
+
+class NoSpaceWorkspace(FakeWorkspace):
+    def __init__(self):
+        super().__init__([1])
+
+    def space_count(self) -> int:
+        return 1
+
+
+class OpenSpaceTest(unittest.TestCase):
+    """A Space the browser does not make is asked for again, and each miss says where keys went."""
+
+    def test_each_failed_attempt_prints_what_the_window_was_given(self):
+        printed: list[str] = []
+        with mock.patch.object(runtime.time, "sleep"), \
+                mock.patch.object(runtime, "OPEN_SPACE_ATTEMPTS", 2), \
+                mock.patch.object(runtime, "log", printed.append), \
+                self.assertRaises(runtime.MeasurementFailed):
+            runtime.open_space(FakeKeyboard(), NoSpaceWorkspace(), TracingBrowser(), "space2", 2)
+        self.assertEqual(printed, [
+            "  attempt 1 at Space 2 made no Space; the browser was given:",
+            "    omaweb.keys: attempt 1",
+            "  attempt 2 at Space 2 made no Space; the browser was given:",
+            "    omaweb.keys: attempt 2",
+        ])
 
 
 class KeyboardTest(unittest.TestCase):

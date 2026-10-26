@@ -203,6 +203,14 @@ PHASES_AFTER_MAPPING = 5.0
 # the time of day in newer. Chromium's own lines open on a bracketed process id and a colon.
 WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 
+# What the browser logs of each key it hands an object and each move of its focus,
+# `src/core/KeyEventLog.h`.
+KEY_LOG = "omaweb.keys: "
+
+# The compositor's side of the same keys: which surface the keyboard entered and left, and each key
+# and modifier state it sent.
+WAYLAND_KEYBOARD = re.compile(r"\bwl_keyboard#\d+\.(enter|leave|key|modifiers)\(")
+
 # The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
 # fetches everything the load with it off does and the difference is what blocking cost.
 PAGELOAD_IMAGES = 40
@@ -640,12 +648,13 @@ class Browser:
         environment["OMAWEB_DATA_ROOT"] = os.path.join(self.root, "data")
         environment["OMAWEB_CONFIG_ROOT"] = os.path.join(self.root, "config")
         environment["WAYLAND_DEBUG"] = "1"
-        # The phase marks, written to the same log. Qt sends its logging to the journal when stderr
-        # is not a terminal, and this one is a file.
+        # The phase marks and the keys, written to the same log. Qt sends its logging to the journal
+        # when stderr is not a terminal, and this one is a file.
         environment["QT_FORCE_STDERR_LOGGING"] = "1"
         environment.pop("QT_MESSAGE_PATTERN", None)
         environment["QT_LOGGING_RULES"] = ";".join(
-            rule for rule in (os.environ.get("QT_LOGGING_RULES", ""), "omaweb.startup.info=true")
+            rule for rule in (os.environ.get("QT_LOGGING_RULES", ""), "omaweb.startup.info=true",
+                              "omaweb.keys.info=true")
             if rule)
         if keybindings:
             environment["OMAWEB_KEYBINDINGS_FILE"] = keybindings
@@ -724,7 +733,19 @@ class Browser:
         """
         with open(self.log_path, encoding="utf-8", errors="replace") as handle:
             return [line.rstrip() for line in handle
-                    if ".set_title(" in line or not WAYLAND_LINE.match(line.lstrip())]
+                    if ".set_title(" in line
+                    or not (WAYLAND_LINE.match(line.lstrip()) or line.startswith(KEY_LOG))]
+
+    def log_position(self) -> int:
+        """Where the log ends now, for `key_trace_since`."""
+        with open(self.log_path, "rb") as handle:
+            return handle.seek(0, os.SEEK_END)
+
+    def key_trace_since(self, position: int) -> list[str]:
+        """The keys, focus and titles the log gained after `position`."""
+        with open(self.log_path, encoding="utf-8", errors="replace") as handle:
+            handle.seek(position)
+            return key_trace(handle)
 
     @property
     def startup_seconds(self) -> float:
@@ -890,8 +911,15 @@ def log_messages(browser: Browser) -> None:
         log(f"    {line}")
 
 
-def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: int,
-               url: str = "") -> None:
+def key_trace(lines: Iterable[str]) -> list[str]:
+    """The lines of a browser's log that say where keys went: the keyboard's events from the
+    compositor, each key the browser handed an object and each move of its focus, and the titles."""
+    return [line.rstrip() for line in lines
+            if line.startswith(KEY_LOG) or ".set_title(" in line or WAYLAND_KEYBOARD.search(line)]
+
+
+def open_space(keyboard: Keyboard, workspace: Workspace, browser: Browser, name: str,
+               expected: int, url: str = "") -> None:
     """Creates a Space, switches to it, and loads the probe page in its first tab.
 
     A Space nobody has selected has no engine to pay for, which is the whole of ADR 0033, so a
@@ -899,9 +927,11 @@ def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: in
 
     The Space is counted before the page is loaded rather than assumed. Keys sent to a window that
     was not ready for them land somewhere harmless and silently, and the measurement that follows
-    would be of a browser that did nothing it was asked.
+    would be of a browser that did nothing it was asked. An attempt that makes no Space prints where
+    its keys went, which is what a run that fails here has to be read from.
     """
-    for _ in range(OPEN_SPACE_ATTEMPTS):
+    for attempt in range(1, OPEN_SPACE_ATTEMPTS + 1):
+        position = browser.log_position()
         keyboard.focus()
         keyboard.press(NEW_SPACE_BINDING)
         keyboard.write(name)
@@ -909,6 +939,9 @@ def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: in
         time.sleep(SETTLE)
         if workspace.space_count() == expected:
             break
+        log(f"  attempt {attempt} at Space {expected} made no Space; the browser was given:")
+        for line in browser.key_trace_since(position):
+            log(f"    {line}")
         # Whatever took the keys, this closes, so the next attempt starts where the first did.
         keyboard.press("Escape")
     else:
@@ -1240,7 +1273,7 @@ def measure_spaces(executable: str, count: int) -> dict:
         first = browser.memory_mib()
         log(f"  1 Space: {first:.1f} MiB")
         for index in range(2, count + 1):
-            open_space(keyboard, workspace, f"space{index}", index)
+            open_space(keyboard, workspace, browser, f"space{index}", index)
             log(f"  {index} Spaces: {browser.memory_mib():.1f} MiB")
         last = browser.memory_mib()
         opened = workspace.space_count()
@@ -1275,7 +1308,7 @@ def measure_freezing(executable: str) -> dict:
         keyboard = Keyboard(browser.window_pid)
         time.sleep(LOAD_SETTLE)
         keyboard.focus()
-        open_space(keyboard, workspace, "away", 2, workspace.allocator_url)
+        open_space(keyboard, workspace, browser, "away", 2, workspace.allocator_url)
         browser.await_title(ALLOCATOR_TITLE)
         running = browser.engine_mib()
         time.sleep(ON_SHOW_WINDOW)
@@ -2209,7 +2242,8 @@ def open_live_tab(keyboard: Keyboard, workspace: Workspace, browser: Browser, si
     """
     address = site.address(tab.number)
     if workspace.space_count() < tab.space:
-        open_space(keyboard, workspace, live_tab_space(tab.space), tab.space, f"http://{address}")
+        open_space(keyboard, workspace, browser, live_tab_space(tab.space), tab.space,
+                   f"http://{address}")
     elif tab.number == 1:
         keyboard.focus()
         keyboard.enter_address("Primary+L", address)

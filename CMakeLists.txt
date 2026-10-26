@@ -587,6 +587,8 @@ add_library(omaweb-ui STATIC
     src/ui/LifeBoard.h
     src/ui/InputOrigin.cpp
     src/ui/InputOrigin.h
+    src/ui/KeyEventLog.cpp
+    src/ui/KeyEventLog.h
     src/ui/SpaceSwipe.cpp
     src/ui/SpaceSwipe.h
     src/ui/PrimaryHold.cpp
@@ -1512,6 +1514,13 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-startup-phases-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-startup-phases-tests)
     add_test(NAME omaweb-startup-phases COMMAND omaweb-startup-phases-tests)
+
+    qt_add_executable(omaweb-key-event-log-tests "tests/ui/tst_keyeventlog.cpp")
+    target_link_libraries(omaweb-key-event-log-tests PRIVATE omaweb-ui Qt6::Test)
+    omaweb_strict_target(omaweb-key-event-log-tests)
+    add_test(NAME omaweb-key-event-log COMMAND omaweb-key-event-log-tests)
+    set_tests_properties(omaweb-key-event-log PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     qt_add_executable(omaweb-payment-cards-tests
         "tests/core/tst_paymentcards.cpp"
