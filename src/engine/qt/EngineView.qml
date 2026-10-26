@@ -2437,8 +2437,8 @@ Item {
                                  name, fallback);
     }
 
-    // Qt writes a translucent colour's alpha first and CSS reads it last, so a
-    // colour that is not opaque is handed to the frontend spelled out.
+    // Qt writes a translucent colour's alpha first and CSS reads it last, so the
+    // colour is handed to the frontend spelled out as rgba().
     function developerToolsCssColor(value) {
         const colour = Qt.color(value);
         return "rgba(" + Math.round(colour.r * 255) + ", " + Math.round(colour.g * 255) + ", "
@@ -2510,8 +2510,8 @@ Item {
             "--sys-color-surface3": surface,
             "--sys-color-surface4": surface,
             "--sys-color-surface5": surface,
-            // A menu is raised on either face, but the frontend takes it from
-            // the ground's own rung on its light one.
+            // A menu is raised on either face, but on its light one the
+            // frontend takes it from `--sys-color-surface`, the ground.
             "--app-color-menu-background": surface,
             "--sys-color-surface-variant": hover,
             "--sys-color-neutral-container": surface,

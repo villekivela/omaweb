@@ -7565,11 +7565,8 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     QVERIFY(resolves("--sys-color-cdt-base-container", QStringLiteral("#0b1a0b")));
     QVERIFY(resolves("--sys-color-primary", QStringLiteral("#00ff88")));
 
-    // Chromium's surface ladder is the panel's own ground, tinted a little more
-    // at each step, and the frontend lays its tables and headers on the low
-    // rungs. On the theme's raised surface, a Network table and the Styles
-    // pane's layer headers sat on bands of their own (#792). The high rungs
-    // are what it raises, and the theme has a colour for that.
+    // A Network table and the Styles pane's layer headers sit on the panel's
+    // ground, not on bands of the theme's surface (#792).
     QVERIFY(resolves("--sys-color-surface", QStringLiteral("#0b1a0b")));
     QVERIFY(resolves("--sys-color-surface1", QStringLiteral("#0b1a0b")));
     QVERIFY(resolves("--sys-color-surface2", QStringLiteral("#0b1a0b")));
@@ -7616,10 +7613,10 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     QVERIFY(adapter->setProperty("developerToolsColors", palette));
     QVERIFY(resolves("--sys-color-token-keyword", QStringLiteral("#ff00ff")));
 
-    // A context menu is raised above the panel on the theme's surface, as
-    // Omaweb's own menus are, on either face. The frontend takes it from a
-    // different rung on each, so each is asked (#792).
+    // A context menu is raised on the theme's surface on either face, and
+    // framed in its border where the frontend draws one (#792).
     QVERIFY(resolves("--app-color-menu-background", QStringLiteral("#1a3d1a")));
+    QVERIFY(resolves("--sys-color-neutral-outline", QStringLiteral("#2f6b2f")));
     palette.insert(QStringLiteral("windowOpaque"), QStringLiteral("#f0fff0"));
     palette.insert(QStringLiteral("sidebarOpaque"), QStringLiteral("#e0f5e0"));
     palette.insert(QStringLiteral("surface"), QStringLiteral("#c8e8c8"));
