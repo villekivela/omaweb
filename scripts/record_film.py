@@ -2126,7 +2126,7 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=ROOT / "build" / "film")
     parser.add_argument("--dry-run", action="store_true",
                         help="desktop: print what the run would do, and do none of it")
-    parser.add_argument("--change-to", metavar="THEME",
+    parser.add_argument("--change-to", metavar="THEME", default="retro-82",
                         help="desktop: the installed Omarchy theme the Theme beat changes to and "
                              "back from (default: Retro 82)")
     parser.add_argument("--workspace", default=Desktop.WORKSPACE,

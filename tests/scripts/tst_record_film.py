@@ -1179,6 +1179,14 @@ class DesktopRun(unittest.TestCase):
         self.assertEqual(printed, expected)
         film.compose.assert_not_called()
 
+    def test_the_command_line_names_the_theme_the_beat_changes_to(self):
+        for arguments, named in (([], "retro-82"), (["--change-to", "gruvbox"], "gruvbox")):
+            with mock.patch.object(film, "Desktop", return_value=self.desktop) as made, \
+                    mock.patch.object(film, "record_on_desktop"), \
+                    mock.patch.object(sys, "argv", ["record_film.py", "desktop", *arguments]):
+                film.main()
+            self.assertEqual(made.call_args.kwargs["change_to"], named)
+
     def test_a_stopped_film_says_the_desktop_is_as_it_was(self):
         with mock.patch.object(film, "Desktop", return_value=self.desktop), \
                 mock.patch.object(film, "record_on_desktop", side_effect=KeyboardInterrupt), \
