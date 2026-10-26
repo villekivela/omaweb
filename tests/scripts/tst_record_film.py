@@ -391,7 +391,7 @@ class BeatChecks(unittest.TestCase):
             film.expect_blocked_list("Blocking", dict(self.SITE, open=False), film.AD_HOSTS)
 
     def test_site_information_left_at_its_top_misses_the_blocking_beat(self):
-        with self.assertRaisesRegex(film.BeatMissed, "blocked list"):
+        with self.assertRaisesRegex(film.BeatMissed, "at its top"):
             film.expect_blocked_list("Blocking", dict(self.SITE, detail="", listed=[]),
                                      film.AD_HOSTS)
 
@@ -663,6 +663,16 @@ class DesktopWindow(unittest.TestCase):
     def test_the_pointer_is_parked_off_the_window_on_the_same_monitor(self):
         frame = film.window_frame(MONITOR)
         self.assertEqual(film.parking(MONITOR, frame), (2559, 1439))
+
+    def test_a_window_over_the_bottom_corners_parks_the_pointer_on_the_bar_side(self):
+        # 1600 by 926 logical pixels: the window fills all the bar leaves.
+        snug = dict(MONITOR, width=2400, height=1389, reserved=[0, 26, 0, 0])
+        self.assertEqual(film.parking(snug, film.window_frame(snug)), (1599, 0))
+
+    def test_a_window_over_the_whole_monitor_leaves_nowhere_to_park(self):
+        whole = dict(MONITOR, width=2400, height=1350, reserved=[0, 0, 0, 0])
+        with self.assertRaisesRegex(film.BeatMissed, "covers all"):
+            film.parking(whole, film.window_frame(whole))
 
 
 
