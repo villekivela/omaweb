@@ -54,18 +54,19 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A split shows two ordinary tabs of the Space on show side by side, listed as one sidebar row of
   two halves, with a draggable divider that starts in the middle and is remembered only while the
   window lives. The focused pane's tab is the active tab: the address field, find bar, notices,
-  prompt bars, loading indicator, zoom, lock and navigation follow it, and the tab beside shows its
-  page and nothing else until it is focused. Both panes run; a split of an away Space freezes like
-  its other pages. Focus moves by a press in the other pane, by `Primary+;`, or by the key that
-  moves the keyboard to the region on that side. A split is entered from another row's Add split
-  view, which pairs it with the active tab, or from the active row's, which puts a blank tab beside
-  it and focuses it; the Omnibar's Add split view command offers a chooser of the unpaired ordinary
-  tabs, headed by a blank tab. Selecting any other tab shows it alone and leaves the row in place;
-  either half brings the split back, and tab cycling treats the row as one stop entered on its
-  last-focused half. Separate split view puts two adjacent ordinary rows back. Closing either tab,
-  or moving one to another Space, ends the split. Pinned tabs are never paired, a tab is in at most
-  one split, and a split's tab is separated before it can be pinned or moved. The pairing is kept
-  with the Space's tabs and restored after a restart, and is not part of the Sync projection.
+  prompt bars, loading indicator, zoom, Site information button and navigation follow it, and the
+  tab beside shows its page and nothing else until it is focused. Both panes run; a split of an away
+  Space freezes like its other pages. Focus moves by a press in the other pane, by `Primary+;`, or
+  by the key that moves the keyboard to the region on that side. A split is entered from another
+  row's Add split view, which pairs it with the active tab, or from the active row's, which puts a
+  blank tab beside it and focuses it; the Omnibar's Add split view command offers a chooser of the
+  unpaired ordinary tabs, headed by a blank tab. Selecting any other tab shows it alone and leaves
+  the row in place; either half brings the split back, and tab cycling treats the row as one stop
+  entered on its last-focused half. Separate split view puts two adjacent ordinary rows back.
+  Closing either tab, or moving one to another Space, ends the split. Pinned tabs are never paired,
+  a tab is in at most one split, and a split's tab is separated before it can be pinned or moved.
+  The pairing is kept with the Space's tabs and restored after a restart, and is not part of the
+  Sync projection.
 - Each Space keeps a Tab jump list: the order its tabs became active, without repeats, at most 32
   entries. `Primary+O` jumps back to the tab before the one on show in that list and `Primary+I`
   jumps forward again. A jump changes no entry. A tab selected by any other route after jumping back
@@ -111,7 +112,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   page its scheme. A blank page shows "search or enter address". The host and the Site information
   button before it rest in the quiet text colour, and the host turns to the text colour under the
   pointer. The button is as large as a tab row's favicon. It shows a tune glyph on a secure page, an
-  open lock on plain HTTP and a warning on a certificate error, and it opens Site information, and a
+  open lock on plain HTTP and a warning on a certificate error. It opens Site information, and a
   click anywhere else on the line opens the Omnibar. The trigger and the Pinned tabs have no border
   at rest or under the pointer. They rest on one fill, the theme's text at 7%, 11% under the
   pointer. The active pin's wash lies over its fill. The trigger takes the focus border while it
@@ -1064,7 +1065,7 @@ Content blocking is built in and engine-neutral. EasyList and EasyPrivacy are su
 on a first run, and either can be disabled or removed. It supports subscribed lists, network and
 plain CSS cosmetic rules, exceptions, common resource types, first-party and third-party matching,
 domain restrictions, entity domains, automatic updates, per-site disabling, user lists, and a
-visible blocked-request count.
+blocked-request count in Site information.
 
 The first run is recorded, so a list a user removes stays removed across restarts. When there are no
 subscriptions, Settings says so and offers the two default lists back.

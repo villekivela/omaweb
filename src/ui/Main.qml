@@ -3517,9 +3517,7 @@ ApplicationWindow {
                 connectionState: window.connectionState
                 siteInformationOpen: window.siteInformationOpen
                 siteInformationVerdict: siteInformationCard.verdict
-                onSiteInformationRequested: function (detail) {
-                    window.openSiteInformation(detail);
-                }
+                onSiteInformationRequested: window.openSiteInformation("")
                 onSiteInformationDismissed: window.dismissSiteInformation()
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false

@@ -45,7 +45,7 @@ Rectangle {
     property bool onRight: false
     property bool floating: false
     // Whether Site information is open, which the address is drawn focused
-    // for, and the verdict it gives, which the lock speaks.
+    // for, and the verdict it gives, which the Site information button speaks.
     property bool siteInformationOpen: false
     property string siteInformationVerdict: ""
     // The address, which Site information floats from.
@@ -423,10 +423,9 @@ Rectangle {
     }
     signal extensionRequested(rect origin)
     signal releaseNotesRequested(url notes)
-    // The lock and the shield ask the window for Site information, at its top
-    // or at one detail, and a click on the outline while it is open puts it
-    // away.
-    signal siteInformationRequested(string detail)
+    // The Site information button asks the window for the card, and a click on
+    // the outline while it is open puts it away.
+    signal siteInformationRequested
     signal siteInformationDismissed
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
@@ -1033,7 +1032,7 @@ Rectangle {
             Accessible.role: Accessible.Button
             Accessible.name: addressButton.accessibleName
 
-            // Anywhere on the line, the lock and the shield included.
+            // Anywhere on the line, the Site information button included.
             HoverHandler {
                 id: addressHover
             }
@@ -1074,7 +1073,7 @@ Rectangle {
                 font.pixelSize: SiteChip.side(Style.font.caption)
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Site information: %1").arg(root.siteInformationVerdict)
-                Accessible.onPressAction: root.siteInformationRequested("")
+                Accessible.onPressAction: root.siteInformationRequested()
 
                 MouseArea {
                     anchors.fill: parent
@@ -1082,7 +1081,7 @@ Rectangle {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.siteInformationOpen ? root.siteInformationDismissed() :
-                                                          root.siteInformationRequested("")
+                                                          root.siteInformationRequested()
                 }
             }
 

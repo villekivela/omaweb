@@ -3097,6 +3097,7 @@ TestCase {
         const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
         tryCompare(lock, "text", "tune");
+        verify(lock.Accessible.name.startsWith("Site information: "));
         verify(Qt.colorEqual(lock.color, window.colors.mutedText));
         compare(lock.font.pixelSize, tile.width);
         engine.simulateCertificateError({});
@@ -4275,27 +4276,20 @@ TestCase {
         });
     }
 
-    // The address line shows the lock and the domain only: the count of refused requests
-    // lives in Site information, whose blocked tile opens the list (#803).
+    // The address line shows the Site information button and the domain only: the count of
+    // refused requests lives in Site information, whose blocked tile opens the list (#803).
     function test_theAddressLineHasNoBlockedCountOnAPageWithRefusedRequests() {
         openPage("https://news.example/story");
-        const sidebar = findChild(window.contentItem, "sidebar");
         const card = siteCard();
         const cardBlocker = card.blocker;
-        const refusing = refusingBlockerComponent.createObject(testCase);
-        card.blocker = refusing;
-        // The sidebar once counted refusals itself; it is told of them wherever it still can be.
-        const outlineBlocker = "blocker" in sidebar ? sidebar.blocker : null;
-        if ("blocker" in sidebar)
-            sidebar.blocker = refusing;
+        card.blocker = refusingBlockerComponent.createObject(testCase);
         const address = findChild(window.contentItem, "addressButton");
-        wait(50);
+        const host = findChild(window.contentItem, "addressText");
+        tryCompare(host, "text", "news.example");
         compare(findChild(window.contentItem, "blockedRequestIndicator"), null);
         mouseMove(address, address.width - 10, address.height / 2);
         compare(findChild(window.contentItem, "blockedRequestIndicator"), null);
         mouseMove(window.contentItem, window.width - 20, window.height - 20);
-        if ("blocker" in sidebar)
-            sidebar.blocker = outlineBlocker;
         card.blocker = cardBlocker;
     }
 
