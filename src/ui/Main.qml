@@ -3243,13 +3243,29 @@ ApplicationWindow {
         }
     }
 
+    // The page takes the keyboard from the road, not from whatever the reader
+    // opened while it drove: a dialog that lost it to a first paint would send
+    // what was typed for it to the page (#795).
     function endStartPageDrive() {
         if (!window.startPageDriving)
             return;
         startPageDriveLimitTimer.stop();
         window.startPageDriving = false;
         window.startPageDriveTabId = "";
-        window.focusPage();
+        if (window.startPageDriveHoldsKeyboard())
+            window.focusPage();
+    }
+
+    // Whether the keyboard is still where the drive left it: in the Omnibar or
+    // on the Start page. A window that is not active has no focus item to ask.
+    function startPageDriveHoldsKeyboard() {
+        if (!window.active)
+            return true;
+        for (let item = window.activeFocusItem; item; item = item.parent) {
+            if (item === omnibar || item === startPage)
+                return true;
+        }
+        return false;
     }
 
     Timer {

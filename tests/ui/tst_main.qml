@@ -14443,6 +14443,43 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting drive");
     }
 
+    // The page takes the keyboard at its first paint only from the drive. A
+    // dialog the reader opened while the road drove keeps it, as the new-Space
+    // dialog did not on a slow machine: what was typed for it went to the page
+    // (#795).
+    function test_aDialogOpenedWhileTheRoadDrivesKeepsTheKeyboard() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting dialog");
+
+        input.text = "https://slow-paint.example/dialog";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        window.commands.run("new-space", -1);
+        const field = findChild(window.contentItem, "commandDialogInput");
+        tryVerify(function () {
+            return field.activeFocus;
+        });
+
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 400);
+        compare(window.dialogMode, "new");
+        verify(field.activeFocus);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.dialogMode === "";
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting dialog");
+    }
+
     // Asking for a new tab while the road still drives to the last one is
     // being done with waiting: that page takes over and a new Start page
     // stands over it.
