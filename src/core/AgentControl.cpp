@@ -1668,18 +1668,18 @@ QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &requ
             stop ? QStringLiteral("stop")
                  : (where ? QStringLiteral("where") : QStringLiteral("hold")));
     }
-    // And Site information's lock or blocked tile, which the window says
+    // And Site information's button or blocked tile, which the window says
     // where it is, or presses with `press`. Neither asks what the card shows.
     if (verb == u"film-site") {
         const auto target = request.value(QStringLiteral("target")).toString();
         const auto press = request.value(QStringLiteral("press")).toBool();
-        if (!target.isEmpty() && target != u"lock" && target != u"blocked") {
+        if (!target.isEmpty() && target != u"button" && target != u"blocked") {
             return refusal(QStringLiteral("bad-request"),
-                QStringLiteral("Give lock or blocked, not \"%1\".").arg(target));
+                QStringLiteral("Give button or blocked, not \"%1\".").arg(target));
         }
         if (press && target.isEmpty()) {
             return refusal(
-                QStringLiteral("bad-request"), QStringLiteral("Give lock or blocked to press."));
+                QStringLiteral("bad-request"), QStringLiteral("Give button or blocked to press."));
         }
         asked.insert(QStringLiteral("target"), target);
         asked.insert(QStringLiteral("press"), press);

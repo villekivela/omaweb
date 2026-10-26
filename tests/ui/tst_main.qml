@@ -4294,20 +4294,21 @@ TestCase {
     }
 
     // The film's Blocking beat has no pointer either: the window answers where
-    // the lock is and presses it as a click would, then does the same for the
-    // blocked tile of the card it opened, and says what the card shows.
-    function test_theFilmPressesTheLockThenTheBlockedTile() {
+    // the Site information button is and presses it as a click would, then
+    // does the same for the blocked tile of the card it opened, and says what
+    // the card shows.
+    function test_theFilmPressesSiteInformationThenTheBlockedTile() {
         openPage("https://news.example/story");
         const card = siteCard();
         const cardBlocker = card.blocker;
         card.blocker = refusingBlockerComponent.createObject(testCase);
-        const lock = findChild(window.contentItem, "securityIndicator");
+        const button = findChild(window.contentItem, "securityIndicator");
 
-        const where = window.pointAtSiteInformation("lock", false);
-        const corner = lock.mapToItem(window.contentItem, 0, 0);
+        const where = window.pointAtSiteInformation("button", false);
+        const corner = button.mapToItem(window.contentItem, 0, 0);
         const shut = !window.siteInformationOpen;
         const blockedBeforeTheCard = window.pointAtSiteInformation("blocked", false);
-        verify(window.pointAtSiteInformation("lock", true).ok);
+        verify(window.pointAtSiteInformation("button", true).ok);
         tryVerify(function () {
             return card.visible && card.open;
         });
@@ -4317,7 +4318,7 @@ TestCase {
         const pressed = window.pointAtSiteInformation("blocked", true);
         const shown = window.pointAtSiteInformation("", false);
         const cardCorner = card.mapToItem(window.contentItem, 0, 0);
-        verify(window.pointAtSiteInformation("lock", true).ok);
+        verify(window.pointAtSiteInformation("button", true).ok);
         tryVerify(function () {
             return !card.visible;
         });
@@ -4325,8 +4326,8 @@ TestCase {
 
         verify(where.ok);
         verify(shut);
-        compare([where.x, where.y, where.width, where.height], [corner.x, corner.y, lock.width,
-                                                                lock.height]);
+        compare([where.x, where.y, where.width, where.height], [corner.x, corner.y, button.width,
+                                                                button.height]);
         compare([where.windowWidth, where.windowHeight], [window.contentItem.width,
                                                           window.contentItem.height]);
         verify(!blockedBeforeTheCard.ok);
@@ -4338,7 +4339,7 @@ TestCase {
         compare(shown.listed.slice(0, 2), ["ads.example/banner.js",
                                            "metrics.news.example/collect.js"]);
         compare([shown.card.x, shown.card.width], [cardCorner.x, card.width]);
-        verify(!window.pointAtSiteInformation("padlock", false).ok);
+        verify(!window.pointAtSiteInformation("lock", false).ok);
     }
 
     // The command and its key open the card at its top, and both are named

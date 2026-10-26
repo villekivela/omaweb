@@ -2090,15 +2090,15 @@ ApplicationWindow {
         };
     }
 
-    // The film's Blocking beat clicks the lock, then Site information's blocked
-    // tile. Its recording has no pointer, so this answers where `target`
-    // ("lock" or "blocked") is, for the edit to draw one there, and with
+    // The film's Blocking beat clicks the Site information button, then the
+    // card's blocked tile. Its recording has no pointer, so this answers where
+    // `target` ("button" or "blocked") is, for the edit to draw one there, and with
     // `press` clicks it as a pointer would. Either way, or with no target, it
     // answers what the card shows and where it is. Only a browser built with
     // OMAWEB_FILM_HOOKS passes the request on (scripts/record_film.py).
     function pointAtSiteInformation(target, press) {
         const card = siteInformationCard;
-        const lock = sidebar.siteInformationButton;
+        const button = sidebar.siteInformationButton;
         const named = String(target || "");
         function rectangle(item) {
             const corner = item.mapToItem(window.contentItem, 0, 0);
@@ -2109,25 +2109,25 @@ ApplicationWindow {
                 height: item.height
             };
         }
-        if (named.length > 0 && named !== "lock" && named !== "blocked") {
+        if (named.length > 0 && named !== "button" && named !== "blocked") {
             return {
                 ok: false,
                 code: "bad-request",
                 error: "There is no " + named + " to point at."
             };
         }
-        const item = named === "lock" ? lock : named === "blocked" && window.siteInformationOpen
-                                        ? card.tileItem("blocked") : null;
+        const item = named === "button" ? button : named === "blocked" && window.siteInformationOpen
+                                          ? card.tileItem("blocked") : null;
         if (named.length > 0 && (!item || !item.visible)) {
             return {
                 ok: false,
                 code: "not-found",
-                error: named === "lock" ? "The address shows no lock." :
-                                          "Site information shows no blocked tile."
+                error: named === "button" ? "The address shows no Site information button." :
+                                            "Site information shows no blocked tile."
             };
         }
         const answer = item ? rectangle(item) : {};
-        if (press && named === "lock") {
+        if (press && named === "button") {
             if (window.siteInformationOpen)
                 window.dismissSiteInformation();
             else
@@ -2141,7 +2141,7 @@ ApplicationWindow {
         const listed = card.detail === "blocked" ? card.refusals.requests : [];
         answer.listed = listed.slice(0, card.listedRefusals).map(refusal => card.requestLabel(
                                                                                 refusal.address));
-        answer.lock = rectangle(lock);
+        answer.button = rectangle(button);
         answer.card = rectangle(card);
         answer.windowWidth = window.contentItem.width;
         answer.windowHeight = window.contentItem.height;

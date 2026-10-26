@@ -2392,9 +2392,9 @@ void AgentControlTest::holdsASpacesNameOnlyForTheFilm()
 #endif
 }
 
-// Nor has its Blocking beat: `film-site` has the window answer where the lock
-// or Site information's blocked tile is, and press it with `--press`, and
-// what the card shows with neither.
+// Nor has its Blocking beat: `film-site` has the window answer where the Site
+// information button or the card's blocked tile is, and press it with
+// `--press`, and what the card shows with neither.
 void AgentControlTest::pressesSiteInformationOnlyForTheFilm()
 {
     QTemporaryDir config;
@@ -2411,13 +2411,14 @@ void AgentControlTest::pressesSiteInformationOnlyForTheFilm()
         });
 
     const auto pressed = ask(control, script, QStringLiteral("film-site"),
-        {{QStringLiteral("target"), QStringLiteral("lock")}, {QStringLiteral("press"), true}});
+        {{QStringLiteral("target"), QStringLiteral("button")}, {QStringLiteral("press"), true}});
 #ifdef OMAWEB_FILM_HOOKS
     QVERIFY(succeeded(pressed));
     QCOMPARE(asked.size(), 1);
     QCOMPARE(
         asked.constLast().value(QStringLiteral("verb")).toString(), QStringLiteral("film-site"));
-    QCOMPARE(asked.constLast().value(QStringLiteral("target")).toString(), QStringLiteral("lock"));
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("target")).toString(), QStringLiteral("button"));
     QCOMPARE(asked.constLast().value(QStringLiteral("press")).toBool(), true);
     QVERIFY(succeeded(ask(control, script, QStringLiteral("film-site"),
         {{QStringLiteral("target"), QStringLiteral("blocked")}})));
@@ -2427,7 +2428,7 @@ void AgentControlTest::pressesSiteInformationOnlyForTheFilm()
     QVERIFY(succeeded(ask(control, script, QStringLiteral("film-site"))));
     QCOMPARE(asked.constLast().value(QStringLiteral("target")).toString(), QString());
     QCOMPARE(failure(ask(control, script, QStringLiteral("film-site"),
-                 {{QStringLiteral("target"), QStringLiteral("padlock")}})),
+                 {{QStringLiteral("target"), QStringLiteral("lock")}})),
         QStringLiteral("bad-request"));
     QCOMPARE(failure(ask(
                  control, script, QStringLiteral("film-site"), {{QStringLiteral("press"), true}})),
