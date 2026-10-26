@@ -2085,6 +2085,14 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             <div tabindex="0">Zero</div>
             <button>On</button>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("top:On") << false << QStringList {};
+    QTest::newRow("a link under 3x3 px or not visible has no hint")
+        << hintsPage(R"HTML(
+            <style>a { display: inline-block; background: gray; margin: 10px }</style>
+            <a href="#small" style="width:2px;height:2px">Small</a>
+            <a href="#hidden" style="width:20px;height:20px;visibility:hidden">Hidden</a>
+            <a href="#collapse" style="width:20px;height:20px;visibility:collapse">Collapse</a>
+            <a href="#edge" style="width:3px;height:3px">Edge</a>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("top:Edge") << false << QStringList {};
     QTest::newRow("a plate sits at the start of a wrapped link's first line")
         << hintsPage(R"HTML(
             <div style="width:200px;margin-left:100px;padding-top:20px;font-size:20px">
