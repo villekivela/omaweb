@@ -20,7 +20,7 @@ claims. In order:
    closes on the card, whose list of refused requests names the ad network and the tracker, and
    holds it long enough to read. Neither is ever reached.
 1. A theme change on one Start page, across the whole browser: from Retro 82 to Tokyo Night in the
-   container, and on the desktop from the reader's own theme to Tokyo Night and back.
+   container, and on the desktop the desktop's own theme switched to Retro 82 and back.
 1. An Agent at work in a Space of its own. Each command it runs, `omaweb space new`, `open`, `look`
    and one batched `do`, takes the caption's place as it runs, its tab's row in the sidebar names
    its last act after each, and the invoice is sent. The camera then closes on the row, the pointer
@@ -61,14 +61,30 @@ the line that installs them. Then it:
 1. Records only the window, with `wf-recorder -g`, so the bar, other windows and other monitors stay
    out, and cuts the film as the container does, into `build/film/`.
 
-The desktop film wears the theme the desktop is wearing when the run starts. The run reads Omarchy's
-`~/.local/state/omarchy/current/theme/colors.toml`, and changes nothing there, and renders it
-through Omaweb's template as Omarchy would. Most of the film is in that theme: the Theme beat
-changes to Tokyo Night and back to it, and checks the chrome against each theme's colour. A desktop
-without the file records in Retro 82, as the container does, and the run says so. The film's sidebar
-lets 15% of the desktop through (`sidebar-opacity` 0.85), as the maintainer's own Omaweb does, where
-the theme alone lets 5% through. How much of Hyprland's blur shows depends on the wallpaper behind
-the window: over a dark one, the sidebar can still read as solid.
+The desktop film wears the reader's theme: the one the desktop is wearing when the run starts. The
+film's browser finds Omarchy's `~/.local/state/omarchy/current` through its own home and follows it
+as the reader's Omaweb does. The Theme beat switches the desktop's theme, as a reader does, with
+`omarchy-theme-set retro-82`, then switches it back to the theme the run started with, so the beat
+shows the real switch, wallpaper and blur included, and most of the film is in the reader's theme.
+Notifications are already held, so the switch raises none on camera. The beat checks the chrome
+against each theme's `colors.toml`.
+
+```sh
+scripts/record_film.py desktop --change-to gruvbox
+```
+
+switches to another installed Omarchy theme, looked for in `~/.config/omarchy/themes` and then
+`/usr/share/omarchy/themes`. A theme whose sidebar colour is too near the desktop's for the check to
+tell apart is refused before the run changes anything, and the refusal names one that is far enough.
+A desktop with no current Omarchy theme, or without `omarchy-theme-set`, stops the run there too.
+The theme the run started with is in the ledger before the first switch, and every way out puts it
+back: the run ending, a missed beat, Ctrl+C, and the next run's recovery after a killed one.
+
+The film's sidebar is as opaque as the reader's own. The run reads `sidebar-opacity` from the
+reader's Omaweb settings, `settings.json` under `$OMAWEB_CONFIG_ROOT`, `$XDG_CONFIG_HOME/omaweb` or
+`~/.config/omaweb`, and sets it in the film's profile. Where the reader set none, or the file is
+missing or unreadable, the film keeps the theme's opacity. How much of Hyprland's blur shows depends
+on the wallpaper behind the window: over a dark one, the sidebar can still read as solid.
 
 ```sh
 scripts/record_film.py desktop --workspace 9
@@ -85,9 +101,10 @@ reader's.
 
 Whether the run ends, fails, or is stopped with Ctrl+C or by its terminal closing, it stops the
 film's browser and the recorder, switches back to the workspace it started on, puts the pointer back
-and restores notifications as they were. The reader's own Omaweb and its profile are never started
-or read. A monitor at Hyprland's scale of 1.5 records the window at cage's 2400 by 1350; at another
-scale the edit scales the recording to that size.
+and restores notifications as they were. The reader's own Omaweb is never started, and of its
+profile only the sidebar opacity in `settings.json` is read, never written. A monitor at Hyprland's
+scale of 1.5 records the window at cage's 2400 by 1350; at another scale the edit scales the
+recording to that size.
 
 Hyprland 0.56 takes its dispatchers as Lua (`hl.dsp`), as Omarchy 4's scripts send them, and answers
 one it could not do with an error rather than `ok`. After Enter, and before it changes anything, the
@@ -98,9 +115,9 @@ the keyboard given to the window that has it. A Hyprland that refuses either sto
 scripts/record_film.py desktop --dry-run
 ```
 
-builds nothing and changes nothing. It reads the monitor, the workspace, the pointer and the
-notification state, then prints each command the run would issue, in order, and what it would have
-stopped on.
+builds nothing and changes nothing. It reads the monitor, the workspace, the pointer, the
+notification state, the desktop's theme and the reader's sidebar opacity, then prints each command
+the run would issue, in order, the theme switches among them, and what it would have stopped on.
 
 ### If a run is killed
 
@@ -108,13 +125,16 @@ A run killed outright (`kill -9`, or a crash) cannot put anything back. It keeps
 `build/film/desktop-run.json` from before it changes anything until it has put everything back, and
 the next `scripts/record_film.py desktop`, once Enter is pressed, stops the film's browser and the
 recorder that ledger names, if those process numbers are still theirs, and restores notifications as
-that run found them. The ledger names the film's workspace too, and if it is still on show, the next
-run switches back to the workspace the killed run started on. To put things back by hand instead:
+that run found them. The ledger names the film's workspace and the desktop's theme too: the next run
+switches the theme back if it is not the one the killed run started with, and switches back to the
+workspace the killed run started on if the film's is still on show. To put things back by hand
+instead:
 
 ```sh
 pkill -INT -x wf-recorder                 # the recorder, which otherwise fills the disk
 pkill -f build/film-desktop/omaweb-browser # the film's browser, never the installed one
 omarchy-shell notifications setDnd off     # or makoctl mode -r do-not-disturb
+omarchy-theme-set "$(jq -r .theme build/film/desktop-run.json)" # if the ledger names a theme
 rm build/film/desktop-run.json
 ```
 
