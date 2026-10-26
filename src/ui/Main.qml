@@ -3512,15 +3512,12 @@ ApplicationWindow {
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
-                blocker: contentBlocker
                 easeSpaces: window.chromeEase
                 spacesCanMove: !window.reducedMotion
                 connectionState: window.connectionState
                 siteInformationOpen: window.siteInformationOpen
                 siteInformationVerdict: siteInformationCard.verdict
-                onSiteInformationRequested: function (detail) {
-                    window.openSiteInformation(detail);
-                }
+                onSiteInformationRequested: window.openSiteInformation("")
                 onSiteInformationDismissed: window.dismissSiteInformation()
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
