@@ -1707,6 +1707,7 @@ ApplicationWindow {
         if (window.windowBrowser.activeTabBlank)
             return;
         SystemClipboard.copyText(window.windowBrowser.activeUrl.toString());
+        window.showNotice("content_copy", qsTr("Address copied"), "", 3000);
     }
 
     // A statement about the page, over the page, that takes itself away. What
