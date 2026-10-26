@@ -204,8 +204,8 @@ PHASES_AFTER_MAPPING = 5.0
 WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 
 # What the browser logs of each key it hands an object and each move of its focus,
-# `src/core/KeyEventLog.h`.
-KEY_LOG = "omaweb.keys: "
+# `src/ui/KeyEventLog.h`.
+KEY_LOG_PREFIX = "omaweb.keys: "
 
 # The compositor's side of the same keys: which surface the keyboard entered and left, each keymap,
 # and each key and modifier state it sent. `wtype` sends a keymap of its own before its keys, and a
@@ -741,7 +741,8 @@ class Browser:
         with open(self.log_path, encoding="utf-8", errors="replace") as handle:
             return [line.rstrip() for line in handle
                     if ".set_title(" in line
-                    or not (WAYLAND_LINE.match(line.lstrip()) or line.startswith(KEY_LOG))]
+                    or not (WAYLAND_LINE.match(line.lstrip())
+                            or line.startswith(KEY_LOG_PREFIX))]
 
     def log_position(self) -> int:
         """Where the log ends now, for `key_trace_since`."""
@@ -922,7 +923,8 @@ def key_trace(lines: Iterable[str]) -> list[str]:
     """The lines of a browser's log that say where keys went: the keyboard's events from the
     compositor, each key the browser handed an object and each move of its focus, and the titles."""
     return [line.rstrip() for line in lines
-            if line.startswith(KEY_LOG) or ".set_title(" in line or WAYLAND_KEYBOARD.search(line)]
+            if line.startswith(KEY_LOG_PREFIX) or ".set_title(" in line
+            or WAYLAND_KEYBOARD.search(line)]
 
 
 def open_space(keyboard: Keyboard, workspace: Workspace, browser: Browser, name: str,
