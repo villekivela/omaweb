@@ -274,12 +274,15 @@ class KeyTraceTest(unittest.TestCase):
         "[10:08:55.344064] {Default Queue}  -> xdg_toplevel#25.set_title(\"Tab — Personal\")\n",
         "[10:08:55.400000] {Default Queue} wl_keyboard#18.leave(38, wl_surface#20)\n",
         "MESA-EGL: warning: failed to get driver name for fd -1\n",
+        "[10:08:55.410000] {Default Queue} wl_keyboard#18.keymap(1, fd 15, 1434)\n",
     ]
 
-    def test_only_keys_focus_and_titles_are_kept(self):
+    # A keymap is kept because `wtype` sends its own before its keys, and a key read against
+    # another map is a different key.
+    def test_only_keys_keymaps_focus_and_titles_are_kept(self):
         self.assertEqual(runtime.key_trace(self.LOG),
                          [self.LOG[0].rstrip(), self.LOG[2].rstrip(), self.LOG[4].rstrip(),
-                          self.LOG[5].rstrip()])
+                          self.LOG[5].rstrip(), self.LOG[7].rstrip()])
 
     # The keys are what an attempt is printed for, and forty of them would push the browser's own
     # last messages out of the tail printed when a step fails.

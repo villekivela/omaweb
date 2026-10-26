@@ -207,9 +207,10 @@ WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 # `src/core/KeyEventLog.h`.
 KEY_LOG = "omaweb.keys: "
 
-# The compositor's side of the same keys: which surface the keyboard entered and left, and each key
-# and modifier state it sent.
-WAYLAND_KEYBOARD = re.compile(r"\bwl_keyboard#\d+\.(enter|leave|key|modifiers)\(")
+# The compositor's side of the same keys: which surface the keyboard entered and left, each keymap,
+# and each key and modifier state it sent. `wtype` sends a keymap of its own before its keys, and a
+# key is a number read against whichever map came last.
+WAYLAND_KEYBOARD = re.compile(r"\bwl_keyboard#\d+\.(enter|leave|keymap|key|modifiers)\(")
 
 # The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
 # fetches everything the load with it off does and the difference is what blocking cost.
