@@ -9,6 +9,12 @@
   "crt": {
     "bloom": { "scale": 6, "opacity": 0.22 },
     "halation": { "threshold": 0.35, "strength": 0.25, "reach": 32, "spacing": 24 },
+    "grade": {
+      "top": 0.15,
+      "depth": 0.55,
+      "highlights": { "from": 0.25, "to": 0.85, "strength": 0.7 },
+      "midtones": { "from": 0.08, "to": 0.5, "strength": 0.55 }
+    },
     "trail": { "fade": 0.9 },
     "vignette": { "clear": 0.55, "shade": 0.55 },
     "flicker": { "least": 0.02, "range": 0.025, "frequencies": [37.1, 11.3] }

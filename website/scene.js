@@ -29,8 +29,11 @@ export function holdsStill(environment) {
 export function sceneInput(scene, environment) {
   const pitch = scene.pitch || 1;
   const still = holdsStill(environment);
+  // A role the page does not name, as `--keyword` on an element that wears no theme, is left out.
   const palette = Object.fromEntries(
-    Object.entries(environment.palette).map(([role, colour]) => [role, rgb(colour)]),
+    Object.entries(environment.palette)
+      .filter(([, colour]) => colour.trim())
+      .map(([role, colour]) => [role, rgb(colour)]),
   );
   return {
     width: Math.max(1, Math.ceil(environment.width / pitch)),
@@ -124,7 +127,13 @@ export const PHONE = "(max-width: 860px)";
 export const STILL_MEDIA = `${PHONE}, (prefers-reduced-motion: reduce)`;
 
 // The theme's roles, as the page's stylesheet names them on the element carrying `data-theme`.
-const ROLES = { ground: "--bg", text: "--fg", accent: "--accent", muted: "--muted" };
+const ROLES = {
+  ground: "--bg",
+  text: "--fg",
+  accent: "--accent",
+  muted: "--muted",
+  keyword: "--keyword",
+};
 
 // The host: one canvas, one Scene. It sizes the canvas to the Scene's pixels, reads the theme off
 // the page, keeps the Scene's clock, and draws only while `drawsFrames` allows, capped at the
@@ -310,6 +319,78 @@ export function halation(value, crt) {
   return Math.max(value - threshold, 0) / (1 - threshold);
 }
 
+// The tint every Omarchy theme is rendered with, which the fallback hue is drawn at: the site's
+// themes name none.
+const TINT = { saturation: 0.34, lightness: 0.66 };
+
+function hsl([red, green, blue]) {
+  const [r, g, b] = [red / 255, green / 255, blue / 255];
+  const high = Math.max(r, g, b);
+  const low = Math.min(r, g, b);
+  const lightness = (high + low) / 2;
+  const chroma = high - low;
+  if (chroma === 0) return { hue: -1, saturation: 0, lightness };
+  const saturation = chroma / (1 - Math.abs(2 * lightness - 1));
+  const sector =
+    high === r
+      ? ((g - b) / chroma + 6) % 6
+      : high === g
+        ? (b - r) / chroma + 2
+        : (r - g) / chroma + 4;
+  return { hue: sector / 6, saturation, lightness };
+}
+
+function fromHsl(hue, saturation, lightness) {
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const channel = (n) => {
+    const k = (n + hue * 12) % 12;
+    return lightness - (chroma / 2) * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+  };
+  return [channel(0), channel(8), channel(4)].map((value) => Math.round(value * 255));
+}
+
+// The grade's second hue, as the browser takes it (src/ui/SceneHost.qml): the theme's keyword
+// colour, or, where it would add nothing, its hue within 30 degrees of the accent's or itself
+// nearly grey, or where the page has none, the accent's hue turned half way round at the tint.
+export function gradeHue(palette, tint = TINT) {
+  const accent = hsl(palette.accent);
+  if (palette.keyword) {
+    const keyword = hsl(palette.keyword);
+    const apart = Math.abs(keyword.hue - accent.hue);
+    if (keyword.saturation >= 0.15 && (accent.hue < 0 || Math.min(apart, 1 - apart) >= 30 / 360)) {
+      return palette.keyword;
+    }
+  }
+  return fromHsl((Math.max(0, accent.hue) + 0.5) % 1, tint.saturation, tint.lightness);
+}
+
+function smoothstep(from, to, value) {
+  const t = Math.max(0, Math.min(1, (value - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+}
+
+function luma([red, green, blue]) {
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+// A colour, 0 to 1, graded toward `hue` as a sunset at `y`, 0 to 1 down the frame: the bright parts
+// take the hue at their own brightness, more of them lower in the frame, by the `crt` block's
+// `grade` amounts. A channel past full clips, as the screen's does. A Scene that declares no grade
+// keeps its colours.
+export function grade(colour, y, crt, hue) {
+  if (!crt.grade) return colour;
+  const { top, depth, highlights, midtones } = crt.grade;
+  const level = luma(colour);
+  const tone = hue.map((channel) => channel / 255);
+  const tinted = tone.map((channel) => channel * (level / Math.max(luma(tone), 0.05)));
+  const down = Math.max(0, Math.min(1, (y - top) / depth));
+  const amount = Math.max(
+    smoothstep(highlights.from, highlights.to, level) * highlights.strength * down,
+    smoothstep(midtones.from, midtones.to, level) * midtones.strength * down * down,
+  );
+  return colour.map((channel, i) => Math.min(1, channel + (tinted[i] - channel) * amount));
+}
+
 // Where the refresh band is at `time` on a picture `height` of the Scene's pixels tall, how far it
 // reaches and how strong it is, and how much the flicker darkens: never less than its least, and
 // never a flash. A Scene that declares no band, as a vector one, has none.
@@ -357,6 +438,7 @@ class CrtGlass {
   }
 
   layout(input) {
+    this.hue = gradeHue(input.palette);
     const rect = this.canvas.getBoundingClientRect();
     const layers = glassLayers(this.crt, {
       pitch: this.pitch,
@@ -411,10 +493,39 @@ class CrtGlass {
       context.fillRect(0, 0, width, input.height);
       if (this.trail) this.persist(context);
     }
+    // The halation is cast by the picture before its grade, and the bloom after, as the
+    // browser's glass draws them.
+    this.halate(context);
+    this.grade(context, input);
     this.bloom
       .getContext("2d")
       .drawImage(context.canvas, 0, 0, this.bloom.width, this.bloom.height);
-    this.halate(context);
+  }
+
+  // The grade toward the second hue, over the Scene's picture. A Scene that declares none is not
+  // graded, as in the browser.
+  grade(context, input) {
+    if (!this.crt.grade) return;
+    const { width, height } = input;
+    const image = context.getImageData(0, 0, width, height);
+    const { data } = image;
+    for (let row = 0; row < height; ++row) {
+      const y = (row + 0.5) / height;
+      // Above the sunset's top nothing takes the hue.
+      if (y <= this.crt.grade.top) continue;
+      for (let at = row * width * 4; at < (row + 1) * width * 4; at += 4) {
+        const graded = grade(
+          [data[at] / 255, data[at + 1] / 255, data[at + 2] / 255],
+          y,
+          this.crt,
+          this.hue,
+        );
+        data[at] = graded[0] * 255;
+        data[at + 1] = graded[1] * 255;
+        data[at + 2] = graded[2] * 255;
+      }
+    }
+    context.putImageData(image, 0, 0);
   }
 
   // Each frame keeps the brighter of the picture and the last frame, faded by `trail.fade`.

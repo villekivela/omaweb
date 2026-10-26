@@ -12,6 +12,8 @@ import {
   frameDue,
   glassLayers,
   glassRoll,
+  grade,
+  gradeHue,
   halation,
   sceneInput,
 } from "../scene.js";
@@ -216,6 +218,46 @@ test("glass: the halation counts only what is brighter than its threshold", () =
   assert.equal(halation(0.2, crt), 0);
   assert.equal(halation(1, crt), 1);
   assert.ok(Math.abs(halation(0.675, crt) - 0.5) < 1e-9);
+});
+
+// The grade's second hue is the theme's keyword colour, as the browser's (src/ui/SceneHost.qml).
+test("grade: the second hue is the theme's keyword colour", () => {
+  assert.deepEqual(
+    gradeHue({ accent: [155, 135, 255], keyword: [198, 120, 221] }),
+    [198, 120, 221],
+  );
+});
+
+// Where the keyword colour would add nothing, or the page names none, the hue is the accent's
+// turned half way round at the tint: blue's opposite, yellow, at half saturation and half
+// lightness.
+test("grade: without a keyword colour that adds anything, the accent's opposite", () => {
+  const tint = { saturation: 0.5, lightness: 0.5 };
+  for (const keyword of [[77, 51, 255], [140, 140, 115], undefined]) {
+    assert.deepEqual(gradeHue({ accent: [0, 0, 255], keyword }, tint), [191, 191, 64]);
+  }
+});
+
+// The bright parts take the hue at their own brightness, more of them lower in the frame. White
+// above the sunset's top stays white; near the bottom it is past both the highlights' and the
+// midtones' range, so it goes 0.7 of the way to red at white's brightness, which clips to full red
+// and leaves 0.3 of the green and blue. A dark part keeps its colour.
+test("grade: the bright parts take the hue, more of them lower in the frame", () => {
+  const crt = sharedCrt("crt-road");
+  const red = [255, 0, 0];
+  assert.deepEqual(grade([1, 1, 1], 0.05, crt, red), [1, 1, 1]);
+  const low = grade([1, 1, 1], 0.95, crt, red);
+  assert.deepEqual(
+    low.map((channel) => Math.round(channel * 1000) / 1000),
+    [1, 0.3, 0.3],
+  );
+  assert.deepEqual(grade([0.05, 0.05, 0.05], 0.95, crt, red), [0.05, 0.05, 0.05]);
+});
+
+// A Scene whose `crt` gives no grade keeps its colours, as the browser's glass draws it.
+test("grade: a Scene that declares no grade keeps its colours", () => {
+  const { grade: _, ...crt } = sharedCrt("crt-road");
+  assert.deepEqual(grade([1, 1, 1], 0.95, crt, [255, 0, 0]), [1, 1, 1]);
 });
 
 // A vector screen traced its lines with the beam and had no raster: no scanlines, no mask and no

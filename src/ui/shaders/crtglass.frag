@@ -2,10 +2,11 @@
 
 // The CRT glass a Scene can declare, as one pass over the Scene's small
 // picture: its pixels shown square, a rolling refresh band, a flicker, the
-// bloom of a smaller copy, the beam's scanlines, the halation, a phosphor
-// mask and a vignette. A vector Scene has no raster: no scanlines, mask or
-// band. The amounts are the Scene's `crt` block, which the website's glass
-// draws by too, so the road reads the same through either glass.
+// bloom of a smaller copy, a grade toward a second hue, the beam's
+// scanlines, the halation, a phosphor mask and a vignette. A vector Scene
+// has no raster: no scanlines, mask or band. The amounts are the Scene's
+// `crt` block, which the website's glass draws by too, so the road reads the
+// same through either glass.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -56,6 +57,15 @@ layout(std140, binding = 0) uniform buf {
     // middle to its corners, and `vignetteShade` darker at them.
     float vignetteClear;
     float vignetteShade;
+    // The grade, as grade.frag draws it over the plain picture: toward
+    // `gradeHue`, from `gradeTop` of the way down the frame and full
+    // `gradeDepth` further, the highlights and the midtones each from the
+    // brightness x to y by up to z.
+    vec4 gradeHue;
+    float gradeTop;
+    float gradeDepth;
+    vec3 gradeHighlights;
+    vec3 gradeMidtones;
 };
 
 layout(binding = 1) uniform sampler2D source;
@@ -79,6 +89,17 @@ void main()
 
     colour = mix(colour, texture(bloom, uv).rgb, bloomMix);
     colour *= 1.0 - flicker;
+
+    // The bright parts take the second hue at their own brightness, and more
+    // of them lower in the frame; the dark ones keep the Scene's colours.
+    vec2 inFrame = (uv - frame.xy) / frame.zw;
+    float level = luma(colour);
+    vec3 tinted = gradeHue.rgb * (level / max(luma(gradeHue.rgb), 0.05));
+    float down = clamp((inFrame.y - gradeTop) / gradeDepth, 0.0, 1.0);
+    float amount = max(
+        smoothstep(gradeHighlights.x, gradeHighlights.y, level) * gradeHighlights.z * down,
+        smoothstep(gradeMidtones.x, gradeMidtones.y, level) * gradeMidtones.z * down * down);
+    colour = mix(colour, tinted, amount);
 
     if (raster > 0.5) {
         // Each of the Scene's rows is one pass of the beam, centred in the
@@ -113,7 +134,6 @@ void main()
         colour *= grille * maskLift;
     }
 
-    vec2 inFrame = (uv - frame.xy) / frame.zw;
     float reach = length((inFrame - 0.5) * 2.0) / sqrt(2.0);
     colour *= 1.0 - clamp((reach - vignetteClear) / (1.0 - vignetteClear), 0.0, 1.0)
         * vignetteShade;
