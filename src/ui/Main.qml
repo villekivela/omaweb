@@ -3257,12 +3257,15 @@ ApplicationWindow {
             window.focusPage();
     }
 
-    // Whether the keyboard is still where the drive left it: in the Omnibar or
-    // on the Start page. A window that is not active has no focus item to ask.
+    // Whether the keyboard is still where the drive left it. The Omnibar is
+    // disabled while the road drives, so its field lets go and the keyboard
+    // falls to the window itself; it may also still be in the Omnibar or on
+    // the Start page. A window that is not active has no focus item to ask.
     function startPageDriveHoldsKeyboard() {
-        if (!window.active)
+        const focused = window.activeFocusItem;
+        if (!window.active || !focused || !focused.parent || focused === window.contentItem)
             return true;
-        for (let item = window.activeFocusItem; item; item = item.parent) {
+        for (let item = focused; item; item = item.parent) {
             if (item === omnibar || item === startPage)
                 return true;
         }

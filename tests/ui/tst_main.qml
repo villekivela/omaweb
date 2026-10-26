@@ -14468,6 +14468,48 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting drive");
     }
 
+    // A page the road drove to takes the keyboard when it first paints, and
+    // when it is given up on at the limit, so the reader can scroll it with no
+    // click first.
+    function test_thePageTakesTheKeyboardWhenTheRoadArrives() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting arrival");
+
+        input.text = "https://slow-paint.example/arrival";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 400);
+        tryVerify(function () {
+            return engineLoader.item.activeFocus;
+        });
+        browser.closeActiveTab();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "https://slow-paint.example/never";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 4000);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item.activeFocus;
+        });
+        browser.closeActiveTab();
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting arrival");
+    }
+
     // The page takes the keyboard at its first paint only from the drive. A
     // dialog the reader opened while the road drove keeps it, as the new-Space
     // dialog did not on a slow machine: what was typed for it went to the page
