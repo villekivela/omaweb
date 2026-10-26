@@ -441,6 +441,9 @@ QVariantMap inspectorPalette()
         {QStringLiteral("surface"), QStringLiteral("#1a3d1a")},
         {QStringLiteral("surfaceHover"), QStringLiteral("#245224")},
         {QStringLiteral("border"), QStringLiteral("#2f6b2f")},
+        // The theme's text at 12%, in Qt's own notation, as the
+        // ThemeController hands it over.
+        {QStringLiteral("separator"), QStringLiteral("#1fe8ffe8")},
         {QStringLiteral("text"), QStringLiteral("#e8ffe8")},
         {QStringLiteral("mutedText"), QStringLiteral("#9dc79d")},
         {QStringLiteral("accent"), QStringLiteral("#00ff88")},
@@ -7562,6 +7565,25 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     QVERIFY(resolves("--sys-color-cdt-base-container", QStringLiteral("#0b1a0b")));
     QVERIFY(resolves("--sys-color-primary", QStringLiteral("#00ff88")));
 
+    // A Network table and the Styles pane's layer headers sit on the panel's
+    // ground, not on bands of the theme's surface (#792).
+    QVERIFY(resolves("--sys-color-surface", QStringLiteral("#0b1a0b")));
+    QVERIFY(resolves("--sys-color-surface1", QStringLiteral("#0b1a0b")));
+    QVERIFY(resolves("--sys-color-surface2", QStringLiteral("#0b1a0b")));
+    QVERIFY(resolves("--sys-color-surface3", QStringLiteral("#1a3d1a")));
+    QVERIFY(resolves("--sys-color-surface4", QStringLiteral("#1a3d1a")));
+    QVERIFY(resolves("--sys-color-surface5", QStringLiteral("#1a3d1a")));
+    // The rules inside those panels are hairlines, Omaweb's own: the theme's
+    // border is a frame's colour, and drawn between a table's columns it
+    // boxed every one of them in (#792). Asked of a drawn rule, because CSS
+    // reads a colour's alpha last and Qt writes it first.
+    QVERIFY(reports(QStringLiteral("(() => { const rule = document.createElement('div');"
+                                   "rule.style.borderTop = '1px solid var(--sys-color-divider)';"
+                                   "document.body.append(rule);"
+                                   "const colour = getComputedStyle(rule).borderTopColor;"
+                                   "rule.remove(); return colour; })()"),
+        QStringLiteral("rgba(232, 255, 232, 0.12)")));
+
     // Chromium themes its inspector through the tonal ramp underneath the
     // tokens, which is served from the browser's own UI theme, so a token
     // Omaweb never names still has to land in Omaweb's palette rather than in
@@ -7590,6 +7612,19 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     palette.insert(QStringLiteral("syntax"), syntax);
     QVERIFY(adapter->setProperty("developerToolsColors", palette));
     QVERIFY(resolves("--sys-color-token-keyword", QStringLiteral("#ff00ff")));
+
+    // A context menu is raised on the theme's surface on either face, and
+    // framed in its border where the frontend draws one (#792).
+    QVERIFY(resolves("--app-color-menu-background", QStringLiteral("#1a3d1a")));
+    QVERIFY(resolves("--sys-color-neutral-outline", QStringLiteral("#2f6b2f")));
+    palette.insert(QStringLiteral("windowOpaque"), QStringLiteral("#f0fff0"));
+    palette.insert(QStringLiteral("sidebarOpaque"), QStringLiteral("#e0f5e0"));
+    palette.insert(QStringLiteral("surface"), QStringLiteral("#c8e8c8"));
+    QVERIFY(adapter->setProperty("developerToolsColors", palette));
+    QVERIFY(reports(QStringLiteral("document.documentElement.classList"
+                                   ".contains('theme-with-dark-background')"),
+        QStringLiteral("false")));
+    QVERIFY(resolves("--app-color-menu-background", QStringLiteral("#c8e8c8")));
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
     QVERIFY(!adapter->property("developerToolsAttached").toBool());

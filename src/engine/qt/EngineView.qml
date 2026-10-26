@@ -2437,6 +2437,14 @@ Item {
                                  name, fallback);
     }
 
+    // Qt writes a translucent colour's alpha first and CSS reads it last, so the
+    // colour is handed to the frontend spelled out as rgba().
+    function developerToolsCssColor(value) {
+        const colour = Qt.color(value);
+        return "rgba(" + Math.round(colour.r * 255) + ", " + Math.round(colour.g * 255) + ", "
+                + Math.round(colour.b * 255) + ", " + colour.a + ")";
+    }
+
     function developerToolsBackgroundColor() {
         return root.developerToolsColor("windowOpaque", String(root.pageBackgroundColor));
     }
@@ -2469,6 +2477,7 @@ Item {
         const surface = root.developerToolsColor("surface", "#302e3d");
         const hover = root.developerToolsColor("surfaceHover", "#3d394e");
         const border = root.developerToolsColor("border", "#4a4658");
+        const hairline = root.developerToolsCssColor(root.developerToolsColor("separator", border));
         const accent = root.developerToolsColor("accent", "#9b87ff");
         const urgent = root.developerToolsColor("urgent", "#e06c75");
         const keyword = root.developerToolsSyntaxColor("keyword", accent);
@@ -2490,12 +2499,20 @@ Item {
             "--sys-color-base-container": panel,
             "--sys-color-header-container": panel,
             "--sys-color-base-container-elevated": surface,
-            "--sys-color-surface": surface,
-            "--sys-color-surface1": surface,
-            "--sys-color-surface2": surface,
-            "--sys-color-surface3": hover,
-            "--sys-color-surface4": hover,
-            "--sys-color-surface5": hover,
+            // Chromium's surface ladder is not a ladder of raised surfaces: it
+            // is the panel's ground, tinted a little more at each step. Its
+            // tables, headers and stripes are laid on the low rungs, so those
+            // take the ground; the high rungs are cards, popovers and menus,
+            // which the theme's surface raises.
+            "--sys-color-surface": body,
+            "--sys-color-surface1": body,
+            "--sys-color-surface2": body,
+            "--sys-color-surface3": surface,
+            "--sys-color-surface4": surface,
+            "--sys-color-surface5": surface,
+            // A menu is raised on either face, but on its light one the
+            // frontend takes it from `--sys-color-surface`, the ground.
+            "--app-color-menu-background": surface,
             "--sys-color-surface-variant": hover,
             "--sys-color-neutral-container": surface,
             "--sys-color-omnibox-container": surface,
@@ -2507,11 +2524,14 @@ Item {
             "--sys-color-on-surface-subtle": muted,
             "--sys-color-on-surface-secondary": muted,
             "--sys-color-on-surface-primary": accent,
-            // Every hairline the frontend draws.
-            "--sys-color-divider": border,
-            "--sys-color-divider-prominent": border,
-            "--sys-color-divider-on-tonal-container": border,
-            "--sys-color-on-base-divider": border,
+            // The rules inside a panel are Omaweb's own hairlines. The border
+            // colour is a frame's, and between a table's columns it boxes
+            // each one in.
+            "--sys-color-divider": hairline,
+            "--sys-color-divider-prominent": hairline,
+            "--sys-color-divider-on-tonal-container": hairline,
+            "--sys-color-on-base-divider": hairline,
+            // The edges of controls are frames.
             "--sys-color-outline": border,
             "--sys-color-neutral-outline": border,
             "--sys-color-tonal-outline": border,
