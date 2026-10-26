@@ -53,22 +53,27 @@
     </message>
 </context>
 <context>
-    <name>AgentPageFrame</name>
+    <name>AgentWindowBar</name>
     <message>
-        <source>%1 is driving · %2</source>
-        <translation>%1 ohjaa · %2</translation>
+        <source>An Agent</source>
+        <translation>Agentti</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <translation>%1 · %2</translation>
     </message>
     <message>
         <source>%1 is driving</source>
         <translation>%1 ohjaa</translation>
     </message>
     <message>
-        <source>An Agent is driving · %1</source>
-        <translation>Agentti ohjaa · %1</translation>
+        <source>Stop %1</source>
+        <translation>Pysäytä %1</translation>
     </message>
     <message>
-        <source>An Agent is driving</source>
-        <translation>Agentti ohjaa</translation>
+        <source>Stop</source>
+        <comment>verb: stop the Agent driving this window</comment>
+        <translation>Pysäytä</translation>
     </message>
 </context>
 <context>
@@ -4688,6 +4693,14 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Agentti</translation>
     </message>
     <message>
+        <source>%1 · %2</source>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>%1 is driving</source>
+        <translation>%1 ohjaa</translation>
+    </message>
+    <message>
         <source>Pinned: %1</source>
         <translation>Kiinnitetty: %1</translation>
     </message>
@@ -4734,6 +4747,15 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Close %1</source>
         <translation>Sulje %1</translation>
+    </message>
+    <message>
+        <source>Stop %1</source>
+        <translation>Pysäytä %1</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <comment>verb: stop the Agent driving this tab</comment>
+        <translation>Pysäytä</translation>
     </message>
 </context>
 <context>

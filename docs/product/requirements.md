@@ -190,12 +190,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
 - An Agent tab's row ends with an Agent mark in the Agent accent, in the place the close button
-  takes on hover. Hovering the row names the connection and says the tab stays rendered while
-  attached. While an Agent tab is on show, its page is framed in the Agent accent, with a label at
-  the top-right corner naming the connection and its last act. An Agent Space shows the mark in the
-  Agent accent while an Agent is attached and muted otherwise, and one of the reader's Spaces
-  holding an Agent tab shows it in the Space's own colour. Each mark pulses only while one of the
-  Agent's commands is in flight, so idle chrome draws no frames.
+  takes on hover. A stripe in the Agent accent runs down its leading edge, and under its title the
+  row names the connection and its last act. Hovering the row names the connection, says the tab
+  stays rendered while attached, and shows Stop just before Close. An Agent tab's page on show is
+  left untouched, with the sidebar shown or hidden. An Auxiliary window an Agent drives has a slim
+  bar along its top instead, naming the connection and its last act, with Stop.
+- Stop closes the Agent's whole connection, as when the Agent quits: its socket connections close,
+  every tab it drives is the reader's again, its page requests are refused, and a temporary Agent
+  Space it made is deleted with its Engine profile. There is no pause. Stop revokes nothing, so
+  Allow agents and Space grants stay as they are and the Agent can connect again at once.
+- An Agent Space shows the mark in the Agent accent while an Agent is attached and muted otherwise,
+  and one of the reader's Spaces holding an Agent tab shows it in the Space's own colour. Each mark
+  pulses only while one of the Agent's commands is in flight, so idle chrome draws no frames.
 - Opening an Agent Space shows a notice at the top of the page that an Agent made it, with Take over
   and Dismiss, and the Take over Space command does the same. Taking it over removes the mark and
   keeps a temporary Agent Space after its connection closes. A Private window is never an Agent's

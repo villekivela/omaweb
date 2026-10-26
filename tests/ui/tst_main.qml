@@ -6985,6 +6985,7 @@ TestCase {
             property var closedWindows: []
             property var agentActivity: ({})
             property var windowOpeners: ({})
+            property var stopped: []
             signal agentTabsChanged
             signal pageRequested(int requestId, var request)
             signal pageRequestsCancelled
@@ -6993,6 +6994,9 @@ TestCase {
 
             function agentTab(tabId) {
                 return tabs[tabId] || ({});
+            }
+            function stopAgent(tabId) {
+                stopped = stopped.concat([tabId]);
             }
             function attachWindow(openerTabId) {
                 if (agentTabIds.indexOf(openerTabId) < 0)
@@ -7178,10 +7182,10 @@ TestCase {
         control.destroy();
     }
 
-    // An Agent's window is marked as its tab is: framed in the Agent accent,
-    // with who is driving it and what it did last, and plain again once the
-    // Agent lets it go.
-    function test_anAgentTabsWindowIsFramedLikeItsTab() {
+    // An Agent's window has no row to carry its mark, so a slim bar along its
+    // top says who is driving it and what it did last, with Stop for the
+    // connection, and goes once the Agent lets the window go.
+    function test_anAgentTabsWindowCarriesABarWithStop() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const control = agentControlComponent.createObject(testCase);
         engineLoader.agentControl = control;
@@ -7215,24 +7219,27 @@ TestCase {
             return auxiliary !== null && auxiliary.visible;
         });
         verify(auxiliary.agentDriven);
-        const frame = findChild(auxiliary.contentItem, "auxiliaryAgentFrame");
-        verify(frame !== null);
-        verify(frame.visible);
-        compare(frame.width, auxiliary.contentItem.width);
-        compare(String(findChild(frame, "agentFrameBorder").border.color), String(
-                    window.colors.agentAccent));
-        compare(String(findChild(frame, "agentFrameLabel").color), String(
-                    window.colors.agentAccent));
-        compare(findChild(frame, "agentFrameCaption").text,
-                "claude-code is driving · clicked \"Sign in\"");
+        const bar = findChild(auxiliary.contentItem, "auxiliaryAgentBar");
+        verify(bar !== null);
+        verify(bar.visible);
+        compare(bar.y, 0);
+        compare(bar.width, auxiliary.contentItem.width);
+        verify(bar.height <= 32);
+        compare(findChild(auxiliary.contentItem, "auxiliaryAgentFrame"), null);
+        const caption = findChild(bar, "auxiliaryAgentCaption");
+        compare(caption.text, "claude-code · clicked \"Sign in\"");
         report("typed in \"Email\"");
-        compare(findChild(frame, "agentFrameCaption").text,
-                "claude-code is driving · typed in \"Email\"");
+        compare(caption.text, "claude-code · typed in \"Email\"");
+        const stop = findChild(bar, "auxiliaryAgentStop");
+        verify(stop.visible);
+        compare(stop.Accessible.name, "Stop claude-code");
+        mouseClick(stop, stop.width / 2, stop.height / 2);
+        compare(control.stopped, [agentTabId]);
 
         // Let go, the window is the reader's and plain.
         control.agentWindowIds = [];
         verify(!auxiliary.agentDriven);
-        verify(!frame.visible);
+        verify(!bar.visible);
         auxiliary.close();
         tryVerify(function () {
             return findChild(window, "auxiliaryWindow") === null;
@@ -7366,6 +7373,10 @@ TestCase {
             }
             function answerPage(requestId, answer) {
             }
+            property var stopped: []
+            function stopAgent(tabId) {
+                stopped = stopped.concat([tabId]);
+            }
         }
     }
 
@@ -7488,49 +7499,131 @@ TestCase {
         endAgentDrive(drive);
     }
 
-    // The page of an Agent tab on show is framed in the Agent accent, with a
-    // label at its top-right corner naming the connection and its last act.
-    // In a split, the pane showing the Agent tab is the one framed.
-    function test_anAgentTabsPageIsFramedWithWhoIsDriving() {
-        const drive = driveAnAgentSpace(false);
-        const engineLoader = findChild(window.contentItem, "engineLoader");
-        const frame = findChild(window.contentItem, "agentFrame");
-        const beside = findChild(window.contentItem, "besideAgentFrame");
-        const bar = findChild(window.contentItem, "agentSpaceBar");
-        verify(frame.visible);
-        compare(frame.width, engineLoader.activePaneWidth);
-        compare(String(findChild(frame, "agentFrameBorder").border.color), String(
-                    window.colors.agentAccent));
-        compare(findChild(frame, "agentFrameCaption").text,
-                "claude-code is driving · clicked \"Files changed\"");
-        const label = findChild(frame, "agentFrameLabel");
-        compare(String(label.color), String(window.colors.agentAccent));
-        compare(label.x + label.width, frame.width);
-        compare(label.y, bar.height);
-        drive.report(false, "looked at the page");
-        compare(findChild(frame, "agentFrameCaption").text,
-                "claude-code is driving · looked at the page");
+    // The visible texts under `item` that hold `needle`, with `excluded`'s
+    // subtree left out.
+    function visibleTextsHolding(item, needle, excluded) {
+        if (item === excluded || !item.visible)
+            return [];
+        let found = [];
+        if (typeof item.text === "string" && item.text.indexOf(needle) >= 0)
+            found.push(item);
+        for (let index = 0; index < item.children.length; ++index)
+            found = found.concat(visibleTextsHolding(item.children[index], needle, excluded));
+        return found;
+    }
 
-        // Beside the reader's own page in a split.
+    // The page of an Agent tab on show is left as the site drew it: who is
+    // driving it and what it did last are on its row, and nowhere else, even
+    // with the sidebar hidden or the tab beside the reader's in a split.
+    function test_anAgentTabsPageIsLeftUntouched() {
+        const drive = driveAnAgentSpace(false);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const act = "clicked \"Files changed\"";
+        verify(visibleTextsHolding(sidebar, act, null).length > 0);
+        compare(visibleTextsHolding(window.contentItem, act, sidebar).length, 0);
+
+        window.sidebarCollapsed = true;
+        tryCompare(sidebar, "visible", false);
+        compare(visibleTextsHolding(window.contentItem, act, sidebar).length, 0);
+        window.sidebarCollapsed = false;
+
         openPageInNewTab("https://reader-beside.example/");
         const readersTabId = browser.activeTabId;
-        verify(readersTabId !== drive.tabId);
         browser.addSplit(drive.tabId);
         tryCompare(engineLoader, "splitOnShow", true);
         compare(engineLoader.tabBesideId, drive.tabId);
-        verify(!frame.visible);
-        verify(beside.visible);
-        compare(beside.x, engineLoader.x + engineLoader.besidePaneX);
-        compare(beside.width, engineLoader.besidePaneWidth);
+        compare(visibleTextsHolding(window.contentItem, act, sidebar).length, 0);
         browser.separateSplit();
         browser.closeTab(readersTabId);
-        browser.activateTab(drive.tabId);
-        tryVerify(function () {
-            return frame.visible;
-        });
+        endAgentDrive(drive);
+    }
+
+    // The row of an Agent tab carries the state the page no longer does: a
+    // stripe in the Agent accent at its leading edge, and under the title the
+    // connection's name and its last act, which follow each command.
+    function test_anAgentTabsRowShowsTheStripeAndTheLastAct() {
+        const drive = driveAnAgentSpace(false);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const row = findChild(sidebar, "tab-" + drive.tabId);
+        const stripe = findChild(row, "agentStripe-" + drive.tabId);
+        const act = findChild(row, "agentAct-" + drive.tabId);
+        verify(stripe !== null && stripe.visible);
+        compare(String(stripe.color), String(window.colors.agentAccent));
+        verify(stripe.mapToItem(row, 0, 0).x <= 0);
+        verify(act !== null && act.visible);
+        compare(String(act.color), String(window.colors.agentAccent));
+        compare(act.text, "claude-code · clicked \"Files changed\"");
+
+        drive.report(true, "typed in \"Search\"");
+        compare(act.text, "claude-code · typed in \"Search\"");
 
         drive.detach();
-        verify(!frame.visible);
+        verify(!stripe.visible);
+        verify(!act.visible);
+        endAgentDrive(drive);
+    }
+
+    // Stop is on the row only while the pointer is over it, just before Close,
+    // and it asks the core to close the Agent's connection.
+    function test_stopShowsOnAnAgentTabsRowOnHoverBesideClose() {
+        const drive = driveAnAgentSpace(false);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const row = findChild(sidebar, "tab-" + drive.tabId);
+        const stop = findChild(row, "agentStop-" + drive.tabId);
+        const close = findChild(row, "close-" + drive.tabId);
+        verify(stop !== null);
+        verify(!stop.visible);
+
+        mouseMove(row, row.width / 4, row.height / 2);
+        tryCompare(stop, "visible", true);
+        verify(close.visible);
+        const stopRight = stop.mapToItem(row, stop.width, 0).x;
+        const closeLeft = close.mapToItem(row, 0, 0).x;
+        verify(stopRight <= closeLeft);
+        verify(closeLeft - stopRight <= 8);
+        compare(stop.Accessible.name, "Stop claude-code");
+
+        const centre = stop.mapToItem(row, stop.width / 2, stop.height / 2);
+        mouseClick(row, centre.x, centre.y);
+        compare(drive.control.stopped, [drive.tabId]);
+        compare(browser.activeTabId, drive.tabId);
+
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        tryCompare(stop, "visible", false);
+        endAgentDrive(drive);
+    }
+
+    // The film has no pointer, so its recording has the window hold an Agent
+    // tab's row as hovered, which shows Stop and answers where it is, then
+    // press Stop as a click would.
+    function test_theFilmHoldsAnAgentTabsRowAndPressesStop() {
+        const drive = driveAnAgentSpace(false);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const row = findChild(sidebar, "tab-" + drive.tabId);
+        const stop = findChild(row, "agentStop-" + drive.tabId);
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        verify(!stop.visible);
+
+        const where = window.holdTabRow(drive.tabId, true, false);
+        verify(where.ok);
+        verify(!stop.visible);
+        compare(where.line, "claude-code · clicked \"Files changed\"");
+        const held = window.holdTabRow(drive.tabId, false, false);
+        verify(held.ok);
+        verify(stop.visible);
+        const corner = stop.mapToItem(window.contentItem, 0, 0);
+        compare(held.x, corner.x);
+        compare(held.y, corner.y);
+        compare(held.width, stop.width);
+        compare(held.windowWidth, window.contentItem.width);
+        compare(drive.control.stopped, []);
+
+        verify(window.holdTabRow(drive.tabId, false, true).ok);
+        tryCompare(drive.control, "stopped", [drive.tabId]);
+        verify(!stop.visible);
+        verify(!window.holdTabRow(drive.readersSpaceId, false, false).ok);
+        verify(window.holdTabRow("", false, false).ok);
         endAgentDrive(drive);
     }
 
@@ -8142,7 +8235,6 @@ TestCase {
         control.agentActivity = activity;
         privateEngine.agentControl = control;
         compare(Object.keys(privateBrowser.agentTabActivity).length, 0);
-        verify(!findChild(privateBrowser.contentItem, "agentFrame").visible);
         const mark = findChild(privateBrowser.contentItem, "agentMark-" + tabId);
         verify(mark === null || !mark.visible);
         verify(!findChild(privateBrowser.contentItem, "agentSpaceBar").open);

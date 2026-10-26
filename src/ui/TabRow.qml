@@ -81,6 +81,21 @@ Item {
     // Null for a tab no Agent drives. A Pinned tab is never an Agent's.
     property var agent: null
     readonly property bool showsAgent: agent !== null && !pinned
+    readonly property string agentName: agent && String(agent.name || "").length > 0 ? String(
+                                                                                           agent.name) :
+                                                                                       qsTr("An Agent")
+    // Under the title: who is driving the tab and what it did last.
+    readonly property string agentLine: agent && String(agent.act || "").length > 0 ? qsTr(
+                                                                                          "%1 · %2").arg(
+                                                                                          root.agentName).arg(
+                                                                                          agent.act) :
+                                                                                      qsTr("%1 is driving").arg(
+                                                                                          root.agentName)
+    // The row as a pointer resting on it draws it, which the introductory
+    // film's recording holds without a pointer (Main.qml's holdTabRow).
+    property bool held: false
+    readonly property alias agentStopButton: agentStop
+    readonly property bool pointed: hoverArea.containsMouse || root.held
     readonly property string agentNote: qsTr(
                                             "%1 is driving this tab. It stays rendered while attached.").arg(
                                             agent && String(agent.name || "").length > 0 ? String(
@@ -153,6 +168,7 @@ Item {
 
     signal activated(string tabId)
     signal closeRequested(string tabId)
+    signal agentStopRequested(string tabId)
     signal glanceKeepRequested(string tabId)
     signal muteToggled(string tabId)
     // A drag of this row, reported in scene coordinates. Where the pointer is
@@ -395,18 +411,73 @@ Item {
 
     // The title names the page; its address is already in the address button
     // whenever the tab is the active one, and reading it twice crowds the row.
+    // An Agent's line under it moves it up, and Stop takes room at its end.
     Text {
+        id: title
         visible: !root.pinned
         anchors.left: tile.right
         anchors.leftMargin: Style.space(9)
         anchors.right: parent.right
-        anchors.rightMargin: root.endGap - root.reachRight + closeButton.width + Style.space(6)
+        anchors.rightMargin: root.endGap - root.reachRight + closeButton.width + Style.space(6) + (
+                                 agentStop.visible ? agentStop.width + agentStop.gap : 0)
         anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: root.showsAgent && !root.showsGlance ? -Style.space(7) : 0
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
         color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.body
+    }
+
+    Text {
+        objectName: "agentAct-" + root.tabId
+        visible: root.showsAgent && !root.showsGlance
+        anchors.left: title.left
+        anchors.right: title.right
+        anchors.top: title.bottom
+        anchors.topMargin: -1
+        text: root.agentLine
+        color: root.colors.agentAccent
+        elide: Text.ElideRight
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+    }
+
+    // The leading edge of an Agent's row, just inside the edge the tab on show
+    // is marked at, beats while one of its commands is in flight as the mark
+    // does.
+    Rectangle {
+        id: agentStripe
+        objectName: "agentStripe-" + root.tabId
+        visible: root.showsAgent && !root.showsGlance
+        x: -root.reachLeft + Style.space(6)
+        anchors.verticalCenter: parent.verticalCenter
+        width: 3
+        height: parent.height - Style.space(8)
+        radius: width / 2
+        color: root.colors.agentAccent
+        readonly property bool busy: root.agent !== null && root.agent.busy === true
+        readonly property real restingOpacity: busy && SystemMotion.reduced ? 0.6 : 1
+        opacity: restingOpacity
+
+        SequentialAnimation on opacity {
+            running: agentStripe.visible && agentStripe.busy && !SystemMotion.reduced
+            loops: Animation.Infinite
+            onRunningChanged: if (!running)
+                                  agentStripe.opacity = Qt.binding(function () {
+                                      return agentStripe.restingOpacity;
+                                  })
+            NumberAnimation {
+                to: 0.3
+                duration: 450
+                easing.type: Easing.InOutSine
+            }
+            NumberAnimation {
+                to: 1
+                duration: 450
+                easing.type: Easing.InOutSine
+            }
+        }
     }
 
     // An Agent's tab says so at the end of its row, in the place the close
@@ -424,7 +495,7 @@ Item {
         AgentMark {
             objectName: "agentMark-" + root.tabId
             anchors.centerIn: parent
-            visible: !hoverArea.containsMouse
+            visible: !root.pointed
             busy: root.agent !== null && root.agent.busy === true
             color: root.colors.agentAccent
             font.family: root.iconFontFamily
@@ -542,7 +613,9 @@ Item {
             root.reachedByPointer = true;
             root.forceActiveFocus();
             const overClose = !root.pinned && closeButton.covers(mouse.x);
-            if (glanceKeep.covers(mouse.x, mouse.y)) {
+            if (agentStop.covers(mouse.x, mouse.y)) {
+                root.agentStopRequested(root.tabId);
+            } else if (glanceKeep.covers(mouse.x, mouse.y)) {
                 root.glanceKeepRequested(root.tabId);
             } else if (audioButton.covers(mouse.x, mouse.y)) {
                 root.muteToggled(root.tabId);
@@ -688,8 +761,7 @@ Item {
                         + closeButton.width;
             }
             readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX)
-            property color foreground: hoverArea.containsMouse ? root.colors.mutedText :
-                                                                 "transparent"
+            property color foreground: root.pointed ? root.colors.mutedText : "transparent"
             anchors.right: parent.right
             anchors.rightMargin: root.endGap
             anchors.verticalCenter: parent.verticalCenter
@@ -712,6 +784,58 @@ Item {
                 color: closeButton.foreground
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
+            }
+        }
+
+        // Stop closes the Agent's whole connection, so it is offered only to a
+        // pointer on the row, beside Close and never in its place.
+        Rectangle {
+            id: agentStop
+            objectName: "agentStop-" + root.tabId
+            readonly property real gap: Style.space(2)
+            function covers(x, y) {
+                return agentStop.visible && x >= agentStop.x && x < agentStop.x + agentStop.width
+                        && y >= agentStop.y && y < agentStop.y + agentStop.height;
+            }
+            readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX,
+                                                                          hoverArea.mouseY)
+            readonly property color foreground: hot ? root.colors.windowOpaque :
+                                                      root.colors.agentAccent
+            anchors.right: closeButton.left
+            anchors.rightMargin: gap
+            anchors.verticalCenter: parent.verticalCenter
+            width: stopLabel.implicitWidth + Style.space(12)
+            height: 24
+            visible: root.showsAgent && !root.showsGlance && root.pointed && !root.lifted
+            radius: Style.cornerRadius
+            color: hot ? root.colors.agentAccent : "transparent"
+            border.width: 1
+            border.color: root.colors.agentAccent
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Stop %1").arg(root.agentName)
+            Accessible.onPressAction: root.agentStopRequested(root.tabId)
+
+            Row {
+                id: stopLabel
+                anchors.centerIn: parent
+                spacing: Style.space(3)
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "stop"
+                    color: agentStop.foreground
+                    font.family: root.iconFontFamily
+                    font.pixelSize: Style.font.iconSmall
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Stop", "verb: stop the Agent driving this tab")
+                    color: agentStop.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                }
             }
         }
     }

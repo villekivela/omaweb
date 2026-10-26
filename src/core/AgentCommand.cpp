@@ -188,6 +188,15 @@ namespace {
                 .maximumPositionals = 1,
                 .positionalField = space};
         }
+        // And the Agent tab whose row to hold as hovered, `--where` to only
+        // say where its Stop is, `--stop` to press it, or none to let go.
+        if (verb == u"film-row") {
+            return {.valued = {},
+                .flags = {QStringLiteral("where"), QStringLiteral("stop")},
+                .minimumPositionals = 0,
+                .maximumPositionals = 1,
+                .positionalField = QStringLiteral("tab")};
+        }
 #endif
         return {.valued = {},
             .flags = {},
@@ -544,6 +553,7 @@ namespace {
             QStringLiteral("report"),
 #ifdef OMAWEB_FILM_HOOKS
             QStringLiteral("film-hover"),
+            QStringLiteral("film-row"),
 #endif
         };
         return verbs;
@@ -600,6 +610,7 @@ namespace {
         {"report", "write a Problem report to file an issue with"},
 #ifdef OMAWEB_FILM_HOOKS
         {"film-hover", "hold a Space's name on show for the introductory film"},
+        {"film-row", "hold an Agent tab's row hovered, or press its Stop, for the film"},
 #endif
     };
 

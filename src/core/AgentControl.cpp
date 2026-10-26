@@ -1083,6 +1083,59 @@ void AgentControl::attach(
     emit agentActivityChanged();
 }
 
+void AgentControl::stopAgent(const QString &tabId)
+{
+    const auto found = m_attached.constFind(tabId);
+    if (found == m_attached.cend()) {
+        return;
+    }
+    const auto name = found->name;
+    QSet<QString> stopped;
+    for (auto it = m_attached.cbegin(); it != m_attached.cend(); ++it) {
+        if (it->name == name) {
+            stopped.insert(it.key());
+        }
+    }
+    if (const auto connection = m_connections.find(name); connection != m_connections.end()) {
+        connection->currentTabId.clear();
+    }
+
+    QStringList cancelled;
+    QList<Reply> refused;
+    for (auto it = m_pendingPages.begin(); it != m_pendingPages.end();) {
+        if (!stopped.contains(openerOf(it->tabId))) {
+            ++it;
+            continue;
+        }
+        it->deadline->stop();
+        it->deadline->deleteLater();
+        removeUntakenShot(*it);
+        cancelled.append(it->tabId);
+        refused.append(it->reply);
+        it = m_pendingPages.erase(it);
+    }
+    for (const auto &stoppedTabId : std::as_const(stopped)) {
+        detach(stoppedTabId);
+    }
+    if (!cancelled.isEmpty()) {
+        emit pageRequestsCancelledIn(cancelled);
+    }
+    for (const auto &reply : std::as_const(refused)) {
+        reply(refusal(QStringLiteral("stopped"),
+            QStringLiteral("The reader stopped this Agent, so the page was left as it was.")));
+    }
+
+    QList<quint64> sockets;
+    for (auto it = m_socketNames.cbegin(); it != m_socketNames.cend(); ++it) {
+        if (it.value() == name) {
+            sockets.append(it.key());
+        }
+    }
+    if (!sockets.isEmpty()) {
+        emit connectionsStopped(sockets);
+    }
+}
+
 void AgentControl::detach(const QString &tabId)
 {
     m_console.forget(tabId);
@@ -1157,6 +1210,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
         QStringLiteral("report"),
 #ifdef OMAWEB_FILM_HOOKS
         QStringLiteral("film-hover"),
+        QStringLiteral("film-row"),
 #endif
     };
     if (!verbs.contains(verb)) {
@@ -1220,6 +1274,9 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
         return;
     }
     auto &connection = connectionNamed(name);
+    if (socketConnection != 0) {
+        m_socketNames.insert(socketConnection, name);
+    }
     if (const auto revoked = std::exchange(connection.revokedSpaceName, {}); !revoked.isEmpty()) {
         const auto refused = refusal(QStringLiteral("revoked"),
             QStringLiteral("The reader revoked the grant to Space \"%1\", and this connection "
@@ -1579,6 +1636,19 @@ QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &requ
             return noSpace(named);
         }
         asked.insert(QStringLiteral("spaceId"), spaceId);
+    }
+    // And the row of this Agent tab held as a pointer resting on it would
+    // hold it, with `where` to only answer where its Stop is and `stop` to
+    // press it. No tab lets it go.
+    if (verb == u"film-row") {
+        const auto tabId = request.value(QStringLiteral("tab")).toString();
+        if (!tabId.isEmpty() && !m_attached.contains(tabId)) {
+            return refusal(QStringLiteral("not-found"),
+                QStringLiteral("No Agent is attached to tab \"%1\".").arg(tabId));
+        }
+        asked.insert(QStringLiteral("tabId"), tabId);
+        asked.insert(QStringLiteral("where"), request.value(QStringLiteral("where")).toBool());
+        asked.insert(QStringLiteral("stop"), request.value(QStringLiteral("stop")).toBool());
     }
 #endif
     if (!isSignalConnected(QMetaMethod::fromSignal(&AgentControl::commandRequested))) {
@@ -2506,6 +2576,7 @@ QJsonObject AgentControl::createSpace(const QString &creator, Connection &connec
 
 void AgentControl::connectionClosed(quint64 connection)
 {
+    m_socketNames.remove(connection);
     for (const auto &spaceId : m_temporarySpaces.take(connection)) {
         m_browser->deleteTemporarySpace(spaceId);
     }

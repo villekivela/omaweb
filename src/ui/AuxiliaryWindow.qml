@@ -42,6 +42,7 @@ ApplicationWindow {
     onAgentDrivenChanged: auxiliary.markAgentEngine()
     // The window's palette, for the frame an Agent's window wears.
     property var colors
+    property string iconFontFamily
     // The tab that opened this window and the connection driving it, which
     // stay the same for as long as it is the Agent's.
     readonly property var agentWindowInfo: auxiliary.agentDriven
@@ -97,6 +98,7 @@ ApplicationWindow {
         id: engineLoader
         objectName: "auxiliaryEngineLoader"
         anchors.fill: parent
+        anchors.topMargin: agentBar.visible ? agentBar.height : 0
 
         Component.onCompleted: setSource(auxiliary.engineSource, {
                                              "profilePath": auxiliary.openerEngine.profilePath,
@@ -131,15 +133,19 @@ ApplicationWindow {
         }
     }
 
-    // An Agent's window is marked as its tab's page is: framed in the Agent
-    // accent, with who is driving it and what it did last.
-    AgentPageFrame {
-        objectName: "auxiliaryAgentFrame"
-        anchors.fill: parent
-        z: 1
+    // An Agent's window has no row in the sidebar, so a bar above its page
+    // carries the mark and Stop instead.
+    AgentWindowBar {
+        id: agentBar
+        objectName: "auxiliaryAgentBar"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
         visible: auxiliary.agentDriven && auxiliary.colors !== undefined
         colors: auxiliary.colors
+        iconFontFamily: auxiliary.iconFontFamily
         agent: auxiliary.agentReport
+        onStopRequested: auxiliary.agentControl.stopAgent(auxiliary.agentWindowInfo.openerTabId)
     }
 
     Connections {

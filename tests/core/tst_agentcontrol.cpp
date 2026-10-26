@@ -458,6 +458,7 @@ private slots:
     void answersAHelloWithItsProtocol();
     void answersTheCommandLineWithAllowAgentsOff();
     void servesAnMcpSessionOverOneConnection();
+    void stoppingAnAgentClosesItsWholeConnection();
     void loadsAddressesOnlyInAnAgentsTabs();
     void deletesOnlyTheAgentSpacesItsConnectionCreated();
     void followsAllowAgentsInTheReadersFile();
@@ -476,6 +477,7 @@ private slots:
     void switchesSpaceAndSelectsATabWithAllowAgentsOff();
     void runsOnlyThePublicCommandsInTheWindow();
     void holdsASpacesNameOnlyForTheFilm();
+    void holdsAnAgentTabsRowOnlyForTheFilm();
     void decidesEveryCommandOfTheRegistry();
     void reportsWhatEachAgentTabsAgentIsDoing();
     void uploadsOnlyInAnAgentSpace();
@@ -1435,6 +1437,98 @@ void AgentControlTest::servesAnMcpSessionOverOneConnection()
     QTRY_COMPARE(browser->spaces()->rowCount(), spacesBefore);
 }
 
+// Stop on an Agent tab's row closes that Agent's whole connection, as if it
+// had quit: its sockets close, every tab it drove is the reader's again, and
+// its temporary Agent Space goes. Nothing is revoked, so it can come back at
+// once, and another Agent's work is left alone.
+void AgentControlTest::stoppingAnAgentClosesItsWholeConnection()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    ControlSocket socket(&control);
+    const auto path = runtime.filePath(QStringLiteral("omaweb/control.sock"));
+    QVERIFY(socket.listen(path));
+    const auto spacesBefore = browser->spaces()->rowCount();
+
+    const auto send = [](QLocalSocket &client, const QJsonObject &request) {
+        client.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
+        client.flush();
+        if (!QTest::qWaitFor([&client] { return client.canReadLine(); }, 2000)) {
+            return QJsonObject {};
+        }
+        return QJsonDocument::fromJson(client.readLine()).object();
+    };
+    QLocalSocket client;
+    client.connectToServer(path);
+    QVERIFY(client.waitForConnected(1000));
+    const auto temporary = send(client,
+        {{QStringLiteral("verb"), QStringLiteral("space new")},
+            {QStringLiteral("name"), QStringLiteral("claude")},
+            {QStringLiteral("space"), QStringLiteral("Checks")},
+            {QStringLiteral("temporary"), true}})
+                               .value(QStringLiteral("space"))
+                               .toObject()
+                               .value(QStringLiteral("id"))
+                               .toString();
+    QVERIFY(!temporary.isEmpty());
+    const auto inTemporary = send(client,
+        {{QStringLiteral("verb"), QStringLiteral("open")},
+            {QStringLiteral("name"), QStringLiteral("claude")},
+            {QStringLiteral("url"), QStringLiteral("https://example.com/")},
+            {QStringLiteral("space"), temporary}})
+                                 .value(QStringLiteral("tab"))
+                                 .toObject()
+                                 .value(QStringLiteral("id"))
+                                 .toString();
+    QVERIFY(!inTemporary.isEmpty());
+    // The same Agent, a verb at a time as the CLI asks, in an Agent Space
+    // that outlives it and in a Space of the reader's it was granted.
+    const auto inAgentSpace = openAgentTab(control, QStringLiteral("claude"));
+    QList<QJsonObject> replies;
+    askPageLater(control, QStringLiteral("claude"), QStringLiteral("look"),
+        QStringLiteral("work-tab"), replies);
+    control.answerGrant(QStringLiteral("work"), true);
+    QCOMPARE(requested.count(), 1);
+    control.answerPage(requested.at(0).at(0).toInt(),
+        {{QStringLiteral("ok"), true}, {QStringLiteral("look"), QVariantMap {}}});
+    const auto others = openAgentTab(control, QStringLiteral("script"));
+    for (const auto &tabId : {inTemporary, inAgentSpace, QStringLiteral("work-tab"), others}) {
+        QVERIFY2(control.agentTabIds().contains(tabId), qPrintable(tabId));
+    }
+
+    control.stopAgent(inAgentSpace);
+    // Nothing is revoked.
+    QVERIFY(control.allowAgents());
+    QVERIFY(browser->spaceGranted(QStringLiteral("work")));
+
+    QTRY_COMPARE_WITH_TIMEOUT(client.state(), QLocalSocket::UnconnectedState, 2000);
+    for (const auto &tabId : {inTemporary, inAgentSpace, QStringLiteral("work-tab")}) {
+        QVERIFY2(!control.agentTabIds().contains(tabId), qPrintable(tabId));
+    }
+    QVERIFY(control.agentTabIds().contains(others));
+    QTRY_VERIFY(!browser->findTab(inTemporary));
+    QCOMPARE(browser->spaces()->rowCount(), spacesBefore + 2);
+
+    QLocalSocket again;
+    again.connectToServer(path);
+    QVERIFY(again.waitForConnected(1000));
+    const auto reopened = send(again,
+        {{QStringLiteral("verb"), QStringLiteral("open")},
+            {QStringLiteral("name"), QStringLiteral("claude")},
+            {QStringLiteral("url"), QStringLiteral("https://example.org/")},
+            {QStringLiteral("space"), QStringLiteral("Work")}});
+    QVERIFY2(succeeded(reopened), QJsonDocument(reopened).toJson().constData());
+    QVERIFY(control.agentTabIds().contains(
+        reopened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString()));
+}
+
 // Until Space grants land an Agent reaches no tab of the reader's, the one
 // on show included, even to give it a new address.
 void AgentControlTest::loadsAddressesOnlyInAnAgentsTabs()
@@ -2271,6 +2365,49 @@ void AgentControlTest::holdsASpacesNameOnlyForTheFilm()
     QCOMPARE(asked.size(), 2);
 #else
     QCOMPARE(failure(hover), QStringLiteral("unknown-verb"));
+    QVERIFY(asked.isEmpty());
+#endif
+}
+
+// The film's Agent beat has no pointer either: `film-row` has the window hold
+// an Agent tab's row as hovered, and press its Stop with `--stop`. A tab no
+// Agent drives has no Stop to hold.
+void AgentControlTest::holdsAnAgentTabsRowOnlyForTheFilm()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    const auto tabId = openAgentTab(control, QStringLiteral("claude"));
+    const auto script = QStringLiteral("film");
+    QList<QVariantMap> asked;
+    connect(&control, &AgentControl::commandRequested, &control,
+        [&](int requestId, const QVariantMap &request) {
+            asked.append(request);
+            control.answerCommand(requestId, {{QStringLiteral("ok"), true}});
+        });
+
+    const auto held = ask(control, script, QStringLiteral("film-row"),
+        {{QStringLiteral("tab"), tabId}, {QStringLiteral("stop"), true}});
+#ifdef OMAWEB_FILM_HOOKS
+    QVERIFY(succeeded(held));
+    QCOMPARE(asked.size(), 1);
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("verb")).toString(), QStringLiteral("film-row"));
+    QCOMPARE(asked.constLast().value(QStringLiteral("tabId")).toString(), tabId);
+    QCOMPARE(asked.constLast().value(QStringLiteral("stop")).toBool(), true);
+    QCOMPARE(asked.constLast().value(QStringLiteral("where")).toBool(), false);
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("film-row"))));
+    QCOMPARE(asked.constLast().value(QStringLiteral("tabId")).toString(), QString());
+    QCOMPARE(asked.constLast().value(QStringLiteral("stop")).toBool(), false);
+    QCOMPARE(failure(ask(control, script, QStringLiteral("film-row"),
+                 {{QStringLiteral("tab"), QStringLiteral("personal-tab")}})),
+        QStringLiteral("not-found"));
+    QCOMPARE(asked.size(), 2);
+#else
+    QCOMPARE(failure(held), QStringLiteral("unknown-verb"));
     QVERIFY(asked.isEmpty());
 #endif
 }

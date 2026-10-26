@@ -60,6 +60,16 @@ ControlSocket::ControlSocket(AgentControl *control, QObject *parent)
     , m_server(new QLocalServer(this))
 {
     connect(m_server, &QLocalServer::newConnection, this, &ControlSocket::accept);
+    // Stop closes the socket as the Agent would, so what it made goes the
+    // way it goes when the Agent quits.
+    connect(m_control, &AgentControl::connectionsStopped, this,
+        [this](const QList<quint64> &connections) {
+            for (const auto connection : connections) {
+                if (auto *socket = m_sockets.value(connection)) {
+                    socket->disconnectFromServer();
+                }
+            }
+        });
 }
 
 // A connection closing asks the control to delete what it made, and the
@@ -131,7 +141,11 @@ void ControlSocket::accept()
         connect(socket, &QLocalSocket::disconnected, this,
             [this, connection] { m_control->connectionClosed(connection); });
         connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
-        connect(socket, &QObject::destroyed, this, [this, socket] { m_waiting.remove(socket); });
+        connect(socket, &QObject::destroyed, this, [this, socket, connection] {
+            m_waiting.remove(socket);
+            m_sockets.remove(connection);
+        });
+        m_sockets.insert(connection, socket);
     }
 }
 

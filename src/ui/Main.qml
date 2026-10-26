@@ -2004,6 +2004,57 @@ ApplicationWindow {
         window.handAgent(tabId, words);
     }
 
+    // Stop on an Agent tab's row or on its window's bar: the core closes the
+    // connection that drives it, and every tab it drove is the reader's again.
+    function stopAgentOf(tabId) {
+        if (engineLoader.agentControl)
+            engineLoader.agentControl.stopAgent(tabId);
+    }
+
+    // The film's Agent beat, which has no pointer either: the window holds a
+    // tab's row as a pointer resting on it would, so Stop shows beside Close,
+    // and answers where Stop is and the row's line under its title. `where`
+    // only answers, so the pointer can be drawn on its way there first, and
+    // `stop` presses Stop, as a click would. An empty id lets the row go.
+    function holdTabRow(tabId, where, stop) {
+        const id = String(tabId || "");
+        if (id.length === 0) {
+            sidebar.heldTabId = "";
+            return {
+                ok: true
+            };
+        }
+        const row = sidebar.tabRow(id);
+        if (!row || !row.showsAgent) {
+            return {
+                ok: false,
+                code: "not-found",
+                error: "The sidebar shows no Agent tab " + id + "."
+            };
+        }
+        if (!where)
+            sidebar.heldTabId = id;
+        const button = row.agentStopButton;
+        const corner = button.mapToItem(window.contentItem, 0, 0);
+        const held = {
+            ok: true,
+            x: corner.x,
+            y: corner.y,
+            width: button.width,
+            height: button.height,
+            windowWidth: window.contentItem.width,
+            windowHeight: window.contentItem.height,
+            line: row.agentLine
+        };
+        if (stop) {
+            sidebar.heldTabId = "";
+            // After the answer, since stopping closes connections the request
+            // may share a socket with.
+            Qt.callLater(window.stopAgentOf, id);
+        }
+        return held;
+    }
+
     // The introductory film has no pointer, so its recording holds a Space's
     // name on show through the footer button's own hover state, and draws a
     // cursor where this answers the button is. An empty id lets the name go.
@@ -2044,6 +2095,13 @@ ApplicationWindow {
         target: window.agentControlSource
 
         function onCommandRequested(requestId, request) {
+            if (request.verb === "film-row") {
+                window.agentControlSource.answerCommand(requestId, window.holdTabRow(request.tabId,
+                                                                                     request.where
+                                                                                     === true, request.stop
+                                                                                     === true));
+                return;
+            }
             if (request.verb === "film-hover") {
                 window.agentControlSource.answerCommand(requestId, window.holdSpaceNote(
                                                             request.spaceId));
@@ -3477,6 +3535,9 @@ ApplicationWindow {
                 onTabCloseRequested: function (tabId) {
                     window.windowBrowser.closeTab(tabId);
                 }
+                onAgentStopRequested: function (tabId) {
+                    window.stopAgentOf(tabId);
+                }
                 // The speaker is the one place a row's sound can be given
                 // back, so it answers for both reasons a tab is silent: the
                 // reader's own muting, and an origin they have not dealt with.
@@ -3832,43 +3893,6 @@ ApplicationWindow {
                     active: engineLoader.besideEngine !== null && engineLoader.besideEngine.loading
                     allowed: engineLoader.splitOnShow && !window.settingsOpen &&
                              !window.historyOpen && !window.shortcutsOpen &&
-                             !engineLoader.siteFullscreenActive
-                }
-
-                // Each pane of the page area that shows an Agent tab is framed,
-                // the tab beside a split's active one included.
-                AgentPageFrame {
-                    id: agentFrame
-                    objectName: "agentFrame"
-                    x: engineLoader.x + engineLoader.activePaneX
-                    y: engineLoader.y
-                    width: engineLoader.activePaneWidth
-                    height: engineLoader.height
-                    z: 20
-                    colors: window.colors
-                    agent: window.agentTabActivity[window.windowBrowser.activeTabId] || null
-                    // Below the Agent Space's notice while it stands.
-                    labelTop: agentSpaceBar.height
-                    visible: agent !== null && !window.startPageShown && !window.settingsOpen &&
-                             !window.historyOpen && !window.shortcutsOpen && !window.glanceOpen &&
-                             !engineLoader.siteFullscreenActive
-                }
-
-                AgentPageFrame {
-                    id: besideAgentFrame
-                    objectName: "besideAgentFrame"
-                    x: engineLoader.x + engineLoader.besidePaneX
-                    y: engineLoader.y
-                    width: engineLoader.besidePaneWidth
-                    height: engineLoader.height
-                    z: 20
-                    colors: window.colors
-                    agent: window.agentTabActivity[engineLoader.tabBesideId] || null
-                    // Below the Agent Space's notice while it stands.
-                    labelTop: agentSpaceBar.height
-                    visible: engineLoader.splitOnShow && agent !== null && !window.startPageShown
-                             && !window.settingsOpen && !window.historyOpen &&
-                             !window.shortcutsOpen && !window.glanceOpen &&
                              !engineLoader.siteFullscreenActive
                 }
 
@@ -5042,6 +5066,7 @@ ApplicationWindow {
             property var tabWindow: null
             engineSource: engineViewSource
             colors: window.colors
+            iconFontFamily: materialSymbols.name
             drawnZoom: engineLoader.drawnZoom(1)
             permissionController: window.windowBrowser
             contentBlocker: contentBlocker
