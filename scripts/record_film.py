@@ -51,6 +51,13 @@ SITES = (
     "pixelmint.test",  # the magazine's tracker, likewise
 )
 
+# Where the desktop's browser asks Kestrel for its suggestions. The engine reaches the sites through
+# its host resolver rules, but suggestions are asked for by the browser's own network stack, which
+# resolves through the system, and on the desktop no hosts file names a `.test` site. So the profile
+# names Kestrel there by the server's address and port, and the server answers that address as
+# Kestrel.
+ENGINE_ADDRESS = "127.0.0.1"
+
 # The film's last page, which every site serves: the logo and the install line.
 END_CARD_PATH = "/film/end/"
 
@@ -139,7 +146,8 @@ class FixtureServer:
                 self.wfile.write(body)
 
             def host(self) -> str:
-                return (self.headers.get("Host") or "").split(":")[0].lower()
+                named = (self.headers.get("Host") or "").split(":")[0].lower()
+                return "kestrel.test" if named == ENGINE_ADDRESS else named
 
             def admitted(self) -> str | None:
                 host = self.host()
@@ -230,9 +238,14 @@ def expect_current_tab(beat: str, answer: dict, address: str) -> None:
         raise BeatMissed(beat, f"the current tab is {', '.join(current) or 'none'}, not {address}")
 
 
-def expect_asked(beat: str, server: FixtureServer, host: str, path: str) -> None:
-    if path not in server.paths(host):
-        raise BeatMissed(beat, f"{host} was never asked for {path}")
+def expect_asked(beat: str, server: FixtureServer, host: str, path: str,
+                 timeout: float = 0.0) -> None:
+    """`host` was asked for `path`, or is within `timeout` seconds."""
+    deadline = time.monotonic() + timeout
+    while path not in server.paths(host):
+        if time.monotonic() >= deadline:
+            raise BeatMissed(beat, f"{host} was never asked for {path}")
+        time.sleep(0.2)
 
 
 def expect_wider(beat: str, before: list[dict], after: list[dict], host: str) -> None:
@@ -548,6 +561,11 @@ INVOICE = {"customer": "Kiln Coffee", "amount": "640.00", "due": "31 Oct 2026",
 AGENT = "scout"
 AD_HOSTS = ("adsprout.test", "pixelmint.test")
 THEMES = ROOT / "film" / "themes"
+# The theme Omarchy has the desktop wearing, which the desktop film opens in. It is only read.
+DESKTOP_THEME = Path.home() / ".local" / "state" / "omarchy" / "current" / "theme"
+# How opaque the desktop film's sidebar is: the maintainer's own Omaweb's, set over the theme's.
+# The theme's 0.95 lets so little of Hyprland's blur through that the sidebar reads as solid.
+DESKTOP_SIDEBAR_OPACITY = 0.85
 
 # The frame the recording is taken at, and the film's own. The window is drawn at one and a half
 # device pixels to the logical one, so the browser lays out at 1600 by 900 and a zoom-in has
@@ -650,33 +668,65 @@ def frame(geometry: tuple[int, int, int, int] | None = None) -> bytes:
     return subprocess.run(frame_command(geometry), capture_output=True, check=True).stdout
 
 
-def theme_colour(name: str, role: str) -> tuple[int, int, int]:
-    with open(THEMES / f"{name}.toml", "rb") as handle:
-        value = tomllib.load(handle)[role]
+def palette(path: Path) -> dict[str, str]:
+    """An Omarchy theme's `colors.toml`: its colours, without its mode."""
+    with open(path, "rb") as handle:
+        return {key: value for key, value in tomllib.load(handle).items()
+                if isinstance(value, str) and key != "mode"}
+
+
+def film_palette(name: str) -> dict[str, str]:
+    """One of the palettes committed for the film."""
+    return palette(THEMES / f"{name}.toml")
+
+
+def desktop_palette(theme: Path = DESKTOP_THEME) -> dict[str, str]:
+    """The palette of the theme the desktop is wearing, or Retro 82 on a desktop without one."""
+    colours = theme / "colors.toml"
+    if not colours.is_file():
+        log(f"{colours} is not there, so the film opens in Retro 82")
+        return film_palette("retro-82")
+    log(f"the film opens in the desktop's theme, from {colours}")
+    return palette(colours)
+
+
+def theme_changes(opening: dict[str, str] | None) -> list[dict[str, str]]:
+    """The themes the film wears in turn: Retro 82 and then Tokyo Night in the container, and on
+    the desktop its own theme, Tokyo Night, and its own again, so most of the film is in it."""
+    tokyo = film_palette("tokyo-night")
+    if opening is None:
+        return [film_palette("retro-82"), tokyo]
+    return [opening, tokyo, opening]
+
+
+def theme_colour(colours: dict[str, str], role: str) -> tuple[int, int, int]:
+    value = colours[role]
     return tuple(int(value[index:index + 2], 16) for index in (1, 3, 5))
 
 
-def write_theme(name: str, config: Path) -> None:
-    """Renders the shipped Omarchy template against a committed palette, as Omarchy itself would."""
-    with open(THEMES / f"{name}.toml", "rb") as handle:
-        colors = {key: value for key, value in tomllib.load(handle).items() if key != "mode"}
+def write_theme(colours: dict[str, str], config: Path) -> None:
+    """Renders the shipped Omarchy template against a palette, as Omarchy itself would."""
     staged = config / "theme.json.new"
-    themes.render_theme_file(colors, staged, None)
+    themes.render_theme_file(colours, staged, None)
     # A rename, so the browser's watcher never reads half a theme.
     os.replace(staged, config / "theme.json")
 
 
-def seed(root: Path) -> tuple[Path, Path]:
+def seed(root: Path, opening: dict[str, str], port: int | None = None) -> tuple[Path, Path]:
     """The browser's data and configuration roots, set up as the film needs them.
 
-    The search engine is Kestrel, asked for Engine suggestions; Agents are allowed; blocking has
+    The search engine is Kestrel, asked for Engine suggestions, by name under the container's hosts
+    file and by the server's address and `port` on the desktop; Agents are allowed; blocking has
     the shipped lists as a first run leaves them and rules for the magazine's ad network; and the
-    theme is Retro 82, which the website wears. None of it reaches anything outside the film.
+    theme is the `opening` palette. On the desktop the sidebar lets the blurred desktop through as
+    the maintainer's own Omaweb does. None of it reaches anything outside the film.
     """
     data, config = root / "data", root / "config"
     config.mkdir(parents=True)
-    (config / "settings.json").write_text(
-        json.dumps({"version": 1, "engine-suggestions": True}), encoding="utf-8")
+    settings = {"version": 1, "engine-suggestions": True}
+    if port is not None:
+        settings["sidebar-opacity"] = DESKTOP_SIDEBAR_OPACITY
+    (config / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
     (config / "agents.json").write_text(json.dumps({"allow-agents": True}), encoding="utf-8")
     (config / "search-engines.json").write_text(json.dumps({
         "version": 3,
@@ -686,7 +736,8 @@ def seed(root: Path) -> tuple[Path, Path]:
             "name": "Kestrel",
             "queryUrl": "http://kestrel.test/search?q={query}",
             "keyword": "k",
-            "suggestUrl": "http://kestrel.test/suggest?q={query}",
+            "suggestUrl": ("http://kestrel.test" if port is None
+                           else f"http://{ENGINE_ADDRESS}:{port}") + "/suggest?q={query}",
         }],
     }), encoding="utf-8")
     keybindings = json.loads((ROOT / "assets" / "keybindings" / "default.json").read_text())
@@ -696,7 +747,7 @@ def seed(root: Path) -> tuple[Path, Path]:
     runtime.seed_content_blocking(
         str(data), user_rules=[f"||{host}^" for host in AD_HOSTS] + ["halyard.test##.ad"],
         disabled_sites=[])
-    write_theme("retro-82", config)
+    write_theme(opening, config)
     return data, config
 
 
@@ -779,8 +830,12 @@ def reported(server: FixtureServer, host: str, path: str, since: int = 0):
                     if report["host"] == host and report["path"] == path]
 
 
-def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path) -> list[dict]:
-    """Plays the beats in front of the recorder and checks each one. Returns when each played."""
+def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path,
+          worn: list[dict[str, str]]) -> list[dict]:
+    """Plays the beats in front of the recorder and checks each one. Returns when each played.
+
+    The film opens in the first of the `worn` themes, and the Theme beat changes to each after it.
+    """
     marks: list[dict] = []
 
     # A beat ends where its last moment on camera does, and its checks run after that, so a slow
@@ -840,12 +895,14 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     time.sleep(CAPTION_LEAD)
     keys("Primary+l", settle=0.6)
     type_text(TYPED)
+    # The rows are counted down to the suggestion, so they are not counted before Kestrel has been
+    # asked for it: a row missing would move the pick onto another.
+    expect_asked(beat.name, server, "kestrel.test", f"/suggest?q={TYPED}", timeout=5.0)
     time.sleep(1.8)
     keys(*["Down"] * SUGGESTION_ROW, settle=0.5)
     # The results, on screen for the hints that follow.
     keys("Return", settle=LOAD_SETTLE)
     end = recorder.now()
-    expect_asked(beat.name, server, "kestrel.test", f"/suggest?q={TYPED}")
     expect_current_tab(beat.name, answer(beat.name, browser, "tabs", "--space", "Personal"),
                        SEARCH)
     mark(beat, start, end)
@@ -973,12 +1030,14 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     # Long enough to read the caption over the old theme, so the change it names comes after it,
     # on the same frame.
     time.sleep(THEME_HOLD)
-    write_theme("tokyo-night", config)
-    time.sleep(3.0)
+    for old, new in zip(worn, worn[1:]):
+        write_theme(new, config)
+        time.sleep(3.0)
+        now = chrome_sample(frame(recorder.geometry))
+        expect_repainted(beat.name, was, now, theme_colour(old, "dark_background"),
+                         theme_colour(new, "dark_background"))
+        was = now
     end = recorder.now()
-    expect_repainted(beat.name, was, chrome_sample(frame(recorder.geometry)),
-                     theme_colour("retro-82", "dark_background"),
-                     theme_colour("tokyo-night", "dark_background"))
     mark(beat, start, end)
 
     # Off camera: the new tab put away unopened.
@@ -1092,7 +1151,8 @@ def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
     # Port 80 needs the container's root; on the desktop the browser is told the port instead.
     server = FixtureServer(("127.0.0.1", 80 if desktop is None else 0))
     server.start()
-    data, config = seed(root)
+    worn = theme_changes(None if desktop is None else desktop.theme)
+    data, config = seed(root, worn[0], None if desktop is None else server.port)
     if desktop is None:
         subprocess.run(["wlr-randr", "--output", "HEADLESS-1", "--custom-mode",
                         "{}x{}".format(*OUTPUT_MODE), "--scale", str(OUTPUT_SCALE)], check=True)
@@ -1119,7 +1179,7 @@ def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
         recorder.start()
         if desktop is not None:
             desktop.note(recorder=recorder.process.pid)
-        marks = drive(browser, server, recorder, config)
+        marks = drive(browser, server, recorder, config, worn)
         # Off camera: a new tab, whose road moves. The recorder only writes a frame when the screen
         # changes, so a still last page would end the file early, and the start it is measured
         # from would come out late.
@@ -1257,11 +1317,13 @@ class Desktop:
     them.
     """
 
-    WORKSPACE = "name:omaweb-film"
+    # The workspace a run makes for the film, where it is not given one.
+    WORKSPACE = "omaweb-film"
 
     def __init__(self, run=subprocess.run, which=shutil.which, dry_run: bool = False,
                  ledger: Path | None = None, proc: Path = Path("/proc"), kill=os.kill,
-                 killpg=os.killpg) -> None:
+                 killpg=os.killpg, theme: Path = DESKTOP_THEME,
+                 workspace: str = WORKSPACE) -> None:
         self._run = run
         self._which = which
         self.dry_run = dry_run
@@ -1275,6 +1337,13 @@ class Desktop:
         self.not_put_back: list[str] = []
         # The film's window, once it is placed, by Hyprland's address for it.
         self.window: str | None = None
+        # Where Omarchy keeps the theme the desktop wears, and its palette once the run has read it.
+        self._theme = theme
+        self.theme: dict[str, str] | None = None
+        # The workspace the film runs in, by its name, as `hyprctl workspaces` gives it, and as
+        # Hyprland is told it: by number, or by name.
+        self.film_workspace = workspace
+        self.film_selector = workspace if workspace.isdigit() else f"name:{workspace}"
 
     def query(self, *command: str):
         return json.loads(self.read(*command))
@@ -1348,7 +1417,8 @@ class Desktop:
     def recover(self) -> None:
         """Cleans up after a run that could not: one killed outright, or whose terminal closed
         before it ended. Its browser and recorder are stopped, if those process numbers are still
-        theirs, and notifications are restored as that run found them."""
+        theirs, notifications are restored as that run found them, and the workspace it started
+        on is brought back if its own is still on show."""
         if self.ledger is None or not self.ledger.exists():
             return
         left = json.loads(self.ledger.read_text())
@@ -1368,6 +1438,13 @@ class Desktop:
             except BeatMissed as failed:
                 log(f"could not put back {shlex.join(command)}: {failed}")
                 self.not_put_back.append(shlex.join(command))
+        if left.get("return_to") and self.active_workspace() == left.get("workspace"):
+            back = self.dispatch(f'hl.dsp.focus({{ workspace = "{left["return_to"]}" }})')
+            try:
+                self.act(*back)
+            except BeatMissed as failed:
+                log(f"could not put back {shlex.join(back)}: {failed}")
+                self.not_put_back.append(shlex.join(back))
         if not self.dry_run and not self.not_put_back:
             self.ledger.unlink(missing_ok=True)
 
@@ -1397,16 +1474,16 @@ class Desktop:
             raise BeatMissed("Desktop", "Hyprland says no monitor has focus")
         self.frame = window_frame(self.monitor)
         self.parked = parking(self.monitor, self.frame)
-        film = self.WORKSPACE.removeprefix("name:")
+        # The film must neither cover nor move a window of the reader's.
         held = [space for space in self.query("hyprctl", "workspaces", "-j")
-                if space["name"] == film and space["windows"]]
+                if space["name"] == self.film_workspace and space["windows"]]
         if held:
-            raise BeatMissed("Desktop", f"the workspace {film} already holds "
+            raise BeatMissed("Desktop", f"the workspace {self.film_workspace} already holds "
                                         f"{held[0]['windows']} windows; close them first")
-        active = self.query("hyprctl", "activeworkspace", "-j")
-        self.workspace = str(active["id"]) if active["id"] > 0 else f"name:{active['name']}"
+        self.workspace = self.active_workspace()
         cursor = self.query("hyprctl", "cursorpos", "-j")
         self.pointer = (cursor["x"], cursor["y"])
+        self.theme = desktop_palette(self._theme)
         # The terminal the run was started from, which has the keyboard until the film's window.
         self.started_from = self.query("hyprctl", "activewindow", "-j").get("address")
         if self._which("omarchy-shell"):
@@ -1424,6 +1501,11 @@ class Desktop:
         else:
             raise BeatMissed("Desktop", "neither omarchy-shell nor makoctl is here to hold "
                                         "notifications for the run")
+
+    def active_workspace(self) -> str:
+        """The workspace on show, as Hyprland is told it."""
+        active = self.query("hyprctl", "activeworkspace", "-j")
+        return str(active["id"]) if active["id"] > 0 else f"name:{active['name']}"
 
     def preflight(self) -> None:
         """Two things Hyprland is asked that change nothing, an eval and a dispatch in the form
@@ -1468,7 +1550,7 @@ class Desktop:
             self.window = found["address"]
         x, y, wide, high = self.frame
         self.act(*self.dispatch(f'hl.dsp.window.move({{ window = "{window}", '
-                                f'workspace = "{self.WORKSPACE}", follow = false }})'))
+                                f'workspace = "{self.film_selector}", follow = false }})'))
         if not floating:
             self.act(*self.dispatch(f'hl.dsp.window.float({{ window = "{window}", '
                                     'action = "toggle" })'))
@@ -1513,14 +1595,15 @@ class Desktop:
             signal.signal(stop, stop_recording)
         undo: list[list[tuple[str, ...]]] = []
         try:
-            self.note(release=[list(command) for command in self.release])
+            self.note(release=[list(command) for command in self.release],
+                      workspace=self.film_selector, return_to=self.workspace)
             undo.append(self.release)
             for command in self.hold:
                 self.act(*command)
             undo.append([self.move_pointer(*self.pointer)])
             self.act(*self.move_pointer(*self.parked))
             undo.append([self.dispatch(f'hl.dsp.focus({{ workspace = "{self.workspace}" }})')])
-            self.act(*self.dispatch(f'hl.dsp.focus({{ workspace = "{self.WORKSPACE}" }})'))
+            self.act(*self.dispatch(f'hl.dsp.focus({{ workspace = "{self.film_selector}" }})'))
             yield
         finally:
             for stop in STOPS:
@@ -1603,8 +1686,8 @@ def build_for_desktop(run=subprocess.run, engine: Path = ENGINE / "lib" / "cmake
 TAKES_THE_KEYBOARD = """\
 The film is recorded on this desktop now, in about a minute and a half.
 
-It opens a film build of Omaweb, with a profile of its own, on a workspace of its own
-(omaweb-film), and records only its window. Your own Omaweb and its profile are not touched.
+It opens a film build of Omaweb, with a profile of its own, on the empty workspace
+{workspace}, and records only its window. Your own Omaweb and its profile are not touched.
 For the run it takes the keyboard and types into that window, holds notifications, and moves
 the pointer to a corner of the screen. Leave the keyboard and the pointer alone until it ends.
 Ctrl+C stops it at any time, and the workspace, the pointer and notifications are put back.
@@ -1644,7 +1727,7 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
                 f"says the window has the keyboard, and samples it with "
                 f"{shlex.join(frame_command(frame))}")
         return
-    print(TAKES_THE_KEYBOARD, flush=True)
+    print(TAKES_THE_KEYBOARD.format(workspace=desktop.film_workspace), flush=True)
     input()
     # After the key: what a run killed before this one left is put back first, and the desktop is
     # read after that, so what this run puts back is the desktop as it found it.
@@ -1904,10 +1987,14 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=ROOT / "build" / "film")
     parser.add_argument("--dry-run", action="store_true",
                         help="desktop: print what the run would do, and do none of it")
+    parser.add_argument("--workspace", default=Desktop.WORKSPACE,
+                        help="desktop: the empty workspace to record in, by number or name "
+                             f"(default: a workspace of its own, {Desktop.WORKSPACE})")
     arguments = parser.parse_args()
     arguments.out.mkdir(parents=True, exist_ok=True)
     desktop = (Desktop(dry_run=arguments.dry_run,
-                       ledger=arguments.out.resolve() / "desktop-run.json")
+                       ledger=arguments.out.resolve() / "desktop-run.json",
+                       workspace=arguments.workspace)
                if arguments.step == "desktop" else None)
     try:
         if arguments.step == "record":

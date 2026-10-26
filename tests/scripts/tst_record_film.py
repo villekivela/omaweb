@@ -25,6 +25,7 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest import mock
 
@@ -112,6 +113,15 @@ class FixtureServerTest(unittest.TestCase):
         self.assertIn("<title>Trail Runner 3 · Fernwood</title>", page)
         status, _, page = self.ask("quillstack.test", "/docs/tracing/")
         self.assertIn("<h1>Tracing requests</h1>", page)
+
+    def test_the_daypack_is_shown_in_its_photograph(self):
+        _, _, page = self.ask("fernwood.test", "/products/canvas-daypack/")
+        figure = page.split("<figure>")[1].split("</figure>")[0]
+        self.assertRegex(figure, r'<img\s+src="/products/canvas-daypack/canvas-daypack.webp"'
+                                 r'\s+alt="Canvas Daypack 22L in Moss"')
+        self.assertNotIn("<svg", figure)
+        status, kind, _ = self.ask("fernwood.test", "/products/canvas-daypack/canvas-daypack.webp")
+        self.assertEqual((status, kind), (200, "image/webp"))
 
     def test_a_name_the_film_does_not_use_is_refused_and_remembered(self):
         status, _, _ = self.ask("example.com", "/")
@@ -244,6 +254,13 @@ class BeatChecks(unittest.TestCase):
         film.expect_asked("Omnibar", server, "kestrel.test", "/suggest?q=tra")
         server.paths.return_value = []
         self.assertMissed("Omnibar", film.expect_asked, server, "kestrel.test", "/suggest?q=tra")
+
+    def test_the_omnibar_beat_waits_for_kestrel_to_be_asked(self):
+        server = mock.Mock()
+        server.paths.side_effect = [[], ["/suggest?q=t"], ["/suggest?q=t", "/suggest?q=tra"]]
+        with mock.patch.object(film.time, "sleep"):
+            film.expect_asked("Omnibar", server, "kestrel.test", "/suggest?q=tra", timeout=5.0)
+        self.assertEqual(server.paths.call_count, 3)
 
     def test_a_hidden_sidebar_widens_every_page_on_show(self):
         before = [{"host": "quillstack.test", "path": "/docs/tracing/", "width": 610},
@@ -747,10 +764,33 @@ GIVE_BACK = [
 
 
 class DesktopTaken(unittest.TestCase):
-    def desktop(self, fake):
-        desktop = film.Desktop(run=fake.run, which=fake.which)
+    def desktop(self, fake, **options):
+        desktop = film.Desktop(run=fake.run, which=fake.which, **options)
         desktop.survey()
         return desktop
+
+    def test_a_run_given_a_workspace_takes_that_one_and_comes_back(self):
+        fake = FakeDesktop(workspaces=[{"id": 1, "name": "1", "windows": 1},
+                                       {"id": 9, "name": "9", "windows": 0}])
+        to_nine = ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "9" })']
+        with self.desktop(fake, workspace="9").taken():
+            self.assertEqual(fake.acted, TAKE[:-1] + [to_nine])
+        self.assertEqual(fake.acted, TAKE[:-1] + [to_nine] + GIVE_BACK)
+
+    def test_a_given_workspace_with_windows_of_the_readers_stops_the_film(self):
+        fake = FakeDesktop(workspaces=[{"id": 9, "name": "9", "windows": 2}])
+        with self.assertRaisesRegex(film.BeatMissed, "workspace 9 already holds 2 windows"):
+            self.desktop(fake, workspace="9")
+        self.assertEqual(fake.acted, [])
+
+    def test_the_window_is_moved_to_the_given_workspace(self):
+        fake = FakeDesktop()
+        fake.clients = [[FILMS_WINDOW], [PLACED]]
+        desktop = self.desktop(fake, workspace="9")
+        desktop.place(4000, getpgid=SESSIONS.__getitem__)
+        self.assertEqual(fake.acted[0], ["hyprctl", "dispatch",
+                                         'hl.dsp.window.move({ window = "address:0x5566bb", '
+                                         'workspace = "9", follow = false })'])
 
     def test_a_run_holds_notifications_parks_the_pointer_and_takes_a_workspace_of_its_own(self):
         fake = FakeDesktop()
@@ -1177,6 +1217,87 @@ class DesktopKeyboard(unittest.TestCase):
             desktop.expect_keyboard()
 
 
+class DesktopTheme(unittest.TestCase):
+    """The desktop film wears the theme the maintainer's desktop does, read from Omarchy's state,
+    and its browser lets the desktop through the sidebar as the maintainer's own Omaweb does."""
+
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.directory = Path(scratch.name)
+
+    def worn(self, colours):
+        theme = self.directory / "omarchy" / "current" / "theme"
+        theme.mkdir(parents=True)
+        (theme / "colors.toml").write_text(colours, encoding="utf-8")
+        return theme
+
+    def staged(self, opening, port=None):
+        _, config = film.seed(self.directory / "film", opening, port)
+        return config
+
+    def test_the_desktop_film_opens_in_the_theme_the_desktop_wears(self):
+        tokyo = (film.THEMES / "tokyo-night.toml").read_text(encoding="utf-8")
+        nebula = re.sub(r'dark_background = "#\w+"', 'dark_background = "#050718"', tokyo)
+        theme = self.worn(nebula + 'hyprland_inactive_border = "rgba(252e56aa)"\n')
+        config = self.staged(film.desktop_palette(theme), 4321)
+        drawn = json.loads((config / "theme.json").read_text(encoding="utf-8"))
+        self.assertEqual(drawn["sidebar"], "#050718")
+
+    def test_a_desktop_without_an_omarchy_theme_opens_in_retro_82(self):
+        opening = film.desktop_palette(self.directory / "omarchy" / "current" / "theme")
+        self.assertEqual(opening["dark_background"], "#031222")
+
+    def test_the_theme_beat_goes_to_tokyo_night_and_back_to_the_desktops_theme(self):
+        mine = {"dark_background": "#050718"}
+        changes = [theme["dark_background"] for theme in film.theme_changes(mine)]
+        self.assertEqual(changes, ["#050718", "#13141c", "#050718"])
+
+    def test_the_container_film_goes_from_retro_82_to_tokyo_night(self):
+        changes = [theme["dark_background"] for theme in film.theme_changes(None)]
+        self.assertEqual(changes, ["#031222", "#13141c"])
+
+    def test_the_desktops_sidebar_lets_through_as_much_as_the_maintainers_omaweb(self):
+        config = self.staged(film.film_palette("retro-82"), 4321)
+        settings = json.loads((config / "settings.json").read_text(encoding="utf-8"))
+        drawn = json.loads((config / "theme.json").read_text(encoding="utf-8"))
+        sidebar = settings.get("sidebar-opacity", drawn["opacity"]["sidebar"])
+        self.assertLessEqual(sidebar, 0.85)
+
+    def test_the_containers_sidebar_keeps_the_themes_opacity(self):
+        config = self.staged(film.film_palette("retro-82"))
+        settings = json.loads((config / "settings.json").read_text(encoding="utf-8"))
+        self.assertNotIn("sidebar-opacity", settings)
+
+
+class EngineSuggestionsReachTheServer(unittest.TestCase):
+    """Kestrel's suggestions, asked for as the browser asks: by its own network stack, which
+    resolves a name through the system and never through the engine's host resolver rules."""
+
+    def setUp(self):
+        self.server = film.FixtureServer(("127.0.0.1", 0))
+        self.server.start()
+        self.addCleanup(self.server.stop)
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name) / "film"
+
+    def suggest_url(self, *seeded):
+        _, config = film.seed(self.root, film.film_palette("retro-82"), *seeded)
+        engines = json.loads((config / "search-engines.json").read_text(encoding="utf-8"))
+        return engines["engines"][0]["suggestUrl"]
+
+    def test_the_desktops_browser_reaches_kestrels_suggestions_without_a_hosts_file(self):
+        address = self.suggest_url(self.server.port).replace("{query}", "tra")
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(address, timeout=5) as reply:
+            self.assertEqual(json.loads(reply.read())[0], "tra")
+        self.assertEqual(self.server.paths("kestrel.test"), ["/suggest?q=tra"])
+
+    def test_the_containers_browser_asks_kestrel_by_name(self):
+        self.assertEqual(self.suggest_url(), "http://kestrel.test/suggest?q={query}")
+
+
 class RecordKeyboard(unittest.TestCase):
     def test_record_checks_the_keyboard_from_the_moment_the_window_is_placed(self):
         desktop = mock.Mock()
@@ -1378,6 +1499,31 @@ class DesktopLedger(unittest.TestCase):
         self.assertEqual(fake.acted, self.RELEASE)
         self.assertFalse(self.ledger.exists())
         self.assertIn("did not finish", said.getvalue())
+
+    def test_a_run_notes_the_workspace_it_runs_in_and_the_one_to_come_back_to(self):
+        fake = FakeDesktop()
+        desktop = self.desktop(fake, workspace="9")
+        desktop.survey()
+        with desktop.taken():
+            noted = json.loads(self.ledger.read_text())
+        self.assertEqual((noted["workspace"], noted["return_to"]), ("9", "2"))
+
+    def test_the_next_run_comes_back_from_the_workspace_a_killed_run_left_on_show(self):
+        self.left(workspace="9", return_to="4")
+        fake = FakeDesktop()
+        fake.answers[("hyprctl", "activeworkspace", "-j")] = json.dumps({"id": 9, "name": "9"})
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.desktop(fake).recover()
+        self.assertEqual(fake.acted, self.RELEASE + [
+            ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "4" })']])
+        self.assertFalse(self.ledger.exists())
+
+    def test_the_next_run_stays_where_the_reader_went_after_a_killed_run(self):
+        self.left(workspace="9", return_to="4")
+        fake = FakeDesktop()
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.desktop(fake).recover()
+        self.assertEqual(fake.acted, self.RELEASE)
 
     def test_a_process_number_another_program_has_taken_since_is_left_alone(self):
         self.process(4000, 4000, "/usr/bin/bash")
