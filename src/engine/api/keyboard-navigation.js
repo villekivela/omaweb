@@ -50,18 +50,48 @@
     }
     return target.isContentEditable === true;
   };
-  const visible = (element) => {
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
+  // The box a hint is drawn at, and the box a click on the element would land
+  // in: the first of the element's client rects, cropped to the viewport, that
+  // is at least 3x3 px on an element that is visible. A link that wraps has one
+  // rect a line, so its first visible line is the one found. Vimium's
+  // getVisibleClientRect, without its walk into the children of an empty box.
+  const minimumSide = 3;
+  const visibleRect = (element) => {
+    if (getComputedStyle(element).visibility !== "visible") return null;
+    for (const rect of element.getClientRects()) {
+      const left = Math.max(rect.left, 0);
+      const top = Math.max(rect.top, 0);
+      const right = Math.min(rect.right, innerWidth);
+      const bottom = Math.min(rect.bottom, innerHeight);
+      if (right - left < minimumSide || bottom - top < minimumSide) continue;
+      return { left, top, right, bottom };
+    }
+    return null;
+  };
+  // Whether the element is what the reader would reach by clicking where it
+  // stands: it, something inside it or something around it is on top at the
+  // middle of the box or at one of its corners. A corner is taken 0.1 px in,
+  // where the edge itself can belong to the neighbour. A dialog's backdrop, a
+  // menu or a sticky header over the whole box leaves none of these.
+  const reachable = (element, rect) => {
+    const onTop = (x, y) => {
+      const top = document.elementsFromPoint(x, y)[0];
+      return Boolean(top) && (element.contains(top) || top.contains(element));
+    };
+    if (onTop((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2)) return true;
+    return [rect.top + 0.1, rect.bottom - 0.1].some((y) =>
+      [rect.left + 0.1, rect.right - 0.1].some((x) => onTop(x, y)),
+    );
+  };
+  // A control the page switched off, or made read-only, is not one to click
+  // into. An element is hinted for a role or a control it has, never for a
+  // tabindex alone, so the selector below has no tabindex.
+  const switchedOff = (element) => {
+    const ariaDisabled = element.getAttribute("aria-disabled");
     return (
-      style.visibility !== "hidden" &&
-      style.display !== "none" &&
-      rect.width > 0 &&
-      rect.height > 0 &&
-      rect.bottom >= 0 &&
-      rect.right >= 0 &&
-      rect.top <= innerHeight &&
-      rect.left <= innerWidth
+      element.matches(":disabled") ||
+      (field(element) && element.readOnly === true) ||
+      (ariaDisabled !== null && ["", "true"].includes(ariaDisabled.toLowerCase()))
     );
   };
   // Breadth-first allocation permits short and long hints on the same page
@@ -114,11 +144,14 @@
     clearHints();
     let candidates = [
       ...document.querySelectorAll(
-        'a[href], button, input:not([type="hidden"]), select, textarea, [role="link"], [role="button"], [tabindex]',
+        'a[href], button, input:not([type="hidden"]), select, textarea, [role="link"], [role="button"]',
       ),
-    ].filter(visible);
+    ]
+      .filter((target) => !switchedOff(target))
+      .map((target) => ({ target, rect: visibleRect(target) }))
+      .filter(({ target, rect }) => rect && reachable(target, rect));
     if (command === "open-link-background") {
-      candidates = candidates.filter((target) => Boolean(target.href));
+      candidates = candidates.filter(({ target }) => Boolean(target.href));
     }
     const overlay = document.createElement("div");
     name(overlay, "h");
@@ -129,8 +162,12 @@
     const font = theme.font || {};
     const fontFamily = font.family || (font.families && font.families[0]) || "system-ui";
     const fontSize = Math.max(11, Number(font.size) || 12);
+    // A popover is shown in the top layer, above a modal dialog's, which no
+    // z-index reaches. Its own box is undone: it is only a frame for the plates.
+    overlay.popover = "manual";
     overlay.style.cssText =
-      "position:fixed;inset:0;pointer-events:none;z-index:2147483647;" +
+      "position:fixed;inset:0;width:auto;height:auto;margin:0;padding:0;border:0;" +
+      "background:none;overflow:visible;pointer-events:none;z-index:2147483647;" +
       "color:" +
       (theme.text || "CanvasText") +
       ";font-family:" +
@@ -149,9 +186,8 @@
       "opacity:.001;pointer-events:none;";
     overlay.append(focus);
     const labels = labelsFor(candidates.length);
-    state.hints = candidates.map((target, index) => {
+    state.hints = candidates.map(({ target, rect }, index) => {
       const label = labels[index];
-      const rect = target.getBoundingClientRect();
       const hint = document.createElement("span");
       hint.setAttribute("role", "note");
       hint.setAttribute(
@@ -170,9 +206,9 @@
       // ground on it, square, in uppercase, with no border and no shadow.
       hint.style.cssText =
         "position:absolute;left:" +
-        Math.max(0, rect.left) +
+        rect.left +
         "px;top:" +
-        Math.max(0, rect.top) +
+        rect.top +
         "px;padding:2px 4px;border:0;border-radius:0;background:" +
         (theme.accent || "Highlight") +
         ";color:" +
@@ -186,7 +222,11 @@
       overlay.append(hint);
       return { label, target, hint };
     });
-    document.documentElement.append(overlay);
+    // A modal dialog makes all that lies outside it inert, a popover included,
+    // and the input in it could not take the focus. Inside the dialog the layer
+    // is still in the top layer, and the input is live.
+    (document.querySelector("dialog:modal") ?? document.documentElement).append(overlay);
+    overlay.showPopover();
     state.overlay = overlay;
     state.hintMode = command;
     console.debug("__omaweb_keyboard_hint_mode__:1");
