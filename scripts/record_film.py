@@ -573,6 +573,9 @@ DESKTOP_CURRENT = Path.home() / ".local" / "state" / "omarchy" / "current"
 # How far apart, in 8-bit RGB, the chrome's colour in two themes has to be for the Theme beat's
 # repaint check to tell them apart through the window's translucency.
 THEMES_APART = 12
+# The installed Omarchy theme the desktop's Theme beat changes to where none is named: the
+# maintainer's choice, a grey-blue with its own wallpaper, well apart from their dark navy.
+DEFAULT_CHANGE = "lumon"
 
 # The frame the recording is taken at, and the film's own. The window is drawn at one and a half
 # device pixels to the logical one, so the browser lays out at 1600 by 900 and a zoom-in has
@@ -732,9 +735,9 @@ def installed_themes(directories: tuple[Path, ...] = OMARCHY_THEMES) -> dict[str
     return found
 
 
-def change_theme(desktop: dict[str, str], name: str = "retro-82",
+def change_theme(desktop: dict[str, str], name: str = DEFAULT_CHANGE,
                  directories: tuple[Path, ...] = OMARCHY_THEMES) -> Theme:
-    """The installed Omarchy theme the Theme beat switches the desktop to, Retro 82 unless another
+    """The installed Omarchy theme the Theme beat switches the desktop to, Lumon unless another
     is named. One too near the desktop's for the repaint check to tell the change stops the run
     before it changes anything, and names one that is far enough."""
     installed = installed_themes(directories)
@@ -748,9 +751,9 @@ def change_theme(desktop: dict[str, str], name: str = "retro-82",
         far_enough = sorted((themes_apart(desktop, theme), other)
                             for other, theme in candidates.items()
                             if other != name and themes_apart(desktop, theme) >= THEMES_APART)
-        # Retro 82 where it will do, since the film was made in it, and otherwise the nearest
-        # theme the check can still tell from the desktop's, so the film changes least.
-        suggestion = ("retro-82" if any(other == "retro-82" for _, other in far_enough)
+        # The default where it will do, and otherwise the nearest theme the check can still tell
+        # from the desktop's, so the film changes least.
+        suggestion = (DEFAULT_CHANGE if any(other == DEFAULT_CHANGE for _, other in far_enough)
                       else far_enough[0][1] if far_enough else None)
         raise BeatMissed("Theme", f"{name}'s sidebar is {apart:.0f} from the desktop theme's, too "
                                   f"near for the Theme beat to show the change"
@@ -1422,7 +1425,7 @@ class Desktop:
                  ledger: Path | None = None, proc: Path = Path("/proc"), kill=os.kill,
                  killpg=os.killpg, current: Path = DESKTOP_CURRENT,
                  workspace: str = WORKSPACE, session: dict = os.environ,
-                 change_to: str = "retro-82", themes: tuple[Path, ...] = OMARCHY_THEMES) -> None:
+                 change_to: str = DEFAULT_CHANGE, themes: tuple[Path, ...] = OMARCHY_THEMES) -> None:
         self._run = run
         self._which = which
         self.dry_run = dry_run
@@ -2126,9 +2129,9 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=ROOT / "build" / "film")
     parser.add_argument("--dry-run", action="store_true",
                         help="desktop: print what the run would do, and do none of it")
-    parser.add_argument("--change-to", metavar="THEME", default="retro-82",
+    parser.add_argument("--change-to", metavar="THEME", default=DEFAULT_CHANGE,
                         help="desktop: the installed Omarchy theme the Theme beat changes to and "
-                             "back from (default: Retro 82)")
+                             f"back from (default: {DEFAULT_CHANGE})")
     parser.add_argument("--workspace", default=Desktop.WORKSPACE,
                         help="desktop: the empty workspace to record in, by number or name "
                              f"(default: a workspace of its own, {Desktop.WORKSPACE})")

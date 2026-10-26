@@ -20,7 +20,7 @@ claims. In order:
    closes on the card, whose list of refused requests names the ad network and the tracker, and
    holds it long enough to read. Neither is ever reached.
 1. A theme change on one Start page, across the whole browser: from Retro 82 to Tokyo Night in the
-   container, and on the desktop the desktop's own theme switched to Retro 82 and back.
+   container, and on the desktop the desktop's own theme switched to Lumon and back.
 1. An Agent at work in a Space of its own. Each command it runs, `omaweb space new`, `open`, `look`
    and one batched `do`, takes the caption's place as it runs, its tab's row in the sidebar names
    its last act after each, and the invoice is sent. The camera then closes on the row, the pointer
@@ -64,7 +64,7 @@ the line that installs them. Then it:
 The desktop film wears the reader's theme: the one the desktop is wearing when the run starts. The
 film's browser finds Omarchy's `~/.local/state/omarchy/current` through its own home and follows it
 as the reader's Omaweb does. The Theme beat switches the desktop's theme, as a reader does, with
-`omarchy-theme-set retro-82`, then switches it back to the theme the run started with, so the beat
+`omarchy-theme-set lumon`, then switches it back to the theme the run started with, so the beat
 shows the real switch, wallpaper and blur included, and most of the film is in the reader's theme.
 Notifications are already held, so the switch raises none on camera. The beat checks the chrome
 against each theme's `colors.toml`.
@@ -197,8 +197,8 @@ recording rerun in a restarted container stops before the browser starts and nam
 lost.
 
 The sites are dark, as the website is, so the film reads as one piece with the page around it. The
-trail shoe, the daypack and the lighthouse are photographs supplied for the film by the project's
-owner, kept as WebP beside the pages that show them.
+trail shoe, the daypack, the tent and the lighthouse are photographs supplied for the film by the
+project's owner, kept as WebP beside the pages that show them.
 
 `sites/_film/report.js` is on every page. It tells the script where the page is, how wide its
 viewport is, how many ad slots it drew and how many link hints are on show. `sites/_film/end.html`
