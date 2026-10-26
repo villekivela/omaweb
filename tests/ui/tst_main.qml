@@ -1955,6 +1955,31 @@ TestCase {
         compare(window.commands.keymap.keysFor("copy-address"), "Ctrl+Shift+C");
     }
 
+    // The copy says so, for 3 s, without showing the address. A tab with no
+    // page copies nothing and stays as quiet as before.
+    function test_copyAddressSaysSoOnlyWhenItCopied() {
+        const notice = findChild(window.contentItem, "pageNotice");
+        browser.openInput("about:blank", true);
+        tryVerify(function () {
+            return browser.activeTabBlank;
+        });
+        notice.dismiss();
+        tryVerify(function () {
+            return !notice.showing;
+        });
+        window.commands.run("copy-address", -1);
+        verify(!notice.showing);
+        browser.closeActiveTab();
+
+        openPage("https://copy-me.example/noticed");
+        window.commands.run("copy-address", -1);
+        compare(notice.message, "Address copied");
+        compare(notice.glyph, "content_copy");
+        compare(notice.detail, "");
+        compare(notice.duration, 3000);
+        verify(notice.showing);
+    }
+
     // An engine that supplies no inspector leaves the command listed and
     // unavailable, and takes an open dock with it.
     function test_developerToolsAreUnavailableWithoutAnInspector() {
