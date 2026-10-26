@@ -44,7 +44,6 @@ Rectangle {
     // its divider on its left and turns the glyph that hides it round.
     property bool onRight: false
     property bool floating: false
-    property var blocker: null
     // Whether Site information is open, which the address is drawn focused
     // for, and the verdict it gives, which the lock speaks.
     property bool siteInformationOpen: false
@@ -382,14 +381,6 @@ Rectangle {
             root.arriving = false;
             root.retakeDeparture();
         }
-    }
-    // What Content blocking refused for the page on show.
-    readonly property int refusalTally: refusals.count
-
-    property RefusalTally refusals: RefusalTally {
-        blocker: root.blocker
-        browser: root.browser
-        pageAddress: root.activeUrl
     }
     // What the connection is, as the engine drawing the page reports it. The
     // outline never works this out from the address: an address is what was
@@ -1067,7 +1058,7 @@ Rectangle {
                 colors: root.colors
             }
 
-            // The lock takes the same 18px slot a tab row gives its site chip,
+            // The Site information button takes the same 18px slot a tab row gives its site chip,
             // so the address and every tab title start on one line.
             Text {
                 id: securityGlyph
@@ -1077,7 +1068,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Style.space(18)
                 horizontalAlignment: Text.AlignHCenter
-                text: root.certificateError ? "warning" : (root.secure ? "lock" : "lock_open")
+                text: root.certificateError ? "warning" : (root.secure ? "tune" : "lock_open")
                 color: root.certificateError ? root.colors.urgent : root.colors.mutedText
                 font.family: root.iconFontFamily
                 font.pixelSize: SiteChip.side(Style.font.caption)
@@ -1099,8 +1090,8 @@ Rectangle {
                 objectName: "addressText"
                 anchors.left: securityGlyph.right
                 anchors.leftMargin: Style.space(9)
-                anchors.right: blockedCount.left
-                anchors.rightMargin: Style.space(8)
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(9)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.blank ? qsTr("search or enter address") : AddressTrigger.shown(
                                        root.activeUrl)
@@ -1111,50 +1102,10 @@ Rectangle {
                 font.pixelSize: Style.font.body
             }
 
-            Row {
-                id: blockedCount
-                objectName: "blockedRequestIndicator"
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(9)
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(3)
-                visible: root.refusalTally > 0
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "shield"
-                    color: root.colors.text
-                    font.family: root.iconFontFamily
-                    font.pixelSize: Style.font.iconLarge
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.refusalTally
-                    color: root.colors.text
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                }
-
-                Accessible.role: Accessible.Button
-                Accessible.name: root.refusals.sentence
-                Accessible.onPressAction: root.siteInformationRequested("blocked")
-            }
-
-            // The shield opens Site information straight at what it counts.
-            MouseArea {
-                anchors.fill: blockedCount
-                anchors.margins: -5
-                visible: blockedCount.visible
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.siteInformationRequested("blocked")
-            }
-
             MouseArea {
                 id: addressMouse
                 anchors.left: securityGlyph.right
-                anchors.right: blockedCount.left
+                anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 hoverEnabled: true

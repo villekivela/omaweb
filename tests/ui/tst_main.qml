@@ -3088,15 +3088,15 @@ TestCase {
         address.focus = false;
     }
 
-    // The lock is as quiet as the host beside it, an exception to the chrome's
-    // glyphs resting in the theme's text, and a certificate error draws it in
-    // the urgent colour (#779). It is as large as a tab row's favicon.
-    function test_theAddressTriggersLockIsAsQuietAsItsHost() {
+    // The Site information button is as quiet as the host beside it, an exception to the
+    // chrome's glyphs resting in the theme's text, and a certificate error draws it in the
+    // urgent colour (#779). It is as large as a tab row's favicon.
+    function test_theAddressTriggersSiteInformationButtonIsAsQuietAsItsHost() {
         const engine = openPage("https://quiet-lock.example/page");
         const lock = findChild(window.contentItem, "securityIndicator");
         const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
-        tryCompare(lock, "text", "lock");
+        tryCompare(lock, "text", "tune");
         verify(Qt.colorEqual(lock.color, window.colors.mutedText));
         compare(lock.font.pixelSize, tile.width);
         engine.simulateCertificateError({});
@@ -3169,7 +3169,7 @@ TestCase {
         const engine = openPage("https://reported-secure.example/page");
         const security = findChild(window.contentItem, "securityIndicator");
         verify(security !== null);
-        tryCompare(security, "text", "lock");
+        tryCompare(security, "text", "tune");
 
         // The engine says the connection is in error; the trigger follows it
         // rather than the https it can see in the address.
@@ -3185,7 +3185,7 @@ TestCase {
         openPage("http://reported-insecure.example/page");
         tryCompare(security, "text", "lock_open");
         openPage("https://reported-secure-again.example/page");
-        tryCompare(security, "text", "lock");
+        tryCompare(security, "text", "tune");
     }
 
     // An engine stops reporting a certificate failure once it has been told to
@@ -3216,7 +3216,7 @@ TestCase {
 
         // Reading elsewhere and coming back to the same origin says it again.
         openPage("https://elsewhere-after-waiver.example/page");
-        tryCompare(security, "text", "lock");
+        tryCompare(security, "text", "tune");
         openPage("https://localhost:7443/another-page");
         tryCompare(security, "text", "warning");
 
@@ -4275,36 +4275,28 @@ TestCase {
         });
     }
 
-    // The shield beside the address counts what Content blocking refused, and
-    // a click on it opens the card straight at those requests.
-    function test_theShieldOpensSiteInformationAtTheBlockedRequests() {
+    // The address line shows the lock and the domain only: the count of refused requests
+    // lives in Site information, whose blocked tile opens the list (#803).
+    function test_theAddressLineHasNoBlockedCountOnAPageWithRefusedRequests() {
         openPage("https://news.example/story");
         const sidebar = findChild(window.contentItem, "sidebar");
         const card = siteCard();
-        const outlineBlocker = sidebar.blocker;
         const cardBlocker = card.blocker;
         const refusing = refusingBlockerComponent.createObject(testCase);
-        sidebar.blocker = refusing;
         card.blocker = refusing;
-        const shield = findChild(window.contentItem, "blockedRequestIndicator");
-        tryVerify(function () {
-            return shield.visible;
-        });
-
-        mouseClick(shield, shield.width / 2, shield.height / 2);
-        tryVerify(function () {
-            return card.visible;
-        });
-        const detail = card.detail;
-        const first = findChild(card, "refusedRequest0");
-        const cloakedThrough = findChild(card, "refusedRequestThrough1");
-        const texts = [first ? first.text : null, cloakedThrough && cloakedThrough.visible
-                       ? cloakedThrough.text : null];
-        closeSiteCard();
-        sidebar.blocker = outlineBlocker;
+        // The sidebar once counted refusals itself; it is told of them wherever it still can be.
+        const outlineBlocker = "blocker" in sidebar ? sidebar.blocker : null;
+        if ("blocker" in sidebar)
+            sidebar.blocker = refusing;
+        const address = findChild(window.contentItem, "addressButton");
+        wait(50);
+        compare(findChild(window.contentItem, "blockedRequestIndicator"), null);
+        mouseMove(address, address.width - 10, address.height / 2);
+        compare(findChild(window.contentItem, "blockedRequestIndicator"), null);
+        mouseMove(window.contentItem, window.width - 20, window.height - 20);
+        if ("blocker" in sidebar)
+            sidebar.blocker = outlineBlocker;
         card.blocker = cardBlocker;
-        compare(detail, "blocked");
-        compare(texts, ["ads.example/banner.js", "through collect.tracker.example"]);
     }
 
     // The command and its key open the card at its top, and both are named

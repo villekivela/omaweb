@@ -3512,7 +3512,6 @@ ApplicationWindow {
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
-                blocker: contentBlocker
                 easeSpaces: window.chromeEase
                 spacesCanMove: !window.reducedMotion
                 connectionState: window.connectionState

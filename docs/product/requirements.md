@@ -108,12 +108,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The sidebar is quiet. The address trigger is a line, not a field. It shows the page's host alone,
   without the scheme, `www.`, path, query or fragment, and keeps a port. A page with no host shows
   the last part of its path, a file's name or the name of one of Omaweb's own pages, and any other
-  page its scheme. A blank page shows "search or enter address". The host and the lock before it
-  rest in the quiet text colour, and the host turns to the text colour under the pointer. The lock
-  is as large as a tab row's favicon. It opens Site information, and a click anywhere else on the
-  line opens the Omnibar. The trigger and the Pinned tabs have no border at rest or under the
-  pointer. They rest on one fill, the theme's text at 7%, 11% under the pointer. The active pin's
-  wash lies over its fill. The trigger takes the focus border while it holds the keyboard.
+  page its scheme. A blank page shows "search or enter address". The host and the Site information
+  button before it rest in the quiet text colour, and the host turns to the text colour under the
+  pointer. The button is as large as a tab row's favicon. It shows a tune glyph on a secure page, an
+  open lock on plain HTTP and a warning on a certificate error, and it opens Site information, and a
+  click anywhere else on the line opens the Omnibar. The trigger and the Pinned tabs have no border
+  at rest or under the pointer. They rest on one fill, the theme's text at 7%, 11% under the
+  pointer. The active pin's wash lies over its fill. The trigger takes the focus border while it
+  holds the keyboard.
 - One 8 px gap separates the navigation row from the address, the address from the pins, each pin
   from the next, and the pins from the ordinary tabs. Ordinary tabs stand 4 px apart.
 - Each Space has a Space colour, one of six that Omaweb owns: orange, yellow, green, teal, blue and
@@ -464,8 +466,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - In Settings, an unhandled letter selects the next section whose name begins with it and moves the
   keyboard onto that name in the rail. Repeated presses cycle through matching sections. A field
   keeps the letters typed into it.
-- Security state and the blocked-request count ride inline in the address trigger. The lock opens
-  Site information at its top, and the shield beside the count opens it at the blocked requests.
+- The Site information button rides inline in the address trigger and opens Site information at its
+  top. The trigger shows no blocked-request count: the card shows it, and its blocked tile opens the
+  list.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens the Omnibar for the
   current tab. The Omnibar has one place whatever it opens over: centred in the page area with its
   top edge 50 px above the Start page's horizon, where a new tab shows it. Its rows grow down from
@@ -591,13 +594,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
   rests on, the window, sidebar, surface, overlay and sheet and their Private counterparts, and
   therefore clear of the disabled rendering of ordinary text. A hover fill is not one of them. A
   page that follows the theme keeps the quiet colour the theme named. Chrome icon buttons are not
-  quiet text: they rest in the theme's text colour. The address trigger's lock is the exception: it
-  is as quiet as the host beside it, and a certificate error draws it in the urgent colour. A reader
-  must never have to guess whether something is merely quiet or actually unavailable. Borders clear
-  the WCAG AA non-text threshold against every surface they separate. Contrast repair keeps a
-  colour's theme-supplied hue. Where a palette's own surfaces put a threshold out of reach, the
-  colour that reads best on the worst of them is used and the rest of the theme is kept: the browser
-  always follows the desktop's colours.
+  quiet text: they rest in the theme's text colour. The address trigger's Site information button is
+  the exception: it is as quiet as the host beside it, and a certificate error draws it in the
+  urgent colour. A reader must never have to guess whether something is merely quiet or actually
+  unavailable. Borders clear the WCAG AA non-text threshold against every surface they separate.
+  Contrast repair keeps a colour's theme-supplied hue. Where a palette's own surfaces put a
+  threshold out of reach, the colour that reads best on the worst of them is used and the rest of
+  the theme is kept: the browser always follows the desktop's colours.
 - The Agent accent keeps its theme-supplied hue and clears 4.5:1 against the window and the sidebar,
   since the page frame's label is written on it. It is kept apart from the accent.
 - Private windows must remain visually distinct. Reduced-motion, increased-contrast, and
@@ -985,9 +988,9 @@ The default page commands include:
   close it, side by side, each confirmed in the centred dialog first.
 - A tile opens its detail inside the card, which keeps its width and place, with "‹ <host>" to go
   back. Enter opens the tile the arrows are on, Escape steps back to the top, and Escape again
-  closes the card. The lock opens it at its top, the shield at the blocked requests, and the "Site
-  information" command, `Primary+Shift+L` by default, at its top. A collapsed sidebar peeks while
-  the card is open.
+  closes the card. The address trigger's button opens it at its top, and the "Site information"
+  command, `Primary+Shift+L` by default, at its top. A collapsed sidebar peeks while the card is
+  open.
 - The certificate detail shows the chain from the site's own certificate to the trust anchor, one
   selectable entry per certificate, with subject, issuer, validity period, SHA-256 fingerprint, and
   subject alternative names, each copyable. The certificate interstitial opens the same detail for
