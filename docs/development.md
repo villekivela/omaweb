@@ -1575,6 +1575,13 @@ Each Space it opens is counted on disk before any memory is read. Keys sent to a
 ready for them land somewhere harmless and silently, and a run that reported four Spaces having
 opened one looks exactly like a measurement.
 
+An attempt at a Space that makes none prints where its keys went: the compositor's keyboard events
+and the window's titles, and, from a browser configured with `-DOMAWEB_KEY_EVENT_LOG=ON`, each key
+the browser handed an object, what held the focus and whether the Space dialog was open. That is how
+a dialog that lost the keyboard to a page's first paint was found (#795). Only the
+`arch-linux-budget` job builds with it, because the log writes what each key would type, and the
+`omaweb-ships-no-key-log` test fails any other build that carries it.
+
 The ceilings are ceilings with headroom rather than best-recorded times, because a budget that fails
 on noise is a budget that gets turned off. `performance/budget.json` records what each was last
 measured at and the machine class it was measured on; `--record` writes the measurements back

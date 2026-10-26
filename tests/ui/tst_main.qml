@@ -1955,6 +1955,31 @@ TestCase {
         compare(window.commands.keymap.keysFor("copy-address"), "Ctrl+Shift+C");
     }
 
+    // The copy says so, for 3 s, without showing the address. A tab with no
+    // page copies nothing and stays as quiet as before.
+    function test_copyAddressSaysSoOnlyWhenItCopied() {
+        const notice = findChild(window.contentItem, "pageNotice");
+        browser.openInput("about:blank", true);
+        tryVerify(function () {
+            return browser.activeTabBlank;
+        });
+        notice.dismiss();
+        tryVerify(function () {
+            return !notice.showing;
+        });
+        window.commands.run("copy-address", -1);
+        verify(!notice.showing);
+        browser.closeActiveTab();
+
+        openPage("https://copy-me.example/noticed");
+        window.commands.run("copy-address", -1);
+        compare(notice.message, "Address copied");
+        compare(notice.glyph, "content_copy");
+        compare(notice.detail, "");
+        compare(notice.duration, 3000);
+        verify(notice.showing);
+    }
+
     // An engine that supplies no inspector leaves the command listed and
     // unavailable, and takes an open dock with it.
     function test_developerToolsAreUnavailableWithoutAnInspector() {
@@ -14441,6 +14466,85 @@ TestCase {
         browser.closeActiveTab();
 
         leaveSpace(homeSpaceId, restingSpaceId, "Resting drive");
+    }
+
+    // A page the road drove to takes the keyboard when it first paints, and
+    // when it is given up on at the limit, so the reader can scroll it with no
+    // click first.
+    function test_thePageTakesTheKeyboardWhenTheRoadArrives() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting arrival");
+
+        input.text = "https://slow-paint.example/arrival";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 400);
+        tryVerify(function () {
+            return engineLoader.item.activeFocus;
+        });
+        browser.closeActiveTab();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "https://slow-paint.example/never";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 4000);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item.activeFocus;
+        });
+        browser.closeActiveTab();
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting arrival");
+    }
+
+    // The page takes the keyboard at its first paint only from the drive. A
+    // dialog the reader opened while the road drove keeps it, as the new-Space
+    // dialog did not on a slow machine: what was typed for it went to the page
+    // (#795).
+    function test_aDialogOpenedWhileTheRoadDrivesKeepsTheKeyboard() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting dialog");
+
+        input.text = "https://slow-paint.example/dialog";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        window.commands.run("new-space", -1);
+        const field = findChild(window.contentItem, "commandDialogInput");
+        tryVerify(function () {
+            return field.activeFocus;
+        });
+
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 400);
+        compare(window.dialogMode, "new");
+        verify(field.activeFocus);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.dialogMode === "";
+        });
+        browser.closeActiveTab();
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting dialog");
     }
 
     // Asking for a new tab while the road still drives to the last one is
