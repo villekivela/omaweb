@@ -583,6 +583,11 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+def would_run(command) -> None:
+    """What a dry run prints in place of running `command`."""
+    log("would run: " + shlex.join(command))
+
+
 # What the script's commands to the browser run in: the session's own under cage, and on the
 # desktop the film browser's, so they reach its socket rather than the reader's Omaweb.
 CLIENT_ENVIRONMENT: dict | None = None
@@ -940,7 +945,8 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     shown = site()
     if framing(shown) != focus[-1][1]:
         focus.append((round(recorder.now() - start, 3), framing(shown)))
-    time.sleep(2.8)
+    # Long enough to read each host the list names.
+    time.sleep(3.6)
     end = recorder.now()
     expect_blocked(beat.name, server, server.reports()[since:], "halyard.test", AD_HOSTS)
     expect_blocked_list(beat.name, shown, AD_HOSTS)
@@ -1190,6 +1196,9 @@ def desktop_environment(session: dict, root: Path, port: int) -> dict:
         OMAWEB_DATA_ROOT=str(root / "data"), OMAWEB_CONFIG_ROOT=str(root / "config"),
         OMAWEB_CONTROL_SOCKET=str(root / "control.sock"), OMAWEB_NO_OMARCHY_TEMPLATE="1",
         QT_QPA_PLATFORM="wayland",
+        # A session's Qt logs to the journal when stderr is not a terminal, and `browser.log`
+        # is where the film keeps the browser's side.
+        QT_FORCE_STDERR_LOGGING="1",
         QTWEBENGINE_CHROMIUM_FLAGS=f'"--host-resolver-rules=MAP *.test 127.0.0.1:{port}, '
                                    'MAP * ~NOTFOUND"')
     if "XDG_RUNTIME_DIR" in session:
@@ -1222,16 +1231,20 @@ class Desktop:
         self._run = run
         self._which = which
         self.dry_run = dry_run
+        # The commands that failed to put the desktop back, for the run's last word.
+        self.not_put_back: list[str] = []
 
     def query(self, *command: str):
         return json.loads(self.read(*command))
 
     def read(self, *command: str) -> str:
+        if self.dry_run:
+            log("reads: " + shlex.join(command))
         return self._run(list(command), capture_output=True, text=True, check=True).stdout
 
     def act(self, *command: str) -> None:
         if self.dry_run:
-            log("would run: " + shlex.join(command))
+            would_run(command)
             return
         self._run(list(command), capture_output=True, text=True, check=True)
 
@@ -1311,10 +1324,17 @@ class Desktop:
         if self.dry_run:
             return self.frame
 
-        # Hyprland eases a window to its place, so where it is is read once it has arrived.
+        # Hyprland eases a window to its place, so where it is is read once it has its size and
+        # has stopped moving: the same place twice running.
+        last: list = [None]
+
         def arrived() -> dict | None:
             client = films_window()
-            return client if client and client["size"] == [wide, high] else None
+            if not client or client["size"] != [wide, high]:
+                return None
+            settled = client["at"] == last[0]
+            last[0] = client["at"]
+            return client if settled else None
 
         try:
             client = wait_for("Desktop", "the film's window to take its size", arrived,
@@ -1355,6 +1375,7 @@ class Desktop:
                         self.act(*command)
                     except (OSError, subprocess.CalledProcessError) as failed:
                         log(f"could not put back {shlex.join(command)}: {failed}")
+                        self.not_put_back.append(shlex.join(command))
             for stop, handler in handlers.items():
                 signal.signal(stop, handler)
 
@@ -1387,8 +1408,8 @@ def build_for_desktop(run=subprocess.run, engine: Path = ENGINE / "lib" / "cmake
 
     The film is of a commit, so a checkout with changes is refused. A machine with a stock
     QtWebEngine beside Omaweb's finds the stock one first, so each engine package is named, and
-    `check_omaweb_engine.sh` says the build found Omaweb's. The build takes two jobs unless
-    `CMAKE_BUILD_PARALLEL_LEVEL` says otherwise.
+    `check_omaweb_engine.sh` says the build found Omaweb's. The build takes two jobs, which is
+    what the maintainer's machine has memory for.
     """
     changes = run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True,
                   check=True).stdout
@@ -1399,7 +1420,7 @@ def build_for_desktop(run=subprocess.run, engine: Path = ENGINE / "lib" / "cmake
             raise refusal
         log(f"a real run would stop here: {refusal}")
     environment = dict(os.environ)
-    environment.setdefault("CMAKE_BUILD_PARALLEL_LEVEL", "2")
+    environment["CMAKE_BUILD_PARALLEL_LEVEL"] = "2"
     commands = [
         ["scripts/bootstrap_content_blocker.sh"],
         ["cmake", "--preset", "ci", "-B", str(DESKTOP_BUILD), "-DOMAWEB_FILM_HOOKS=ON",
@@ -1415,7 +1436,7 @@ def build_for_desktop(run=subprocess.run, engine: Path = ENGINE / "lib" / "cmake
     ]
     for command in commands:
         if dry_run:
-            log("would run: " + shlex.join(command))
+            would_run(command)
         else:
             run(command, cwd=ROOT, env=environment, check=True)
     return DESKTOP_BUILD / "omaweb-browser"
@@ -1449,8 +1470,18 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
     desktop.survey()
     if desktop.dry_run:
         with desktop.taken():
+            root = Path(tempfile.gettempdir()) / "omaweb-film-<run>"
+            environment = desktop_environment(os.environ, root, 0)
+            settings = {name: environment[name] for name in
+                        ("HOME", "OMAWEB_DATA_ROOT", "OMAWEB_CONFIG_ROOT", "OMAWEB_CONTROL_SOCKET",
+                         "QTWEBENGINE_CHROMIUM_FLAGS")}
+            log("would start: " + " ".join(f"{name}={shlex.quote(value)}"
+                                           for name, value in settings.items())
+                + " " + shlex.join(["dbus-run-session", "--", str(browser)]))
             frame = desktop.place(0)
-            log("would run: " + shlex.join(recorder_command(out / "raw.mkv", frame)))
+            would_run(recorder_command(out / "raw.mkv", frame))
+            log(f"and types into the window with wtype, and samples it with "
+                f"{shlex.join(frame_command(frame))}")
         return
     print(TAKES_THE_KEYBOARD, flush=True)
     input()
@@ -1709,18 +1740,22 @@ def main() -> int:
                         help="desktop: print what the run would do, and do none of it")
     arguments = parser.parse_args()
     arguments.out.mkdir(parents=True, exist_ok=True)
+    desktop = Desktop(dry_run=arguments.dry_run) if arguments.step == "desktop" else None
     try:
         if arguments.step == "record":
             record(arguments.browser.resolve(), arguments.out)
-        elif arguments.step == "desktop":
-            record_on_desktop(Desktop(dry_run=arguments.dry_run), arguments.out.resolve())
+        elif desktop is not None:
+            record_on_desktop(desktop, arguments.out.resolve())
         else:
             compose(arguments.out)
     except BeatMissed as missed:
         print(f"the film was not made: {missed}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        put_back = ", and the desktop is as it was" if arguments.step == "desktop" else ""
+        put_back = ""
+        if desktop is not None:
+            put_back = (", and the desktop is as it was" if not desktop.not_put_back else
+                        "; put back by hand: " + "; ".join(desktop.not_put_back))
         print(f"the film was stopped{put_back}", file=sys.stderr)
         return 130
     return 0

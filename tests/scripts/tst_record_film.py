@@ -774,11 +774,12 @@ class DesktopTaken(unittest.TestCase):
     def test_what_cannot_be_put_back_does_not_keep_the_rest_from_it(self):
         fake = FakeDesktop()
         fake.failing.add(tuple(GIVE_BACK[0]))
-        with mock.patch("sys.stdout", new_callable=io.StringIO) as said, \
-                self.desktop(fake).taken():
+        desktop = self.desktop(fake)
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as said, desktop.taken():
             pass
         self.assertEqual(fake.acted, TAKE + GIVE_BACK)
         self.assertIn("could not put back", said.getvalue())
+        self.assertEqual(desktop.not_put_back, [shlex.join(GIVE_BACK[0])])
 
     def test_do_not_disturb_already_on_stays_on(self):
         fake = FakeDesktop(dnd="on")
@@ -842,6 +843,12 @@ class DesktopPlacement(unittest.TestCase):
         self.assertEqual(self.place(fake), (480, 283, 1600, 900))
         self.assertEqual(fake.acted, PLACE)
 
+    def test_the_window_is_read_where_it_came_to_rest_not_on_its_way(self):
+        fake = FakeDesktop()
+        fake.clients = [[FILMS_WINDOW], [dict(PLACED, at=[300, 200])], [dict(PLACED, at=[420, 260])],
+                        [PLACED]]
+        self.assertEqual(self.place(fake), (480, 283, 1600, 900))
+
     def test_a_window_that_floats_already_is_not_tiled_again(self):
         fake = FakeDesktop()
         fake.clients = [[dict(FILMS_WINDOW, floating=True)], [PLACED]]
@@ -895,6 +902,9 @@ class DesktopBrowser(unittest.TestCase):
     def test_the_films_sites_are_reached_on_the_server_and_nothing_else_is_reached(self):
         self.assertEqual(self.environment()["QTWEBENGINE_CHROMIUM_FLAGS"],
                          '"--host-resolver-rules=MAP *.test 127.0.0.1:43210, MAP * ~NOTFOUND"')
+
+    def test_the_films_browser_logs_to_the_film_not_the_journal(self):
+        self.assertEqual(self.environment()["QT_FORCE_STDERR_LOGGING"], "1")
 
     def test_the_films_browser_draws_on_the_readers_wayland_session_at_its_own_scale(self):
         environment = self.environment()

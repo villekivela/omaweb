@@ -2096,7 +2096,7 @@ ApplicationWindow {
     // `press` clicks it as a pointer would. Either way, or with no target, it
     // answers what the card shows and where it is. Only a browser built with
     // OMAWEB_FILM_HOOKS passes the request on (scripts/record_film.py).
-    function filmSite(target, press) {
+    function pointAtSiteInformation(target, press) {
         const card = siteInformationCard;
         const lock = sidebar.siteInformationButton;
         const named = String(target || "");
@@ -2160,8 +2160,8 @@ ApplicationWindow {
                 return;
             }
             if (request.verb === "film-site") {
-                window.agentControlSource.answerCommand(requestId, window.filmSite(request.target,
-                                                                                   request.press));
+                window.agentControlSource.answerCommand(requestId, window.pointAtSiteInformation(
+                                                            request.target, request.press));
                 return;
             }
             if (request.verb === "film-hover") {

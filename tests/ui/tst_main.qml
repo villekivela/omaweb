@@ -4317,21 +4317,21 @@ TestCase {
         card.blocker = refusingBlockerComponent.createObject(testCase);
         const lock = findChild(window.contentItem, "securityIndicator");
 
-        const where = window.filmSite("lock", false);
+        const where = window.pointAtSiteInformation("lock", false);
         const corner = lock.mapToItem(window.contentItem, 0, 0);
         const shut = !window.siteInformationOpen;
-        const blockedBeforeTheCard = window.filmSite("blocked", false);
-        verify(window.filmSite("lock", true).ok);
+        const blockedBeforeTheCard = window.pointAtSiteInformation("blocked", false);
+        verify(window.pointAtSiteInformation("lock", true).ok);
         tryVerify(function () {
             return card.visible && card.open;
         });
         const tile = findChild(card, "siteInformationTile_blocked");
         const tileCorner = tile.mapToItem(window.contentItem, 0, 0);
-        const atTheTile = window.filmSite("blocked", false);
-        const pressed = window.filmSite("blocked", true);
-        const shown = window.filmSite("", false);
+        const atTheTile = window.pointAtSiteInformation("blocked", false);
+        const pressed = window.pointAtSiteInformation("blocked", true);
+        const shown = window.pointAtSiteInformation("", false);
         const cardCorner = card.mapToItem(window.contentItem, 0, 0);
-        verify(window.filmSite("lock", true).ok);
+        verify(window.pointAtSiteInformation("lock", true).ok);
         tryVerify(function () {
             return !card.visible;
         });
@@ -4352,7 +4352,7 @@ TestCase {
         compare(shown.listed.slice(0, 2), ["ads.example/banner.js",
                                            "metrics.news.example/collect.js"]);
         compare([shown.card.x, shown.card.width], [cardCorner.x, card.width]);
-        verify(!window.filmSite("padlock", false).ok);
+        verify(!window.pointAtSiteInformation("padlock", false).ok);
     }
 
     // The command and its key open the card at its top, and both are named

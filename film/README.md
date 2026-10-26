@@ -34,7 +34,7 @@ hovered, so Stop shows, and answer where Stop is and what the row says; `--where
 answer where the lock and Site information's blocked tile are, and `--press` clicks them; with
 neither, it answers whether the card is open, at which detail, what its blocked list names and where
 the card is, which the camera frames. The edit draws `pointer.png` where the window answered,
-gliding between the places. `pointer.svg` is its source. No shipped build has either verb.
+gliding between the places. `pointer.svg` is its source. No shipped build has any of them.
 
 ## Recording it on the desktop
 
@@ -48,7 +48,7 @@ the container. It needs a clean checkout, since the film is of the commit, and `
 the line that installs them. Then it:
 
 1. Builds the film's browser (`OMAWEB_FILM_HOOKS`) into `build/film-desktop` against Omaweb's engine
-   under `/usr/lib/omaweb`, with two jobs unless `CMAKE_BUILD_PARALLEL_LEVEL` says otherwise.
+   under `/usr/lib/omaweb`, with two jobs.
 1. Says that it takes the keyboard for the run, and waits for Enter.
 1. Holds notifications (`omarchy-shell notifications setDnd on`, or a mako `do-not-disturb` mode
    where there is no Omarchy shell), moves the pointer to a bottom corner of the monitor, and
