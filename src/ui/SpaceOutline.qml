@@ -401,6 +401,9 @@ Rectangle {
         return null;
     }
 
+    // The lock, which opens Site information.
+    readonly property Item siteInformationButton: securityGlyph
+
     // The footer's button for a Space, or null when the Space has none.
     function spaceButton(spaceId) {
         for (let index = 0; index < spaceRepeater.count; ++index) {

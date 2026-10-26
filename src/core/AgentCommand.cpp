@@ -197,6 +197,16 @@ namespace {
                 .maximumPositionals = 1,
                 .positionalField = QStringLiteral("tab")};
         }
+        // And Site information for the Blocking beat: its button or the card's
+        // blocked tile to say where it is, `--press` to click it, or neither
+        // to say what the card shows.
+        if (verb == u"film-site") {
+            return {.valued = {},
+                .flags = {QStringLiteral("press")},
+                .minimumPositionals = 0,
+                .maximumPositionals = 1,
+                .positionalField = QStringLiteral("target")};
+        }
 #endif
         return {.valued = {},
             .flags = {},
@@ -554,6 +564,7 @@ namespace {
 #ifdef OMAWEB_FILM_HOOKS
             QStringLiteral("film-hover"),
             QStringLiteral("film-row"),
+            QStringLiteral("film-site"),
 #endif
         };
         return verbs;
@@ -611,6 +622,7 @@ namespace {
 #ifdef OMAWEB_FILM_HOOKS
         {"film-hover", "hold a Space's name on show for the introductory film"},
         {"film-row", "hold an Agent tab's row hovered, or press its Stop, for the film"},
+        {"film-site", "say where Site information's button or blocked tile is, or press it"},
 #endif
     };
 

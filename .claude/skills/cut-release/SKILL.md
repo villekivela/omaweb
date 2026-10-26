@@ -75,9 +75,12 @@ would have.
    publishes as a prerelease, which is deliberate and not something to work around.
 
 6. **The film is this release's browser.** The website publishes at the tag and plays the `film`
-   release's recording, so a release that changed what the film shows needs a new one. Record it
-   from the commit to be tagged with `scripts/record_film.sh`, give the user `build/film/` to watch,
-   and upload it once they have, as [`film/README.md`](../../../film/README.md) says.
+   release's recording, so a release that changed what the film shows needs a new one. The user
+   records it on their own desktop, from the commit to be tagged, with
+   `scripts/record_film.py desktop`: it takes their keyboard for the run, so hand them the command
+   and wait for `build/film/`. Upload it once they have watched it, as
+   [`film/README.md`](../../../film/README.md) says. `scripts/record_film.sh` records it in a
+   container instead, for a machine without the desktop.
 
 ## The tag
 
