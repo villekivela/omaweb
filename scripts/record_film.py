@@ -51,12 +51,12 @@ SITES = (
     "pixelmint.test",  # the magazine's tracker, likewise
 )
 
-# Where the desktop's browser asks Kestrel for its suggestions. The engine reaches the sites through
-# its host resolver rules, but suggestions are asked for by the browser's own network stack, which
-# resolves through the system, and on the desktop no hosts file names a `.test` site. So the profile
-# names Kestrel there by the server's address and port, and the server answers that address as
-# Kestrel.
-ENGINE_ADDRESS = "127.0.0.1"
+# Where the desktop's browser asks Kestrel for its suggestions. Pages reach the sites through
+# Chromium's host resolver rules, but suggestions are asked for by the browser's own Qt network
+# stack, which resolves through the system, and on the desktop no hosts file names a `.test` site.
+# So the profile names Kestrel's suggestions there by the server's address and port, and the server
+# answers a suggestion asked of that address as Kestrel's.
+KESTREL_ADDRESS = "127.0.0.1"
 
 # The film's last page, which every site serves: the logo and the install line.
 END_CARD_PATH = "/film/end/"
@@ -147,7 +147,8 @@ class FixtureServer:
 
             def host(self) -> str:
                 named = (self.headers.get("Host") or "").split(":")[0].lower()
-                return "kestrel.test" if named == ENGINE_ADDRESS else named
+                suggestion = urllib.parse.urlsplit(self.path).path == "/suggest"
+                return "kestrel.test" if named == KESTREL_ADDRESS and suggestion else named
 
             def admitted(self) -> str | None:
                 host = self.host()
@@ -563,8 +564,8 @@ AD_HOSTS = ("adsprout.test", "pixelmint.test")
 THEMES = ROOT / "film" / "themes"
 # The theme Omarchy has the desktop wearing, which the desktop film opens in. It is only read.
 DESKTOP_THEME = Path.home() / ".local" / "state" / "omarchy" / "current" / "theme"
-# How opaque the desktop film's sidebar is: the maintainer's own Omaweb's, set over the theme's.
-# The theme's 0.95 lets so little of Hyprland's blur through that the sidebar reads as solid.
+# How opaque the desktop film's sidebar is: the maintainer's own Omaweb's, set over the theme's 0.95,
+# so as much of Hyprland's blur shows through it as in theirs.
 DESKTOP_SIDEBAR_OPACITY = 0.85
 
 # The frame the recording is taken at, and the film's own. The window is drawn at one and a half
@@ -712,20 +713,20 @@ def write_theme(colours: dict[str, str], config: Path) -> None:
     os.replace(staged, config / "theme.json")
 
 
-def seed(root: Path, opening: dict[str, str], port: int | None = None) -> tuple[Path, Path]:
+def seed(root: Path, opening: dict[str, str], suggestions: str = "http://kestrel.test",
+         sidebar_opacity: float | None = None) -> tuple[Path, Path]:
     """The browser's data and configuration roots, set up as the film needs them.
 
-    The search engine is Kestrel, asked for Engine suggestions, by name under the container's hosts
-    file and by the server's address and `port` on the desktop; Agents are allowed; blocking has
-    the shipped lists as a first run leaves them and rules for the magazine's ad network; and the
-    theme is the `opening` palette. On the desktop the sidebar lets the blurred desktop through as
-    the maintainer's own Omaweb does. None of it reaches anything outside the film.
+    The search engine is Kestrel, asked for Engine suggestions at the `suggestions` origin; Agents
+    are allowed; blocking has the shipped lists as a first run leaves them and rules for the
+    magazine's ad network; the theme is the `opening` palette; and the sidebar is the theme's own
+    opacity unless `sidebar_opacity` is set over it. None of it reaches anything outside the film.
     """
     data, config = root / "data", root / "config"
     config.mkdir(parents=True)
     settings = {"version": 1, "engine-suggestions": True}
-    if port is not None:
-        settings["sidebar-opacity"] = DESKTOP_SIDEBAR_OPACITY
+    if sidebar_opacity is not None:
+        settings["sidebar-opacity"] = sidebar_opacity
     (config / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
     (config / "agents.json").write_text(json.dumps({"allow-agents": True}), encoding="utf-8")
     (config / "search-engines.json").write_text(json.dumps({
@@ -736,8 +737,7 @@ def seed(root: Path, opening: dict[str, str], port: int | None = None) -> tuple[
             "name": "Kestrel",
             "queryUrl": "http://kestrel.test/search?q={query}",
             "keyword": "k",
-            "suggestUrl": ("http://kestrel.test" if port is None
-                           else f"http://{ENGINE_ADDRESS}:{port}") + "/suggest?q={query}",
+            "suggestUrl": suggestions + "/suggest?q={query}",
         }],
     }), encoding="utf-8")
     keybindings = json.loads((ROOT / "assets" / "keybindings" / "default.json").read_text())
@@ -1151,8 +1151,13 @@ def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
     # Port 80 needs the container's root; on the desktop the browser is told the port instead.
     server = FixtureServer(("127.0.0.1", 80 if desktop is None else 0))
     server.start()
-    worn = theme_changes(None if desktop is None else desktop.theme)
-    data, config = seed(root, worn[0], None if desktop is None else server.port)
+    if desktop is None:
+        worn = theme_changes(None)
+        data, config = seed(root, worn[0])
+    else:
+        worn = theme_changes(desktop.theme)
+        data, config = seed(root, worn[0], f"http://{KESTREL_ADDRESS}:{server.port}",
+                            DESKTOP_SIDEBAR_OPACITY)
     if desktop is None:
         subprocess.run(["wlr-randr", "--output", "HEADLESS-1", "--custom-mode",
                         "{}x{}".format(*OUTPUT_MODE), "--scale", str(OUTPUT_SCALE)], check=True)
@@ -1322,7 +1327,7 @@ class Desktop:
 
     def __init__(self, run=subprocess.run, which=shutil.which, dry_run: bool = False,
                  ledger: Path | None = None, proc: Path = Path("/proc"), kill=os.kill,
-                 killpg=os.killpg, theme: Path = DESKTOP_THEME,
+                 killpg=os.killpg, theme_directory: Path = DESKTOP_THEME,
                  workspace: str = WORKSPACE) -> None:
         self._run = run
         self._which = which
@@ -1338,12 +1343,13 @@ class Desktop:
         # The film's window, once it is placed, by Hyprland's address for it.
         self.window: str | None = None
         # Where Omarchy keeps the theme the desktop wears, and its palette once the run has read it.
-        self._theme = theme
+        self._theme_directory = theme_directory
         self.theme: dict[str, str] | None = None
         # The workspace the film runs in, by its name, as `hyprctl workspaces` gives it, and as
         # Hyprland is told it: by number, or by name.
-        self.film_workspace = workspace
-        self.film_selector = workspace if workspace.isdigit() else f"name:{workspace}"
+        self.film_workspace = workspace.removeprefix("name:")
+        self.film_selector = (self.film_workspace if self.film_workspace.isdigit()
+                              else f"name:{self.film_workspace}")
 
     def query(self, *command: str):
         return json.loads(self.read(*command))
@@ -1432,19 +1438,15 @@ class Desktop:
         if recorder and Path(self.command_of(recorder).split(" ")[0]).name == "wf-recorder":
             # Interrupted, as Ctrl+C would, so it closes the file it was filling.
             self.stop(["kill", "-INT", str(recorder)], lambda: self._kill(recorder, signal.SIGINT))
-        for command in left.get("release", []):
+        commands = left.get("release", [])
+        if left.get("return_to") and self.active_workspace() == left.get("workspace"):
+            commands = [*commands, self.focus_workspace(left["return_to"])]
+        for command in commands:
             try:
                 self.act(*command)
             except BeatMissed as failed:
                 log(f"could not put back {shlex.join(command)}: {failed}")
                 self.not_put_back.append(shlex.join(command))
-        if left.get("return_to") and self.active_workspace() == left.get("workspace"):
-            back = self.dispatch(f'hl.dsp.focus({{ workspace = "{left["return_to"]}" }})')
-            try:
-                self.act(*back)
-            except BeatMissed as failed:
-                log(f"could not put back {shlex.join(back)}: {failed}")
-                self.not_put_back.append(shlex.join(back))
         if not self.dry_run and not self.not_put_back:
             self.ledger.unlink(missing_ok=True)
 
@@ -1461,6 +1463,10 @@ class Desktop:
     @staticmethod
     def dispatch(lua: str) -> tuple[str, ...]:
         return ("hyprctl", "dispatch", lua)
+
+    @classmethod
+    def focus_workspace(cls, selector: str) -> tuple[str, ...]:
+        return cls.dispatch(f'hl.dsp.focus({{ workspace = "{selector}" }})')
 
     @staticmethod
     def move_pointer(x: int, y: int) -> tuple[str, ...]:
@@ -1483,7 +1489,7 @@ class Desktop:
         self.workspace = self.active_workspace()
         cursor = self.query("hyprctl", "cursorpos", "-j")
         self.pointer = (cursor["x"], cursor["y"])
-        self.theme = desktop_palette(self._theme)
+        self.theme = desktop_palette(self._theme_directory)
         # The terminal the run was started from, which has the keyboard until the film's window.
         self.started_from = self.query("hyprctl", "activewindow", "-j").get("address")
         if self._which("omarchy-shell"):
@@ -1602,8 +1608,8 @@ class Desktop:
                 self.act(*command)
             undo.append([self.move_pointer(*self.pointer)])
             self.act(*self.move_pointer(*self.parked))
-            undo.append([self.dispatch(f'hl.dsp.focus({{ workspace = "{self.workspace}" }})')])
-            self.act(*self.dispatch(f'hl.dsp.focus({{ workspace = "{self.film_selector}" }})'))
+            undo.append([self.focus_workspace(self.workspace)])
+            self.act(*self.focus_workspace(self.film_selector))
             yield
         finally:
             for stop in STOPS:

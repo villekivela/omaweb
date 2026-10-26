@@ -777,6 +777,11 @@ class DesktopTaken(unittest.TestCase):
             self.assertEqual(fake.acted, TAKE[:-1] + [to_nine])
         self.assertEqual(fake.acted, TAKE[:-1] + [to_nine] + GIVE_BACK)
 
+    def test_a_workspace_given_by_name_is_taken_by_name(self):
+        fake = FakeDesktop()
+        desktop = self.desktop(fake, workspace="name:film")
+        self.assertEqual((desktop.film_workspace, desktop.film_selector), ("film", "name:film"))
+
     def test_a_given_workspace_with_windows_of_the_readers_stops_the_film(self):
         fake = FakeDesktop(workspaces=[{"id": 9, "name": "9", "windows": 2}])
         with self.assertRaisesRegex(film.BeatMissed, "workspace 9 already holds 2 windows"):
@@ -1232,15 +1237,15 @@ class DesktopTheme(unittest.TestCase):
         (theme / "colors.toml").write_text(colours, encoding="utf-8")
         return theme
 
-    def staged(self, opening, port=None):
-        _, config = film.seed(self.directory / "film", opening, port)
+    def staged(self, opening, **options):
+        _, config = film.seed(self.directory / "film", opening, **options)
         return config
 
     def test_the_desktop_film_opens_in_the_theme_the_desktop_wears(self):
         tokyo = (film.THEMES / "tokyo-night.toml").read_text(encoding="utf-8")
         nebula = re.sub(r'dark_background = "#\w+"', 'dark_background = "#050718"', tokyo)
         theme = self.worn(nebula + 'hyprland_inactive_border = "rgba(252e56aa)"\n')
-        config = self.staged(film.desktop_palette(theme), 4321)
+        config = self.staged(film.desktop_palette(theme))
         drawn = json.loads((config / "theme.json").read_text(encoding="utf-8"))
         self.assertEqual(drawn["sidebar"], "#050718")
 
@@ -1258,16 +1263,29 @@ class DesktopTheme(unittest.TestCase):
         self.assertEqual(changes, ["#031222", "#13141c"])
 
     def test_the_desktops_sidebar_lets_through_as_much_as_the_maintainers_omaweb(self):
-        config = self.staged(film.film_palette("retro-82"), 4321)
+        config = self.staged(film.film_palette("retro-82"),
+                             sidebar_opacity=film.DESKTOP_SIDEBAR_OPACITY)
         settings = json.loads((config / "settings.json").read_text(encoding="utf-8"))
         drawn = json.loads((config / "theme.json").read_text(encoding="utf-8"))
-        sidebar = settings.get("sidebar-opacity", drawn["opacity"]["sidebar"])
-        self.assertLessEqual(sidebar, 0.85)
+        # The maintainer's own Omaweb sets 0.85 over the theme's sidebar.
+        self.assertEqual(drawn["opacity"]["sidebar"], 0.95)
+        self.assertEqual(settings["sidebar-opacity"], 0.85)
 
     def test_the_containers_sidebar_keeps_the_themes_opacity(self):
         config = self.staged(film.film_palette("retro-82"))
         settings = json.loads((config / "settings.json").read_text(encoding="utf-8"))
         self.assertNotIn("sidebar-opacity", settings)
+
+    def test_record_gives_the_desktops_browser_the_maintainers_sidebar_and_kestrel_by_address(self):
+        desktop = mock.Mock(theme=film.film_palette("retro-82"))
+        with mock.patch.object(film, "expect_shared_memory"), \
+                mock.patch.object(film, "FixtureServer", return_value=mock.MagicMock(port=4321)), \
+                mock.patch.object(film, "seed", side_effect=KeyboardInterrupt) as seed, \
+                self.assertRaises(KeyboardInterrupt):
+            film.record(Path("/build/omaweb-browser"), self.directory, desktop)
+        _, opening, suggestions, sidebar = seed.call_args.args
+        self.assertEqual((opening, suggestions, sidebar),
+                         (desktop.theme, "http://127.0.0.1:4321", 0.85))
 
 
 class EngineSuggestionsReachTheServer(unittest.TestCase):
@@ -1288,11 +1306,20 @@ class EngineSuggestionsReachTheServer(unittest.TestCase):
         return engines["engines"][0]["suggestUrl"]
 
     def test_the_desktops_browser_reaches_kestrels_suggestions_without_a_hosts_file(self):
-        address = self.suggest_url(self.server.port).replace("{query}", "tra")
+        address = self.suggest_url(f"http://127.0.0.1:{self.server.port}").replace("{query}",
+                                                                                  "tra")
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with opener.open(address, timeout=5) as reply:
             self.assertEqual(json.loads(reply.read())[0], "tra")
         self.assertEqual(self.server.paths("kestrel.test"), ["/suggest?q=tra"])
+
+    def test_only_a_suggestion_asked_of_the_address_is_kestrels(self):
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.port, timeout=5)
+        self.addCleanup(connection.close)
+        connection.request("GET", "/search?q=tra")
+        connection.getresponse().read()
+        self.assertEqual(self.server.paths("kestrel.test"), [])
+        self.assertEqual(self.server.strays(), ["127.0.0.1/search?q=tra"])
 
     def test_the_containers_browser_asks_kestrel_by_name(self):
         self.assertEqual(self.suggest_url(), "http://kestrel.test/suggest?q={query}")
@@ -1517,6 +1544,16 @@ class DesktopLedger(unittest.TestCase):
         self.assertEqual(fake.acted, self.RELEASE + [
             ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "4" })']])
         self.assertFalse(self.ledger.exists())
+
+    def test_the_next_run_comes_back_from_the_films_own_named_workspace(self):
+        self.left(workspace="name:omaweb-film", return_to="2")
+        fake = FakeDesktop()
+        fake.answers[("hyprctl", "activeworkspace", "-j")] = json.dumps(
+            {"id": -98, "name": "omaweb-film"})
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.desktop(fake).recover()
+        self.assertEqual(fake.acted[-1],
+                         ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "2" })'])
 
     def test_the_next_run_stays_where_the_reader_went_after_a_killed_run(self):
         self.left(workspace="9", return_to="4")

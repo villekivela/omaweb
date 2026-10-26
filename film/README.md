@@ -66,9 +66,9 @@ The desktop film wears the theme the desktop is wearing when the run starts. The
 through Omaweb's template as Omarchy would. Most of the film is in that theme: the Theme beat
 changes to Tokyo Night and back to it, and checks the chrome against each theme's colour. A desktop
 without the file records in Retro 82, as the container does, and the run says so. The film's sidebar
-lets 15% of the desktop through (`sidebar-opacity` 0.85), as the maintainer's own Omaweb does. At
-the theme's 0.95, Hyprland's blur behind the sidebar is too faint to show, and the sidebar reads as
-solid.
+lets 15% of the desktop through (`sidebar-opacity` 0.85), as the maintainer's own Omaweb does, where
+the theme alone lets 5% through. How much of Hyprland's blur shows depends on the wallpaper behind
+the window: over a dark one, the sidebar can still read as solid.
 
 ```sh
 scripts/record_film.py desktop --workspace 9
