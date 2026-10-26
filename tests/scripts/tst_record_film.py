@@ -845,8 +845,8 @@ class DesktopPlacement(unittest.TestCase):
 
     def test_the_window_is_read_where_it_came_to_rest_not_on_its_way(self):
         fake = FakeDesktop()
-        fake.clients = [[FILMS_WINDOW], [dict(PLACED, at=[300, 200])], [dict(PLACED, at=[420, 260])],
-                        [PLACED]]
+        fake.clients = [[FILMS_WINDOW], [dict(PLACED, at=[300, 200])],
+                        [dict(PLACED, at=[420, 260])], [PLACED]]
         self.assertEqual(self.place(fake), (480, 283, 1600, 900))
 
     def test_a_window_that_floats_already_is_not_tiled_again(self):
