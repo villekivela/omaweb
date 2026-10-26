@@ -2013,10 +2013,11 @@ ApplicationWindow {
 
     // The film's Agent beat, which has no pointer either: the window holds a
     // tab's row as a pointer resting on it would, so Stop shows beside Close,
-    // and answers where Stop is and the row's line under its title. `where`
-    // only answers, so the pointer can be drawn on its way there first, and
-    // `stop` presses Stop, as a click would. An empty id lets the row go.
-    function holdTabRow(tabId, where, stop) {
+    // and answers where Stop is and the row's line under its title. `mode`
+    // is "hold"; "where" only answers, so the pointer can be drawn on its way
+    // there first; and "stop" presses Stop, as a click would. An empty id lets
+    // the row go.
+    function holdTabRow(tabId, mode) {
         const id = String(tabId || "");
         if (id.length === 0) {
             sidebar.heldTabId = "";
@@ -2032,7 +2033,7 @@ ApplicationWindow {
                 error: "The sidebar shows no Agent tab " + id + "."
             };
         }
-        if (!where)
+        if (mode === "hold")
             sidebar.heldTabId = id;
         const button = row.agentStopButton;
         const corner = button.mapToItem(window.contentItem, 0, 0);
@@ -2046,7 +2047,7 @@ ApplicationWindow {
             windowHeight: window.contentItem.height,
             line: row.agentLine
         };
-        if (stop) {
+        if (mode === "stop") {
             sidebar.heldTabId = "";
             // After the answer, since stopping closes connections the request
             // may share a socket with.
@@ -2097,9 +2098,7 @@ ApplicationWindow {
         function onCommandRequested(requestId, request) {
             if (request.verb === "film-row") {
                 window.agentControlSource.answerCommand(requestId, window.holdTabRow(request.tabId,
-                                                                                     request.where
-                                                                                     === true, request.stop
-                                                                                     === true));
+                                                                                     request.mode));
                 return;
             }
             if (request.verb === "film-hover") {

@@ -907,6 +907,7 @@ set(omaweb_ui_files
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
     src/ui/AgentMark.qml
+    src/ui/AgentCaption.qml
     src/ui/AgentStopButton.qml
     src/ui/AgentWindowBar.qml
     src/ui/CommandDialog.qml

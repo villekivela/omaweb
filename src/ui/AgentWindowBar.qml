@@ -16,15 +16,6 @@ Rectangle {
 
     signal stopRequested
 
-    readonly property string agentName: root.agent && String(root.agent.name || "").length > 0
-                                        ? String(root.agent.name) : qsTr("An Agent")
-    readonly property string caption: root.agent && String(root.agent.act || "").length > 0 ? qsTr(
-                                                                                                  "%1 · %2").arg(
-                                                                                                  root.agentName).arg(
-                                                                                                  root.agent.act) :
-                                                                                              qsTr("%1 is driving").arg(
-                                                                                                  root.agentName)
-
     height: 30
     color: Qt.tint(root.colors.windowOpaque, Qt.rgba(root.colors.agentAccent.r,
                                                      root.colors.agentAccent.g,
@@ -49,18 +40,16 @@ Rectangle {
         font.pixelSize: Style.font.iconSmall
     }
 
-    Text {
+    AgentCaption {
+        id: caption
         objectName: "auxiliaryAgentCaption"
         anchors.left: mark.right
         anchors.leftMargin: Style.space(8)
         anchors.right: stop.left
         anchors.rightMargin: Style.space(12)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.caption
+        agent: root.agent
         color: root.colors.text
-        elide: Text.ElideRight
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
     }
 
     AgentStopButton {
@@ -72,7 +61,7 @@ Rectangle {
         height: 22
         colors: root.colors
         iconFontFamily: root.iconFontFamily
-        agentName: root.agentName
+        agentName: caption.agentName
         hot: stopArea.containsMouse
         onActivated: root.stopRequested()
 

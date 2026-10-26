@@ -7573,6 +7573,21 @@ TestCase {
 
         drive.report(true, "typed in \"Search\"");
         compare(act.text, "claude-code · typed in \"Search\"");
+        // A connection that gave no name is still said in whole sentences.
+        const nameless = function (act) {
+            const activity = {};
+            activity[drive.tabId] = {
+                "spaceId": drive.spaceId,
+                "name": "",
+                "act": act,
+                "busy": false
+            };
+            drive.control.agentActivity = activity;
+        };
+        nameless("looked at the page");
+        compare(act.text, "An Agent · looked at the page");
+        nameless("");
+        compare(act.text, "An Agent is driving");
 
         drive.detach();
         verify(!stripe.visible);
@@ -7621,11 +7636,11 @@ TestCase {
         mouseMove(window.contentItem, window.width - 10, window.height - 10);
         verify(!stop.visible);
 
-        const where = window.holdTabRow(drive.tabId, true, false);
+        const where = window.holdTabRow(drive.tabId, "where");
         verify(where.ok);
         verify(!stop.visible);
         compare(where.line, "claude-code · clicked \"Files changed\"");
-        const held = window.holdTabRow(drive.tabId, false, false);
+        const held = window.holdTabRow(drive.tabId, "hold");
         verify(held.ok);
         verify(stop.visible);
         const corner = stop.mapToItem(window.contentItem, 0, 0);
@@ -7635,11 +7650,11 @@ TestCase {
         compare(held.windowWidth, window.contentItem.width);
         compare(drive.control.stopped, []);
 
-        verify(window.holdTabRow(drive.tabId, false, true).ok);
+        verify(window.holdTabRow(drive.tabId, "stop").ok);
         tryCompare(drive.control, "stopped", [drive.tabId]);
         verify(!stop.visible);
-        verify(!window.holdTabRow(drive.readersSpaceId, false, false).ok);
-        verify(window.holdTabRow("", false, false).ok);
+        verify(!window.holdTabRow(drive.readersSpaceId, "hold").ok);
+        verify(window.holdTabRow("", "hold").ok);
         endAgentDrive(drive);
     }
 

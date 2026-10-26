@@ -82,24 +82,18 @@ Item {
     property var agent: null
     readonly property bool showsAgent: agent !== null && !pinned
     readonly property bool agentBusy: agent !== null && agent.busy === true
-    readonly property string agentName: agent && String(agent.name || "").length > 0 ? String(
-                                                                                           agent.name) :
-                                                                                       qsTr("An Agent")
+    readonly property string agentName: agent ? String(agent.name || "") : ""
     // Under the title: who is driving the tab and what it did last.
-    readonly property string agentLine: agent && String(agent.act || "").length > 0 ? qsTr(
-                                                                                          "%1 · %2").arg(
-                                                                                          root.agentName).arg(
-                                                                                          agent.act) :
-                                                                                      qsTr("%1 is driving").arg(
-                                                                                          root.agentName)
+    readonly property alias agentLine: agentAct.text
     // The row as a pointer resting on it draws it, which the introductory
     // film's recording holds without a pointer (Main.qml's holdTabRow).
     property bool held: false
     readonly property alias agentStopButton: agentStop
     readonly property bool pointed: hoverArea.containsMouse || root.held
-    readonly property string agentNote: qsTr(
-                                            "%1 is driving this tab. It stays rendered while attached.").arg(
-                                            root.agentName)
+    readonly property string agentNote: root.agentName.length > 0 ? qsTr(
+                                                                        "%1 is driving this tab. It stays rendered while attached.").arg(
+                                                                        root.agentName) : qsTr(
+                                                                        "An Agent is driving this tab. It stays rendered while attached.")
     // The key that selects this tab, as the keymap displays it, and whether
     // Primary is being held for the labels.
     property string keyLabel: ""
@@ -428,18 +422,16 @@ Item {
         font.pixelSize: Style.font.body
     }
 
-    Text {
+    AgentCaption {
+        id: agentAct
         objectName: "agentAct-" + root.tabId
         visible: root.showsAgent && !root.showsGlance
         anchors.left: title.left
         anchors.right: title.right
         anchors.top: title.bottom
         anchors.topMargin: -1
-        text: root.agentLine
+        agent: root.agent
         color: root.colors.agentAccent
-        elide: Text.ElideRight
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
     }
 
     // The leading edge of an Agent's row, just inside the edge the tab on show

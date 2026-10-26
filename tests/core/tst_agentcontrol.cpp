@@ -2419,15 +2419,21 @@ void AgentControlTest::holdsAnAgentTabsRowOnlyForTheFilm()
     QCOMPARE(
         asked.constLast().value(QStringLiteral("verb")).toString(), QStringLiteral("film-row"));
     QCOMPARE(asked.constLast().value(QStringLiteral("tabId")).toString(), tabId);
-    QCOMPARE(asked.constLast().value(QStringLiteral("stop")).toBool(), true);
-    QCOMPARE(asked.constLast().value(QStringLiteral("where")).toBool(), false);
+    QCOMPARE(asked.constLast().value(QStringLiteral("mode")).toString(), QStringLiteral("stop"));
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("film-row"),
+        {{QStringLiteral("tab"), tabId}, {QStringLiteral("where"), true}})));
+    QCOMPARE(asked.constLast().value(QStringLiteral("mode")).toString(), QStringLiteral("where"));
     QVERIFY(succeeded(ask(control, script, QStringLiteral("film-row"))));
     QCOMPARE(asked.constLast().value(QStringLiteral("tabId")).toString(), QString());
-    QCOMPARE(asked.constLast().value(QStringLiteral("stop")).toBool(), false);
+    QCOMPARE(asked.constLast().value(QStringLiteral("mode")).toString(), QStringLiteral("hold"));
+    QCOMPARE(failure(ask(control, script, QStringLiteral("film-row"),
+                 {{QStringLiteral("tab"), tabId}, {QStringLiteral("where"), true},
+                     {QStringLiteral("stop"), true}})),
+        QStringLiteral("bad-request"));
     QCOMPARE(failure(ask(control, script, QStringLiteral("film-row"),
                  {{QStringLiteral("tab"), QStringLiteral("personal-tab")}})),
         QStringLiteral("not-found"));
-    QCOMPARE(asked.size(), 2);
+    QCOMPARE(asked.size(), 3);
 #else
     QCOMPARE(failure(held), QStringLiteral("unknown-verb"));
     QVERIFY(asked.isEmpty());

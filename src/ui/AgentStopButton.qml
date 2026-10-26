@@ -8,6 +8,7 @@ Rectangle {
 
     property var colors
     property string iconFontFamily
+    // The connection's name, empty for one that gave none.
     property string agentName
     property bool hot: false
 
@@ -23,7 +24,8 @@ Rectangle {
     border.width: 1
     border.color: root.colors.agentAccent
     Accessible.role: Accessible.Button
-    Accessible.name: qsTr("Stop %1").arg(root.agentName)
+    Accessible.name: root.agentName.length > 0 ? qsTr("Stop %1").arg(root.agentName) : qsTr(
+                                                     "Stop the Agent")
     Accessible.onPressAction: root.activated()
 
     Row {

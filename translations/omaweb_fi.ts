@@ -53,23 +53,7 @@
     </message>
 </context>
 <context>
-    <name>AgentStopButton</name>
-    <message>
-        <source>Stop %1</source>
-        <translation>Pysäytä %1</translation>
-    </message>
-    <message>
-        <source>Stop</source>
-        <comment>verb: stop the Agent driving this tab or window</comment>
-        <translation>Pysäytä</translation>
-    </message>
-</context>
-<context>
-    <name>AgentWindowBar</name>
-    <message>
-        <source>An Agent</source>
-        <translation>Agentti</translation>
-    </message>
+    <name>AgentCaption</name>
     <message>
         <source>%1 · %2</source>
         <translation>%1 · %2</translation>
@@ -77,6 +61,30 @@
     <message>
         <source>%1 is driving</source>
         <translation>%1 ohjaa</translation>
+    </message>
+    <message>
+        <source>An Agent · %1</source>
+        <translation>Agentti · %1</translation>
+    </message>
+    <message>
+        <source>An Agent is driving</source>
+        <translation>Agentti ohjaa</translation>
+    </message>
+</context>
+<context>
+    <name>AgentStopButton</name>
+    <message>
+        <source>Stop %1</source>
+        <translation>Pysäytä %1</translation>
+    </message>
+    <message>
+        <source>Stop the Agent</source>
+        <translation>Pysäytä agentti</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <comment>verb: stop the Agent driving this tab or window</comment>
+        <translation>Pysäytä</translation>
     </message>
 </context>
 <context>
@@ -4692,16 +4700,8 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>%1 ohjaa tätä välilehteä. Se pysyy piirrettynä, kun yhteys on päällä.</translation>
     </message>
     <message>
-        <source>An Agent</source>
-        <translation>Agentti</translation>
-    </message>
-    <message>
-        <source>%1 · %2</source>
-        <translation>%1 · %2</translation>
-    </message>
-    <message>
-        <source>%1 is driving</source>
-        <translation>%1 ohjaa</translation>
+        <source>An Agent is driving this tab. It stays rendered while attached.</source>
+        <translation>Agentti ohjaa tätä välilehteä. Se pysyy piirrettynä, kun yhteys on päällä.</translation>
     </message>
     <message>
         <source>Pinned: %1</source>

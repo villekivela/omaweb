@@ -1649,16 +1649,23 @@ QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &requ
     }
     // And the row of this Agent tab held as a pointer resting on it would
     // hold it, with `where` to only answer where its Stop is and `stop` to
-    // press it. No tab lets it go.
+    // press it, which the window is asked as one `mode`. No tab lets it go.
     if (verb == u"film-row") {
         const auto tabId = request.value(QStringLiteral("tab")).toString();
         if (!tabId.isEmpty() && !m_attached.contains(tabId)) {
             return refusal(QStringLiteral("not-found"),
                 QStringLiteral("No Agent is attached to tab \"%1\".").arg(tabId));
         }
+        const auto where = request.value(QStringLiteral("where")).toBool();
+        const auto stop = request.value(QStringLiteral("stop")).toBool();
+        if (where && stop) {
+            return refusal(
+                QStringLiteral("bad-request"), QStringLiteral("Give --where or --stop, not both."));
+        }
         asked.insert(QStringLiteral("tabId"), tabId);
-        asked.insert(QStringLiteral("where"), request.value(QStringLiteral("where")).toBool());
-        asked.insert(QStringLiteral("stop"), request.value(QStringLiteral("stop")).toBool());
+        asked.insert(QStringLiteral("mode"),
+            stop ? QStringLiteral("stop")
+                 : (where ? QStringLiteral("where") : QStringLiteral("hold")));
     }
 #endif
     if (!isSignalConnected(QMetaMethod::fromSignal(&AgentControl::commandRequested))) {
