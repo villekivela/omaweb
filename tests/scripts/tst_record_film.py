@@ -810,6 +810,26 @@ class DesktopTaken(unittest.TestCase):
             self.desktop(fake)
         self.assertEqual(fake.acted, [])
 
+    def test_a_desktop_hyprctl_cannot_reach_stops_the_film_with_what_it_said(self):
+        fake = FakeDesktop()
+
+        def unreachable(command, **options):
+            if command[0] == "hyprctl":
+                raise subprocess.CalledProcessError(
+                    4, command, "", "HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)")
+            return fake.run(command, **options)
+
+        with self.assertRaisesRegex(film.BeatMissed, "hyprctl monitors -j.*is hyprland running"):
+            film.Desktop(run=unreachable, which=fake.which).survey()
+        self.assertEqual(fake.acted, [])
+
+    def test_a_desktop_without_hyprctl_stops_the_film(self):
+        def missing(command, **_):
+            raise FileNotFoundError(2, "No such file or directory", command[0])
+
+        with self.assertRaisesRegex(film.BeatMissed, "hyprctl"):
+            film.Desktop(run=missing, which=FakeDesktop().which).survey()
+
     def test_a_film_workspace_left_with_windows_stops_the_film(self):
         fake = FakeDesktop(workspaces=[{"id": 7, "name": "omaweb-film", "windows": 1}])
         with self.assertRaisesRegex(film.BeatMissed, "omaweb-film"):

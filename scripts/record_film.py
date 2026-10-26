@@ -1176,7 +1176,7 @@ def parking(monitor: dict, frame: tuple[int, int, int, int]) -> tuple[int, int]:
     raise BeatMissed("Desktop", f"the film's window covers all of {monitor['name']}")
 
 
-def desktop_environment(session: dict, root: Path, port: int) -> dict:
+def desktop_environment(session: dict, root: Path, port: int | str) -> dict:
     """The film's browser on the maintainer's desktop, as cut off from the reader's as under cage.
 
     It draws on the session's Wayland, so it keeps the runtime directory, and everything else it
@@ -1240,7 +1240,15 @@ class Desktop:
     def read(self, *command: str) -> str:
         if self.dry_run:
             log("reads: " + shlex.join(command))
-        return self._run(list(command), capture_output=True, text=True, check=True).stdout
+        try:
+            return self._run(list(command), capture_output=True, text=True, check=True).stdout
+        except subprocess.CalledProcessError as failed:
+            said = (failed.stderr or failed.stdout or "").strip()
+            raise BeatMissed("Desktop", f"{shlex.join(command)} exited {failed.returncode}: "
+                                        f"{said}") from None
+        except OSError as failed:
+            raise BeatMissed("Desktop", f"{shlex.join(command)} could not run: "
+                                        f"{failed.strerror}") from None
 
     def act(self, *command: str) -> None:
         if self.dry_run:
@@ -1471,7 +1479,7 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
     if desktop.dry_run:
         with desktop.taken():
             root = Path(tempfile.gettempdir()) / "omaweb-film-<run>"
-            environment = desktop_environment(os.environ, root, 0)
+            environment = desktop_environment(os.environ, root, "<port>")
             settings = {name: environment[name] for name in
                         ("HOME", "OMAWEB_DATA_ROOT", "OMAWEB_CONFIG_ROOT", "OMAWEB_CONTROL_SOCKET",
                          "QTWEBENGINE_CHROMIUM_FLAGS")}
