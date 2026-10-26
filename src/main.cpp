@@ -65,6 +65,9 @@
 #include "StartupPhases.h"
 #include "StoredFaviconProvider.h"
 #include "InputOrigin.h"
+#ifdef OMAWEB_KEY_EVENT_LOG
+#include "KeyEventLog.h"
+#endif
 #include "PrimaryHold.h"
 #include "SpaceSwipe.h"
 #include "Scenes.h"
@@ -273,6 +276,9 @@ int main(int argc, char *argv[])
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
     omaweb::markStartupPhase("qt-started");
+#ifdef OMAWEB_KEY_EVENT_LOG
+    omaweb::installKeyEventLog(&application);
+#endif
     omaweb::installWindowChrome(&application);
     const auto catalogueDirectories
         = omaweb::catalogueDirectories(QStringLiteral(OMAWEB_TRANSLATIONS_DIRECTORY));

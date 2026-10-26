@@ -36,6 +36,14 @@ option(OMAWEB_FILM_HOOKS "Take the verbs the introductory film's recording needs
 if(OMAWEB_FILM_HOOKS)
     add_compile_definitions(OMAWEB_FILM_HOOKS)
 endif()
+# The runtime budget's browser logs each key it is given, what it would type
+# and where the focus went, so a failed attempt at a Space says where its keys
+# went (#795). Only CI's budget job turns it on; a browser built to ship cannot
+# write what its reader typed, whatever logging rules they set.
+option(OMAWEB_KEY_EVENT_LOG "Log keys and focus for the runtime budget" OFF)
+if(OMAWEB_KEY_EVENT_LOG)
+    add_compile_definitions(OMAWEB_KEY_EVENT_LOG)
+endif()
 set(OMAWEB_GITHUB_APP_CLIENT_ID "Iv23liYr7TPLsmgsxLfl" CACHE STRING
     "Public client ID of the Omaweb GitHub App")
 set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync" CACHE STRING
@@ -602,6 +610,9 @@ add_library(omaweb-ui STATIC
     src/ui/ThemeController.h
 )
 target_include_directories(omaweb-ui PUBLIC src/ui)
+if(OMAWEB_KEY_EVENT_LOG)
+    target_sources(omaweb-ui PRIVATE src/ui/KeyEventLog.cpp src/ui/KeyEventLog.h)
+endif()
 target_link_libraries(omaweb-ui PUBLIC omaweb-core Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
 omaweb_strict_target(omaweb-ui)
 # The Scenes' parameter files, shared with the website, which reads them from
@@ -1471,6 +1482,13 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_qt_symbol_versions.py
         )
+        if(NOT OMAWEB_KEY_EVENT_LOG)
+            add_test(NAME omaweb-ships-no-key-log
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_ships_no_key_log.py
+                    $<TARGET_FILE:omaweb-browser>
+            )
+        endif()
         add_test(NAME omaweb-security-baseline
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
@@ -1515,6 +1533,19 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-startup-phases-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-startup-phases-tests)
     add_test(NAME omaweb-startup-phases COMMAND omaweb-startup-phases-tests)
+
+    # Built from the source whatever OMAWEB_KEY_EVENT_LOG says, so the log is
+    # tested in every build and shipped in none.
+    qt_add_executable(omaweb-key-event-log-tests
+        "tests/ui/tst_keyeventlog.cpp"
+        "src/ui/KeyEventLog.cpp"
+    )
+    target_include_directories(omaweb-key-event-log-tests PRIVATE src/ui)
+    target_link_libraries(omaweb-key-event-log-tests PRIVATE Qt6::Gui Qt6::Test)
+    omaweb_strict_target(omaweb-key-event-log-tests)
+    add_test(NAME omaweb-key-event-log COMMAND omaweb-key-event-log-tests)
+    set_tests_properties(omaweb-key-event-log PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     qt_add_executable(omaweb-payment-cards-tests
         "tests/core/tst_paymentcards.cpp"
