@@ -81,6 +81,7 @@ Item {
     // Null for a tab no Agent drives. A Pinned tab is never an Agent's.
     property var agent: null
     readonly property bool showsAgent: agent !== null && !pinned
+    readonly property bool agentBusy: agent !== null && agent.busy === true
     readonly property string agentName: agent && String(agent.name || "").length > 0 ? String(
                                                                                            agent.name) :
                                                                                        qsTr("An Agent")
@@ -98,9 +99,7 @@ Item {
     readonly property bool pointed: hoverArea.containsMouse || root.held
     readonly property string agentNote: qsTr(
                                             "%1 is driving this tab. It stays rendered while attached.").arg(
-                                            agent && String(agent.name || "").length > 0 ? String(
-                                                                                               agent.name) :
-                                                                                           qsTr("An Agent"))
+                                            root.agentName)
     // The key that selects this tab, as the keymap displays it, and whether
     // Primary is being held for the labels.
     property string keyLabel: ""
@@ -456,12 +455,11 @@ Item {
         height: parent.height - Style.space(8)
         radius: width / 2
         color: root.colors.agentAccent
-        readonly property bool busy: root.agent !== null && root.agent.busy === true
-        readonly property real restingOpacity: busy && SystemMotion.reduced ? 0.6 : 1
+        readonly property real restingOpacity: root.agentBusy && SystemMotion.reduced ? 0.6 : 1
         opacity: restingOpacity
 
         SequentialAnimation on opacity {
-            running: agentStripe.visible && agentStripe.busy && !SystemMotion.reduced
+            running: agentStripe.visible && root.agentBusy && !SystemMotion.reduced
             loops: Animation.Infinite
             onRunningChanged: if (!running)
                                   agentStripe.opacity = Qt.binding(function () {
@@ -496,7 +494,7 @@ Item {
             objectName: "agentMark-" + root.tabId
             anchors.centerIn: parent
             visible: !root.pointed
-            busy: root.agent !== null && root.agent.busy === true
+            busy: root.agentBusy
             color: root.colors.agentAccent
             font.family: root.iconFontFamily
         }
@@ -789,7 +787,7 @@ Item {
 
         // Stop closes the Agent's whole connection, so it is offered only to a
         // pointer on the row, beside Close and never in its place.
-        Rectangle {
+        AgentStopButton {
             id: agentStop
             objectName: "agentStop-" + root.tabId
             readonly property real gap: Style.space(2)
@@ -797,46 +795,15 @@ Item {
                 return agentStop.visible && x >= agentStop.x && x < agentStop.x + agentStop.width
                         && y >= agentStop.y && y < agentStop.y + agentStop.height;
             }
-            readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX,
-                                                                          hoverArea.mouseY)
-            readonly property color foreground: hot ? root.colors.windowOpaque :
-                                                      root.colors.agentAccent
             anchors.right: closeButton.left
             anchors.rightMargin: gap
             anchors.verticalCenter: parent.verticalCenter
-            width: stopLabel.implicitWidth + Style.space(12)
-            height: 24
             visible: root.showsAgent && !root.showsGlance && root.pointed && !root.lifted
-            radius: Style.cornerRadius
-            color: hot ? root.colors.agentAccent : "transparent"
-            border.width: 1
-            border.color: root.colors.agentAccent
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Stop %1").arg(root.agentName)
-            Accessible.onPressAction: root.agentStopRequested(root.tabId)
-
-            Row {
-                id: stopLabel
-                anchors.centerIn: parent
-                spacing: Style.space(3)
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "stop"
-                    color: agentStop.foreground
-                    font.family: root.iconFontFamily
-                    font.pixelSize: Style.font.iconSmall
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Stop", "verb: stop the Agent driving this tab")
-                    color: agentStop.foreground
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                }
-            }
+            colors: root.colors
+            iconFontFamily: root.iconFontFamily
+            agentName: root.agentName
+            hot: hoverArea.containsMouse && covers(hoverArea.mouseX, hoverArea.mouseY)
+            onActivated: root.agentStopRequested(root.tabId)
         }
     }
 }

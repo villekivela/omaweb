@@ -63,44 +63,18 @@ Rectangle {
         font.pixelSize: Style.font.caption
     }
 
-    Rectangle {
+    AgentStopButton {
         id: stop
         objectName: "auxiliaryAgentStop"
         anchors.right: parent.right
         anchors.rightMargin: Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
-        width: stopLabel.implicitWidth + Style.space(12)
         height: 22
-        radius: Style.cornerRadius
-        color: stopArea.containsMouse ? root.colors.agentAccent : "transparent"
-        border.width: 1
-        border.color: root.colors.agentAccent
-        Accessible.role: Accessible.Button
-        Accessible.name: qsTr("Stop %1").arg(root.agentName)
-        Accessible.onPressAction: root.stopRequested()
-
-        Row {
-            id: stopLabel
-            anchors.centerIn: parent
-            spacing: Style.space(3)
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "stop"
-                color: stopArea.containsMouse ? root.colors.windowOpaque : root.colors.agentAccent
-                font.family: root.iconFontFamily
-                font.pixelSize: Style.font.iconSmall
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Stop", "verb: stop the Agent driving this window")
-                color: stopArea.containsMouse ? root.colors.windowOpaque : root.colors.agentAccent
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                font.bold: true
-            }
-        }
+        colors: root.colors
+        iconFontFamily: root.iconFontFamily
+        agentName: root.agentName
+        hot: stopArea.containsMouse
+        onActivated: root.stopRequested()
 
         MouseArea {
             id: stopArea

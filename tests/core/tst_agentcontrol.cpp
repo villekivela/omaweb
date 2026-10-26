@@ -1488,6 +1488,11 @@ void AgentControlTest::stoppingAnAgentClosesItsWholeConnection()
                                  .value(QStringLiteral("id"))
                                  .toString();
     QVERIFY(!inTemporary.isEmpty());
+    // The socket that made the Space asks under another name too, and is
+    // still the stopped Agent's.
+    QVERIFY(succeeded(send(client,
+        {{QStringLiteral("verb"), QStringLiteral("spaces")},
+            {QStringLiteral("name"), QStringLiteral("claude helper")}})));
     // The same Agent, a verb at a time as the CLI asks, in an Agent Space
     // that outlives it and in a Space of the reader's it was granted.
     const auto inAgentSpace = openAgentTab(control, QStringLiteral("claude"));
@@ -1502,6 +1507,16 @@ void AgentControlTest::stoppingAnAgentClosesItsWholeConnection()
     for (const auto &tabId : {inTemporary, inAgentSpace, QStringLiteral("work-tab"), others}) {
         QVERIFY2(control.agentTabIds().contains(tabId), qPrintable(tabId));
     }
+    // A page verb still out, and one waiting on the reader's grant.
+    QList<QJsonObject> pendingPage;
+    askPageLater(
+        control, QStringLiteral("claude"), QStringLiteral("read"), inAgentSpace, pendingPage);
+    QCOMPARE(requested.count(), 2);
+    QList<QJsonObject> pendingGrant;
+    askPageLater(control, QStringLiteral("claude"), QStringLiteral("look"),
+        QStringLiteral("personal-tab"), pendingGrant);
+    QCOMPARE(control.grantRequest().value(QStringLiteral("spaceId")).toString(),
+        QStringLiteral("personal"));
 
     control.stopAgent(inAgentSpace);
     // Nothing is revoked.
@@ -1513,6 +1528,13 @@ void AgentControlTest::stoppingAnAgentClosesItsWholeConnection()
         QVERIFY2(!control.agentTabIds().contains(tabId), qPrintable(tabId));
     }
     QVERIFY(control.agentTabIds().contains(others));
+    QCOMPARE(pendingPage.size(), 1);
+    QCOMPARE(failure(pendingPage.constFirst()), QStringLiteral("stopped"));
+    control.answerGrant(QStringLiteral("personal"), true);
+    QCOMPARE(pendingGrant.size(), 1);
+    QCOMPARE(failure(pendingGrant.constFirst()), QStringLiteral("stopped"));
+    QCOMPARE(requested.count(), 2);
+    QVERIFY(!control.agentTabIds().contains(QStringLiteral("personal-tab")));
     QTRY_VERIFY(!browser->findTab(inTemporary));
     QCOMPARE(browser->spaces()->rowCount(), spacesBefore + 2);
 

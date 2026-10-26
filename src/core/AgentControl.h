@@ -325,6 +325,10 @@ private:
         // asked about them again, so a denial is not a prompt it can repeat
         // over the reader's page.
         QSet<QString> deniedSpaceIds;
+        // How many times the reader has stopped this connection, so a request
+        // that was waiting on a grant prompt when it was stopped is refused
+        // rather than carried out once the reader answers.
+        int stops = 0;
     };
 
     enum class GrantAnswer { Allowed, Denied, Undecided, Withdrawn, Failed, Gone };
@@ -438,6 +442,8 @@ private:
     // Nothing when its own Space is gone.
     QString defaultSpace(const Connection &connection) const;
     static QJsonObject noSpace(const QString &named);
+    // What a request of a connection the reader stopped is answered.
+    static QJsonObject stoppedRefusal();
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
     double pageScale() const;
     // What a request is about before it runs: its tab, and the Space it
@@ -462,9 +468,10 @@ private:
     QString m_configRoot;
     bool m_allowAgents = false;
     QHash<QString, Connection> m_connections;
-    // The name each open socket connection last asked under, so Stop finds
-    // the sockets of the Agent it stops.
-    QHash<quint64, QString> m_socketNames;
+    // Every name each open socket connection has asked under, so Stop finds
+    // the sockets of the Agent it stops, the one a temporary Space was made
+    // over included.
+    QHash<quint64, QSet<QString>> m_socketNames;
     quint64 m_requests = 0;
     // Every tab an Agent opened in this run, so a reader's own tab is never
     // one an Agent can load or close. It is not kept across a restart, after

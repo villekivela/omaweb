@@ -400,7 +400,6 @@ Rectangle {
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl)
                                   === "about:blank"
 
-    // The footer's button for a Space, or null when the Space has none.
     // The ordinary row of a tab of the Space on show, or null.
     function tabRow(tabId) {
         for (let index = 0; index < ordinaryRows.count; ++index) {
@@ -411,6 +410,7 @@ Rectangle {
         return null;
     }
 
+    // The footer's button for a Space, or null when the Space has none.
     function spaceButton(spaceId) {
         for (let index = 0; index < spaceRepeater.count; ++index) {
             const button = spaceRepeater.itemAt(index);

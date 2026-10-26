@@ -7512,6 +7512,20 @@ TestCase {
         return found;
     }
 
+    // The visible items under `item` that draw a border in `colour`, with
+    // `excluded`'s subtree left out.
+    function visibleBordersIn(item, colour, excluded) {
+        if (item === excluded || !item.visible)
+            return [];
+        let found = [];
+        if (item.border !== undefined && item.border.width > 0 && Qt.colorEqual(item.border.color,
+                                                                                colour))
+            found.push(item);
+        for (let index = 0; index < item.children.length; ++index)
+            found = found.concat(visibleBordersIn(item.children[index], colour, excluded));
+        return found;
+    }
+
     // The page of an Agent tab on show is left as the site drew it: who is
     // driving it and what it did last are on its row, and nowhere else, even
     // with the sidebar hidden or the tab beside the reader's in a split.
@@ -7522,6 +7536,7 @@ TestCase {
         const act = "clicked \"Files changed\"";
         verify(visibleTextsHolding(sidebar, act, null).length > 0);
         compare(visibleTextsHolding(window.contentItem, act, sidebar).length, 0);
+        compare(visibleBordersIn(window.contentItem, window.colors.agentAccent, sidebar).length, 0);
 
         window.sidebarCollapsed = true;
         tryCompare(sidebar, "visible", false);
@@ -7534,6 +7549,7 @@ TestCase {
         tryCompare(engineLoader, "splitOnShow", true);
         compare(engineLoader.tabBesideId, drive.tabId);
         compare(visibleTextsHolding(window.contentItem, act, sidebar).length, 0);
+        compare(visibleBordersIn(window.contentItem, window.colors.agentAccent, sidebar).length, 0);
         browser.separateSplit();
         browser.closeTab(readersTabId);
         endAgentDrive(drive);

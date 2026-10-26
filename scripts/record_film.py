@@ -899,10 +899,11 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, config: Path
     keys("Primary+e", settle=0)
     wait_for(beat.name, "the invoice form to load",
              reported(server, "tallyhaus.test", urllib.parse.urlsplit(INVOICE_PAGE).path))
+    acts = [row_where()["line"]]
     time.sleep(COMMAND_READ)
     show_command("omaweb", "look")
     look = answer(beat.name, browser, "look", "--tab", tab, name=AGENT)["look"]
-    acts = [row_where()["line"]]
+    acts.append(row_where()["line"])
     time.sleep(COMMAND_READ)
     # One batch, as the skill teaches, sent with Enter from the last field as a person would: a
     # click waits while the reader is in Omaweb's own controls, and here the reader is in the

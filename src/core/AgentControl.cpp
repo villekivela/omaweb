@@ -1083,6 +1083,12 @@ void AgentControl::attach(
     emit agentActivityChanged();
 }
 
+QJsonObject AgentControl::stoppedRefusal()
+{
+    return refusal(QStringLiteral("stopped"),
+        QStringLiteral("The reader stopped this Agent, so the page was left as it was."));
+}
+
 void AgentControl::stopAgent(const QString &tabId)
 {
     const auto found = m_attached.constFind(tabId);
@@ -1096,9 +1102,9 @@ void AgentControl::stopAgent(const QString &tabId)
             stopped.insert(it.key());
         }
     }
-    if (const auto connection = m_connections.find(name); connection != m_connections.end()) {
-        connection->currentTabId.clear();
-    }
+    auto &connection = connectionNamed(name);
+    connection.currentTabId.clear();
+    ++connection.stops;
 
     QStringList cancelled;
     QList<Reply> refused;
@@ -1121,13 +1127,12 @@ void AgentControl::stopAgent(const QString &tabId)
         emit pageRequestsCancelledIn(cancelled);
     }
     for (const auto &reply : std::as_const(refused)) {
-        reply(refusal(QStringLiteral("stopped"),
-            QStringLiteral("The reader stopped this Agent, so the page was left as it was.")));
+        reply(stoppedRefusal());
     }
 
     QList<quint64> sockets;
     for (auto it = m_socketNames.cbegin(); it != m_socketNames.cend(); ++it) {
-        if (it.value() == name) {
+        if (it.value().contains(name)) {
             sockets.append(it.key());
         }
     }
@@ -1275,7 +1280,7 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
     }
     auto &connection = connectionNamed(name);
     if (socketConnection != 0) {
-        m_socketNames.insert(socketConnection, name);
+        m_socketNames[socketConnection].insert(name);
     }
     if (const auto revoked = std::exchange(connection.revokedSpaceName, {}); !revoked.isEmpty()) {
         const auto refused = refusal(QStringLiteral("revoked"),
@@ -1315,8 +1320,13 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
             return;
         }
         askGrant(spaceId, name,
-            [this, request, reply, logged, socketConnection, space, spaceId, name, denied](
-                GrantAnswer answer) {
+            [this, request, reply, logged, socketConnection, space, spaceId, name, denied,
+                stops = connection.stops](GrantAnswer answer) {
+                if (const auto found = m_connections.constFind(name);
+                    found != m_connections.cend() && found->stops != stops) {
+                    logged(stoppedRefusal());
+                    return;
+                }
                 switch (answer) {
                 case GrantAnswer::Allowed:
                     handle(request, reply, socketConnection);
