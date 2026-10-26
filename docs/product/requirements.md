@@ -621,6 +621,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
 
 ## Daily browser operations
 
+- A touchpad scroll in a page glides on after the fingers lift and slows to a stop, as in GTK 4. The
+  glide starts at the speed the fingers had over the last 150 ms before they lifted, so fingers that
+  come to rest first leave the page where it is, and it slows as GTK's does. It scrolls whatever the
+  fingers were scrolling, a nested scroller included. Fingers coming down on the touchpad, a scroll
+  or a wheel, a click, a key, the window losing focus, a tab or Space switch and a page load each
+  stop it. A mouse wheel scrolls exactly as far as each notch, with no easing.
 - Find belongs to one tab. Hiding the find interface retains its query and current match for that
   tab; navigation clears the matches and keeps the query ready to run again.
 - Zoom belongs to one tab and supports increase, decrease, and reset. It enlarges the page over the
