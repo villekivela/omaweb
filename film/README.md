@@ -15,10 +15,10 @@ claims. In order:
 1. A Space switch. The pointer rests on each Space's square in the footer, which names its Space,
    and the reader switches to Work. The footer stays on camera, so its colour is seen to change.
 1. Work's split, two docs pages side by side, with the sidebar hidden so they take the whole window.
-1. Blocking on a magazine, which loads again with its ad slots empty. The pointer clicks the lock,
-   Site information opens, and the pointer opens its blocked tile. The camera closes on the card,
-   whose list of refused requests names the ad network and the tracker, and holds it long enough to
-   read. Neither is ever reached.
+1. Blocking on a magazine, which loads again with its ad slots empty. The pointer clicks the Site
+   information button, Site information opens, and the pointer opens its blocked tile. The camera
+   closes on the card, whose list of refused requests names the ad network and the tracker, and
+   holds it long enough to read. Neither is ever reached.
 1. A theme change on one Start page, from Retro 82 to Tokyo Night, across the whole browser.
 1. An Agent at work in a Space of its own. Each command it runs, `omaweb space new`, `open`, `look`
    and one batched `do`, takes the caption's place as it runs, its tab's row in the sidebar names
@@ -30,10 +30,10 @@ The recording has no pointer. Its browser is built with `OMAWEB_FILM_HOOKS`, whi
 `omaweb film-hover` has the window hold a Space's name on show through the footer button's own hover
 state and answer where the button is. `omaweb film-row <tab>` has it hold an Agent tab's row as
 hovered, so Stop shows, and answer where Stop is and what the row says; `--where` only answers, and
-`--stop` presses Stop as a click would. `omaweb film-site lock` and `omaweb film-site blocked`
-answer where the lock and Site information's blocked tile are, and `--press` clicks them; with
-neither, it answers whether the card is open, at which detail, what its blocked list names and where
-the card is, which the camera frames. The edit draws `pointer.png` where the window answered,
+`--stop` presses Stop as a click would. `omaweb film-site button` and `omaweb film-site blocked`
+answer where the Site information button and the card's blocked tile are, and `--press` clicks them;
+with neither, it answers whether the card is open, at which detail, what its blocked list names and
+where the card is, which the camera frames. The edit draws `pointer.png` where the window answered,
 gliding between the places. `pointer.svg` is its source. No shipped build has any of them.
 
 ## Recording it on the desktop
@@ -60,10 +60,21 @@ the line that installs them. Then it:
 1. Records only the window, with `wf-recorder -g`, so the bar, other windows and other monitors stay
    out, and cuts the film as the container does, into `build/film/`.
 
-Whether the run ends, fails or is stopped with Ctrl+C, it switches back to the workspace it started
-on, puts the pointer back and restores notifications as they were. The reader's own Omaweb and its
-profile are never started or read. A monitor at Hyprland's scale of 1.5 records the window at cage's
-2400 by 1350; at another scale the edit scales the recording to that size.
+Before each key it sends, the run asks Hyprland which window has the keyboard. If it is not the
+film's, because the pointer was nudged onto another window or a window took focus, the run stops
+there, says which window has it, and puts the desktop back, so no key reaches anything of the
+reader's.
+
+Whether the run ends, fails, or is stopped with Ctrl+C or by its terminal closing, it stops the
+film's browser and the recorder, switches back to the workspace it started on, puts the pointer back
+and restores notifications as they were. The reader's own Omaweb and its profile are never started
+or read. A monitor at Hyprland's scale of 1.5 records the window at cage's 2400 by 1350; at another
+scale the edit scales the recording to that size.
+
+Hyprland 0.56 takes its dispatchers as Lua (`hl.dsp`), as Omarchy 4's scripts send them, and answers
+one it could not do with an error rather than `ok`. After Enter, and before it changes anything, the
+run asks for two things that change nothing in the same forms: the pointer moved to where it is, and
+the keyboard given to the window that has it. A Hyprland that refuses either stops the run there.
 
 ```sh
 scripts/record_film.py desktop --dry-run
@@ -71,7 +82,24 @@ scripts/record_film.py desktop --dry-run
 
 builds nothing and changes nothing. It reads the monitor, the workspace, the pointer and the
 notification state, then prints each command the run would issue, in order, and what it would have
-stopped on. Hyprland 0.56 takes its dispatchers as Lua (`hl.dsp`), as Omarchy 4's scripts send them.
+stopped on.
+
+### If a run is killed
+
+A run killed outright (`kill -9`, or a crash) cannot put anything back. It keeps a ledger in
+`build/film/desktop-run.json` from before it changes anything until it has put everything back, and
+the next `scripts/record_film.py desktop`, once Enter is pressed, stops the film's browser and the
+recorder that ledger names, if those process numbers are still theirs, and restores notifications as
+that run found them. To put things back by hand instead:
+
+```sh
+pkill -INT -x wf-recorder                 # the recorder, which otherwise fills the disk
+pkill -f build/film-desktop/omaweb-browser # the film's browser, never the installed one
+omarchy-shell notifications setDnd off     # or makoctl mode -r do-not-disturb
+rm build/film/desktop-run.json
+```
+
+Then switch back to the workspace you were on. The `omaweb-film` workspace goes once its window has.
 
 ## Recording it in a container
 

@@ -378,7 +378,7 @@ class BeatChecks(unittest.TestCase):
     # The window's answer to `film-site` with Site information open at the blocked list, in the
     # film window's logical pixels.
     SITE = {"ok": True, "open": True, "detail": "blocked", "windowWidth": 1600,
-            "windowHeight": 900, "lock": {"x": 16, "y": 40, "width": 18, "height": 18},
+            "windowHeight": 900, "button": {"x": 16, "y": 40, "width": 18, "height": 18},
             "card": {"x": 8, "y": 64, "width": 360, "height": 420},
             "listed": ["adsprout.test/serve.js?slot=top", "pixelmint.test/pixel.gif",
                        "adsprout.test/serve.js?slot=side"]}
@@ -400,7 +400,7 @@ class BeatChecks(unittest.TestCase):
         with self.assertRaisesRegex(film.BeatMissed, "pixelmint.test"):
             film.expect_blocked_list("Blocking", dict(self.SITE, listed=listed), film.AD_HOSTS)
 
-    def test_the_camera_frames_the_lock_and_the_card_it_opened(self):
+    def test_the_camera_frames_site_informations_button_and_card(self):
         left, top, wide, high = film.framing(self.SITE)
         self.assertEqual(left, 0.0)
         self.assertAlmostEqual(top, 40 / 900 - 0.03)
@@ -696,6 +696,11 @@ class FakeDesktop:
         self.notifier = notifier
         # What `hyprctl clients -j` answers each time it is asked, the last one from then on.
         self.clients = [[]]
+        # The window with the keyboard: the terminal the run was started from, until the film's.
+        self.active = {"address": "0x5566cc", "class": "Alacritty", "title": "~/omaweb"}
+        # What an action answers, where it is not Hyprland's "ok".
+        self.replies = {}
+        self.read_log = []
         self.acted = []
         self.interrupt_at = None
         self.failing = set()
@@ -706,10 +711,14 @@ class FakeDesktop:
 
     def run(self, command, **_):
         command = tuple(command)
+        if command == ("hyprctl", "activewindow", "-j"):
+            self.read_log.append(list(command))
+            return subprocess.CompletedProcess(command, 0, json.dumps(self.active), "")
         if command == ("hyprctl", "clients", "-j"):
             answer = self.clients.pop(0) if len(self.clients) > 1 else self.clients[0]
             return subprocess.CompletedProcess(command, 0, json.dumps(answer), "")
         if command in self.answers:
+            self.read_log.append(list(command))
             return subprocess.CompletedProcess(command, 0, self.answers[command], "")
         self.acted.append(list(command))
         self.signals_while_acting.append(signal.getsignal(signal.SIGINT))
@@ -717,9 +726,14 @@ class FakeDesktop:
             raise KeyboardInterrupt
         if command in self.failing:
             raise subprocess.CalledProcessError(1, command)
-        return subprocess.CompletedProcess(command, 0, "ok\n", "")
+        return subprocess.CompletedProcess(command, 0, self.replies.get(command, "ok\n"), "")
 
 
+# Hyprland asked for two things that change nothing, in the run's own forms, before it changes any.
+PREFLIGHT = [
+    ["hyprctl", "eval", "hl.dispatch(hl.dsp.cursor.move({ x = 1280, y = 730 }))"],
+    ["hyprctl", "dispatch", 'hl.dsp.focus({ window = "address:0x5566cc" })'],
+]
 TAKE = [
     ["omarchy-shell", "notifications", "setDnd", "on"],
     ["omarchy-shell", "-q", "omarchy.indicators", "refresh"],
@@ -1016,6 +1030,10 @@ class DesktopBuild(unittest.TestCase):
                       commands)
         built = next(options for command, options in run.ran if command[:2] == ["cmake", "--build"])
         self.assertEqual(built["env"]["CMAKE_BUILD_PARALLEL_LEVEL"], "2")
+        # The content blocker's cargo build, which bootstrap_content_blocker.sh runs, too.
+        blocker = next(options for command, options in run.ran
+                       if command == ["scripts/bootstrap_content_blocker.sh"])
+        self.assertEqual(blocker["env"]["CARGO_BUILD_JOBS"], "2")
 
     def test_a_checkout_with_changes_is_not_filmed(self):
         run = Commands((["git", "status"], 0, " M src/main.cpp\n"))
@@ -1060,6 +1078,8 @@ class DesktopRun(unittest.TestCase):
     def test_the_run_says_it_takes_the_keyboard_and_waits_before_it_changes_anything(self):
         def at_the_prompt(_prompt=""):
             self.assertEqual(self.fake.acted, [])
+            # The desktop is read after the key, as it stands when the run starts.
+            self.assertEqual(self.fake.read_log, [])
             self.assertIn("keyboard", self.said.getvalue())
             return ""
 
@@ -1068,7 +1088,7 @@ class DesktopRun(unittest.TestCase):
             film.record_on_desktop(self.desktop, self.out)
         asked.assert_called_once()
         recorded.assert_called_once_with(Path("/build/omaweb-browser"), self.out, self.desktop)
-        self.assertEqual(self.fake.acted, TAKE + GIVE_BACK)
+        self.assertEqual(self.fake.acted, PREFLIGHT + TAKE + GIVE_BACK)
         self.assertIn(str(self.out / "omaweb.webm"), self.said.getvalue())
 
     def test_ctrl_c_at_the_prompt_changes_nothing(self):
@@ -1084,7 +1104,7 @@ class DesktopRun(unittest.TestCase):
                 mock.patch.object(film, "record", side_effect=KeyboardInterrupt), \
                 self.assertRaises(KeyboardInterrupt):
             film.record_on_desktop(self.desktop, self.out)
-        self.assertEqual(self.fake.acted, TAKE + GIVE_BACK)
+        self.assertEqual(self.fake.acted, PREFLIGHT + TAKE + GIVE_BACK)
         film.compose.assert_not_called()
 
     def test_a_dry_run_prints_every_command_it_would_issue_and_issues_none(self):
@@ -1094,7 +1114,7 @@ class DesktopRun(unittest.TestCase):
         self.assertEqual(self.fake.acted, [])
         printed = [line.removeprefix("would run: ") for line in self.said.getvalue().splitlines()
                    if line.startswith("would run: ")]
-        expected = [shlex.join(command) for command in TAKE] + [
+        expected = [shlex.join(command) for command in PREFLIGHT + TAKE] + [
             shlex.join(command).replace("0x5566bb", "<film window>")
             for command in PLACE] + [
             shlex.join(film.recorder_command(self.out / "raw.mkv", (480, 283, 1600, 900)))] + [
@@ -1109,6 +1129,292 @@ class DesktopRun(unittest.TestCase):
                 mock.patch("sys.stderr", new_callable=io.StringIO) as said:
             self.assertEqual(film.main(), 130)
         self.assertIn("stopped", said.getvalue())
+
+
+
+class DesktopKeyboard(unittest.TestCase):
+    """Each key goes to the film's window or nowhere: a pointer nudged onto another window, or a
+    window that takes focus, would otherwise have the reader's own windows typed into."""
+
+    def setUp(self):
+        self.addCleanup(setattr, film, "BEFORE_KEYS", None)
+        patch = mock.patch.object(film.time, "sleep")
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_each_key_is_sent_only_after_the_film_is_seen_to_have_the_keyboard(self):
+        order = []
+        film.BEFORE_KEYS = lambda: order.append("asked")
+        with mock.patch.object(film.subprocess, "run",
+                               side_effect=lambda command, **_: order.append(command[0])):
+            film.keys("Primary+l", "Return")
+            film.type_text("tra")
+        self.assertEqual(order, ["asked", "wtype", "asked", "wtype", "asked", "wtype"])
+
+    def test_no_key_is_sent_once_another_window_has_the_keyboard(self):
+        def elsewhere():
+            raise film.BeatMissed("Desktop", "Alacritty has the keyboard")
+
+        film.BEFORE_KEYS = elsewhere
+        with mock.patch.object(film.subprocess, "run") as run:
+            with self.assertRaises(film.BeatMissed):
+                film.keys("Primary+l")
+            with self.assertRaises(film.BeatMissed):
+                film.type_text("tra")
+        run.assert_not_called()
+
+    def placed(self, fake):
+        fake.clients = [[FILMS_WINDOW], [PLACED]]
+        desktop = film.Desktop(run=fake.run, which=fake.which)
+        desktop.survey()
+        desktop.place(4000, getpgid=SESSIONS.__getitem__, timeout=1)
+        return desktop
+
+    def test_the_films_window_with_the_keyboard_lets_the_keys_through(self):
+        fake = FakeDesktop()
+        desktop = self.placed(fake)
+        fake.active = {"address": "0x5566bb", "class": "omaweb", "title": "Omaweb"}
+        desktop.expect_keyboard()
+
+    def test_another_window_with_the_keyboard_stops_the_film_and_names_it(self):
+        fake = FakeDesktop()
+        desktop = self.placed(fake)
+        fake.active = {"address": "0x5566aa", "class": "omaweb", "title": "Inbox"}
+        with self.assertRaisesRegex(film.BeatMissed, "omaweb .Inbox. has the keyboard"):
+            desktop.expect_keyboard()
+
+
+class DesktopAnswers(unittest.TestCase):
+    """Hyprland answers a dispatch it could not do with exit 0 and the error on stdout."""
+
+    def test_a_dispatch_hyprland_refused_stops_the_film_and_puts_the_desktop_back(self):
+        fake = FakeDesktop()
+        fake.replies[tuple(TAKE[3])] = "Error: no such workspace\n"
+        desktop = film.Desktop(run=fake.run, which=fake.which)
+        desktop.survey()
+        with self.assertRaisesRegex(film.BeatMissed, "no such workspace"), desktop.taken():
+            self.fail("the run went on after Hyprland refused")
+        self.assertEqual(fake.acted, TAKE + GIVE_BACK)
+
+    def test_a_put_back_hyprland_refused_is_named_for_the_reader(self):
+        fake = FakeDesktop()
+        fake.replies[tuple(GIVE_BACK[0])] = "Error: no such workspace\n"
+        desktop = film.Desktop(run=fake.run, which=fake.which)
+        desktop.survey()
+        with mock.patch("sys.stdout", new_callable=io.StringIO), desktop.taken():
+            pass
+        self.assertEqual(fake.acted, TAKE + GIVE_BACK)
+        self.assertEqual(desktop.not_put_back, [shlex.join(GIVE_BACK[0])])
+
+    def test_the_preflight_asks_hyprland_for_two_things_that_change_nothing(self):
+        fake = FakeDesktop()
+        desktop = film.Desktop(run=fake.run, which=fake.which)
+        desktop.survey()
+        desktop.preflight()
+        self.assertEqual(fake.acted, PREFLIGHT)
+
+    def test_a_hyprland_that_will_not_take_the_runs_dispatches_stops_it_before_any_change(self):
+        fake = FakeDesktop()
+        fake.replies[("hyprctl", "dispatch", 'hl.dsp.focus({ window = "address:0x5566cc" })')] = (
+            "Error: unknown dispatcher\n")
+        desktop = film.Desktop(run=fake.run, which=fake.which)
+        desktop.survey()
+        with self.assertRaisesRegex(film.BeatMissed, "unknown dispatcher"):
+            desktop.preflight()
+
+    def test_a_desktop_with_no_monitor_focused_stops_the_film_with_a_sentence(self):
+        fake = FakeDesktop()
+        fake.answers[("hyprctl", "monitors", "-j")] = json.dumps([dict(MONITOR, focused=False)])
+        with self.assertRaisesRegex(film.BeatMissed, "no monitor"):
+            film.Desktop(run=fake.run, which=fake.which).survey()
+
+
+
+class DesktopLastWord(unittest.TestCase):
+    """However the run ends, the reader gets a sentence, and what was not put back."""
+
+    def main(self, failure, not_put_back=()):
+        fake = FakeDesktop()
+        desktop = film.Desktop(run=fake.run, which=fake.which)
+        desktop.not_put_back.extend(not_put_back)
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(film, "Desktop", return_value=desktop), \
+                mock.patch.object(film, "record_on_desktop", side_effect=failure), \
+                mock.patch.object(sys, "argv", ["record_film.py", "desktop", "--out", directory]), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as said:
+            code = film.main()
+        return code, said.getvalue()
+
+    def test_a_command_that_failed_is_named_in_a_sentence(self):
+        code, said = self.main(subprocess.CalledProcessError(2, ["cmake", "--build", "build"]))
+        self.assertEqual(code, 1)
+        self.assertIn("the film was not made: cmake --build build exited 2", said)
+        self.assertNotIn("Traceback", said)
+
+    def test_an_answer_that_ran_out_is_a_sentence(self):
+        code, said = self.main(StopIteration())
+        self.assertEqual(code, 1)
+        self.assertIn("the film was not made", said)
+
+    def test_what_could_not_be_put_back_follows_a_missed_beat(self):
+        code, said = self.main(film.BeatMissed("Theme", "the chrome kept its colour"),
+                               ["omarchy-shell notifications setDnd off"])
+        self.assertEqual(code, 1)
+        self.assertIn("put back by hand: omarchy-shell notifications setDnd off", said)
+
+
+class RecordCleanup(unittest.TestCase):
+    """The browser is stopped whatever stops the run, and a second Ctrl+C cannot keep it going."""
+
+    def record(self, killpg):
+        server = mock.MagicMock()
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(film, "expect_sites_on_loopback"), \
+                mock.patch.object(film, "expect_shared_memory"), \
+                mock.patch.object(film, "FixtureServer", return_value=server), \
+                mock.patch.object(film, "seed", return_value=(Path(directory), Path(directory))), \
+                mock.patch.object(film.subprocess, "run"), \
+                mock.patch.object(film.subprocess, "Popen", return_value=mock.Mock(pid=4242)), \
+                mock.patch.object(film, "omaweb", side_effect=KeyboardInterrupt), \
+                mock.patch.object(film.os, "killpg", side_effect=killpg), \
+                self.assertRaises(KeyboardInterrupt):
+            film.record(Path("/build/omaweb-browser"), Path(directory))
+        return server
+
+    def test_a_second_ctrl_c_cannot_keep_the_film_browser_running(self):
+        before = signal.getsignal(signal.SIGINT)
+        stopped = []
+        self.record(lambda group, sent: stopped.append(
+            (group, sent, signal.getsignal(signal.SIGINT))))
+        self.assertEqual(stopped, [(4242, signal.SIGTERM, signal.SIG_IGN)])
+        self.assertIs(signal.getsignal(signal.SIGINT), before)
+
+    def test_a_browser_already_gone_does_not_cut_the_cleanup_short(self):
+        def gone(group, sent):
+            raise ProcessLookupError(3, "No such process")
+
+        server = self.record(gone)
+        server.stop.assert_called_once()
+
+
+
+class DesktopLedger(unittest.TestCase):
+    """A run killed outright, or whose terminal closed first, cannot put the desktop back, so it
+    leaves a ledger, and the next run stops what it left running and restores notifications."""
+
+    BROWSER = "/build/film-desktop/omaweb-browser"
+    RELEASE = [["omarchy-shell", "notifications", "setDnd", "off"],
+               ["omarchy-shell", "-q", "omarchy.indicators", "refresh"]]
+
+    def setUp(self):
+        self.directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.directory)
+        self.ledger = self.directory / "desktop-run.json"
+        self.proc = self.directory / "proc"
+        self.proc.mkdir()
+        self.killed = []
+
+    def process(self, pid, group, *command):
+        entry = self.proc / str(pid)
+        entry.mkdir()
+        (entry / "stat").write_text(f"{pid} ({Path(command[0]).name[:15]}) S 1 {group} {group} 0")
+        (entry / "cmdline").write_bytes(b"\0".join(part.encode() for part in command) + b"\0")
+
+    def desktop(self, fake, **options):
+        return film.Desktop(run=fake.run, which=fake.which, ledger=self.ledger, proc=self.proc,
+                            kill=lambda pid, sent: self.killed.append(("kill", pid, sent)),
+                            killpg=lambda group, sent: self.killed.append(("killpg", group, sent)),
+                            **options)
+
+    def left(self, **fields):
+        self.ledger.write_text(json.dumps(dict(
+            {"browser_session": 4000, "browser": self.BROWSER, "recorder": 4100,
+             "release": self.RELEASE}, **fields)))
+
+    def test_a_run_notes_what_it_must_put_back_before_it_changes_anything(self):
+        fake = FakeDesktop()
+        desktop = self.desktop(fake)
+        desktop.survey()
+        with desktop.taken():
+            noted = json.loads(self.ledger.read_text())
+        self.assertEqual(noted["release"], self.RELEASE)
+        self.assertFalse(self.ledger.exists())
+
+    def test_a_run_that_could_not_put_everything_back_keeps_its_ledger(self):
+        fake = FakeDesktop()
+        fake.failing.add(tuple(GIVE_BACK[2]))
+        desktop = self.desktop(fake)
+        desktop.survey()
+        with mock.patch("sys.stdout", new_callable=io.StringIO), desktop.taken():
+            pass
+        self.assertTrue(self.ledger.exists())
+
+    def test_the_next_run_stops_what_a_killed_run_left_and_restores_notifications(self):
+        self.process(4000, 4000, "dbus-run-session", "--", self.BROWSER)
+        self.process(4001, 4000, self.BROWSER)
+        self.process(4100, 4100, "wf-recorder", "-y", "-g", "480,283 1600x900")
+        self.left()
+        fake = FakeDesktop()
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as said:
+            self.desktop(fake).recover()
+        self.assertEqual(self.killed, [("killpg", 4000, signal.SIGTERM),
+                                       ("kill", 4100, signal.SIGINT)])
+        self.assertEqual(fake.acted, self.RELEASE)
+        self.assertFalse(self.ledger.exists())
+        self.assertIn("did not finish", said.getvalue())
+
+    def test_a_process_number_another_program_has_taken_since_is_left_alone(self):
+        self.process(4000, 4000, "/usr/bin/bash")
+        self.process(4100, 4100, "/usr/bin/nvim", "notes.md")
+        self.left()
+        fake = FakeDesktop()
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.desktop(fake).recover()
+        self.assertEqual(self.killed, [])
+        self.assertEqual(fake.acted, self.RELEASE)
+
+    def test_a_dry_run_names_what_it_would_stop_and_stops_nothing(self):
+        self.process(4000, 4000, "dbus-run-session", "--", self.BROWSER)
+        self.process(4100, 4100, "wf-recorder")
+        self.left()
+        fake = FakeDesktop()
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as said:
+            self.desktop(fake, dry_run=True).recover()
+        self.assertEqual(self.killed, [])
+        self.assertEqual(fake.acted, [])
+        self.assertTrue(self.ledger.exists())
+        self.assertIn("would run: kill -TERM -- -4000", said.getvalue())
+        self.assertIn("would run: kill -INT 4100", said.getvalue())
+
+    def test_a_desktop_with_no_ledger_has_nothing_to_recover(self):
+        fake = FakeDesktop()
+        self.desktop(fake).recover()
+        self.assertEqual((self.killed, fake.acted), ([], []))
+
+    def test_the_run_recovers_after_the_key_and_before_it_reads_the_desktop(self):
+        self.left(browser_session=None, recorder=None)
+        fake = FakeDesktop()
+        desktop = self.desktop(fake)
+        with mock.patch.object(film, "build_for_desktop", return_value=Path(self.BROWSER)), \
+                mock.patch.object(film, "expect_desktop_packages"), \
+                mock.patch.object(film, "record"), mock.patch.object(film, "compose"), \
+                mock.patch("builtins.input", return_value=""), \
+                mock.patch("sys.stdout", new_callable=io.StringIO):
+            film.record_on_desktop(desktop, self.directory)
+        self.assertEqual(fake.acted[:2], self.RELEASE)
+        self.assertEqual(fake.acted[2:4], PREFLIGHT)
+
+    def test_record_notes_the_browsers_session_as_soon_as_it_starts(self):
+        desktop = mock.Mock()
+        with mock.patch.object(film, "expect_shared_memory"), \
+                mock.patch.object(film, "FixtureServer", return_value=mock.MagicMock(port=0)), \
+                mock.patch.object(film, "seed", return_value=(self.directory, self.directory)), \
+                mock.patch.object(film.subprocess, "Popen", return_value=mock.Mock(pid=4242)), \
+                mock.patch.object(film, "omaweb", side_effect=KeyboardInterrupt), \
+                mock.patch.object(film.os, "killpg"), \
+                self.assertRaises(KeyboardInterrupt):
+            film.record(Path(self.BROWSER), self.directory, desktop)
+        desktop.note.assert_any_call(browser_session=4242, browser=self.BROWSER)
 
 
 if __name__ == "__main__":
