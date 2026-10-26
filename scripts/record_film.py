@@ -1640,7 +1640,8 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
                 + " " + shlex.join(["dbus-run-session", "--", str(browser)]))
             frame = desktop.place(0)
             would_run(recorder_command(out / "raw.mkv", frame))
-            log(f"and types into the window with wtype, and samples it with "
+            log(f"and types into the window with wtype, each key after hyprctl activewindow -j "
+                f"says the window has the keyboard, and samples it with "
                 f"{shlex.join(frame_command(frame))}")
         return
     print(TAKES_THE_KEYBOARD, flush=True)
