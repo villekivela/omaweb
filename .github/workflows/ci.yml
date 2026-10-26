@@ -347,10 +347,12 @@ jobs:
           chown -R builder "$GITHUB_WORKSPACE"
       - name: Bootstrap content blocker
         run: su builder -c 'scripts/bootstrap_content_blocker.sh'
+      # The key log says where the keys of a failed attempt at a Space went
+      # (#795). Only this job's browser has it.
       - name: Configure
         run:
           su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
-          -DOMAWEB_KNOWN_EXTENSIONS=ON'
+          -DOMAWEB_KNOWN_EXTENSIONS=ON -DOMAWEB_KEY_EVENT_LOG=ON'
       - name: Check the build found the patched engine
         run: scripts/check_omaweb_engine.sh build/ci
       # The browser and the catalogues it reads, and the seeder of the lived-in

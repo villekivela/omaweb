@@ -61,7 +61,8 @@ class PhasesTest(unittest.TestCase):
         self.assertEqual(named, list(runtime.STARTUP_PHASES))
         self.assertIn("not reached", rows[named.index("rules-compiled")])
 
-    def test_the_browser_is_asked_for_its_marks_on_stderr(self):
+    # The keys are for a step that fails to open a Space, which prints where they went.
+    def test_the_browser_is_asked_for_its_marks_and_keys_on_stderr(self):
         with tempfile.TemporaryDirectory() as directory:
             browser = runtime.Browser("omaweb", directory)
             with mock.patch.object(runtime.subprocess, "Popen") as popen, \
@@ -73,7 +74,8 @@ class PhasesTest(unittest.TestCase):
         environment = popen.call_args.kwargs["env"]
         self.assertEqual(environment["QT_FORCE_STDERR_LOGGING"], "1")
         self.assertNotIn("QT_MESSAGE_PATTERN", environment)
-        self.assertEqual(environment["QT_LOGGING_RULES"], "qt.qpa.*=true;omaweb.startup.info=true")
+        self.assertEqual(environment["QT_LOGGING_RULES"],
+                         "qt.qpa.*=true;omaweb.startup.info=true;omaweb.keys.info=true")
 
 
 class LivedInSiteTest(unittest.TestCase):
