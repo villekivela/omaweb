@@ -297,6 +297,91 @@ TestCase {
                    drawn.b - sun.b) < 0.04, "sun top: " + drawn + " against " + sun);
     }
 
+    SignalSpy {
+        id: paintSpy
+        signalName: "painted"
+    }
+
+    // What the road's moving parts paint, as its Scene's pixels with their
+    // alpha, once the layer has painted at the road's latest place.
+    function movingPixels(road) {
+        const layer = findChild(road, "roadMoving");
+        verify(layer !== null);
+        paintSpy.clear();
+        paintSpy.target = layer;
+        layer.draw();
+        paintSpy.wait(2000);
+        return layer.getContext("2d").getImageData(0, 0, road.width, road.height);
+    }
+
+    function alphaAt(image, x, y) {
+        return image.data[(y * image.width + x) * 4 + 3];
+    }
+
+    // A distant dash is narrower and shorter than one of the Scene's pixels,
+    // and is drawn by how much of each pixel it covers, as the website's
+    // canvas draws it, rather than all or nothing by whether it covers the
+    // pixel's middle. At travel 0 on a road of 200 by 125, the seventh dash
+    // stands at depth 7.9: 0.904 of a pixel wide across columns 99 and 100,
+    // 0.40 tall in row 70, fully opaque, so it paints 92 of alpha in all and
+    // fills neither pixel. Covering neither middle, it would pop off.
+    function test_aDistantDashIsDrawnByItsCoverage() {
+        const road = makeRoad({
+                                  reducedMotion: false
+                              });
+        road.travel = 0;
+        const image = movingPixels(road);
+        let total = 0;
+        let most = 0;
+        for (let x = 95; x <= 105; ++x) {
+            total += alphaAt(image, x, 70);
+            most = Math.max(most, alphaAt(image, x, 70));
+        }
+        verify(Math.abs(total - 92) < 23, total + " of alpha in the dash's row");
+        verify(most < 128, most + " of alpha in its fullest pixel");
+    }
+
+    // The shooting star is a smooth streak, not a staircase: thinner than a
+    // pixel and falling 0.35 for each pixel across, it lights every column it
+    // crosses, and the middle of its light in each column stands 0.35 lower
+    // than in the one before, where a staircase holds a row for a few columns
+    // and then drops a whole one.
+    function test_theShootingStarIsASmoothStreak() {
+        const road = makeRoad({
+                                  width: 400,
+                                  height: 250
+                              });
+        const star = road.parameters.shootingStar;
+        let slot = 1;
+        while (road.hash(slot) <= star.chance)
+            ++slot;
+        road.time = slot * star.every + star.lasts / 2;
+        const image = movingPixels(road);
+        // Half way through its run, at the website's place for it, in the
+        // Scene's pixels.
+        const length = road.drawWidth * star.length;
+        const headX = ((star.across[0] + star.across[1] * road.hash(slot + 1)) * road.drawWidth
+                       + length / 2) / road.pitch;
+        const tail = length * star.tail / road.pitch;
+        const middles = [];
+        for (let x = Math.ceil(headX - tail * 0.6); x < Math.floor(headX) - 1; ++x) {
+            let column = 0;
+            let weighted = 0;
+            for (let y = 0; y < road.height / 2; ++y) {
+                column += alphaAt(image, x, y);
+                weighted += alphaAt(image, x, y) * y;
+            }
+            verify(column > 0, "column " + x + " is dark");
+            middles.push(weighted / column);
+        }
+        verify(middles.length > 10, middles.length + " columns");
+        for (let index = 1; index < middles.length; ++index) {
+            const drop = middles[index] - middles[index - 1];
+            verify(Math.abs(drop - star.slope) < 0.2, "the streak drops " + drop.toFixed(2) + " at column "
+                   + index);
+        }
+    }
+
     // The host sizes the Scene in its own pixels and hands it the palette and
     // the options it declares.
     function test_theHostSizesTheSceneAtItsPitch() {
@@ -342,6 +427,25 @@ TestCase {
         const frames = host.frames;
         wait(1000);
         verify(host.frames - frames <= 34, host.frames - frames + " frames in a second");
+    }
+
+    // The host draws on the window's frames, as the website's on the
+    // browser's: a little early counts, so a Scene of thirty frames a second
+    // lands on every other frame of a sixty hertz display rather than
+    // slipping to every third, and a Scene with no rate draws on every frame.
+    function test_aFrameIsDueOnEveryOtherFrameAtSixtyHertz() {
+        const host = makeHost();
+        const drawn = [];
+        let last = -Infinity;
+        for (let tick = 0; tick <= 6; ++tick) {
+            const now = Math.round(tick * 1000 / 60 * 10) / 10;
+            if (host.frameDue(now, last, 30)) {
+                drawn.push(now);
+                last = now;
+            }
+        }
+        compare(drawn, [0, 33.3, 66.7, 100]);
+        verify(host.frameDue(16.7, 0, 0));
     }
 
     // Navigating speeds the drive up and lights the sun; it eases back after.
@@ -466,18 +570,9 @@ TestCase {
         tryCompare(host, "sceneHeight", 125);
         compare(glass.bloomMix, 0.31);
         compare(glass.scanShade, 0.27);
-        compare(glass.beamNarrowest, 0.4);
-        compare(glass.beamWidest, 1.3);
         compare(glass.beamFalloff, 1.9);
-        compare(glass.beamLift, 1.1);
         compare(glass.maskDim, 0.66);
-        compare(glass.maskLift, 1.3);
-        compare(glass.haloThreshold, 0.41);
         compare(glass.haloStrength, 0.19);
-        // 16 logical pixels at a pitch of 4 is a texel of 4 of the Scene's,
-        // the second mipmap level, and its taps stand 5 of them apart.
-        compare(glass.haloLod, 2);
-        compare(glass.haloStep, Qt.size(5 / host.sceneWidth, 5 / host.sceneHeight));
         compare(glass.vignetteClear, 0.61);
         compare(glass.vignetteShade, 0.43);
         compare(glass.bandStrength, 0.08);
@@ -487,6 +582,55 @@ TestCase {
             return host.frames > 2;
         });
         verify(glass.flicker >= 0.07 && glass.flicker <= 0.08, glass.flicker);
+    }
+
+    // The glass works the website's sums. Every beam is as wide as the beam
+    // half way between its narrowest and widest, 0.85 of a row here, since
+    // the website's one layer of lines cannot follow each row. The beam's and
+    // the mask's lifts, 1.1 and 1.3, brighten the picture together by 1.43
+    // before it is clipped and darkened, as the website's filter does.
+    function test_theGlassDrawsTheWebsitesBeam() {
+        const host = makeHost({
+                                  scene: oddGlassScene
+                              });
+        tryVerify(function () {
+            return host.sceneItem !== null && host.sceneItem.crt !== undefined;
+        });
+        const glass = findChild(host, "crtGlass");
+        fuzzyCompare(glass.beamWidth, 0.85, 1e-9);
+        fuzzyCompare(glass.lift, 1.43, 1e-9);
+    }
+
+    // The halation is cut at its threshold before it is blurred, as the
+    // website's is: 16 logical pixels at a pitch of 4 is a texel of 4 of the
+    // Scene's, the second mipmap level of the full-size copy, which a pass of
+    // 50 by 32 texels cuts at 0.41. The glass blurs the cut copy by the
+    // website's 20 logical pixels, 5 of the Scene's, with taps 5 times the
+    // square root of 2 apart.
+    function test_theHalationIsCutThenBlurred() {
+        const host = makeHost({
+                                  scene: oddGlassScene
+                              });
+        tryVerify(function () {
+            return host.sceneItem !== null && host.sceneItem.crt !== undefined;
+        });
+        tryCompare(host, "sceneHeight", 125);
+        const glass = findChild(host, "crtGlass");
+        const cut = findChild(host, "haloCut");
+        verify(cut !== null);
+        compare(cut.source, findChild(host, "haloPicture"));
+        compare(cut.threshold, 0.41);
+        compare(cut.lod, 2);
+        // The copy is taken with the band and the flicker in it, as the
+        // website takes it from its picture.
+        compare(cut.bandStrength, 0.08);
+        compare(cut.bandY, glass.bandY);
+        compare(cut.flicker, glass.flicker);
+        compare(Qt.size(cut.width, cut.height), Qt.size(50, 32));
+        compare(glass.halo, findChild(host, "haloCutPicture"));
+        compare(findChild(host, "haloCutPicture").sourceItem, cut);
+        fuzzyCompare(glass.haloStep.width, 5 * Math.SQRT2 / 200, 1e-9);
+        fuzzyCompare(glass.haloStep.height, 5 * Math.SQRT2 / 125, 1e-9);
     }
 
     // A raster Scene's beam draws one line to each of its rows, so the lines
@@ -504,7 +648,7 @@ TestCase {
         const halo = findChild(host, "haloPicture");
         verify(halo.mipmap);
         compare(halo.textureSize, Qt.size(host.sceneWidth, host.sceneHeight));
-        compare(glass.halo, halo);
+        compare(findChild(host, "haloCut").source, halo);
     }
 
     // A theme with the accent and keyword colour given, and the tint, if
@@ -558,6 +702,16 @@ TestCase {
                                                  })
                               });
         compareColour(findChild(host, "crtGlass").gradeHue, "#bfbf40", "grade hue");
+    }
+
+    // A theme that names no tint draws the fallback hue at the one every
+    // Omarchy theme is rendered with, as the website does: yellow at 0.34
+    // saturation and 0.66 lightness.
+    function test_theFallbackHueTakesOmarchysTint() {
+        const host = makeHost({
+                                  colors: themed("#0000ff", "#4d33ff")
+                              });
+        compareColour(findChild(host, "crtGlass").gradeHue, "#c6c68b", "grade hue");
     }
 
     // A Scene that declares the glass and the prototype's grade.

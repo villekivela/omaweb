@@ -248,15 +248,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   sidebar hidden the page area is the whole window. A Scene moves only while the Start page is on
   show and the window is on screen and holds the keyboard.
 - The CRT glass shows a Scene as an old screen. The road, the night sky and Game of Life are raster
-  Scenes, drawn by the beam with one line to each of the Scene's rows. The beam widens over a bright
-  row to fill the gap below it and thins over a dark one, so a dark row leaves its gap dark. A
-  phosphor mask of red, green and blue stripes, each one device pixel wide, lies over the picture,
-  and a band rolls down it. The vector terrain, the radar and hyperspace are vector Scenes: a vector
-  screen traced its lines with the beam and had no raster, so they have no scanlines, mask or band.
-  While a vector Scene moves its lines leave a fading trail, and under reduced motion they leave
-  none. Every Scene has a halation, a wide, faint glow around its bright parts: light scattered in
-  the faceplate, the same width on every Scene. Every Scene also has a bloom, darker corners and a
-  faint flicker. With the glass off, a Scene is its plain pixels.
+  Scenes, drawn by the beam with one line to each of the Scene's rows, every line as wide as the
+  beam half way between its narrowest and widest, as the website's glass draws it. A phosphor mask
+  of red, green and blue stripes, each one device pixel wide, lies over the picture, and a band
+  rolls down it. The vector terrain, the radar and hyperspace are vector Scenes: a vector screen
+  traced its lines with the beam and had no raster, so they have no scanlines, mask or band. While a
+  vector Scene moves its lines leave a fading trail, and under reduced motion they leave none. Every
+  Scene has a halation, a wide, faint glow around its bright parts: light scattered in the
+  faceplate, the same width on every Scene. Every Scene also has a bloom, darker corners and a faint
+  flicker. With the glass off, a Scene is its plain pixels.
 - Every Scene is graded toward a second theme hue, as a sunset: its bright parts take the hue at
   their own brightness, more of them lower in the frame, so a Scene drawn in the accent has a second
   colour in it. The hue is the theme's syntax keyword colour, and follows a live theme change. Where

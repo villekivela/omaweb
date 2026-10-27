@@ -126,14 +126,15 @@ raster. The glass then draws no scanlines, mask or band, and keeps the brighter 
 the last one faded, as the phosphor persisted. It keeps no trail under `reducedMotion`. A Scene that
 leaves `screen` out is a raster one.
 
-This glass differs from the browser's (src/ui/shaders/crtglass.frag) in two ways, both because one
-layer drawn for the whole window cannot follow each of the Scene's pixels:
-
-- The browser's beam widens over a bright row and thins over a dark one. Here every line is as wide
-  as the beam half way between its narrowest and widest.
-- The browser's halation averages 3 by 3 taps over a mipmap level and then cuts it at the threshold.
-  Here the picture is halved until a pixel is `halation.reach` CSS pixels, cut at the threshold, and
-  then blurred by `halation.spacing`, so a small bright source glows a little more.
+The browser's glass (src/ui/shaders/crtglass.frag) works the same sums: every line of the beam is as
+wide as the beam half way between its narrowest and widest, the picture and the bloom are lifted and
+clipped before the scanlines and the mask darken them, and the halation is cut at its threshold, in
+a small pass of its own (src/ui/shaders/halation.frag), before the glass blurs it. It differs in two
+small ways. Its blur is 3 by 3 binomial taps that spread as far as `halation.spacing`, where this
+one is a Gaussian. Its bloom is graded after the copy is made smaller, where this one is made
+smaller from the graded picture. The browser's road draws what moves into a canvas at each frame as
+this one does, so its edges cover a share of a pixel, and paces its frames on the window's, as this
+host does with `frameDue`.
 
 ### What a Scene may not do
 

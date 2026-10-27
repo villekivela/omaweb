@@ -453,6 +453,8 @@ TestCase {
         compare(host.sceneItem.screen, "vector");
         compare(glass.raster, 0);
         compare(glass.bandStrength, 0);
+        // The website lifts no vector screen.
+        compare(glass.lift, 1);
         verify(trail.sourceItem !== null);
         compare(glass.source, trail);
         compare(findChild(host, "trailEffect").fade, 0.9);

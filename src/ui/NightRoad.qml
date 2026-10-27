@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Shapes
 import Omaweb
 import "SceneColour.mjs" as Colour
 
@@ -19,8 +18,8 @@ import "SceneColour.mjs" as Colour
 // recipe and timing, is share/scenes/crt-road.json, the file the website's
 // road (website/crt-road.js) reads too; this is only how it draws. What does
 // not move is drawn once per size, theme and option into a canvas. What moves
-// is scene-graph items over it, placed from the clock rather than painted
-// again on every tick.
+// is painted into a second canvas over it at every frame, as the website
+// paints it.
 Item {
     id: root
     objectName: "nightRoad"
@@ -362,142 +361,103 @@ Item {
         opacity: root.sunShown && root.beat > pulse.from ? root.beat : 0
     }
 
-    // ---- what moves, in logical pixels scaled to the Scene's
+    // ---- what moves
+    //
+    // Painted again at every frame into a canvas of the Scene's own pixels, as
+    // the website paints it, so each edge covers a share of a pixel: a
+    // distant dash narrower than a pixel fades rather than popping on and
+    // off, and the shooting star is a streak rather than a staircase.
 
-    Item {
-        id: moving
+    // A shooting star in some of its slots, for under a second.
+    function shootingStar(context) {
+        const star = root.parameters.shootingStar;
+        const slot = Math.floor(root.time / star.every);
+        const into = root.time - slot * star.every;
+        const shown = root.sunShown && !root.reducedMotion && into < star.lasts;
+        if (!shown || root.hash(slot) <= star.chance)
+            return;
+        const length = root.drawWidth * star.length;
+        const run = into / star.lasts;
+        const x = (star.across[0] + star.across[1] * root.hash(slot + 1)) * root.drawWidth + length
+              * run;
+        const y = (star.height[0] + star.height[1] * root.hash(slot + 2)) * root.horizonY + length
+              * star.slope * run;
+        const tailX = x - length * star.tail;
+        const tailY = y - length * star.tail * star.slope;
+        const trail = context.createLinearGradient(tailX, tailY, x, y);
+        trail.addColorStop(0, Colour.css(root.roles.light, 0));
+        trail.addColorStop(1, Colour.css(root.colour(star.colour), 1 - run * star.fade));
+        context.strokeStyle = trail;
+        context.lineWidth = star.width;
+        context.beginPath();
+        context.moveTo(tailX, tailY);
+        context.lineTo(x, y);
+        context.stroke();
+    }
 
-        width: root.drawWidth
-        height: root.drawHeight
-        transform: Scale {
-            xScale: 1 / root.pitch
-            yScale: 1 / root.pitch
+    // A roadside silhouette standing on the ground at (x, y), `size` tall.
+    function silhouette(context, shape, x, y, size) {
+        for (const rect of shape.rects || [])
+            context.fillRect(x + rect[0] * size, y + rect[1] * size, rect[2] * size, rect[3]
+                             * size);
+        if (shape.polygon) {
+            context.beginPath();
+            for (const point of shape.polygon)
+                context.lineTo(x + point[0] * size, y + point[1] * size);
+            context.closePath();
+            context.fill();
         }
+    }
 
-        // A shooting star in some of its slots, for under a second.
-        Rectangle {
-            id: shootingStar
-
-            readonly property var star: root.parameters.shootingStar
-            readonly property int slot: Math.floor(root.time / star.every)
-            readonly property real into: root.time - slot * star.every
-            readonly property real run: into / star.lasts
-            readonly property real length: root.drawWidth * star.length
-            readonly property real headX: (star.across[0] + star.across[1] * root.hash(slot + 1))
-                                          * root.drawWidth + length * run
-            readonly property real headY: (star.height[0] + star.height[1] * root.hash(slot + 2))
-                                          * root.horizonY + length * star.slope * run
-            readonly property real tail: length * star.tail * Math.sqrt(1 + star.slope * star.slope)
-
-            visible: root.sunShown && !root.reducedMotion && into < star.lasts && root.hash(slot)
-                     > star.chance
-            x: headX - tail
-            y: headY - height / 2
-            width: tail
-            height: star.width
-            transformOrigin: Item.Right
-            rotation: Math.atan(star.slope) * 180 / Math.PI
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop {
-                    position: 0
-                    color: Colour.withAlpha(root.roles.light, 0)
-                }
-                GradientStop {
-                    position: 1
-                    color: Colour.withAlpha(root.colour(shootingStar.star.colour), 1
-                                            - shootingStar.run * shootingStar.star.fade)
-                }
-            }
-        }
+    function drawMoving(context) {
+        root.shootingStar(context);
 
         // The dashed centre line, its marks stretching as the road speeds up
         // and widening with it.
-        Repeater {
-            model: root.centreMarks
-
-            Rectangle {
-                required property int index
-
-                readonly property var line: root.parameters.centreLine
-                readonly property real d: 1 + root.wrap(index * line.spacing - root.travel, line.marks
-                                                        * line.spacing)
-                readonly property real markLength: line.length + Math.min(line.stretchMost, (
-                                                                              root.speed - 1)
-                                                                          * line.stretch)
-                readonly property real near: root.screenY(d)
-                readonly property real far: root.screenY(d + markLength)
-
-                x: root.vanishingX - width / 2
-                y: far
-                width: Math.max(1, line.width / d) * root.halfWidth / (root.drawWidth
-                                                                       * line.widthAtRoad)
-                height: Math.max(1, near - far)
-                color: root.colour(line.colour)
-                opacity: Math.max(0, Math.min(1, line.fadeFrom - d / line.fadeFar) * Math.min(1, (d
-                                                                                                  - 1) * line.fadeNear))
-            }
+        const line = root.parameters.centreLine;
+        const markLength = line.length + Math.min(line.stretchMost, (root.speed - 1)
+                                                  * line.stretch);
+        const scale = root.halfWidth / (root.drawWidth * line.widthAtRoad);
+        context.fillStyle = Colour.css(root.colour(line.colour));
+        for (let index = 0; index < root.centreMarks; ++index) {
+            const d = 1 + root.wrap(index * line.spacing - root.travel, line.marks * line.spacing);
+            const near = root.screenY(d);
+            const far = root.screenY(d + markLength);
+            const width = Math.max(1, line.width / d) * scale;
+            context.globalAlpha = Math.max(0, Math.min(1, line.fadeFrom - d / line.fadeFar)
+                                           * Math.min(1, (d - 1) * line.fadeNear));
+            context.fillRect(root.vanishingX - width / 2, far, width, Math.max(1, near - far));
         }
 
         // The roadside: a few silhouettes on a long loop, far apart, each
         // standing on the ground where its depth puts it.
-        Repeater {
-            model: root.roadsideMarks
-
-            Item {
-                id: mark
-
-                required property int index
-
-                readonly property var side: root.parameters.roadside
-                readonly property var shape: side.shapes[side.order[index]]
-                readonly property real place: index * (side.span / side.order.length) + root.hash(
-                                                  index) * side.scatter - root.travel
-                readonly property real d: side.nearest + root.wrap(place, side.span)
-                readonly property real out: side.out[0] + root.hash(index + side.seeds.out)
-                                            * side.out[1]
-                readonly property real size: root.depth * shape.height / d
-
-                x: root.screenX((root.hash(index + side.seeds.side) > 0.5 ? 1 : -1) * out, d)
-                y: root.screenY(d)
-                opacity: Math.max(0, Math.min(1, (side.span - d) / side.fadeFar) * Math.min(1, (d
-                                                                                                - side.nearest)
-                                                                                            * side.fadeNear))
-
-                Repeater {
-                    model: mark.shape.rects || []
-
-                    Rectangle {
-                        required property var modelData
-
-                        x: modelData[0] * mark.size
-                        y: modelData[1] * mark.size
-                        width: modelData[2] * mark.size
-                        height: modelData[3] * mark.size
-                        color: root.colour(mark.side.colour)
-                    }
-                }
-
-                // Outlined once at a hundred pixels and scaled: a path that
-                // changed with every tick would be worked out again each
-                // time, and cost the window a second frame for it.
-                Shape {
-                    visible: !!mark.shape.polygon
-                    transformOrigin: Item.TopLeft
-                    scale: mark.size / 100
-
-                    ShapePath {
-                        strokeWidth: -1
-                        fillColor: root.colour(mark.side.colour)
-                        PathPolyline {
-                            path: (mark.shape.polygon || []).map(function (point) {
-                                return Qt.point(point[0] * 100, point[1] * 100);
-                            })
-                        }
-                    }
-                }
-            }
+        const side = root.parameters.roadside;
+        context.fillStyle = Colour.css(root.colour(side.colour));
+        for (let index = 0; index < root.roadsideMarks; ++index) {
+            const shape = side.shapes[side.order[index]];
+            const place = index * (side.span / side.order.length) + root.hash(index) * side.scatter
+                  - root.travel;
+            const d = side.nearest + root.wrap(place, side.span);
+            const out = side.out[0] + root.hash(index + side.seeds.out) * side.out[1];
+            const across = root.hash(index + side.seeds.side) > 0.5 ? 1 : -1;
+            context.globalAlpha = Math.max(0, Math.min(1, (side.span - d) / side.fadeFar) * Math.min(
+                                               1, (d - side.nearest) * side.fadeNear));
+            root.silhouette(context, shape, root.screenX(across * out, d), root.screenY(d),
+                            root.depth * shape.height / d);
         }
+        context.globalAlpha = 1;
+    }
+
+    SceneLayer {
+        objectName: "roadMoving"
+
+        readonly property string key: [root.width, root.height, root.travel, root.time,
+            root.roles.ground, root.roles.light, root.roles.glow, root.unlit].join("/")
+
+        pitch: root.pitch
+        paintWith: root.drawMoving
+        onKeyChanged: draw()
+        Component.onCompleted: draw()
     }
 
     // A radial glow from where the road meets the horizon, down to `reach`,

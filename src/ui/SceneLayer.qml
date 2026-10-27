@@ -1,9 +1,9 @@
 import QtQuick
 
-// A canvas a Scene draws what does not move into, once per size, theme and
-// option rather than on every tick. It is drawn in logical pixels and scaled to
-// the Scene's own, `pitch` to one of them. It paints only while it can be
-// seen; a paint asked for while it cannot is kept for when it can.
+// A canvas a Scene draws into, in logical pixels scaled to the Scene's own,
+// `pitch` to one of them, each edge covering its share of a pixel as a
+// browser's canvas draws it. It paints only while it can be seen; a paint
+// asked for while it cannot is kept for when it can.
 Canvas {
     id: layer
 
@@ -12,6 +12,7 @@ Canvas {
     property bool stale: true
 
     anchors.fill: parent
+    antialiasing: true
     renderTarget: Canvas.Image
     renderStrategy: Canvas.Immediate
 
