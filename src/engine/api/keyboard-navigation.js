@@ -68,6 +68,19 @@
     }
     return null;
   };
+  // What is on top at a point, looked for inside each shadow root on the way
+  // down, as Vimium's getElementFromPoint does: contains() does not cross into
+  // one, so the host alone would leave an element inside it never on top.
+  const elementFromPoint = (x, y, root = document, stack = []) => {
+    const element = root.elementsFromPoint(x, y)[0];
+    if (stack.includes(element)) return element;
+    stack.push(element);
+    if (element && element.shadowRoot) {
+      // A shadow root can hold nothing but text, and then the host is the answer.
+      return elementFromPoint(x, y, element.shadowRoot, stack) || element;
+    }
+    return element;
+  };
   // Whether the element is what the reader would reach by clicking where it
   // stands: it, something inside it or something around it is on top at the
   // middle of the box or at one of its corners. A corner is taken 0.1 px in,
@@ -75,7 +88,7 @@
   // menu or a sticky header over the whole box leaves none of these.
   const reachable = (element, rect) => {
     const onTop = (x, y) => {
-      const top = document.elementsFromPoint(x, y)[0];
+      const top = elementFromPoint(x, y);
       return Boolean(top) && (element.contains(top) || top.contains(element));
     };
     if (onTop((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2)) return true;
@@ -83,16 +96,196 @@
       [rect.left + 0.1, rect.right - 0.1].some((x) => onTop(x, y)),
     );
   };
-  // A control the page switched off, or made read-only, is not one to click
-  // into. An element is hinted for a role or a control it has, never for a
-  // tabindex alone, so the selector below has no tabindex.
+  // A control the page switched off is not one to click. Vimium asks only
+  // aria-disabled here; :disabled is Omaweb's, and also takes in a control
+  // inside a disabled fieldset, whatever role or handler it has.
   const switchedOff = (element) => {
     const ariaDisabled = element.getAttribute("aria-disabled");
     return (
       element.matches(":disabled") ||
-      (field(element) && element.readOnly === true) ||
       (ariaDisabled !== null && ["", "true"].includes(ariaDisabled.toLowerCase()))
     );
+  };
+  // Which elements take a hint follows Vimium's link hints: getLocalHintsForElement,
+  // getLocalHints and getElementFromPoint in content_scripts/link_hints.js, and isSelectable in
+  // lib/dom_utils.js, of philc/vimium at commit 5aa29614bf1dce05e0d316f8c38722e17f9b38c3.
+  // Copyright (c) 2010 Phil Crosby, Ilya Sukhar, under the MIT License, whose text is in
+  // THIRD_PARTY_NOTICES.md. Left out are the hints Vimium gives for its own ends: a frame's body
+  // to focus the frame, a box that scrolls, and the areas of an image map. Where Omaweb differs:
+  // switchedOff, and visibleRect, which does not look into an empty box's children. The
+  // `disabled` tests in the tag rules are kept as Vimium wrote them, though switchedOff has
+  // already turned those controls away.
+  const unselectableTypes = [
+    "button",
+    "checkbox",
+    "color",
+    "file",
+    "hidden",
+    "image",
+    "radio",
+    "reset",
+    "submit",
+  ];
+  const selectable = (element) =>
+    element instanceof Element &&
+    ((element.nodeName.toLowerCase() === "input" && !unselectableTypes.includes(element.type)) ||
+      element.nodeName.toLowerCase() === "textarea" ||
+      element.isContentEditable);
+  const clickableRoles = [
+    "button",
+    "tab",
+    "link",
+    "checkbox",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "radio",
+    "textbox",
+  ];
+  const angularClickAttributes = ["", "data-", "x-"].flatMap((prefix) =>
+    ["-", ":", "_"].map((separator) => prefix + "ng" + separator + "click"),
+  );
+  // Whether the page is AngularJS's. Vimium asks once for the page's life;
+  // here each hint run asks again, so a page that loads AngularJS late is seen.
+  let angularPage = false;
+  // An element with a tabindex and nothing else is a second-class citizen, and
+  // getLocalHints drops every one, so a tabindex alone still earns no hint.
+  // An element found only by its class name, and any span, is a possible false
+  // positive, which a clickable element just inside it replaces.
+  const localHint = (element) => {
+    // `tagName` can be an element a form named so (Vimium #2035).
+    const tagName = element.tagName.toLowerCase?.() || "";
+    let isClickable = false;
+    let possibleFalsePositive = false;
+    if (switchedOff(element)) return null;
+    if (
+      angularPage &&
+      angularClickAttributes.some((attribute) => element.hasAttribute(attribute))
+    ) {
+      isClickable = true;
+    }
+    if (element.hasAttribute("onclick")) {
+      isClickable = true;
+    } else {
+      const role = element.getAttribute("role");
+      if (role !== null && clickableRoles.includes(role.toLowerCase())) {
+        isClickable = true;
+      } else {
+        const contentEditable = element.getAttribute("contentEditable");
+        if (
+          contentEditable !== null &&
+          ["", "contenteditable", "true"].includes(contentEditable.toLowerCase())
+        ) {
+          isClickable = true;
+        }
+      }
+    }
+    if (!isClickable && element.hasAttribute("jsaction")) {
+      for (const jsactionRule of element.getAttribute("jsaction").split(";")) {
+        const ruleSplit = jsactionRule.trim().split(":");
+        if (ruleSplit.length >= 1 && ruleSplit.length <= 2) {
+          const [eventType, namespace, actionName] =
+            ruleSplit.length === 1
+              ? ["click", ...ruleSplit[0].trim().split("."), "_"]
+              : [ruleSplit[0], ...ruleSplit[1].trim().split("."), "_"];
+          if (!isClickable) {
+            isClickable = eventType === "click" && namespace !== "none" && actionName !== "_";
+          }
+        }
+      }
+    }
+    switch (tagName) {
+      case "a":
+        isClickable = true;
+        break;
+      case "textarea":
+        isClickable ||= !element.disabled && !element.readOnly;
+        break;
+      case "input":
+        isClickable ||= !(
+          element.getAttribute("type")?.toLowerCase() === "hidden" ||
+          element.disabled ||
+          (element.readOnly && selectable(element))
+        );
+        break;
+      case "button":
+      case "select":
+        isClickable ||= !element.disabled;
+        break;
+      case "object":
+      case "embed":
+        isClickable = true;
+        break;
+      case "label":
+        // `control` is undefined on a label outside HTML, null on one with none.
+        isClickable ||=
+          element.control !== null &&
+          element.control !== undefined &&
+          !element.control.disabled &&
+          localHint(element.control) === null;
+        break;
+      case "img":
+        isClickable ||= ["zoom-in", "zoom-out"].includes(element.style.cursor);
+        break;
+      case "details":
+        isClickable = true;
+        break;
+    }
+    if (!isClickable) {
+      const className = element.getAttribute("class")?.toLowerCase();
+      if (className?.includes("button") || className?.includes("btn")) {
+        isClickable = true;
+        possibleFalsePositive = true;
+      }
+    }
+    if (tagName === "span") possibleFalsePositive = true;
+    let secondClassCitizen = false;
+    const tabIndexValue = element.getAttribute("tabindex");
+    const tabIndex = tabIndexValue ? parseInt(tabIndexValue) : -1;
+    if (!isClickable && !(tabIndex < 0) && !isNaN(tabIndex)) {
+      isClickable = true;
+      secondClassCitizen = true;
+    }
+    if (!isClickable) return null;
+    const rect = visibleRect(element);
+    if (rect === null) return null;
+    return { target: element, rect, secondClassCitizen, possibleFalsePositive };
+  };
+  // Every element in document order, shadow roots included, which is the order
+  // that tells which of two overlapping elements is on top.
+  const allElements = (root, elements = []) => {
+    for (const element of root.querySelectorAll("*")) {
+      elements.push(element);
+      if (element.shadowRoot) allElements(element.shadowRoot, elements);
+    }
+    return elements;
+  };
+  const hintTargets = (requireHref) => {
+    angularPage = document.getElementsByClassName("ng-scope").length > 0;
+    let hints = allElements(document.documentElement)
+      .filter((element) => !requireHref || Boolean(element.href))
+      .map(localHint)
+      .filter(Boolean)
+      .reverse();
+    // The list now runs from descendants to ancestors. A possible false positive
+    // is dropped when one of the six hints before it sits up to three levels
+    // inside it.
+    const descendantsToCheck = 3;
+    const lookbackWindow = 6;
+    hints = hints.filter((hint, position) => {
+      if (!hint.possibleFalsePositive) return true;
+      for (let index = Math.max(0, position - lookbackWindow); index < position; index++) {
+        let candidateDescendant = hints[index].target;
+        for (let level = 0; level < descendantsToCheck; level++) {
+          candidateDescendant = candidateDescendant?.parentElement;
+          if (candidateDescendant === hint.target) return false;
+        }
+      }
+      return true;
+    });
+    return hints
+      .filter((hint) => !hint.secondClassCitizen && reachable(hint.target, hint.rect))
+      .reverse();
   };
   // Breadth-first allocation permits short and long hints on the same page
   // without making a complete hint the prefix of another one.
@@ -142,17 +335,7 @@
   };
   const showHints = (command) => {
     clearHints();
-    let candidates = [
-      ...document.querySelectorAll(
-        'a[href], button, input:not([type="hidden"]), select, textarea, [role="link"], [role="button"]',
-      ),
-    ]
-      .filter((target) => !switchedOff(target))
-      .map((target) => ({ target, rect: visibleRect(target) }))
-      .filter(({ target, rect }) => rect && reachable(target, rect));
-    if (command === "open-link-background") {
-      candidates = candidates.filter(({ target }) => Boolean(target.href));
-    }
+    const candidates = hintTargets(command === "open-link-background");
     const overlay = document.createElement("div");
     name(overlay, "h");
     overlay.setAttribute("role", "status");
@@ -244,6 +427,10 @@
     clearHints();
     if (takesFocus) {
       target.focus({ preventScroll: true });
+    } else if (target.tagName === "DETAILS") {
+      // A click on a details element outside its summary opens nothing, so the
+      // hint toggles it, as Vimium's does.
+      target.open = !target.open;
     } else if (background) {
       target.dispatchEvent(
         new MouseEvent("click", {

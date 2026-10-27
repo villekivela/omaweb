@@ -638,7 +638,10 @@ it.
 
 Page commands ignore editable controls, IME composition, and unbound keys. Link hints use DOM
 accessibility labels, CSS lengths that follow page zoom, and system-color keywords that remain
-visible in forced-color modes.
+visible in forced-color modes. Which elements take a hint follows Vimium's rules, shadow roots
+included, as `THIRD_PARTY_NOTICES.md` records: an element is hinted for its tag, a clickable role or
+a handler, and only where it is on top. An element with only a `tabindex` is not hinted. Omaweb also
+leaves out any control that matches `:disabled`.
 
 ## Window composition
 
