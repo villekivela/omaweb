@@ -144,8 +144,9 @@ class EngineAndCapability(unittest.TestCase):
         # offscreen document (#745) and the engine gave a page no chrome.app,
         # and Omaweb defines none of its own (#766), and an Omaweb built against
         # 6.11.2-12 calls the window geometry API that 6.11.2-7 does not have,
-        # so it would not start on it (#684). Before 6.11.3-1 the engine
-        # carried Chromium's security fixes only up to 151.0.7922.71 (#802).
+        # so it would not start on it (#684). Omaweb runs on 6.11.2-16, but
+        # that engine carries Chromium's security fixes only up to
+        # 151.0.7922.71, and 6.11.3-1 carries them up to 155.0.8059.85 (#802).
         # pacman upgrades Omaweb without the engine unless the dependency asks
         # for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
