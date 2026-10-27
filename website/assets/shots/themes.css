@@ -6,6 +6,17 @@
  * to a page that asks for it: a release page does, the landing page does not.
  */
 
+[data-theme="ethereal-nebula-silver"] {
+  --bg: var(--omaweb-bg, #030511);
+  --sidebar: var(--omaweb-sidebar, #050718);
+  --fg: var(--omaweb-fg, #c9cdd8);
+  --accent: var(--omaweb-accent, #8e93e8);
+  --urgent: var(--omaweb-urgent, #ed5b5a);
+  --keyword: var(--omaweb-keyword, #d496c8);
+  --muted: var(--omaweb-muted, #6d7db6);
+  --border: #8e93e8;
+}
+
 [data-theme="matte-black"] {
   --bg: var(--omaweb-bg, #090909);
   --sidebar: var(--omaweb-sidebar, #0d0d0d);

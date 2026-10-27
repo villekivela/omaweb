@@ -249,8 +249,8 @@ if (drive) {
   let theme = document.documentElement.dataset.theme;
   const picker = omnibar.querySelector(".themes");
   const swatches = [...picker.querySelectorAll("[data-theme-choice]")];
-  // The pick lasts the visit, so the release pages open in it, and a new visit opens in Retro 82
-  // again; theme.js applies it.
+  // The pick lasts the visit, so the release pages open in it, and a new visit opens in the
+  // markup's theme again; theme.js applies it.
   const paint = (next, remember = true) => {
     theme = next;
     document.documentElement.dataset.theme = theme;
