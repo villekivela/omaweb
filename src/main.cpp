@@ -47,6 +47,7 @@
 #include "PagePrinter.h"
 #include "PaymentCards.h"
 #include "ProcessResources.h"
+#include "TelemetrySampler.h"
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtCookiePolicy.h"
@@ -579,6 +580,17 @@ int main(int argc, char *argv[])
     omaweb::registerSoundingTabs();
     omaweb::registerMediaAnnouncer();
     omaweb::registerProcessResources();
+    // The Telemetry Scene's readings, one sampler for every window. Pages
+    // today are read from History once a day and counted as they load.
+    omaweb::TelemetrySampler telemetry;
+    telemetry.setVisitTimes([&browser](qint64 since) { return browser.visitTimesSince(since); });
+    QObject::connect(&browser, &omaweb::BrowserController::visitRecorded, &telemetry,
+        &omaweb::TelemetrySampler::countVisit);
+    QObject::connect(&browser, &omaweb::BrowserController::historyDeleted, &telemetry,
+        &omaweb::TelemetrySampler::forgetVisits);
+    QObject::connect(&contentBlocker, &omaweb::ContentBlocker::requestsRefused, &telemetry,
+        &omaweb::TelemetrySampler::countRefusals);
+    omaweb::registerTelemetrySampler(&telemetry);
     omaweb::registerSavedDownload();
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
     omaweb::registerInputMethodReport(&inputMethod);

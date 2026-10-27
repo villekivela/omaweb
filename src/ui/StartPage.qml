@@ -6,9 +6,9 @@ import qs.Commons
 // at rest, `about:blank`, or a new-tab request that has not been given a
 // destination yet. It is the Omnibar at rest over the Scene the reader chose:
 // the night road, the night sky, the Game of Life, the vector terrain, the
-// radar or hyperspace. The Omnibar itself is the window's own, drawn resting on the Scene's
-// horizon, and the Start page's corner names the Shortcut sheet; the page is the Scene
-// under it.
+// radar, hyperspace or Telemetry. The Omnibar itself is the window's own,
+// drawn resting on the Scene's horizon, and the Start page's corner names the
+// Shortcut sheet; the page is the Scene under it.
 //
 // It costs no engine. The Scene moves only while the page is on show and the
 // window is the reader's. It fills the page area, or the one pane of a split
@@ -25,8 +25,8 @@ Item {
     property bool privateWindow: false
     property bool open: false
     // The Settings interface section's Scene: "crt-road", "night-sky",
-    // "game-of-life", "vector-terrain", "radar", "hyperspace", or "none", where
-    // the backdrop below takes its place.
+    // "game-of-life", "vector-terrain", "radar", "hyperspace", "telemetry", or
+    // "none", where the backdrop below takes its place.
     property string sceneId: "crt-road"
     // Each Scene's drawing, by its id.
     readonly property var scenes: ({
@@ -35,7 +35,8 @@ Item {
                                        "game-of-life": life,
                                        "vector-terrain": terrain,
                                        "radar": radar,
-                                       "hyperspace": hyperspace
+                                       "hyperspace": hyperspace,
+                                       "telemetry": telemetry
                                    })
     readonly property bool sceneShown: root.sceneId !== "none"
     // How far the resting Omnibar reaches below the horizon, which the night
@@ -274,5 +275,77 @@ Item {
         id: hyperspace
 
         Hyperspace {}
+    }
+
+    Component {
+        id: telemetry
+
+        Telemetry {}
+    }
+
+    // ---- Telemetry: what the window hands its Scene
+
+    // The Settings interface section's text size and the modules turned off.
+    property string telemetryText: "large"
+    property var telemetryHidden: []
+    // The window's downloads, whose running ones the Scene shows.
+    property var downloads: null
+    // Functions of the window: the ids of its Spaces, whose refusals the Scene
+    // counts, and each Space's name and memory.
+    property var spaceIds: null
+    property var spaceMemory: null
+
+    readonly property bool telemetryShown: !!host.sceneItem && host.sceneItem.objectName
+                                           === "telemetry"
+    // While Telemetry is on show it reads the sampler at once, so a new tab
+    // shows what the last five minutes held, and again at every sample. The
+    // Spaces' memory is asked of the system once a second.
+    readonly property bool readingTelemetry: root.visible && root.telemetryShown
+    property int telemetrySamples: 0
+
+    function readTelemetry() {
+        if (!root.readingTelemetry)
+            return;
+        // A Private window's Scene is handed nothing from History.
+        host.sceneItem.readings = TelemetrySampler.readings(root.spaceIds ? root.spaceIds() : [],
+                                                            !root.privateWindow);
+        if (root.telemetrySamples % TelemetrySampler.samplesPerSecond === 0 && !root.privateWindow)
+            host.sceneItem.spaces = root.spaceMemory ? root.spaceMemory() : [];
+        root.telemetrySamples += 1;
+    }
+
+    onReadingTelemetryChanged: {
+        root.telemetrySamples = 0;
+        root.readTelemetry();
+    }
+
+    Connections {
+        target: TelemetrySampler
+        enabled: root.readingTelemetry
+
+        function onSampled() {
+            root.readTelemetry();
+        }
+    }
+
+    Binding {
+        target: root.telemetryShown ? host.sceneItem : null
+        property: "textSize"
+        value: root.telemetryText
+        when: root.telemetryShown
+    }
+
+    Binding {
+        target: root.telemetryShown ? host.sceneItem : null
+        property: "hidden"
+        value: root.telemetryHidden
+        when: root.telemetryShown
+    }
+
+    Binding {
+        target: root.telemetryShown ? host.sceneItem : null
+        property: "downloads"
+        value: root.downloads ? root.downloads.runningDownloads : []
+        when: root.telemetryShown
     }
 }

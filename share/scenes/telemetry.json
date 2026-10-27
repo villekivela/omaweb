@@ -1,0 +1,46 @@
+{
+  "description": "Telemetry behind the Start page (#814): a retro-futuristic CRT dashboard of live readings around the resting Omnibar, the Cockpit edge to edge. The browser draws it (src/ui/Telemetry.qml); the website does not. Every reading is real and local: the machine's from /proc and /sys, as Omarchy's bar reads them, and the browser's own, with no network request. `pitch` is 1 and `devicePixels` is true: the picture is taken at the display's own pixels, so text and lines are sharp. The beam's lines stand `crt.scanlines.pitch` device pixels apart, apart from the Scene's rows, as the road's stand at 1.5x. `crt` is otherwise the road's glass, its bloom stronger and wider for glyphs and its scanlines and mask lighter, so text reads through them. `text` is the two text sizes, captions and readings in CSS pixels, `large` by default. `rest` is where the Omnibar rests, as a share of the height. `modules` is the fixed set in drop order: a small window keeps the earlier ones longest. A Private window shows its own downloads and refusals and the machine's readings, and nothing from History or other Spaces.",
+  "id": "telemetry",
+  "name": "Telemetry",
+  "pitch": 1,
+  "fps": 30,
+  "glass": "crt",
+  "screen": "raster",
+  "devicePixels": true,
+  "crt": {
+    "bloom": { "scale": 4, "opacity": 0.4 },
+    "scanlines": {
+      "pitch": 6,
+      "shade": 0.38,
+      "narrowest": 0.8,
+      "widest": 1.15,
+      "falloff": 2.2,
+      "lift": 1.2
+    },
+    "mask": { "dim": 0.88, "lift": 1.18 },
+    "halation": { "threshold": 0.3, "strength": 0.3, "reach": 32, "spacing": 24 },
+    "grade": {
+      "top": 0.15,
+      "depth": 0.55,
+      "highlights": { "from": 0.25, "to": 0.85, "strength": 0.45 },
+      "midtones": { "from": 0.08, "to": 0.5, "strength": 0.35 }
+    },
+    "vignette": { "clear": 0.6, "shade": 0.55 },
+    "band": {
+      "every": 7,
+      "from": -0.2,
+      "travel": 1.4,
+      "reach": 0.07,
+      "reachAtLeast": 4,
+      "strength": 0.05
+    },
+    "flicker": { "least": 0.02, "range": 0.02, "frequencies": [37.1, 11.3] }
+  },
+  "options": {},
+  "rest": 0.5,
+  "text": {
+    "large": { "caption": 22, "reading": 32 },
+    "small": { "caption": 18, "reading": 26 }
+  },
+  "modules": ["cpu", "network", "memory", "blocked", "downloads", "battery", "pages", "spaces"]
+}

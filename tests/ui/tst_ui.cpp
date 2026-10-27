@@ -28,6 +28,7 @@
 #include "PaymentCards.h"
 #include "ProbeClock.h"
 #include "ProcessResources.h"
+#include "TelemetrySampler.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
 #include "SoundingTabs.h"
@@ -588,6 +589,7 @@ public slots:
         omaweb::registerSoundingTabs();
         omaweb::registerMediaAnnouncer();
         omaweb::registerProcessResources();
+        omaweb::registerTelemetrySampler(&m_telemetry);
         omaweb::registerSavedDownload();
         omaweb::registerWindowAppId();
         qmlRegisterSingletonType<SystemMotionProbe>("Omaweb", 1, 0, "SystemMotion",
@@ -849,6 +851,7 @@ private:
     std::unique_ptr<omaweb::KitTheme> m_kitTheme;
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;
+    omaweb::TelemetrySampler m_telemetry;
     std::unique_ptr<omaweb::InputMethodReport> m_inputMethod;
     std::unique_ptr<omaweb::LocaleReport> m_localeReport;
     std::unique_ptr<omaweb::test::ProbeClock> m_probeClock;

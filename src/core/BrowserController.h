@@ -484,6 +484,9 @@ public:
     // left the text it asked about.
     Q_INVOKABLE void cancelEngineSuggestions();
     Q_INVOKABLE QVariantList history(const QString &query, int limit = 500) const;
+    // When each page in every Space was visited, from `since` on, in
+    // milliseconds since the epoch: the Telemetry Scene's pages today.
+    QList<qint64> visitTimesSince(qint64 since) const;
     Q_INVOKABLE bool deleteHistoryVisit(qint64 id);
     Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
     Q_INVOKABLE bool deleteHistorySince(qint64 since);
@@ -781,6 +784,10 @@ signals:
     // The suggestions for the request the Omnibar is still waiting on. A
     // Private window is answered with none.
     void historySuggestionsReady(const QVariantList &suggestions);
+    // A page was recorded in History at `at`, milliseconds since the epoch.
+    void visitRecorded(qint64 at);
+    // Some of History was deleted.
+    void historyDeleted();
     // The answer to the latest Engine suggestion request: the `engineId`,
     // `engineName` and `siteUrl` of the engine asked, the `terms` it was asked
     // for, and at most four `suggestions`, none of them the terms again.

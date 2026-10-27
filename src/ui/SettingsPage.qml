@@ -173,6 +173,10 @@ Rectangle {
     // The Start page's Scene, by its id, or "none".
     property string startPageScene: "crt-road"
     property bool startPageGlass: true
+    // The Telemetry Scene's text size, "large" or "small", and the modules
+    // turned off.
+    property string telemetryText: "large"
+    property var telemetryHidden: []
     property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
@@ -449,6 +453,8 @@ Rectangle {
     signal spaceColoursToggled(bool enabled)
     signal startPageSceneChosen(string scene)
     signal startPageGlassToggled(bool enabled)
+    signal telemetryModuleToggled(string module, bool shown)
+    signal telemetryTextChosen(string size)
 
     Dialogs.FileDialog {
         id: recoveryKeySaveDialog
@@ -1259,6 +1265,103 @@ Rectangle {
                         accessibleName: qsTr("CRT glass over the Scene")
                         checked: root.startPageGlass
                         onClicked: root.startPageGlassToggled(!checked)
+                    }
+
+                    // Telemetry's own settings, under the Scene, while it is
+                    // the one chosen: its text size and its modules, a fixed
+                    // set each of which can be turned off.
+                    SettingRow {
+                        width: pane.width
+                        visible: root.startPageScene === "telemetry"
+                        colors: root.colors
+                        title: qsTr("Telemetry text")
+                        note: qsTr("How large the Telemetry Scene's readings are drawn.")
+
+                        SettingChoice {
+                            objectName: "telemetryText"
+                            enabled: root.settingsWritable
+                            visible: root.startPageScene === "telemetry"
+                            colors: root.colors
+                            options: [
+                                {
+                                    value: "large",
+                                    label: qsTr("Large", "Telemetry text size")
+                                },
+                                {
+                                    value: "small",
+                                    label: qsTr("Small", "Telemetry text size")
+                                }
+                            ]
+                            value: root.telemetryText
+                            accessibleName: qsTr("Telemetry text")
+                            onChanged: function (size) {
+                                root.telemetryTextChosen(size);
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: [
+                            {
+                                module: "cpu",
+                                title: qsTr("CPU", "Telemetry module"),
+                                note: qsTr(
+                                          "The load on each core, and on the whole processor over five minutes.")
+                            },
+                            {
+                                module: "network",
+                                title: qsTr("Network", "Telemetry module"),
+                                note: qsTr("What the machine receives and sends over five minutes.")
+                            },
+                            {
+                                module: "memory",
+                                title: qsTr("Memory and swap", "Telemetry module"),
+                                note: qsTr(
+                                          "The machine's memory, its swap, and what Omaweb's own window holds.")
+                            },
+                            {
+                                module: "blocked",
+                                title: qsTr("Requests blocked", "Telemetry module"),
+                                note: qsTr(
+                                          "What Content blocking refused, a minute's worth and in all, and the host refused most.")
+                            },
+                            {
+                                module: "downloads",
+                                title: qsTr("Downloads", "Telemetry module"),
+                                note: qsTr("Shown only while a download runs.")
+                            },
+                            {
+                                module: "battery",
+                                title: qsTr("Battery", "Telemetry module"),
+                                note: qsTr(
+                                          "Its charge and draw, shown only where there is a battery.")
+                            },
+                            {
+                                module: "pages",
+                                title: qsTr("Pages today", "Telemetry module"),
+                                note: qsTr("The pages loaded in each hour of today, from History.")
+                            },
+                            {
+                                module: "spaces",
+                                title: qsTr("Memory per Space", "Telemetry module"),
+                                note: qsTr("What the open pages of each Space hold.")
+                            }
+                        ]
+
+                        SettingToggle {
+                            required property var modelData
+
+                            objectName: "telemetryModule-" + modelData.module
+                            enabled: root.settingsWritable
+                            width: pane.width
+                            visible: root.startPageScene === "telemetry"
+                            colors: root.colors
+                            title: modelData.title
+                            note: modelData.note
+                            accessibleName: qsTr("Telemetry: %1").arg(modelData.title)
+                            checked: root.telemetryHidden.indexOf(modelData.module) < 0
+                            onClicked: root.telemetryModuleToggled(modelData.module, !checked)
+                        }
                     }
 
                     // An ordinary tab not on show for this long goes to its

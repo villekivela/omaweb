@@ -3699,6 +3699,7 @@ void BrowserController::recordVisit(const QUrl &url, const QString &title)
         return;
     }
     m_store->recordVisit(m_activeSpaceId, url, title.isEmpty() ? url.host() : title);
+    emit visitRecorded(QDateTime::currentMSecsSinceEpoch());
 }
 
 void BrowserController::requestHistorySuggestions(const QString &query, int limit)
@@ -3842,6 +3843,15 @@ QVariantList BrowserController::history(const QString &query, int limit) const
     return m_store->history(m_activeSpaceId, query.trimmed(), limit);
 }
 
+QList<qint64> BrowserController::visitTimesSince(qint64 since) const
+{
+    QList<qint64> times;
+    for (const auto &space : m_spaces.items()) {
+        times.append(m_store->visitTimesSince(space.id, since));
+    }
+    return times;
+}
+
 // A deletion keeps the stored favicon a sidebar tab shows, and reads the
 // sidebar from the store, so a tab write still waiting lands first.
 void BrowserController::landPendingTabs()
@@ -3859,6 +3869,7 @@ bool BrowserController::deleteHistoryVisit(qint64 id)
         return false;
     }
     cancelHistorySuggestions();
+    emit historyDeleted();
     return true;
 }
 
@@ -3870,6 +3881,7 @@ bool BrowserController::deleteHistoryOrigin(const QUrl &url)
         return false;
     }
     cancelHistorySuggestions();
+    emit historyDeleted();
     return true;
 }
 
@@ -3880,6 +3892,7 @@ bool BrowserController::deleteHistorySince(qint64 since)
         return false;
     }
     cancelHistorySuggestions();
+    emit historyDeleted();
     return true;
 }
 
@@ -4272,6 +4285,7 @@ bool BrowserController::clearBrowsingData(
     }
     if (dataTypes.contains(QStringLiteral("history"))) {
         cancelHistorySuggestions();
+        emit historyDeleted();
     }
     emit engineDataClearRequested(spaceIds, dataTypes, since);
     return true;

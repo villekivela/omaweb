@@ -1273,14 +1273,15 @@ browser on Linux hardware has been taken yet.
 
 ### Runtime probes
 
-Eight runtime numbers are measurements the test suites keep rather than budgets. Each probe prints a
+Nine runtime numbers are measurements the test suites keep rather than budgets. Each probe prints a
 `probe <name>: <value> <unit> (threshold <limit> <unit>)` line and fails naming both numbers when
 the value crosses the threshold. Each threshold is a round number set after the first measurement:
 about four times it for the two startup probes, seven and ten times for the tab switch and the
 frame, which are under ten milliseconds, where scheduling jitter is a larger share of a sample than
 the machine is, and about twice for memory. The three session writes hold the 2 ms that #214 set as
 the point to take them off the interface thread, which is the bound they were moved for rather than
-a margin over their first measurement. All eight run under `ctest --preset ci`, as do the
+a margin over their first measurement, and so does what a new tab reads of the Telemetry Scene's
+five minutes on that thread (#814). All nine run under `ctest --preset ci`, as do the
 [frame intervals](#frame-intervals) of the chrome's movements, which are held to a budget instead.
 
 Baseline measured on the initial macOS development machine, an Apple M2 Max on macOS 26.6.2, with
@@ -1296,6 +1297,10 @@ the `dev` preset on 2026-09-12, and on CI's runners and on an Omarchy laptop on 
 | Visit record, on the interface thread             | 2 to 15 us     | 10 to 42 us    | 12 us         | 7 to 23 us      | 2000 us   | `omaweb-session-store`      |
 | Coalesced tab write, on the interface thread      | 1 to 2 us      | 2.9 to 5.7 us  | 2.7 us        | 2.4 to 3.6 us   | 2000 us   | `omaweb-session-store`      |
 | Closed-tab write, on the interface thread         | 1 to 2 us      | 2.0 to 5.0 us  | 2.2 us        | 2.3 to 4.6 us   | 2000 us   | `omaweb-session-store`      |
+| Telemetry read for a new tab                      | not taken      | not taken      | not taken     | 0.9 to 1.0 ms   | 2 ms      | `omaweb-ui-performance`     |
+
+The Telemetry read was first taken on 2026-10-27, offscreen on an Omarchy laptop, a Dell XPS, five
+runs of the median of ten reads. Its other columns wait for a run on those machines.
 
 The CI columns are the `arch-linux-clang` and `arch-linux-gcc` jobs of `main` at `d4561d3` and
 `9a39d1c`, on 2026-10-06 with QtWebEngine 6.11.2-5, read from the step that prints the probes'
@@ -1503,9 +1508,10 @@ scripts/benchmark_runtime.py startup livedin --cache cold
 scripts/benchmark_runtime.py spaces --spaces 4
 scripts/benchmark_runtime.py pageload
 scripts/benchmark_runtime.py livetabs
+scripts/benchmark_runtime.py telemetry
 ```
 
-Seven measurements, one subcommand each, so a developer can run the one they are working on:
+Eight measurements, one subcommand each, so a developer can run the one they are working on:
 
 - `startup` is the median of three launches, from the process starting to the first buffer the
   browser attached to its toplevel's surface.
@@ -1534,6 +1540,9 @@ Seven measurements, one subcommand each, so a developer can run the one they are
 - `livetabs` opens five Spaces, then 20 tabs and then 50 across them, and reports what each tab past
   a Space's first added at each count and how much of a core the process tree uses over 30 seconds
   left alone. It is described below.
+- `telemetry` is what choosing the Telemetry Scene costs while the reader is on a page: its sampler,
+  which runs while Telemetry is chosen so a new tab's graphs are full. It is the tree's CPU over 30
+  seconds on a page with Telemetry chosen, less the same with no Scene.
 
 It writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, so unlike the theme repaint and the default browser it needs no opt-in guard. It does take

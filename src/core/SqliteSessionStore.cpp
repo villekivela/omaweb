@@ -782,6 +782,21 @@ QVariantList SqliteSessionStore::history(
     return rows;
 }
 
+QList<qint64> SqliteSessionStore::visitTimesSince(const QString &spaceId, qint64 since) const
+{
+    QList<qint64> times;
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral("SELECT visited_at FROM history WHERE visited_at >= ?"));
+    query.addBindValue(since);
+    if (!query.exec()) {
+        return times;
+    }
+    while (query.next()) {
+        times.append(query.value(0).toLongLong());
+    }
+    return times;
+}
+
 bool SqliteSessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
 {
     auto database = spaceDatabase(spaceId);

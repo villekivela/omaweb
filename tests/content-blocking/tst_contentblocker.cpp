@@ -60,6 +60,7 @@ private slots:
     void twoSpacesKeepSeparateTalliesForOneAddress();
     void aJumpInsideTheDocumentLeavesTheTallyRunning();
     void aPageNoViewIsShowingHasNoTally();
+    void everyRefusalIsAnnouncedWithItsSpace();
     void aRefusedElementsAddressReachesTheViewShowingThePage();
     void firstRunSubscribesToTheDefaultLists();
     void aSettingsFileWithNoMarkerSeedsOnceMore();
@@ -874,6 +875,34 @@ void ContentBlockerTest::aPageNoViewIsShowingHasNoTally()
     refuse(*blocker, page, space);
     QTest::qWait(500);
     QCOMPARE(blocker->refusalTally(space, page), 0);
+}
+
+// Telemetry counts refusals a second at a time, by Space, whether or not a
+// view is showing the page they were refused for: a page that closed still
+// had its requests refused.
+void ContentBlockerTest::everyRefusalIsAnnouncedWithItsSpace()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    QSignalSpy refused(blocker.get(), &ContentBlocker::requestsRefused);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    QObject view;
+    blocker->showPage(&view, space, page, 1);
+    refuse(*blocker, page, space);
+    refuse(*blocker, page, space);
+    refuse(*blocker, QUrl(QStringLiteral("https://closed.example/")), QStringLiteral("other"));
+
+    QTRY_VERIFY_WITH_TIMEOUT(refused.count() >= 2, 5000);
+    QHash<QString, QStringList> bySpace;
+    for (const auto &arguments : refused) {
+        bySpace[arguments.at(0).toString()].append(arguments.at(1).toStringList());
+    }
+    QCOMPARE(bySpace.value(space),
+        QStringList({QStringLiteral("https://ads.example/ad.js"),
+            QStringLiteral("https://ads.example/ad.js")}));
+    QCOMPARE(bySpace.value(QStringLiteral("other")),
+        QStringList({QStringLiteral("https://ads.example/ad.js")}));
 }
 
 // The interceptor knows the address it refused and the page knows the

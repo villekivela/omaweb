@@ -105,6 +105,8 @@ QVariantList PrivateSessionStore::history(const QString &, const QString &, int)
     return {};
 }
 
+QList<qint64> PrivateSessionStore::visitTimesSince(const QString &, qint64) const { return {}; }
+
 bool PrivateSessionStore::deleteHistoryVisit(const QString &, qint64) { return false; }
 
 bool PrivateSessionStore::deleteHistoryOrigin(const QString &, const QString &) { return false; }

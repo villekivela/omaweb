@@ -32,6 +32,8 @@ TestCase {
     // How many switches the latency is the median of. One number would be
     // whichever of them a garbage collection happened to land in.
     readonly property int switches: 10
+    // The interface thread's 2 ms from #214, as the session writes are held.
+    readonly property real telemetryReadThresholdMilliseconds: 2
 
     Component {
         id: windowComponent
@@ -73,6 +75,43 @@ TestCase {
     function probe(name, measured, unit, threshold) {
         const failure = probeClock.report(name, measured, unit, threshold);
         verify(measured <= threshold, failure);
+    }
+
+    // What a new tab reads on the interface thread when it opens on the
+    // Telemetry Scene: five minutes of every reading, handed to the Scene the
+    // window's Start page keeps, whose figures and gauges follow at once.
+    // #214 set 2 ms as the point to take work off the interface thread, and
+    // this is held to it.
+    Component {
+        id: telemetryComponent
+        // The whole cockpit, every module in its place: the most a read sets
+        // moving.
+        Omaweb.Telemetry {
+            width: 2560
+            height: 1440
+        }
+    }
+
+    function test_aNewTabReadsTelemetryInsideTwoMilliseconds() {
+        TelemetrySampler.fillForTests();
+        const full = TelemetrySampler.readings([]);
+        compare(full.cpu.length, TelemetrySampler.slowKept);
+        compare(full.down.length, TelemetrySampler.slowKept);
+        const scene = createTemporaryObject(telemetryComponent, testCase);
+        scene.readings = full;
+        const samples = [];
+        for (let round = 0; round < switches; ++round) {
+            const started = probeClock.milliseconds();
+            scene.readings = TelemetrySampler.readings([browser.activeSpaceId]);
+            void scene.figures;
+            void scene.gauges;
+            samples.push(probeClock.milliseconds() - started);
+        }
+        samples.sort(function (a, b) {
+            return a - b;
+        });
+        probe("telemetry-read-for-a-new-tab", samples[Math.floor(samples.length / 2)], "ms",
+              telemetryReadThresholdMilliseconds);
     }
 
     // A new Space comes up on one blank tab, which the first page takes over;

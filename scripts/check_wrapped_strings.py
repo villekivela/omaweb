@@ -67,6 +67,7 @@ TOKENS = {
     ("VectorTerrain.qml", "white"),
     ("Radar.qml", "white"),
     ("Hyperspace.qml", "white"),
+    ("Telemetry.qml", "white"),
     ("SettingsPage.qml", "claude"),
     ("TabWindow.qml", "warning"),
     ("TabWindow.qml", "lock"),

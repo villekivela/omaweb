@@ -30,6 +30,7 @@
 #include "PagePrinter.h"
 #include "PaymentCards.h"
 #include "ProcessResources.h"
+#include "TelemetrySampler.h"
 #include "Quickshell.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
@@ -626,6 +627,8 @@ int main(int argc, char *argv[])
     omaweb::registerSoundingTabs();
     omaweb::registerMediaAnnouncer();
     omaweb::registerProcessResources();
+    static omaweb::TelemetrySampler telemetry;
+    omaweb::registerTelemetrySampler(&telemetry);
     omaweb::registerSavedDownload();
     omaweb::registerWindowAppId();
     static omaweb::RuntimeSecurity runtimeSecurity({}, {});
@@ -1143,7 +1146,7 @@ int main(int argc, char *argv[])
     }
     // `--scene <id>` stands the Start page on that Scene, as Settings'
     // interface section does: `crt-road`, `night-sky`, `game-of-life`,
-    // `vector-terrain`, `radar`, `hyperspace` or `none`.
+    // `vector-terrain`, `radar`, `hyperspace`, `telemetry` or `none`.
     const auto sceneIndex = arguments.indexOf(QStringLiteral("--scene"));
     if (sceneIndex >= 0 && sceneIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
         engine.rootObjects().constFirst()->setProperty(

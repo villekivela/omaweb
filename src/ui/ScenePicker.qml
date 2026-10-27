@@ -69,6 +69,11 @@ Grid {
             scene: hyperspaceScene
         },
         {
+            value: "telemetry",
+            label: qsTr("Telemetry", "Start page Scene"),
+            scene: telemetryScene
+        },
+        {
             value: "none",
             label: qsTr("None", "Start page Scene: the sidebar's fill"),
             scene: null
@@ -143,6 +148,12 @@ Grid {
         id: hyperspaceScene
 
         Hyperspace {}
+    }
+
+    Component {
+        id: telemetryScene
+
+        Telemetry {}
     }
 
     Repeater {
