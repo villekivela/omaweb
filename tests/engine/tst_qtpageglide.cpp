@@ -89,28 +89,48 @@ private:
 
 namespace {
 
+// One event as Qt delivers it: to the window first, then to the item under the pointer.
 void wheel(QObject *to, Qt::ScrollPhase phase, QPoint angle, quint64 at,
     Qt::MouseEventSource source = Qt::MouseEventSynthesizedBySystem)
 {
-    QWheelEvent event(QPointF(40, 40), QPointF(140, 140), QPoint(), angle, Qt::NoButton,
-        Qt::NoModifier, phase, false, source);
-    event.setTimestamp(at);
-    QCoreApplication::sendEvent(to, &event);
+    static QObject window;
+    for (auto *receiver : {&window, to}) {
+        QWheelEvent event(QPointF(40, 40), QPointF(140, 140), QPoint(), angle, Qt::NoButton,
+            Qt::NoModifier, phase, false, source);
+        event.setTimestamp(at);
+        QCoreApplication::sendEvent(receiver, &event);
+    }
 }
 
-// Two fingers moving the page 30 angle units every 10 ms, 3000 a second, and lifting as they
-// move. GTK's friction of 4 a second takes it 750 more in ln(375) / 4 seconds, when two are left.
-// Qt's Wayland plugin says the begin's source is not synthesized, and the rest's is.
-void flick(QObject *to)
+// A begin or an end, which has no delta. Qt 6.12's `QWindowSystemInterface::handleWheelEvent`
+// sends an event whose angle delta is neither only vertical nor only horizontal twice, the second
+// time for Qt 4's horizontal wheel, so both arrive twice, the same each time.
+void edge(QObject *to, Qt::ScrollPhase phase, quint64 at, Qt::MouseEventSource source)
 {
-    wheel(to, Qt::ScrollBegin, QPoint(), 990, Qt::MouseEventNotSynthesized);
+    wheel(to, phase, QPoint(), at, source);
+    wheel(to, phase, QPoint(), at, source);
+}
+
+// Fingers moving the page 30 angle units every 10 ms, from 1000 to 1100 ms, as Qt's Wayland
+// plugin delivers them. Its begin says the source is not synthesized, and the rest say it is.
+void drag(QObject *to)
+{
+    edge(to, Qt::ScrollBegin, 990, Qt::MouseEventNotSynthesized);
     for (quint64 at = 1000; at <= 1100; at += 10) {
         wheel(to, Qt::ScrollUpdate, QPoint(0, 30), at);
     }
-    wheel(to, Qt::ScrollEnd, QPoint(), 1100);
 }
 
-constexpr qsizetype fingerEvents = 12;
+// The fingers lifting as they move, at 3000 units a second. GTK's friction of 4 a second takes the
+// page 750 more in ln(375) / 4 seconds, when two are left.
+void flick(QObject *to)
+{
+    drag(to);
+    edge(to, Qt::ScrollEnd, 1100, Qt::MouseEventSynthesizedBySystem);
+}
+
+// What the page hears of the fingers before the lift: two begins and eleven updates.
+constexpr qsizetype fingerEvents = 13;
 
 int ends(const QList<probe::Heard> &heard)
 {
@@ -206,14 +226,12 @@ bool QtPageGlideTest::endedOnce()
 // The fingers stopped 200 ms before they lifted, longer than the speed is measured over.
 void QtPageGlideTest::dragThatEndsAtRestDoesNotGlide()
 {
-    wheel(m_page, Qt::ScrollBegin, QPoint(), 990, Qt::MouseEventNotSynthesized);
-    for (quint64 at = 1000; at <= 1100; at += 10) {
-        wheel(m_page, Qt::ScrollUpdate, QPoint(0, 30), at);
-    }
-    wheel(m_page, Qt::ScrollEnd, QPoint(), 1300);
-    QCOMPARE(m_page->heard.size(), fingerEvents + 1);
+    drag(m_page);
+    edge(m_page, Qt::ScrollEnd, 1300, Qt::MouseEventSynthesizedBySystem);
     QVERIFY(!m_glide->gliding());
-    QVERIFY(endedOnce());
+    QTest::qWait(100);
+    QCOMPARE(m_page->heard.size(), fingerEvents + 2);
+    QCOMPARE(ends(m_page->heard), 2);
 }
 
 // A wheel has no phases, however fast its notches come. The wait outlasts the 120 ms after which
@@ -238,10 +256,10 @@ void QtPageGlideTest::gestureOverAnotherItemDoesNotGlide()
     probe::OtherItem sidebar;
     flick(&sidebar);
     QVERIFY(!m_glide->gliding());
-    QCOMPARE(sidebar.heard.size(), fingerEvents + 1);
+    QCOMPARE(sidebar.heard.size(), fingerEvents + 2);
     QCOMPARE(sidebar.heard.last().phase, Qt::ScrollEnd);
     QTest::qWait(100);
-    QCOMPARE(sidebar.heard.size(), fingerEvents + 1);
+    QCOMPARE(sidebar.heard.size(), fingerEvents + 2);
 }
 
 // Fingers that move again begin a gesture of their own, which Chromium hears after the glide's
@@ -249,10 +267,11 @@ void QtPageGlideTest::gestureOverAnotherItemDoesNotGlide()
 void QtPageGlideTest::touchingAgainStopsTheGlide()
 {
     QVERIFY(startGlide());
-    wheel(m_page, Qt::ScrollBegin, QPoint(), 5000, Qt::MouseEventNotSynthesized);
+    edge(m_page, Qt::ScrollBegin, 5000, Qt::MouseEventNotSynthesized);
     QVERIFY(!m_glide->gliding());
     QCOMPARE(m_page->heard.last().phase, Qt::ScrollBegin);
-    QCOMPARE(m_page->heard.at(m_page->heard.size() - 2).phase, Qt::ScrollEnd);
+    QCOMPARE(m_page->heard.at(m_page->heard.size() - 2).phase, Qt::ScrollBegin);
+    QCOMPARE(m_page->heard.at(m_page->heard.size() - 3).phase, Qt::ScrollEnd);
     const auto heard = m_page->heard.size();
     QTest::qWait(100);
     QCOMPARE(m_page->heard.size(), heard);

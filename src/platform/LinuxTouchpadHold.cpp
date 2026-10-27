@@ -1,6 +1,7 @@
 #include "TouchpadHold.h"
 
 #include <QGuiApplication>
+#include <QLoggingCategory>
 
 #include <wayland-client.h>
 
@@ -9,6 +10,9 @@
 namespace omaweb {
 
 namespace {
+
+    // The page glide's log, which a hold stops.
+    Q_LOGGING_CATEGORY(glideLog, "omaweb.glide", QtWarningMsg)
 
     // The two interfaces of `pointer-gestures-unstable-v1` this uses, written out as
     // wayland-scanner would from the protocol's XML. Its generated code is Qt Wayland's
@@ -73,16 +77,22 @@ struct TouchpadHold::Native {
         wl_proxy_add_listener(self->hold,
             reinterpret_cast<void (**)(void)>(const_cast<HoldListener *>(&listener)), self);
         wl_display_flush(self->display);
+        qCInfo(glideLog) << "listening for touchpad holds";
     }
 
     static void globalRemoved(void *, wl_registry *, uint32_t) { }
 
-    static void held(void *data, wl_proxy *, uint32_t, uint32_t, wl_surface *, uint32_t)
+    static void held(
+        void *data, wl_proxy *, uint32_t, uint32_t time, wl_surface *, uint32_t fingers)
     {
+        qCInfo(glideLog) << "hold began at" << time << "with" << fingers << "fingers";
         emit static_cast<Native *>(data)->owner->held();
     }
 
-    static void ended(void *, wl_proxy *, uint32_t, uint32_t, int32_t) { }
+    static void ended(void *, wl_proxy *, uint32_t, uint32_t time, int32_t cancelled)
+    {
+        qCInfo(glideLog) << "hold ended at" << time << (cancelled != 0 ? "cancelled" : "");
+    }
 
     ~Native()
     {
@@ -108,6 +118,7 @@ TouchpadHold::TouchpadHold(QObject *parent)
         ? application->nativeInterface<QNativeInterface::QWaylandApplication>()
         : nullptr;
     if (wayland == nullptr || wayland->display() == nullptr || wayland->pointer() == nullptr) {
+        qCInfo(glideLog) << "no touchpad holds: no Wayland pointer";
         return;
     }
     m_native = std::make_unique<Native>();

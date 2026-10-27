@@ -3,6 +3,7 @@
 #include "QtPageInput.h"
 
 #include <QCoreApplication>
+#include <QLoggingCategory>
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QWheelEvent>
@@ -11,6 +12,19 @@
 
 namespace omaweb {
 namespace {
+
+    // Silent unless asked, as with `QT_LOGGING_RULES=omaweb.glide.info=true`: what a touchpad
+    // really delivers is the platform's, which no test here can stand in for.
+    Q_LOGGING_CATEGORY(glideLog, "omaweb.glide", QtWarningMsg)
+
+    QDebug operator<<(QDebug debug, const QWheelEvent &event)
+    {
+        const QDebugStateSaver saver(debug);
+        debug.nospace() << event.phase() << " source " << event.source() << " angle "
+                        << event.angleDelta() << " pixel " << event.pixelDelta() << " at "
+                        << event.timestamp();
+        return debug;
+    }
 
     QQuickItem *pageOf(QObject *object)
     {
@@ -54,11 +68,15 @@ QtPageGlide::QtPageGlide(QObject *parent)
 
 bool QtPageGlide::gliding() const { return m_frames.isActive(); }
 
-void QtPageGlide::stop()
+void QtPageGlide::stop() { halt("asked"); }
+
+void QtPageGlide::halt(const char *cause)
 {
     if (!gliding()) {
         return;
     }
+    qCInfo(glideLog) << "glide stopped:" << cause << "after" << m_since.elapsed() << "ms, sent"
+                     << m_sent;
     m_frames.stop();
     if (m_page) {
         send(Qt::ScrollEnd, {});
@@ -69,7 +87,7 @@ void QtPageGlide::stop()
 void QtPageGlide::stopIn(QQuickItem *view)
 {
     if (gliding() && m_page && view != nullptr && view->isAncestorOf(m_page)) {
-        stop();
+        halt("page load");
     }
 }
 
@@ -80,11 +98,24 @@ bool QtPageGlide::eventFilter(QObject *watched, QEvent *event)
     }
     switch (event->type()) {
     case QEvent::Wheel: {
-        // Qt hands an event to the window before the item under the pointer, so a glide stops
-        // before the page hears what stopped it.
-        stop();
         auto *wheel = static_cast<QWheelEvent *>(event);
         auto *page = pageOf(watched);
+        qCInfo(glideLog).nospace() << "wheel to " << watched->metaObject()->className()
+                                   << (page != nullptr ? " (page)" : "") << ": " << *wheel;
+        // Qt 6.12's `QWindowSystemInterface::handleWheelEvent` sends an event whose delta is
+        // neither only vertical nor only horizontal twice, so the lift that started the glide
+        // comes again. Fingers that come back begin first, so an end with no movement is that
+        // copy. The page must not hear it either: to Chromium it would end the glide's gesture.
+        if (gliding() && wheel->phase() == Qt::ScrollEnd && wheel->angleDelta().isNull()) {
+            if (page != nullptr) {
+                wheel->accept();
+                return true;
+            }
+            return false;
+        }
+        // Qt hands an event to the window before the item under the pointer, so a glide stops
+        // before the page hears what stopped it.
+        halt("wheel event");
         return page != nullptr && fromTouchpad(wheel) && follow(page, wheel);
     }
     case QEvent::MouseButtonPress:
@@ -94,7 +125,11 @@ bool QtPageGlide::eventFilter(QObject *watched, QEvent *event)
     case QEvent::KeyPress:
     case QEvent::ShortcutOverride:
     case QEvent::WindowDeactivate:
-        stop();
+        if (gliding()) {
+            qCInfo(glideLog) << "stopping for" << event->type() << "to"
+                             << watched->metaObject()->className();
+        }
+        halt("input");
         break;
     default:
         break;
@@ -107,16 +142,24 @@ bool QtPageGlide::follow(QQuickItem *page, QWheelEvent *event)
     if (event->phase() == Qt::ScrollBegin || page != m_page) {
         m_page = page;
         m_speed.clear();
+        m_moves = 0;
     }
     m_pointer = {event->position(), event->globalPosition(), event->modifiers(), event->inverted(),
         event->pointingDevice()};
     if (event->phase() != Qt::ScrollEnd) {
         m_speed.add(event->timestamp(), event->angleDelta());
+        m_movedAt = event->timestamp();
+        ++m_moves;
         return false;
     }
-    m_curve = GlideCurve(m_speed.at(event->timestamp()));
+    const QPointF speed = m_speed.at(event->timestamp());
+    m_curve = GlideCurve(speed);
     m_speed.clear();
+    qCInfo(glideLog).nospace() << "lift at " << event->timestamp() << " after " << m_moves
+                               << " moves, the last at " << m_movedAt << ": speed " << speed
+                               << " a second, duration " << m_curve.duration() << " s";
     if (!m_curve.glides()) {
+        qCInfo(glideLog) << "no glide: under" << GlideCurve::rest << "units to travel";
         return false;
     }
     m_liftedAt = event->timestamp();
@@ -131,8 +174,12 @@ bool QtPageGlide::follow(QQuickItem *page, QWheelEvent *event)
 
 void QtPageGlide::step()
 {
-    if (!m_page || !onShow(m_page)) {
-        stop();
+    if (!m_page) {
+        halt("page gone");
+        return;
+    }
+    if (!onShow(m_page)) {
+        halt("page hidden");
         return;
     }
     const qreal seconds = static_cast<qreal>(m_since.nsecsElapsed()) / 1e9;
@@ -145,7 +192,7 @@ void QtPageGlide::step()
         send(Qt::ScrollUpdate, whole);
     }
     if (last) {
-        stop();
+        halt("came to rest");
     }
 }
 

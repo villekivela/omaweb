@@ -614,6 +614,12 @@ GTK stops a glide when the touchpad reports fingers at rest, the hold gesture of
 only, so `TouchpadHold` binds version 3 itself through Qt's public `QWaylandApplication` interface
 and stops the glide on a hold.
 
+Qt 6.12 delivers a touchpad's zero-delta `ScrollBegin` and `ScrollEnd` twice: its
+`QWindowSystemInterface::handleWheelEvent` repeats any event whose delta is not on one axis alone.
+During a glide the second lift is that copy, so it neither stops the glide nor reaches the page.
+What the touchpad really delivers can be logged with `QT_LOGGING_RULES=omaweb.glide.info=true`: each
+wheel event, the speed and duration at the lift, each hold, and why a glide stopped.
+
 ## Page context menu
 
 Omaweb draws the page's context menu. The engine adapter accepts the engine's own context-menu

@@ -49,6 +49,8 @@ private:
     // Follows a touchpad's wheel event to a page, and starts the glide when it is the lift.
     // True to keep the event from the page.
     bool follow(QQuickItem *page, QWheelEvent *event);
+    // Stops the glide, logging `cause`.
+    void halt(const char *cause);
     void step();
     void send(Qt::ScrollPhase phase, QPoint angleDelta);
 
@@ -66,6 +68,9 @@ private:
     Pointer m_pointer;
     quint64 m_liftedAt = 0;
     GlideSpeed m_speed;
+    // For the log: the fingers' movements in this gesture, and when they last moved.
+    int m_moves = 0;
+    quint64 m_movedAt = 0;
 
     GlideCurve m_curve;
     QElapsedTimer m_since;
