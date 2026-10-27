@@ -23,6 +23,8 @@ const auto kBusName = QStringLiteral("dev.omaweb.browser");
 const auto kObjectPath = QStringLiteral("/dev/omaweb/browser");
 const auto kInterface = QStringLiteral("org.freedesktop.Application");
 const auto kActivationToken = QStringLiteral("activation-token");
+// Where Omaweb's own platform data asks for a Private window.
+const auto kPrivateWindow = QStringLiteral("dev.omaweb.private-window");
 // The connection the stand-in for the running browser holds the name on.
 const auto kRunningConnection = QStringLiteral("running-browser");
 
@@ -117,6 +119,10 @@ private slots:
     void comesForwardWithTheTokenALaunchWithoutAnAddressArrivesWith();
     void asksForTheWindowBehindAnotherApp();
     void spendsTheTokenOnOneActivation();
+    void handsAPrivateRequestOverWithItsAddress();
+    void asksForAPrivateWindowWithoutAnAddress();
+    void opensAPrivateRequestInAPrivateWindow();
+    void bringsAPrivateWindowForwardWithoutAnAddress();
 
 private:
     // The running browser holds the name on a connection of its own, on a
@@ -174,6 +180,7 @@ void RunningBrowserTest::handsOverTheLaunchersActivationToken()
     QCOMPARE(received->uris, QStringList {QStringLiteral("https://example.org/")});
     QCOMPARE(received->platformData.value(kActivationToken).toString(),
         QStringLiteral("token-from-the-launcher"));
+    QVERIFY(!received->platformData.contains(kPrivateWindow));
 }
 
 void RunningBrowserTest::asksForTheBrowserWithTheLaunchersActivationToken()
@@ -277,6 +284,82 @@ void RunningBrowserTest::spendsTheTokenOnOneActivation()
     omaweb::bringForward(&browser, QStringLiteral("token-from-the-launcher"));
 
     QVERIFY(!qEnvironmentVariableIsSet("XDG_ACTIVATION_TOKEN"));
+}
+
+// Omarchy's private browser key runs a second Omaweb with `--incognito`. The
+// address still goes as an ordinary `Open`, so the browser on the other end
+// opens the page even when it is an older one that knows nothing of the flag.
+void RunningBrowserTest::handsAPrivateRequestOverWithItsAddress()
+{
+    qputenv("XDG_ACTIVATION_TOKEN", "token-from-the-launcher");
+    RunningBrowser browser;
+    QVERIFY(!browser.isPrimary());
+
+    QVERIFY(browser.handOver(QUrl(QStringLiteral("https://example.org/")), true));
+
+    const auto received = m_running->received();
+    QVERIFY(received.has_value());
+    QCOMPARE(received->method, QStringLiteral("Open"));
+    QCOMPARE(received->uris, QStringList {QStringLiteral("https://example.org/")});
+    QCOMPARE(received->platformData.value(kPrivateWindow), QVariant(true));
+    QCOMPARE(received->platformData.value(kActivationToken).toString(),
+        QStringLiteral("token-from-the-launcher"));
+}
+
+void RunningBrowserTest::asksForAPrivateWindowWithoutAnAddress()
+{
+    RunningBrowser browser;
+    QVERIFY(!browser.isPrimary());
+
+    QVERIFY(browser.handOver(QUrl(), true));
+
+    const auto received = m_running->received();
+    QVERIFY(received.has_value());
+    QCOMPARE(received->method, QStringLiteral("Activate"));
+    QCOMPARE(received->platformData.value(kPrivateWindow), QVariant(true));
+}
+
+// The address goes to a Private window, and the window that comes forward is
+// that one, so the main window neither opens it nor takes the token.
+void RunningBrowserTest::opensAPrivateRequestInAPrivateWindow()
+{
+    auto running = QDBusConnection(kRunningConnection);
+    QVERIFY(running.unregisterService(kBusName));
+    RunningBrowser browser;
+    QVERIFY(browser.isPrimary());
+    QSignalSpy opened(&browser, &RunningBrowser::openRequested);
+    QSignalSpy activated(&browser, &RunningBrowser::activationRequested);
+    QSignalSpy privateRequested(&browser, &RunningBrowser::privateWindowRequested);
+
+    auto platformData = withToken(QStringLiteral("token-from-the-launcher"));
+    platformData.insert(kPrivateWindow, true);
+    sendAsLauncher(QStringLiteral("Open"),
+        {QStringList {QStringLiteral("https://example.org/")}, platformData});
+
+    QVERIFY(privateRequested.wait());
+    QCOMPARE(privateRequested.at(0).value(0).toUrl(), QUrl(QStringLiteral("https://example.org/")));
+    QCOMPARE(privateRequested.at(0).value(1).toString(), QStringLiteral("token-from-the-launcher"));
+    QCOMPARE(opened.count(), 0);
+    QCOMPARE(activated.count(), 0);
+}
+
+void RunningBrowserTest::bringsAPrivateWindowForwardWithoutAnAddress()
+{
+    auto running = QDBusConnection(kRunningConnection);
+    QVERIFY(running.unregisterService(kBusName));
+    RunningBrowser browser;
+    QVERIFY(browser.isPrimary());
+    QSignalSpy activated(&browser, &RunningBrowser::activationRequested);
+    QSignalSpy privateRequested(&browser, &RunningBrowser::privateWindowRequested);
+
+    auto platformData = withToken(QStringLiteral("token-from-the-launcher"));
+    platformData.insert(kPrivateWindow, true);
+    sendAsLauncher(QStringLiteral("Activate"), {platformData});
+
+    QVERIFY(privateRequested.wait());
+    QVERIFY(!privateRequested.at(0).value(0).toUrl().isValid());
+    QCOMPARE(privateRequested.at(0).value(1).toString(), QStringLiteral("token-from-the-launcher"));
+    QCOMPARE(activated.count(), 0);
 }
 
 QTEST_MAIN(RunningBrowserTest)

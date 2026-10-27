@@ -1,9 +1,10 @@
 #pragma once
 
 #include <QObject>
-#include <QSet>
+#include <QList>
 #include <QHash>
 #include <QSharedPointer>
+#include <QUrl>
 
 #include "SessionSiteState.h"
 
@@ -31,6 +32,13 @@ public:
 
     BrowserController *createPrivateWindow();
     Q_INVOKABLE void openPrivateWindow();
+    // A Private window for a launch that asked for one: the one shown most
+    // recently, with the address as a new tab, or a new one with the address
+    // in its first tab. Null when this session has no Private windows.
+    Q_INVOKABLE omaweb::BrowserController *showPrivateWindow(const QUrl &url);
+    // The window reports itself when it comes forward, so the next launch
+    // finds the Private window the reader saw last.
+    Q_INVOKABLE void notePrivateWindowShown(QObject *controller);
     Q_INVOKABLE void releasePrivateWindow(QObject *controller);
     int privateWindowCount() const;
     QString privateProfilePath() const;
@@ -43,12 +51,14 @@ signals:
     void privateSessionChanged();
 
 private:
+    BrowserController *openNewPrivateWindow(const QUrl &url);
     bool ensurePrivateSession();
 
     QString m_configRoot;
     bool m_privateWindowsAvailable = true;
     std::unique_ptr<QTemporaryDir> m_privateRoot;
-    QSet<BrowserController *> m_privateWindows;
+    // The one shown most recently first.
+    QList<BrowserController *> m_privateWindows;
     // The Site permissions every Private window has agreed to, one answer for
     // all of them, handed to each window's store.
     QSharedPointer<QHash<QString, int>> m_privatePermissionDecisions;

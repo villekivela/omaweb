@@ -14,6 +14,10 @@ namespace omaweb {
 // untrusted rather than as an instruction from the person running the browser.
 QUrl readLaunchUrl(const QStringList &arguments);
 
+// True when the command line asks for a Private window, in Chromium's spelling
+// or Firefox's. Omarchy's private browser key passes Chromium's.
+bool readPrivateRequest(const QStringList &arguments);
+
 // True when the command line asks what this build is rather than for a page.
 bool readVersionRequest(const QStringList &arguments);
 

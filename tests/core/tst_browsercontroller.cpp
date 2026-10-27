@@ -217,6 +217,8 @@ private slots:
     void stopsZoomWhereThePageScaleLeavesTheEnginesRange();
     void restoresEveryTabsZoomAfterRestart();
     void sharesPrivateIdentityUntilLastWindowCloses();
+    void reusesThePrivateWindowShownMostRecently();
+    void opensNoPrivateWindowWhereThereAreNone();
     void keepsHistorySuggestionsInsideActiveSpace();
     void keepsHistoryInsideItsBoundWhileASpaceStaysOpen();
     void answersOnlyTheLatestOmnibarSearch();
@@ -1558,6 +1560,58 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
                  QUrl(QStringLiteral("https://camera.example")), QStringLiteral("camera")),
         BrowserController::Ask);
     manager.releasePrivateWindow(fresh);
+}
+
+// Omarchy's private browser key asks for a Private window each time it is
+// pressed. The first press opens one with the address in its only tab; later
+// ones go to the Private window the reader saw last, as a new tab there, or
+// just bring it forward.
+void BrowserControllerTest::reusesThePrivateWindowShownMostRecently()
+{
+    WindowManager manager;
+    QSignalSpy requested(&manager, &WindowManager::privateWindowRequested);
+
+    auto *first = manager.showPrivateWindow(QUrl(QStringLiteral("https://first.example")));
+    QVERIFY(first);
+    QCOMPARE(requested.count(), 1);
+    QCOMPARE(first->tabs()->rowCount(), 1);
+    QCOMPARE(first->activeUrl(), QUrl(QStringLiteral("https://first.example")));
+
+    // The reader opens another from the menu, which is now the one on show.
+    manager.openPrivateWindow();
+    QCOMPARE(requested.count(), 2);
+    auto *second = requested.at(1).value(0).value<omaweb::BrowserController *>();
+    QVERIFY(second);
+
+    QCOMPARE(manager.showPrivateWindow(QUrl(QStringLiteral("https://second.example"))), second);
+    QCOMPARE(requested.count(), 2);
+    QCOMPARE(second->tabs()->rowCount(), 2);
+    QCOMPARE(second->activeUrl(), QUrl(QStringLiteral("https://second.example")));
+
+    // The reader goes back to the first, and a request with no address only
+    // brings that one forward.
+    manager.notePrivateWindowShown(first);
+    QCOMPARE(manager.showPrivateWindow(QUrl()), first);
+    QCOMPARE(requested.count(), 2);
+    QCOMPARE(first->tabs()->rowCount(), 1);
+
+    // Closing it leaves the other as the one seen last.
+    manager.releasePrivateWindow(first);
+    QCOMPARE(manager.showPrivateWindow(QUrl(QStringLiteral("https://third.example"))), second);
+    QCOMPARE(second->tabs()->rowCount(), 3);
+    QCOMPARE(requested.count(), 2);
+    manager.releasePrivateWindow(second);
+}
+
+// A session launched with a debugging listener has no Private windows, so the
+// caller opens the address where it can.
+void BrowserControllerTest::opensNoPrivateWindowWhereThereAreNone()
+{
+    WindowManager manager(false);
+    QSignalSpy requested(&manager, &WindowManager::privateWindowRequested);
+
+    QVERIFY(!manager.showPrivateWindow(QUrl(QStringLiteral("https://example.com"))));
+    QCOMPARE(requested.count(), 0);
 }
 
 void BrowserControllerTest::keepsHistorySuggestionsInsideActiveSpace()

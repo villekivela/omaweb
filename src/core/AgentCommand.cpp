@@ -639,6 +639,9 @@ namespace {
     QString overview()
     {
         QString text = QStringLiteral("omaweb [address]            launch the browser\n"
+                                      "omaweb --incognito [address]\n"
+                                      "omaweb --private-window [address]\n"
+                                      "                            open a Private window\n"
                                       "omaweb <verb> [options]     drive the browser already "
                                       "running\n"
                                       "omaweb help <verb>          list a verb's options\n"
