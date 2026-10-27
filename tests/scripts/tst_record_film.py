@@ -504,6 +504,40 @@ class BeatChecks(unittest.TestCase):
         self.assertIn("9.500", closer)
         self.assertNotIn("9.500", whole)
 
+    def test_on_the_desktop_the_camera_frames_the_window_where_it_is_on_the_monitor(self):
+        window = film.staging((3840, 2160), (720, 424, 2400, 1350)).window
+        whole = film.camera([(0.0, None)], window)
+        self.assertIn("z='1/(0.62500)'", whole)
+        self.assertIn("x='(0.18750)*iw'", whole)
+        self.assertIn(f"y='({424 / 2160:.5f})*ih'", whole)
+        # The Agent's row, at the window's top left and 0.42 of it each way.
+        row = film.camera([(0.0, film.ROW)], window)
+        self.assertIn(f"z='1/({0.42 * 0.625:.5f})'", row)
+        self.assertIn("x='(0.18750)*iw'", row)
+
+    def test_the_camera_draws_back_to_the_whole_desktop(self):
+        window = film.staging((3840, 2160), (720, 424, 2400, 1350)).window
+        desktop = film.camera([(0.0, film.DESKTOP)], window)
+        self.assertIn("z='1/(1.00000)'", desktop)
+        self.assertIn("x='(0.00000)*iw'", desktop)
+        self.assertIn("y='(0.00000)*ih'", desktop)
+
+    def test_the_theme_beat_draws_back_to_the_desktop_for_the_switch_and_comes_back(self):
+        focus = film.theme_focus(9.0)
+        self.assertEqual(focus[0], (0.0, None))
+        (out, desktop), back = focus[1], focus[2]
+        self.assertEqual(desktop, film.DESKTOP)
+        # The whole desktop is on camera, and still, before the first switch.
+        self.assertLessEqual(out + film.MOVE, film.THEME_HOLD)
+        self.assertGreater(out, film.CAPTION_LEAD - film.MOVE)
+        self.assertEqual(back, (9.0, None))
+        self.assertEqual(len(focus), 3)
+
+    def test_every_other_beat_and_the_containers_theme_beat_keep_to_the_window(self):
+        for beat in film.BEATS:
+            with self.subTest(beat=beat.name):
+                self.assertNotIn(film.DESKTOP, [place for _, place in beat.focus])
+
     def test_the_agents_invoice_is_the_one_it_was_asked_to_send(self):
         server = mock.Mock()
         wanted = {"customer": "Kiln Coffee", "amount": "640.00"}
@@ -673,6 +707,14 @@ class FilmFiles(unittest.TestCase):
         self.assertIn(f"x='{0.5 * film.OUTPUT_MODE[0] - 4:.5f}'", overlay)
         self.assertIn(f"y='{0.5 * film.OUTPUT_MODE[1] - 3:.5f}'", overlay)
 
+    def test_on_the_desktop_the_pointer_is_drawn_where_the_window_is_on_the_monitor(self):
+        entry = {"beat": "Space switch", "start": 10.0, "end": 16.0,
+                 "pointer": [{"at": 1.5, "x": 0.5, "y": 0.5}]}
+        stage = film.staging((3840, 2160), (720, 424, 2400, 1350))
+        overlay = film.pointer(entry, (4, 3), stage.origin)
+        self.assertIn(f"x='{720 + 1200 - 4:.5f}'", overlay)
+        self.assertIn(f"y='{424 + 675 - 3:.5f}'", overlay)
+
     @unittest.skipUnless(ffmpeg_can_cut_the_film(), "this ffmpeg cannot cut the film")
     def test_a_recording_is_cut_into_the_film_its_poster_and_its_captions(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -729,10 +771,64 @@ class FilmFiles(unittest.TestCase):
                  str(out / "omaweb.mp4")], capture_output=True, text=True, check=True).stdout)
             self.assertAlmostEqual(duration, start - film.FADE * (len(marks) - 1), delta=0.2)
 
+    @unittest.skipUnless(ffmpeg_can_cut_the_film(), "this ffmpeg cannot cut the film")
+    def test_a_desktop_recording_is_cut_to_the_window_and_draws_back_for_the_theme(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            # A monitor of 1920 by 1080 at a scale of 1, light grey, with the film's dark window
+            # of 1600 by 900 at 160, 90: brought to the window at 2400 by 1350, the stage is
+            # 2880 by 1620, and the film 1920 by 1080 shows it at two thirds.
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                            f"color=c=0x606060:size=1920x1080:rate={film.FPS}:duration=10",
+                            "-vf", "drawbox=x=160:y=90:w=1600:h=900:color=0x202020:t=fill",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            str(out / "raw.mkv")], check=True)
+            (out / "stage.json").write_text('{"window": [160, 90, 1600, 900]}')
+            # The Theme beat, its pointer held in the middle of the window throughout.
+            marks = [{"beat": "Omnibar", "start": 0.0, "end": 4.2},
+                     {"beat": "Theme", "start": 4.2, "end": 9.2,
+                      "focus": film.theme_focus(3.5),
+                      "pointer": [{"at": 0.0, "x": 0.5, "y": 0.5}]}]
+            (out / "marks.json").write_text(json.dumps(marks), encoding="utf-8")
+            film.compose(out)
+
+            theme = 4.2 - film.FADE
+            levels = film.frame_brightness(out / "omaweb.mp4")
+
+            def level(at):
+                return levels[round(at * film.FPS)]
+
+            def pixels(at, *places):
+                shot = subprocess.run(
+                    ["ffmpeg", "-v", "error", "-ss", f"{at:.3f}", "-i", str(out / "master.mkv"),
+                     "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                    capture_output=True, check=True).stdout
+                return [shot[y * 1920 + x] for x, y in places]
+
+            # The window alone, as it was framed when only the window was recorded: as dark as
+            # the window throughout, with no edge of the light monitor.
+            dark = level(1.0)
+            self.assertAlmostEqual(dark, 43, delta=3)
+            self.assertAlmostEqual(level(theme + 1.0), dark, delta=1)
+            # Drawn back to the whole monitor before the switch, at 2.2 s into the beat, and held
+            # there until it closes on the window again at 3.5 s.
+            out_there = theme + 2.9
+            self.assertGreater(level(out_there), dark + 15)
+            corner, window = pixels(out_there, (40, 40), (300, 300))
+            self.assertGreater(corner, 80)
+            self.assertLess(window, 50)
+            self.assertAlmostEqual(level(theme + 3.5 + film.MOVE + 0.2), dark, delta=1)
+            # The pointer's tip is at the window's middle, 960, 540 in the film, and the pointer
+            # is at the stage's two thirds: 4 by 12 pixels in is on its white, and 6 by 26 in,
+            # which would be on it at its full size, is beside its tail.
+            on, beside = pixels(out_there, (964, 552), (966, 566))
+            self.assertGreater(on, 200)
+            self.assertLess(beside, 100)
+
 
 # The XPS's monitor as `hyprctl monitors -j` describes it: 3840 by 2160 at a scale of 1.5, so 2560
 # by 1440 logical pixels, with Omarchy's bar keeping 26 at the top.
-MONITOR = {"name": "DP-1", "x": 0, "y": 0, "width": 3840, "height": 2160, "scale": 1.5,
+MONITOR = {"id": 0, "name": "DP-1", "x": 0, "y": 0, "width": 3840, "height": 2160, "scale": 1.5,
            "transform": 0, "reserved": [0, 26, 0, 0], "focused": True,
            "activeWorkspace": {"id": 2, "name": "2"}}
 
@@ -750,6 +846,13 @@ class DesktopWindow(unittest.TestCase):
         turned = dict(MONITOR, width=2160, height=3840, scale=1.0, transform=1,
                       reserved=[0, 0, 0, 0])
         self.assertEqual(film.window_frame(turned), (1120, 630, 1600, 900))
+
+    def test_the_window_is_found_in_the_monitors_recording_in_its_pixels(self):
+        self.assertEqual(film.recorded_window(MONITOR, (480, 283, 1600, 900)),
+                         (720, 424, 2400, 1350))
+        right = dict(MONITOR, x=2560, y=0, width=2560, height=1440, scale=1.0)
+        self.assertEqual(film.recorded_window(right, (3040, 270, 1600, 900)),
+                         (480, 270, 1600, 900))
 
     def test_a_monitor_without_room_for_the_frame_stops_the_film(self):
         small = dict(MONITOR, width=2880, height=1800, scale=2.0)
@@ -868,7 +971,9 @@ class FakeDesktop:
             ("makoctl", "mode"): "default\n",
         }
         self.notifier = notifier
-        # What `hyprctl clients -j` answers each time it is asked, the last one from then on.
+        # What `hyprctl clients -j` answers when the run first reads the desktop, before it has
+        # changed anything, and then each time it is asked, the last one from then on.
+        self.surveyed = []
         self.clients = [[]]
         # The window with the keyboard: the terminal the run was started from, until the film's.
         self.active = {"address": "0x5566cc", "class": "Alacritty", "title": "~/omaweb"}
@@ -906,6 +1011,9 @@ class FakeDesktop:
             self.read_log.append(list(command))
             return subprocess.CompletedProcess(command, 0, json.dumps(self.active), "")
         if command == ("hyprctl", "clients", "-j"):
+            if self.surveyed is not None:
+                answer, self.surveyed = self.surveyed, None
+                return subprocess.CompletedProcess(command, 0, json.dumps(answer), "")
             answer = self.clients.pop(0) if len(self.clients) > 1 else self.clients[0]
             return subprocess.CompletedProcess(command, 0, json.dumps(answer), "")
         if command in self.answers:
@@ -1063,6 +1171,22 @@ class DesktopTaken(unittest.TestCase):
         with self.assertRaisesRegex(film.BeatMissed, "hyprctl"):
             film.Desktop(run=missing, which=FakeDesktop().which).survey()
 
+    def test_a_window_pinned_on_the_films_monitor_stops_the_film(self):
+        # A pinned window shows on every workspace, so it would be in the frame when the camera
+        # draws back to the whole monitor.
+        fake = FakeDesktop()
+        fake.surveyed = [dict(READERS_WINDOW, monitor=0, pinned=False),
+                         dict(READERS_WINDOW, address="0x5566dd", title="Picture-in-Picture",
+                              monitor=0, pinned=True)]
+        with self.assertRaisesRegex(film.BeatMissed, "Picture-in-Picture.*pinned"):
+            self.desktop(fake)
+        self.assertEqual(fake.acted, [])
+
+    def test_a_window_pinned_on_another_monitor_is_left_out_of_the_frame(self):
+        fake = FakeDesktop()
+        fake.surveyed = [dict(READERS_WINDOW, monitor=1, pinned=True)]
+        self.desktop(fake)
+
     def test_a_film_workspace_left_with_windows_stops_the_film(self):
         fake = FakeDesktop(workspaces=[{"id": 7, "name": "omaweb-film", "windows": 1}])
         with self.assertRaisesRegex(film.BeatMissed, "omaweb-film"):
@@ -1185,9 +1309,10 @@ class DesktopRecording(unittest.TestCase):
              "-p", "crf=12", "-x", "yuv420p", "-f", "/film/raw.mkv"])
         self.assertEqual(film.frame_command(), ["grim", "-t", "ppm", "-"])
 
-    def test_on_the_desktop_only_the_films_window_is_recorded(self):
-        command = film.recorder_command(Path("/film/raw.mkv"), self.FRAME)
-        self.assertEqual(command[command.index("-g") + 1], "480,283 1600x900")
+    def test_on_the_desktop_the_whole_output_is_recorded_and_the_window_sampled(self):
+        command = film.recorder_command(Path("/film/raw.mkv"), "DP-1")
+        self.assertEqual(command[command.index("-o") + 1], "DP-1")
+        self.assertNotIn("-g", command)
         self.assertEqual(film.frame_command(self.FRAME),
                          ["grim", "-g", "480,283 1600x900", "-t", "ppm", "-"])
 
@@ -1203,10 +1328,26 @@ class DesktopRecording(unittest.TestCase):
         self.assertEqual(film.chrome_sample(ppm(1600, 900, (16, 450))), (10, 20, 30))
 
     def test_a_recording_at_the_films_size_is_cut_as_it_is(self):
-        self.assertEqual(film.fitted(film.OUTPUT_MODE), "")
+        self.assertEqual(film.staging(film.OUTPUT_MODE),
+                         film.Stage("", (2400, 1350), (0, 0)))
 
     def test_a_recording_from_a_monitor_of_another_scale_is_brought_to_the_films_size(self):
-        self.assertEqual(film.fitted((3200, 1800)), ",scale=2400:1350:flags=lanczos")
+        self.assertEqual(film.staging((3200, 1800)),
+                         film.Stage(",scale=2400:1350:flags=lanczos", (2400, 1350), (0, 0)))
+
+    def test_a_desktop_recording_keeps_the_monitor_around_the_window(self):
+        stage = film.staging((3840, 2160), (720, 424, 2400, 1350))
+        self.assertEqual(stage, film.Stage("", (3840, 2160), (720, 424)))
+        self.assertEqual(stage.window, (720 / 3840, 424 / 2160, 2400 / 3840))
+
+    def test_a_monitor_of_another_shape_is_padded_to_the_films(self):
+        # A 16:10 monitor at a scale of 2, its window 3200 by 1800 in the middle of the 1920 by
+        # 1174 logical pixels its bar leaves: brought to 2400 by 1350 the monitor is 2880 by
+        # 1800, and a band down each side makes it 3200 by 1800.
+        stage = film.staging((3840, 2400), (320, 326, 3200, 1800))
+        self.assertEqual(stage, film.Stage(",scale=2880:1800:flags=lanczos,pad=3200:1800:160:0",
+                                           (3200, 1800), (400, 244)))
+        self.assertAlmostEqual(stage.window[2], 2400 / 3200)
 
 
 class Commands:
@@ -1332,7 +1473,7 @@ class DesktopRun(unittest.TestCase):
         expected = [shlex.join(command) for command in PREFLIGHT + TAKE] + [
             shlex.join(command).replace("0x5566bb", "<film window>")
             for command in PLACE] + [
-            shlex.join(film.recorder_command(self.out / "raw.mkv", (480, 283, 1600, 900))),
+            shlex.join(film.recorder_command(self.out / "raw.mkv", "DP-1")),
             "omarchy-theme-set lumon", "omarchy-theme-set ethereal-nebula-silver"] + [
             shlex.join(command) for command in GIVE_BACK]
         self.assertEqual(printed, expected)
@@ -1613,12 +1754,16 @@ class EngineSuggestionsReachTheServer(unittest.TestCase):
 
 class RecordKeyboard(unittest.TestCase):
     def test_record_checks_the_keyboard_from_the_moment_the_window_is_placed(self):
-        desktop = mock.Mock(theme=film.Theme("nebula", {}))
+        desktop = mock.Mock(theme=film.Theme("nebula", {}), monitor=MONITOR)
         desktop.place.return_value = (480, 283, 1600, 900)
-        armed = []
+        armed, recording = [], []
 
-        def start(_recorder):
+        def start(recorder):
             armed.append(film.BEFORE_KEYS)
+            # The whole monitor is recorded, the window is sampled, and the edit is told where
+            # the window is in the recording.
+            recording.append((recorder.output, recorder.geometry, json.loads(
+                (recorder.path.parent / "stage.json").read_text(encoding="utf-8"))))
             raise KeyboardInterrupt
 
         with tempfile.TemporaryDirectory() as directory, \
@@ -1634,6 +1779,8 @@ class RecordKeyboard(unittest.TestCase):
             film.record(Path("/build/omaweb-browser"), Path(directory), desktop)
         self.assertEqual(armed, [desktop.expect_keyboard])
         self.assertIsNone(film.BEFORE_KEYS)
+        self.assertEqual(recording, [("DP-1", (480, 283, 1600, 900),
+                                      {"window": [720, 424, 2400, 1350]})])
 
 
 class DesktopAnswers(unittest.TestCase):
@@ -1717,7 +1864,7 @@ class DesktopLastWord(unittest.TestCase):
 class RecordCleanup(unittest.TestCase):
     """The browser is stopped whatever stops the run, and a second Ctrl+C cannot keep it going."""
 
-    def record(self, killpg):
+    def record(self, killpg, out=None):
         server = mock.MagicMock()
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(film, "expect_sites_on_loopback"), \
@@ -1729,8 +1876,15 @@ class RecordCleanup(unittest.TestCase):
                 mock.patch.object(film, "omaweb", side_effect=KeyboardInterrupt), \
                 mock.patch.object(film.os, "killpg", side_effect=killpg), \
                 self.assertRaises(KeyboardInterrupt):
-            film.record(Path("/build/omaweb-browser"), Path(directory))
+            film.record(Path("/build/omaweb-browser"), out or Path(directory))
         return server
+
+    def test_a_container_recording_is_not_cut_as_a_desktop_one_left_before_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            left = Path(directory, "stage.json")
+            left.write_text('{"window": [720, 424, 2400, 1350]}', encoding="utf-8")
+            self.record(lambda group, sent: None, Path(directory))
+            self.assertFalse(left.exists())
 
     def test_a_second_ctrl_c_cannot_keep_the_film_browser_running(self):
         before = signal.getsignal(signal.SIGINT)
@@ -1952,7 +2106,7 @@ class DesktopLedger(unittest.TestCase):
         self.assertEqual(fake.acted[2:4], PREFLIGHT)
 
     def test_record_notes_the_browsers_session_as_soon_as_it_starts(self):
-        desktop = mock.Mock(theme=film.Theme("nebula", {}))
+        desktop = mock.Mock(theme=film.Theme("nebula", {}), monitor=MONITOR)
         with mock.patch.object(film, "expect_shared_memory"), \
                 mock.patch.object(film, "FixtureServer", return_value=mock.MagicMock(port=0)), \
                 mock.patch.object(film, "seed", return_value=(self.directory, self.directory)), \
