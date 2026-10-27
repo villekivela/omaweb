@@ -2,19 +2,19 @@ import QtQuick
 import Omaweb
 
 // PROTOTYPE (#814), throwaway: the Telemetry Scene, a retro CRT dashboard
-// around the resting Omnibar, in four structurally different layouts switched
-// live, for the maintainer to pick one. Never merged; it lives on
-// prototype/020-telemetry.
+// around the resting Omnibar, for the maintainer to judge. Never merged; it
+// lives on prototype/020-telemetry.
 //
-// Real: CPU per core, network, memory and swap (/proc), battery (/sys), the
-// chrome process's memory, requests blocked on the Space's open tabs, running
-// downloads. Fake, and labelled FAKE on screen: pages loaded today, memory per
-// Space.
+// Round 2, after the first verdict: the Cockpit layout only, under the real
+// CRT glass with real scanlines (TelemetryHostPrototype.qml takes the picture
+// at full resolution and sets the scanline pitch), text in two sizes to
+// compare, CPU cores as squares, more gauges, donuts for memory and swap, and
+// blocked requests as a small module.
 //
-//   A  Cockpit      panels framing the Omnibar on four sides   display only
-//   B  Strips       full-width oscilloscope lanes, time first  display only
-//   C  Cluster      round gauges over the Omnibar, lamps below display only
-//   D  Console      dense side columns; rows can be clicked    clickable
+// Real: CPU per core, network, memory, cache and swap (/proc), battery (/sys),
+// the chrome process's memory, requests blocked on the Space's open tabs,
+// running downloads. Fake, and labelled FAKE on screen: pages loaded today,
+// memory per Space.
 //
 // It keeps NightRoad.qml's contract with SceneHost.qml.
 Item {
@@ -41,28 +41,40 @@ Item {
     // ---- what the Start page hands it (prototype)
 
     readonly property bool telemetry: true
-    property string layout: "A"
+    // "S" or "L": the two text sizes to compare.
+    property string textSize: "S"
     property var blocker: null
     property var browser: null
     property var tabs: null
     property var downloads: null
     // Ctrl+Alt+D: pretend a download runs, to see the module.
     property bool fakeDownload: false
-    signal activated(string kind, string value)
 
     // ---- what it declares
 
     readonly property int pitch: 1
     readonly property int fps: 30
     readonly property string glass: "crt"
-    readonly property string screen: "vector"
+    readonly property string screen: "raster"
+    // The road's glass, its bloom stronger and wider for glyphs.
     readonly property var crt: ({
                                     bloom: {
-                                        scale: 3,
-                                        opacity: 0.25
+                                        scale: 4,
+                                        opacity: 0.4
+                                    },
+                                    scanlines: {
+                                        shade: 0.55,
+                                        narrowest: 0.55,
+                                        widest: 1.15,
+                                        falloff: 2.2,
+                                        lift: 1.2
+                                    },
+                                    mask: {
+                                        dim: 0.78,
+                                        lift: 1.18
                                     },
                                     halation: {
-                                        threshold: 0.35,
+                                        threshold: 0.3,
                                         strength: 0.3,
                                         reach: 32,
                                         spacing: 24
@@ -73,20 +85,25 @@ Item {
                                         highlights: {
                                             from: 0.25,
                                             to: 0.85,
-                                            strength: 0.5
+                                            strength: 0.45
                                         },
                                         midtones: {
                                             from: 0.08,
                                             to: 0.5,
-                                            strength: 0.4
+                                            strength: 0.35
                                         }
-                                    },
-                                    trail: {
-                                        fade: 0.82
                                     },
                                     vignette: {
                                         clear: 0.6,
                                         shade: 0.55
+                                    },
+                                    band: {
+                                        every: 7,
+                                        from: -0.2,
+                                        travel: 1.4,
+                                        reach: 0.07,
+                                        reachAtLeast: 4,
+                                        strength: 0.05
                                     },
                                     flicker: {
                                         least: 0.02,
@@ -95,10 +112,7 @@ Item {
                                     }
                                 })
     readonly property var declaredOptions: ({})
-    readonly property real horizonY: Math.round(root.layout === "D" ? Math.max(90, root.height * 0.2) :
-                                                                      root.height * (root.layout
-                                                                                     === "C" ? 0.7 :
-                                                                                               0.5))
+    readonly property real horizonY: Math.round(root.height * 0.5)
 
     // ---- palette
 
@@ -108,18 +122,21 @@ Item {
     readonly property color glow: root.unlit ? Qt.darker(root.ink, 1.6) : root.colors.accent
     readonly property color hot: root.colors.syntax && root.colors.syntax.keyword
                                  ? root.colors.syntax.keyword : Qt.lighter(root.glow, 1.4)
-    readonly property color dim: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.45)
-    readonly property color faint: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.14)
+    readonly property color dim: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.6)
+    readonly property color faint: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.16)
     readonly property string mono: "monospace"
 
-    // ---- where the Omnibar rests, which every layout keeps clear
+    // ---- text: two sizes, each a glyph over at least six scanlines of three
+    // device pixels (TelemetryHostPrototype.qml)
 
-    readonly property real barWidth: root.omnibarWidth > 0 ? root.omnibarWidth : Math.min(720,
-                                                                                          root.width
-                                                                                          - 32)
-    readonly property real barLeft: Math.round((root.width - root.barWidth) / 2)
-    readonly property real barTop: root.horizonY - 50 - 14
-    readonly property real barBottom: root.horizonY + root.omnibarReach + 14
+    readonly property bool large: root.textSize === "L"
+    readonly property int captionSize: root.large ? 20 : 16
+    readonly property int readingSize: root.large ? 30 : 22
+
+    // ---- where the Omnibar rests, which the panels keep clear
+
+    readonly property real barTop: root.horizonY - 50 - 16
+    readonly property real barBottom: root.horizonY + root.omnibarReach + 16
 
     // ---- the modules, in drop order, and how many the size holds
 
@@ -134,12 +151,12 @@ Item {
             return !root.unlit;
         return true;
     })
-    // The share of a full-size page area this one is.
-    readonly property real room: Math.min(root.width / 1280, root.height / 760)
-    readonly property bool compact: root.room < 0.85
-    readonly property int holds: root.room >= 0.85 ? 8 : root.room >= 0.65 ? 6 : root.room >= 0.5
-                                                                             ? 4 : root.room
-                                                                               >= 0.38 ? 2 : 0
+    // The share of a 1700 by 1000 page area this one is, text size counted.
+    readonly property real room: Math.min(root.width / 1700, root.height / 1000) * (root.large ? 0.8 :
+                                                                                                 1)
+    readonly property int holds: root.room >= 0.75 ? 8 : root.room >= 0.6 ? 6 : root.room >= 0.45
+                                                                            ? 4 : root.room >= 0.3
+                                                                              ? 2 : 0
     readonly property var shown: root.present.slice(0, root.holds)
     function has(key) {
         return root.shown.indexOf(key) >= 0;
@@ -162,6 +179,12 @@ Item {
     function pct(f) {
         return Math.round(f * 100) + "%";
     }
+    function lastOf(series) {
+        return series.length ? series[series.length - 1] : 0;
+    }
+    function peakOf(series) {
+        return Math.max(1, ...series);
+    }
 
     // ---- the probe: one sample a second, five minutes kept, nothing on disk
 
@@ -169,22 +192,19 @@ Item {
         id: probe
 
         readonly property int keep: 300
-        property var cores: []          // [[fraction...]] per core, oldest first
+        property var cores: []
         property var cpuTotal: []
         property var last: null
         property var down: []
         property var up: []
         property var lastNet: null
-        property var memUsed: []
-        property var swapUsed: []
         property var meminfo: ({})
         property real chromeKib: 0
-        property var battery: null      // {capacity, status, watts}
-        property var batteryHistory: []
+        property var battery: null
         property int blockedOpen: 0
         property int blockedSession: 0
         property var blockedRate: []
-        property var topHosts: []       // [{host, count}]
+        property var topHosts: []
         property var downloadsRunning: []
         // FAKE: pages loaded per hour today, and memory per Space.
         readonly property var pagesToday: [0, 0, 0, 0, 0, 0, 0, 4, 18, 31, 27, 22, 9, 25, 33, 29, 17,
@@ -199,7 +219,7 @@ Item {
                 mib: 1430
             },
             {
-                name: "Omaweb dev",
+                name: "Dev",
                 mib: 655
             }
         ]
@@ -226,10 +246,9 @@ Item {
                 if (!m)
                     continue;
                 const f = m[2].trim().split(/\s+/).map(Number);
-                const total = f.slice(0, 8).reduce((a, b) => a + b, 0);
                 now.push({
                              core: m[1] === "" ? -1 : Number(m[1]),
-                             total: total,
+                             total: f.slice(0, 8).reduce((a, b) => a + b, 0),
                              idle: f[3] + f[4]
                          });
             }
@@ -238,11 +257,10 @@ Item {
                 for (let i = 0; i < now.length; ++i) {
                     const dt = now[i].total - probe.last[i].total;
                     const busy = dt > 0 ? 1 - (now[i].idle - probe.last[i].idle) / dt : 0;
-                    if (now[i].core < 0) {
+                    if (now[i].core < 0)
                         probe.cpuTotal = probe.push(probe.cpuTotal, busy);
-                    } else {
-                        cores[now[i].core] = probe.push(cores[now[i].core] || [], busy);
-                    }
+                    else
+                        cores[now[i].core] = busy;
                 }
                 probe.cores = cores;
             }
@@ -280,10 +298,6 @@ Item {
                     info[m[1]] = Number(m[2]);
             }
             probe.meminfo = info;
-            probe.memUsed = probe.push(probe.memUsed, info.MemTotal ? 1 - info.MemAvailable
-                                                                      / info.MemTotal : 0);
-            probe.swapUsed = probe.push(probe.swapUsed, info.SwapTotal ? 1 - info.SwapFree
-                                                                         / info.SwapTotal : 0);
             const self = /VmRSS:\s+(\d+)/.exec(Scenes.systemFile("/proc/self/status"));
             probe.chromeKib = self ? Number(self[1]) : 0;
         }
@@ -293,14 +307,11 @@ Item {
                 const dir = "/sys/class/power_supply/" + name + "/";
                 if (Scenes.systemFile(dir + "type").trim() !== "Battery")
                     continue;
-                const capacity = Number(Scenes.systemFile(dir + "capacity")) / 100;
-                const power = Number(Scenes.systemFile(dir + "power_now")) / 1e6;
                 probe.battery = {
-                    capacity: capacity,
+                    capacity: Number(Scenes.systemFile(dir + "capacity")) / 100,
                     status: Scenes.systemFile(dir + "status").trim(),
-                    watts: power
+                    watts: Number(Scenes.systemFile(dir + "power_now")) / 1e6
                 };
-                probe.batteryHistory = probe.push(probe.batteryHistory, power);
                 return;
             }
             probe.battery = null;
@@ -321,16 +332,14 @@ Item {
                     }
                 }
             }
-            const delta = probe.blockedRate.length > 0 || probe.blockedOpen > 0 ? Math.max(0, open
-                                                                                           - probe.blockedOpen) :
-                                                                                  0;
+            const delta = probe.blockedRate.length > 0 ? Math.max(0, open - probe.blockedOpen) : 0;
             probe.blockedSession += delta;
             probe.blockedRate = probe.push(probe.blockedRate, delta);
             probe.blockedOpen = open;
             probe.topHosts = Object.keys(hosts).map(host => ({
                 host: host,
                 count: hosts[host]
-            })).sort((a, b) => b.count - a.count).slice(0, 5);
+            })).sort((a, b) => b.count - a.count).slice(0, 3);
         }
 
         function readDownloads() {
@@ -338,7 +347,7 @@ Item {
             if (root.fakeDownload)
                 running.push({
                                  fileName: "FAKE-ubuntu-24.04.iso",
-                                 fraction: (root.time / 40) % 1
+                                 fraction: (Date.now() / 40000) % 1
                              });
             probe.downloadsRunning = running;
         }
@@ -352,7 +361,64 @@ Item {
         onTriggered: probe.sample()
     }
 
-    // ---- small parts every layout draws with
+    // ---- parts
+
+    // Text as a CRT draws it: the glyph in its colour, and its red and blue
+    // a little apart either side, as a tube's three beams converge a little
+    // off. The glass adds the bloom, scanlines and mask over it.
+    component CrtText: Item {
+        id: crtText
+        property alias text: main.text
+        property color color: root.ink
+        property int pixelSize: root.captionSize
+        property bool bold: false
+        property int elide: Text.ElideNone
+        property real maxWidth: -1
+        readonly property real split: Math.max(1, Math.round(crtText.pixelSize / 14))
+        implicitWidth: main.implicitWidth
+        implicitHeight: main.implicitHeight
+        width: crtText.maxWidth > 0 ? Math.min(crtText.maxWidth, main.implicitWidth) :
+                                      main.implicitWidth
+        height: main.implicitHeight
+
+        Text {
+            x: -crtText.split
+            width: parent.width
+            text: main.text
+            elide: crtText.elide
+            color: "#ff2a3a"
+            opacity: 0.45
+            font: main.font
+        }
+        Text {
+            x: crtText.split
+            width: parent.width
+            text: main.text
+            elide: crtText.elide
+            color: "#2a6aff"
+            opacity: 0.45
+            font: main.font
+        }
+        Text {
+            id: main
+            width: parent.width
+            elide: crtText.elide
+            color: crtText.color
+            font.family: root.mono
+            font.pixelSize: crtText.pixelSize
+            font.bold: crtText.bold
+            font.letterSpacing: crtText.pixelSize / 12
+        }
+    }
+    component Caption: CrtText {
+        color: root.dim
+        pixelSize: root.captionSize
+    }
+    component Reading: CrtText {
+        color: root.ink
+        pixelSize: root.readingSize
+        bold: true
+    }
 
     // A trace of `values` (0..max, or 0..its own peak), newest at the right.
     component Trace: Canvas {
@@ -362,11 +428,10 @@ Item {
         property real max: 0
         property color colour: root.glow
         property color secondColour: root.hot
-        property bool area: true
         property int span: 300
         onValuesChanged: requestPaint()
         onWidthChanged: requestPaint()
-        onColourChanged: requestPaint()
+        onHeightChanged: requestPaint()
         onPaint: {
             const c = getContext("2d");
             c.reset();
@@ -380,92 +445,156 @@ Item {
                 const x0 = trace.width - (values.length - 1) * step;
                 for (let i = 0; i < values.length; ++i) {
                     const x = x0 + i * step;
-                    const y = trace.height - 1 - Math.min(1, values[i] / peak) * (trace.height - 2);
+                    const y = trace.height - 2 - Math.min(1, values[i] / peak) * (trace.height - 4);
                     if (i === 0)
                         c.moveTo(x, y);
                     else
                         c.lineTo(x, y);
                 }
                 c.strokeStyle = colour;
-                c.lineWidth = 1.25;
+                c.lineWidth = 2;
                 c.stroke();
                 if (fill) {
                     c.lineTo(trace.width, trace.height);
                     c.lineTo(x0, trace.height);
                     c.closePath();
-                    c.fillStyle = Qt.rgba(colour.r, colour.g, colour.b, 0.18);
+                    c.fillStyle = Qt.rgba(colour.r, colour.g, colour.b, 0.2);
                     c.fill();
                 }
             };
-            line(trace.values, trace.colour, trace.area);
+            line(trace.values, trace.colour, true);
             if (trace.second)
                 line(trace.second, trace.secondColour, false);
         }
     }
 
-    // Vertical bars, one per value, 0..1.
-    component Bars: Row {
-        id: bars
-        property var values: []
-        property real barHeight: 60
-        spacing: 2
-        Repeater {
-            model: bars.values.length
-            Item {
-                required property int index
-                width: Math.max(2, (bars.width - (bars.values.length - 1) * bars.spacing) / Math.max(
-                                    1, bars.values.length))
-                height: bars.barHeight
-                Rectangle {
-                    anchors.fill: parent
-                    color: root.faint
+    // A round gauge: a 270 degree scale, the needle at `value` (0..1), its
+    // reading in the face and its label under it.
+    component Gauge: Item {
+        id: gauge
+        property real value: 0
+        property string reading
+        property string label
+        property bool fake: false
+        property real size: 140
+        width: gauge.size
+        height: gauge.size + labelText.height + 4
+
+        Canvas {
+            id: face
+            width: gauge.size
+            height: gauge.size
+            property real value: Math.max(0, Math.min(1, gauge.value))
+            property color tone: root.glow
+            onValueChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onToneChanged: requestPaint()
+            onPaint: {
+                const g = getContext("2d");
+                g.reset();
+                const cx = width / 2, cy = height / 2, r = width / 2 - 3;
+                const from = Math.PI * 0.75, sweep = Math.PI * 1.5;
+                // Track and fill.
+                g.lineWidth = Math.max(4, r * 0.1);
+                g.strokeStyle = root.faint;
+                g.beginPath();
+                g.arc(cx, cy, r - g.lineWidth / 2, from, from + sweep);
+                g.stroke();
+                g.strokeStyle = face.value > 0.85 ? root.hot : root.glow;
+                g.beginPath();
+                g.arc(cx, cy, r - g.lineWidth / 2, from, from + sweep * face.value);
+                g.stroke();
+                // Ticks.
+                g.lineWidth = 2;
+                g.strokeStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.6);
+                for (let t = 0; t <= 10; ++t) {
+                    const a = from + sweep * t / 10;
+                    const inner = r * (t % 5 ? 0.78 : 0.72), outer = r * 0.84;
+                    g.beginPath();
+                    g.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+                    g.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
+                    g.stroke();
                 }
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    height: Math.max(1, parent.height * bars.values[parent.index])
-                    color: bars.values[parent.index] > 0.85 ? root.hot : root.glow
+                // Needle.
+                const a = from + sweep * face.value;
+                g.strokeStyle = root.hot;
+                g.lineWidth = 3;
+                g.beginPath();
+                g.moveTo(cx - Math.cos(a) * r * 0.1, cy - Math.sin(a) * r * 0.1);
+                g.lineTo(cx + Math.cos(a) * r * 0.7, cy + Math.sin(a) * r * 0.7);
+                g.stroke();
+                g.fillStyle = root.hot;
+                g.beginPath();
+                g.arc(cx, cy, 5, 0, Math.PI * 2);
+                g.fill();
+            }
+        }
+        Reading {
+            anchors.horizontalCenter: face.horizontalCenter
+            y: face.height * 0.62
+            text: gauge.reading
+            pixelSize: Math.max(root.captionSize, Math.min(root.readingSize, gauge.size / 6))
+        }
+        Caption {
+            id: labelText
+            anchors.horizontalCenter: face.horizontalCenter
+            y: face.height + 2
+            text: gauge.label + (gauge.fake ? " [FAKE]" : "")
+            color: gauge.fake ? root.hot : root.glow
+        }
+    }
+
+    // A donut: `parts` [{value, colour}] round the ring, its reading in the
+    // middle, its label under it.
+    component Donut: Item {
+        id: donut
+        property var parts: []
+        property string reading
+        property string label
+        property real size: 140
+        width: donut.size
+        height: donut.size + labelText.height + 4
+
+        Canvas {
+            id: ring
+            width: donut.size
+            height: donut.size
+            property var parts: donut.parts
+            onPartsChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onPaint: {
+                const g = getContext("2d");
+                g.reset();
+                const total = ring.parts.reduce((s, p) => s + p.value, 0);
+                const cx = width / 2, cy = height / 2, r = width / 2 - 3;
+                const thick = r * 0.28;
+                g.lineWidth = thick;
+                let a = -Math.PI / 2;
+                for (const part of ring.parts) {
+                    const sweep = total > 0 ? Math.PI * 2 * part.value / total : 0;
+                    g.strokeStyle = part.colour;
+                    g.beginPath();
+                    g.arc(cx, cy, r - thick / 2, a, a + Math.max(0, sweep - 0.03));
+                    g.stroke();
+                    a += sweep;
                 }
             }
         }
-    }
-
-    // A horizontal meter, 0..1.
-    component Meter: Item {
-        property real value: 0
-        property color colour: root.glow
-        height: 6
-        Rectangle {
-            anchors.fill: parent
-            color: root.faint
+        Reading {
+            anchors.centerIn: ring
+            text: donut.reading
+            pixelSize: Math.max(root.captionSize, Math.min(root.readingSize, donut.size / 5))
         }
-        Rectangle {
-            width: parent.width * Math.max(0, Math.min(1, parent.value))
-            height: parent.height
-            color: parent.colour
+        Caption {
+            id: labelText
+            anchors.horizontalCenter: ring.horizontalCenter
+            y: ring.height + 2
+            text: donut.label
+            color: root.glow
         }
     }
 
-    component Caption: Text {
-        color: root.dim
-        font.family: root.mono
-        font.pixelSize: root.compact ? 10 : 11
-        font.letterSpacing: 1.5
-    }
-    component Reading: Text {
-        color: root.ink
-        font.family: root.mono
-        font.pixelSize: root.compact ? 13 : 16
-    }
-    component Fake: Text {
-        text: "FAKE"
-        color: root.hot
-        font.family: root.mono
-        font.pixelSize: 9
-        font.bold: true
-    }
-
-    // A framed panel with a title.
+    // A framed panel with a title in its top edge.
     component Panel: Item {
         id: panel
         property string title
@@ -474,19 +603,18 @@ Item {
         Rectangle {
             anchors.fill: parent
             color: "transparent"
-            border.color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.5)
-            border.width: 1
+            border.color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.55)
+            border.width: 2
         }
         Rectangle {
-            x: 10
-            y: -6
-            width: heading.width + 10
-            height: 12
+            x: 14
+            y: -heading.height / 2
+            width: heading.width + 14
+            height: heading.height
             color: root.ground
             Caption {
                 id: heading
-                x: 5
-                anchors.verticalCenter: parent.verticalCenter
+                x: 7
                 text: panel.title + (panel.fake ? "  [FAKE]" : "")
                 color: panel.fake ? root.hot : root.glow
             }
@@ -494,15 +622,9 @@ Item {
         Item {
             id: body
             anchors.fill: parent
-            anchors.margins: 12
-            anchors.topMargin: 14
+            anchors.margins: 16
+            anchors.topMargin: heading.height / 2 + 12
         }
-    }
-
-    readonly property var latestCores: probe.cores.map(series => series.length
-                                                                 ? series[series.length - 1] : 0)
-    function lastOf(series) {
-        return series.length ? series[series.length - 1] : 0;
     }
 
     // ---- ground
@@ -511,963 +633,389 @@ Item {
         anchors.fill: parent
         color: root.ground
     }
-    // A faint grid, as a scope's graticule.
-    Canvas {
+
+    // ---- the cockpit: four panels frame the Omnibar, a status strip over
+    // them and a footer under them
+
+    Item {
+        id: a
         anchors.fill: parent
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        property color line: root.faint
-        onLineChanged: requestPaint()
-        onPaint: {
-            const c = getContext("2d");
-            c.reset();
-            c.strokeStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.06);
-            c.lineWidth = 1;
-            for (let x = 0.5; x < width; x += 40) {
-                c.beginPath();
-                c.moveTo(x, 0);
-                c.lineTo(x, height);
-                c.stroke();
-            }
-            for (let y = 0.5; y < height; y += 40) {
-                c.beginPath();
-                c.moveTo(0, y);
-                c.lineTo(width, y);
-                c.stroke();
-            }
-        }
-    }
 
-    Loader {
-        anchors.fill: parent
-        sourceComponent: ({
-                              "A": cockpit,
-                              "B": strips,
-                              "C": cluster,
-                              "D": consoleLayout
-                          })[root.layout] || cockpit
-    }
+        readonly property real gap: 20
+        readonly property real colW: (root.width - 3 * gap) / 2
+        readonly property real stripH: status.height
+        readonly property real footH: root.has("pages") || root.has("spaces") ? Math.min(
+                                                                                    root.height
+                                                                                    * 0.2, root.readingSize
+                                                                                    * 6) : 0
+        readonly property real upperY: gap + stripH + gap
+        readonly property real upperH: Math.max(80, root.barTop - upperY - gap)
+        readonly property real lowerY: root.barBottom + gap
+        readonly property real lowerH: Math.max(80, root.height - lowerY - gap - (footH > 0 ? footH
+                                                                                              + gap : 0))
+        // A gauge as big as a panel's height holds, over its label.
+        readonly property real upperGauge: Math.max(60, Math.min(220, upperH - root.captionSize * 2
+                                                                 - 36))
+        readonly property real lowerGauge: Math.max(60, Math.min(220, lowerH - root.captionSize * 2
+                                                                 - 36))
 
-    // ================================================================ A
-    // Cockpit: four panels frame the Omnibar, a status strip over them and a
-    // footer strip under them. Display only.
-    Component {
-        id: cockpit
-
-        Item {
-            id: a
-            readonly property real gap: root.compact ? 10 : 18
-            readonly property real side: Math.max(0, root.barLeft - 2 * gap)
-            readonly property real colW: Math.max(220, (root.width - 3 * gap) / 2)
-            readonly property real upperH: Math.max(60, root.barTop - 2 * gap - stripH)
-            readonly property real lowerH: Math.max(60, root.height - root.barBottom - 3 * gap
-                                                    - footH)
-            readonly property real stripH: 28
-            readonly property real footH: root.has("pages") || root.has("spaces") ? (root.compact
-                                                                                     ? 46 : 70) : 0
-
-            // Status strip: battery, downloads.
-            Row {
-                x: a.gap
-                y: a.gap
-                spacing: 28
-                Caption {
-                    text: "OMAWEB TELEMETRY  " + Qt.formatTime(new Date(root.time * 0 + Date.now()),
-                                                               "hh:mm:ss")
-                    color: root.glow
-                }
-                Row {
-                    visible: root.has("battery")
-                    spacing: 8
-                    Caption {
-                        text: "BAT"
-                    }
-                    Meter {
-                        width: 60
-                        y: 3
-                        value: probe.battery ? probe.battery.capacity : 0
-                        colour: probe.battery && probe.battery.capacity < 0.2 ? root.hot : root.glow
-                    }
-                    Caption {
-                        color: root.ink
-                        text: probe.battery ? root.pct(probe.battery.capacity) + " "
-                                              + probe.battery.status.toLowerCase() + " "
-                                              + probe.battery.watts.toFixed(1) + " W" : ""
-                    }
-                }
-                Repeater {
-                    model: root.has("downloads") ? probe.downloadsRunning : []
-                    Row {
-                        required property var modelData
-                        spacing: 8
-                        Caption {
-                            text: "DL " + modelData.fileName
-                            color: root.ink
-                        }
-                        Meter {
-                            width: 80
-                            y: 3
-                            value: modelData.fraction
-                        }
-                    }
-                }
-            }
-
-            Panel {
-                visible: root.has("cpu")
-                x: a.gap
-                y: a.gap + a.stripH + a.gap
-                width: root.has("net") ? a.colW : root.width - 2 * a.gap
-                height: a.upperH
-                title: "CPU " + probe.cores.length + " CORES  " + root.pct(root.lastOf(
-                                                                               probe.cpuTotal))
-                Bars {
-                    width: parent.width
-                    barHeight: Math.max(20, parent.height * 0.55)
-                    values: root.latestCores
-                }
-                Trace {
-                    y: parent.height * 0.6
-                    width: parent.width
-                    height: parent.height * 0.4
-                    values: probe.cpuTotal
-                    max: 1
-                }
-            }
-            Panel {
-                visible: root.has("net")
-                x: root.width - a.gap - width
-                y: a.gap + a.stripH + a.gap
-                width: a.colW
-                height: a.upperH
-                title: "NETWORK"
-                Column {
-                    Reading {
-                        text: "▼ " + root.rate(root.lastOf(probe.down))
-                    }
-                    Reading {
-                        text: "▲ " + root.rate(root.lastOf(probe.up))
-                        color: root.hot
-                    }
-                }
-                Trace {
-                    x: 150
-                    width: parent.width - 150
-                    height: parent.height
-                    values: probe.down
-                    second: probe.up
-                }
-            }
-            Panel {
-                visible: root.has("mem")
-                x: a.gap
-                y: root.barBottom + a.gap
-                width: root.has("blocked") ? a.colW : root.width - 2 * a.gap
-                height: a.lowerH
-                title: "MEMORY  " + root.size(probe.meminfo.MemTotal - probe.meminfo.MemAvailable)
-                       + " / " + root.size(probe.meminfo.MemTotal || 0)
-                Column {
-                    width: 140
-                    spacing: 6
-                    Caption {
-                        text: "RAM " + root.pct(root.lastOf(probe.memUsed))
-                    }
-                    Meter {
-                        width: 120
-                        value: root.lastOf(probe.memUsed)
-                    }
-                    Caption {
-                        text: "SWAP " + root.pct(root.lastOf(probe.swapUsed))
-                    }
-                    Meter {
-                        width: 120
-                        value: root.lastOf(probe.swapUsed)
-                        colour: root.hot
-                    }
-                    Caption {
-                        text: "OMAWEB UI " + root.size(probe.chromeKib)
-                    }
-                }
-                Trace {
-                    x: 150
-                    width: parent.width - 150
-                    height: parent.height
-                    values: probe.memUsed
-                    second: probe.swapUsed
-                    max: 1
-                }
-            }
-            Panel {
-                visible: root.has("blocked")
-                x: root.width - a.gap - width
-                y: root.barBottom + a.gap
-                width: a.colW
-                height: a.lowerH
-                title: "BLOCKED  " + probe.blockedOpen + " ON OPEN TABS  " + probe.blockedSession
-                       + " THIS SESSION"
-                Column {
-                    width: parent.width * 0.5
-                    Repeater {
-                        model: probe.topHosts
-                        Caption {
-                            required property var modelData
-                            width: parent.width
-                            elide: Text.ElideRight
-                            color: root.ink
-                            text: String(modelData.count).padStart(4) + "  " + modelData.host
-                        }
-                    }
-                    Caption {
-                        visible: probe.topHosts.length === 0
-                        text: "nothing blocked on open tabs"
-                    }
-                }
-                Trace {
-                    x: parent.width * 0.52
-                    width: parent.width * 0.48
-                    height: parent.height
-                    values: probe.blockedRate
-                    colour: root.hot
-                }
-            }
-
-            // Footer: pages today and memory per Space.
-            Panel {
-                visible: root.has("pages")
-                x: a.gap
-                y: root.height - a.gap - a.footH
-                width: root.has("spaces") ? a.colW : root.width - 2 * a.gap
-                height: a.footH
-                fake: true
-                title: "PAGES TODAY " + probe.pagesToday.reduce((s, v) => s + v, 0)
-                Trace {
-                    width: parent.width
-                    height: parent.height
-                    values: probe.pagesToday
-                    span: 24
-                }
-            }
-            Panel {
-                visible: root.has("spaces")
-                x: root.width - a.gap - width
-                y: root.height - a.gap - a.footH
-                width: a.colW
-                height: a.footH
-                fake: true
-                title: "MEMORY PER SPACE"
-                Row {
-                    spacing: 18
-                    Repeater {
-                        model: probe.spaces
-                        Column {
-                            required property var modelData
-                            Caption {
-                                text: modelData.name.toUpperCase()
-                            }
-                            Reading {
-                                text: modelData.mib + " MiB"
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ================================================================ B
-    // Strips: every module is a lane as wide as the page, time running left
-    // to right across it, as a chart recorder's paper. The lanes stack above
-    // and below the Omnibar, which cuts through the middle. Display only.
-    Component {
-        id: strips
-
-        Item {
-            id: b
-            readonly property var lanes: root.shown.filter(key => key !== "spaces")
-            readonly property var above: b.lanes.filter((key, i) => i % 2 === 0)
-            readonly property var below: b.lanes.filter((key, i) => i % 2 === 1).concat(root.has(
-                                                                                            "spaces")
-                                                                                        ? ["spaces"] :
-                                                                                          [])
-            readonly property real laneH: Math.min(root.compact ? 54 : 84, (root.barTop - 20) / Math.max(1,
-                                                                                                         b.above.length))
-
-            // The sweep, the paper's pen: a line at the newest sample.
-            Rectangle {
-                x: root.width - 24
-                width: 1
-                height: root.height
+        // Status strip: the title, the clock, downloads while one runs.
+        Row {
+            id: status
+            x: a.gap
+            y: a.gap
+            spacing: 32
+            Caption {
+                id: clock
                 color: root.glow
-                opacity: 0.5 + 0.5 * Math.abs(Math.sin(root.time * 3))
-            }
-
-            Column {
-                x: 0
-                width: root.width
-                y: root.barTop - height - 6
-                Repeater {
-                    model: b.above
-                    Loader {
-                        required property string modelData
-                        width: root.width
-                        height: b.laneH
-                        sourceComponent: lane
-                        property string key: modelData
-                    }
+                text: "OMAWEB TELEMETRY  " + Qt.formatTime(new Date(), "hh:mm:ss")
+                Timer {
+                    interval: 1000
+                    repeat: true
+                    running: true
+                    onTriggered: clock.text = "OMAWEB TELEMETRY  " + Qt.formatTime(new Date(),
+                                                                                   "hh:mm:ss")
                 }
             }
-            Column {
-                x: 0
-                width: root.width
-                y: root.barBottom + 6
-                Repeater {
-                    model: b.below
-                    Loader {
-                        required property string modelData
-                        width: root.width
-                        height: b.laneH
-                        sourceComponent: lane
-                        property string key: modelData
-                    }
-                }
+            Caption {
+                text: "TEXT " + (root.large ? "L" : "S") + " " + root.captionSize + "/"
+                      + root.readingSize + "px"
             }
-
-            Component {
-                id: lane
-                Item {
-                    id: l
-                    readonly property string key: parent ? parent.key : ""
+            Repeater {
+                model: root.has("downloads") ? probe.downloadsRunning : []
+                Row {
+                    required property var modelData
+                    spacing: 10
+                    Caption {
+                        text: "▼ " + modelData.fileName
+                        color: root.ink
+                    }
                     Rectangle {
-                        width: parent.width
-                        height: 1
-                        y: parent.height - 1
+                        y: (parent.height - height) / 2
+                        width: 140
+                        height: root.captionSize / 2
                         color: root.faint
-                    }
-                    Column {
-                        x: 16
-                        y: 8
-                        width: 170
-                        Caption {
-                            color: l.key === "pages" ? root.hot : root.glow
-                            text: ({
-                                       cpu: "CPU / CORE",
-                                       net: "NET ▼ ▲",
-                                       mem: "MEM / SWAP",
-                                       blocked: "BLOCKED /S",
-                                       downloads: "DOWNLOADS",
-                                       battery: "BATTERY W",
-                                       pages: "PAGES/H [FAKE]",
-                                       spaces: "SPACES [FAKE]"
-                                   })[l.key] || l.key
-                        }
-                        Reading {
-                            text: l.key === "cpu" ? root.pct(root.lastOf(probe.cpuTotal)) : l.key
-                                                    === "net" ? root.rate(root.lastOf(probe.down)) :
-                                                                l.key === "mem" ? root.pct(
-                                                                                      root.lastOf(
-                                                                                          probe.memUsed)) :
-                                                                                  l.key === "blocked"
-                                                                                  ? probe.blockedOpen
-                                                                                    + " open / "
-                                                                                    + probe.blockedSession :
-                                                                                    l.key === "battery"
-                                                                                    && probe.battery
-                                                                                    ? root.pct(
-                                                                                          probe.battery.capacity) :
-                                                                                      l.key === "pages"
-                                                                                      ? probe.pagesToday.reduce(
-                                                                                            (s, v) => s
-                                                                                                      + v, 0) + " today" :
-                                                                                        l.key === "downloads"
-                                                                                        ? probe.downloadsRunning.length
-                                                                                          + " running" :
-                                                                                          ""
-                        }
-                    }
-                    // CPU: a heat map, a row per core, a column per second.
-                    Canvas {
-                        id: heat
-                        visible: l.key === "cpu"
-                        x: 200
-                        y: 4
-                        width: root.width - 232
-                        height: parent.height - 8
-                        property var cores: probe.cores
-                        onCoresChanged: if (visible)
-                                            requestPaint()
-                        onPaint: {
-                            const c = getContext("2d");
-                            c.reset();
-                            const rows = heat.cores.length;
-                            if (!rows)
-                                return;
-                            const rh = heat.height / rows;
-                            const cw = heat.width / 300;
-                            for (let r = 0; r < rows; ++r) {
-                                const s = heat.cores[r];
-                                const x0 = heat.width - s.length * cw;
-                                for (let i = 0; i < s.length; ++i) {
-                                    c.fillStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b,
-                                                          0.08 + 0.92 * s[i]);
-                                    c.fillRect(x0 + i * cw, r * rh, Math.ceil(cw), rh - 1);
-                                }
-                            }
-                        }
-                    }
-                    Trace {
-                        visible: l.key !== "cpu" && l.key !== "spaces" && l.key !== "downloads"
-                        x: 200
-                        y: 4
-                        width: root.width - 232
-                        height: parent.height - 8
-                        values: l.key === "net" ? probe.down : l.key === "mem" ? probe.memUsed : l.key
-                                                                                 === "blocked"
-                                                                                 ? probe.blockedRate :
-                                                                                   l.key === "battery"
-                                                                                   ? probe.batteryHistory :
-                                                                                     l.key === "pages"
-                                                                                     ? probe.pagesToday :
-                                                                                       []
-                        second: l.key === "net" ? probe.up : l.key === "mem" ? probe.swapUsed : null
-                        max: l.key === "mem" ? 1 : 0
-                        span: l.key === "pages" ? 24 : 300
-                        colour: l.key === "blocked" || l.key === "pages" ? root.hot : root.glow
-                    }
-                    Row {
-                        visible: l.key === "downloads"
-                        x: 200
-                        y: 14
-                        spacing: 24
-                        Repeater {
-                            model: probe.downloadsRunning
-                            Column {
-                                required property var modelData
-                                Caption {
-                                    text: modelData.fileName
-                                    color: root.ink
-                                }
-                                Meter {
-                                    width: 200
-                                    value: modelData.fraction
-                                }
-                            }
-                        }
-                    }
-                    Row {
-                        visible: l.key === "spaces"
-                        x: 200
-                        y: 14
-                        spacing: 30
-                        Repeater {
-                            model: probe.spaces
-                            Column {
-                                required property var modelData
-                                Caption {
-                                    text: modelData.name.toUpperCase()
-                                }
-                                Meter {
-                                    width: 140
-                                    value: modelData.mib / 2048
-                                    colour: root.hot
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ================================================================ C
-    // Cluster: an instrument cluster. Round gauges stand in an arc over the
-    // Omnibar, which rests low; each dial carries its last five minutes as a
-    // ring. Warning lamps and small readouts sit under it. Display only.
-    Component {
-        id: cluster
-
-        Item {
-            id: c
-            readonly property var dials: root.shown.filter(key => ["cpu", "net", "mem", "blocked"].indexOf(
-                key) >= 0)
-            readonly property real dialSize: Math.min((root.width - 80) / Math.max(1,
-                                                                                   c.dials.length)
-                                                      - 24, root.barTop - 70, 260)
-
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: Math.max(20, root.barTop - c.dialSize - 40 - (c.dials.length - 1) / 2
-                            * c.dialSize * 0.12)
-                spacing: 24
-                Repeater {
-                    model: c.dials
-                    Item {
-                        id: dial
-                        required property string modelData
-                        required property int index
-                        width: c.dialSize
-                        height: c.dialSize + 30
-                        // The outer dials stand lower, so the row reads as an arc.
-                        y: (Math.abs(index - (c.dials.length - 1) / 2)) * c.dialSize * 0.12
-                        readonly property var series: modelData === "cpu" ? probe.cpuTotal :
-                                                                            modelData === "net"
-                                                                            ? probe.down :
-                                                                              modelData === "mem"
-                                                                              ? probe.memUsed :
-                                                                                probe.blockedRate
-                        readonly property real peak: modelData === "cpu" || modelData === "mem" ? 1 :
-                                                                                                  Math.max(1,
-                                                                                                           ...dial.series)
-                        readonly property real value: root.lastOf(dial.series) / dial.peak
-                        Canvas {
-                            id: face
-                            width: c.dialSize
-                            height: c.dialSize
-                            property real value: dial.value
-                            property var series: dial.series
-                            property var cores: dial.modelData === "cpu" ? root.latestCores : []
-                            onValueChanged: requestPaint()
-                            onWidthChanged: requestPaint()
-                            onPaint: {
-                                const g = getContext("2d");
-                                g.reset();
-                                const cx = width / 2, cy = height / 2, r = width / 2 - 4;
-                                const from = Math.PI * 0.75, sweep = Math.PI * 1.5;
-                                // Rim and scale.
-                                g.strokeStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.5);
-                                g.lineWidth = 1;
-                                g.beginPath();
-                                g.arc(cx, cy, r, from, from + sweep);
-                                g.stroke();
-                                for (let t = 0; t <= 10; ++t) {
-                                    const a = from + sweep * t / 10;
-                                    g.beginPath();
-                                    g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-                                    g.lineTo(cx + Math.cos(a) * (r - (t % 5 ? 6 : 12)), cy
-                                             + Math.sin(a) * (r - (t % 5 ? 6 : 12)));
-                                    g.stroke();
-                                }
-                                // History as a ring inside the scale.
-                                const s = face.series;
-                                const peak = dial.peak;
-                                for (let i = 0; i < s.length; ++i) {
-                                    const a = from + sweep * (i + 300 - s.length) / 300;
-                                    const len = (r * 0.28) * Math.min(1, s[i] / peak);
-                                    g.strokeStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b,
-                                                            0.35);
-                                    g.beginPath();
-                                    g.moveTo(cx + Math.cos(a) * (r * 0.6), cy + Math.sin(a) * (r
-                                                                                               * 0.6));
-                                    g.lineTo(cx + Math.cos(a) * (r * 0.6 + len), cy + Math.sin(a) * (
-                                                 r * 0.6 + len));
-                                    g.stroke();
-                                }
-                                // Per-core ticks round the rim.
-                                for (let k = 0; k < face.cores.length; ++k) {
-                                    const a = from + sweep * (k + 0.5) / face.cores.length;
-                                    g.strokeStyle = face.cores[k] > 0.85 ? root.hot : root.glow;
-                                    g.lineWidth = 3;
-                                    g.beginPath();
-                                    g.moveTo(cx + Math.cos(a) * (r + 2), cy + Math.sin(a) * (r
-                                                                                             + 2));
-                                    g.lineTo(cx + Math.cos(a) * (r + 2 + 10 * face.cores[k]), cy
-                                             + Math.sin(a) * (r + 2 + 10 * face.cores[k]));
-                                    g.stroke();
-                                }
-                                // Needle.
-                                const a = from + sweep * Math.min(1, face.value);
-                                g.strokeStyle = root.hot;
-                                g.lineWidth = 2;
-                                g.beginPath();
-                                g.moveTo(cx, cy);
-                                g.lineTo(cx + Math.cos(a) * (r - 14), cy + Math.sin(a) * (r - 14));
-                                g.stroke();
-                                g.fillStyle = root.hot;
-                                g.beginPath();
-                                g.arc(cx, cy, 4, 0, Math.PI * 2);
-                                g.fill();
-                            }
-                        }
-                        Column {
-                            anchors.horizontalCenter: face.horizontalCenter
-                            y: face.height * 0.62
-                            Reading {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: dial.modelData === "cpu" ? root.pct(root.lastOf(
-                                                                              probe.cpuTotal)) :
-                                                                 dial.modelData === "net"
-                                                                 ? root.rate(root.lastOf(
-                                                                                 probe.down)) :
-                                                                   dial.modelData === "mem"
-                                                                   ? root.pct(root.lastOf(
-                                                                                  probe.memUsed)) :
-                                                                     probe.blockedOpen + ""
-                            }
-                            Caption {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: dial.modelData === "net" ? "▲ " + root.rate(root.lastOf(
-                                                                                      probe.up)) :
-                                                                 dial.modelData === "blocked"
-                                                                 ? "BLOCKED "
-                                                                   + probe.blockedSession
-                                                                   + " SESSION" : dial.modelData
-                                                                   === "mem" ? "SWAP " + root.pct(
-                                                                                   root.lastOf(
-                                                                                       probe.swapUsed)) :
-                                                                               probe.cores.length
-                                                                               + " CORES"
-                            }
-                        }
-                        Caption {
-                            anchors.horizontalCenter: face.horizontalCenter
-                            y: face.height + 4
+                        Rectangle {
+                            width: parent.width * Math.max(0, modelData.fraction)
+                            height: parent.height
                             color: root.glow
-                            text: ({
-                                       cpu: "CPU",
-                                       net: "NETWORK",
-                                       mem: "MEMORY",
-                                       blocked: "BLOCKED"
-                                   })[dial.modelData]
                         }
                     }
-                }
-            }
-
-            // Lamps and small readouts under the Omnibar.
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: root.barBottom + 16
-                spacing: 36
-                Column {
-                    visible: root.has("battery")
-                    spacing: 4
                     Caption {
-                        text: "● BATTERY"
-                        color: probe.battery && probe.battery.status === "Charging" ? root.glow :
-                                                                                      root.dim
-                    }
-                    Reading {
-                        text: probe.battery ? root.pct(probe.battery.capacity) + "  "
-                                              + probe.battery.watts.toFixed(1) + " W" : ""
-                    }
-                }
-                Column {
-                    visible: root.has("downloads")
-                    spacing: 4
-                    Caption {
-                        text: "● DOWNLOADING"
-                        color: root.glow
-                        opacity: 0.5 + 0.5 * Math.abs(Math.sin(root.time * 4))
-                    }
-                    Repeater {
-                        model: probe.downloadsRunning
-                        Meter {
-                            required property var modelData
-                            width: 120
-                            value: modelData.fraction
-                        }
-                    }
-                }
-                Column {
-                    visible: root.has("pages")
-                    spacing: 4
-                    Caption {
-                        text: "PAGES TODAY [FAKE]"
-                        color: root.hot
-                    }
-                    Trace {
-                        width: 160
-                        height: 28
-                        values: probe.pagesToday
-                        span: 24
-                    }
-                }
-                Column {
-                    visible: root.has("spaces")
-                    spacing: 2
-                    Caption {
-                        text: "SPACES [FAKE]"
-                        color: root.hot
-                    }
-                    Repeater {
-                        model: probe.spaces
-                        Caption {
-                            required property var modelData
-                            color: root.ink
-                            text: modelData.name + "  " + modelData.mib + " MiB"
-                        }
+                        text: root.pct(Math.max(0, modelData.fraction))
+                        color: root.ink
                     }
                 }
             }
         }
-    }
 
-    // ================================================================ D
-    // Console: two dense columns flank the Omnibar, a monitor's panes, with a
-    // ticker over it. Rows can be clicked: a host shows the pages it was
-    // blocked on, a download or the pages sparkline opens its list, a Space
-    // says what it would do.
-    Component {
-        id: consoleLayout
+        // CPU: a square per core, lit by its load, and the total as a gauge.
+        Panel {
+            id: cpuPanel
+            visible: root.has("cpu")
+            x: a.gap
+            y: a.upperY
+            width: root.has("net") ? a.colW : root.width - 2 * a.gap
+            height: a.upperH
+            title: "CPU  " + probe.cores.length + " CORES"
 
-        Item {
-            id: d
-            // Two columns under the Omnibar, which rests high as their header.
-            readonly property real colW: (root.width - 48) / 2
-            readonly property bool sides: true
-            property string openHost: ""
-            property string note: ""
-
-            // Ticker over the Omnibar.
-            Caption {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: root.barTop - 22
-                color: root.glow
-                text: "CPU " + root.pct(root.lastOf(probe.cpuTotal)) + "   ▼ " + root.rate(
-                          root.lastOf(probe.down)) + "  ▲ " + root.rate(root.lastOf(probe.up)) + "   MEM "
-                      + root.pct(root.lastOf(probe.memUsed)) + "   BLOCKED " + probe.blockedOpen + (
-                          probe.battery ? "   BAT " + root.pct(probe.battery.capacity) : "")
-            }
-            Caption {
-                visible: d.note !== ""
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: root.barBottom + 8
-                color: root.hot
-                text: d.note
-            }
-            Timer {
-                running: d.note !== ""
-                interval: 3000
-                onTriggered: d.note = ""
-            }
-
-            // Left column: machine.
-            Column {
-                visible: d.sides
-                x: 16
-                y: root.barBottom + 20
-                spacing: 8
-                Caption {
-                    visible: root.has("cpu")
-                    color: root.glow
-                    text: "── CPU ────────── " + probe.cores.length + " cores"
+            Grid {
+                id: squares
+                readonly property int count: Math.max(1, probe.cores.length)
+                readonly property real roomW: cpuPanel.width - 32 - a.upperGauge - 24
+                readonly property real roomH: a.upperH - root.captionSize - 28
+                // As many across as makes the squares largest.
+                readonly property int across: {
+                    let best = 1, bestSide = 0;
+                    for (let n = 1; n <= squares.count; ++n) {
+                        const side = Math.min(squares.roomW / n, squares.roomH / Math.ceil(
+                                                  squares.count / n));
+                        if (side > bestSide) {
+                            bestSide = side;
+                            best = n;
+                        }
+                    }
+                    return best;
                 }
-                Grid {
-                    columns: 2
-                    columnSpacing: 16
-                    rowSpacing: 3
-                    Repeater {
-                        model: root.has("cpu") ? root.latestCores : []
-                        Row {
-                            required property real modelData
-                            required property int index
-                            spacing: 6
-                            Caption {
-                                width: 26
-                                text: String(index).padStart(2, "0")
-                            }
-                            Meter {
-                                y: 3
-                                width: d.colW / 2 - 88
-                                value: modelData
-                                colour: modelData > 0.85 ? root.hot : root.glow
-                            }
-                            Caption {
-                                color: root.ink
-                                text: root.pct(modelData).padStart(4)
-                            }
+                readonly property real side: Math.max(8, Math.min(squares.roomW / squares.across,
+                                                                  squares.roomH / Math.ceil(
+                                                                      squares.count
+                                                                      / squares.across)) - spacing)
+                columns: squares.across
+                spacing: 6
+                Repeater {
+                    model: probe.cores
+                    Rectangle {
+                        required property real modelData
+                        width: squares.side
+                        height: squares.side
+                        color: modelData > 0.85 ? root.hot : Qt.rgba(root.glow.r, root.glow.g,
+                                                                     root.glow.b, 0.08 + 0.92
+                                                                     * modelData)
+                        border.color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.7)
+                        border.width: 1
+                        CrtText {
+                            visible: squares.side >= root.captionSize * 2.2
+                            anchors.centerIn: parent
+                            pixelSize: root.captionSize
+                            color: modelData > 0.5 ? root.ground : root.ink
+                            text: Math.round(modelData * 100)
                         }
                     }
                 }
-                Caption {
-                    visible: root.has("net")
-                    color: root.glow
-                    text: "── NET ──────────────────"
+            }
+            Gauge {
+                anchors.right: parent.right
+                size: a.upperGauge
+                value: root.lastOf(probe.cpuTotal)
+                reading: root.pct(root.lastOf(probe.cpuTotal))
+                label: "TOTAL"
+            }
+        }
+
+        // Network: down and up as gauges against the five minutes' peak, and
+        // the trace of both.
+        Panel {
+            visible: root.has("net")
+            x: root.width - a.gap - width
+            y: a.upperY
+            width: root.has("cpu") ? a.colW : root.width - 2 * a.gap
+            height: a.upperH
+            title: "NETWORK"
+
+            Row {
+                id: netGauges
+                spacing: 16
+                Gauge {
+                    size: a.upperGauge
+                    value: root.lastOf(probe.down) / root.peakOf(probe.down)
+                    reading: root.rate(root.lastOf(probe.down))
+                    label: "▼ DOWN"
                 }
-                Trace {
-                    visible: root.has("net")
-                    width: d.colW
-                    height: 50
-                    values: probe.down
-                    second: probe.up
+                Gauge {
+                    size: a.upperGauge
+                    value: root.lastOf(probe.up) / root.peakOf(probe.up)
+                    reading: root.rate(root.lastOf(probe.up))
+                    label: "▲ UP"
                 }
-                Caption {
-                    visible: root.has("net")
-                    color: root.ink
-                    text: "▼ " + root.rate(root.lastOf(probe.down)) + "   ▲ " + root.rate(root.lastOf(
-                                                                                              probe.up))
-                }
-                Caption {
-                    visible: root.has("mem")
-                    color: root.glow
-                    text: "── MEM ──────────────────"
-                }
-                Trace {
-                    visible: root.has("mem")
-                    width: d.colW
-                    height: 40
-                    values: probe.memUsed
-                    second: probe.swapUsed
-                    max: 1
-                }
-                Caption {
-                    visible: root.has("mem")
-                    color: root.ink
-                    text: "RAM " + root.pct(root.lastOf(probe.memUsed)) + "  SWAP " + root.pct(
-                              root.lastOf(probe.swapUsed)) + "  UI " + root.size(probe.chromeKib)
+            }
+            Trace {
+                x: netGauges.width + 20
+                width: Math.max(0, parent.width - x)
+                height: parent.height
+                values: probe.down
+                second: probe.up
+            }
+        }
+
+        // Memory: RAM as used, cache and free, swap as used and free, and the
+        // browser's own.
+        Panel {
+            id: memPanel
+            visible: root.has("mem")
+            x: a.gap
+            y: a.lowerY
+            width: root.has("blocked") || root.has("battery") ? a.colW : root.width - 2 * a.gap
+            height: a.lowerH
+            title: "MEMORY  " + root.size(probe.meminfo.MemTotal || 0)
+
+            // RAM, its legend and swap across the panel, shrunk to fit it.
+            readonly property real fit: Math.max(50, Math.min(a.lowerGauge, (width - 32
+                                                                             - root.captionSize
+                                                                             * 10 - 48) / 1.8))
+
+            Row {
+                spacing: 24
+                Donut {
+                    readonly property real total: probe.meminfo.MemTotal || 1
+                    readonly property real cache: (probe.meminfo.Cached || 0) + (
+                                                      probe.meminfo.Buffers || 0) + (
+                                                      probe.meminfo.SReclaimable || 0)
+                    readonly property real free: probe.meminfo.MemFree || 0
+                    readonly property real used: Math.max(0, total - cache - free)
+                    size: memPanel.fit
+                    parts: [
+                        {
+                            value: used,
+                            colour: root.glow
+                        },
+                        {
+                            value: cache,
+                            colour: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.45)
+                        },
+                        {
+                            value: free,
+                            colour: root.faint
+                        }
+                    ]
+                    reading: root.pct(used / total)
+                    label: "RAM"
                 }
                 Column {
-                    visible: root.has("battery")
+                    spacing: 6
+                    y: 10
                     Caption {
+                        text: "■ USED  " + root.size(Math.max(0, (probe.meminfo.MemTotal || 0) - (
+                                                                  probe.meminfo.MemFree || 0) - (
+                                                                  probe.meminfo.Cached || 0) - (
+                                                                  probe.meminfo.Buffers || 0) - (
+                                                                  probe.meminfo.SReclaimable || 0)))
                         color: root.glow
-                        text: "── BATTERY ──────────────"
                     }
                     Caption {
-                        color: root.ink
-                        text: probe.battery ? root.pct(probe.battery.capacity) + "  "
-                                              + probe.battery.status + "  "
-                                              + probe.battery.watts.toFixed(1) + " W" : ""
+                        text: "■ CACHE " + root.size((probe.meminfo.Cached || 0) + (
+                                                         probe.meminfo.Buffers || 0) + (
+                                                         probe.meminfo.SReclaimable || 0))
                     }
+                    Caption {
+                        text: "□ FREE  " + root.size(probe.meminfo.MemFree || 0)
+                    }
+                }
+                Donut {
+                    readonly property real total: probe.meminfo.SwapTotal || 0
+                    readonly property real used: total - (probe.meminfo.SwapFree || 0)
+                    size: memPanel.fit * 0.8
+                    parts: [
+                        {
+                            value: used,
+                            colour: root.hot
+                        },
+                        {
+                            value: Math.max(total > 0 ? 0 : 1, total - used),
+                            colour: root.faint
+                        }
+                    ]
+                    reading: total > 0 ? root.pct(used / total) : "—"
+                    label: "SWAP"
+                }
+            }
+        }
+
+        // The browser's own memory and the battery as gauges, and blocked
+        // requests as a small module.
+        Panel {
+            visible: root.has("blocked") || root.has("battery")
+            x: root.width - a.gap - width
+            y: a.lowerY
+            width: root.has("mem") ? a.colW : root.width - 2 * a.gap
+            height: a.lowerH
+            title: root.has("battery") ? "BROWSER · POWER" : "BROWSER"
+
+            Row {
+                spacing: 24
+                Gauge {
+                    size: a.lowerGauge
+                    value: probe.chromeKib / 2097152
+                    reading: root.size(probe.chromeKib)
+                    label: "OMAWEB UI"
+                }
+                Gauge {
+                    visible: root.has("battery")
+                    size: a.lowerGauge
+                    value: probe.battery ? probe.battery.capacity : 0
+                    reading: probe.battery ? root.pct(probe.battery.capacity) : ""
+                    label: probe.battery ? probe.battery.status.toUpperCase() + " "
+                                           + probe.battery.watts.toFixed(1) + " W" : ""
                 }
             }
 
-            // Right column: browser. Click rows.
+            // Blocked: small, in the panel's corner.
             Column {
-                visible: d.sides
-                x: root.width - 16 - d.colW
-                y: root.barBottom + 20
+                visible: root.has("blocked")
+                anchors.right: parent.right
+                anchors.top: parent.top
                 spacing: 4
                 Caption {
-                    visible: root.has("blocked")
-                    color: root.glow
-                    text: "── BLOCKED ── " + probe.blockedOpen + " open · " + probe.blockedSession
-                          + " session"
+                    anchors.right: parent.right
+                    text: "BLOCKED " + probe.blockedOpen + " · " + probe.blockedSession + " SESSION"
                 }
                 Trace {
-                    visible: root.has("blocked")
-                    width: d.colW
-                    height: 30
+                    anchors.right: parent.right
+                    width: 160
+                    height: root.captionSize * 1.5
                     values: probe.blockedRate
-                    colour: root.hot
-                }
-                Repeater {
-                    model: root.has("blocked") ? probe.topHosts : []
-                    Column {
-                        required property var modelData
-                        Row2 {
-                            leftText: modelData.host
-                            rightText: String(modelData.count)
-                            onClicked: d.openHost = d.openHost === modelData.host ? "" :
-                                                                                    modelData.host
-                        }
-                        Caption {
-                            visible: d.openHost === modelData.host
-                            x: 20
-                            width: d.colW - 20
-                            wrapMode: Text.Wrap
-                            text: "blocked " + modelData.count
-                                  + "× on this Space's open tabs. Full impl: list the pages, or open Site information."
-                        }
-                    }
+                    colour: root.dim
                 }
                 Caption {
-                    visible: root.has("blocked") && probe.topHosts.length === 0
-                    text: "  nothing blocked on open tabs"
-                }
-                Caption {
-                    visible: root.has("downloads")
-                    color: root.glow
-                    text: "── DOWNLOADS ────────────"
-                }
-                Repeater {
-                    model: root.has("downloads") ? probe.downloadsRunning : []
-                    Row2 {
-                        required property var modelData
-                        leftText: modelData.fileName
-                        rightText: root.pct(Math.max(0, modelData.fraction))
-                        onClicked: root.activated("downloads", modelData.fileName)
-                    }
-                }
-                Caption {
-                    visible: root.has("pages")
-                    color: root.hot
-                    text: "── PAGES TODAY [FAKE] ─── " + probe.pagesToday.reduce((s, v) => s + v, 0)
-                }
-                Item {
-                    visible: root.has("pages")
-                    width: d.colW
-                    height: 40
-                    Trace {
-                        anchors.fill: parent
-                        values: probe.pagesToday
-                        span: 24
-                    }
-                    HoverHandler {
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    TapHandler {
-                        onTapped: root.activated("history", "")
-                    }
-                }
-                Caption {
-                    visible: root.has("spaces")
-                    color: root.hot
-                    text: "── MEMORY PER SPACE [FAKE] "
-                }
-                Repeater {
-                    model: root.has("spaces") ? probe.spaces : []
-                    Row2 {
-                        required property var modelData
-                        leftText: modelData.name
-                        rightText: modelData.mib + " MiB"
-                        onClicked: d.note = "Full impl: switch to the " + modelData.name + " Space"
-                    }
+                    anchors.right: parent.right
+                    visible: probe.topHosts.length > 0
+                    maxWidth: 260
+                    elide: Text.ElideLeft
+                    text: probe.topHosts.length ? probe.topHosts[0].host + " ×"
+                                                  + probe.topHosts[0].count : ""
                 }
             }
+        }
 
-            // Too narrow for side columns: everything under the Omnibar.
-            Caption {
-                visible: !d.sides
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: root.barBottom + 30
-                color: root.dim
-                text: "(narrow: Console keeps only the ticker)"
+        // Footer: pages today and memory per Space, both fake.
+        Panel {
+            visible: root.has("pages")
+            x: a.gap
+            y: root.height - a.gap - a.footH
+            width: root.has("spaces") ? a.colW : root.width - 2 * a.gap
+            height: a.footH
+            fake: true
+            title: "PAGES TODAY  " + probe.pagesToday.reduce((s, v) => s + v, 0)
+            Trace {
+                width: parent.width
+                height: parent.height
+                values: probe.pagesToday
+                span: 24
+            }
+        }
+        Panel {
+            visible: root.has("spaces")
+            x: root.width - a.gap - width
+            y: root.height - a.gap - a.footH
+            width: a.colW
+            height: a.footH
+            fake: true
+            title: "MEMORY PER SPACE"
+            Row {
+                spacing: 20
+                Repeater {
+                    model: probe.spaces
+                    Gauge {
+                        required property var modelData
+                        size: Math.max(50, a.footH - root.captionSize * 2 - 36)
+                        value: modelData.mib / 2048
+                        reading: modelData.mib + "M"
+                        label: modelData.name.toUpperCase()
+                    }
+                }
             }
         }
     }
 
-    component Row2: Rectangle {
-        id: row2
-        property string leftText
-        property string rightText
-        property bool clickable: true
-        property color tint: root.ink
-        signal clicked
-        width: d.colW
-        height: 20
-        color: hover.hovered && clickable ? Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.25) :
-                                            "transparent"
-        Caption {
-            x: 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 80
-            elide: Text.ElideRight
-            color: row2.tint
-            text: (row2.clickable ? "› " : "  ") + row2.leftText
+    // ---- faint noise over everything, moved every frame
+
+    Canvas {
+        id: noiseTile
+        width: 128
+        height: 128
+        opacity: 0
+        renderTarget: Canvas.Image
+        property string url: ""
+        onPaint: {
+            const c = getContext("2d");
+            for (let y = 0; y < 128; ++y)
+                for (let x = 0; x < 128; ++x) {
+                    const v = Math.random();
+                    c.fillStyle = Qt.rgba(v, v, v, 1);
+                    c.fillRect(x, y, 1, 1);
+                }
         }
-        Caption {
-            anchors.right: parent.right
-            anchors.rightMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            color: row2.tint
-            text: row2.rightText
-        }
-        HoverHandler {
-            id: hover
-            cursorShape: row2.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
-        }
-        TapHandler {
-            enabled: row2.clickable
-            onTapped: row2.clicked()
-        }
+        onPainted: noiseTile.url = noiseTile.toDataURL()
+        Component.onCompleted: requestPaint()
+    }
+    Image {
+        x: -Math.floor((root.time * 7919) % 128)
+        y: -Math.floor((root.time * 9973) % 128)
+        width: root.width + 128
+        height: root.height + 128
+        source: noiseTile.url
+        fillMode: Image.Tile
+        opacity: 0.06
+        smooth: false
     }
 }

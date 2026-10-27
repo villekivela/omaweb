@@ -23,11 +23,11 @@ public:
 
     // PROTOTYPE (#814), throwaway: what the Telemetry Scene reads. A file
     // under /proc or /sys, empty for any other path or one that cannot be
-    // read; the entries of such a directory; and the layout the
-    // OMAWEB_TELEMETRY_LAYOUT environment variable asks for.
+    // read; the entries of such a directory; and the text size the
+    // OMAWEB_TELEMETRY_TEXT environment variable asks for.
     Q_INVOKABLE QString systemFile(const QString &path) const;
     Q_INVOKABLE QStringList systemEntries(const QString &path) const;
-    Q_INVOKABLE QString telemetryLayout() const;
+    Q_INVOKABLE QString telemetryText() const;
 };
 
 // Makes `Scenes`, and the `LifeBoard` the Game of Life Scene draws on,

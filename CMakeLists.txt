@@ -976,6 +976,7 @@ set(omaweb_ui_files
     src/ui/Radar.qml
     src/ui/Hyperspace.qml
     src/ui/TelemetryPrototype.qml
+    src/ui/TelemetryHostPrototype.qml
     src/ui/RimLight.qml
     src/ui/GroundDither.qml
     src/ui/SceneHost.qml

@@ -136,8 +136,9 @@ Item {
 
     clip: true
 
-    SceneHost {
+    TelemetryHostPrototype {
         id: host
+        fullResolution: root.sceneId === "telemetry"
         objectName: "startPageScene"
         width: root.width
         height: root.height
@@ -277,20 +278,15 @@ Item {
         Hyperspace {}
     }
 
-    // ---- PROTOTYPE (#814), throwaway: the Telemetry Scene and its layout
-    // switcher. Ctrl+Alt+. and Ctrl+Alt+, cycle the layouts, the pill at the
-    // bottom too; OMAWEB_TELEMETRY_LAYOUT=A..D picks the first. Ctrl+Alt+D
-    // pretends a download runs.
+    // ---- PROTOTYPE (#814), throwaway: the Telemetry Scene and its text
+    // size switch. Ctrl+Alt+. or the pill's arrows switch the two text sizes;
+    // OMAWEB_TELEMETRY_TEXT=S or L picks the first. Ctrl+Alt+D pretends a
+    // download runs.
 
     property var blocker: null
     property var browser: null
     property var downloads: null
-    signal telemetryActivated(string kind, string value)
-    readonly property var telemetryLayouts: [["A", "Cockpit · display only"], ["B",
-                                                                               "Strips · display only"],
-        ["C", "Cluster · display only"], ["D", "Console · clickable"]]
-    property int telemetryLayout: Math.max(0, ["A", "B", "C", "D"].indexOf(Scenes.telemetryLayout(
-                                                                               ).toUpperCase()))
+    property string telemetryTextSize: Scenes.telemetryText().toUpperCase() === "L" ? "L" : "S"
     property bool telemetryFakeDownload: false
     readonly property bool telemetryShown: !!host.sceneItem && host.sceneItem.telemetry === true
 
@@ -302,8 +298,8 @@ Item {
 
     Binding {
         target: host.sceneItem
-        property: "layout"
-        value: root.telemetryLayouts[root.telemetryLayout][0]
+        property: "textSize"
+        value: root.telemetryTextSize
         when: root.telemetryShown
     }
     Binding {
@@ -336,28 +332,20 @@ Item {
         value: root.telemetryFakeDownload
         when: root.telemetryShown
     }
-    Connections {
-        target: root.telemetryShown ? host.sceneItem : null
-        ignoreUnknownSignals: true
-        function onActivated(kind, value) {
-            root.telemetryActivated(kind, value);
-        }
-    }
 
-    function cycleTelemetry(step) {
-        root.telemetryLayout = (root.telemetryLayout + step + root.telemetryLayouts.length)
-                % root.telemetryLayouts.length;
+    function switchTelemetryText() {
+        root.telemetryTextSize = root.telemetryTextSize === "S" ? "L" : "S";
     }
 
     Shortcut {
         sequence: "Ctrl+Alt+."
         enabled: root.visible && root.telemetryShown
-        onActivated: root.cycleTelemetry(1)
+        onActivated: root.switchTelemetryText()
     }
     Shortcut {
         sequence: "Ctrl+Alt+,"
         enabled: root.visible && root.telemetryShown
-        onActivated: root.cycleTelemetry(-1)
+        onActivated: root.switchTelemetryText()
     }
     Shortcut {
         sequence: "Ctrl+Alt+D"
@@ -385,12 +373,12 @@ Item {
                 text: "◀"
                 font.pixelSize: 14
                 TapHandler {
-                    onTapped: root.cycleTelemetry(-1)
+                    onTapped: root.switchTelemetryText()
                 }
             }
             Text {
-                text: "PROTOTYPE  " + root.telemetryLayouts[root.telemetryLayout].join("  ")
-                + "   (Ctrl+Alt+, / .)"
+                text: "PROTOTYPE  A Cockpit · text " + root.telemetryTextSize
+                      + "   (Ctrl+Alt+.)   Ctrl+Alt+D: fake download"
                 font.pixelSize: 13
                 font.bold: true
             }
@@ -398,7 +386,7 @@ Item {
                 text: "▶"
                 font.pixelSize: 14
                 TapHandler {
-                    onTapped: root.cycleTelemetry(1)
+                    onTapped: root.switchTelemetryText()
                 }
             }
         }

@@ -44,7 +44,7 @@ QStringList Scenes::systemEntries(const QString &path) const
     return QDir(path).entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
 }
 
-QString Scenes::telemetryLayout() const { return qEnvironmentVariable("OMAWEB_TELEMETRY_LAYOUT"); }
+QString Scenes::telemetryText() const { return qEnvironmentVariable("OMAWEB_TELEMETRY_TEXT"); }
 
 void registerScenes()
 {

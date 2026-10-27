@@ -4200,12 +4200,6 @@ ApplicationWindow {
                     blocker: contentBlocker
                     browser: window.windowBrowser
                     downloads: window.downloads
-                    onTelemetryActivated: function (kind, value) {
-                        if (kind === "downloads")
-                            window.requestDownloads();
-                        else if (kind === "history")
-                            window.requestHistory();
-                    }
                 }
 
                 ShortcutSheet {
