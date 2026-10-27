@@ -2,7 +2,7 @@
 # PROTOTYPE (#814), throwaway: runs this worktree's build with a throwaway profile, the Start page on
 # the Telemetry Scene. Never the installed omaweb, never the reader's profile.
 #
-#   scripts/prototype_telemetry.sh [S|L]
+#   scripts/prototype_telemetry.sh [L|S]
 #
 # Ctrl+Alt+. (or the yellow pill's arrows) switches the two text sizes; Ctrl+Alt+D pretends a
 # download runs. Build first with: cmake --preset dev && cmake --build build/dev --target
@@ -13,7 +13,7 @@ profile=$(mktemp -d "${TMPDIR:-/tmp}/omaweb-telemetry-prototype.XXXXXX")
 trap 'rm -rf "$profile"' EXIT
 mkdir -p "$profile/data" "$profile/config"
 printf '{ "version": 1, "start-page-scene": "telemetry" }\n' > "$profile/config/settings.json"
-OMAWEB_TELEMETRY_TEXT=${1:-S} \
+OMAWEB_TELEMETRY_TEXT=${1:-L} \
     OMAWEB_DATA_ROOT="$profile/data" \
     OMAWEB_CONFIG_ROOT="$profile/config" \
     OMAWEB_CONTROL_SOCKET="$profile/control.sock" \

@@ -43,7 +43,7 @@ Item {
 
     readonly property bool telemetry: true
     // "S" or "L": the two text sizes to compare.
-    property string textSize: "S"
+    property string textSize: "L"
     property var blocker: null
     property var browser: null
     property var tabs: null
@@ -1294,7 +1294,7 @@ Item {
                                                 / probe.meminfo.MemTotal : 0
                 reading: probe.meminfo.MemTotal ? root.pct(1 - probe.meminfo.MemAvailable
                                                            / probe.meminfo.MemTotal) : ""
-                label: "MEMORY"
+                label: "MEM"
             }
             Gauge {
                 size: gauges.cell

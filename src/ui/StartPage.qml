@@ -287,7 +287,7 @@ Item {
     property var blocker: null
     property var browser: null
     property var downloads: null
-    property string telemetryTextSize: Scenes.telemetryText().toUpperCase() === "L" ? "L" : "S"
+    property string telemetryTextSize: Scenes.telemetryText().toUpperCase() === "S" ? "S" : "L"
     property bool telemetryFakeDownload: false
     // Device pixels from one scanline to the next: 6 as the road's (its
     // pitch 4 at 1.5x), or 3. Ctrl+Alt+S switches them.
