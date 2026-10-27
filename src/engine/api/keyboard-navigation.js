@@ -68,13 +68,9 @@
     }
     return null;
   };
-  // Whether the element is what the reader would reach by clicking where it
-  // stands: it, something inside it or something around it is on top at the
-  // middle of the box or at one of its corners. A corner is taken 0.1 px in,
-  // where the edge itself can belong to the neighbour. A dialog's backdrop, a
-  // menu or a sticky header over the whole box leaves none of these.
-  // What is on top is looked for inside each shadow root on the way down, as
-  // Vimium's getElementFromPoint does, since contains() does not cross into one.
+  // What is on top at a point, looked for inside each shadow root on the way
+  // down, as Vimium's getElementFromPoint does: contains() does not cross into
+  // one, so the host alone would leave an element inside it never on top.
   const elementFromPoint = (x, y, root = document, stack = []) => {
     const element = root.elementsFromPoint(x, y)[0];
     if (stack.includes(element)) return element;
@@ -85,6 +81,11 @@
     }
     return element;
   };
+  // Whether the element is what the reader would reach by clicking where it
+  // stands: it, something inside it or something around it is on top at the
+  // middle of the box or at one of its corners. A corner is taken 0.1 px in,
+  // where the edge itself can belong to the neighbour. A dialog's backdrop, a
+  // menu or a sticky header over the whole box leaves none of these.
   const reachable = (element, rect) => {
     const onTop = (x, y) => {
       const top = elementFromPoint(x, y);
@@ -95,13 +96,13 @@
       [rect.left + 0.1, rect.right - 0.1].some((x) => onTop(x, y)),
     );
   };
-  // A control the page switched off, or made read-only, is not one to click
-  // into.
+  // A control the page switched off is not one to click. Vimium asks only
+  // aria-disabled here; :disabled is Omaweb's, and also takes in a control
+  // inside a disabled fieldset, whatever role or handler it has.
   const switchedOff = (element) => {
     const ariaDisabled = element.getAttribute("aria-disabled");
     return (
       element.matches(":disabled") ||
-      (field(element) && element.readOnly === true) ||
       (ariaDisabled !== null && ["", "true"].includes(ariaDisabled.toLowerCase()))
     );
   };
@@ -110,8 +111,10 @@
   // lib/dom_utils.js, of philc/vimium at commit 5aa29614bf1dce05e0d316f8c38722e17f9b38c3.
   // Copyright (c) 2010 Phil Crosby, Ilya Sukhar, under the MIT License, whose text is in
   // THIRD_PARTY_NOTICES.md. Left out are the hints Vimium gives for its own ends: a frame's body
-  // to focus the frame, a box that scrolls, and the areas of an image map. Omaweb's own checks
-  // stay around the rules: switchedOff, visibleRect and reachable.
+  // to focus the frame, a box that scrolls, and the areas of an image map. Where Omaweb differs:
+  // switchedOff, and visibleRect, which does not look into an empty box's children. The
+  // `disabled` tests in the tag rules are kept as Vimium wrote them, though switchedOff has
+  // already turned those controls away.
   const unselectableTypes = [
     "button",
     "checkbox",
@@ -142,7 +145,8 @@
   const angularClickAttributes = ["", "data-", "x-"].flatMap((prefix) =>
     ["-", ":", "_"].map((separator) => prefix + "ng" + separator + "click"),
   );
-  // Whether the page is AngularJS's, asked once a hint run as Vimium does.
+  // Whether the page is AngularJS's. Vimium asks once for the page's life;
+  // here each hint run asks again, so a page that loads AngularJS late is seen.
   let angularPage = false;
   // An element with a tabindex and nothing else is a second-class citizen, and
   // getLocalHints drops every one, so a tabindex alone still earns no hint.
@@ -213,8 +217,10 @@
         isClickable = true;
         break;
       case "label":
+        // `control` is undefined on a label outside HTML, null on one with none.
         isClickable ||=
           element.control !== null &&
+          element.control !== undefined &&
           !element.control.disabled &&
           localHint(element.control) === null;
         break;
@@ -261,8 +267,9 @@
       .map(localHint)
       .filter(Boolean)
       .reverse();
-    // A possible false positive is dropped when one of the six hints before it,
-    // descendants come first now, sits up to three levels inside it.
+    // The list now runs from descendants to ancestors. A possible false positive
+    // is dropped when one of the six hints before it sits up to three levels
+    // inside it.
     const descendantsToCheck = 3;
     const lookbackWindow = 6;
     hints = hints.filter((hint, position) => {

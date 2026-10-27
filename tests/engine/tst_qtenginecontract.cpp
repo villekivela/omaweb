@@ -1743,6 +1743,32 @@ QByteArray hintsPage(const char *body, const char *setup = "")
         </script>)HTML");
 }
 
+// A page that presses `f` and then types the hint of the element whose text is
+// `name`, or names the title "no plate" when none has one. `setup` runs first
+// and says in the title what the element did.
+QByteArray pickHintPage(const char *body, const char *name, const char *setup)
+{
+    return QByteArrayLiteral("<!doctype html><title>ready</title>") + body
+        + QByteArrayLiteral(R"HTML(<script>
+            const press = key => dispatchEvent(new KeyboardEvent('keydown', {
+                key, bubbles: true, cancelable: true
+            }));
+            )HTML")
+        + setup + QByteArrayLiteral(R"HTML(
+            setTimeout(() => {
+                press('f');
+                const plate = [...document.querySelectorAll('#hintsh > span')].find(plate =>
+                    plate.getAttribute('aria-label').endsWith(' for )HTML")
+        + name + QByteArrayLiteral(R"HTML('));
+                if (!plate) {
+                    document.title = 'no plate';
+                    return;
+                }
+                for (const key of plate.textContent.toLowerCase()) press(key);
+            }, 300);
+        </script>)HTML");
+}
+
 } // namespace
 
 void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
@@ -2127,52 +2153,29 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 }, 300);
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("Away") << false << QStringList {};
-    QTest::newRow("a hint clicks the tab it names")
-        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+    QTest::newRow("a hint clicks the tab it names") << pickHintPage(R"HTML(
             <div role="tablist">
                 <yt-tab-shape role="tab" tabindex="0"><div>Home</div></yt-tab-shape>
                 <yt-tab-shape role="tab" tabindex="0"><div>Videos</div></yt-tab-shape>
-            </div>
-            <script>
-                for (const tab of document.querySelectorAll('yt-tab-shape')) {
-                    tab.addEventListener('click', () => document.title = tab.textContent + ' tab');
-                }
-                const press = key => dispatchEvent(new KeyboardEvent('keydown', {
-                    key, bubbles: true, cancelable: true
-                }));
-                setTimeout(() => {
-                    press('f');
-                    const plate = [...document.querySelectorAll('#hintsh > span')].find(plate =>
-                        plate.getAttribute('aria-label').endsWith(' for Videos'));
-                    if (!plate) {
-                        document.title = 'no plate';
-                        return;
-                    }
-                    for (const key of plate.textContent.toLowerCase()) press(key);
-                }, 300);
-            </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("Videos tab") << false << QStringList {};
+            </div>)HTML",
+        "Videos",
+        R"JS(for (const tab of document.querySelectorAll('yt-tab-shape')) {
+                        tab.addEventListener('click',
+                            () => document.title = tab.textContent + ' tab');
+                    })JS") << int(Qt::Key_unknown) << QStringLiteral("Videos tab")
+                                                    << false << QStringList {};
     QTest::newRow("a hint opens the details it names")
-        << QByteArray(R"HTML(<!doctype html><title>ready</title>
-            <details><summary>More</summary>Hidden</details>
-            <script>
-                document.querySelector('details').addEventListener('toggle', event =>
-                    document.title = event.target.open ? 'opened' : 'closed');
-                const press = key => dispatchEvent(new KeyboardEvent('keydown', {
-                    key, bubbles: true, cancelable: true
-                }));
-                setTimeout(() => {
-                    press('f');
-                    const plate = [...document.querySelectorAll('#hintsh > span')].find(plate =>
-                        plate.getAttribute('aria-label').endsWith(' for MoreHidden'));
-                    if (!plate) {
-                        document.title = 'no plate';
-                        return;
-                    }
-                    for (const key of plate.textContent.toLowerCase()) press(key);
-                }, 300);
-            </script>)HTML")
+        << pickHintPage(R"HTML(<details><summary>More</summary>Hidden</details>)HTML", "MoreHidden",
+               R"JS(document.querySelector('details').addEventListener('toggle', event =>
+                        document.title = event.target.open ? 'opened' : 'closed');)JS")
         << int(Qt::Key_unknown) << QStringLiteral("opened") << false << QStringList {};
+    // Vimium stops a read-only field's tag from counting, not the field: what
+    // else it has still earns a hint.
+    QTest::newRow("a read-only field is hinted for a click handler it carries")
+        << hintsPage(R"HTML(
+            <input readonly aria-label="Plain" value="x">
+            <input readonly onclick="" aria-label="Clickable" value="y">)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("top:Clickable") << false << QStringList {};
     QTest::newRow("a button inside a shadow root is hinted")
         << hintsPage(R"HTML(<div id="host"></div><a href="#after">After</a>)HTML",
                R"JS(document.getElementById('host').attachShadow({ mode: 'open' })
