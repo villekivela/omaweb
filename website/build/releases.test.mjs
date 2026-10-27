@@ -91,8 +91,8 @@ test("chrome: the landing page's addresses reach back to the root from a release
   assert.match(html, /<main>\n<p>body<\/main>|<main>\n<p>body<\/p>\n {4}<\/main>/);
 });
 
-// A release page wears the theme the landing page does, Ethereal Nebula Silver or the reader's pick, and asks
-// Omaweb for the reader's own palette, which themes.css lets win where Omaweb hands it over.
+// A release page wears the theme the landing page does, the markup's or the reader's pick, and
+// asks Omaweb for the reader's own palette, which themes.css lets win where Omaweb hands it over.
 test("chrome: a release page keeps the landing page's theme and asks for the reader's palette", () => {
   assert.doesNotMatch(LANDING, /omaweb-palette/);
   const html = chrome(LANDING, "../..", { title: "t", description: "d" })("<p>body</p>");
