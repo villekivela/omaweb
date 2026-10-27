@@ -35,7 +35,8 @@ Item {
                                        "game-of-life": life,
                                        "vector-terrain": terrain,
                                        "radar": radar,
-                                       "hyperspace": hyperspace
+                                       "hyperspace": hyperspace,
+                                       "telemetry": telemetry
                                    })
     readonly property bool sceneShown: root.sceneId !== "none"
     // How far the resting Omnibar reaches below the horizon, which the night
@@ -274,5 +275,132 @@ Item {
         id: hyperspace
 
         Hyperspace {}
+    }
+
+    // ---- PROTOTYPE (#814), throwaway: the Telemetry Scene and its layout
+    // switcher. Ctrl+Alt+. and Ctrl+Alt+, cycle the layouts, the pill at the
+    // bottom too; OMAWEB_TELEMETRY_LAYOUT=A..D picks the first. Ctrl+Alt+D
+    // pretends a download runs.
+
+    property var blocker: null
+    property var browser: null
+    property var downloads: null
+    signal telemetryActivated(string kind, string value)
+    readonly property var telemetryLayouts: [["A", "Cockpit · display only"], ["B",
+                                                                               "Strips · display only"],
+        ["C", "Cluster · display only"], ["D", "Console · clickable"]]
+    property int telemetryLayout: Math.max(0, ["A", "B", "C", "D"].indexOf(Scenes.telemetryLayout(
+                                                                               ).toUpperCase()))
+    property bool telemetryFakeDownload: false
+    readonly property bool telemetryShown: !!host.sceneItem && host.sceneItem.telemetry === true
+
+    Component {
+        id: telemetry
+
+        TelemetryPrototype {}
+    }
+
+    Binding {
+        target: host.sceneItem
+        property: "layout"
+        value: root.telemetryLayouts[root.telemetryLayout][0]
+        when: root.telemetryShown
+    }
+    Binding {
+        target: host.sceneItem
+        property: "blocker"
+        value: root.blocker
+        when: root.telemetryShown
+    }
+    Binding {
+        target: host.sceneItem
+        property: "browser"
+        value: root.browser
+        when: root.telemetryShown
+    }
+    Binding {
+        target: host.sceneItem
+        property: "tabs"
+        value: root.tabs
+        when: root.telemetryShown
+    }
+    Binding {
+        target: host.sceneItem
+        property: "downloads"
+        value: root.downloads
+        when: root.telemetryShown
+    }
+    Binding {
+        target: host.sceneItem
+        property: "fakeDownload"
+        value: root.telemetryFakeDownload
+        when: root.telemetryShown
+    }
+    Connections {
+        target: root.telemetryShown ? host.sceneItem : null
+        ignoreUnknownSignals: true
+        function onActivated(kind, value) {
+            root.telemetryActivated(kind, value);
+        }
+    }
+
+    function cycleTelemetry(step) {
+        root.telemetryLayout = (root.telemetryLayout + step + root.telemetryLayouts.length)
+                % root.telemetryLayouts.length;
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Alt+."
+        enabled: root.visible && root.telemetryShown
+        onActivated: root.cycleTelemetry(1)
+    }
+    Shortcut {
+        sequence: "Ctrl+Alt+,"
+        enabled: root.visible && root.telemetryShown
+        onActivated: root.cycleTelemetry(-1)
+    }
+    Shortcut {
+        sequence: "Ctrl+Alt+D"
+        enabled: root.visible && root.telemetryShown
+        onActivated: root.telemetryFakeDownload = !root.telemetryFakeDownload
+    }
+
+    Rectangle {
+        visible: root.telemetryShown
+        z: 10
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: 6
+        anchors.rightMargin: 10
+        width: pill.implicitWidth + 24
+        height: 30
+        radius: 15
+        color: "#fff200"
+        border.color: "black"
+        Row {
+            id: pill
+            anchors.centerIn: parent
+            spacing: 12
+            Text {
+                text: "◀"
+                font.pixelSize: 14
+                TapHandler {
+                    onTapped: root.cycleTelemetry(-1)
+                }
+            }
+            Text {
+                text: "PROTOTYPE  " + root.telemetryLayouts[root.telemetryLayout].join("  ")
+                + "   (Ctrl+Alt+, / .)"
+                font.pixelSize: 13
+                font.bold: true
+            }
+            Text {
+                text: "▶"
+                font.pixelSize: 14
+                TapHandler {
+                    onTapped: root.cycleTelemetry(1)
+                }
+            }
+        }
     }
 }

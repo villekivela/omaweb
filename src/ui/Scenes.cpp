@@ -2,6 +2,7 @@
 
 #include "LifeBoard.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -17,6 +18,33 @@ QVariantMap Scenes::parameters(const QString &id) const
     }
     return QJsonDocument::fromJson(file.readAll()).object().toVariantMap();
 }
+
+static bool underSystem(const QString &path)
+{
+    return path.startsWith(QStringLiteral("/proc/")) || path.startsWith(QStringLiteral("/sys/"));
+}
+
+QString Scenes::systemFile(const QString &path) const
+{
+    if (!underSystem(path)) {
+        return {};
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QString::fromUtf8(file.readAll());
+}
+
+QStringList Scenes::systemEntries(const QString &path) const
+{
+    if (!underSystem(path)) {
+        return {};
+    }
+    return QDir(path).entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
+}
+
+QString Scenes::telemetryLayout() const { return qEnvironmentVariable("OMAWEB_TELEMETRY_LAYOUT"); }
 
 void registerScenes()
 {

@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 
 namespace omaweb {
@@ -19,6 +20,14 @@ public:
     // The parameters of the Scene `id`, or an empty map for one Omaweb does
     // not ship.
     Q_INVOKABLE QVariantMap parameters(const QString &id) const;
+
+    // PROTOTYPE (#814), throwaway: what the Telemetry Scene reads. A file
+    // under /proc or /sys, empty for any other path or one that cannot be
+    // read; the entries of such a directory; and the layout the
+    // OMAWEB_TELEMETRY_LAYOUT environment variable asks for.
+    Q_INVOKABLE QString systemFile(const QString &path) const;
+    Q_INVOKABLE QStringList systemEntries(const QString &path) const;
+    Q_INVOKABLE QString telemetryLayout() const;
 };
 
 // Makes `Scenes`, and the `LifeBoard` the Game of Life Scene draws on,

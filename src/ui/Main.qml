@@ -221,7 +221,7 @@ ApplicationWindow {
     // Whether the Scene is shown through its CRT glass. Local the same way.
     property bool startPageGlass: true
     readonly property var startPageScenes: ["crt-road", "night-sky", "game-of-life",
-        "vector-terrain", "radar", "hyperspace", "none"]
+        "vector-terrain", "radar", "hyperspace", "telemetry", "none"]
     // The window whose Scene settings this one shows and changes: a Private
     // window keeps no preferences, so it follows the ordinary window's.
     readonly property var sceneSettingsWindow: window.privateWindow && window.opener
@@ -4196,6 +4196,16 @@ ApplicationWindow {
                     tabs: window.windowBrowser.tabs
                     arrivingTabId: window.startPageDriveTabId
                     pageSource: window.pagelessViewport ? null : engineLoader
+                    // PROTOTYPE (#814), throwaway.
+                    blocker: contentBlocker
+                    browser: window.windowBrowser
+                    downloads: window.downloads
+                    onTelemetryActivated: function (kind, value) {
+                        if (kind === "downloads")
+                            window.requestDownloads();
+                        else if (kind === "history")
+                            window.requestHistory();
+                    }
                 }
 
                 ShortcutSheet {

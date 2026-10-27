@@ -975,6 +975,7 @@ set(omaweb_ui_files
     src/ui/VectorTerrain.qml
     src/ui/Radar.qml
     src/ui/Hyperspace.qml
+    src/ui/TelemetryPrototype.qml
     src/ui/RimLight.qml
     src/ui/GroundDither.qml
     src/ui/SceneHost.qml
