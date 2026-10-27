@@ -64,14 +64,14 @@ Item {
                                         opacity: 0.4
                                     },
                                     scanlines: {
-                                        shade: 0.55,
-                                        narrowest: 0.55,
+                                        shade: 0.38,
+                                        narrowest: 0.8,
                                         widest: 1.15,
                                         falloff: 2.2,
                                         lift: 1.2
                                     },
                                     mask: {
-                                        dim: 0.78,
+                                        dim: 0.88,
                                         lift: 1.18
                                     },
                                     halation: {
@@ -123,16 +123,17 @@ Item {
     readonly property color glow: root.unlit ? Qt.darker(root.ink, 1.6) : root.colors.accent
     readonly property color hot: root.colors.syntax && root.colors.syntax.keyword
                                  ? root.colors.syntax.keyword : Qt.lighter(root.glow, 1.4)
-    readonly property color dim: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.6)
+    readonly property color dim: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.82)
     readonly property color faint: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.16)
-    readonly property string mono: "monospace"
+    // The desktop's monospace, JetBrains Mono on Omarchy.
+    readonly property string mono: "JetBrainsMono Nerd Font"
 
     // ---- text: two sizes, each a glyph over at least six scanlines of three
     // device pixels (TelemetryHostPrototype.qml)
 
     readonly property bool large: root.textSize === "L"
-    readonly property int captionSize: root.large ? 20 : 16
-    readonly property int readingSize: root.large ? 30 : 22
+    readonly property int captionSize: root.large ? 22 : 18
+    readonly property int readingSize: root.large ? 32 : 26
 
     // ---- where the Omnibar rests, which the panels keep clear
 
@@ -165,6 +166,28 @@ Item {
 
     // ---- formatting
 
+    // A rate's unit, chosen once for a whole series from its peak, so it
+    // changes only when the traffic changes scale, never between samples:
+    // kB/s or MB/s, never B/s.
+    function rateUnit(series) {
+        let peak = 0;
+        for (let i = 0; i < series.length; ++i)
+            peak = Math.max(peak, series[i]);
+        if (peak >= 1048576)
+            return {
+                name: "MB/s",
+                per: 1048576,
+                places: 1
+            };
+        return {
+            name: "kB/s",
+            per: 1024,
+            places: peak >= 10240 ? 0 : 1
+        };
+    }
+    function inUnit(bytes, unit) {
+        return (bytes / unit.per).toFixed(unit.places);
+    }
     function rate(bytes) {
         if (bytes >= 1048576)
             return (bytes / 1048576).toFixed(1) + " MB/s";
@@ -206,6 +229,10 @@ Item {
         property var cpuTotal: []
         property var last: null
         property var down: []
+        // The rates eased, for the readings: a number that changes four
+        // times a second cannot be read.
+        property real downEased: 0
+        property real upEased: 0
         property var up: []
         property var lastNet: null
         property var meminfo: ({})
@@ -299,6 +326,8 @@ Item {
                                         probe.fastKeep);
                 probe.up = probe.push(probe.up, Math.max(0, (tx - probe.lastNet.tx) / s),
                                       probe.fastKeep);
+                probe.downEased += (root.lastOf(probe.down) - probe.downEased) * 0.15;
+                probe.upEased += (root.lastOf(probe.up) - probe.upEased) * 0.15;
             }
             probe.lastNet = {
                 at: now,
@@ -410,7 +439,9 @@ Item {
         property bool bold: false
         property int elide: Text.ElideNone
         property real maxWidth: -1
-        readonly property real split: Math.max(1, Math.round(crtText.pixelSize / 14))
+        // The red and blue beams' offset: a pixel on large text, none on
+        // small text, where it smears the strokes.
+        readonly property real split: crtText.pixelSize >= 24 ? 1 : 0
         implicitWidth: main.implicitWidth
         implicitHeight: main.implicitHeight
         width: crtText.maxWidth > 0 ? Math.min(crtText.maxWidth, main.implicitWidth) :
@@ -422,8 +453,9 @@ Item {
             width: parent.width
             text: main.text
             elide: crtText.elide
+            visible: crtText.split > 0
             color: "#ff2a3a"
-            opacity: 0.45
+            opacity: 0.3
             font: main.font
         }
         Text {
@@ -431,8 +463,9 @@ Item {
             width: parent.width
             text: main.text
             elide: crtText.elide
+            visible: crtText.split > 0
             color: "#2a6aff"
-            opacity: 0.45
+            opacity: 0.3
             font: main.font
         }
         Text {
@@ -442,8 +475,8 @@ Item {
             color: crtText.color
             font.family: root.mono
             font.pixelSize: crtText.pixelSize
-            font.bold: crtText.bold
-            font.letterSpacing: crtText.pixelSize / 12
+            font.weight: crtText.bold ? Font.Bold : Font.Medium
+            font.letterSpacing: crtText.pixelSize / 20
         }
     }
     component Caption: CrtText {
@@ -729,22 +762,36 @@ Item {
         }
     }
 
-    // A round gauge: a 270 degree scale, the needle at `value` (0..1), its
-    // reading in the face and its label under it. The scale is painted once;
-    // the arc and the needle are scene-graph items that glide to each new
-    // reading, so the gauge moves at the display's rate, not the sample's.
+    // A round gauge, as a HUD draws one: a 270 degree scale of segments that
+    // light up to `value` (0..1), a fine ring of ticks outside it with a lit
+    // marker at the value and a dim one at `peak` (or none below 0), a thin
+    // ring inside it turning as a scanner, brackets at the corners, and the
+    // reading and label in the middle. The scale is painted once; the lit
+    // segments, markers and scanner are scene-graph items, so they glide.
     component Gauge: Item {
         id: gauge
         property real value: 0
+        property real peak: -1
         property string reading
         property string label
+        // The unit, under the reading in the scale's gap, and the scale's top
+        // in it; a percentage carries its unit in the reading.
+        property string unit
+        property string scaleTop: "100"
         property bool fake: false
         property real size: 140
         property real eased: Math.max(0, Math.min(1, gauge.value))
-        readonly property real r: gauge.size / 2 - 3
-        readonly property real thick: Math.max(4, gauge.r * 0.1)
+        property real easedPeak: Math.max(0, Math.min(1, gauge.peak))
+        readonly property real cx: gauge.size / 2
+        readonly property real r: gauge.size / 2 - 4
+        // The segmented scale's radius and thickness.
+        readonly property real band: Math.max(6, gauge.r * 0.13)
+        readonly property real scaleR: gauge.r * 0.8 - gauge.band / 2
+        // Forty segments, each 70% lit and 30% gap, in stroke widths.
+        readonly property real segment: gauge.scaleR * (Math.PI * 1.5) / 40 / gauge.band
+        readonly property color tone: gauge.eased > 0.85 ? root.hot : root.glow
         width: gauge.size
-        height: gauge.size + labelText.height + 4
+        height: gauge.size
 
         Behavior on eased {
             NumberAnimation {
@@ -752,88 +799,204 @@ Item {
                 easing.type: Easing.OutCubic
             }
         }
+        Behavior on easedPeak {
+            NumberAnimation {
+                duration: 450
+                easing.type: Easing.OutCubic
+            }
+        }
 
+        // The fine outer ring: a tick every 4.5 degrees, longer every 45.
         Canvas {
             id: face
-            width: gauge.size
-            height: gauge.size
-            property color tone: root.glow
+            anchors.fill: parent
             onWidthChanged: requestPaint()
-            onToneChanged: requestPaint()
             onPaint: {
                 const g = getContext("2d");
                 g.reset();
-                const cx = width / 2, cy = height / 2, r = gauge.r;
+                const cx = gauge.cx, r = gauge.r;
                 const from = Math.PI * 0.75, sweep = Math.PI * 1.5;
-                g.lineWidth = gauge.thick;
-                g.strokeStyle = root.faint;
-                g.beginPath();
-                g.arc(cx, cy, r - g.lineWidth / 2, from, from + sweep);
-                g.stroke();
-                g.lineWidth = 2;
-                g.strokeStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.6);
-                for (let t = 0; t <= 10; ++t) {
-                    const a = from + sweep * t / 10;
-                    const inner = r * (t % 5 ? 0.78 : 0.72), outer = r * 0.84;
+                const glow = root.glow;
+                g.strokeStyle = Qt.rgba(glow.r, glow.g, glow.b, 0.5);
+                g.lineWidth = 1;
+                for (let t = 0; t <= 60; ++t) {
+                    const a = from + sweep * t / 60;
+                    const inner = r * (t % 10 ? 0.93 : 0.88);
                     g.beginPath();
-                    g.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
-                    g.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
+                    g.moveTo(cx + Math.cos(a) * inner, cx + Math.sin(a) * inner);
+                    g.lineTo(cx + Math.cos(a) * r, cx + Math.sin(a) * r);
                     g.stroke();
                 }
+                // A hairline inside the scale.
+                g.strokeStyle = Qt.rgba(glow.r, glow.g, glow.b, 0.3);
+                g.beginPath();
+                g.arc(cx, cx, gauge.scaleR - gauge.band / 2 - 5, from, from + sweep);
+                g.stroke();
             }
         }
+
+        // The scale: every segment dim, and those up to the value lit.
         Shape {
-            anchors.fill: face
+            anchors.fill: parent
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
-                strokeColor: gauge.eased > 0.85 ? root.hot : root.glow
-                strokeWidth: gauge.thick
+                strokeColor: root.faint
+                strokeWidth: gauge.band
+                strokeStyle: ShapePath.DashLine
+                dashPattern: [gauge.segment * 0.7, gauge.segment * 0.3]
                 fillColor: "transparent"
                 capStyle: ShapePath.FlatCap
                 PathAngleArc {
-                    centerX: gauge.size / 2
-                    centerY: gauge.size / 2
-                    radiusX: gauge.r - gauge.thick / 2
-                    radiusY: gauge.r - gauge.thick / 2
+                    centerX: gauge.cx
+                    centerY: gauge.cx
+                    radiusX: gauge.scaleR
+                    radiusY: gauge.scaleR
+                    startAngle: 135
+                    sweepAngle: 270
+                }
+            }
+            ShapePath {
+                strokeColor: gauge.tone
+                strokeWidth: gauge.band
+                strokeStyle: ShapePath.DashLine
+                dashPattern: [gauge.segment * 0.7, gauge.segment * 0.3]
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                    centerX: gauge.cx
+                    centerY: gauge.cx
+                    radiusX: gauge.scaleR
+                    radiusY: gauge.scaleR
                     startAngle: 135
                     sweepAngle: 270 * gauge.eased
                 }
             }
         }
-        // The needle, pointing up from the centre, turned to the reading.
+
+        // The scanner: a thin broken ring inside, turning.
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            rotation: (root.time * 24) % 360
+            ShapePath {
+                strokeColor: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.55)
+                strokeWidth: 2
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                    centerX: gauge.cx
+                    centerY: gauge.cx
+                    radiusX: gauge.r * 0.5
+                    radiusY: gauge.r * 0.5
+                    startAngle: 0
+                    sweepAngle: 70
+                }
+            }
+            ShapePath {
+                strokeColor: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.55)
+                strokeWidth: 2
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                    centerX: gauge.cx
+                    centerY: gauge.cx
+                    radiusX: gauge.r * 0.5
+                    radiusY: gauge.r * 0.5
+                    startAngle: 180
+                    sweepAngle: 70
+                }
+            }
+        }
+
+        // Markers on the outer ring, pointing in: the peak, dim, and the
+        // value, lit.
         Item {
-            x: gauge.size / 2
-            y: gauge.size / 2
+            visible: gauge.peak >= 0
+            x: gauge.cx
+            y: gauge.cx
+            rotation: 135 + 270 * gauge.easedPeak + 90
+            Rectangle {
+                x: -1
+                y: -gauge.r - 2
+                width: 2
+                height: gauge.r * 0.16
+                antialiasing: true
+                color: Qt.rgba(root.hot.r, root.hot.g, root.hot.b, 0.6)
+            }
+        }
+        Item {
+            x: gauge.cx
+            y: gauge.cx
             rotation: 135 + 270 * gauge.eased + 90
             Rectangle {
                 x: -1.5
-                y: -gauge.r * 0.7
+                y: -gauge.r - 2
                 width: 3
-                height: gauge.r * 0.8
+                height: gauge.r * 0.26
                 antialiasing: true
                 color: root.hot
             }
         }
-        Rectangle {
-            x: gauge.size / 2 - 5
-            y: gauge.size / 2 - 5
-            width: 10
-            height: 10
-            radius: 5
-            color: root.hot
+
+        // Brackets at the corners.
+        Repeater {
+            model: 4
+            Item {
+                required property int index
+                readonly property real arm: gauge.size * 0.1
+                x: index % 2 ? gauge.size - arm : 0
+                y: index > 1 ? gauge.size - arm : 0
+                width: arm
+                height: arm
+                Rectangle {
+                    y: parent.index > 1 ? parent.height - 2 : 0
+                    width: parent.width
+                    height: 2
+                    color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.7)
+                }
+                Rectangle {
+                    x: parent.index % 2 ? parent.width - 2 : 0
+                    width: 2
+                    height: parent.height
+                    color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.7)
+                }
+            }
         }
-        Reading {
-            anchors.horizontalCenter: face.horizontalCenter
-            y: face.height * 0.62
-            text: gauge.reading
-            pixelSize: Math.max(root.captionSize, Math.min(root.readingSize, gauge.size / 6))
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 2
+            Reading {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: gauge.reading
+                color: gauge.tone
+                pixelSize: Math.max(root.captionSize, Math.min(root.readingSize * 1.3, gauge.size
+                                                               / 6.5))
+            }
+            Caption {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: gauge.label + (gauge.fake ? " [FAKE]" : "")
+                color: gauge.fake ? root.hot : root.glow
+            }
+        }
+        // The scale's ends, under the gap.
+        Caption {
+            x: gauge.cx - gauge.r * 0.62 - width / 2
+            y: gauge.cx + gauge.r * 0.62
+            text: "0"
         }
         Caption {
-            id: labelText
-            anchors.horizontalCenter: face.horizontalCenter
-            y: face.height + 2
-            text: gauge.label + (gauge.fake ? " [FAKE]" : "")
-            color: gauge.fake ? root.hot : root.glow
+            x: gauge.cx + gauge.r * 0.62 - width / 2
+            y: gauge.cx + gauge.r * 0.62
+            text: gauge.scaleTop
+        }
+        Reading {
+            visible: gauge.unit !== ""
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: gauge.cx + gauge.r * 0.6
+            pixelSize: root.captionSize
+            color: root.glow
+            text: gauge.unit
         }
     }
 
@@ -1075,8 +1238,7 @@ Item {
             id: gauges
             visible: root.has("cpu") || root.has("net")
             readonly property real cell: Math.max(60, Math.min((a.midW - columnSpacing) / 2, (
-                                                                   a.upperH - rowSpacing) / 2
-                                                               - root.captionSize * 1.6 - 6))
+                                                                   a.upperH - rowSpacing) / 2))
             x: a.gap + a.chartW + a.gap + (a.midW - width) / 2
             y: a.upperY + (a.upperH - height) / 2
             columns: 2
@@ -1085,6 +1247,7 @@ Item {
             Gauge {
                 size: gauges.cell
                 value: root.lastOf(probe.cpuTotal)
+                peak: root.peakOf(probe.cpuTotal.map(v => v * 1000)) / 1000
                 reading: root.pct(root.lastOf(probe.cpuTotal))
                 label: "CPU"
             }
@@ -1098,26 +1261,36 @@ Item {
             }
             Gauge {
                 size: gauges.cell
-                value: root.lastOf(probe.down) / root.peakOf(probe.down)
-                reading: root.rate(root.lastOf(probe.down))
+                readonly property var u: root.rateUnit(probe.down)
+                readonly property real scaleMax: Math.max(1, root.peakOf(probe.down))
+                value: probe.downEased / scaleMax
+                reading: root.inUnit(probe.downEased, u)
+                unit: u.name
+                scaleTop: root.inUnit(scaleMax, u)
                 label: "▼ DOWN"
             }
             Gauge {
                 size: gauges.cell
-                value: root.lastOf(probe.up) / root.peakOf(probe.up)
-                reading: root.rate(root.lastOf(probe.up))
+                readonly property var u: root.rateUnit(probe.up)
+                readonly property real scaleMax: Math.max(1, root.peakOf(probe.up))
+                value: probe.upEased / scaleMax
+                reading: root.inUnit(probe.upEased, u)
+                unit: u.name
+                scaleTop: root.inUnit(scaleMax, u)
                 label: "▲ UP"
             }
         }
 
         // Network: down as bars, up as a line.
         Section {
+            id: netSection
             visible: root.has("net")
             x: root.width - a.gap - width
             y: a.upperY
             width: a.chartW
             height: a.upperH
-            title: "NETWORK · ▼ BARS  ▲ LINE"
+            readonly property var u: root.rateUnit(probe.down.concat(probe.up))
+            title: "NETWORK · " + u.name + " · ▼ BARS  ▲ LINE"
             Chart {
                 width: parent.width
                 height: parent.height
@@ -1126,7 +1299,7 @@ Item {
                 values: probe.down
                 second: probe.up
                 span: probe.fastKeep
-                format: v => root.rate(v).replace("/s", "")
+                format: v => root.inUnit(v, netSection.u)
             }
         }
 
@@ -1141,8 +1314,9 @@ Item {
                 if (root.has("cpu"))
                     out.push(["CPU", root.pct(root.lastOf(probe.cpuTotal)), false]);
                 if (root.has("net")) {
-                    out.push(["▼ DOWN", root.rate(root.lastOf(probe.down)), false]);
-                    out.push(["▲ UP", root.rate(root.lastOf(probe.up)), false]);
+                    const du = root.rateUnit(probe.down), uu = root.rateUnit(probe.up);
+                    out.push(["▼ DOWN · " + du.name, root.inUnit(probe.downEased, du), false]);
+                    out.push(["▲ UP · " + uu.name, root.inUnit(probe.upEased, uu), false]);
                 }
                 if (root.has("mem")) {
                     out.push(["MEMORY USED", root.size(Math.max(0, (probe.meminfo.MemTotal || 0) - (
@@ -1444,7 +1618,7 @@ Item {
     Item {
         x: -Math.floor((root.time * 7919) % 256)
         y: -Math.floor((root.time * 9973) % 256)
-        opacity: 0.06
+        opacity: 0.035
         Grid {
             columns: Math.ceil(root.width / 256) + 1
             Repeater {
