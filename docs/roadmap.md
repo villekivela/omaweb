@@ -55,13 +55,37 @@ answered with Chrome's own `chrome.app`, and open pages kept when Sync brings an
 state. Its engine is 6.11.2-16, built against Qt 6.12.0. v0.18.0 is the release in progress.
 
 [v0.18.0](https://github.com/villekivela/omaweb/milestone/18) brings a quieter sidebar: the address
-as a bare domain line and pinned tabs without borders
-([#779](https://github.com/villekivela/omaweb/issues/779)). The Start page's CRT glass gets beam
-scanlines, a phosphor mask and halation ([#780](https://github.com/villekivela/omaweb/issues/780)),
-and its Scenes a sunset grade toward a second theme hue
-([#781](https://github.com/villekivela/omaweb/issues/781)). The inspector's toolbar hover is fixed
-([#765](https://github.com/villekivela/omaweb/issues/765)). Last, the engine moves to QtWebEngine
-6.12 ([#484](https://github.com/villekivela/omaweb/issues/484)).
+as a bare domain line, pinned tabs without borders on a fill and even gaps
+([#779](https://github.com/villekivela/omaweb/issues/779)), tab favicons lined up with the address
+box ([#813](https://github.com/villekivela/omaweb/issues/813)), no blocked count on the address line
+and a tune icon for Site information ([#803](https://github.com/villekivela/omaweb/issues/803)), a
+copied address said so ([#791](https://github.com/villekivela/omaweb/issues/791)), and an Agent tab
+marked on its row, which the reader can stop
+([#799](https://github.com/villekivela/omaweb/issues/799)). The inspector is drawn in the theme, its
+context menu, layer headers and Network table
+([#792](https://github.com/villekivela/omaweb/issues/792)), and its toolbar hover is fixed
+([#765](https://github.com/villekivela/omaweb/issues/765)).
+
+The Start page's CRT glass gets beam scanlines, a phosphor mask and halation
+([#780](https://github.com/villekivela/omaweb/issues/780)), its Scenes a sunset grade toward a
+second theme hue ([#781](https://github.com/villekivela/omaweb/issues/781)), and its road is drawn
+as the website draws it ([#812](https://github.com/villekivela/omaweb/issues/812)). A new Scene is a
+live CRT dashboard of telemetry ([#814](https://github.com/villekivela/omaweb/issues/814)).
+
+Pages respond more like the rest of the desktop. Touchpad scrolling glides on after the lift, as in
+GTK 4 ([#808](https://github.com/villekivela/omaweb/issues/808)). Link hints follow Vimium's rules,
+hinting only what the reader can click ([#788](https://github.com/villekivela/omaweb/issues/788)),
+including controls marked with interactive roles, such as YouTube's channel tabs
+([#819](https://github.com/villekivela/omaweb/issues/819)).
+
+The website's default theme is the film's, ethereal-nebula-silver
+([#818](https://github.com/villekivela/omaweb/issues/818)). The film is recorded on the maintainer's
+desktop, and its Theme beat zooms out to the whole desktop
+([#800](https://github.com/villekivela/omaweb/issues/800),
+[#807](https://github.com/villekivela/omaweb/issues/807),
+[#817](https://github.com/villekivela/omaweb/issues/817)). Two flaky tests are fixed
+([#786](https://github.com/villekivela/omaweb/issues/786),
+[#795](https://github.com/villekivela/omaweb/issues/795)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
