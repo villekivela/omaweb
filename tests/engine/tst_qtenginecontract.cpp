@@ -19,6 +19,7 @@
 #include "QtExtensionWindows.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
+#include "QtPageGlide.h"
 #include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
 #include "PageSnapshot.h"
@@ -12114,6 +12115,8 @@ int main(int argc, char *argv[])
     omaweb::registerEngineBuild();
     omaweb::registerQtCertificates();
     omaweb::registerQtAgentInput();
+    omaweb::QtPageGlide pageGlide;
+    omaweb::registerQtPageGlide(&pageGlide);
     omaweb::registerWindowExposure();
     omaweb::registerPageSnapshot();
     omaweb::registerPageImages();

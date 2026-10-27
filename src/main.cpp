@@ -55,6 +55,7 @@
 #include "QtExtensionWindows.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
+#include "QtPageGlide.h"
 #include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
 #include "Quickshell.h"
@@ -75,6 +76,7 @@
 #include "SystemMotion.h"
 #include "SystemNotifier.h"
 #include "SyncLauncher.h"
+#include "TouchpadHold.h"
 #include "ThemeController.h"
 #include "Translations.h"
 #include "WindowActivation.h"
@@ -582,6 +584,12 @@ int main(int argc, char *argv[])
     omaweb::registerInputMethodReport(&inputMethod);
     omaweb::registerLocaleReport(&localeReport);
     omaweb::registerQtAgentInput();
+    // Fingers resting on the touchpad stop a page's glide, as in GTK 4 (#808).
+    omaweb::QtPageGlide pageGlide;
+    omaweb::TouchpadHold touchpadHold;
+    QObject::connect(
+        &touchpadHold, &omaweb::TouchpadHold::held, &pageGlide, &omaweb::QtPageGlide::stop);
+    omaweb::registerQtPageGlide(&pageGlide);
     omaweb::registerWindowExposure();
     omaweb::registerPageSnapshot();
     omaweb::registerWindowAppId();

@@ -4680,6 +4680,8 @@ Item {
                 if (/^(https?|file):/i.test(String(loadRequest.url)))
                     root.externalProtocolReports = ({});
                 root.problemEvent("navigated", loadRequest.url, "");
+                // A glide the reader's fingers gave the last document would scroll this one.
+                QtPageGlide.stopIn(webView);
                 root.pageGeneration += 1;
                 root.documentReported = false;
                 root.blockingRulesChangedSinceLoad = false;

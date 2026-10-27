@@ -17,6 +17,7 @@
 #include "QtAgentInput.h"
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
+#include "QtPageGlide.h"
 #include "WindowExposure.h"
 
 #include <QCommandLineOption>
@@ -700,6 +701,8 @@ int main(int argc, char *argv[])
     omaweb::registerEngineBuild();
     omaweb::registerQtCertificates();
     omaweb::registerQtAgentInput();
+    omaweb::QtPageGlide pageGlide;
+    omaweb::registerQtPageGlide(&pageGlide);
     omaweb::registerWindowExposure();
     omaweb::registerPageSnapshot();
     omaweb::registerPageImages();

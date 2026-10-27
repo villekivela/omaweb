@@ -1,5 +1,7 @@
 #include "QtAgentInput.h"
 
+#include "QtPageInput.h"
+
 #include <QCoreApplication>
 #include <QFile>
 #include <QHash>
@@ -17,20 +19,12 @@
 namespace omaweb {
 namespace {
 
-    // The item Chromium's input and frames go through. Qt makes it a child of
-    // the view and does not export its type, so it is found by class name.
-    bool isDelegate(const QQuickItem *item)
-    {
-        return std::strstr(item->metaObject()->className(), "RenderWidgetHostViewQtDelegateItem")
-            != nullptr;
-    }
-
     QQuickItem *delegateOf(QQuickItem *item)
     {
         if (item == nullptr) {
             return nullptr;
         }
-        if (isDelegate(item)) {
+        if (isPageInput(item)) {
             return item;
         }
         const auto children = item->childItems();
@@ -46,7 +40,7 @@ namespace {
     {
         const auto children = item->childItems();
         for (auto *child : children) {
-            if (isDelegate(child)) {
+            if (isPageInput(child)) {
                 found.append(child);
             }
             collectDelegates(child, found);
@@ -269,7 +263,7 @@ QString QtAgentInput::focusPlace(QQuickWindow *window) const
         return QStringLiteral("none");
     }
     for (auto *ancestor = item; ancestor != nullptr; ancestor = ancestor->parentItem()) {
-        if (isDelegate(ancestor)
+        if (isPageInput(ancestor)
             || std::strstr(ancestor->metaObject()->className(), "WebEngineView") != nullptr) {
             return QStringLiteral("page");
         }

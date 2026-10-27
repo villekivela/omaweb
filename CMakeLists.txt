@@ -722,6 +722,8 @@ omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)
     add_library(omaweb-engine-qt STATIC
+        src/engine/qt/PageGlide.cpp
+        src/engine/qt/PageGlide.h
         src/engine/qt/QtAgentInput.cpp
         src/engine/qt/QtAgentInput.h
         src/engine/qt/QtCertificates.cpp
@@ -740,6 +742,9 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtHeldDownloads.h
         src/engine/qt/QtPageFonts.cpp
         src/engine/qt/QtPageFonts.h
+        src/engine/qt/QtPageGlide.cpp
+        src/engine/qt/QtPageGlide.h
+        src/engine/qt/QtPageInput.h
         src/engine/qt/QtProfileSettings.cpp
         src/engine/qt/QtProfileSettings.h
         src/engine/qt/QtWebRtcPolicy.cpp
@@ -806,6 +811,7 @@ add_library(omaweb-platform STATIC
     src/platform/SystemMotion.h
     src/platform/SystemNotifier.cpp
     src/platform/SystemNotifier.h
+    src/platform/TouchpadHold.h
     src/platform/WindowActivation.cpp
     src/platform/WindowActivation.h
     src/platform/WindowAppId.cpp
@@ -838,6 +844,7 @@ if(APPLE)
         src/platform/MacPagePrinter.mm
         src/platform/MacSystemMotion.mm
         src/platform/MacSystemNotifier.mm
+        src/platform/MacTouchpadHold.cpp
         src/platform/MacWindowAppId.cpp
         src/platform/MacWindowChrome.mm
     )
@@ -859,6 +866,7 @@ else()
         src/platform/LinuxRunningBrowser.cpp
         src/platform/LinuxSystemMotion.cpp
         src/platform/LinuxSystemNotifier.cpp
+        src/platform/LinuxTouchpadHold.cpp
         src/platform/LinuxWindowAppId.cpp
         src/platform/WindowChrome.cpp
     )
@@ -876,7 +884,9 @@ else()
     # Tab window gives the compositor (ADR 0062). It reads the window's
     # `xdg_toplevel` through Qt's private Wayland window interface and is
     # guarded the same way. It sends the request with libwayland-client
-    # itself, which `qt6-base` already depends on.
+    # itself, which `qt6-base` already depends on. `LinuxTouchpadHold.cpp`
+    # binds a protocol Qt leaves unbound with it too, through Qt's public
+    # Wayland application interface.
     target_link_libraries(omaweb-platform PRIVATE Qt6::DBus Qt6::GuiPrivate Qt6::Network)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
@@ -1548,6 +1558,31 @@ if(BUILD_TESTING)
     set_tests_properties(omaweb-key-event-log PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # Built from the source in every build, the engine-free one too: the glide reads and sends
+    # Qt's own wheel events, and the item it sends them to is told apart by its class name.
+    qt_add_executable(omaweb-page-glide-tests
+        "tests/engine/tst_pageglide.cpp"
+        "src/engine/qt/PageGlide.cpp"
+    )
+    target_include_directories(omaweb-page-glide-tests PRIVATE src/engine/qt)
+    target_link_libraries(omaweb-page-glide-tests PRIVATE Qt6::Gui Qt6::Test)
+    omaweb_strict_target(omaweb-page-glide-tests)
+    add_test(NAME omaweb-page-glide COMMAND omaweb-page-glide-tests)
+    set_tests_properties(omaweb-page-glide PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(omaweb-qt-page-glide-tests
+        "tests/engine/tst_qtpageglide.cpp"
+        "src/engine/qt/PageGlide.cpp"
+        "src/engine/qt/QtPageGlide.cpp"
+    )
+    target_include_directories(omaweb-qt-page-glide-tests PRIVATE src/engine/qt)
+    target_link_libraries(omaweb-qt-page-glide-tests PRIVATE Qt6::Qml Qt6::Quick Qt6::Test)
+    omaweb_strict_target(omaweb-qt-page-glide-tests)
+    add_test(NAME omaweb-qt-page-glide COMMAND omaweb-qt-page-glide-tests)
+    set_tests_properties(omaweb-qt-page-glide PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     qt_add_executable(omaweb-payment-cards-tests
         "tests/core/tst_paymentcards.cpp"
     )
@@ -1941,6 +1976,19 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-window-exposure-tests)
     add_test(NAME omaweb-window-exposure COMMAND omaweb-window-exposure-tests)
     set_tests_properties(omaweb-window-exposure PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(omaweb-touchpad-hold-tests
+        tests/platform/tst_touchpadhold.cpp
+    )
+    target_link_libraries(omaweb-touchpad-hold-tests PRIVATE
+        omaweb-platform
+        Qt6::Test
+    )
+    omaweb_strict_target(omaweb-touchpad-hold-tests)
+    add_test(NAME omaweb-touchpad-hold COMMAND omaweb-touchpad-hold-tests)
+    set_tests_properties(omaweb-touchpad-hold PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 

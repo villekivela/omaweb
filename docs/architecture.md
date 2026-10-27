@@ -593,6 +593,33 @@ shortcut takes it in and out of fullscreen without asking Omaweb, so the shell r
 off the window's visibility, and a page left holding a screen the reader has already taken back is
 told it no longer has one.
 
+## Touchpad glide
+
+Qt's Wayland plugin ends a touchpad scroll with `ScrollEnd` and sends no `ScrollMomentum` after it,
+and QtWebEngine reads a momentum phase only on macOS, so Chromium has nothing to fling with and a
+page stops the moment the fingers lift. `QtPageGlide` makes the glide in the browser, not the
+engine. It watches the application's wheel events to the item QtWebEngine takes input through. When
+fingers lift fast enough it holds the lift's `ScrollEnd` back and sends that item decaying
+`ScrollUpdate`s, then the `ScrollEnd`. Chromium sees one gesture that has not ended, so scroll
+latching sends the glide to whatever the fingers were scrolling. QtWebEngine builds a wheel's scroll
+from its angle delta alone, which is why the glide's updates carry only that.
+
+The constants are GTK 4's. `GlideSpeed` measures over `SCROLL_CAPTURE_THRESHOLD_MS` (150 ms) from
+`gtkeventcontrollerscroll.c`, back from the lift rather than from the last movement. `GlideCurve`
+falls as `exp(-4 t)` with `DECELERATION_FRICTION` from `gtkscrolledwindow.c`, and ends with less
+than a page pixel to travel rather than at GTK's 0.1 pixels a second.
+
+GTK stops a glide when the touchpad reports fingers at rest, the hold gesture of
+`zwp_pointer_gestures_v1` version 3. Qt binds version 1 of that protocol for swipes and pinches
+only, so `TouchpadHold` binds version 3 itself through Qt's public `QWaylandApplication` interface
+and stops the glide on a hold.
+
+Qt 6.12 delivers a touchpad's zero-delta `ScrollBegin` and `ScrollEnd` twice: its
+`QWindowSystemInterface::handleWheelEvent` repeats any event whose delta is not on one axis alone.
+During a glide the second lift is that copy, so it neither stops the glide nor reaches the page.
+What the touchpad really delivers can be logged with `QT_LOGGING_RULES=omaweb.glide.info=true`: each
+wheel event, the speed and duration at the lift, each hold, and why a glide stopped.
+
 ## Page context menu
 
 Omaweb draws the page's context menu. The engine adapter accepts the engine's own context-menu
