@@ -52,40 +52,26 @@ kept audible through its silences, and the Omarchy kit caught up with quattro. I
 two-finger swipe across the sidebar that switches Space, pages drawn at a scale that follows the
 desktop's text scaling, Problem reports, a click that copies without asking, Google's sign-in
 answered with Chrome's own `chrome.app`, and open pages kept when Sync brings another machine's
-state. Its engine is 6.11.2-16, built against Qt 6.12.0. v0.18.0 is the release in progress.
+state. Its engine is 6.11.2-16, built against Qt 6.12.0.
+[v0.18.0](https://github.com/villekivela/omaweb/releases/tag/v0.18.0) shipped a quieter sidebar,
+with the address as a bare domain line, borderless pinned tabs and an Agent tab marked on its row,
+the inspector drawn in the theme, a CRT glass and a telemetry Scene on the Start page, touchpad
+scrolling that glides on after the lift, and link hints that follow Vimium's rules. Its engine is
+still 6.11.2-16.
 
-[v0.18.0](https://github.com/villekivela/omaweb/milestone/18) brings a quieter sidebar: the address
-as a bare domain line, pinned tabs without borders on a fill and even gaps
-([#779](https://github.com/villekivela/omaweb/issues/779)), tab favicons lined up with the address
-box ([#813](https://github.com/villekivela/omaweb/issues/813)), no blocked count on the address line
-and a tune icon for Site information ([#803](https://github.com/villekivela/omaweb/issues/803)), a
-copied address said so ([#791](https://github.com/villekivela/omaweb/issues/791)), and an Agent tab
-marked on its row, which the reader can stop
-([#799](https://github.com/villekivela/omaweb/issues/799)). The inspector is drawn in the theme, its
-context menu, layer headers and Network table
-([#792](https://github.com/villekivela/omaweb/issues/792)), and its toolbar hover is fixed
-([#765](https://github.com/villekivela/omaweb/issues/765)).
+[v0.18.1](https://github.com/villekivela/omaweb/milestone/19) is the release in progress. It moves
+the engine to QtWebEngine 6.11.3: the patch series rebased onto it
+([#802](https://github.com/villekivela/omaweb/issues/802)), then the security baseline raised to it
+([#822](https://github.com/villekivela/omaweb/issues/822)). Omarchy's private browser key opens a
+Private window ([#829](https://github.com/villekivela/omaweb/issues/829)), and the Omarchy kit
+catches up with quattro ([#762](https://github.com/villekivela/omaweb/issues/762)).
 
-The Start page's CRT glass gets beam scanlines, a phosphor mask and halation
-([#780](https://github.com/villekivela/omaweb/issues/780)), its Scenes a sunset grade toward a
-second theme hue ([#781](https://github.com/villekivela/omaweb/issues/781)), and its road is drawn
-as the website draws it ([#812](https://github.com/villekivela/omaweb/issues/812)). A new Scene is a
-live CRT dashboard of telemetry ([#814](https://github.com/villekivela/omaweb/issues/814)).
-
-Pages respond more like the rest of the desktop. Touchpad scrolling glides on after the lift, as in
-GTK 4 ([#808](https://github.com/villekivela/omaweb/issues/808)). Link hints follow Vimium's rules,
-hinting only what the reader can click ([#788](https://github.com/villekivela/omaweb/issues/788)),
-including controls marked with interactive roles, such as YouTube's channel tabs
-([#819](https://github.com/villekivela/omaweb/issues/819)).
-
-The website's default theme is the film's, ethereal-nebula-silver
-([#818](https://github.com/villekivela/omaweb/issues/818)). The film is recorded on the maintainer's
-desktop, and its Theme beat zooms out to the whole desktop
-([#800](https://github.com/villekivela/omaweb/issues/800),
-[#807](https://github.com/villekivela/omaweb/issues/807),
-[#817](https://github.com/villekivela/omaweb/issues/817)). Two flaky tests are fixed
-([#786](https://github.com/villekivela/omaweb/issues/786),
-[#795](https://github.com/villekivela/omaweb/issues/795)).
+[v0.19.0](https://github.com/villekivela/omaweb/milestone/20) follows. A Link rule opens a link from
+another app in the Space it names, or in a Private window
+([#388](https://github.com/villekivela/omaweb/issues/388)), and Site information chooses one for the
+site on show ([#828](https://github.com/villekivela/omaweb/issues/828)). `omaweb --diagnose` starts
+a run with named overrides, such as the Chrome version a page reads, for testing a suspicion without
+a one-off build ([#753](https://github.com/villekivela/omaweb/issues/753)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -115,8 +101,6 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   Agent reads the tab's network ([#373](https://github.com/villekivela/omaweb/issues/373)) and, in
   an Agent Space, the page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)).
   They join the release that is open when 6.140.0 is out.
-- Opening links from outside in the Space a rule names
-  ([#388](https://github.com/villekivela/omaweb/issues/388)) is deferred to a later release.
 - Account and Sync with replaceable providers are deferred.
 
 ## Known extensions
