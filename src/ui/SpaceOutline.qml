@@ -15,9 +15,10 @@ Rectangle {
     objectName: "spaceOutline"
     // The display's pixels per logical pixel, for resting on whole ones.
     readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
-    // The sidebar's one left edge: the address box, the pins and each tab's
-    // favicon start on it (#813). On a whole pixel of the display, so a pinned
-    // tab's icon centred in its tile rests on one.
+    // The sidebar's one left edge: the address box and the pins start on it, and
+    // each ordinary tab's favicon stands 4 px in from it (#813). On a whole
+    // pixel of the display, so a pinned tab's icon centred in its tile rests on
+    // one.
     readonly property real listMargin: DevicePixels.snap(16, pixelRatio)
     // The one gap between the sidebar's blocks: the navigation row, the
     // address trigger, each pin, and the tab list. Ordinary rows stand closer,
