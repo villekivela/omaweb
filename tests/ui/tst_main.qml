@@ -5393,11 +5393,11 @@ TestCase {
         browser.closeTab(tabs.firstId);
     }
 
-    // The sidebar has one left edge: an ordinary row's favicon, on show or
-    // not, starts where the address box and the pinned tiles do (#813). The
-    // lock and the text inside the box keep their places, and so does each
-    // title.
-    function test_tabFaviconsShareTheAddressBoxsLeftEdge() {
+    // The sidebar has one left edge, the address box's and the pinned tiles'.
+    // An ordinary row's favicon, on show or not, stands 4 px in from it, so it
+    // does not touch the edge (#813). The lock and the text inside the box keep
+    // their places, and so does each title.
+    function test_tabFaviconsStandFourPixelsInFromTheAddressBoxsEdge() {
         openPage("https://edge-pin.example/");
         const pinId = browser.activeTabId;
         browser.toggleActivePinned();
@@ -5412,8 +5412,8 @@ TestCase {
         const edge = acrossSidebar(address).left;
         compare(edge, 16);
         compare(acrossSidebar(pinned).left, edge);
-        compare(acrossSidebar(findChild(tabs.first, "siteTile-" + tabs.firstId)).left, edge);
-        compare(acrossSidebar(findChild(tabs.second, "siteTile-" + tabs.secondId)).left, edge);
+        compare(acrossSidebar(findChild(tabs.first, "siteTile-" + tabs.firstId)).left, edge + 4);
+        compare(acrossSidebar(findChild(tabs.second, "siteTile-" + tabs.secondId)).left, edge + 4);
 
         const lock = findChild(address, "securityIndicator");
         compare(acrossSidebar(lock).left, 24);

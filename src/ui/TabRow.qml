@@ -149,11 +149,12 @@ Item {
 
     // The slot an ordinary row gives its site chip, and where it starts. The
     // speaker takes the same box, so the two never sit in different places and
-    // the title beside them never moves. The chip starts on the row's edge,
-    // the sidebar's one left edge (#813); a split's right half has no edge
-    // to share and keeps the chip off the half beside it.
+    // the title beside them never moves. The chip starts 4 px in from the row's
+    // edge, the sidebar's one left edge, so it does not touch the address box's
+    // line (#813); a split's right half has no edge to share and keeps the chip
+    // 8 px off the half beside it.
     readonly property int chipSize: SiteChip.side(Style.font.caption)
-    readonly property int chipInset: trailingHalf ? Style.space(8) : 0
+    readonly property int chipInset: trailingHalf ? Style.space(8) : Style.space(4)
     // Where the title starts: as far in as the address box's lock, then past
     // a chip and its gap, so the titles stand under the address text.
     readonly property int titleInset: Style.space(8) + chipSize + Style.space(9)
