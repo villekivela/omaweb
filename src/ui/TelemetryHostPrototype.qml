@@ -15,7 +15,7 @@ SceneHost {
     id: host
 
     property bool fullResolution: false
-    property real scanDevicePixels: 3
+    property real scanDevicePixels: 6
     readonly property real ratio: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
 
     function named(item, name) {

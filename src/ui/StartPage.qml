@@ -139,6 +139,7 @@ Item {
     TelemetryHostPrototype {
         id: host
         fullResolution: root.sceneId === "telemetry"
+        scanDevicePixels: root.telemetryScan
         objectName: "startPageScene"
         width: root.width
         height: root.height
@@ -288,6 +289,9 @@ Item {
     property var downloads: null
     property string telemetryTextSize: Scenes.telemetryText().toUpperCase() === "L" ? "L" : "S"
     property bool telemetryFakeDownload: false
+    // Device pixels from one scanline to the next: 6 as the road's (its
+    // pitch 4 at 1.5x), or 3. Ctrl+Alt+S switches them.
+    property int telemetryScan: 6
     readonly property bool telemetryShown: !!host.sceneItem && host.sceneItem.telemetry === true
 
     Component {
@@ -348,6 +352,11 @@ Item {
         onActivated: root.switchTelemetryText()
     }
     Shortcut {
+        sequence: "Ctrl+Alt+S"
+        enabled: root.visible && root.telemetryShown
+        onActivated: root.telemetryScan = root.telemetryScan === 6 ? 3 : 6
+    }
+    Shortcut {
         sequence: "Ctrl+Alt+D"
         enabled: root.visible && root.telemetryShown
         onActivated: root.telemetryFakeDownload = !root.telemetryFakeDownload
@@ -378,7 +387,8 @@ Item {
             }
             Text {
                 text: "PROTOTYPE  A Cockpit · text " + root.telemetryTextSize
-                      + "   (Ctrl+Alt+.)   Ctrl+Alt+D: fake download"
+                      + " (Ctrl+Alt+.) · scanlines " + root.telemetryScan
+                      + " px (Ctrl+Alt+S) · Ctrl+Alt+D: fake download"
                 font.pixelSize: 13
                 font.bold: true
             }
