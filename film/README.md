@@ -71,10 +71,10 @@ the line that installs them. Then it:
    out, and cuts the film as the container does, into `build/film/`.
 
 The site's default theme is the theme the desktop film is recorded in, ethereal-nebula-silver, so a
-visitor who picks no other sees a page and a film in the same colours. A change to one changes the
-other: the theme the markup of `website/index.html` names and `website/theme.js` falls back to, and
-the theme the maintainer's desktop wears when the film is recorded. `website/README.md` says the
-same.
+visitor who picks no other sees a page and the desktop film in the same colours. A change to one
+changes the other: the theme the markup of `website/index.html` names and `website/theme.js` falls
+back to, and the theme the maintainer's desktop wears when the film is recorded. `website/README.md`
+says the same. The container film keeps its own themes.
 
 The desktop film wears the reader's theme: the one the desktop is wearing when the run starts. The
 film's browser finds Omarchy's `~/.local/state/omarchy/current` through its own home and follows it
