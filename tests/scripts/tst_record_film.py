@@ -20,6 +20,7 @@ import re
 import shlex
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -183,6 +184,28 @@ class FixtureServerTest(unittest.TestCase):
             self.assertIn("curl -fsSL https://omaweb.app/install | sh", page)
             self.assertIn('src="/film/report.js"', page)
 
+    def test_the_end_card_wears_the_films_opening_theme(self):
+        # In the container the film opens in Retro 82.
+        status, _, page = self.ask("fernwood.test", film.END_CARD_PATH)
+        self.assertEqual(status, 200)
+        for colour in ("#05182e", "#f6dcac", "#faa968"):
+            self.assertIn(colour, page)
+        # On the desktop it opens, and ends, in the desktop's own.
+        opening = film.Theme("lumon", {"background": "#16242d", "foreground": "#dfe4e8",
+                                       "accent": "#8bc9eb"})
+        desktop = film.FixtureServer(("127.0.0.1", 0),
+                                     film.theme_changes(opening, film.Theme("x", {}))[0].colours)
+        desktop.start()
+        self.addCleanup(desktop.stop)
+        connection = http.client.HTTPConnection("127.0.0.1", desktop.port, timeout=5)
+        self.addCleanup(connection.close)
+        connection.request("GET", film.END_CARD_PATH, headers={"Host": "fernwood.test"})
+        page = connection.getresponse().read().decode()
+        for colour in ("#16242d", "#dfe4e8", "#8bc9eb"):
+            self.assertIn(colour, page)
+        self.assertNotIn("#05182e", page)
+        self.assertNotIn("#faa968", page)
+
     def test_a_sent_invoice_is_kept_and_shown_back(self):
         body = "customer=Kiln+Coffee&amount=640.00&due=31+Oct+2026&note=%3Ci%3Ethanks"
         status, _, page = self.ask("tallyhaus.test", "/invoices", body, form=True)
@@ -217,6 +240,29 @@ def tabs(current, *others):
         {"id": f"t{index}", "url": url, "title": "", "current": url == current, "pinned": False}
         for index, url in enumerate([current, *others])
     ]}
+
+
+class FakeOmnibar:
+    """The Omnibar's rows after `tra`, and Down as the Omnibar steps outside the command scope:
+    from the last row to none, the typed text, and from none to the first row."""
+
+    ROWS = [("tab", "Tracing requests"), ("tab", "Trail Runner 3"),
+            ("suggestion", "trail running shoes"),
+            ("suggestion", "trail running shoes waterproof"), ("suggestion", "trangia stove")]
+
+    def __init__(self, start):
+        self.index = start
+        self.presses = 0
+
+    def selected(self):
+        if self.index < 0:
+            return None
+        kind, title = self.ROWS[self.index]
+        return {"kind": kind, "title": title}
+
+    def down(self):
+        self.presses += 1
+        self.index = -1 if self.index + 1 >= len(self.ROWS) else self.index + 1
 
 
 def ffmpeg_can_read_brightness() -> bool:
@@ -270,6 +316,24 @@ class BeatChecks(unittest.TestCase):
         with mock.patch.object(film.time, "sleep"):
             film.expect_asked("Omnibar", server, "kestrel.test", "/suggest?q=tra", timeout=5.0)
         self.assertEqual(server.paths.call_count, 3)
+
+    def test_the_omnibar_beat_steps_to_the_suggestion_from_any_selection(self):
+        # No row selected, as on the desktop with the pointer parked off the window; the first,
+        # as a pointer resting on it selects it; and the last, which Down leaves for the text.
+        for start in (-1, 0, 4):
+            with self.subTest(start=start):
+                omnibar = FakeOmnibar(start)
+                film.step_to_suggestion("Omnibar", omnibar.selected, omnibar.down,
+                                        "trail running shoes")
+                self.assertEqual(omnibar.selected(),
+                                 {"kind": "suggestion", "title": "trail running shoes"})
+
+    def test_an_omnibar_without_the_suggestion_misses_the_beat(self):
+        omnibar = FakeOmnibar(-1)
+        message = self.assertMissed("Omnibar", film.step_to_suggestion, omnibar.selected,
+                                    omnibar.down, "trail running boots")
+        self.assertIn("trail running boots", message)
+        self.assertLessEqual(omnibar.presses, film.SUGGESTION_STEPS)
 
     def test_a_hidden_sidebar_widens_every_page_on_show(self):
         before = [{"host": "quillstack.test", "path": "/docs/tracing/", "width": 610},
@@ -602,6 +666,13 @@ class FilmFiles(unittest.TestCase):
         self.assertIn(f"{film.OUTPUT_MODE[1]:.5f}", overlay)
         self.assertIsNone(film.pointer({"beat": "Theme", "start": 0.0, "end": 5.0}))
 
+    def test_the_pointer_is_drawn_with_its_tip_on_the_place(self):
+        entry = {"beat": "Space switch", "start": 10.0, "end": 16.0,
+                 "pointer": [{"at": 1.5, "x": 0.5, "y": 0.5}]}
+        overlay = film.pointer(entry, (4, 3))
+        self.assertIn(f"x='{0.5 * film.OUTPUT_MODE[0] - 4:.5f}'", overlay)
+        self.assertIn(f"y='{0.5 * film.OUTPUT_MODE[1] - 3:.5f}'", overlay)
+
     @unittest.skipUnless(ffmpeg_can_cut_the_film(), "this ffmpeg cannot cut the film")
     def test_a_recording_is_cut_into_the_film_its_poster_and_its_captions(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -698,6 +769,85 @@ class DesktopWindow(unittest.TestCase):
         whole = dict(MONITOR, width=2400, height=1350, reserved=[0, 0, 0, 0])
         with self.assertRaisesRegex(film.BeatMissed, "covers all"):
             film.parking(whole, film.window_frame(whole))
+
+
+def xcursor(*images):
+    """An Xcursor file holding `images`, each (nominal size, width, height, x hot, y hot, ARGB)."""
+    header = 16 + 12 * len(images)
+    toc, chunks = b"", b""
+    for nominal, width, height, x_hot, y_hot, argb in images:
+        toc += struct.pack("<III", 0xFFFD0002, nominal, header + len(chunks))
+        chunks += struct.pack("<9I", 36, 0xFFFD0002, nominal, 1, width, height, x_hot, y_hot, 50)
+        chunks += struct.pack(f"<{width * height}I", *[argb] * (width * height))
+    return b"Xcur" + struct.pack("<III", 16, 0x10000, len(images)) + toc + chunks
+
+
+class DesktopCursor(unittest.TestCase):
+    """The pointer the edit draws on the desktop is the desktop's own, read from its Xcursor theme,
+    and the committed drawing when there is none to read."""
+
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.icons = Path(scratch.name) / "icons"
+
+    def theme(self, name, inherits=None, cursor=None):
+        directory = self.icons / name
+        directory.mkdir(parents=True)
+        if inherits:
+            (directory / "index.theme").write_text(f"[Icon Theme]\nInherits={inherits}\n",
+                                                   encoding="utf-8")
+        if cursor:
+            (directory / "cursors").mkdir()
+            (directory / "cursors" / "default").write_bytes(cursor)
+            (directory / "cursors" / "left_ptr").symlink_to("default")
+
+    def test_an_xcursor_image_is_read_at_the_size_nearest_the_one_asked(self):
+        path = self.icons / "default"
+        self.icons.mkdir()
+        # Opaque white, then half-transparent white, which Xcursor keeps premultiplied.
+        path.write_bytes(xcursor((24, 2, 2, 1, 1, 0xFFFFFFFF), (36, 3, 3, 4, 5, 0x80808080)))
+        image = film.read_xcursor(path, 36)
+        self.assertEqual((image.width, image.height, image.hot), (3, 3, (4, 5)))
+        self.assertEqual(image.rgba[:4], bytes((255, 255, 255, 128)))
+        self.assertEqual(film.read_xcursor(path, 26).width, 2)
+
+    def test_the_default_theme_leads_to_the_one_it_inherits(self):
+        self.theme("default", inherits="Adwaita")
+        self.theme("Adwaita", cursor=xcursor((36, 3, 3, 4, 5, 0xFF000000)))
+        found = film.desktop_cursor({"XCURSOR_PATH": str(self.icons)}, Path("/nowhere"))
+        self.assertEqual(found, self.icons / "Adwaita" / "cursors" / "left_ptr")
+
+    def test_the_theme_the_session_names_comes_first(self):
+        self.theme("default", inherits="Adwaita")
+        self.theme("Adwaita", cursor=xcursor((36, 3, 3, 4, 5, 0xFF000000)))
+        self.theme("Bibata", cursor=xcursor((36, 3, 3, 4, 5, 0xFF000000)))
+        found = film.desktop_cursor({"XCURSOR_PATH": str(self.icons), "XCURSOR_THEME": "Bibata"},
+                                    Path("/nowhere"))
+        self.assertEqual(found, self.icons / "Bibata" / "cursors" / "left_ptr")
+
+    def test_a_desktop_cursor_is_drawn_from_its_hotspot(self):
+        self.theme("default", inherits="Adwaita")
+        self.theme("Adwaita", cursor=xcursor((24, 2, 2, 1, 1, 0xFFFFFFFF),
+                                             (36, 3, 3, 4, 5, 0xFF000000)))
+        out = Path(self.icons.parent) / "out"
+        out.mkdir()
+        drawn = film.pointer_for_desktop({"XCURSOR_PATH": str(self.icons)}, Path("/nowhere"), out)
+        self.assertEqual(drawn.hot, (4, 5))
+        self.assertTrue(drawn.path.read_bytes().startswith(b"\x89PNG"))
+        self.assertEqual(struct.unpack(">II", drawn.path.read_bytes()[16:24]), (3, 3))
+
+    def test_a_desktop_without_a_cursor_to_read_draws_the_committed_pointer(self):
+        self.theme("default", inherits="Adwaita, Cycle")
+        self.theme("Cycle", inherits="default")
+        self.theme("Broken", cursor=b"not an Xcursor")
+        out = Path(self.icons.parent) / "out"
+        out.mkdir()
+        for environment in ({"XCURSOR_PATH": str(self.icons)},
+                            {"XCURSOR_PATH": str(self.icons), "XCURSOR_THEME": "Broken"}):
+            with self.subTest(environment=environment):
+                drawn = film.pointer_for_desktop(environment, Path("/nowhere"), out)
+                self.assertEqual(drawn, film.DRAWN_POINTER)
 
 
 class FakeDesktop:

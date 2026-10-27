@@ -27,11 +27,12 @@ option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sy
 # engine, turns this on; every other build leaves the capability unreported, so
 # the surfaces are absent rather than dead.
 option(OMAWEB_KNOWN_EXTENSIONS "Report that the engine can host a Known extension" OFF)
-# The introductory film is recorded without a pointer, so its build takes two
-# more verbs: `film-hover`, which holds a Space's name on show in the footer,
-# and `film-row`, which holds an Agent tab's row with Stop on show and presses
-# Stop, as a pointer would (scripts/record_film.py). Only scripts/record_film.sh
-# turns it on; a browser built to ship has neither verb.
+# The introductory film is recorded without a pointer, so its build takes verbs
+# that do what a pointer would (scripts/record_film.py). `film-hover` holds a
+# Space's name on show in the footer. `film-row` holds an Agent tab's row with
+# Stop on show and presses Stop. `film-site` presses Site information.
+# `film-omnibar` says which row the Omnibar has selected. Only the film's own
+# builds turn it on; a browser built to ship has none of them.
 option(OMAWEB_FILM_HOOKS "Take the verbs the introductory film's recording needs" OFF)
 if(OMAWEB_FILM_HOOKS)
     add_compile_definitions(OMAWEB_FILM_HOOKS)

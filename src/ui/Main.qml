@@ -2090,6 +2090,25 @@ ApplicationWindow {
         };
     }
 
+    // The film's Omnibar beat presses Down until its suggestion is the row
+    // selected (scripts/record_film.py). This answers the selected row's kind
+    // and title, or null for none.
+    function omnibarSelection() {
+        const row = omnibar.selectedRow;
+        if (row === null)
+            return {
+                ok: true,
+                row: null
+            };
+        return {
+            ok: true,
+            row: {
+                kind: row.kind,
+                title: row.title
+            }
+        };
+    }
+
     // The film's Blocking beat clicks the Site information button, then the
     // card's blocked tile. Its recording has no pointer, so this answers where
     // `target` ("button" or "blocked") is, for the edit to draw one there, and with
@@ -2162,6 +2181,10 @@ ApplicationWindow {
             if (request.verb === "film-site") {
                 window.agentControlSource.answerCommand(requestId, window.pointAtSiteInformation(
                                                             request.target, request.press));
+                return;
+            }
+            if (request.verb === "film-omnibar") {
+                window.agentControlSource.answerCommand(requestId, window.omnibarSelection());
                 return;
             }
             if (request.verb === "film-hover") {

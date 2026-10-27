@@ -207,6 +207,14 @@ namespace {
                 .maximumPositionals = 1,
                 .positionalField = QStringLiteral("target")};
         }
+        // And the Omnibar's selected row, which the Omnibar beat steps to.
+        if (verb == u"film-omnibar") {
+            return {.valued = {},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
+        }
 #endif
         return {.valued = {},
             .flags = {},
@@ -565,6 +573,7 @@ namespace {
             QStringLiteral("film-hover"),
             QStringLiteral("film-row"),
             QStringLiteral("film-site"),
+            QStringLiteral("film-omnibar"),
 #endif
         };
         return verbs;
@@ -623,6 +632,7 @@ namespace {
         {"film-hover", "hold a Space's name on show for the introductory film"},
         {"film-row", "hold an Agent tab's row hovered, or press its Stop, for the film"},
         {"film-site", "say where Site information's button or blocked tile is, or press it"},
+        {"film-omnibar", "say which row the Omnibar has selected, for the film"},
 #endif
     };
 

@@ -9,7 +9,9 @@ up before the action it names starts, so it is read first, and each beat shows w
 claims. In order:
 
 1. The Omnibar. `tra` finds the trail shoe open in this Space, the tracing guide open in Work, and
-   Kestrel's suggestions. The reader picks a suggestion.
+   Kestrel's suggestions. The reader steps down to a suggestion and picks it. Down is pressed until
+   the window says the suggestion is selected, since the row it starts from is not fixed: a new list
+   selects none, and a pointer that crosses the rows selects the one under it.
 1. Link hints on the search results: `f` puts a label on every link, and the camera closes in to
    read them.
 1. A Space switch. The pointer rests on each Space's square in the footer, which names its Space,
@@ -27,15 +29,22 @@ claims. In order:
    rests on it so Stop shows beside Close, and a click on Stop hands the tab back to the reader.
 1. The end card: the logo and the line that installs Omaweb.
 
-The recording has no pointer. Its browser is built with `OMAWEB_FILM_HOOKS`, which adds three verbs.
+The recording has no pointer. Its browser is built with `OMAWEB_FILM_HOOKS`, which adds four verbs.
 `omaweb film-hover` has the window hold a Space's name on show through the footer button's own hover
 state and answer where the button is. `omaweb film-row <tab>` has it hold an Agent tab's row as
 hovered, so Stop shows, and answer where Stop is and what the row says; `--where` only answers, and
 `--stop` presses Stop as a click would. `omaweb film-site button` and `omaweb film-site blocked`
 answer where the Site information button and the card's blocked tile are, and `--press` clicks them;
 with neither, it answers whether the card is open, at which detail, what its blocked list names and
-where the card is, which the camera frames. The edit draws `pointer.png` where the window answered,
-gliding between the places. `pointer.svg` is its source. No shipped build has any of them.
+where the card is, which the camera frames. `omaweb film-omnibar` answers the Omnibar's selected
+row, its kind and title. No shipped build has any of them.
+
+The edit draws a pointer where the window answered, gliding between the places. On the desktop it is
+the desktop's own cursor, read when the film is cut: the theme `XCURSOR_THEME` names, or the one the
+`default` theme inherits, which on Omarchy is Adwaita, and its `left_ptr` image at `XCURSOR_SIZE`
+(24 unless set) times the film's scale of 1.5, drawn from its hotspot. Adwaita's cursors are
+CC-BY-SA-3.0 or LGPL-3.0-only, and the image is read from the system rather than kept here. Where no
+cursor can be read, and in the container, it is `pointer.png`, whose source is `pointer.svg`.
 
 ## Recording it on the desktop
 
@@ -202,9 +211,10 @@ project's owner, kept as WebP beside the pages that show them.
 
 `sites/_film/report.js` is on every page. It tells the script where the page is, how wide its
 viewport is, how many ad slots it drew and how many link hints are on show. `sites/_film/end.html`
-is the end card, which every site serves at `/film/end/`. `themes/` holds the two Omarchy palettes
-the container's film switches between, rendered through Omaweb's own template as Omarchy would
-render them.
+is the end card, which every site serves at `/film/end/` in the theme the film opened in: Retro 82
+in the container, and the desktop's own theme on the desktop, where the film ends after switching
+back. `themes/` holds the two Omarchy palettes the container's film switches between, rendered
+through Omaweb's own template as Omarchy would render them.
 
 `tests/scripts/tst_record_film.py` holds the sites to reaching nothing outside the film, and holds
 the server and each beat check to the answers a broken beat would give. It holds the desktop mode to
