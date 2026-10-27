@@ -5419,6 +5419,17 @@ TestCase {
         compare(acrossSidebar(lock).left, 24);
         compare(acrossSidebar(findChild(tabs.second, "tabTitle-" + tabs.secondId)).left, 49);
 
+        // A split's right half has no edge to share and keeps its 8 px.
+        browser.activateTab(tabs.firstId);
+        verify(browser.addSplit(tabs.secondId));
+        tryVerify(function () {
+            return tabs.second.trailingHalf && tabs.first.inSplit;
+        });
+        settleRow(tabs.second);
+        compare(acrossSidebar(findChild(tabs.first, "siteTile-" + tabs.firstId)).left, edge + 4);
+        compare(findChild(tabs.second, "siteTile-" + tabs.secondId).mapToItem(tabs.second, 0, 0).x,
+                8);
+
         browser.closeTab(tabs.secondId);
         browser.closeTab(tabs.firstId);
         browser.activateTab(pinId);
