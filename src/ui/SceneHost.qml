@@ -73,7 +73,7 @@ Item {
                                  "centre": Qt.point(light.centre.x * k, light.centre.y)
                              });
     }
-    // The Scene's frames, a tick of its clock each, for the tests that check a
+    // The Scene's frames, a step of its clock each, for the tests that check a
     // hidden Scene draws none.
     property int frames: 0
     // Seconds the Scene has run. The clock stops while the Scene does not
@@ -135,8 +135,8 @@ Item {
         }
         const tint = colors && colors.tint ? colors.tint : {};
         return Qt.hsla((Math.max(0, accent.hslHue) + 0.5) % 1, tint.saturation !== undefined
-                       ? tint.saturation : 0.32, tint.lightness !== undefined ? tint.lightness :
-                                                                                0.62, 1);
+                       ? tint.saturation : 0.34, tint.lightness !== undefined ? tint.lightness :
+                                                                                0.66, 1);
     }
 
     // The part of the host the reader sees in the host's own coordinates, 0
@@ -164,25 +164,36 @@ Item {
         return out;
     }
 
-    // A tick at the Scene's rate rather than a frame callback: a frame
-    // callback keeps the window drawing at the display's rate, sixty frames a
-    // second for a Scene that changes thirty times in one. The clock advances
-    // by the time that passed, at most a tenth of a second, so a stalled tick
-    // does not leap the road forward.
-    Timer {
+    // Whether a frame is due at `now`, the last having been drawn at `last`,
+    // both in milliseconds, for a Scene of `fps` frames a second. A little
+    // early counts, so thirty frames a second land on every other frame of a
+    // sixty hertz display rather than slipping to every third.
+    function frameDue(now, last, fps) {
+        return !fps || now - last >= 1000 / fps - 2;
+    }
+
+    // The clock advances on the window's frames, as the website's does on the
+    // browser's, and the Scene draws on those that are due. A frame that is
+    // not due changes nothing, and the window draws nothing for it. The clock
+    // advances by the time that passed, at most a tenth of a second, so a
+    // stalled frame does not leap the road forward.
+    FrameAnimation {
         id: clock
 
-        property real last: 0
+        // When the Scene last drew, in milliseconds of the animation, or
+        // before its first frame the frame before.
+        property real drawn: -1
 
-        interval: Math.round(1000 / (root.sceneItem && root.sceneItem.fps ? root.sceneItem.fps :
-                                                                            60))
-        repeat: true
         running: root.drawing
-        onRunningChanged: last = Date.now()
+        onRunningChanged: drawn = -1
         onTriggered: {
-            const now = Date.now();
-            root.time += Math.min(0.1, Math.max(0, now - last) / 1000);
-            last = now;
+            const now = elapsedTime * 1000;
+            if (drawn < 0)
+                drawn = now - frameTime * 1000;
+            else if (!root.frameDue(now, drawn, root.sceneItem ? root.sceneItem.fps : 0))
+                return;
+            root.time += Math.min(0.1, Math.max(0, now - drawn) / 1000);
+            drawn = now;
             root.frames += 1;
             if (root.trailShown)
                 trailPicture.scheduleUpdate();
@@ -312,9 +323,46 @@ Item {
         textureSize: Qt.size(root.sceneWidth, root.sceneHeight)
     }
 
+    // The halation cut at its threshold before the glass blurs it, as the
+    // website cuts it: a texel to each `reach` logical pixels, the mipmap
+    // level that averages so many of the Scene's.
+    ShaderEffect {
+        id: haloCut
+        objectName: "haloCut"
+
+        // How many of the Scene's pixels a texel of the cut copy spans.
+        readonly property real span: Math.max(1, root.amount("halation", "reach", 1) / root.pitch)
+
+        width: Math.max(1, Math.ceil(root.sceneWidth / span))
+        height: Math.max(1, Math.ceil(root.sceneHeight / span))
+        visible: root.glassShown
+
+        property var source: haloPicture
+        property real lod: Math.log2(span)
+        property real threshold: root.amount("halation", "threshold", 0)
+        property real sceneHeight: root.sceneHeight
+        property real bandY: crtGlass.bandY
+        property real bandReach: crtGlass.bandReach
+        property real bandStrength: crtGlass.bandStrength * crtGlass.raster
+        property color bandColour: crtGlass.bandColour
+        property real flicker: crtGlass.flicker
+
+        fragmentShader: "qrc:/omaweb/shaders/halation.frag.qsb"
+    }
+
+    // The cut copy, which the glass spreads smoothly over the picture.
+    ShaderEffectSource {
+        id: haloCutPicture
+        objectName: "haloCutPicture"
+        sourceItem: root.glassShown ? haloCut : null
+        hideSource: true
+        smooth: true
+        textureSize: Qt.size(haloCut.width, haloCut.height)
+    }
+
     // A vector Scene's persistence: each frame keeps the brighter of the
     // picture and the last frame, faded. The copy is taken at the Scene's
-    // tick rather than live, since a live copy of itself would draw the
+    // frames rather than live, since a live copy of itself would draw the
     // window at the display's rate.
     ShaderEffectSource {
         id: trailPicture
@@ -352,7 +400,7 @@ Item {
         readonly property bool moving: !root.reducedMotion
         property var source: root.trailShown ? trailPicture : picture
         property var bloom: bloomPicture
-        property var halo: haloPicture
+        property var halo: haloCutPicture
         property size sceneSize: Qt.size(root.sceneWidth, root.sceneHeight)
         property real glassHeight: height
         property rect frame: root.unitFrame
@@ -360,22 +408,27 @@ Item {
         // 1 on a raster Scene, 0 on a vector one, which has no scanlines,
         // mask or band.
         property real raster: root.vectorScreen ? 0 : 1
-        // The beam's lines stand one to each of the Scene's rows.
+        // The picture is brightened by the beam's and the mask's lifts before
+        // it is clipped, as the website's filter brightens it. A vector Scene
+        // declares neither, and the website lifts it not at all.
+        property real lift: root.amount("scanlines", "lift", 1) * root.amount("mask", "lift", 1)
+        // The beam's lines stand one to each of the Scene's rows, each as wide
+        // as the beam half way between its narrowest and widest, as the
+        // website's one layer of lines draws them.
         property real scanPeriod: height / root.sceneHeight
         property real scanShade: root.amount("scanlines", "shade", 0)
-        property real beamNarrowest: root.amount("scanlines", "narrowest", 1)
-        property real beamWidest: root.amount("scanlines", "widest", 1)
+        property real beamWidth: (root.amount("scanlines", "narrowest", 1) + root.amount("scanlines",
+                                                                                         "widest", 1))
+                                 / 2
         property real beamFalloff: root.amount("scanlines", "falloff", 1)
-        property real beamLift: root.amount("scanlines", "lift", 1)
         property real maskDim: root.amount("mask", "dim", 1)
-        property real maskLift: root.amount("mask", "lift", 1)
-        property real haloThreshold: root.amount("halation", "threshold", 0)
         property real haloStrength: root.amount("halation", "strength", 0)
-        // The halation's reach and spacing are in logical pixels, whatever the
-        // Scene's pitch: a faceplate scatters light over a physical distance.
+        // The halation is blurred by the website's `spacing` logical pixels,
+        // whatever the Scene's pitch: a faceplate scatters light over a
+        // physical distance. The glass's binomial taps spread that far when
+        // they stand the square root of 2 times it apart.
         readonly property real haloSpacing: root.amount("halation", "spacing", 0) / root.pitch
-        property real haloLod: Math.log2(Math.max(1, root.amount("halation", "reach", 1)
-                                                  / root.pitch))
+                                            * Math.SQRT2
         property size haloStep: Qt.size(haloSpacing / root.sceneWidth, haloSpacing
                                         / root.sceneHeight)
         property real vignetteClear: root.crt ? root.crt.vignette.clear : 1

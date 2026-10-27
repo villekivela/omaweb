@@ -636,6 +636,7 @@ qt_add_shaders(omaweb-ui "omaweb_shaders"
         "src/ui/shaders/crtglass.frag"
         "src/ui/shaders/dither.frag"
         "src/ui/shaders/grade.frag"
+        "src/ui/shaders/halation.frag"
         "src/ui/shaders/rimlight.frag"
         "src/ui/shaders/trail.frag"
 )
