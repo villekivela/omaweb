@@ -107,9 +107,11 @@ THEME_DIRECTORIES = [
     pathlib.Path("/usr/share/omarchy/themes"),
 ]
 
-# The themes this can build, in the order the page offers them: warm first, to
-# sit with the page's own palette. The page names which it shows.
+# The themes this can build, in the order the page offers them: the default first, then warm ones,
+# to sit with the page's own palette. The page names which it shows. ethereal-nebula-silver is not
+# in Omarchy's `themes/`: name the directory that holds it with `--themes`.
 THEMES = [
+    ("ethereal-nebula-silver", "Ethereal Nebula Silver"),
     ("matte-black", "Matte Black"),
     ("ristretto", "Ristretto"),
     ("retro-82", "Retro 82"),
