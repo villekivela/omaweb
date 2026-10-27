@@ -533,6 +533,39 @@ class BeatChecks(unittest.TestCase):
         self.assertEqual(back, (9.0, None))
         self.assertEqual(len(focus), 3)
 
+    def play_theme(self, output):
+        """The Theme beat played in front of a recorder of `output`, on a clock that moves only
+        as the beat sleeps. Returns what it marked."""
+        clock = [100.0]
+        recorder = mock.Mock(output=output, geometry=None, now=lambda: clock[0])
+        worn = [film.Theme("nebula", {"dark_background": "#050718"}),
+                film.Theme("lumon", {"dark_background": "#101b21"}),
+                film.Theme("nebula", {"dark_background": "#050718"})]
+        marked = []
+
+        def sleep(seconds):
+            clock[0] += seconds
+
+        with mock.patch.object(film.time, "sleep", side_effect=sleep), \
+                mock.patch.object(film, "frame"), \
+                mock.patch.object(film, "chrome_sample"), \
+                mock.patch.object(film, "expect_repainted"):
+            film.play_theme(film.BEAT_NAMED["Theme"], recorder, worn, lambda theme: None,
+                            lambda beat, start, end, **drawn: marked.append((start, end, drawn)))
+        return marked
+
+    def test_on_the_desktop_the_theme_beat_is_marked_to_draw_back_and_close_in_again(self):
+        [(start, end, drawn)] = self.play_theme("DP-1")
+        back = film.THEME_HOLD + 2 * 3.0
+        self.assertEqual(drawn, {"focus": film.theme_focus(back)})
+        # The camera is on the window again before the beat fades into the next.
+        self.assertGreaterEqual(end - start, back + film.MOVE + film.FADE)
+
+    def test_in_the_container_the_theme_beat_keeps_its_framing_and_its_length(self):
+        [(start, end, drawn)] = self.play_theme(None)
+        self.assertEqual(drawn, {})
+        self.assertAlmostEqual(end - start, film.THEME_HOLD + 2 * 3.0)
+
     def test_every_other_beat_and_the_containers_theme_beat_keep_to_the_window(self):
         for beat in film.BEATS:
             with self.subTest(beat=beat.name):

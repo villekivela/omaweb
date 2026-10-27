@@ -571,6 +571,7 @@ def theme_focus(back: float) -> list[tuple[float, Place]]:
     again."""
     return [(0.0, None), (CAPTION_LEAD, DESKTOP), (back, None)]
 
+
 # The frame the page shows before the film plays: the Omnibar with its rows open.
 POSTER = ("Omnibar", CAPTION_LEAD + 2.8)
 
@@ -897,8 +898,8 @@ class Recorder:
         self.path = path
         # The monitor recorded on the desktop, and `None` for cage's only output.
         self.output = output
-        # Where the film's window is on the desktop, which a frame of the chrome is taken of, and
-        # `None` under cage, whose output is the window.
+        # Where the film's window is on the desktop, which `chrome_sample` reads, and `None`
+        # under cage, whose output is the window.
         self.geometry: tuple[int, int, int, int] | None = None
         # Its own log, beside the recording.
         self.log_path = path.with_suffix(".log")
@@ -958,6 +959,33 @@ def wait_for(beat: str, what: str, ready, timeout: float = 20.0):
 def reported(server: FixtureServer, host: str, path: str, since: int = 0):
     return lambda: [report for report in server.reports()[since:]
                     if report["host"] == host and report["path"] == path]
+
+
+def play_theme(beat: Beat, recorder: Recorder, worn: list[Theme], wear, mark) -> None:
+    """The Theme beat: each of the `worn` themes after the first put on with `wear`, and the chrome
+    checked to have repainted after each.
+
+    On the desktop, where the whole monitor is recorded, the camera draws back to it for the
+    switches and closes on the window again before the beat fades into the next.
+    """
+    was = chrome_sample(frame(recorder.geometry))
+    start = recorder.now()
+    # Long enough to read the caption over the old theme, so the change it names comes after it,
+    # on the same frame.
+    time.sleep(THEME_HOLD)
+    for old, new in zip(worn, worn[1:]):
+        wear(new)
+        time.sleep(3.0)
+        now = chrome_sample(frame(recorder.geometry))
+        expect_repainted(beat.name, was, now, theme_colour(old.colours, "dark_background"),
+                         theme_colour(new.colours, "dark_background"))
+        was = now
+    if recorder.output is None:
+        mark(beat, start, recorder.now())
+        return
+    focus = theme_focus(recorder.now() - start)
+    time.sleep(MOVE + FADE + 0.3)
+    mark(beat, start, recorder.now(), focus=focus)
 
 
 def drive(browser: Path, server: FixtureServer, recorder: Recorder, worn: list[Theme],
@@ -1162,27 +1190,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, worn: list[T
     # Off camera: a new tab, whose Start page is the theme's road and sun, so the change shows.
     keys("Primary+t", settle=LOAD_SETTLE)
 
-    beat = beats["Theme"]
-    was = chrome_sample(frame(recorder.geometry))
-    start = recorder.now()
-    # Long enough to read the caption over the old theme, so the change it names comes after it,
-    # on the same frame. On the desktop the camera draws back to the whole monitor meanwhile.
-    time.sleep(THEME_HOLD)
-    for old, new in zip(worn, worn[1:]):
-        wear(new)
-        time.sleep(3.0)
-        now = chrome_sample(frame(recorder.geometry))
-        expect_repainted(beat.name, was, now, theme_colour(old.colours, "dark_background"),
-                         theme_colour(new.colours, "dark_background"))
-        was = now
-    # A recording of a whole monitor is the desktop's, whose camera closes on the window again
-    # before the beat fades into the next.
-    focus = {}
-    if recorder.output:
-        focus["focus"] = theme_focus(recorder.now() - start)
-        time.sleep(MOVE + FADE + 0.3)
-    end = recorder.now()
-    mark(beat, start, end, **focus)
+    play_theme(beats["Theme"], recorder, worn, wear, mark)
 
     # Off camera: the new tab put away unopened.
     keys("Escape")
@@ -1294,7 +1302,7 @@ def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
     expect_shared_memory("Stage")
     # Where the window is in the recording, for the edit, which takes the whole recording as the
     # window where this is missing, as under cage.
-    placed = out / "stage.json"
+    placed = out / STAGE
     placed.unlink(missing_ok=True)
     root = Path(tempfile.mkdtemp(prefix="omaweb-film-"))
     # Port 80 needs the container's root; on the desktop the browser is told the port instead.
@@ -1671,7 +1679,7 @@ class Desktop:
         # Nor may the whole monitor, which the Theme beat shows, hold one: a pinned window is on
         # every workspace.
         pinned = [client for client in self.query("hyprctl", "clients", "-j")
-                  if client.get("pinned") and client.get("monitor") == self.monitor.get("id")]
+                  if client.get("pinned") and client.get("monitor") == self.monitor["id"]]
         if pinned:
             raise BeatMissed("Desktop", f"{pinned[0].get('class') or 'a window'} "
                                         f"({pinned[0].get('title', '')}) is pinned on "
@@ -1943,8 +1951,9 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
             log(f"and types into the window with wtype, each key after hyprctl activewindow -j "
                 f"says the window has the keyboard, and samples it with "
                 f"{shlex.join(frame_command(frame))}")
-            log("the edit crops the recording to the window, at {} in it, and the Theme beat "
-                "draws back to the whole monitor".format(recorded_window(desktop.monitor, frame)))
+            log(f"the edit crops the recording to the window, at "
+                f"{recorded_window(desktop.monitor, frame)} in it, and the Theme beat draws back "
+                f"to the whole monitor")
             log(f"its browser follows the desktop's theme through {DESKTOP_CURRENT}, and the Theme "
                 f"beat switches the desktop's theme there and back:")
             desktop.set_theme(desktop.change)
@@ -2190,6 +2199,10 @@ def timestamp(seconds: float) -> str:
     return f"{int(minutes):02d}:{seconds:06.3f}"
 
 
+# Where `record` tells the edit the desktop film's window is in the recording.
+STAGE = "stage.json"
+
+
 class Stage(typing.NamedTuple):
     """What the camera films: the recording scaled so the film's window is cage's `OUTPUT_MODE`,
     and padded to the film's shape. Under cage it is the window alone; on the desktop it is the
@@ -2197,6 +2210,7 @@ class Stage(typing.NamedTuple):
 
     # The filters that make the recording into the stage, to follow a trim.
     scaling: str
+    # Its width and height, in pixels.
     size: tuple[int, int]
     # The window's top left corner on the stage, in its pixels.
     origin: tuple[int, int]
@@ -2242,7 +2256,7 @@ def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
     """Cuts the raw recording to its beats, follows each beat's focus, and captions it, and draws
     the pointer as `drawn`."""
     marks = json.loads((out / "marks.json").read_text(encoding="utf-8"))
-    placed = out / "stage.json"
+    placed = out / STAGE
     window = (json.loads(placed.read_text(encoding="utf-8"))["window"] if placed.exists()
               else None)
     stage = staging(recording_size(out / "raw.mkv"), window)
