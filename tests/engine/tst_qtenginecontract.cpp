@@ -2089,6 +2089,102 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             <div tabindex="0">Zero</div>
             <button>On</button>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("top:On") << false << QStringList {};
+    // YouTube's channel tabs: custom elements with the tab role, and the click
+    // handled on the element (#819).
+    QTest::newRow("tabs of custom elements with the tab role are hinted") << hintsPage(R"HTML(
+            <div role="tablist">
+                <yt-tab-shape role="tab" tabindex="0"><div>Home</div></yt-tab-shape>
+                <yt-tab-shape role="tab" tabindex="0"><div>Videos</div></yt-tab-shape>
+                <yt-tab-shape role="tab" tabindex="0"><div>Playlists</div></yt-tab-shape>
+            </div>)HTML") << int(Qt::Key_unknown) << QStringLiteral("top:Home,Videos,Playlists")
+                                                                          << false
+                                                                          << QStringList {};
+    QTest::newRow("each clickable role is hinted, unless aria-disabled")
+        << hintsPage(R"HTML(
+            <div role="tab">Tab</div> <div role="link">Link</div>
+            <div role="button">Button</div> <div role="checkbox">Checkbox</div>
+            <div role="menuitem">Menuitem</div> <div role="menuitemcheckbox">Check item</div>
+            <div role="menuitemradio">Radio item</div> <div role="radio">Radio</div>
+            <div role="textbox">Textbox</div>
+            <div role="tab" aria-disabled="true">Off tab</div>)HTML")
+        << int(Qt::Key_unknown)
+        << QStringLiteral(
+               "top:Tab,Link,Button,Checkbox,Menuitem,Check item,Radio item,Radio,Textbox")
+        << false << QStringList {};
+    QTest::newRow("background hints skip a tab without an address")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div role="tablist"><yt-tab-shape role="tab">Videos</yt-tab-shape></div>
+            <a href="#away">Away</a>
+            <script>
+                setTimeout(() => {
+                    dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'F', shiftKey: true, bubbles: true, cancelable: true
+                    }));
+                    const layer = document.getElementById('hintsh');
+                    document.title = layer ? [...layer.querySelectorAll(':scope > span')]
+                        .map(plate => plate.getAttribute('aria-label')
+                            .replace(/^Link hint \w+ for /, '')).join(',') : 'none';
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("Away") << false << QStringList {};
+    QTest::newRow("a hint clicks the tab it names")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div role="tablist">
+                <yt-tab-shape role="tab" tabindex="0"><div>Home</div></yt-tab-shape>
+                <yt-tab-shape role="tab" tabindex="0"><div>Videos</div></yt-tab-shape>
+            </div>
+            <script>
+                for (const tab of document.querySelectorAll('yt-tab-shape')) {
+                    tab.addEventListener('click', () => document.title = tab.textContent + ' tab');
+                }
+                const press = key => dispatchEvent(new KeyboardEvent('keydown', {
+                    key, bubbles: true, cancelable: true
+                }));
+                setTimeout(() => {
+                    press('f');
+                    const plate = [...document.querySelectorAll('#hintsh > span')].find(plate =>
+                        plate.getAttribute('aria-label').endsWith(' for Videos'));
+                    if (!plate) {
+                        document.title = 'no plate';
+                        return;
+                    }
+                    for (const key of plate.textContent.toLowerCase()) press(key);
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("Videos tab") << false << QStringList {};
+    QTest::newRow("a hint opens the details it names")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <details><summary>More</summary>Hidden</details>
+            <script>
+                document.querySelector('details').addEventListener('toggle', event =>
+                    document.title = event.target.open ? 'opened' : 'closed');
+                const press = key => dispatchEvent(new KeyboardEvent('keydown', {
+                    key, bubbles: true, cancelable: true
+                }));
+                setTimeout(() => {
+                    press('f');
+                    const plate = [...document.querySelectorAll('#hintsh > span')].find(plate =>
+                        plate.getAttribute('aria-label').endsWith(' for MoreHidden'));
+                    if (!plate) {
+                        document.title = 'no plate';
+                        return;
+                    }
+                    for (const key of plate.textContent.toLowerCase()) press(key);
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("opened") << false << QStringList {};
+    QTest::newRow("a button inside a shadow root is hinted")
+        << hintsPage(R"HTML(<div id="host"></div><a href="#after">After</a>)HTML",
+               R"JS(document.getElementById('host').attachShadow({ mode: 'open' })
+                        .innerHTML = '<button>Inside</button>';)JS")
+        << int(Qt::Key_unknown) << QStringLiteral("top:Inside,After") << false << QStringList {};
+    QTest::newRow("a wrapper found by its class or as a span gives way to the control inside")
+        << hintsPage(R"HTML(
+            <div class="nav-button"><button>Wrapped</button></div>
+            <span onclick=""><a href="#inner">In a span</a></span>
+            <div class="btn">Alone</div>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("top:Wrapped,In a span,Alone") << false
+        << QStringList {};
     QTest::newRow("a link under 3x3 px or not visible has no hint")
         << hintsPage(R"HTML(
             <style>a { display: inline-block; background: gray; margin: 10px }</style>

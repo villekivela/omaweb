@@ -59,6 +59,39 @@ and pinned by the same manifest. brave-core is licensed under the Mozilla Public
 Copyright (c) The Brave Authors. The upstream license text ships with the pinned revision as
 `LICENSE`.
 
+## Vimium link hint targets
+
+The rules that pick which elements take a link hint, in `src/engine/api/keyboard-navigation.js`, are
+adapted from Vimium (https://github.com/philc/vimium) at revision
+`5aa29614bf1dce05e0d316f8c38722e17f9b38c3`: `getLocalHintsForElement`, `getLocalHints` and
+`getElementFromPoint` in `content_scripts/link_hints.js`, and `isSelectable` in `lib/dom_utils.js`.
+Vimium is licensed under the MIT License:
+
+```text
+Copyright (c) 2010 Phil Crosby, Ilya Sukhar.
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+```
+
 ## Default filter lists
 
 Omaweb subscribes to two filter lists on a first run and fetches them from https://easylist.to/.
