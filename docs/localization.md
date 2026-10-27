@@ -27,6 +27,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Project directory | Projektikansio        | The folder a Space is for, which `omaweb dev` opens. "Projekti" for the project as a whole.     |
 | Start page        | Aloitussivu           |                                                                                                 |
 | Scene             | Maisema               | The drawing behind the Start page: the night road, the night sky, the Game of Life and so on.   |
+| Telemetry         | Telemetria            | The Scene of live readings. Its dashboard labels are in capitals, as the English ones are.      |
 | Tab               | Välilehti             |                                                                                                 |
 | Pinned tab        | Kiinnitetty välilehti |                                                                                                 |
 | Sidebar           | Sivupalkki            |                                                                                                 |

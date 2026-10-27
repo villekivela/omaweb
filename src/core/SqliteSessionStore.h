@@ -57,6 +57,7 @@ public:
     // Space database is first opened.
     bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title) override;
     QVariantList history(const QString &spaceId, const QString &query, int limit) const override;
+    QList<qint64> visitTimesSince(const QString &spaceId, qint64 since) const override;
     bool deleteHistoryVisit(const QString &spaceId, qint64 id) override;
     bool deleteHistoryOrigin(const QString &spaceId, const QString &origin) override;
     bool deleteHistorySince(const QString &spaceId, qint64 since) override;

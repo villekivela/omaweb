@@ -222,6 +222,7 @@ private slots:
     void answersOnlyTheLatestOmnibarSearch();
     void abandonsASearchTheReaderHasMovedOnFrom();
     void filtersAndDeletesHistoryAtRequestedBoundaries();
+    void answersTodaysVisitsAcrossItsSpaces();
     void resolvesAddressesBeforeSearches();
     void migratesAndUsesSearchEngineConfiguration();
     void addsPredefinedSearchEngineProviders();
@@ -1720,6 +1721,38 @@ void BrowserControllerTest::filtersAndDeletesHistoryAtRequestedBoundaries()
                  .toUrl()
                  .port(),
         444);
+}
+
+// The Telemetry Scene's pages today: every Space's visits since a time, and
+// a word when one is recorded or History is deleted, so the count can follow
+// without reading History again.
+void BrowserControllerTest::answersTodaysVisitsAcrossItsSpaces()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    QSignalSpy recorded(&controller, &BrowserController::visitRecorded);
+    QSignalSpy deleted(&controller, &BrowserController::historyDeleted);
+    controller.recordVisit(QUrl(QStringLiteral("https://one.example/")), QStringLiteral("One"));
+    QTest::qWait(2);
+    const auto since = QDateTime::currentMSecsSinceEpoch();
+    QTest::qWait(2);
+    controller.recordVisit(QUrl(QStringLiteral("https://two.example/")), QStringLiteral("Two"));
+    QVERIFY(controller.switchSpace(controller.createSpace(QStringLiteral("Work"))));
+    controller.recordVisit(QUrl(QStringLiteral("https://three.example/")), QStringLiteral("Three"));
+    // A page with nothing to remember is no visit.
+    controller.recordVisit(QUrl(QStringLiteral("about:blank")), QString());
+
+    QCOMPARE(recorded.count(), 3);
+    const auto times = controller.visitTimesSince(since);
+    QCOMPARE(times.size(), 2);
+    for (const auto at : times) {
+        QVERIFY(at >= since);
+    }
+    QVERIFY(recorded.last().first().toLongLong() >= since);
+
+    QVERIFY(controller.deleteHistorySince(since));
+    QCOMPARE(deleted.count(), 1);
+    QCOMPARE(controller.visitTimesSince(since).size(), 1);
 }
 
 void BrowserControllerTest::resolvesAddressesBeforeSearches()

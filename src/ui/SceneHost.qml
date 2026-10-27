@@ -83,6 +83,19 @@ Item {
     readonly property int pitch: root.sceneItem ? root.sceneItem.pitch : 1
     readonly property int sceneWidth: Math.max(1, Math.ceil(root.drawnWidth / root.pitch))
     readonly property int sceneHeight: Math.max(1, Math.ceil(root.height / root.pitch))
+    // The display's pixels to each logical one.
+    readonly property real devicePixelRatio: Window.window ? Window.window.devicePixelRatio :
+                                                             Screen.devicePixelRatio
+    // A Scene of text and fine lines, as Telemetry, declares `devicePixels`:
+    // its picture is taken at the display's own pixels rather than its own,
+    // which a pitch of 1 would still draw soft at a fractional scale.
+    readonly property bool devicePixels: !!root.sceneItem && root.sceneItem.devicePixels === true
+    readonly property size pictureSize: root.devicePixels ? Qt.size(Math.ceil(root.sceneWidth
+                                                                              * root.devicePixelRatio),
+                                                                    Math.ceil(root.sceneHeight
+                                                                              * root.devicePixelRatio)) :
+                                                            Qt.size(root.sceneWidth,
+                                                                    root.sceneHeight)
     readonly property bool glassShown: root.glass && !!root.sceneItem && root.sceneItem.glass
                                        === "crt" && !!root.sceneItem.crt
     // The glass's amounts, which a Scene that declares the glass gives as
@@ -276,7 +289,7 @@ Item {
         sourceItem: sceneLoader
         hideSource: true
         smooth: false
-        textureSize: Qt.size(root.sceneWidth, root.sceneHeight)
+        textureSize: root.pictureSize
     }
 
     // With the glass off, the picture graded.
@@ -414,8 +427,12 @@ Item {
         property real lift: root.amount("scanlines", "lift", 1) * root.amount("mask", "lift", 1)
         // The beam's lines stand one to each of the Scene's rows, each as wide
         // as the beam half way between its narrowest and widest, as the
-        // website's one layer of lines draws them.
-        property real scanPeriod: height / root.sceneHeight
+        // website's one layer of lines draws them. A Scene drawn at device
+        // pixels has rows too fine for a line each: its lines stand its
+        // scanlines' `pitch` of device pixels apart, 6 as the road's at 1.5x.
+        property real scanPeriod: root.devicePixels ? root.amount("scanlines", "pitch", 6)
+                                                      / root.devicePixelRatio : height
+                                                      / root.sceneHeight
         property real scanShade: root.amount("scanlines", "shade", 0)
         property real beamWidth: (root.amount("scanlines", "narrowest", 1) + root.amount("scanlines",
                                                                                          "widest", 1))

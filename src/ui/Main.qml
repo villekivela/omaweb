@@ -214,14 +214,19 @@ ApplicationWindow {
     readonly property bool projectAddressAwaited: window.windowBrowser.activeSpaceAwaitsAddress
                                                   === true
     // The Scene the Start page stands on, by its id: "crt-road", "night-sky",
-    // "game-of-life", "vector-terrain", "radar", "hyperspace", or "none" for
-    // the sidebar's fill. Local to this installation, like the Glance: Sync
+    // "game-of-life", "vector-terrain", "radar", "hyperspace", "telemetry", or
+    // "none" for the sidebar's fill. Local to this installation, like the Glance: Sync
     // carries neither.
     property string startPageScene: "crt-road"
     // Whether the Scene is shown through its CRT glass. Local the same way.
     property bool startPageGlass: true
     readonly property var startPageScenes: ["crt-road", "night-sky", "game-of-life",
-        "vector-terrain", "radar", "hyperspace", "none"]
+        "vector-terrain", "radar", "hyperspace", "telemetry", "none"]
+    // The Telemetry Scene's text size, "large" or "small", and the modules
+    // the reader turned off. Local the same way.
+    property string telemetryText: "large"
+    property var telemetryHidden: []
+    readonly property var telemetryModules: Scenes.parameters("telemetry").modules
     // The window whose Scene settings this one shows and changes: a Private
     // window keeps no preferences, so it follows the ordinary window's.
     readonly property var sceneSettingsWindow: window.privateWindow && window.opener
@@ -2418,6 +2423,11 @@ ApplicationWindow {
         window.startPageScene = window.startPageScenes.indexOf(scene) >= 0 ? scene : "crt-road";
         window.startPageGlass = window.windowBrowser.preference("start-page-glass", "true")
                 === "true";
+        window.telemetryText = window.windowBrowser.preference("telemetry-text", "large")
+                === "small" ? "small" : "large";
+        const hidden = window.windowBrowser.preference("telemetry-hidden", "").split(",");
+        window.telemetryHidden = window.telemetryModules.filter(module => hidden.indexOf(module)
+                                                                          >= 0);
         window.sidebarSide = window.windowBrowser.preference("sidebar-side", "left") === "right"
                 ? "right" : "left";
         window.spaceColours = window.windowBrowser.preference("space-colours", "true") === "true";
@@ -2451,6 +2461,72 @@ ApplicationWindow {
     function setStartPageGlass(enabled) {
         window.startPageGlass = enabled;
         window.windowBrowser.setPreference("start-page-glass", enabled ? "true" : "false");
+    }
+
+    // A Telemetry module on or off, kept in the order the Scene drops them.
+    function setTelemetryModule(module, shown) {
+        const hidden = window.telemetryModules.filter(key => key === module ? !shown :
+                                                                              window.telemetryHidden.indexOf(
+                                                                                  key) >= 0);
+        window.telemetryHidden = hidden;
+        window.windowBrowser.setPreference("telemetry-hidden", hidden.join(","));
+    }
+
+    function setTelemetryText(size) {
+        window.telemetryText = size;
+        window.windowBrowser.setPreference("telemetry-text", size);
+    }
+
+    // The Spaces of this window, for the Telemetry Scene: their ids, whose
+    // refusals it counts, and their names with what the renderers of their
+    // open pages hold, each renderer once.
+    function telemetrySpaceIds() {
+        // A Private window's pages are refused under its session's empty
+        // Space, as sessionSpaceId says.
+        if (window.privateWindow)
+            return [window.windowBrowser.sessionSpaceId];
+        const spaces = window.windowBrowser.spaces;
+        const ids = [];
+        for (let row = 0; row < spaces.rowCount(); ++row)
+            ids.push(spaces.data(spaces.index(row, 0), Qt.UserRole + 1));
+        return ids;
+    }
+
+    function telemetrySpaces() {
+        const spaces = window.windowBrowser.spaces;
+        const renderers = {};
+        for (const tabId in engineLoader.engines) {
+            const engine = engineLoader.engines[tabId];
+            const pid = engine ? engine.renderProcessPid : 0;
+            if (pid > 0)
+                renderers[pid] = engineLoader.engineSpaces[tabId];
+        }
+        const out = [];
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            const index = spaces.index(row, 0);
+            const spaceId = spaces.data(index, Qt.UserRole + 1);
+            let bytes = 0;
+            for (const pid in renderers) {
+                if (renderers[pid] === spaceId)
+                    bytes += ProcessResources.residentBytes(Number(pid));
+            }
+            out.push({
+                         "name": spaces.data(index, Qt.UserRole + 2),
+                         "bytes": bytes
+                     });
+        }
+        return out;
+    }
+
+    // The sampler runs while the reader has Telemetry chosen, whether or not
+    // a Start page is on show, so a new tab's graphs are full. The window
+    // whose Scene settings are shown decides: a Private window opened from an
+    // ordinary one leaves it to that one.
+    Binding {
+        target: TelemetrySampler
+        property: "running"
+        value: window.startPageScene === "telemetry"
+        when: window.sceneSettingsWindow === window
     }
 
     function setSpaceColours(enabled) {
@@ -2500,7 +2576,8 @@ ApplicationWindow {
 
         function onPreferenceChanged(name) {
             if (name === "floating-controls" || name === "glance" || name === "start-page-scene" || name
-                    === "start-page-glass" || name === "sidebar-side" || name === "space-colours")
+                    === "start-page-glass" || name === "sidebar-side" || name === "space-colours"
+                    || name === "telemetry-text" || name === "telemetry-hidden")
                 window.restoreChromeAppearance();
             else if (name === "app-icon")
                 window.restoreAppIcon();
@@ -4196,6 +4273,11 @@ ApplicationWindow {
                     tabs: window.windowBrowser.tabs
                     arrivingTabId: window.startPageDriveTabId
                     pageSource: window.pagelessViewport ? null : engineLoader
+                    telemetryText: window.sceneSettingsWindow.telemetryText
+                    telemetryHidden: window.sceneSettingsWindow.telemetryHidden
+                    downloads: window.downloads
+                    spaceIds: window.telemetrySpaceIds
+                    spaceMemory: window.telemetrySpaces
                 }
 
                 ShortcutSheet {
@@ -4814,6 +4896,8 @@ ApplicationWindow {
                             spaceColours: window.spaceColours
                             startPageScene: window.sceneSettingsWindow.startPageScene
                             startPageGlass: window.sceneSettingsWindow.startPageGlass
+                            telemetryText: window.sceneSettingsWindow.telemetryText
+                            telemetryHidden: window.sceneSettingsWindow.telemetryHidden
                             retainedTabs: window.visibleRetainedTabs
 
                             downloads: window.downloads
@@ -4876,6 +4960,12 @@ ApplicationWindow {
                             }
                             onStartPageGlassToggled: function (enabled) {
                                 window.sceneSettingsWindow.setStartPageGlass(enabled);
+                            }
+                            onTelemetryModuleToggled: function (module, shown) {
+                                window.sceneSettingsWindow.setTelemetryModule(module, shown);
+                            }
+                            onTelemetryTextChosen: function (size) {
+                                window.sceneSettingsWindow.setTelemetryText(size);
                             }
                             onTintFaviconsToggled: function (enabled) {
                                 window.setTintFavicons(enabled);

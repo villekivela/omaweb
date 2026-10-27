@@ -272,6 +272,9 @@ TAB_RECORDED_WAIT = 3.0
 LIVE_TAB_IDLE_WINDOW = 30.0
 # How many of the processes that used CPU in that window the log names.
 LIVE_TAB_IDLE_NAMED = 8
+# How long the tree is left alone on a page, with Telemetry chosen and without it, while its CPU is
+# read for what the sampler costs in the background.
+TELEMETRY_IDLE_WINDOW = 30.0
 
 
 def procedural_fixture() -> tuple[list[str], str]:
@@ -2341,6 +2344,54 @@ def measure_livetabs(executable: str) -> dict:
     return live_tab_results(first, dict(zip(LIVE_TAB_COUNTS, totals)), idle.percent)
 
 
+def telemetry_results(on: float, off: float) -> dict:
+    """What choosing the Telemetry Scene adds to the tree's idle CPU, as a share of one core.
+
+    A share this small moves with whatever else the machine is doing, and a reading with Telemetry
+    below the one without it is that noise, not a sampler that saves CPU.
+    """
+    return {"telemetry_background_cpu_percent": max(0.0, on - off)}
+
+
+def idle_cpu_on_a_page(executable: str, scene: str) -> float:
+    """The tree's CPU, as a share of one core, left alone on a page with `scene` chosen.
+
+    On a page no Start page is drawn, so what Telemetry adds there is its sampler alone, which runs
+    while it is chosen so a new tab's graphs are full.
+    """
+    workspace = Workspace()
+    config = os.path.join(workspace.root, "config")
+    os.mkdir(config, 0o700)
+    with open(os.path.join(config, "settings.json"), "w", encoding="utf-8") as handle:
+        json.dump({"version": 1, "start-page-scene": scene}, handle)
+    browser = workspace.browser(executable)
+    try:
+        browser.start(workspace.page_url)
+        browser.await_title(PROBE_TITLE)
+        time.sleep(LOAD_SETTLE)
+        before = process_states(browser.pid)
+        started = time.monotonic()
+        time.sleep(TELEMETRY_IDLE_WINDOW)
+        idle = idle_cpu(before, process_states(browser.pid), time.monotonic() - started)
+    finally:
+        browser.stop()
+        workspace.discard()
+    log(f"  with {scene} chosen, left alone on a page for {TELEMETRY_IDLE_WINDOW:.0f} s, the tree "
+        f"used {idle.percent:.2f}% of a core")
+    for process in idle.busiest[:LIVE_TAB_IDLE_NAMED]:
+        log(f"    {process.pid} {process.name}: {process.seconds:.2f} CPU s")
+    return idle.percent
+
+
+def measure_telemetry(executable: str) -> dict:
+    """What the Telemetry Scene's sampler costs while the reader is on a page (#814)."""
+    if not sys.platform.startswith("linux"):
+        raise Unavailable("the sampler reads /proc and /sys, which only Linux has")
+    off = idle_cpu_on_a_page(executable, "none")
+    on = idle_cpu_on_a_page(executable, "telemetry")
+    return telemetry_results(on, off)
+
+
 MEASUREMENTS = {
     "startup": lambda arguments: measure_startup(arguments.browser, arguments.repetitions,
                                                  cold=arguments.cache == "cold"),
@@ -2353,6 +2404,7 @@ MEASUREMENTS = {
     "freezing": lambda arguments: measure_freezing(arguments.browser),
     "pageload": lambda arguments: measure_pageload(arguments.browser, arguments.require_dns),
     "livetabs": lambda arguments: measure_livetabs(arguments.browser),
+    "telemetry": lambda arguments: measure_telemetry(arguments.browser),
 }
 
 

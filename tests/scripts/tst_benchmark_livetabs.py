@@ -429,5 +429,25 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(status, 404)
 
 
+class TelemetryCostTest(unittest.TestCase):
+    """The Telemetry sampler's background cost is the tree's idle CPU with Telemetry chosen less
+    the same with no Scene, on a page, so no Start page draws in either."""
+
+    def test_the_cost_is_what_choosing_telemetry_adds(self):
+        self.assertEqual(runtime.telemetry_results(on=0.75, off=0.25),
+                         {"telemetry_background_cpu_percent": 0.5})
+
+    def test_noise_below_the_reading_without_it_is_no_cost(self):
+        self.assertEqual(runtime.telemetry_results(on=0.2, off=0.3),
+                         {"telemetry_background_cpu_percent": 0.0})
+
+    def test_a_cost_past_its_ceiling_fails_the_run(self):
+        name = "telemetry_background_cpu_percent"
+        ceiling = runtime.load_budget()["measurements"][name]["ceiling"]
+        with mock.patch.object(runtime, "log"):
+            self.assertEqual(runtime.report({name: ceiling + 0.5}, runtime.load_budget()), 1)
+            self.assertEqual(runtime.report({name: ceiling}, runtime.load_budget()), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

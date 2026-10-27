@@ -82,6 +82,11 @@ namespace {
             {QLatin1StringView("glance"), Kind::Switch, true},
             {QLatin1StringView("start-page-scene"), Kind::Text, QStringLiteral("crt-road")},
             {QLatin1StringView("start-page-glass"), Kind::Switch, true},
+            // The Telemetry Scene's text size, and the modules the reader
+            // turned off, by id, comma-separated.
+            {QLatin1StringView("telemetry-text"), Kind::Text, QStringLiteral("large"),
+                {QStringLiteral("large"), QStringLiteral("small")}},
+            {QLatin1StringView("telemetry-hidden"), Kind::Text, QString()},
             {QLatin1StringView("space-colours"), Kind::Switch, true},
             // The limits Settings offers, from never to a week.
             {QLatin1StringView("put-away-unused-tabs-after"), Kind::Number, 12 * 60 * 60,

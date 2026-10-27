@@ -126,6 +126,9 @@ public:
 
     virtual bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title) = 0;
     virtual QVariantList history(const QString &spaceId, const QString &query, int limit) const = 0;
+    // When each page in the Space was visited, from `since` on, in
+    // milliseconds since the epoch.
+    virtual QList<qint64> visitTimesSince(const QString &spaceId, qint64 since) const = 0;
     // Deleting History also deletes the stored favicons of the pages it names,
     // except one a tab in that Space's sidebar still shows.
     virtual bool deleteHistoryVisit(const QString &spaceId, qint64 id) = 0;

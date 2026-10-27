@@ -351,6 +351,10 @@ TestCase {
             window.setSidebarSide("left");
         if (window.startPageScene !== "crt-road")
             window.setStartPageScene("crt-road");
+        if (window.telemetryHidden.length > 0)
+            browser.setPreference("telemetry-hidden", "");
+        if (window.telemetryText !== "large")
+            browser.setPreference("telemetry-text", "");
         if (!window.startPageGlass)
             window.setStartPageGlass(true);
         if (!window.spaceColours)
@@ -12388,6 +12392,40 @@ TestCase {
         window.setStartPageScene("crt-road");
     }
 
+    // A Private window's Telemetry shows its own downloads and refusals and
+    // the machine's readings, and nothing from History or other Spaces: no
+    // pages today, no memory per Space, and refusals asked for its own
+    // Spaces alone.
+    function test_aPrivateWindowsTelemetryShowsNothingStored() {
+        window.setStartPageScene("telemetry");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const startPage = findChild(privateBrowser.contentItem, "startPage");
+        tryVerify(function () {
+            return startPage.visible && findChild(privateBrowser.contentItem, "telemetry") !== null;
+        });
+        const telemetry = findChild(privateBrowser.contentItem, "telemetry");
+        verify(telemetry.unlit, "a lit Telemetry");
+        tryVerify(function () {
+            return telemetry.readings.memory !== undefined && telemetry.readings.memory.total > 0;
+        });
+        verify(!findChild(telemetry, "telemetrySection-pages").visible);
+        verify(!findChild(telemetry, "telemetrySection-spaces").visible);
+        // Not only hidden: nothing from History reaches it.
+        compare(telemetry.readings.pages, undefined);
+        compare(telemetry.spaces, []);
+        compare(privateBrowser.telemetrySpaceIds(), [privateBrowser.windowBrowser.sessionSpaceId]);
+        verify(window.telemetrySpaceIds().indexOf(privateBrowser.windowBrowser.sessionSpaceId) < 0);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        window.setStartPageScene("crt-road");
+    }
+
     // A Private window's radar is the sweep and the rings alone: no blips,
     // even for the tabs it has open, no glow and no light on the Omnibar's
     // rim, and it holds still. The window beside it keeps its own lit.
@@ -14918,7 +14956,11 @@ TestCase {
         compare(browser.preference("start-page-scene", ""), "hyperspace");
         keyClick(Qt.Key_Right);
         keyClick(Qt.Key_Return);
+        compare(browser.preference("start-page-scene", ""), "telemetry");
+        keyClick(Qt.Key_Right);
+        keyClick(Qt.Key_Return);
         compare(browser.preference("start-page-scene", ""), "none");
+        keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
         keyClick(Qt.Key_Left);
@@ -14964,6 +15006,83 @@ TestCase {
             return findChild(scene, "nightSky") === null;
         });
         leaveSpace(homeSpaceId, restingSpaceId, "Resting scene");
+    }
+
+    // Telemetry is a Scene like the others. Chosen, the sampler runs whether
+    // or not a Start page is on show, so a new tab's graphs are full, and the
+    // Scene under the resting Omnibar reads it; the Omnibar keeps the
+    // keyboard. Chosen no longer, the sampler stops.
+    function test_telemetryStandsUnderTheRestingOmnibar() {
+        const scene = findChild(window.contentItem, "startPageScene");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Telemetry");
+        verify(!TelemetrySampler.running);
+
+        window.setStartPageScene("telemetry");
+        compare(browser.preference("start-page-scene", ""), "telemetry");
+        verify(TelemetrySampler.running);
+        tryVerify(function () {
+            return findChild(scene, "telemetry") !== null;
+        });
+        const telemetry = findChild(scene, "telemetry");
+        tryVerify(function () {
+            return telemetry.readings.memory !== undefined && telemetry.readings.memory.total > 0;
+        });
+        verify(findChild(window.contentItem, "omnibarInput").activeFocus);
+        // Each Space of the window has its bar, by name.
+        compare(telemetry.spaces.map(space => space.name).sort(), window.telemetrySpaces().map(
+                    space => space.name).sort());
+        verify(telemetry.spaces.some(space => space.name === "Telemetry"));
+        compare(telemetry.textSize, "large");
+        compare(telemetry.hidden, []);
+
+        window.setStartPageScene("crt-road");
+        verify(!TelemetrySampler.running);
+        tryVerify(function () {
+            return findChild(scene, "telemetry") === null;
+        });
+        leaveSpace(homeSpaceId, restingSpaceId, "Telemetry");
+    }
+
+    // The reader turns modules off and picks the text size in Settings,
+    // under the Scene, offered only while Telemetry is chosen. Each choice
+    // is kept and reaches the Scene at once.
+    function test_settingsShapesTelemetry() {
+        const scene = findChild(window.contentItem, "startPageScene");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Telemetry settings");
+        window.settingsOpen = true;
+        settings.section = settings.sections.indexOf("interface");
+        const network = findChild(settings, "telemetryModule-network");
+        const text = findChild(settings, "telemetryText");
+        verify(network !== null && text !== null);
+        verify(!network.visible);
+        verify(!text.visible);
+
+        window.setStartPageScene("telemetry");
+        tryVerify(function () {
+            return network.visible && text.visible;
+        });
+        verify(network.checked);
+        network.clicked();
+        compare(browser.preference("telemetry-hidden", ""), "network");
+        verify(!network.checked);
+        findChild(settings, "telemetryModule-spaces").clicked();
+        compare(browser.preference("telemetry-hidden", ""), "network,spaces");
+        network.clicked();
+        compare(browser.preference("telemetry-hidden", ""), "spaces");
+        text.changed("small");
+        compare(browser.preference("telemetry-text", ""), "small");
+        window.settingsOpen = false;
+
+        tryVerify(function () {
+            return findChild(scene, "telemetry") !== null;
+        });
+        const telemetry = findChild(scene, "telemetry");
+        compare(telemetry.hidden, ["spaces"]);
+        compare(telemetry.textSize, "small");
+        leaveSpace(homeSpaceId, restingSpaceId, "Telemetry settings");
     }
 
     function test_theSkysPlanetStaysBelowTheOmnibar_data() {

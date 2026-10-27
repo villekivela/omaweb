@@ -227,6 +227,16 @@ void ContentBlocker::flushRefusals()
     m_refusalFlush.stop();
     const auto pending = std::exchange(m_pendingRefusals, {});
     auto moved = false;
+    QHash<QString, QStringList> refused;
+    for (auto it = pending.cbegin(); it != pending.cend(); ++it) {
+        auto &addresses = refused[it.key().spaceId];
+        for (const auto &request : it->requests) {
+            addresses.append(request.address);
+        }
+    }
+    for (auto it = refused.cbegin(); it != refused.cend(); ++it) {
+        emit requestsRefused(it.key(), it.value());
+    }
     for (auto it = pending.cbegin(); it != pending.cend(); ++it) {
         const auto tally = m_refusalTallies.find(it.key());
         if (tally == m_refusalTallies.end()) {

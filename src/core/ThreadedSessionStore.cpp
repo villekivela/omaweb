@@ -260,6 +260,11 @@ QVariantList ThreadedSessionStore::history(
     return ask([this, &spaceId, &query, limit] { return m_store->history(spaceId, query, limit); });
 }
 
+QList<qint64> ThreadedSessionStore::visitTimesSince(const QString &spaceId, qint64 since) const
+{
+    return ask([this, &spaceId, since] { return m_store->visitTimesSince(spaceId, since); });
+}
+
 bool ThreadedSessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
 {
     return ask([this, &spaceId, id] { return m_store->deleteHistoryVisit(spaceId, id); });

@@ -158,6 +158,9 @@ signals:
     void rulesPendingChanged();
     void rulesChanged();
     void refusalTallyGenerationChanged();
+    // Requests refused for pages in one Space, by address, in the batch the
+    // tallies move in, whether or not a view is showing the page.
+    void requestsRefused(const QString &spaceId, const QStringList &addresses);
     // The addresses refused for the page a view is showing, in the batch its
     // tally moves in, for the view to take the elements that asked for them
     // out of the layout: a refused image is otherwise drawn as a broken

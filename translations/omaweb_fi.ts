@@ -2357,6 +2357,11 @@
         <translation>Hyperavaruus</translation>
     </message>
     <message>
+        <source>Telemetry</source>
+        <comment>Start page Scene</comment>
+        <translation>Telemetria</translation>
+    </message>
+    <message>
         <source>None</source>
         <comment>Start page Scene: the sidebar&apos;s fill</comment>
         <translation>Ei mitään</translation>
@@ -3652,6 +3657,100 @@ Päivitykset osoitteesta %3</translation>
         <translation>Näytä aloitussivun maisema vanhan kuvaruudun lasin läpi: viivoja, pehmeä hehku ja heikko välke. Kun pois päältä, maisema on pelkkiä pikseleitä.</translation>
     </message>
     <message>
+        <source>Telemetry text</source>
+        <translation>Telemetrian teksti</translation>
+    </message>
+    <message>
+        <source>How large the Telemetry Scene&apos;s readings are drawn.</source>
+        <translation>Kuinka suurina Telemetria-maiseman lukemat piirretään.</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <comment>Telemetry text size</comment>
+        <translation>Suuri</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>Telemetry text size</comment>
+        <translation>Pieni</translation>
+    </message>
+    <message>
+        <source>CPU</source>
+        <comment>Telemetry module</comment>
+        <translation>Suoritin</translation>
+    </message>
+    <message>
+        <source>The load on each core, and on the whole processor over five minutes.</source>
+        <translation>Kunkin ytimen kuormitus ja koko suorittimen kuormitus viiden minuutin ajalta.</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>Telemetry module</comment>
+        <translation>Verkko</translation>
+    </message>
+    <message>
+        <source>What the machine receives and sends over five minutes.</source>
+        <translation>Mitä kone vastaanottaa ja lähettää viiden minuutin aikana.</translation>
+    </message>
+    <message>
+        <source>Memory and swap</source>
+        <comment>Telemetry module</comment>
+        <translation>Muisti ja sivutustila</translation>
+    </message>
+    <message>
+        <source>The machine&apos;s memory, its swap, and what Omaweb&apos;s own window holds.</source>
+        <translation>Koneen muisti, sen sivutustila ja Omawebin oman ikkunan viemä muisti.</translation>
+    </message>
+    <message>
+        <source>Requests blocked</source>
+        <comment>Telemetry module</comment>
+        <translation>Estetyt pyynnöt</translation>
+    </message>
+    <message>
+        <source>What Content blocking refused, a minute&apos;s worth and in all, and the host refused most.</source>
+        <translation>Mitä sisällön esto on evännyt viimeisen minuutin aikana ja kaikkiaan, sekä useimmin evätty palvelin.</translation>
+    </message>
+    <message>
+        <source>Downloads</source>
+        <comment>Telemetry module</comment>
+        <translation>Lataukset</translation>
+    </message>
+    <message>
+        <source>Shown only while a download runs.</source>
+        <translation>Näytetään vain latauksen ollessa käynnissä.</translation>
+    </message>
+    <message>
+        <source>Battery</source>
+        <comment>Telemetry module</comment>
+        <translation>Akku</translation>
+    </message>
+    <message>
+        <source>Its charge and draw, shown only where there is a battery.</source>
+        <translation>Varaus ja virrankulutus, näytetään vain, jos koneessa on akku.</translation>
+    </message>
+    <message>
+        <source>Pages today</source>
+        <comment>Telemetry module</comment>
+        <translation>Sivut tänään</translation>
+    </message>
+    <message>
+        <source>The pages loaded in each hour of today, from History.</source>
+        <translation>Tänään kunakin tuntina ladatut sivut Historiasta.</translation>
+    </message>
+    <message>
+        <source>Memory per Space</source>
+        <comment>Telemetry module</comment>
+        <translation>Muisti tiloittain</translation>
+    </message>
+    <message>
+        <source>What the open pages of each Space hold.</source>
+        <translation>Kunkin Tilan avoimien sivujen viemä muisti.</translation>
+    </message>
+    <message>
+        <source>Telemetry: %1</source>
+        <translation>Telemetria: %1</translation>
+    </message>
+    <message>
         <source>Sidebar opacity</source>
         <translation>Sivupalkin peittävyys</translation>
     </message>
@@ -4821,6 +4920,181 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Continue once</source>
         <translation>Jatka kerran</translation>
+    </message>
+</context>
+<context>
+    <name>Telemetry</name>
+    <message>
+        <source>MB/s</source>
+        <comment>megabytes a second</comment>
+        <translation>Mt/s</translation>
+    </message>
+    <message>
+        <source>kB/s</source>
+        <comment>kilobytes a second</comment>
+        <translation>kt/s</translation>
+    </message>
+    <message>
+        <source>%1 GiB</source>
+        <translation>%1 Gt</translation>
+    </message>
+    <message>
+        <source>%1 MiB</source>
+        <translation>%1 Mt</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <comment>a percentage</comment>
+        <translation>%1 %</translation>
+    </message>
+    <message>
+        <source>CPU</source>
+        <comment>telemetry: the processor</comment>
+        <translation>CPU</translation>
+    </message>
+    <message>
+        <source>MEM</source>
+        <comment>telemetry gauge: memory in use</comment>
+        <translation>MUISTI</translation>
+    </message>
+    <message>
+        <source>▼ DOWN</source>
+        <comment>telemetry: received</comment>
+        <translation>▼ ALAS</translation>
+    </message>
+    <message>
+        <source>▲ UP</source>
+        <comment>telemetry: sent</comment>
+        <translation>▲ YLÖS</translation>
+    </message>
+    <message>
+        <source>▼ DOWN · %1</source>
+        <comment>telemetry: received, in a unit</comment>
+        <translation>▼ ALAS · %1</translation>
+    </message>
+    <message>
+        <source>▲ UP · %1</source>
+        <comment>telemetry: sent, in a unit</comment>
+        <translation>▲ YLÖS · %1</translation>
+    </message>
+    <message>
+        <source>MEMORY USED</source>
+        <translation>MUISTIA KÄYTÖSSÄ</translation>
+    </message>
+    <message>
+        <source>BLOCKED · %1/MIN</source>
+        <comment>telemetry: requests refused a minute</comment>
+        <translation>ESTETTY · %1/MIN</translation>
+    </message>
+    <message>
+        <source>BATTERY</source>
+        <translation>AKKU</translation>
+    </message>
+    <message>
+        <source>SWAP</source>
+        <translation>SIVUTUS</translation>
+    </message>
+    <message>
+        <source>OMAWEB UI</source>
+        <comment>telemetry: the browser&apos;s own process</comment>
+        <translation>OMAWEB-KÄYTTÖLIITTYMÄ</translation>
+    </message>
+    <message>
+        <source>-5m</source>
+        <comment>five minutes ago</comment>
+        <translation>-5 min</translation>
+    </message>
+    <message>
+        <source>-4m</source>
+        <comment>four minutes ago</comment>
+        <translation>-4 min</translation>
+    </message>
+    <message>
+        <source>-3m</source>
+        <comment>three minutes ago</comment>
+        <translation>-3 min</translation>
+    </message>
+    <message>
+        <source>-2m</source>
+        <comment>two minutes ago</comment>
+        <translation>-2 min</translation>
+    </message>
+    <message>
+        <source>-1m</source>
+        <comment>a minute ago</comment>
+        <translation>-1 min</translation>
+    </message>
+    <message>
+        <source>■ USED %1</source>
+        <translation>■ KÄYTÖSSÄ %1</translation>
+    </message>
+    <message>
+        <source>□ FREE %1</source>
+        <translation>□ VAPAA %1</translation>
+    </message>
+    <message>
+        <source>now</source>
+        <comment>telemetry chart: the latest sample</comment>
+        <translation>nyt</translation>
+    </message>
+    <message>
+        <source>OMAWEB TELEMETRY  %1</source>
+        <translation>OMAWEB-TELEMETRIA  %1</translation>
+    </message>
+    <message>
+        <source>▼ %1</source>
+        <comment>telemetry: a download, by its file&apos;s name</comment>
+        <translation>▼ %1</translation>
+    </message>
+    <message>
+        <source>CPU · 1 CORE · TOTAL</source>
+        <comment>telemetry chart</comment>
+        <translation>CPU · 1 YDIN · YHTEENSÄ</translation>
+    </message>
+    <message>
+        <source>CPU · %1 CORES · TOTAL</source>
+        <comment>telemetry chart</comment>
+        <translation>CPU · %1 YDINTÄ · YHTEENSÄ</translation>
+    </message>
+    <message>
+        <source>NETWORK · %1 · ▼ BARS  ▲ LINE</source>
+        <comment>telemetry chart, in a unit</comment>
+        <translation>VERKKO · %1 · ▼ PYLVÄÄT  ▲ VIIVA</translation>
+    </message>
+    <message>
+        <source>PAGES TODAY · %1</source>
+        <translation>SIVUT TÄNÄÄN · %1</translation>
+    </message>
+    <message>
+        <source>MEMORY · %1</source>
+        <translation>MUISTI · %1</translation>
+    </message>
+    <message>
+        <source>RAM</source>
+        <translation>RAM</translation>
+    </message>
+    <message>
+        <source>■ CACHE %1</source>
+        <translation>■ VÄLIMUISTI %1</translation>
+    </message>
+    <message>
+        <source>POWER · %1 · W BARS  % LINE</source>
+        <comment>telemetry chart: the battery&apos;s charge</comment>
+        <translation>VIRTA · %1 · W PYLVÄÄT  % VIIVA</translation>
+    </message>
+    <message>
+        <source>%1 W</source>
+        <comment>watts</comment>
+        <translation>%1 W</translation>
+    </message>
+    <message>
+        <source>MEMORY PER SPACE</source>
+        <translation>MUISTI TILOITTAIN</translation>
+    </message>
+    <message>
+        <source>%1G</source>
+        <comment>gibibytes</comment>
+        <translation>%1 Gt</translation>
     </message>
 </context>
 <context>

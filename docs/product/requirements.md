@@ -234,14 +234,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   Omnibar rests on the Start page with an empty field. They go once the reader types, and an Omnibar
   summoned over a page has none. `?` typed into the empty field opens the Shortcut sheet.
 - Settings' interface section chooses the Scene, locally: Night road, Night sky, Game of Life,
-  Vector terrain, Radar, Hyperspace, or None, which leaves the Omnibar over the sidebar's fill. It
-  is a grid of small thumbnails, four to a row, in that order, each a still of its Scene drawn by
-  the Scene itself, without the CRT glass, and None as the plain sidebar fill, each named under it
-  and the chosen one marked in the accent. A click chooses, and the keyboard walks between them in
-  reading order. The choice takes effect at once and survives a restart. A reader who had turned the
-  road off before there was a choice arrives on None, and anyone else on Night road. A Private
-  window shows the ordinary window's choice. "CRT glass over the Scene", below it, applies to every
-  Scene and is offered unless None is chosen.
+  Vector terrain, Radar, Hyperspace, Telemetry, or None, which leaves the Omnibar over the sidebar's
+  fill. It is a grid of small thumbnails, four to a row, in that order, each a still of its Scene
+  drawn by the Scene itself, without the CRT glass, and None as the plain sidebar fill, each named
+  under it and the chosen one marked in the accent. A click chooses, and the keyboard walks between
+  them in reading order. The choice takes effect at once and survives a restart. A reader who had
+  turned the road off before there was a choice arrives on None, and anyone else on Night road. A
+  Private window shows the ordinary window's choice. "CRT glass over the Scene", below it, applies
+  to every Scene and is offered unless None is chosen.
 - A Scene fills the page area, or the one pane of a split it stands in, and is never drawn under the
   sidebar, which stands on its own fill as it does with None. It is drawn at the page area's size,
   centred on it; the road has the composition the website draws in a viewport of that size. With the
@@ -249,14 +249,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   show and the window is on screen and holds the keyboard.
 - The CRT glass shows a Scene as an old screen. The road, the night sky and Game of Life are raster
   Scenes, drawn by the beam with one line to each of the Scene's rows, every line as wide as the
-  beam half way between its narrowest and widest, as the website's glass draws it. A phosphor mask
-  of red, green and blue stripes, each one device pixel wide, lies over the picture, and a band
-  rolls down it. The vector terrain, the radar and hyperspace are vector Scenes: a vector screen
-  traced its lines with the beam and had no raster, so they have no scanlines, mask or band. While a
-  vector Scene moves its lines leave a fading trail, and under reduced motion they leave none. Every
-  Scene has a halation, a wide, faint glow around its bright parts: light scattered in the
-  faceplate, the same width on every Scene. Every Scene also has a bloom, darker corners and a faint
-  flicker. With the glass off, a Scene is its plain pixels.
+  beam half way between its narrowest and widest, as the website's glass draws it. Telemetry is a
+  raster Scene too, taken at the display's own pixels, so its lines stand 6 device pixels apart
+  rather than one to each row. A phosphor mask of red, green and blue stripes, each one device pixel
+  wide, lies over the picture, and a band rolls down it. The vector terrain, the radar and
+  hyperspace are vector Scenes: a vector screen traced its lines with the beam and had no raster, so
+  they have no scanlines, mask or band. While a vector Scene moves its lines leave a fading trail,
+  and under reduced motion they leave none. Every Scene has a halation, a wide, faint glow around
+  its bright parts: light scattered in the faceplate, the same width on every Scene. Every Scene
+  also has a bloom, darker corners and a faint flicker. With the glass off, a Scene is its plain
+  pixels.
 - Every Scene is graded toward a second theme hue, as a sunset: its bright parts take the hue at
   their own brightness, more of them lower in the frame, so a Scene drawn in the accent has a second
   colour in it. The hue is the theme's syntax keyword colour, and follows a live theme change. Where
@@ -347,6 +349,34 @@ reports the gap and remains experimental rather than imitating behavior it canno
   effect, not to a film: there is no logo, opening crawl, ship or film's name. Reduced motion holds
   the stars and the nebula still, with no streaks. A Private window's hyperspace is the nebula
   alone, very dim and in the theme's light, with no stars and no jump, even on commit.
+- Telemetry is a retro-futuristic CRT dashboard of live readings around the resting Omnibar, edge to
+  edge, in the theme's colours and under the same CRT glass. Over the Omnibar stand a chart of the
+  CPU over five minutes with a square per core lit by its load, a chart of the network's traffic
+  down as bars and up as a line, and between them a two-by-two cluster of gauges for the CPU,
+  memory, down and up, each a 40-segment scale with a marker at the value and, for the CPU, one at
+  the five minutes' peak. Under the Omnibar is a row of large figures: CPU, down, up, memory in use,
+  requests blocked (a minute's and in all, with the host refused most), battery, swap and Omaweb's
+  own memory. Under those are sections for memory and swap as donuts, power as a chart of watts with
+  the charge as a line, the pages loaded in each hour of today, and Omaweb's memory per Space as
+  bars on one scale. Every reading is real and local, the machine's from `/proc` and `/sys` as
+  Omarchy's bar reads them, with no network request. CPU and network are read four times a second
+  and the rest once, and the last five minutes are kept in memory, never on disk, while Telemetry is
+  chosen, so a new tab's graphs are full. A rate's unit, kB/s or MB/s and never B/s, is chosen once
+  per series from its peak. Gauges, donuts and squares glide to each reading. The text is the
+  desktop's monospace at medium weight, Large (22 and 32 px) by default or Small (18 and 26 px), and
+  the picture is taken at the display's own pixels with the scanlines 6 device pixels apart. The
+  modules can't be clicked: the Omnibar stays the one thing on the page that takes focus. Downloads
+  show only while one runs, and power only where there is a battery.
+- Under the Scene choice, while Telemetry is chosen, Settings offers its text size and a switch for
+  each module: CPU, network, memory and swap, requests blocked, downloads, battery, pages today and
+  memory per Space. A module turned off is gone wherever it would stand.
+- A small page area, a narrow window or one pane of a split, keeps the Omnibar and drops whole
+  Telemetry blocks rather than squeezing them. Over the Omnibar the gauges go first, then the
+  network chart, then the CPU chart. The figures keep as many as fit, the earlier modules first. The
+  sections go last first: memory per Space, pages, power, then memory.
+- A Private window's Telemetry is unlit and shows its own downloads and refused requests and the
+  machine's readings, and nothing from History or other Spaces: no pages today and no memory per
+  Space.
 - On commit the lane marks speed up and the road keeps driving until the page first paints, then the
   page takes over. After two seconds the road hands over to the page loading indicator. A load
   error, an HTTPS-only page or a certificate error ends it at once.

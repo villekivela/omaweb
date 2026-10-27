@@ -628,6 +628,7 @@ qt_add_resources(omaweb-ui "omaweb_scenes"
         "share/scenes/vector-terrain.json"
         "share/scenes/radar.json"
         "share/scenes/hyperspace.json"
+        "share/scenes/telemetry.json"
 )
 qt_add_shaders(omaweb-ui "omaweb_shaders"
     PREFIX "/omaweb/shaders"
@@ -813,6 +814,8 @@ add_library(omaweb-platform STATIC
     src/platform/SystemMotion.h
     src/platform/SystemNotifier.cpp
     src/platform/SystemNotifier.h
+    src/platform/TelemetrySampler.cpp
+    src/platform/TelemetrySampler.h
     src/platform/TouchpadHold.h
     src/platform/WindowActivation.cpp
     src/platform/WindowActivation.h
@@ -976,6 +979,7 @@ set(omaweb_ui_files
     src/ui/VectorTerrain.qml
     src/ui/Radar.qml
     src/ui/Hyperspace.qml
+    src/ui/Telemetry.qml
     src/ui/RimLight.qml
     src/ui/GroundDither.qml
     src/ui/SceneHost.qml
@@ -1968,6 +1972,16 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-system-motion-tests)
     add_test(NAME omaweb-system-motion COMMAND omaweb-system-motion-tests)
 
+    qt_add_executable(omaweb-telemetry-sampler-tests
+        tests/platform/tst_telemetrysampler.cpp
+    )
+    target_link_libraries(omaweb-telemetry-sampler-tests PRIVATE
+        omaweb-platform
+        Qt6::Test
+    )
+    omaweb_strict_target(omaweb-telemetry-sampler-tests)
+    add_test(NAME omaweb-telemetry-sampler COMMAND omaweb-telemetry-sampler-tests)
+
     qt_add_executable(omaweb-window-exposure-tests
         tests/platform/tst_windowexposure.cpp
     )
@@ -2379,6 +2393,17 @@ if(BUILD_TESTING)
                     "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=${scale};DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
             )
         endforeach()
+        # At one, a device pixel is a logical one, so whether the Telemetry
+        # Scene is taken at the display's own pixels shows only at another
+        # scale: 1.5, where the road's scanlines also stand 6 device pixels
+        # apart.
+        add_test(NAME omaweb-ui-telemetry-at-1.5
+            COMMAND omaweb-ui-tests -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui/tst_telemetry.qml"
+                Telemetry::test_theHostDrawsTelemetryAtDevicePixels)
+        set_tests_properties(omaweb-ui-telemetry-at-1.5 PROPERTIES
+            ENVIRONMENT
+                "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1.5;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
+        )
 
         # CI runs the suite a job per processor, and the tests that measure
         # time have to have the machine to themselves while they do.

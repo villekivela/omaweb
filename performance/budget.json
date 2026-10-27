@@ -66,6 +66,11 @@
       "ceiling": 2.0,
       "recorded": 0.3,
       "note": "The process tree's CPU over 30 s left alone with 50 tabs open, as a share of one core, the CPU of reaped children counted through their parents. In the same run the tree used 0.09 CPU s, no process more than 0.02 s, and no process ended. The ceiling is 2%, about seven times the measurement, because a share this small moves with whatever else the runner is doing."
+    },
+    "telemetry_background_cpu_percent": {
+      "ceiling": 2.0,
+      "recorded": 0.37,
+      "note": "What choosing the Telemetry Scene adds to the process tree's CPU while the reader is on a page, so no Start page draws: its sampler, which reads /proc and /sys four times a second so a new tab's graphs are full (#814). The tree's CPU over 30 s on a page with Telemetry chosen, less the same with no Scene, as a share of one core. Not yet taken on CI's runner: three runs on 2026-10-27 under a headless cage on an Omarchy laptop (Dell XPS, the dev build) read 1.00, 0.37 and 0.10%, against an idle tree of 1.33 to 2.00% without Telemetry, so the spread is the idle browser's, not the sampler's. Timed alone, a sample costs about 0.1 ms, 0.04% of a core at four a second. The ceiling is 2%, as the idle tree's is, because a difference this small moves with whatever else the machine is doing."
     }
   }
 }
