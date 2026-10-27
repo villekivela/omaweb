@@ -297,37 +297,37 @@ Item {
     }
 
     Binding {
-        target: host.sceneItem
+        target: root.telemetryShown ? host.sceneItem : null
         property: "textSize"
         value: root.telemetryTextSize
         when: root.telemetryShown
     }
     Binding {
-        target: host.sceneItem
+        target: root.telemetryShown ? host.sceneItem : null
         property: "blocker"
         value: root.blocker
         when: root.telemetryShown
     }
     Binding {
-        target: host.sceneItem
+        target: root.telemetryShown ? host.sceneItem : null
         property: "browser"
         value: root.browser
         when: root.telemetryShown
     }
     Binding {
-        target: host.sceneItem
+        target: root.telemetryShown ? host.sceneItem : null
         property: "tabs"
         value: root.tabs
         when: root.telemetryShown
     }
     Binding {
-        target: host.sceneItem
+        target: root.telemetryShown ? host.sceneItem : null
         property: "downloads"
         value: root.downloads
         when: root.telemetryShown
     }
     Binding {
-        target: host.sceneItem
+        target: root.telemetryShown ? host.sceneItem : null
         property: "fakeDownload"
         value: root.telemetryFakeDownload
         when: root.telemetryShown

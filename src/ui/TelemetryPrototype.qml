@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import Omaweb
 
 // PROTOTYPE (#814), throwaway: the Telemetry Scene, a retro CRT dashboard
@@ -182,16 +183,25 @@ Item {
     function lastOf(series) {
         return series.length ? series[series.length - 1] : 0;
     }
+    // The largest of `series`, at least 1. A loop, not Math.max(...series):
+    // a spread takes stack for every element.
     function peakOf(series) {
-        return Math.max(1, ...series);
+        let peak = 1;
+        for (let i = 0; i < series.length; ++i)
+            if (series[i] > peak)
+                peak = series[i];
+        return peak;
     }
 
-    // ---- the probe: one sample a second, five minutes kept, nothing on disk
+    // ---- the probe: CPU and network four times a second, the rest once a
+    // second, five minutes kept, nothing on disk
 
     QtObject {
         id: probe
 
         readonly property int keep: 300
+        // Four samples a second for five minutes.
+        readonly property int fastKeep: 1200
         property var cores: []
         property var cpuTotal: []
         property var last: null
@@ -224,15 +234,18 @@ Item {
             }
         ]
 
-        function push(series, value) {
-            const next = series.slice(Math.max(0, series.length - probe.keep + 1));
+        function push(series, value, keep) {
+            const next = series.slice(Math.max(0, series.length - (keep || probe.keep) + 1));
             next.push(value);
             return next;
         }
 
-        function sample() {
+        function fastSample() {
             probe.readCpu();
             probe.readNet();
+        }
+
+        function sample() {
             probe.readMem();
             probe.readBattery();
             probe.readBlocked();
@@ -258,7 +271,7 @@ Item {
                     const dt = now[i].total - probe.last[i].total;
                     const busy = dt > 0 ? 1 - (now[i].idle - probe.last[i].idle) / dt : 0;
                     if (now[i].core < 0)
-                        probe.cpuTotal = probe.push(probe.cpuTotal, busy);
+                        probe.cpuTotal = probe.push(probe.cpuTotal, busy, probe.fastKeep);
                     else
                         cores[now[i].core] = busy;
                 }
@@ -280,8 +293,10 @@ Item {
             const now = Date.now();
             if (probe.lastNet) {
                 const s = Math.max(0.2, (now - probe.lastNet.at) / 1000);
-                probe.down = probe.push(probe.down, Math.max(0, (rx - probe.lastNet.rx) / s));
-                probe.up = probe.push(probe.up, Math.max(0, (tx - probe.lastNet.tx) / s));
+                probe.down = probe.push(probe.down, Math.max(0, (rx - probe.lastNet.rx) / s),
+                                        probe.fastKeep);
+                probe.up = probe.push(probe.up, Math.max(0, (tx - probe.lastNet.tx) / s),
+                                      probe.fastKeep);
             }
             probe.lastNet = {
                 at: now,
@@ -353,6 +368,13 @@ Item {
         }
     }
 
+    Timer {
+        interval: 250
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: probe.fastSample()
+    }
     Timer {
         interval: 1000
         repeat: true
@@ -435,8 +457,8 @@ Item {
         onPaint: {
             const c = getContext("2d");
             c.reset();
-            const peak = trace.max > 0 ? trace.max : Math.max(1, ...trace.values, ...(trace.second
-                                                                                      || []));
+            const peak = trace.max > 0 ? trace.max : Math.max(root.peakOf(trace.values), root.peakOf(
+                                                                  trace.second || []));
             const step = trace.width / (trace.span - 1);
             const line = (values, colour, fill) => {
                 if (values.length < 2)
@@ -469,7 +491,9 @@ Item {
     }
 
     // A round gauge: a 270 degree scale, the needle at `value` (0..1), its
-    // reading in the face and its label under it.
+    // reading in the face and its label under it. The scale is painted once;
+    // the arc and the needle are scene-graph items that glide to each new
+    // reading, so the gauge moves at the display's rate, not the sample's.
     component Gauge: Item {
         id: gauge
         property real value: 0
@@ -477,34 +501,36 @@ Item {
         property string label
         property bool fake: false
         property real size: 140
+        property real eased: Math.max(0, Math.min(1, gauge.value))
+        readonly property real r: gauge.size / 2 - 3
+        readonly property real thick: Math.max(4, gauge.r * 0.1)
         width: gauge.size
         height: gauge.size + labelText.height + 4
+
+        Behavior on eased {
+            NumberAnimation {
+                duration: 450
+                easing.type: Easing.OutCubic
+            }
+        }
 
         Canvas {
             id: face
             width: gauge.size
             height: gauge.size
-            property real value: Math.max(0, Math.min(1, gauge.value))
             property color tone: root.glow
-            onValueChanged: requestPaint()
             onWidthChanged: requestPaint()
             onToneChanged: requestPaint()
             onPaint: {
                 const g = getContext("2d");
                 g.reset();
-                const cx = width / 2, cy = height / 2, r = width / 2 - 3;
+                const cx = width / 2, cy = height / 2, r = gauge.r;
                 const from = Math.PI * 0.75, sweep = Math.PI * 1.5;
-                // Track and fill.
-                g.lineWidth = Math.max(4, r * 0.1);
+                g.lineWidth = gauge.thick;
                 g.strokeStyle = root.faint;
                 g.beginPath();
                 g.arc(cx, cy, r - g.lineWidth / 2, from, from + sweep);
                 g.stroke();
-                g.strokeStyle = face.value > 0.85 ? root.hot : root.glow;
-                g.beginPath();
-                g.arc(cx, cy, r - g.lineWidth / 2, from, from + sweep * face.value);
-                g.stroke();
-                // Ticks.
                 g.lineWidth = 2;
                 g.strokeStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.6);
                 for (let t = 0; t <= 10; ++t) {
@@ -515,19 +541,47 @@ Item {
                     g.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
                     g.stroke();
                 }
-                // Needle.
-                const a = from + sweep * face.value;
-                g.strokeStyle = root.hot;
-                g.lineWidth = 3;
-                g.beginPath();
-                g.moveTo(cx - Math.cos(a) * r * 0.1, cy - Math.sin(a) * r * 0.1);
-                g.lineTo(cx + Math.cos(a) * r * 0.7, cy + Math.sin(a) * r * 0.7);
-                g.stroke();
-                g.fillStyle = root.hot;
-                g.beginPath();
-                g.arc(cx, cy, 5, 0, Math.PI * 2);
-                g.fill();
             }
+        }
+        Shape {
+            anchors.fill: face
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeColor: gauge.eased > 0.85 ? root.hot : root.glow
+                strokeWidth: gauge.thick
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                    centerX: gauge.size / 2
+                    centerY: gauge.size / 2
+                    radiusX: gauge.r - gauge.thick / 2
+                    radiusY: gauge.r - gauge.thick / 2
+                    startAngle: 135
+                    sweepAngle: 270 * gauge.eased
+                }
+            }
+        }
+        // The needle, pointing up from the centre, turned to the reading.
+        Item {
+            x: gauge.size / 2
+            y: gauge.size / 2
+            rotation: 135 + 270 * gauge.eased + 90
+            Rectangle {
+                x: -1.5
+                y: -gauge.r * 0.7
+                width: 3
+                height: gauge.r * 0.8
+                antialiasing: true
+                color: root.hot
+            }
+        }
+        Rectangle {
+            x: gauge.size / 2 - 5
+            y: gauge.size / 2 - 5
+            width: 10
+            height: 10
+            radius: 5
+            color: root.hot
         }
         Reading {
             anchors.horizontalCenter: face.horizontalCenter
@@ -544,39 +598,92 @@ Item {
         }
     }
 
-    // A donut: `parts` [{value, colour}] round the ring, its reading in the
-    // middle, its label under it.
+    // A donut: up to three `parts` [{value, colour}] round the ring, its
+    // reading in the middle, its label under it. Each part's share glides to
+    // its new size.
     component Donut: Item {
         id: donut
         property var parts: []
         property string reading
         property string label
         property real size: 140
+        readonly property real total: donut.parts.reduce((s, p) => s + p.value, 0) || 1
+        property real share0: donut.parts.length > 0 ? donut.parts[0].value / donut.total : 0
+        property real share1: donut.parts.length > 1 ? donut.parts[1].value / donut.total : 0
+        property real share2: donut.parts.length > 2 ? donut.parts[2].value / donut.total : 0
+        readonly property real r: donut.size / 2 - 3
+        readonly property real thick: donut.r * 0.28
         width: donut.size
         height: donut.size + labelText.height + 4
 
-        Canvas {
+        Behavior on share0 {
+            NumberAnimation {
+                duration: 450
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on share1 {
+            NumberAnimation {
+                duration: 450
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on share2 {
+            NumberAnimation {
+                duration: 450
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        function colourOf(index) {
+            return donut.parts.length > index ? donut.parts[index].colour : "transparent";
+        }
+
+        Shape {
             id: ring
             width: donut.size
             height: donut.size
-            property var parts: donut.parts
-            onPartsChanged: requestPaint()
-            onWidthChanged: requestPaint()
-            onPaint: {
-                const g = getContext("2d");
-                g.reset();
-                const total = ring.parts.reduce((s, p) => s + p.value, 0);
-                const cx = width / 2, cy = height / 2, r = width / 2 - 3;
-                const thick = r * 0.28;
-                g.lineWidth = thick;
-                let a = -Math.PI / 2;
-                for (const part of ring.parts) {
-                    const sweep = total > 0 ? Math.PI * 2 * part.value / total : 0;
-                    g.strokeStyle = part.colour;
-                    g.beginPath();
-                    g.arc(cx, cy, r - thick / 2, a, a + Math.max(0, sweep - 0.03));
-                    g.stroke();
-                    a += sweep;
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeColor: donut.colourOf(0)
+                strokeWidth: donut.thick
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                    centerX: donut.size / 2
+                    centerY: donut.size / 2
+                    radiusX: donut.r - donut.thick / 2
+                    radiusY: donut.r - donut.thick / 2
+                    startAngle: -90
+                    sweepAngle: Math.max(0, 360 * donut.share0 - 2)
+                }
+            }
+            ShapePath {
+                strokeColor: donut.colourOf(1)
+                strokeWidth: donut.thick
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                    centerX: donut.size / 2
+                    centerY: donut.size / 2
+                    radiusX: donut.r - donut.thick / 2
+                    radiusY: donut.r - donut.thick / 2
+                    startAngle: -90 + 360 * donut.share0
+                    sweepAngle: Math.max(0, 360 * donut.share1 - 2)
+                }
+            }
+            ShapePath {
+                strokeColor: donut.colourOf(2)
+                strokeWidth: donut.thick
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                    centerX: donut.size / 2
+                    centerY: donut.size / 2
+                    radiusX: donut.r - donut.thick / 2
+                    radiusY: donut.r - donut.thick / 2
+                    startAngle: -90 + 360 * (donut.share0 + donut.share1)
+                    sweepAngle: Math.max(0, 360 * donut.share2 - 2)
                 }
             }
         }
@@ -754,6 +861,11 @@ Item {
                                                                      * modelData)
                         border.color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.7)
                         border.width: 1
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 300
+                            }
+                        }
                         CrtText {
                             visible: squares.side >= root.captionSize * 2.2
                             anchors.centerIn: parent
@@ -805,6 +917,7 @@ Item {
                 height: parent.height
                 values: probe.down
                 second: probe.up
+                span: probe.fastKeep
             }
         }
 
@@ -987,35 +1100,49 @@ Item {
         }
     }
 
-    // ---- faint noise over everything, moved every frame
+    // ---- faint noise over everything, moved every frame: one tile of
+    // random grey, written in one putImageData, shown as copies of its
+    // texture across the Scene.
 
     Canvas {
         id: noiseTile
-        width: 128
-        height: 128
-        opacity: 0
+        width: 256
+        height: 256
         renderTarget: Canvas.Image
-        property string url: ""
         onPaint: {
             const c = getContext("2d");
-            for (let y = 0; y < 128; ++y)
-                for (let x = 0; x < 128; ++x) {
-                    const v = Math.random();
-                    c.fillStyle = Qt.rgba(v, v, v, 1);
-                    c.fillRect(x, y, 1, 1);
-                }
+            const image = c.createImageData(256, 256);
+            const data = image.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const v = Math.floor(Math.random() * 256);
+                data[i] = v;
+                data[i + 1] = v;
+                data[i + 2] = v;
+                data[i + 3] = 255;
+            }
+            c.putImageData(image, 0, 0);
         }
-        onPainted: noiseTile.url = noiseTile.toDataURL()
-        Component.onCompleted: requestPaint()
     }
-    Image {
-        x: -Math.floor((root.time * 7919) % 128)
-        y: -Math.floor((root.time * 9973) % 128)
-        width: root.width + 128
-        height: root.height + 128
-        source: noiseTile.url
-        fillMode: Image.Tile
-        opacity: 0.06
+    ShaderEffectSource {
+        id: noiseTexture
+        sourceItem: noiseTile
+        hideSource: true
         smooth: false
+    }
+    Item {
+        x: -Math.floor((root.time * 7919) % 256)
+        y: -Math.floor((root.time * 9973) % 256)
+        opacity: 0.06
+        Grid {
+            columns: Math.ceil(root.width / 256) + 1
+            Repeater {
+                model: (Math.ceil(root.width / 256) + 1) * (Math.ceil(root.height / 256) + 1)
+                ShaderEffect {
+                    width: 256
+                    height: 256
+                    property var source: noiseTexture
+                }
+            }
+        }
     }
 }
