@@ -5356,7 +5356,7 @@ TestCase {
     // accent at 14% across the sidebar's whole width, with square corners, and
     // a 2 px accent bar on the sidebar's left edge. It takes neither the kit's
     // selected fill nor its border, and its content stays inside the list's
-    // margin, where the address field's icon is.
+    // margin, on the address box's edge.
     function test_theActiveTabIsMarkedAsTheOmnibarMarksItsSelectedRow() {
         const tabs = openTwoTabs("active-mark");
         const sidebar = findChild(window.contentItem, "sidebar");
@@ -5387,6 +5387,39 @@ TestCase {
 
         browser.closeTab(tabs.secondId);
         browser.closeTab(tabs.firstId);
+    }
+
+    // The sidebar has one left edge: an ordinary row's favicon, on show or
+    // not, starts where the address box and the pinned tiles do (#813). The
+    // lock and the text inside the box keep their places, and so does each
+    // title.
+    function test_tabFaviconsShareTheAddressBoxsLeftEdge() {
+        openPage("https://edge-pin.example/");
+        const pinId = browser.activeTabId;
+        browser.toggleActivePinned();
+        const tabs = openTwoTabs("one-edge");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const address = findChild(sidebar, "addressButton");
+        const pinned = findChild(sidebar, "pinned-" + pinId);
+        tryVerify(function () {
+            return pinned !== null && pinned.visible;
+        });
+
+        const edge = acrossSidebar(address).left;
+        compare(edge, 16);
+        compare(acrossSidebar(pinned).left, edge);
+        compare(acrossSidebar(findChild(tabs.first, "siteTile-" + tabs.firstId)).left, edge);
+        compare(acrossSidebar(findChild(tabs.second, "siteTile-" + tabs.secondId)).left, edge);
+
+        const lock = findChild(address, "securityIndicator");
+        compare(acrossSidebar(lock).left, 24);
+        compare(acrossSidebar(findChild(tabs.second, "tabTitle-" + tabs.secondId)).left, 49);
+
+        browser.closeTab(tabs.secondId);
+        browser.closeTab(tabs.firstId);
+        browser.activateTab(pinId);
+        browser.toggleActivePinned();
+        browser.closeTab(pinId);
     }
 
     // A row under the pointer takes the Omnibar's hover, the accent at 7%

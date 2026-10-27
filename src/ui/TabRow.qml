@@ -68,7 +68,7 @@ Item {
     // list sets: out to the sidebar's edges, as the Omnibar's rows reach its
     // panel's, and for a split's half, half way across the gap to the other
     // half. The row's content stays where it is, so the site chip stays lined
-    // up with the address field's icon. A pin is a tile with no title for a
+    // up with the address box's edge. A pin is a tile with no title for a
     // bar to lead, and its marks stay inside it.
     property real reachLeft: 0
     property real reachRight: 0
@@ -149,9 +149,14 @@ Item {
 
     // The slot an ordinary row gives its site chip, and where it starts. The
     // speaker takes the same box, so the two never sit in different places and
-    // the title beside them never moves.
+    // the title beside them never moves. The chip starts on the row's edge,
+    // the sidebar's one left edge (#813); a split's right half has no edge
+    // to share and keeps the chip off the half beside it.
     readonly property int chipSize: SiteChip.side(Style.font.caption)
-    readonly property int chipInset: Style.space(8)
+    readonly property int chipInset: trailingHalf ? Style.space(8) : 0
+    // Where the title starts: where it stood while the chip was inset, so a
+    // row's text keeps its line under the address text.
+    readonly property int titleInset: Style.space(8) + chipSize + Style.space(9)
     // Where the close button and the Agent mark end: 12 px, scaled with the
     // interface font, inside the edge the row's wash reaches, which for an
     // ordinary row is the sidebar's. Out in the margin, so the glyph does not
@@ -407,9 +412,10 @@ Item {
     // An Agent's line under it moves it up, and Stop takes room at its end.
     Text {
         id: title
+        objectName: "tabTitle-" + root.tabId
         visible: !root.pinned
-        anchors.left: tile.right
-        anchors.leftMargin: Style.space(9)
+        anchors.left: parent.left
+        anchors.leftMargin: root.titleInset
         anchors.right: parent.right
         anchors.rightMargin: root.endGap - root.reachRight + closeButton.width + Style.space(6) + (
                                  agentStop.visible ? agentStop.width + agentStop.gap : 0)
