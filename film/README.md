@@ -19,7 +19,8 @@ claims. In order:
    information button, Site information opens, and the pointer opens its blocked tile. The camera
    closes on the card, whose list of refused requests names the ad network and the tracker, and
    holds it long enough to read. Neither is ever reached.
-1. A theme change on one Start page, from Retro 82 to Tokyo Night, across the whole browser.
+1. A theme change on one Start page, across the whole browser: from Retro 82 to Tokyo Night in the
+   container, and on the desktop the desktop's own theme switched to Lumon and back.
 1. An Agent at work in a Space of its own. Each command it runs, `omaweb space new`, `open`, `look`
    and one batched `do`, takes the caption's place as it runs, its tab's row in the sidebar names
    its last act after each, and the invoice is sent. The camera then closes on the row, the pointer
@@ -54,11 +55,44 @@ the line that installs them. Then it:
    where there is no Omarchy shell), moves the pointer to a bottom corner of the monitor, and
    switches to a workspace of its own, `omaweb-film`.
 1. Starts the browser there with a home, profile, Agent socket and D-Bus of its own under a
-   temporary directory, floats its window and sizes it through `hyprctl` to 1600 by 900 logical
-   pixels in the middle of the monitor, the browser's size under cage. The monitor's mode is not
-   changed.
+   temporary directory, wearing the reader's theme (below), floats its window and sizes it through
+   `hyprctl` to 1600 by 900 logical pixels in the middle of the monitor, the browser's size under
+   cage. The monitor's mode is not changed.
 1. Records only the window, with `wf-recorder -g`, so the bar, other windows and other monitors stay
    out, and cuts the film as the container does, into `build/film/`.
+
+The desktop film wears the reader's theme: the one the desktop is wearing when the run starts. The
+film's browser finds Omarchy's `~/.local/state/omarchy/current` through its own home and follows it
+as the reader's Omaweb does. The Theme beat switches the desktop's theme, as a reader does, with
+`omarchy-theme-set lumon`, then switches it back to the theme the run started with, so the beat
+shows the real switch, wallpaper and blur included, and most of the film is in the reader's theme.
+Notifications are already held, so the switch raises none on camera. The beat checks the chrome
+against each theme's `colors.toml`.
+
+```sh
+scripts/record_film.py desktop --change-to gruvbox
+```
+
+switches to another installed Omarchy theme, looked for in `~/.config/omarchy/themes` and then
+`/usr/share/omarchy/themes`. A theme whose sidebar colour is too near the desktop's for the check to
+tell apart is refused before the run changes anything, and the refusal names one that is far enough.
+A desktop with no current Omarchy theme, or without `omarchy-theme-set`, stops the run there too.
+The theme the run started with is in the ledger before the first switch, and every way out puts it
+back: the run ending, a missed beat, Ctrl+C, and the next run's recovery after a killed one.
+
+The film's sidebar is as opaque as the reader's own. The run reads `sidebar-opacity` from the
+reader's Omaweb settings, `settings.json` under `$OMAWEB_CONFIG_ROOT`, `$XDG_CONFIG_HOME/omaweb` or
+`~/.config/omaweb`, and sets it in the film's profile. Where the reader set none, or the file is
+missing or unreadable, the film keeps the theme's opacity. How much of Hyprland's blur shows depends
+on the wallpaper behind the window: over a dark one, the sidebar can still read as solid.
+
+```sh
+scripts/record_film.py desktop --workspace 9
+```
+
+records in workspace 9 in place of `omaweb-film`, by number or by name. The workspace has to be
+empty: a run whose workspace holds a window stops before it changes anything, since the film must
+not cover or move the reader's windows. The run comes back to the workspace it started on.
 
 Before each key it sends, the run asks Hyprland which window has the keyboard. If it is not the
 film's, because the pointer was nudged onto another window or a window took focus, the run stops
@@ -67,9 +101,10 @@ reader's.
 
 Whether the run ends, fails, or is stopped with Ctrl+C or by its terminal closing, it stops the
 film's browser and the recorder, switches back to the workspace it started on, puts the pointer back
-and restores notifications as they were. The reader's own Omaweb and its profile are never started
-or read. A monitor at Hyprland's scale of 1.5 records the window at cage's 2400 by 1350; at another
-scale the edit scales the recording to that size.
+and restores notifications as they were. The reader's own Omaweb is never started, and of its
+profile only the sidebar opacity in `settings.json` is read, never written. A monitor at Hyprland's
+scale of 1.5 records the window at cage's 2400 by 1350; at another scale the edit scales the
+recording to that size.
 
 Hyprland 0.56 takes its dispatchers as Lua (`hl.dsp`), as Omarchy 4's scripts send them, and answers
 one it could not do with an error rather than `ok`. After Enter, and before it changes anything, the
@@ -80,9 +115,9 @@ the keyboard given to the window that has it. A Hyprland that refuses either sto
 scripts/record_film.py desktop --dry-run
 ```
 
-builds nothing and changes nothing. It reads the monitor, the workspace, the pointer and the
-notification state, then prints each command the run would issue, in order, and what it would have
-stopped on.
+builds nothing and changes nothing. It reads the monitor, the workspace, the pointer, the
+notification state, the desktop's theme and the reader's sidebar opacity, then prints each command
+the run would issue, in order, the theme switches among them, and what it would have stopped on.
 
 ### If a run is killed
 
@@ -90,16 +125,21 @@ A run killed outright (`kill -9`, or a crash) cannot put anything back. It keeps
 `build/film/desktop-run.json` from before it changes anything until it has put everything back, and
 the next `scripts/record_film.py desktop`, once Enter is pressed, stops the film's browser and the
 recorder that ledger names, if those process numbers are still theirs, and restores notifications as
-that run found them. To put things back by hand instead:
+that run found them. The ledger names the film's workspace and the desktop's theme too: the next run
+switches the theme back if it is not the one the killed run started with, and switches back to the
+workspace the killed run started on if the film's is still on show. To put things back by hand
+instead:
 
 ```sh
 pkill -INT -x wf-recorder                 # the recorder, which otherwise fills the disk
 pkill -f build/film-desktop/omaweb-browser # the film's browser, never the installed one
 omarchy-shell notifications setDnd off     # or makoctl mode -r do-not-disturb
+omarchy-theme-set "$(jq -r .theme build/film/desktop-run.json)" # if the ledger names a theme
 rm build/film/desktop-run.json
 ```
 
-Then switch back to the workspace you were on. The `omaweb-film` workspace goes once its window has.
+Then switch back to the workspace you were on. The `omaweb-film` workspace goes once its window has;
+a workspace given with `--workspace` is left empty.
 
 ## Recording it in a container
 
@@ -148,18 +188,23 @@ developer docs site; The Halyard, a magazine with ads; Tallyhaus, an invoicing d
 the search engine; and AdSprout and PixelMint, the magazine's ad network and tracker. Every name is
 under `.test`, which no real site can hold. The container's hosts file points them at loopback, and
 the script serves them itself. On the desktop, a Chromium host resolver rule sends them to the
-script's server instead, and resolves every other name to nothing. A request for any other name
-fails the run. Docker writes the hosts file afresh when a container starts, so a recording rerun in
-a restarted container stops before the browser starts and names the sites it lost.
+script's server instead, and resolves every other name to nothing. Kestrel's suggestions are the
+exception: the browser asks for them itself, through Qt's network stack, which resolves names
+through the system and never sees that rule. On the desktop the profile names Kestrel's suggestions
+by the server's address and port, and the server answers that address as Kestrel. A request for any
+other name fails the run. Docker writes the hosts file afresh when a container starts, so a
+recording rerun in a restarted container stops before the browser starts and names the sites it
+lost.
 
 The sites are dark, as the website is, so the film reads as one piece with the page around it. The
-trail shoe and the lighthouse are photographs supplied for the film by the project's owner, kept as
-WebP beside the pages that show them.
+trail shoe, the daypack, the tent and the lighthouse are photographs supplied for the film by the
+project's owner, kept as WebP beside the pages that show them.
 
 `sites/_film/report.js` is on every page. It tells the script where the page is, how wide its
 viewport is, how many ad slots it drew and how many link hints are on show. `sites/_film/end.html`
 is the end card, which every site serves at `/film/end/`. `themes/` holds the two Omarchy palettes
-the film switches between, rendered through Omaweb's own template as Omarchy would render them.
+the container's film switches between, rendered through Omaweb's own template as Omarchy would
+render them.
 
 `tests/scripts/tst_record_film.py` holds the sites to reaching nothing outside the film, and holds
 the server and each beat check to the answers a broken beat would give. It holds the desktop mode to
