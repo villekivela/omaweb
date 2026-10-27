@@ -36,7 +36,7 @@
 }
 
 /* The landing page wears an Omarchy theme: assets/shots/themes.css gives each one's roles to
-   whichever element carries data-theme, and the root carries Retro 82 unless the reader picks
+   whichever element carries data-theme, and the root carries Ethereal Nebula Silver unless the reader picks
    another. A release page carries none and asks Omaweb for the reader's own palette instead, which
    Omaweb hands it as --omaweb-*; any other browser gets Omaweb's own colours. The page's tokens are
    drawn from these roles. */

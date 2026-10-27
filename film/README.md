@@ -70,6 +70,12 @@ the line that installs them. Then it:
 1. Records only the window, with `wf-recorder -g`, so the bar, other windows and other monitors stay
    out, and cuts the film as the container does, into `build/film/`.
 
+The site's default theme is the theme the desktop film is recorded in, ethereal-nebula-silver, so a
+visitor who picks no other sees a page and a film in the same colours. A change to one changes the
+other: the theme the markup of `website/index.html` names and `website/theme.js` falls back to, and
+the theme the maintainer's desktop wears when the film is recorded. `website/README.md` says the
+same.
+
 The desktop film wears the reader's theme: the one the desktop is wearing when the run starts. The
 film's browser finds Omarchy's `~/.local/state/omarchy/current` through its own home and follows it
 as the reader's Omaweb does. The Theme beat switches the desktop's theme, as a reader does, with
