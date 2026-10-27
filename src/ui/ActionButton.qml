@@ -30,8 +30,9 @@ Omarchy.Button {
     // The width is the text's own size, measured apart from the button. The
     // kit fits its label to the button's width, so `implicitWidth` shrinks
     // with a width taken from it, and a row of buttons laid out meanwhile
-    // keeps the shrunk size and draws them over one another (#762).
-    width: Math.ceil(natural.advanceWidth + horizontalPadding * 2 + _reservedBorderLeft
+    // keeps the shrunk size and draws them over one another (#762). A button
+    // here has no icon, so the kit's room for one is left out.
+    width: Math.ceil(labelMetrics.advanceWidth + horizontalPadding * 2 + _reservedBorderLeft
                      + _reservedBorderRight)
     text: label
     focusable: true
@@ -42,7 +43,7 @@ Omarchy.Button {
     opacity: enabled ? 1.0 : 0.4
 
     TextMetrics {
-        id: natural
+        id: labelMetrics
 
         text: root.label
         font.family: root.fontFamily
