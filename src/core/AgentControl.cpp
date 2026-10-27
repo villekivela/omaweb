@@ -1217,6 +1217,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
         QStringLiteral("film-hover"),
         QStringLiteral("film-row"),
         QStringLiteral("film-site"),
+        QStringLiteral("film-omnibar"),
 #endif
     };
     if (!verbs.contains(verb)) {

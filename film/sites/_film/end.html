@@ -4,8 +4,14 @@
     <meta charset="utf-8" />
     <title>Omaweb</title>
     <style>
-      /* The film's last frame: the logo and the line that installs Omaweb, in the website's
-         Retro 82 colours, so the film ends on what to do next. */
+      /* The film's last frame: the logo and the line that installs Omaweb, so the film ends on
+         what to do next. It wears the theme the film opened in, which the server fills in. */
+      :root {
+        --background: {{background}};
+        --foreground: {{foreground}};
+        --accent: {{accent}};
+      }
+
       html,
       body {
         height: 100%;
@@ -17,30 +23,30 @@
         place-content: center;
         justify-items: center;
         gap: 56px;
-        background: #020c17;
-        color: #f6dcac;
+        background: var(--background);
+        color: var(--foreground);
         font-family: "JetBrains Mono", monospace;
       }
 
       .wordmark {
         width: 560px;
         height: auto;
-        fill: #f6dcac;
+        fill: var(--foreground);
       }
 
       .wordmark__mark {
-        fill: #faa968;
+        fill: var(--accent);
       }
 
       code {
         padding: 18px 28px;
-        border: 1px solid #faa968;
-        background: #031222;
+        border: 1px solid var(--accent);
+        background: color-mix(in srgb, var(--foreground) 4%, var(--background));
         font-size: 30px;
       }
 
       .prompt {
-        color: #faa968;
+        color: var(--accent);
       }
     </style>
   </head>

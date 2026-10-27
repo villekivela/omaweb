@@ -64,11 +64,13 @@ void AgentCommandTest::tellsAVerbFromAnAddressToOpen()
     QVERIFY(isAgentCommand({program, QStringLiteral("film-hover"), QStringLiteral("Work")}));
     QVERIFY(isAgentCommand({program, QStringLiteral("film-row"), QStringLiteral("tab-1")}));
     QVERIFY(isAgentCommand({program, QStringLiteral("film-site"), QStringLiteral("button")}));
+    QVERIFY(isAgentCommand({program, QStringLiteral("film-omnibar")}));
 #else
     // The introductory film's hook is not a verb of a browser built to ship.
     QVERIFY(!isAgentCommand({program, QStringLiteral("film-hover"), QStringLiteral("Work")}));
     QVERIFY(!isAgentCommand({program, QStringLiteral("film-row"), QStringLiteral("tab-1")}));
     QVERIFY(!isAgentCommand({program, QStringLiteral("film-site"), QStringLiteral("button")}));
+    QVERIFY(!isAgentCommand({program, QStringLiteral("film-omnibar")}));
 #endif
     QVERIFY(!isAgentCommand({program}));
     QVERIFY(!isAgentCommand({program, QStringLiteral("https://example.com/")}));
@@ -245,6 +247,9 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
     QTest::newRow("film site shown")
         << QStringList {QStringLiteral("film-site"), QStringLiteral("--json")}
         << base(QStringLiteral("film-site")) << true;
+    QTest::newRow("film omnibar") << QStringList {QStringLiteral("film-omnibar"),
+        QStringLiteral("--json")} << base(QStringLiteral("film-omnibar"))
+                                  << true;
 #endif
 }
 

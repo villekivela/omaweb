@@ -22,6 +22,7 @@ import shutil
 import signal
 import socket
 import statistics
+import struct
 import subprocess
 import sys
 import tempfile
@@ -30,6 +31,7 @@ import time
 import tomllib
 import typing
 import urllib.parse
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,9 +92,13 @@ class FixtureServer:
     refuses any other: a name nobody served is a page the film would have shown broken, and the
     recording is told about it as a stray. What a beat check reads back is here too: each request
     by the host it named, what the pages reported, and the invoices the Agent sent.
+
+    The end card wears `opening`, the palette of the theme the film opens and ends in: Retro 82
+    unless another is given.
     """
 
-    def __init__(self, address: tuple[str, int]) -> None:
+    def __init__(self, address: tuple[str, int], opening: dict[str, str] | None = None) -> None:
+        self.opening = opening or film_palette("retro-82")
         self._lock = threading.Lock()
         self._requests: list[tuple[str, str]] = []
         self._strays: list[str] = []
@@ -170,7 +176,7 @@ class FixtureServer:
                 if address.path == "/film/report.js":
                     self.file(SITE_ROOT / "_film" / "report.js")
                 elif address.path == END_CARD_PATH:
-                    self.file(SITE_ROOT / "_film" / "end.html")
+                    self.page(SITE_ROOT / "_film" / "end.html", fixtures.opening)
                 elif host == "kestrel.test" and address.path == "/suggest":
                     self.answer(200, json.dumps(suggestions(query)).encode(),
                                 "application/x-suggestions+json")
@@ -238,6 +244,22 @@ def expect_current_tab(beat: str, answer: dict, address: str) -> None:
     current = [tab["url"] for tab in answer.get("tabs", []) if tab.get("current")]
     if current != [address]:
         raise BeatMissed(beat, f"the current tab is {', '.join(current) or 'none'}, not {address}")
+
+
+def step_to_suggestion(beat: str, selected, down, title: str) -> None:
+    """Presses Down until the Omnibar's selected row is the engine's suggestion `title`.
+
+    `selected` answers the row the Omnibar has selected, as `film-omnibar` gives it, or None.
+    The rows are not counted, since the row the beat starts from is not fixed: a new list
+    selects none, and a pointer that crosses the rows selects the one under it.
+    """
+    wanted = {"kind": "suggestion", "title": title}
+    for _ in range(SUGGESTION_STEPS):
+        if selected() == wanted:
+            return
+        down()
+    if selected() != wanted:
+        raise BeatMissed(beat, f"Down never selected the suggestion {title!r}")
 
 
 def expect_asked(beat: str, server: FixtureServer, host: str, path: str,
@@ -549,10 +571,10 @@ PERSONAL_TABS = [
 WORK_TABS = ["http://quillstack.test/docs/tracing/", "http://quillstack.test/docs/api/"]
 TYPED = "tra"
 SUGGESTION = "trail running shoes"
-# Steps down from the first row to the suggestion the beat picks: the rows are Work's tracing guide,
-# then the trail shoe's tab, then the engine's suggestions. A row missing moves the pick onto
-# another, and the tab's address then says so.
-SUGGESTION_ROW = 2
+# The most times the beat presses Down looking for the suggestion: twice round the six places Down
+# steps through after "tra", Work's tracing guide, the trail shoe's tab, the engine's three
+# suggestions and the typed text, since a list that arrives on the way selects none again.
+SUGGESTION_STEPS = 12
 # The tab's address as the browser reports it, which is decoded.
 SEARCH = "http://kestrel.test/search?q=" + SUGGESTION
 MAGAZINE = "http://halyard.test/2026/the-last-lighthouse-keepers/"
@@ -986,11 +1008,19 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, worn: list[T
     time.sleep(CAPTION_LEAD)
     keys("Primary+l", settle=0.6)
     type_text(TYPED)
-    # The rows are counted down to the suggestion, so they are not counted before Kestrel has been
-    # asked for it: a row missing would move the pick onto another.
+    # Down is pressed until the window says the suggestion is selected, which it can only be once
+    # Kestrel has been asked for it.
     expect_asked(beat.name, server, "kestrel.test", f"/suggest?q={TYPED}", timeout=5.0)
     time.sleep(1.8)
-    keys(*["Down"] * SUGGESTION_ROW, settle=0.5)
+    def selected() -> dict | None:
+        return answer(beat.name, browser, "film-omnibar").get("row")
+
+    def down() -> None:
+        keys("Down", settle=0.5)
+
+    step_to_suggestion(beat.name, selected, down, SUGGESTION)
+    # Asked again just before Return, in case a list came in after the last look.
+    step_to_suggestion(beat.name, selected, down, SUGGESTION)
     # The results, on screen for the hints that follow.
     keys("Return", settle=LOAD_SETTLE)
     end = recorder.now()
@@ -1240,17 +1270,16 @@ def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
     expect_shared_memory("Stage")
     root = Path(tempfile.mkdtemp(prefix="omaweb-film-"))
     # Port 80 needs the container's root; on the desktop the browser is told the port instead.
-    server = FixtureServer(("127.0.0.1", 80 if desktop is None else 0))
+    worn = theme_changes() if desktop is None else theme_changes(desktop.theme, desktop.change)
+    server = FixtureServer(("127.0.0.1", 80 if desktop is None else 0), worn[0].colours)
     server.start()
     if desktop is None:
-        worn = theme_changes()
         data, config = seed(root, worn[0].colours)
 
         def wear(theme: Theme) -> None:
             write_theme(theme.colours, config)
     else:
         # The browser follows the desktop's theme, which the Theme beat switches.
-        worn = theme_changes(desktop.theme, desktop.change)
         data, config = seed(root, None, f"http://{KESTREL_ADDRESS}:{server.port}",
                             desktop.sidebar_opacity)
         follow_desktop_theme(root / "home")
@@ -1868,6 +1897,9 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
                 f"beat switches the desktop's theme there and back:")
             desktop.set_theme(desktop.change)
             desktop.set_theme(desktop.theme)
+        cursor = desktop_cursor(os.environ, Path.home())
+        log(f"and the edit draws the desktop's pointer, {cursor.resolve()}" if cursor
+            else f"and the edit draws {POINTER}, as no desktop cursor was found")
         return
     print(TAKES_THE_KEYBOARD.format(workspace=desktop.film_workspace), flush=True)
     input()
@@ -1878,7 +1910,7 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
     desktop.preflight()
     with desktop.taken():
         record(browser, out, desktop)
-    compose(out)
+    compose(out, pointer_for_desktop(os.environ, Path.home(), out))
     log("The film is in " + ", ".join(str(out / name) for name in (*BUDGET, "captions.vtt")))
 
 
@@ -1920,17 +1952,135 @@ def camera(focus: list[tuple[float, tuple[float, float, float, float] | None]]) 
 POINTER = ROOT / "film" / "pointer.png"
 
 
-def pointer(entry: dict) -> str | None:
+class Pointer(typing.NamedTuple):
+    """The image the edit draws as the pointer, and its hotspot: the pixel that points."""
+
+    path: Path
+    hot: tuple[int, int]
+
+
+# The committed drawing, whose tip is its top left corner.
+DRAWN_POINTER = Pointer(POINTER, (0, 0))
+
+
+class XcursorImage(typing.NamedTuple):
+    """One image of an Xcursor file: its size, its hotspot and its pixels as straight RGBA."""
+
+    width: int
+    height: int
+    hot: tuple[int, int]
+    rgba: bytes
+
+
+# The cursor's size on the desktop when the session names none, as Hyprland's XCURSOR_SIZE does.
+CURSOR_SIZE = 24
+XCURSOR_IMAGE = 0xFFFD0002
+
+
+def read_xcursor(path: Path, size: int) -> XcursorImage:
+    """The image of the Xcursor file at `path` whose nominal size is nearest `size`, its pixels as
+    straight RGBA. Xcursor keeps them premultiplied ARGB, little-endian."""
+    data = path.read_bytes()
+    magic, header, _, count = struct.unpack_from("<4sIII", data)
+    if magic != b"Xcur":
+        raise ValueError(f"{path} is not an Xcursor file")
+    images = [struct.unpack_from("<III", data, header + 12 * index) for index in range(count)]
+    images = [(nominal, position) for kind, nominal, position in images if kind == XCURSOR_IMAGE]
+    if not images:
+        raise ValueError(f"{path} holds no image")
+    _, position = min(images, key=lambda image: abs(image[0] - size))
+    width, height, x_hot, y_hot = struct.unpack_from("<4I", data, position + 16)
+    pixels = struct.unpack_from(f"<{width * height}I", data, position + 36)
+    rgba = bytearray()
+    for argb in pixels:
+        alpha = argb >> 24
+        rgba += bytes(min(255, ((argb >> shift) & 0xFF) * 255 // alpha) if alpha else 0
+                      for shift in (16, 8, 0))
+        rgba.append(alpha)
+    return XcursorImage(width, height, (x_hot, y_hot), bytes(rgba))
+
+
+def write_png(image: XcursorImage, path: Path) -> None:
+    """`image` as an RGBA PNG at `path`, for ffmpeg to draw."""
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return (struct.pack(">I", len(body)) + kind + body
+                + struct.pack(">I", zlib.crc32(kind + body)))
+
+    stride = image.width * 4
+    rows = b"".join(b"\x00" + image.rgba[row * stride:(row + 1) * stride]
+                    for row in range(image.height))
+    path.write_bytes(b"\x89PNG\r\n\x1a\n"
+                     + chunk(b"IHDR", struct.pack(">IIBBBBB", image.width, image.height,
+                                                  8, 6, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+def desktop_cursor(environ: typing.Mapping[str, str], home: Path) -> Path | None:
+    """The desktop's pointer image, as libXcursor finds it: the theme the session names, or the
+    one the `default` theme inherits, in each folder of the Xcursor path in turn."""
+    folders = ([Path(folder) for folder in environ["XCURSOR_PATH"].split(":") if folder]
+               if environ.get("XCURSOR_PATH") else
+               [home / ".local" / "share" / "icons", home / ".icons", Path("/usr/share/icons"),
+                Path("/usr/share/pixmaps")])
+    seen: set[str] = set()
+
+    def find(theme: str) -> Path | None:
+        if theme in seen:
+            return None
+        seen.add(theme)
+        inherited: list[str] = []
+        for folder in folders:
+            for name in ("left_ptr", "default"):
+                if (folder / theme / "cursors" / name).is_file():
+                    return folder / theme / "cursors" / name
+            index = folder / theme / "index.theme"
+            if index.is_file():
+                inherits = re.search(r"^Inherits\s*=\s*(.+)$",
+                                     index.read_text(encoding="utf-8", errors="replace"),
+                                     re.MULTILINE)
+                if inherits:
+                    inherited += [name.strip() for name in inherits.group(1).split(",")]
+        for name in inherited:
+            found = find(name)
+            if found:
+                return found
+        return None
+
+    return find(environ.get("XCURSOR_THEME") or "default")
+
+
+def pointer_for_desktop(environ: typing.Mapping[str, str], home: Path, out: Path) -> Pointer:
+    """The desktop's own pointer, written into `out` at the film's size, or the committed drawing
+    when there is none to read. The film's frame is the window at `OUTPUT_SCALE`, so the cursor is
+    read at its size on the desktop times that."""
+    path = desktop_cursor(environ, home)
+    try:
+        size = round(int(environ.get("XCURSOR_SIZE") or CURSOR_SIZE) * OUTPUT_SCALE)
+        image = read_xcursor(path, size) if path else None
+    except (OSError, ValueError, struct.error):
+        image = None
+    if image is None:
+        log(f"the pointer is {POINTER}, as no desktop cursor could be read")
+        return DRAWN_POINTER
+    drawn = out / "pointer.png"
+    write_png(image, drawn)
+    log(f"the pointer is the desktop's, {path.resolve()}, at {image.width} pixels")
+    return Pointer(drawn, image.hot)
+
+
+def pointer(entry: dict, hot: tuple[int, int] = (0, 0)) -> str | None:
     """The overlay filter that draws the pointer over a beat, or `None` for a beat without one.
 
     `entry["pointer"]` lists where it moves, each a time into the beat and a fraction of the
-    window. It comes in at the first and glides to each next one, and stays to the beat's end.
+    window. It comes in at the first and glides to each next one, and stays to the beat's end,
+    its `hot` pixel on each place.
     """
     moves = entry.get("pointer")
     if not moves:
         return None
-    x = eased([(move["at"], move["x"] * OUTPUT_MODE[0]) for move in moves], "t")
-    y = eased([(move["at"], move["y"] * OUTPUT_MODE[1]) for move in moves], "t")
+    x = eased([(move["at"], move["x"] * OUTPUT_MODE[0] - hot[0]) for move in moves], "t")
+    y = eased([(move["at"], move["y"] * OUTPUT_MODE[1] - hot[1]) for move in moves], "t")
     length = entry["end"] - entry["start"]
     return (f"overlay=x='{x}':y='{y}'"
             f":enable='between(t,{moves[0]['at']:.3f},{length:.3f})'")
@@ -1995,8 +2145,9 @@ def recording_size(path: Path) -> tuple[int, int]:
     return int(width), int(height)
 
 
-def compose(out: Path) -> None:
-    """Cuts the raw recording to its beats, follows each beat's focus, and captions it."""
+def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
+    """Cuts the raw recording to its beats, follows each beat's focus, and captions it, and draws
+    the pointer as `drawn`."""
     marks = json.loads((out / "marks.json").read_text(encoding="utf-8"))
     fit = fitted(recording_size(out / "raw.mkv"))
     fonts = ROOT / "website" / "assets" / "fonts"
@@ -2012,7 +2163,7 @@ def compose(out: Path) -> None:
         beat = BEAT_NAMED[entry["beat"]]
         trimmed = (f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},"
                    f"setpts=PTS-STARTPTS{fit}")
-        overlay = pointer(entry)
+        overlay = pointer(entry, drawn.hot)
         if overlay:
             chains.append(f"{trimmed}[r{index}]")
             trimmed = f"[r{index}][p{pointed.index(entry)}]{overlay}"
@@ -2043,7 +2194,7 @@ def compose(out: Path) -> None:
             f":alpha='{alpha}':enable='between(t,{cue.start:.3f},{cue.end:.3f})'")
     chains.append(f"{joined}{','.join(texts + [COLOURS])}[film]")
     master = out / "master.mkv"
-    pointer_input = ["-i", str(POINTER)] if pointed else []
+    pointer_input = ["-i", str(drawn.path)] if pointed else []
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out / "raw.mkv"), *pointer_input,
                     "-filter_complex", ";".join(chains), "-map", "[film]", "-an",
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", str(master)],

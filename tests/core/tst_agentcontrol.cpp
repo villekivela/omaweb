@@ -479,6 +479,7 @@ private slots:
     void holdsASpacesNameOnlyForTheFilm();
     void holdsAnAgentTabsRowOnlyForTheFilm();
     void pressesSiteInformationOnlyForTheFilm();
+    void readsTheOmnibarsRowOnlyForTheFilm();
     void decidesEveryCommandOfTheRegistry();
     void reportsWhatEachAgentTabsAgentIsDoing();
     void uploadsOnlyInAnAgentSpace();
@@ -2436,6 +2437,40 @@ void AgentControlTest::pressesSiteInformationOnlyForTheFilm()
     QCOMPARE(asked.size(), 3);
 #else
     QCOMPARE(failure(pressed), QStringLiteral("unknown-verb"));
+    QVERIFY(asked.isEmpty());
+#endif
+}
+
+// And its Omnibar beat: `film-omnibar` has the window answer the row the
+// Omnibar has selected. It takes nothing.
+void AgentControlTest::readsTheOmnibarsRowOnlyForTheFilm()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    const auto script = QStringLiteral("film");
+    QList<QVariantMap> asked;
+    const QVariantMap row {{QStringLiteral("kind"), QStringLiteral("suggestion")},
+        {QStringLiteral("title"), QStringLiteral("trail running shoes")}};
+    connect(&control, &AgentControl::commandRequested, &control,
+        [&](int requestId, const QVariantMap &request) {
+            asked.append(request);
+            control.answerCommand(
+                requestId, {{QStringLiteral("ok"), true}, {QStringLiteral("row"), row}});
+        });
+
+    const auto read = ask(control, script, QStringLiteral("film-omnibar"));
+#ifdef OMAWEB_FILM_HOOKS
+    QVERIFY(succeeded(read));
+    QCOMPARE(asked.size(), 1);
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("verb")).toString(), QStringLiteral("film-omnibar"));
+    QCOMPARE(read.value(QStringLiteral("row")).toObject().value(QStringLiteral("title")).toString(),
+        QStringLiteral("trail running shoes"));
+#else
+    QCOMPARE(failure(read), QStringLiteral("unknown-verb"));
     QVERIFY(asked.isEmpty());
 #endif
 }
