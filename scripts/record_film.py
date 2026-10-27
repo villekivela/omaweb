@@ -15,6 +15,7 @@ import dataclasses
 import html
 import http.server
 import json
+import math
 import os
 import re
 import shlex
@@ -512,15 +513,19 @@ THEME_HOLD = 2.5
 # How long a command the Agent runs stays on screen before the next one is run, at the least.
 COMMAND_READ = 0.7
 
+# Where the camera looks: a fraction of the window, (left, top, width, height), so it holds at any
+# output size; `None` is the whole window, and `DESKTOP` the whole monitor the desktop film records.
+DESKTOP = "desktop"
+Place = tuple[float, float, float, float] | None | str
+
+
 # The film's beats, in the order they play: what the caption says, empty for none, and, for each
-# moment the camera moves, where it looks. A place is a fraction of the window, (left, top, width,
-# height), so it holds at any output size; `None` is the whole window. Times are seconds into the
-# beat.
+# moment the camera moves, where it looks. Times are seconds into the beat.
 @dataclasses.dataclass
 class Beat:
     name: str
     caption: str
-    focus: list[tuple[float, tuple[float, float, float, float] | None]]
+    focus: list[tuple[float, Place]]
 
 
 # Where the parts the camera follows sit in the window, with the sidebar at its default width: the
@@ -557,6 +562,15 @@ BEATS = [
     Beat("End", "", [(0.0, None)]),
 ]
 BEAT_NAMED = {beat.name: beat for beat in BEATS}
+
+
+def theme_focus(back: float) -> list[tuple[float, Place]]:
+    """The Theme beat's camera on the desktop, where the switch changes the wallpaper, the bar and
+    the borders as well as the browser: once the caption is read it draws back to the whole
+    monitor, which is on camera before the first switch, and at `back` it closes on the window
+    again."""
+    return [(0.0, None), (CAPTION_LEAD, DESKTOP), (back, None)]
+
 
 # The frame the page shows before the film plays: the Omnibar with its rows open.
 POSTER = ("Omnibar", CAPTION_LEAD + 2.8)
@@ -864,9 +878,10 @@ def follow_desktop_theme(home: Path, current: Path = DESKTOP_CURRENT) -> None:
     (state / "current").symlink_to(current, target_is_directory=True)
 
 
-def recorder_command(path: Path, geometry: tuple[int, int, int, int] | None = None) -> list[str]:
-    """What records: the whole output under cage, and only the film's window on the desktop."""
-    return ["wf-recorder", "-y", *(["-g", region(geometry)] if geometry else []), "-r", str(FPS),
+def recorder_command(path: Path, output: str | None = None) -> list[str]:
+    """What records: the whole output, cage's only one, or on the desktop the monitor named
+    `output`, so the Theme beat can show the desktop around the window."""
+    return ["wf-recorder", "-y", *(["-o", output] if output else []), "-r", str(FPS),
             "-c", "libx264", "-p", "preset=ultrafast", "-p", "crf=12", "-x", "yuv420p",
             "-f", str(path)]
 
@@ -879,10 +894,13 @@ class Recorder:
     the file is shorter than the time the recorder ran was lost at its start, before a first frame.
     """
 
-    def __init__(self, path: Path, geometry: tuple[int, int, int, int] | None = None) -> None:
+    def __init__(self, path: Path, output: str | None = None) -> None:
         self.path = path
-        # The film's window on the desktop, and `None` for cage's whole output.
-        self.geometry = geometry
+        # The monitor recorded on the desktop, and `None` for cage's only output.
+        self.output = output
+        # Where the film's window is on the desktop, which `chrome_sample` reads, and `None`
+        # under cage, whose output is the window.
+        self.geometry: tuple[int, int, int, int] | None = None
         # Its own log, beside the recording.
         self.log_path = path.with_suffix(".log")
         self.process: subprocess.Popen | None = None
@@ -895,7 +913,7 @@ class Recorder:
         # it mid-film.
         with open(self.log_path, "w") as written:
             self.process = subprocess.Popen(
-                recorder_command(self.path, self.geometry),
+                recorder_command(self.path, self.output),
                 stdin=subprocess.DEVNULL, stdout=written, stderr=written)
         time.sleep(1.5)
         if self.process.poll() is not None:
@@ -941,6 +959,33 @@ def wait_for(beat: str, what: str, ready, timeout: float = 20.0):
 def reported(server: FixtureServer, host: str, path: str, since: int = 0):
     return lambda: [report for report in server.reports()[since:]
                     if report["host"] == host and report["path"] == path]
+
+
+def play_theme(beat: Beat, recorder: Recorder, worn: list[Theme], wear, mark) -> None:
+    """The Theme beat: each of the `worn` themes after the first put on with `wear`, and the chrome
+    checked to have repainted after each.
+
+    On the desktop, where the whole monitor is recorded, the camera draws back to it for the
+    switches and closes on the window again before the beat fades into the next.
+    """
+    was = chrome_sample(frame(recorder.geometry))
+    start = recorder.now()
+    # Long enough to read the caption over the old theme, so the change it names comes after it,
+    # on the same frame.
+    time.sleep(THEME_HOLD)
+    for old, new in zip(worn, worn[1:]):
+        wear(new)
+        time.sleep(3.0)
+        now = chrome_sample(frame(recorder.geometry))
+        expect_repainted(beat.name, was, now, theme_colour(old.colours, "dark_background"),
+                         theme_colour(new.colours, "dark_background"))
+        was = now
+    if recorder.output is None:
+        mark(beat, start, recorder.now())
+        return
+    focus = theme_focus(recorder.now() - start)
+    time.sleep(MOVE + FADE + 0.3)
+    mark(beat, start, recorder.now(), focus=focus)
 
 
 def drive(browser: Path, server: FixtureServer, recorder: Recorder, worn: list[Theme],
@@ -1145,21 +1190,7 @@ def drive(browser: Path, server: FixtureServer, recorder: Recorder, worn: list[T
     # Off camera: a new tab, whose Start page is the theme's road and sun, so the change shows.
     keys("Primary+t", settle=LOAD_SETTLE)
 
-    beat = beats["Theme"]
-    was = chrome_sample(frame(recorder.geometry))
-    start = recorder.now()
-    # Long enough to read the caption over the old theme, so the change it names comes after it,
-    # on the same frame.
-    time.sleep(THEME_HOLD)
-    for old, new in zip(worn, worn[1:]):
-        wear(new)
-        time.sleep(3.0)
-        now = chrome_sample(frame(recorder.geometry))
-        expect_repainted(beat.name, was, now, theme_colour(old.colours, "dark_background"),
-                         theme_colour(new.colours, "dark_background"))
-        was = now
-    end = recorder.now()
-    mark(beat, start, end)
+    play_theme(beats["Theme"], recorder, worn, wear, mark)
 
     # Off camera: the new tab put away unopened.
     keys("Escape")
@@ -1262,12 +1293,17 @@ def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
     """Runs under the compositor: the browser, the beats and the raw recording, and the marks.
 
     Under cage the output is the film's frame. On the `desktop`, which the caller has taken, the
-    film's window is put in it and only the window is recorded.
+    film's window is put in it and the whole monitor is recorded, and `stage.json` says where the
+    window is in the recording, for the edit.
     """
     global CLIENT_ENVIRONMENT, BEFORE_KEYS
     if desktop is None:
         expect_sites_on_loopback("Sites")
     expect_shared_memory("Stage")
+    # Where the window is in the recording, for the edit, which takes the whole recording as the
+    # window where this is missing, as under cage.
+    placed = out / STAGE
+    placed.unlink(missing_ok=True)
     root = Path(tempfile.mkdtemp(prefix="omaweb-film-"))
     # Port 80 needs the container's root; on the desktop the browser is told the port instead.
     worn = theme_changes() if desktop is None else theme_changes(desktop.theme, desktop.change)
@@ -1298,12 +1334,15 @@ def record(browser: Path, out: Path, desktop: Desktop | None = None) -> None:
                                    start_new_session=True)
     if desktop is not None:
         desktop.note(browser_session=process.pid, browser=str(browser))
-    recorder = Recorder(out / "raw.mkv")
+    recorder = Recorder(out / "raw.mkv", desktop.monitor["name"] if desktop else None)
     try:
         wait_for("Stage", "the browser to answer",
                  lambda: omaweb(browser, "spaces").returncode == 0, timeout=60)
         if desktop is not None:
             recorder.geometry = desktop.place(process.pid)
+            placed.write_text(json.dumps(
+                {"window": recorded_window(desktop.monitor, recorder.geometry)}) + "\n",
+                encoding="utf-8")
             BEFORE_KEYS = desktop.expect_keyboard
         time.sleep(LOAD_SETTLE)
         recorder.start()
@@ -1368,6 +1407,16 @@ def window_frame(monitor: dict, size: tuple[int, int] = WINDOW) -> tuple[int, in
         raise BeatMissed("Desktop", f"the film's window is {size[0]} by {size[1]}, and "
                                     f"{monitor['name']} has {free[0]} by {free[1]} free")
     return (x + left + (free[0] - size[0]) // 2, y + top + (free[1] - size[1]) // 2, *size)
+
+
+def recorded_window(monitor: dict,
+                    frame: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    """Where the window at `frame`, in the layout's logical pixels, is in a recording of the
+    monitor, in the recording's own pixels: (x, y, w, h)."""
+    x, y, wide, high = frame
+    scale = monitor["scale"]
+    return (round((x - monitor["x"]) * scale), round((y - monitor["y"]) * scale),
+            round(wide * scale), round(high * scale))
 
 
 def parking(monitor: dict, frame: tuple[int, int, int, int]) -> tuple[int, int]:
@@ -1627,6 +1676,15 @@ class Desktop:
         if held:
             raise BeatMissed("Desktop", f"the workspace {self.film_workspace} already holds "
                                         f"{held[0]['windows']} windows; close them first")
+        # Nor may the whole monitor, which the Theme beat shows, hold one: a pinned window is on
+        # every workspace.
+        pinned = [client for client in self.query("hyprctl", "clients", "-j")
+                  if client.get("pinned") and client.get("monitor") == self.monitor["id"]]
+        if pinned:
+            raise BeatMissed("Desktop", f"{pinned[0].get('class') or 'a window'} "
+                                        f"({pinned[0].get('title', '')}) is pinned on "
+                                        f"{self.monitor['name']}, so it would be in the film; "
+                                        "unpin it first")
         self.workspace = self.active_workspace()
         cursor = self.query("hyprctl", "cursorpos", "-j")
         self.pointer = (cursor["x"], cursor["y"])
@@ -1889,10 +1947,13 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
                                            for name, value in settings.items())
                 + " " + shlex.join(["dbus-run-session", "--", str(browser)]))
             frame = desktop.place(0)
-            would_run(recorder_command(out / "raw.mkv", frame))
+            would_run(recorder_command(out / "raw.mkv", desktop.monitor["name"]))
             log(f"and types into the window with wtype, each key after hyprctl activewindow -j "
                 f"says the window has the keyboard, and samples it with "
                 f"{shlex.join(frame_command(frame))}")
+            log(f"the edit crops the recording to the window, at "
+                f"{recorded_window(desktop.monitor, frame)} in it, and the Theme beat draws back "
+                f"to the whole monitor")
             log(f"its browser follows the desktop's theme through {DESKTOP_CURRENT}, and the Theme "
                 f"beat switches the desktop's theme there and back:")
             desktop.set_theme(desktop.change)
@@ -1926,19 +1987,25 @@ def eased(keyframes: list[tuple[float, float]], variable: str) -> str:
     return expression
 
 
-def camera(focus: list[tuple[float, tuple[float, float, float, float] | None]]) -> str:
+def camera(focus: list[tuple[float, Place]],
+           window: tuple[float, float, float] = (0.0, 0.0, 1.0)) -> str:
     """The zoompan filter that follows a beat's focus, each place framed at the film's aspect.
 
     The window and the film are both 16:9, so a place keeps its shape when it is as wide, as a
-    fraction of the window, as it is high: the shorter side is grown about the place's centre.
+    fraction of the window, as it is high: the shorter side is grown about the place's centre,
+    and kept in the window. The window is where `Stage.window` says it is on the stage.
     """
     keyframes = []
     for at, place in focus:
+        if place == DESKTOP:
+            keyframes.append((at, 1.0, 0.0, 0.0))
+            continue
         left, top, wide, high = place or (0.0, 0.0, 1.0, 1.0)
         side = max(wide, high)
         left = min(max(left + (wide - side) / 2, 0.0), 1.0 - side)
         top = min(max(top + (high - side) / 2, 0.0), 1.0 - side)
-        keyframes.append((at, side, left, top))
+        x, y, scale = window
+        keyframes.append((at, side * scale, x + left * scale, y + top * scale))
     side = eased([(at, value) for at, value, _, _ in keyframes], "it")
     x = eased([(at, value) for at, _, value, _ in keyframes], "it")
     y = eased([(at, value) for at, _, _, value in keyframes], "it")
@@ -2069,18 +2136,21 @@ def pointer_for_desktop(environ: typing.Mapping[str, str], home: Path, out: Path
     return Pointer(drawn, image.hot)
 
 
-def pointer(entry: dict, hot: tuple[int, int] = (0, 0)) -> str | None:
+def pointer(entry: dict, hot: tuple[int, int] = (0, 0),
+            origin: tuple[int, int] = (0, 0)) -> str | None:
     """The overlay filter that draws the pointer over a beat, or `None` for a beat without one.
 
     `entry["pointer"]` lists where it moves, each a time into the beat and a fraction of the
-    window. It comes in at the first and glides to each next one, and stays to the beat's end,
-    its `hot` pixel on each place.
+    window, whose top left corner is at `origin` on the stage. It comes in at the first and glides
+    to each next one, and stays to the beat's end, its `hot` pixel on each place.
     """
     moves = entry.get("pointer")
     if not moves:
         return None
-    x = eased([(move["at"], move["x"] * OUTPUT_MODE[0] - hot[0]) for move in moves], "t")
-    y = eased([(move["at"], move["y"] * OUTPUT_MODE[1] - hot[1]) for move in moves], "t")
+    x = eased([(move["at"], origin[0] + move["x"] * OUTPUT_MODE[0] - hot[0]) for move in moves],
+              "t")
+    y = eased([(move["at"], origin[1] + move["y"] * OUTPUT_MODE[1] - hot[1]) for move in moves],
+              "t")
     length = entry["end"] - entry["start"]
     return (f"overlay=x='{x}':y='{y}'"
             f":enable='between(t,{moves[0]['at']:.3f},{length:.3f})'")
@@ -2129,12 +2199,49 @@ def timestamp(seconds: float) -> str:
     return f"{int(minutes):02d}:{seconds:06.3f}"
 
 
-def fitted(size: tuple[int, int]) -> str:
-    """The scaling a recording of `size` takes to the recording's own, for a monitor at another
-    scale than cage's, so the pointer and the camera find what they look for where they look."""
-    if tuple(size) == OUTPUT_MODE:
-        return ""
-    return ",scale={}:{}:flags=lanczos".format(*OUTPUT_MODE)
+# Where `record` tells the edit the desktop film's window is in the recording.
+STAGE = "stage.json"
+
+
+class Stage(typing.NamedTuple):
+    """What the camera films: the recording scaled so the film's window is cage's `OUTPUT_MODE`,
+    and padded to the film's shape. Under cage it is the window alone; on the desktop it is the
+    monitor, with the window where it was placed."""
+
+    # The filters that make the recording into the stage, to follow a trim.
+    scaling: str
+    # Its width and height, in pixels.
+    size: tuple[int, int]
+    # The window's top left corner on the stage, in its pixels.
+    origin: tuple[int, int]
+
+    @property
+    def window(self) -> tuple[float, float, float]:
+        """The window on the stage as fractions of it: left, top, and its side, the same fraction
+        of the stage's width as of its height, since both are the film's shape."""
+        return (self.origin[0] / self.size[0], self.origin[1] / self.size[1],
+                OUTPUT_MODE[0] / self.size[0])
+
+
+def staging(size: tuple[int, int], window: tuple[int, int, int, int] | None = None) -> Stage:
+    """The stage for a recording of `size` whose film's window is at `window`, in its pixels, or
+    the whole of it. A monitor at another scale than cage's is scaled, so the pointer and the
+    camera find what they look for where they look, and one of another shape than the film's is
+    padded with black, so the whole of it shows when the camera draws back."""
+    x, y, wide, _ = window or (0, 0, *size)
+    zoom = OUTPUT_MODE[0] / wide
+    scaled = tuple(round(side * zoom / 2) * 2 for side in size)
+    # The film's 16:9 in an even number of pixels each way, as yuv420p needs.
+    units = max(math.ceil(scaled[0] / 16), math.ceil(scaled[1] / 9))
+    units += units % 2
+    padded = (16 * units, 9 * units)
+    border = ((padded[0] - scaled[0]) // 4 * 2, (padded[1] - scaled[1]) // 4 * 2)
+    scaling = ""
+    if scaled != tuple(size):
+        scaling += ",scale={}:{}:flags=lanczos".format(*scaled)
+    if padded != scaled:
+        scaling += ",pad={}:{}:{}:{}".format(*padded, *border)
+    return Stage(scaling, padded, (round(x * zoom) + border[0], round(y * zoom) + border[1]))
 
 
 def recording_size(path: Path) -> tuple[int, int]:
@@ -2149,7 +2256,10 @@ def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
     """Cuts the raw recording to its beats, follows each beat's focus, and captions it, and draws
     the pointer as `drawn`."""
     marks = json.loads((out / "marks.json").read_text(encoding="utf-8"))
-    fit = fitted(recording_size(out / "raw.mkv"))
+    placed = out / STAGE
+    window = (json.loads(placed.read_text(encoding="utf-8"))["window"] if placed.exists()
+              else None)
+    stage = staging(recording_size(out / "raw.mkv"), window)
     fonts = ROOT / "website" / "assets" / "fonts"
     font = {False: fonts / "Tomorrow-SemiBold.woff2", True: fonts / "IoskeleyMono-Medium.woff2"}
     starts = positions(marks)
@@ -2162,15 +2272,16 @@ def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
     for index, entry in enumerate(marks):
         beat = BEAT_NAMED[entry["beat"]]
         trimmed = (f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},"
-                   f"setpts=PTS-STARTPTS{fit}")
-        overlay = pointer(entry, drawn.hot)
+                   f"setpts=PTS-STARTPTS{stage.scaling}")
+        overlay = pointer(entry, drawn.hot, stage.origin)
         if overlay:
             chains.append(f"{trimmed}[r{index}]")
             trimmed = f"[r{index}][p{pointed.index(entry)}]{overlay}"
         # A beat whose moments are timed as it plays brings its focus with it.
-        focus = [(at, tuple(place) if place else None)
+        focus = [(at, tuple(place) if isinstance(place, list) else place)
                  for at, place in entry.get("focus", beat.focus)]
-        chains.append(f"{trimmed},{camera(focus)},setsar=1,format=yuv420p[b{index}]")
+        chains.append(f"{trimmed},{camera(focus, stage.window)},setsar=1,format=yuv420p"
+                      f"[b{index}]")
     joined = "[b0]"
     for index in range(1, len(marks)):
         chains.append(f"{joined}[b{index}]xfade=transition=fade:duration={FADE}"

@@ -22,7 +22,10 @@ claims. In order:
    closes on the card, whose list of refused requests names the ad network and the tracker, and
    holds it long enough to read. Neither is ever reached.
 1. A theme change on one Start page, across the whole browser: from Retro 82 to Tokyo Night in the
-   container, and on the desktop the desktop's own theme switched to Lumon and back.
+   container, and on the desktop the desktop's own theme switched to Lumon and back. On the desktop,
+   once the caption is read, the camera draws back from the window to the whole monitor, holds there
+   while the wallpaper, the bar, the borders and the browser change together, and closes on the
+   window again before the next beat. Every other beat is framed on the window.
 1. An Agent at work in a Space of its own. Each command it runs, `omaweb space new`, `open`, `look`
    and one batched `do`, takes the caption's place as it runs, its tab's row in the sidebar names
    its last act after each, and the invoice is sent. The camera then closes on the row, the pointer
@@ -67,8 +70,10 @@ the line that installs them. Then it:
    temporary directory, wearing the reader's theme (below), floats its window and sizes it through
    `hyprctl` to 1600 by 900 logical pixels in the middle of the monitor, the browser's size under
    cage. The monitor's mode is not changed.
-1. Records only the window, with `wf-recorder -g`, so the bar, other windows and other monitors stay
-   out, and cuts the film as the container does, into `build/film/`.
+1. Records the whole monitor, with `wf-recorder -o`, and cuts the film as the container does, into
+   `build/film/`. The edit crops each beat to the window, framed as the container's is, and draws
+   back to the monitor only for the Theme beat. `build/film/stage.json` tells the edit where the
+   window is in the recording.
 
 The site's default theme is the theme the desktop film is recorded in, ethereal-nebula-silver, so a
 visitor who picks no other sees a page and the desktop film in the same colours. A change to one
@@ -107,7 +112,9 @@ scripts/record_film.py desktop --workspace 9
 
 records in workspace 9 in place of `omaweb-film`, by number or by name. The workspace has to be
 empty: a run whose workspace holds a window stops before it changes anything, since the film must
-not cover or move the reader's windows. The run comes back to the workspace it started on.
+not cover or move the reader's windows. The monitor must show nothing else either, since the Theme
+beat shows all of it, so a window pinned on it, which is on every workspace, stops the run there
+too. The run comes back to the workspace it started on.
 
 Before each key it sends, the run asks Hyprland which window has the keyboard. If it is not the
 film's, because the pointer was nudged onto another window or a window took focus, the run stops
@@ -119,7 +126,10 @@ film's browser and the recorder, switches back to the workspace it started on, p
 and restores notifications as they were. The reader's own Omaweb is never started, and of its
 profile only the sidebar opacity in `settings.json` is read, never written. A monitor at Hyprland's
 scale of 1.5 records the window at cage's 2400 by 1350; at another scale the edit scales the
-recording to that size.
+recording until the window is that size. The pointer is drawn on the scaled recording, before the
+camera, so it is where the window said and at its size whether the camera is on the window or on the
+monitor. A monitor of another shape than the film's 16:9 is padded with black to it, and the bands
+show only while the camera is drawn back.
 
 Hyprland 0.56 takes its dispatchers as Lua (`hl.dsp`), as Omarchy 4's scripts send them, and answers
 one it could not do with an error rather than `ok`. After Enter, and before it changes anything, the
@@ -225,7 +235,8 @@ through Omaweb's own template as Omarchy would render them.
 `tests/scripts/tst_record_film.py` holds the sites to reaching nothing outside the film, and holds
 the server and each beat check to the answers a broken beat would give. It holds the desktop mode to
 the commands it runs, to the window's place, and to putting the desktop back after a run that ended,
-failed or was stopped.
+failed or was stopped. It cuts a stand-in desktop recording to check that the edit crops it to the
+window, draws back to the monitor in the Theme beat, and draws the pointer there.
 
 ## Publishing it
 
