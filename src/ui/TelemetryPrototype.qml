@@ -153,13 +153,9 @@ Item {
             return !root.unlit;
         return true;
     })
-    // The share of a 1700 by 1000 page area this one is, text size counted.
-    readonly property real room: Math.min(root.width / 1700, root.height / 1000) * (root.large ? 0.8 :
-                                                                                                 1)
-    readonly property int holds: root.room >= 0.75 ? 8 : root.room >= 0.6 ? 6 : root.room >= 0.45
-                                                                            ? 4 : root.room >= 0.3
-                                                                              ? 2 : 0
-    readonly property var shown: root.present.slice(0, root.holds)
+    // Present: shown where there is room. The cockpit decides the room
+    // (below), block by block, compacting to the figures first.
+    readonly property var shown: root.present
     function has(key) {
         return root.shown.indexOf(key) >= 0;
     }
@@ -512,7 +508,9 @@ Item {
         readonly property real axisW: root.captionSize * 4.5
         readonly property real axisH: root.captionSize * 1.6
         readonly property real plotW: Math.max(10, chart.width - chart.axisW)
-        readonly property real plotH: Math.max(10, chart.height - chart.axisH)
+        // Room over the plot for half the top scale value.
+        readonly property real padTop: Math.round(root.captionSize * 0.7)
+        readonly property real plotH: Math.max(10, chart.height - chart.axisH - chart.padTop)
         // The scale's top: the given one, or the peak rounded up.
         readonly property real scaleTop: chart.max > 0 ? chart.max : chart.nice(Math.max(root.peakOf(
                                                                                              chart.values),
@@ -541,6 +539,7 @@ Item {
 
         Canvas {
             id: plot
+            y: chart.padTop
             width: chart.plotW
             height: chart.plotH
             property var values: chart.values
@@ -663,13 +662,19 @@ Item {
                 }
             }
         }
-        // The scale's values at the right of each gridline.
+        // The scale's values at the right of the gridlines, every one, every
+        // other or the ends only, as the chart's height has room.
+        readonly property int labelStep: chart.plotH / 4 >= root.captionSize * 1.4 ? 1 :
+                                                                                     chart.plotH
+                                                                                     / 2 >= root.captionSize
+                                                                                     * 1.4 ? 2 : 4
         Repeater {
             model: 5
             Caption {
                 required property int index
+                visible: index % chart.labelStep === 0
                 x: chart.plotW + 8
-                y: chart.plotH - chart.plotH * index / 4 - height / 2
+                y: chart.padTop + chart.plotH - chart.plotH * index / 4 - height / 2
                 text: chart.format(chart.scaleTop * index / 4)
             }
         }
@@ -682,7 +687,7 @@ Item {
                 x: Math.min(chart.plotW - width, Math.max(0, chart.plotW * index / (
                                                               chart.timeLabels.length - 1) - width
                                                           / 2))
-                y: chart.plotH + 4
+                y: chart.padTop + chart.plotH + 4
                 text: modelData
             }
         }
@@ -690,7 +695,7 @@ Item {
         Rectangle {
             visible: chart.callout && chart.values.length > 0
             x: chart.plotW - width - 6
-            y: Math.max(0, Math.min(chart.plotH - height, chart.headY - height - 10))
+            y: chart.padTop + Math.max(0, Math.min(chart.plotH - height, chart.headY - height - 10))
             width: calloutText.width + 16
             height: calloutText.height + 8
             color: root.glow
@@ -738,6 +743,7 @@ Item {
             y: heading.height + 16
             width: section.width
             height: Math.max(0, section.height - y)
+            clip: true
         }
     }
 
@@ -1122,14 +1128,45 @@ Item {
         readonly property real innerW: root.width - 2 * gap
         // Over the Omnibar: CPU, gauges, network. The two charts flank the
         // Omnibar's width; the gauges stand over it.
-        readonly property real chartW: Math.round((innerW - 2 * gap) * 0.39)
-        readonly property real midW: innerW - 2 * chartW - 2 * gap
         readonly property real upperY: gap + status.height + gap
-        readonly property real upperH: Math.max(80, root.barTop - upperY - gap)
+        readonly property real upperH: Math.max(0, root.barTop - upperY - gap)
         // Under it: the figures, then the sections.
         readonly property real figuresY: root.barBottom + gap * 0.5
         readonly property real lowerY: figuresY + figures.height + gap * 1.5
-        readonly property real lowerH: Math.max(60, root.height - lowerY - gap)
+        readonly property real lowerH: Math.max(0, root.height - lowerY - gap)
+
+        // ---- what fits. A small window or a split pane keeps the Omnibar
+        // and drops blocks: the gauge cluster first, so the charts widen;
+        // then the network chart, so CPU takes the band; then the band. The
+        // figures under the Omnibar are the compact readouts of what was
+        // dropped, as many as fit in module order. The sections under them
+        // go last first: Spaces, pages, power, memory.
+        readonly property real minChart: root.captionSize * 16
+        readonly property real minGauge: root.captionSize * 6
+        readonly property real minSection: root.captionSize * 18
+        // A figure holds "22.4 GiB" at its size.
+        readonly property real minFigure: root.readingSize * 1.45 * 0.62 * 9
+        readonly property bool upperShown: upperH >= root.captionSize * 9
+        readonly property bool gaugesShown: upperShown && root.has("cpu") && (innerW - 2 * minChart
+                                                                              - 2 * gap - gap) / 2
+                                            >= minGauge && (upperH - gap * 0.5) / 2 >= minGauge
+        readonly property bool netShown: upperShown && root.has("net") && (innerW - gap) / 2
+                                         >= minChart
+        readonly property bool cpuShown: upperShown && root.has("cpu") && innerW >= minChart
+        readonly property real chartW: gaugesShown ? Math.round((innerW - 2 * gap) * 0.39) :
+                                                     netShown ? (innerW - gap) / 2 : innerW
+        readonly property real midW: innerW - 2 * chartW - 2 * gap
+        readonly property bool lowerShown: lowerH >= root.captionSize * 9
+        readonly property var lowerKeys: {
+            if (!lowerShown)
+                return [];
+            const keys = ["mem", "battery", "pages", "spaces"].filter(k => root.has(k));
+            const fit = Math.floor((innerW + gap * 1.5) / (minSection + gap * 1.5));
+            return keys.slice(0, Math.max(0, fit));
+        }
+        function lowerHas(key) {
+            return a.lowerKeys.indexOf(key) >= 0;
+        }
 
         // Status: the title, the clock, the text size, downloads while one
         // runs.
@@ -1185,7 +1222,7 @@ Item {
         // CPU: the total over five minutes, and a square per core under it.
         Section {
             id: cpu
-            visible: root.has("cpu")
+            visible: a.cpuShown
             x: a.gap
             y: a.upperY
             width: a.chartW
@@ -1236,7 +1273,7 @@ Item {
         // Gauges over the Omnibar, two by two.
         Grid {
             id: gauges
-            visible: root.has("cpu") || root.has("net")
+            visible: a.gaugesShown
             readonly property real cell: Math.max(60, Math.min((a.midW - columnSpacing) / 2, (
                                                                    a.upperH - rowSpacing) / 2))
             x: a.gap + a.chartW + a.gap + (a.midW - width) / 2
@@ -1284,7 +1321,7 @@ Item {
         // Network: down as bars, up as a line.
         Section {
             id: netSection
-            visible: root.has("net")
+            visible: a.netShown
             x: root.width - a.gap - width
             y: a.upperY
             width: a.chartW
@@ -1331,8 +1368,24 @@ Item {
                     out.push(["BATTERY", root.pct(probe.battery.capacity), false]);
                 if (root.has("blocked"))
                     out.push(["BLOCKED", probe.blockedOpen + " · " + probe.blockedSession, true]);
-                return out;
+                // As many as fit, the earlier modules first, in their order.
+                const fit = Math.max(0, Math.floor((a.innerW + spacing) / (a.minFigure + spacing)));
+                const kept = out.map((item, i) => [i, item]).sort((x, y) => figures.rank(x[1][0])
+                                                                            - figures.rank(
+                                                                                y[1][0])).slice(0,
+                                                                                                fit).sort(
+                          (x, y) => x[0] - y[0]).map(x => x[1]);
+                return kept;
             }
+            function rank(label) {
+                const order = [["CPU", 0], ["▼", 1], ["▲", 2], ["MEMORY", 3], ["BLOCKED", 4],
+                               ["BATTERY", 5], ["SWAP", 6], ["OMAWEB", 7]];
+                for (const [prefix, n] of order)
+                    if (label.startsWith(prefix))
+                        return n;
+                return 9;
+            }
+            visible: root.height - a.figuresY >= height + a.gap
             readonly property real each: (a.innerW - (items.length - 1) * spacing) / Math.max(1,
                                                                                               items.length)
             Repeater {
@@ -1354,10 +1407,10 @@ Item {
             y: a.lowerY
             spacing: a.gap * 1.5
             readonly property var weights: ({
-                                                pages: root.has("pages") ? 3 : 0,
-                                                mem: root.has("mem") ? 2.4 : 0,
-                                                power: root.has("battery") ? 2.6 : 0,
-                                                spaces: root.has("spaces") ? 2.6 : 0
+                                                pages: a.lowerHas("pages") ? 3 : 0,
+                                                mem: a.lowerHas("mem") ? 2.4 : 0,
+                                                power: a.lowerHas("battery") ? 2.6 : 0,
+                                                spaces: a.lowerHas("spaces") ? 2.6 : 0
                                             })
             readonly property int count: Object.values(lower.weights).filter(w => w > 0).length
             readonly property real total: Object.values(lower.weights).reduce((s, w) => s + w, 0)
@@ -1369,7 +1422,7 @@ Item {
 
             // Pages loaded today, an hour a bar.
             Section {
-                visible: root.has("pages")
+                visible: a.lowerHas("pages")
                 width: lower.widthOf("pages")
                 height: a.lowerH
                 fake: true
@@ -1389,7 +1442,7 @@ Item {
             // Memory: RAM as used, cache and free, and swap.
             Section {
                 id: memory
-                visible: root.has("mem")
+                visible: a.lowerHas("mem")
                 width: lower.widthOf("mem")
                 height: a.lowerH
                 title: "MEMORY · " + root.size(probe.meminfo.MemTotal || 0)
@@ -1450,6 +1503,9 @@ Item {
                             readonly property real total: probe.meminfo.SwapTotal || 0
                             readonly property real used: total - (probe.meminfo.SwapFree || 0)
                             size: memory.ring * 0.55
+                            // Whole or not at all: under the legend, if it fits.
+                            visible: memory.height - root.captionSize - 16 >= root.captionSize
+                                     * 6.5 + memory.ring * 0.55 + root.captionSize * 1.6 + 30
                             parts: [
                                 {
                                     value: used,
@@ -1469,7 +1525,7 @@ Item {
 
             // Power: the draw over five minutes, and the charge as a line.
             Section {
-                visible: root.has("battery")
+                visible: a.lowerHas("battery")
                 width: lower.widthOf("power")
                 height: a.lowerH
                 title: probe.battery ? "POWER · " + probe.battery.status.toUpperCase() + " · "
@@ -1490,7 +1546,7 @@ Item {
             // Memory per Space: a hatched bar each, against a common scale.
             Section {
                 id: spaces
-                visible: root.has("spaces")
+                visible: a.lowerHas("spaces")
                 width: lower.widthOf("spaces")
                 height: a.lowerH
                 fake: true
