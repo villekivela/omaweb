@@ -6,11 +6,11 @@ import Omaweb
 // around the resting Omnibar, for the maintainer to judge. Never merged; it
 // lives on prototype/020-telemetry.
 //
-// Round 2, after the first verdict: the Cockpit layout only, under the real
-// CRT glass with real scanlines (TelemetryHostPrototype.qml takes the picture
-// at full resolution and sets the scanline pitch), text in two sizes to
-// compare, CPU cores as squares, more gauges, donuts for memory and swap, and
-// blocked requests as a small module.
+// Round 3: the Cockpit edge to edge, as the maintainer's reference draws a
+// CRT dashboard: charts with dotted gridlines, axis values and a lit callout,
+// hatched bars, a row of figures under the Omnibar, and sections without
+// frames. Under the real CRT glass with real scanlines
+// (TelemetryHostPrototype.qml), text in two sizes to compare.
 //
 // Real: CPU per core, network, memory, cache and swap (/proc), battery (/sys),
 // the chrome process's memory, requests blocked on the Space's open tabs,
@@ -211,6 +211,8 @@ Item {
         property var meminfo: ({})
         property real chromeKib: 0
         property var battery: null
+        property var watts: []
+        property var charge: []
         property int blockedOpen: 0
         property int blockedSession: 0
         property var blockedRate: []
@@ -317,16 +319,28 @@ Item {
             probe.chromeKib = self ? Number(self[1]) : 0;
         }
 
+        // The machine's own battery, not a device's (a trackpad's has scope
+        // Device). Its draw is power_now, or current_now times voltage_now
+        // where the firmware gives those instead.
         function readBattery() {
             for (const name of Scenes.systemEntries("/sys/class/power_supply")) {
                 const dir = "/sys/class/power_supply/" + name + "/";
-                if (Scenes.systemFile(dir + "type").trim() !== "Battery")
+                if (Scenes.systemFile(dir + "type").trim() !== "Battery" || Scenes.systemFile(dir
+                                                                                              + "scope").trim(
+                            ) === "Device")
                     continue;
+                const power = Scenes.systemFile(dir + "power_now");
+                const watts = power !== "" ? Number(power) / 1e6 : Number(Scenes.systemFile(dir
+                                                                                            + "current_now"))
+                                             * Number(Scenes.systemFile(dir + "voltage_now"))
+                                             / 1e12;
                 probe.battery = {
                     capacity: Number(Scenes.systemFile(dir + "capacity")) / 100,
                     status: Scenes.systemFile(dir + "status").trim(),
-                    watts: Number(Scenes.systemFile(dir + "power_now")) / 1e6
+                    watts: watts
                 };
+                probe.watts = probe.push(probe.watts, watts);
+                probe.charge = probe.push(probe.charge, probe.battery.capacity);
                 return;
             }
             probe.battery = null;
@@ -442,51 +456,276 @@ Item {
         bold: true
     }
 
-    // A trace of `values` (0..max, or 0..its own peak), newest at the right.
-    component Trace: Canvas {
-        id: trace
+    // A chart as the reference draws one: dotted gridlines with their values
+    // at the right, time along the bottom, `values` as a hatched area under a
+    // bright line ("area") or as hatched bars ("bars"), `second` as a line
+    // over it, and the latest value in a lit box at the line's head.
+    component Chart: Item {
+        id: chart
         property var values: []
         property var second: null
         property real max: 0
-        property color colour: root.glow
-        property color secondColour: root.hot
+        // The scale `second` is drawn on, or 0 for the same as `values`.
+        property real secondMax: 0
         property int span: 300
-        onValuesChanged: requestPaint()
+        property string style: "area"
+        // Bars: how many the span is grouped into.
+        property int bars: 60
+        property var format: function (v) {
+            return String(Math.round(v));
+        }
+        property var timeLabels: ["-5m", "-4m", "-3m", "-2m", "-1m", "now"]
+        property bool callout: true
+        readonly property real axisW: root.captionSize * 4.5
+        readonly property real axisH: root.captionSize * 1.6
+        readonly property real plotW: Math.max(10, chart.width - chart.axisW)
+        readonly property real plotH: Math.max(10, chart.height - chart.axisH)
+        // The scale's top: the given one, or the peak rounded up.
+        readonly property real scaleTop: chart.max > 0 ? chart.max : chart.nice(Math.max(root.peakOf(
+                                                                                             chart.values),
+                                                                                         chart.secondMax
+                                                                                         > 0 ? 0 : root.peakOf(
+                                                                                                   chart.second
+                                                                                                   || [])) * 1.15)
+        readonly property real latest: root.lastOf(chart.values)
+        // The callout eases, so it glides as the line moves.
+        property real headY: chart.plotH - Math.min(1, chart.latest / chart.scaleTop) * chart.plotH
+
+        Behavior on headY {
+            NumberAnimation {
+                duration: 300
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        function nice(v) {
+            const step = Math.pow(10, Math.floor(Math.log10(Math.max(1e-9, v))));
+            for (const k of [1, 2, 2.5, 5, 10])
+                if (k * step >= v)
+                    return k * step;
+            return 10 * step;
+        }
+
+        Canvas {
+            id: plot
+            width: chart.plotW
+            height: chart.plotH
+            property var values: chart.values
+            property var second: chart.second
+            property real scaleTop: chart.scaleTop
+            onValuesChanged: requestPaint()
+            onScaleTopChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onPaint: {
+                const c = getContext("2d");
+                c.reset();
+                const w = width, h = height, top = plot.scaleTop;
+                const glow = root.glow;
+                // Gridlines, dotted.
+                c.strokeStyle = Qt.rgba(glow.r, glow.g, glow.b, 0.35);
+                c.lineWidth = 1;
+                c.setLineDash([1, 4]);
+                for (let t = 0; t <= 4; ++t) {
+                    const y = Math.round(h - h * t / 4) + 0.5;
+                    c.beginPath();
+                    c.moveTo(0, y);
+                    c.lineTo(w, y);
+                    c.stroke();
+                }
+                for (let t = 0; t < chart.timeLabels.length; ++t) {
+                    const x = Math.round(w * t / (chart.timeLabels.length - 1)) + 0.5;
+                    c.beginPath();
+                    c.moveTo(x, 0);
+                    c.lineTo(x, h);
+                    c.stroke();
+                }
+                c.setLineDash([]);
+                const vs = plot.values;
+                if (vs.length < 1)
+                    return;
+                const yOf = v => h - Math.min(1, v / top) * h;
+                // Hatching, clipped to the shape: vertical lines every 3 px.
+                const hatch = () => {
+                    c.save();
+                    c.clip();
+                    c.strokeStyle = Qt.rgba(glow.r, glow.g, glow.b, 0.45);
+                    c.lineWidth = 1;
+                    c.beginPath();
+                    for (let x = 0.5; x < w; x += 3) {
+                        c.moveTo(x, 0);
+                        c.lineTo(x, h);
+                    }
+                    c.stroke();
+                    c.restore();
+                };
+                if (chart.style === "bars") {
+                    const per = chart.span / chart.bars;
+                    const bw = w / chart.bars;
+                    // The bars from the newest back, each the mean of its samples.
+                    const tops = [];
+                    for (let b = 0; b < chart.bars; ++b) {
+                        const end = vs.length - b * per;
+                        if (end <= 0)
+                            break;
+                        let sum = 0, n = 0;
+                        for (let i = Math.max(0, Math.floor(end - per)); i < end; ++i) {
+                            sum += vs[i];
+                            ++n;
+                        }
+                        const x = w - (b + 1) * bw;
+                        tops.push([x, yOf(sum / n)]);
+                    }
+                    c.beginPath();
+                    for (const [x, y] of tops)
+                        c.rect(x + 2, y, bw - 4, h - y);
+                    c.fillStyle = Qt.rgba(glow.r, glow.g, glow.b, 0.12);
+                    c.fill();
+                    hatch();
+                    c.strokeStyle = glow;
+                    c.lineWidth = 2;
+                    c.beginPath();
+                    for (const [x, y] of tops) {
+                        c.moveTo(x + 2, y);
+                        c.lineTo(x + bw - 2, y);
+                    }
+                    c.stroke();
+                } else {
+                    const step = w / (chart.span - 1);
+                    const x0 = w - (vs.length - 1) * step;
+                    c.beginPath();
+                    c.moveTo(x0, h);
+                    for (let i = 0; i < vs.length; ++i)
+                        c.lineTo(x0 + i * step, yOf(vs[i]));
+                    c.lineTo(w, h);
+                    c.closePath();
+                    c.fillStyle = Qt.rgba(glow.r, glow.g, glow.b, 0.12);
+                    c.fill();
+                    hatch();
+                    c.beginPath();
+                    for (let i = 0; i < vs.length; ++i)
+                        if (i === 0)
+                            c.moveTo(x0, yOf(vs[0]));
+                        else
+                            c.lineTo(x0 + i * step, yOf(vs[i]));
+                    c.strokeStyle = glow;
+                    c.lineWidth = 2.5;
+                    c.stroke();
+                }
+                const ss = plot.second;
+                if (ss && ss.length > 1) {
+                    const step = w / (chart.span - 1);
+                    const x0 = w - (ss.length - 1) * step;
+                    c.beginPath();
+                    const y2 = v => chart.secondMax > 0 ? h - Math.min(1, v / chart.secondMax) * h :
+                                                          yOf(v);
+                    for (let i = 0; i < ss.length; ++i)
+                        if (i === 0)
+                            c.moveTo(x0, y2(ss[0]));
+                        else
+                            c.lineTo(x0 + i * step, y2(ss[i]));
+                    c.strokeStyle = root.hot;
+                    c.lineWidth = 2;
+                    c.stroke();
+                }
+            }
+        }
+        // The scale's values at the right of each gridline.
+        Repeater {
+            model: 5
+            Caption {
+                required property int index
+                x: chart.plotW + 8
+                y: chart.plotH - chart.plotH * index / 4 - height / 2
+                text: chart.format(chart.scaleTop * index / 4)
+            }
+        }
+        // Time along the bottom.
+        Repeater {
+            model: chart.timeLabels
+            Caption {
+                required property string modelData
+                required property int index
+                x: Math.min(chart.plotW - width, Math.max(0, chart.plotW * index / (
+                                                              chart.timeLabels.length - 1) - width
+                                                          / 2))
+                y: chart.plotH + 4
+                text: modelData
+            }
+        }
+        // The latest value, lit, at the line's head.
+        Rectangle {
+            visible: chart.callout && chart.values.length > 0
+            x: chart.plotW - width - 6
+            y: Math.max(0, Math.min(chart.plotH - height, chart.headY - height - 10))
+            width: calloutText.width + 16
+            height: calloutText.height + 8
+            color: root.glow
+            CrtText {
+                id: calloutText
+                anchors.centerIn: parent
+                color: root.ground
+                bold: true
+                pixelSize: root.readingSize * 0.8
+                text: chart.format(chart.latest)
+            }
+        }
+    }
+
+    // A rule of dots, as the reference underlines its titles and figures.
+    component DottedRule: Canvas {
+        height: 2
         onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
         onPaint: {
             const c = getContext("2d");
             c.reset();
-            const peak = trace.max > 0 ? trace.max : Math.max(root.peakOf(trace.values), root.peakOf(
-                                                                  trace.second || []));
-            const step = trace.width / (trace.span - 1);
-            const line = (values, colour, fill) => {
-                if (values.length < 2)
-                    return;
-                c.beginPath();
-                const x0 = trace.width - (values.length - 1) * step;
-                for (let i = 0; i < values.length; ++i) {
-                    const x = x0 + i * step;
-                    const y = trace.height - 2 - Math.min(1, values[i] / peak) * (trace.height - 4);
-                    if (i === 0)
-                        c.moveTo(x, y);
-                    else
-                        c.lineTo(x, y);
-                }
-                c.strokeStyle = colour;
-                c.lineWidth = 2;
-                c.stroke();
-                if (fill) {
-                    c.lineTo(trace.width, trace.height);
-                    c.lineTo(x0, trace.height);
-                    c.closePath();
-                    c.fillStyle = Qt.rgba(colour.r, colour.g, colour.b, 0.2);
-                    c.fill();
-                }
-            };
-            line(trace.values, trace.colour, true);
-            if (trace.second)
-                line(trace.second, trace.secondColour, false);
+            c.fillStyle = Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.6);
+            for (let x = 0; x < width; x += 5)
+                c.fillRect(x, 0, 2, 2);
+        }
+    }
+
+    // A section: its title over a dotted rule, its content under.
+    component Section: Item {
+        id: section
+        property string title
+        property bool fake: false
+        default property alias content: body.data
+        Caption {
+            id: heading
+            text: section.title + (section.fake ? "  [FAKE]" : "")
+            color: section.fake ? root.hot : root.glow
+        }
+        DottedRule {
+            y: heading.height + 4
+            width: section.width
+        }
+        Item {
+            id: body
+            y: heading.height + 16
+            width: section.width
+            height: Math.max(0, section.height - y)
+        }
+    }
+
+    // A figure: a small label over a large value over a dotted rule.
+    component Figure: Column {
+        id: figure
+        property string label
+        property string value
+        property bool small: false
+        property bool fake: false
+        spacing: 4
+        Caption {
+            text: figure.label + (figure.fake ? " [FAKE]" : "")
+            color: figure.fake ? root.hot : root.glow
+        }
+        Reading {
+            text: figure.value
+            pixelSize: figure.small ? root.readingSize : Math.round(root.readingSize * 1.45)
+        }
+        DottedRule {
+            width: figure.width
         }
     }
 
@@ -701,39 +940,6 @@ Item {
         }
     }
 
-    // A framed panel with a title in its top edge.
-    component Panel: Item {
-        id: panel
-        property string title
-        property bool fake: false
-        default property alias content: body.data
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-            border.color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.55)
-            border.width: 2
-        }
-        Rectangle {
-            x: 14
-            y: -heading.height / 2
-            width: heading.width + 14
-            height: heading.height
-            color: root.ground
-            Caption {
-                id: heading
-                x: 7
-                text: panel.title + (panel.fake ? "  [FAKE]" : "")
-                color: panel.fake ? root.hot : root.glow
-            }
-        }
-        Item {
-            id: body
-            anchors.fill: parent
-            anchors.margins: 16
-            anchors.topMargin: heading.height / 2 + 12
-        }
-    }
-
     // ---- ground
 
     Rectangle {
@@ -741,32 +947,29 @@ Item {
         color: root.ground
     }
 
-    // ---- the cockpit: four panels frame the Omnibar, a status strip over
-    // them and a footer under them
+    // ---- the cockpit, edge to edge as the reference: two charts and a
+    // cluster of gauges over the Omnibar, a row of figures under it, and a
+    // row of sections under that.
 
     Item {
         id: a
         anchors.fill: parent
 
-        readonly property real gap: 20
-        readonly property real colW: (root.width - 3 * gap) / 2
-        readonly property real stripH: status.height
-        readonly property real footH: root.has("pages") || root.has("spaces") ? Math.min(
-                                                                                    root.height
-                                                                                    * 0.2, root.readingSize
-                                                                                    * 6) : 0
-        readonly property real upperY: gap + stripH + gap
+        readonly property real gap: Math.round(Math.max(20, root.width * 0.012))
+        readonly property real innerW: root.width - 2 * gap
+        // Over the Omnibar: CPU, gauges, network. The two charts flank the
+        // Omnibar's width; the gauges stand over it.
+        readonly property real chartW: Math.round((innerW - 2 * gap) * 0.39)
+        readonly property real midW: innerW - 2 * chartW - 2 * gap
+        readonly property real upperY: gap + status.height + gap
         readonly property real upperH: Math.max(80, root.barTop - upperY - gap)
-        readonly property real lowerY: root.barBottom + gap
-        readonly property real lowerH: Math.max(80, root.height - lowerY - gap - (footH > 0 ? footH
-                                                                                              + gap : 0))
-        // A gauge as big as a panel's height holds, over its label.
-        readonly property real upperGauge: Math.max(60, Math.min(220, upperH - root.captionSize * 2
-                                                                 - 36))
-        readonly property real lowerGauge: Math.max(60, Math.min(220, lowerH - root.captionSize * 2
-                                                                 - 36))
+        // Under it: the figures, then the sections.
+        readonly property real figuresY: root.barBottom + gap * 0.5
+        readonly property real lowerY: figuresY + figures.height + gap * 1.5
+        readonly property real lowerH: Math.max(60, root.height - lowerY - gap)
 
-        // Status strip: the title, the clock, downloads while one runs.
+        // Status: the title, the clock, the text size, downloads while one
+        // runs.
         Row {
             id: status
             x: a.gap
@@ -799,7 +1002,7 @@ Item {
                     }
                     Rectangle {
                         y: (parent.height - height) / 2
-                        width: 140
+                        width: 160
                         height: root.captionSize / 2
                         color: root.faint
                         Rectangle {
@@ -816,48 +1019,44 @@ Item {
             }
         }
 
-        // CPU: a square per core, lit by its load, and the total as a gauge.
-        Panel {
-            id: cpuPanel
+        // CPU: the total over five minutes, and a square per core under it.
+        Section {
+            id: cpu
             visible: root.has("cpu")
             x: a.gap
             y: a.upperY
-            width: root.has("net") ? a.colW : root.width - 2 * a.gap
+            width: a.chartW
             height: a.upperH
-            title: "CPU  " + probe.cores.length + " CORES"
+            title: "CPU · " + probe.cores.length + " CORES · TOTAL"
 
-            Grid {
-                id: squares
-                readonly property int count: Math.max(1, probe.cores.length)
-                readonly property real roomW: cpuPanel.width - 32 - a.upperGauge - 24
-                readonly property real roomH: a.upperH - root.captionSize - 28
-                // As many across as makes the squares largest.
-                readonly property int across: {
-                    let best = 1, bestSide = 0;
-                    for (let n = 1; n <= squares.count; ++n) {
-                        const side = Math.min(squares.roomW / n, squares.roomH / Math.ceil(
-                                                  squares.count / n));
-                        if (side > bestSide) {
-                            bestSide = side;
-                            best = n;
-                        }
-                    }
-                    return best;
-                }
-                readonly property real side: Math.max(8, Math.min(squares.roomW / squares.across,
-                                                                  squares.roomH / Math.ceil(
-                                                                      squares.count
-                                                                      / squares.across)) - spacing)
-                columns: squares.across
-                spacing: 6
+            readonly property real squareSide: Math.max(10, Math.min(root.readingSize * 2.6, (width
+                                                                                              - (probe.cores.length
+                                                                                                 - 1) * 4)
+                                                                     / Math.max(1,
+                                                                                probe.cores.length)))
+            readonly property int perRow: Math.max(1, Math.floor((width + 4) / (squareSide + 4)))
+            readonly property real squaresH: Math.ceil(probe.cores.length / perRow) * (squareSide
+                                                                                       + 4)
+            Chart {
+                width: parent.width
+                height: parent.height - cpu.squaresH - 12
+                values: probe.cpuTotal
+                span: probe.fastKeep
+                max: 1
+                format: v => Math.round(v * 100) + "%"
+            }
+            Flow {
+                y: parent.height - cpu.squaresH
+                width: parent.width
+                spacing: 4
                 Repeater {
                     model: probe.cores
                     Rectangle {
                         required property real modelData
-                        width: squares.side
-                        height: squares.side
+                        width: cpu.squareSide
+                        height: cpu.squareSide
                         color: modelData > 0.85 ? root.hot : Qt.rgba(root.glow.r, root.glow.g,
-                                                                     root.glow.b, 0.08 + 0.92
+                                                                     root.glow.b, 0.06 + 0.94
                                                                      * modelData)
                         border.color: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.7)
                         border.width: 1
@@ -866,234 +1065,347 @@ Item {
                                 duration: 300
                             }
                         }
-                        CrtText {
-                            visible: squares.side >= root.captionSize * 2.2
-                            anchors.centerIn: parent
-                            pixelSize: root.captionSize
-                            color: modelData > 0.5 ? root.ground : root.ink
-                            text: Math.round(modelData * 100)
-                        }
                     }
                 }
             }
+        }
+
+        // Gauges over the Omnibar, two by two.
+        Grid {
+            id: gauges
+            visible: root.has("cpu") || root.has("net")
+            readonly property real cell: Math.max(60, Math.min((a.midW - columnSpacing) / 2, (
+                                                                   a.upperH - rowSpacing) / 2
+                                                               - root.captionSize * 1.6 - 6))
+            x: a.gap + a.chartW + a.gap + (a.midW - width) / 2
+            y: a.upperY + (a.upperH - height) / 2
+            columns: 2
+            columnSpacing: a.gap
+            rowSpacing: a.gap * 0.5
             Gauge {
-                anchors.right: parent.right
-                size: a.upperGauge
+                size: gauges.cell
                 value: root.lastOf(probe.cpuTotal)
                 reading: root.pct(root.lastOf(probe.cpuTotal))
-                label: "TOTAL"
+                label: "CPU"
+            }
+            Gauge {
+                size: gauges.cell
+                value: probe.meminfo.MemTotal ? 1 - probe.meminfo.MemAvailable
+                                                / probe.meminfo.MemTotal : 0
+                reading: probe.meminfo.MemTotal ? root.pct(1 - probe.meminfo.MemAvailable
+                                                           / probe.meminfo.MemTotal) : ""
+                label: "MEMORY"
+            }
+            Gauge {
+                size: gauges.cell
+                value: root.lastOf(probe.down) / root.peakOf(probe.down)
+                reading: root.rate(root.lastOf(probe.down))
+                label: "▼ DOWN"
+            }
+            Gauge {
+                size: gauges.cell
+                value: root.lastOf(probe.up) / root.peakOf(probe.up)
+                reading: root.rate(root.lastOf(probe.up))
+                label: "▲ UP"
             }
         }
 
-        // Network: down and up as gauges against the five minutes' peak, and
-        // the trace of both.
-        Panel {
+        // Network: down as bars, up as a line.
+        Section {
             visible: root.has("net")
             x: root.width - a.gap - width
             y: a.upperY
-            width: root.has("cpu") ? a.colW : root.width - 2 * a.gap
+            width: a.chartW
             height: a.upperH
-            title: "NETWORK"
-
-            Row {
-                id: netGauges
-                spacing: 16
-                Gauge {
-                    size: a.upperGauge
-                    value: root.lastOf(probe.down) / root.peakOf(probe.down)
-                    reading: root.rate(root.lastOf(probe.down))
-                    label: "▼ DOWN"
-                }
-                Gauge {
-                    size: a.upperGauge
-                    value: root.lastOf(probe.up) / root.peakOf(probe.up)
-                    reading: root.rate(root.lastOf(probe.up))
-                    label: "▲ UP"
-                }
-            }
-            Trace {
-                x: netGauges.width + 20
-                width: Math.max(0, parent.width - x)
+            title: "NETWORK · ▼ BARS  ▲ LINE"
+            Chart {
+                width: parent.width
                 height: parent.height
+                style: "bars"
+                bars: 72
                 values: probe.down
                 second: probe.up
                 span: probe.fastKeep
+                format: v => root.rate(v).replace("/s", "")
             }
         }
 
-        // Memory: RAM as used, cache and free, swap as used and free, and the
-        // browser's own.
-        Panel {
-            id: memPanel
-            visible: root.has("mem")
+        // Figures under the Omnibar, across the page.
+        Row {
+            id: figures
+            x: a.gap
+            y: a.figuresY
+            spacing: a.gap
+            readonly property var items: {
+                const out = [];
+                if (root.has("cpu"))
+                    out.push(["CPU", root.pct(root.lastOf(probe.cpuTotal)), false]);
+                if (root.has("net")) {
+                    out.push(["▼ DOWN", root.rate(root.lastOf(probe.down)), false]);
+                    out.push(["▲ UP", root.rate(root.lastOf(probe.up)), false]);
+                }
+                if (root.has("mem")) {
+                    out.push(["MEMORY USED", root.size(Math.max(0, (probe.meminfo.MemTotal || 0) - (
+                                                                    probe.meminfo.MemAvailable
+                                                                    || 0))), false]);
+                    out.push(["SWAP", probe.meminfo.SwapTotal ? root.pct(1 - probe.meminfo.SwapFree
+                                                                         / probe.meminfo.SwapTotal) :
+                                                                "—", false]);
+                    out.push(["OMAWEB UI", root.size(probe.chromeKib), false]);
+                }
+                if (root.has("battery") && probe.battery)
+                    out.push(["BATTERY", root.pct(probe.battery.capacity), false]);
+                if (root.has("blocked"))
+                    out.push(["BLOCKED", probe.blockedOpen + " · " + probe.blockedSession, true]);
+                return out;
+            }
+            readonly property real each: (a.innerW - (items.length - 1) * spacing) / Math.max(1,
+                                                                                              items.length)
+            Repeater {
+                model: figures.items
+                Figure {
+                    required property var modelData
+                    width: figures.each
+                    label: modelData[0]
+                    value: modelData[1]
+                    small: modelData[2]
+                }
+            }
+        }
+
+        // The sections under the figures, widths by weight among those shown.
+        Row {
+            id: lower
             x: a.gap
             y: a.lowerY
-            width: root.has("blocked") || root.has("battery") ? a.colW : root.width - 2 * a.gap
-            height: a.lowerH
-            title: "MEMORY  " + root.size(probe.meminfo.MemTotal || 0)
+            spacing: a.gap * 1.5
+            readonly property var weights: ({
+                                                pages: root.has("pages") ? 3 : 0,
+                                                mem: root.has("mem") ? 2.4 : 0,
+                                                power: root.has("battery") ? 2.6 : 0,
+                                                spaces: root.has("spaces") ? 2.6 : 0
+                                            })
+            readonly property int count: Object.values(lower.weights).filter(w => w > 0).length
+            readonly property real total: Object.values(lower.weights).reduce((s, w) => s + w, 0)
+                                          || 1
+            function widthOf(key) {
+                return (a.innerW - (lower.count - 1) * lower.spacing) * lower.weights[key]
+                        / lower.total;
+            }
 
-            // RAM, its legend and swap across the panel, shrunk to fit it.
-            readonly property real fit: Math.max(50, Math.min(a.lowerGauge, (width - 32
-                                                                             - root.captionSize
-                                                                             * 10 - 48) / 1.8))
-
-            Row {
-                spacing: 24
-                Donut {
-                    readonly property real total: probe.meminfo.MemTotal || 1
-                    readonly property real cache: (probe.meminfo.Cached || 0) + (
-                                                      probe.meminfo.Buffers || 0) + (
-                                                      probe.meminfo.SReclaimable || 0)
-                    readonly property real free: probe.meminfo.MemFree || 0
-                    readonly property real used: Math.max(0, total - cache - free)
-                    size: memPanel.fit
-                    parts: [
-                        {
-                            value: used,
-                            colour: root.glow
-                        },
-                        {
-                            value: cache,
-                            colour: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.45)
-                        },
-                        {
-                            value: free,
-                            colour: root.faint
-                        }
-                    ]
-                    reading: root.pct(used / total)
-                    label: "RAM"
+            // Pages loaded today, an hour a bar.
+            Section {
+                visible: root.has("pages")
+                width: lower.widthOf("pages")
+                height: a.lowerH
+                fake: true
+                title: "PAGES TODAY · " + probe.pagesToday.reduce((s, v) => s + v, 0)
+                Chart {
+                    width: parent.width
+                    height: parent.height
+                    style: "bars"
+                    bars: 24
+                    span: 24
+                    values: probe.pagesToday
+                    timeLabels: ["00", "06", "12", "18", "24"]
+                    callout: false
                 }
+            }
+
+            // Memory: RAM as used, cache and free, and swap.
+            Section {
+                id: memory
+                visible: root.has("mem")
+                width: lower.widthOf("mem")
+                height: a.lowerH
+                title: "MEMORY · " + root.size(probe.meminfo.MemTotal || 0)
+                readonly property real ring: Math.max(60, Math.min(a.lowerH - root.captionSize * 6, (width
+                                                                                                     - root.captionSize
+                                                                                                     * 14) / 1.2))
+                Row {
+                    spacing: 20
+                    Donut {
+                        readonly property real total: probe.meminfo.MemTotal || 1
+                        readonly property real cache: (probe.meminfo.Cached || 0) + (
+                                                          probe.meminfo.Buffers || 0) + (
+                                                          probe.meminfo.SReclaimable || 0)
+                        readonly property real free: probe.meminfo.MemFree || 0
+                        readonly property real used: Math.max(0, total - cache - free)
+                        size: memory.ring
+                        parts: [
+                            {
+                                value: used,
+                                colour: root.glow
+                            },
+                            {
+                                value: cache,
+                                colour: Qt.rgba(root.glow.r, root.glow.g, root.glow.b, 0.45)
+                            },
+                            {
+                                value: free,
+                                colour: root.faint
+                            }
+                        ]
+                        reading: root.pct(used / total)
+                        label: "RAM"
+                    }
+                    Column {
+                        spacing: 10
+                        Caption {
+                            text: "■ USED  " + root.size(Math.max(0, (probe.meminfo.MemTotal || 0)
+                                                                  - (probe.meminfo.MemFree || 0) - (
+                                                                      probe.meminfo.Cached || 0) - (
+                                                                      probe.meminfo.Buffers || 0) - (
+                                                                      probe.meminfo.SReclaimable
+                                                                      || 0)))
+                            color: root.glow
+                        }
+                        Caption {
+                            text: "■ CACHE " + root.size((probe.meminfo.Cached || 0) + (
+                                                             probe.meminfo.Buffers || 0) + (
+                                                             probe.meminfo.SReclaimable || 0))
+                        }
+                        Caption {
+                            text: "□ FREE  " + root.size(probe.meminfo.MemFree || 0)
+                        }
+                        Item {
+                            width: 1
+                            height: root.captionSize
+                        }
+                        Donut {
+                            readonly property real total: probe.meminfo.SwapTotal || 0
+                            readonly property real used: total - (probe.meminfo.SwapFree || 0)
+                            size: memory.ring * 0.55
+                            parts: [
+                                {
+                                    value: used,
+                                    colour: root.hot
+                                },
+                                {
+                                    value: Math.max(total > 0 ? 0 : 1, total - used),
+                                    colour: root.faint
+                                }
+                            ]
+                            reading: total > 0 ? root.pct(used / total) : "—"
+                            label: "SWAP"
+                        }
+                    }
+                }
+            }
+
+            // Power: the draw over five minutes, and the charge as a line.
+            Section {
+                visible: root.has("battery")
+                width: lower.widthOf("power")
+                height: a.lowerH
+                title: probe.battery ? "POWER · " + probe.battery.status.toUpperCase() + " · "
+                                       + root.pct(probe.battery.capacity) + " · W BARS  % LINE" :
+                                       "POWER"
+                Chart {
+                    width: parent.width
+                    height: parent.height
+                    style: "bars"
+                    bars: 50
+                    values: probe.watts
+                    second: probe.charge
+                    secondMax: 1
+                    format: v => v.toFixed(v < 10 ? 1 : 0) + " W"
+                }
+            }
+
+            // Memory per Space: a hatched bar each, against a common scale.
+            Section {
+                id: spaces
+                visible: root.has("spaces")
+                width: lower.widthOf("spaces")
+                height: a.lowerH
+                fake: true
+                title: "MEMORY PER SPACE"
+                readonly property real scaleTop: 2048
+                readonly property real labelW: root.captionSize * 7
+                readonly property real valueW: root.readingSize * 1.45 * 3.2
+                readonly property real barW: Math.max(20, width - labelW - valueW - 24)
+                // The rows share the section's height, up to a generous size.
+                readonly property real rowH: Math.min(root.readingSize * 4.5, (height
+                                                                               - root.captionSize
+                                                                               * 5) / Math.max(1,
+                                                                                               probe.spaces.length)
+                                                      - 8)
                 Column {
-                    spacing: 6
-                    y: 10
-                    Caption {
-                        text: "■ USED  " + root.size(Math.max(0, (probe.meminfo.MemTotal || 0) - (
-                                                                  probe.meminfo.MemFree || 0) - (
-                                                                  probe.meminfo.Cached || 0) - (
-                                                                  probe.meminfo.Buffers || 0) - (
-                                                                  probe.meminfo.SReclaimable || 0)))
-                        color: root.glow
-                    }
-                    Caption {
-                        text: "■ CACHE " + root.size((probe.meminfo.Cached || 0) + (
-                                                         probe.meminfo.Buffers || 0) + (
-                                                         probe.meminfo.SReclaimable || 0))
-                    }
-                    Caption {
-                        text: "□ FREE  " + root.size(probe.meminfo.MemFree || 0)
-                    }
-                }
-                Donut {
-                    readonly property real total: probe.meminfo.SwapTotal || 0
-                    readonly property real used: total - (probe.meminfo.SwapFree || 0)
-                    size: memPanel.fit * 0.8
-                    parts: [
-                        {
-                            value: used,
-                            colour: root.hot
-                        },
-                        {
-                            value: Math.max(total > 0 ? 0 : 1, total - used),
-                            colour: root.faint
+                    spacing: 8
+                    // The scale over the bars.
+                    Item {
+                        width: spaces.width
+                        height: root.captionSize * 1.4
+                        Repeater {
+                            model: 3
+                            Caption {
+                                required property int index
+                                x: spaces.labelW + 12 + spaces.barW * index / 2 - (index === 2
+                                                                                   ? width : index
+                                                                                     === 0 ? 0 :
+                                                                                             width / 2)
+                                text: (spaces.scaleTop * index / 2 / 1024).toFixed(0) + "G"
+                            }
                         }
-                    ]
-                    reading: total > 0 ? root.pct(used / total) : "—"
-                    label: "SWAP"
-                }
-            }
-        }
-
-        // The browser's own memory and the battery as gauges, and blocked
-        // requests as a small module.
-        Panel {
-            visible: root.has("blocked") || root.has("battery")
-            x: root.width - a.gap - width
-            y: a.lowerY
-            width: root.has("mem") ? a.colW : root.width - 2 * a.gap
-            height: a.lowerH
-            title: root.has("battery") ? "BROWSER · POWER" : "BROWSER"
-
-            Row {
-                spacing: 24
-                Gauge {
-                    size: a.lowerGauge
-                    value: probe.chromeKib / 2097152
-                    reading: root.size(probe.chromeKib)
-                    label: "OMAWEB UI"
-                }
-                Gauge {
-                    visible: root.has("battery")
-                    size: a.lowerGauge
-                    value: probe.battery ? probe.battery.capacity : 0
-                    reading: probe.battery ? root.pct(probe.battery.capacity) : ""
-                    label: probe.battery ? probe.battery.status.toUpperCase() + " "
-                                           + probe.battery.watts.toFixed(1) + " W" : ""
-                }
-            }
-
-            // Blocked: small, in the panel's corner.
-            Column {
-                visible: root.has("blocked")
-                anchors.right: parent.right
-                anchors.top: parent.top
-                spacing: 4
-                Caption {
-                    anchors.right: parent.right
-                    text: "BLOCKED " + probe.blockedOpen + " · " + probe.blockedSession + " SESSION"
-                }
-                Trace {
-                    anchors.right: parent.right
-                    width: 160
-                    height: root.captionSize * 1.5
-                    values: probe.blockedRate
-                    colour: root.dim
-                }
-                Caption {
-                    anchors.right: parent.right
-                    visible: probe.topHosts.length > 0
-                    maxWidth: 260
-                    elide: Text.ElideLeft
-                    text: probe.topHosts.length ? probe.topHosts[0].host + " ×"
-                                                  + probe.topHosts[0].count : ""
-                }
-            }
-        }
-
-        // Footer: pages today and memory per Space, both fake.
-        Panel {
-            visible: root.has("pages")
-            x: a.gap
-            y: root.height - a.gap - a.footH
-            width: root.has("spaces") ? a.colW : root.width - 2 * a.gap
-            height: a.footH
-            fake: true
-            title: "PAGES TODAY  " + probe.pagesToday.reduce((s, v) => s + v, 0)
-            Trace {
-                width: parent.width
-                height: parent.height
-                values: probe.pagesToday
-                span: 24
-            }
-        }
-        Panel {
-            visible: root.has("spaces")
-            x: root.width - a.gap - width
-            y: root.height - a.gap - a.footH
-            width: a.colW
-            height: a.footH
-            fake: true
-            title: "MEMORY PER SPACE"
-            Row {
-                spacing: 20
-                Repeater {
-                    model: probe.spaces
-                    Gauge {
-                        required property var modelData
-                        size: Math.max(50, a.footH - root.captionSize * 2 - 36)
-                        value: modelData.mib / 2048
-                        reading: modelData.mib + "M"
-                        label: modelData.name.toUpperCase()
+                    }
+                    Repeater {
+                        model: probe.spaces
+                        Item {
+                            required property var modelData
+                            width: spaces.width
+                            height: spaces.rowH
+                            Caption {
+                                width: spaces.labelW
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.name.toUpperCase()
+                                color: root.ink
+                            }
+                            Canvas {
+                                id: bar
+                                x: spaces.labelW + 12
+                                y: parent.height * 0.2
+                                width: spaces.barW
+                                height: parent.height * 0.6
+                                property real share: Math.min(1, modelData.mib / spaces.scaleTop)
+                                onShareChanged: requestPaint()
+                                onWidthChanged: requestPaint()
+                                onHeightChanged: requestPaint()
+                                onPaint: {
+                                    const c = getContext("2d");
+                                    c.reset();
+                                    const g = root.glow;
+                                    c.strokeStyle = Qt.rgba(g.r, g.g, g.b, 0.35);
+                                    c.setLineDash([1, 4]);
+                                    for (let t = 0; t <= 4; ++t) {
+                                        const x = Math.round((width - 1) * t / 4) + 0.5;
+                                        c.beginPath();
+                                        c.moveTo(x, 0);
+                                        c.lineTo(x, height);
+                                        c.stroke();
+                                    }
+                                    c.setLineDash([]);
+                                    const w = width * bar.share;
+                                    c.fillStyle = Qt.rgba(g.r, g.g, g.b, 0.12);
+                                    c.fillRect(0, 0, w, height);
+                                    c.strokeStyle = Qt.rgba(g.r, g.g, g.b, 0.5);
+                                    c.beginPath();
+                                    for (let x = 0.5; x < w; x += 3) {
+                                        c.moveTo(x, 0);
+                                        c.lineTo(x, height);
+                                    }
+                                    c.stroke();
+                                    c.fillStyle = g;
+                                    c.fillRect(Math.max(0, w - 3), 0, 3, height);
+                                }
+                            }
+                            Reading {
+                                x: spaces.labelW + 12 + spaces.barW + 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                pixelSize: Math.round(root.readingSize * 1.45)
+                                text: (modelData.mib / 1024).toFixed(1) + "G"
+                            }
+                        }
                     }
                 }
             }
