@@ -154,8 +154,8 @@ Item {
     // to share and keeps the chip off the half beside it.
     readonly property int chipSize: SiteChip.side(Style.font.caption)
     readonly property int chipInset: trailingHalf ? Style.space(8) : 0
-    // Where the title starts: where it stood while the chip was inset, so a
-    // row's text keeps its line under the address text.
+    // Where the title starts: as far in as the address box's lock, then past
+    // a chip and its gap, so the titles stand under the address text.
     readonly property int titleInset: Style.space(8) + chipSize + Style.space(9)
     // Where the close button and the Agent mark end: 12 px, scaled with the
     // interface font, inside the edge the row's wash reaches, which for an

@@ -1061,8 +1061,9 @@ Rectangle {
                 colors: root.colors
             }
 
-            // The Site information button takes the same 18px slot a tab row gives its site chip,
-            // so the address and every tab title start on one line.
+            // The Site information button takes an 18px slot, and a tab row sets its title in
+            // past the same inset and a chip (TabRow's titleInset), so the address and every tab
+            // title start on one line.
             Text {
                 id: securityGlyph
                 objectName: "securityIndicator"
