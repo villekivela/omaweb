@@ -42,8 +42,11 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
   headlines, Ioskeley Mono for text.
 - `assets/shots/` holds the captures of the real interface, one directory per Omarchy theme, and
   `themes.css`, each theme's roles on whichever element carries `data-theme`, its keyword colour
-  among them for the glass's grade. The page wears Retro 82 unless the reader picks another theme,
-  and the road, the cards and the captures follow it.
+  among them for the glass's grade. The page wears Ethereal Nebula Silver unless the reader picks
+  another theme, and the road, the cards and the captures follow it. Ethereal Nebula Silver is the
+  theme the desktop film is recorded in (`film/README.md`), so the site's default and the film's
+  theme change together: the markup's `data-theme`, `theme.js`'s fallback and the film's desktop
+  theme.
 - `tests/` holds the page's tests and `build/` the build: `site.mjs` copies the site into `dist/`
   and writes the release pages with `releases.mjs`, `release.html` and `render.mjs`. Neither is
   served.
@@ -193,8 +196,8 @@ rate limit.
 A release page is calm: the road as a thin still header that fades into the page, with no motion and
 no glass, then the version, its date and its notes. Every release is listed beside them on a wide
 screen, in a column that stays in view and scrolls on its own, and under them on a narrow one. It
-wears the landing page's theme, Retro 82 or the one the reader picked there, which `theme.js` keeps
-for the visit and applies in the head before the page paints. It also carries
+wears the landing page's theme, Ethereal Nebula Silver or the one the reader picked there, which
+`theme.js` keeps for the visit and applies in the head before the page paints. It also carries
 `<meta name="omaweb-palette">`, so in Omaweb the window's palette arrives as `--omaweb-*`, and every
 theme in `themes.css` defers to it: read in Omaweb, a release page is in the reader's own theme.
 
