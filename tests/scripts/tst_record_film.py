@@ -557,7 +557,8 @@ class BeatChecks(unittest.TestCase):
     def test_on_the_desktop_the_theme_beat_is_marked_to_draw_back_and_close_in_again(self):
         [(start, end, drawn)] = self.play_theme("DP-1")
         back = film.THEME_HOLD + 2 * 3.0
-        self.assertEqual(drawn, {"focus": film.theme_focus(back)})
+        self.assertEqual(drawn, {"focus": [(0.0, None), (film.CAPTION_LEAD, film.DESKTOP),
+                                           (back, None)]})
         # The camera is on the window again before the beat fades into the next.
         self.assertGreaterEqual(end - start, back + film.MOVE + film.FADE)
 
