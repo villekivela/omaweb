@@ -42,6 +42,22 @@ reports the gap and remains experimental rather than imitating behavior it canno
   position or size.
 - Private browsing uses separate frameless windows and one temporary identity shared until the last
   Private window closes.
+- A link from another app, handed over through D-Bus `Open` or as the launch address, opens where
+  the first Link rule that matches it names, and in the Space on show when none does. The rules are
+  `"link-rules"` in `settings.json`, an ordered list of `{"pattern", "space"}`, applied live from
+  the file and carried by Sync. A pattern is a host, optionally after `*.`, then optionally a path
+  prefix ending in `*`: `*.acme.com` matches `acme.com` and every host under it, `github.com/acme/*`
+  matches `/acme` and the paths under `/acme/`. A host outside ASCII is written in its `xn--` form,
+  and only `http` and `https` links match. A target is one of the reader's own Spaces by name, or
+  `"private"`, which opens the link in the Private window shown most recently or a new one. A routed
+  link opens as a new tab in its Space, switches to that Space, raises the window and shows the
+  Space notice. A rule naming a Space that does not exist, or an Agent Space, opens the link where
+  it would have gone with a page notice, "No Space named Work, opened here", and Settings marks the
+  rule. A link clicked in a page and an Agent's `open` are never rerouted. Settings lists the rules
+  under Links from other apps, one row each with a pattern field, a Space picker that offers Private
+  window, a drag handle to reorder and a remove button, and marks a pattern that does not parse; the
+  rule is ignored until it is fixed. Renaming a Space rewrites the rules that name it, and deleting
+  one names its rules in the confirmation and deletes them with it.
 - Site-requested Auxiliary windows are allowed for authentication, payment, and similar flows. A
   page's other new-window requests open a Glance over the page on show, or a tab where the reader
   has turned the Glance off; a background-tab request, from a middle click or the background link

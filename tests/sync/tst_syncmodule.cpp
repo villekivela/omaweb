@@ -303,6 +303,7 @@ private slots:
     void syncsOnlyTheApprovedConfiguration();
     void syncsTheAppIcon();
     void syncsTheBrowserTheme();
+    void syncsTheLinkRules();
     void keepsFollowingTheDesktopThemeAfterAPick();
     void keepsAPickMadeWhileAnotherMachineFollowsTheDesktop();
     void keepsAPickNotYetAppliedWhereTheDesktopIsFollowed();
@@ -877,6 +878,52 @@ void SyncModuleTest::syncsTheBrowserTheme()
 
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("browser-theme")),
         QJsonValue(QStringLiteral("catppuccin-latte")));
+}
+
+// Link rules reach the reader's other machines in the reader's order, as one
+// record of the list.
+void SyncModuleTest::syncsTheLinkRules()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'i');
+    const QJsonArray rules {
+        QJsonObject {{QStringLiteral("pattern"), QStringLiteral("*.acme.com")},
+            {QStringLiteral("space"), QStringLiteral("Work")}},
+        QJsonObject {{QStringLiteral("pattern"), QStringLiteral("bank.example")},
+            {QStringLiteral("space"), QStringLiteral("private")}},
+    };
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("link-rules"), rules}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("link-rules")), QJsonValue(rules));
 }
 
 // A reader who picked a browser theme and then chose to follow the desktop

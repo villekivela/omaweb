@@ -65,6 +65,14 @@ BrowserController *WindowManager::showPrivateWindow(const QUrl &url)
     return shown;
 }
 
+BrowserController *WindowManager::openFromOutside(BrowserController *browser, const QUrl &url)
+{
+    if (browser->openLinkFromOutside(url)) {
+        return browser;
+    }
+    return showPrivateWindow(url);
+}
+
 BrowserController *WindowManager::openNewPrivateWindow(const QUrl &url)
 {
     auto *controller = createPrivateWindow();

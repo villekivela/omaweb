@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 
 #include "KnownExtensions.h"
+#include "LinkRules.h"
 
 #include "AddressWatch.h"
 #include "DownloadPolicy.h"
@@ -86,6 +87,7 @@ namespace {
     // The reader's own Space shown most recently, kept on this machine: the Sync
     // projection names the preferences it copies, and this is not one of them.
     constexpr auto readersSpaceKey = "readers-space-shown";
+    constexpr auto linkRulesKey = "link-rules";
 
     // A query or suggest URL: somewhere to put the terms, in an address.
     bool isSearchTemplate(const QString &url)
@@ -1939,9 +1941,13 @@ bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
         if (space.id != spaceId) {
             continue;
         }
+        const auto previousName = space.name;
         space.name = normalizedName;
         if (!m_store->saveSpace(space)) {
             return false;
+        }
+        if (previousName != normalizedName) {
+            rewriteLinkRules(spaceId, normalizedName);
         }
         if (space.active) {
             m_activeSpaceName = normalizedName;
@@ -2050,6 +2056,7 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         }
         return false;
     }
+    rewriteLinkRules(spaceId, std::nullopt);
     m_spaces.reset(m_store->loadSpaces());
     m_temporarySpaceIds.remove(spaceId);
     m_tabJumpLists.remove(spaceId);
@@ -2088,6 +2095,61 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
     // tabs listed as though something were holding them for it.
     refreshRetainedTabs();
     return true;
+}
+
+QList<LinkRule> BrowserController::linkRules() const
+{
+    return linkrules::read(m_settings.value(QString::fromLatin1(linkRulesKey)));
+}
+
+// The name the Link rules know the Space by: one of the reader's Spaces, and
+// the only one of them called that. Nothing for an Agent Space, or for a name
+// another Space would go on answering to.
+QString BrowserController::linkRuleName(const QString &spaceId) const
+{
+    const auto row = m_spaces.rowOf(spaceId);
+    if (row < 0 || agentSpace(spaceId)) {
+        return {};
+    }
+    const auto name = m_spaces.items().at(row).name;
+    return readersSpaceNames().count(name) == 1 ? name : QString();
+}
+
+int BrowserController::linkRulesNaming(const QString &spaceId) const
+{
+    const auto name = linkRuleName(spaceId);
+    if (name.isEmpty()) {
+        return 0;
+    }
+    return static_cast<int>(std::ranges::count_if(
+        linkRules(), [&name](const LinkRule &rule) { return rule.space == name; }));
+}
+
+// A rule names its Space by name, so what happens to the reader's Space
+// happens to its rules: a new name, or none. Called while the Space list
+// still holds the Space as it was.
+void BrowserController::rewriteLinkRules(
+    const QString &spaceId, const std::optional<QString> &renamed)
+{
+    const auto name = linkRuleName(spaceId);
+    if (name.isEmpty()) {
+        return;
+    }
+    QList<LinkRule> rules;
+    auto changed = false;
+    for (auto rule : linkRules()) {
+        if (rule.space == name) {
+            changed = true;
+            if (!renamed) {
+                continue;
+            }
+            rule.space = *renamed;
+        }
+        rules.append(rule);
+    }
+    if (changed) {
+        m_settings.set(QString::fromLatin1(linkRulesKey), linkrules::write(rules));
+    }
 }
 
 bool BrowserController::requestTabMoveToSpace(
@@ -2204,6 +2266,43 @@ bool BrowserController::confirmTabMoveToSpace(
 void BrowserController::openLink(const QUrl &url, bool inNewTab)
 {
     openInput(QString::fromLatin1(url.toEncoded()), inNewTab);
+}
+
+bool BrowserController::openLinkFromOutside(const QUrl &url)
+{
+    const auto rule = m_privateBrowsing ? std::nullopt : linkrules::route(linkRules(), url);
+    if (rule && rule->space == linkrules::privateWindow()) {
+        return false;
+    }
+    if (rule) {
+        const auto space
+            = std::ranges::find_if(m_spaces.items(), [this, &rule](const SpaceState &space) {
+                  return space.name == rule->space && !agentSpace(space.id);
+              });
+        if (space == m_spaces.items().end()) {
+            emit linkRuleSpaceMissing(rule->space);
+        } else {
+            switchSpace(space->id);
+        }
+    }
+    openLink(url, true);
+    return true;
+}
+
+QStringList BrowserController::readersSpaceNames() const
+{
+    QStringList names;
+    for (const auto &space : m_spaces.items()) {
+        if (!agentSpace(space.id)) {
+            names.append(space.name);
+        }
+    }
+    return names;
+}
+
+bool BrowserController::linkPatternParses(const QString &pattern)
+{
+    return linkrules::parses(pattern);
 }
 
 void BrowserController::openInput(const QString &input, bool inNewTab)

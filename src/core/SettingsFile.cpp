@@ -51,7 +51,7 @@ namespace {
 
     constexpr auto versionKey = "version";
 
-    enum class Kind { Switch, Number, Fraction, Text, Fonts, Extensions };
+    enum class Kind { Switch, Number, Fraction, Text, Fonts, Extensions, LinkRules };
 
     struct Key {
         QLatin1StringView name;
@@ -107,6 +107,9 @@ namespace {
             {QLatin1StringView("webrtc-public-interfaces-only"), Kind::Switch, true},
             {QLatin1StringView("secure-dns"), Kind::Text, QString()},
             {QLatin1StringView("secure-dns-template"), Kind::Text, unstated},
+            // Where a link from another app opens, first match first (ADR 0061
+            // and LinkRules.h).
+            {QLatin1StringView("link-rules"), Kind::LinkRules, QJsonArray {}},
         };
         return keys;
     }
@@ -162,6 +165,19 @@ namespace {
             const auto extensions = value.toObject();
             return std::ranges::all_of(
                 extensions, [](const QJsonValue &enabled) { return enabled.isBool(); });
+        }
+        case Kind::LinkRules: {
+            // A pattern that does not parse is still a rule: Settings marks
+            // it, and routing passes it over.
+            if (!value.isArray()) {
+                return false;
+            }
+            const auto rules = value.toArray();
+            return std::ranges::all_of(rules, [](const QJsonValue &rule) {
+                const auto object = rule.toObject();
+                return rule.isObject() && object.value(QLatin1String("pattern")).isString()
+                    && object.value(QLatin1String("space")).isString();
+            });
         }
         }
         return false;
@@ -407,6 +423,9 @@ QString SettingsFile::text(const QJsonValue &value)
         return isWholeNumber(value) ? QString::number(value.toInteger())
                                     : QString::number(value.toDouble(), 'g', 6);
     }
+    if (value.isArray()) {
+        return QString::fromUtf8(QJsonDocument(value.toArray()).toJson(QJsonDocument::Compact));
+    }
     return value.toString();
 }
 
@@ -426,6 +445,11 @@ QJsonValue SettingsFile::fromText(const QString &key, const QString &text)
         bool number = false;
         const auto value = text.toDouble(&number);
         return number ? QJsonValue(value) : QJsonValue(QJsonValue::Undefined);
+    }
+    if (known && known->kind == Kind::LinkRules) {
+        const auto document = QJsonDocument::fromJson(text.toUtf8());
+        return document.isArray() ? QJsonValue(document.array())
+                                  : QJsonValue(QJsonValue::Undefined);
     }
     if (known && known->kind == Kind::Number) {
         bool number = false;

@@ -5,6 +5,7 @@
 #include "RetainedTab.h"
 #include "SessionSiteState.h"
 #include "SessionStore.h"
+#include "LinkRules.h"
 #include "SettingsFile.h"
 #include "ExtensionInstaller.h"
 #include "NeighbourSpace.h"
@@ -297,6 +298,8 @@ public:
     // One of spaceColourNames(), even one another Space already has.
     Q_INVOKABLE bool setSpaceColour(const QString &spaceId, const QString &colour);
     Q_INVOKABLE bool deleteSpace(const QString &spaceId, const QString &confirmationName);
+    // How many Link rules name the Space, which deleting it deletes too.
+    Q_INVOKABLE int linkRulesNaming(const QString &spaceId) const;
     // The order Spaces are listed in is the reader's, like the order of tabs
     // within a Space, and it is a property of the Space records rather than of
     // what is open: a move writes the new positions through and leaves the
@@ -310,6 +313,18 @@ public:
     // An address that already is one, opened exactly as written: its escapes
     // stay, where typed text would be decoded and trimmed.
     Q_INVOKABLE void openLink(const QUrl &url, bool inNewTab);
+    // A link another app handed over, as a new tab where the first Link rule
+    // that takes it says: in the reader's Space it names, switched to, or in
+    // the Space on show where no rule takes it. A rule naming a Space the
+    // reader does not have, or an Agent Space, opens it in the Space on show
+    // and says so with linkRuleSpaceMissing. False, with nothing opened, when
+    // the rule asks for a Private window, which is not this window's to open.
+    Q_INVOKABLE bool openLinkFromOutside(const QUrl &url);
+    // The names a Link rule can send a link to, in the order the Spaces are
+    // listed: the reader's own Spaces, not an Agent's.
+    Q_INVOKABLE QStringList readersSpaceNames() const;
+    // Whether a Link rule's pattern is one Omaweb reads (linkrules::parses).
+    Q_INVOKABLE static bool linkPatternParses(const QString &pattern);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
     static QUrl agentActivityAddress();
     // The title a tab carries until its page names itself.
@@ -800,6 +815,9 @@ signals:
     void historySearchDelayRequested(int milliseconds);
     void certificateExceptionsChanged();
     void preferenceChanged(const QString &name);
+    // A Link rule sent a link to a Space by a name no Space of the reader's
+    // has, so it opened in the Space on show.
+    void linkRuleSpaceMissing(const QString &spaceName);
     void agentSpacesChanged();
     void spaceGrantsChanged();
     void spaceProjectsChanged();
@@ -817,6 +835,10 @@ private:
     // The tab the address went to, or nothing.
     QString loadAnsweredAddress(const QString &spaceId, const QUrl &url);
     void rememberReadersSpace();
+    QList<LinkRule> linkRules() const;
+    QString linkRuleName(const QString &spaceId) const;
+    // Renames the Space in the Link rules that name it, or deletes them.
+    void rewriteLinkRules(const QString &spaceId, const std::optional<QString> &renamed);
     // Facts held by pages that survived a Space switch. The session store does
     // not write either one, and a process restart starts them empty again.
     struct LivePageState {
