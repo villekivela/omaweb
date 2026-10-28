@@ -25,6 +25,8 @@ Rectangle {
     // as one list (#779).
     readonly property int blockGap: 8
     readonly property int rowGap: 4
+    // Between the status island and the Space row under it.
+    readonly property int islandGap: 6
 
     property var colors
     property string iconFontFamily
@@ -68,7 +70,8 @@ Rectangle {
     // What Omaweb knows about its own age. Null in the UI lab and in tests,
     // where nothing asks GitHub anything.
     property var releaseWatch: null
-    // The window's Problem recording, which the footer marks while it runs.
+    // The window's Problem recording, which the Status island marks while it
+    // runs.
     property var problemRecording: null
     signal problemReportRequested
     property bool savedFileNoticeShowing: false
@@ -94,10 +97,12 @@ Rectangle {
     // How many Spaces the row has room for. The reader's come first and the
     // Agent Spaces after them, so the ones left out are the last in that
     // order, and room is kept for the count of them.
+    function rowWidth(shown) {
+        return shown * root.spaceSlot + Math.max(0, shown - 1) * root.slotSpacing;
+    }
+
     function spacesShown(available, count) {
-        const widthOf = function (shown) {
-            return shown * root.spaceSlot + Math.max(0, shown - 1) * root.slotSpacing;
-        };
+        const widthOf = root.rowWidth;
         if (widthOf(count) <= available)
             return count;
         let shown = count;
@@ -423,7 +428,8 @@ Rectangle {
     // that appeared over the page. The keyboard asks for the same rectangle,
     // so the command and the pointer open from the same place.
     function extensionMarkRect() {
-        return footerMarks.extensionRect();
+        const corner = extensionMark.mapToItem(null, 0, 0);
+        return Qt.rect(corner.x, corner.y, extensionMark.width, extensionMark.height);
     }
     signal extensionRequested(rect origin)
     signal releaseNotesRequested(url notes)
@@ -881,9 +887,9 @@ Rectangle {
         anchors.topMargin: 10
         spacing: root.blockGap
 
-        // The navigation controls hold the row the Space heading used to: the
-        // commands that act on the page open the outline, and the browsing
-        // identity closes it from the footer.
+        // The navigation controls hold the row the Space heading used to:
+        // Settings and the commands that act on the page open the outline,
+        // and the browsing identity closes it from the footer.
         Item {
             objectName: "sidebarNavigation"
             width: parent.width
@@ -904,6 +910,20 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
+
+                // Settings is the row's first item, gear or Sync avatar, so
+                // the footer is the Spaces' alone (#838).
+                SettingsButton {
+                    id: settingsButton
+                    colors: root.colors
+                    iconFontFamily: root.iconFontFamily
+                    sync: root.sync
+                    authenticatedSync: root.authenticatedSync
+                    activeSync: root.activeSync
+                    settingsAttention: root.settingsAttention
+                    pixelRatio: root.pixelRatio
+                    onClicked: root.settingsRequested()
+                }
 
                 ChromeButton {
                     id: collapseButton
@@ -1053,12 +1073,29 @@ Rectangle {
             KeyLabel {
                 objectName: "keyLabel-addressButton"
                 iconFontFamily: root.iconFontFamily
-                anchors.right: parent.right
+                anchors.right: extensionMark.visible ? extensionMark.left : parent.right
                 anchors.rightMargin: Style.space(4)
                 anchors.verticalCenter: parent.verticalCenter
                 keys: root.keyLabelsShown ? root.labelFor("open-address") : ""
                 shown: root.keyLabelsShown
                 colors: root.colors
+            }
+
+            // The extensions are the page's company, so their mark stands at
+            // the address's end rather than in the footer, and the popup
+            // unfolds from it as Site information unfolds from the address.
+            ExtensionMark {
+                id: extensionMark
+                objectName: "extensionMark"
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(4)
+                anchors.verticalCenter: parent.verticalCenter
+                width: 26
+                height: 26
+                colors: root.colors
+                iconFontFamily: root.iconFontFamily
+                hosted: root.hostedExtensions
+                onClicked: root.extensionRequested(root.extensionMarkRect())
             }
 
             // The Site information button takes an 18px slot, and a tab row sets its title in
@@ -1094,8 +1131,8 @@ Rectangle {
                 objectName: "addressText"
                 anchors.left: securityGlyph.right
                 anchors.leftMargin: Style.space(9)
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(9)
+                anchors.right: extensionMark.visible ? extensionMark.left : parent.right
+                anchors.rightMargin: extensionMark.visible ? Style.space(4) : Style.space(9)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.blank ? qsTr("search or enter address") : AddressTrigger.shown(
                                        root.activeUrl)
@@ -1109,7 +1146,7 @@ Rectangle {
             MouseArea {
                 id: addressMouse
                 anchors.left: securityGlyph.right
-                anchors.right: parent.right
+                anchors.right: extensionMark.visible ? extensionMark.left : parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 hoverEnabled: true
@@ -1151,10 +1188,14 @@ Rectangle {
     // bringing a second one.
     Item {
         id: listLayer
+        objectName: "listLayer"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: outline.bottom
         anchors.bottom: footer.top
+        // The list ends at the status island's top while it stands, and the
+        // island opens over it.
+        anchors.bottomMargin: statusIsland.anyShown ? statusIsland.closedHeight + root.islandGap : 0
 
         // The space the rows leave empty moves the window, as the navigation
         // strip does (#179). A row holds its press for a reorder, which this
@@ -1490,7 +1531,7 @@ Rectangle {
         side: 1
     }
 
-    // Space switching and settings close the outline.
+    // Space switching closes the outline.
     Item {
         id: footer
         objectName: "spaceHeading"
@@ -1518,14 +1559,19 @@ Rectangle {
             objectName: "spaceSwitcher"
             readonly property int shown: root.spacesShown(width, spaceRepeater.count)
             anchors.left: parent.left
-            // The row ends where the first mark standing in the footer
-            // begins, so no Space and no count sits under one.
-            anchors.right: footerMarks.anyShown ? footerMarks.left : settingsButton.left
-            anchors.rightMargin: 8
+            anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             height: 28
             visible: !root.privateWindow
             spacing: root.slotSpacing
+            // The footer is the row's alone, so it stands centred while every
+            // Space fits, and fills the width from its start when they do not.
+            leftPadding: spaceSwitcher.shown === spaceRepeater.count ? DevicePixels.snap(Math.max(0,
+                                                                                                  (spaceSwitcher.width
+                                                                                                   - root.rowWidth(
+                                                                                                       spaceSwitcher.shown))
+                                                                                                  / 2), root.pixelRatio) :
+                                                                       0
 
             Repeater {
                 id: spaceRepeater
@@ -1669,8 +1715,7 @@ Rectangle {
         // sidebar's own icon language rather than in shouted capitals.
         Text {
             objectName: "privateBadge"
-            anchors.left: parent.left
-            anchors.leftMargin: 2
+            x: DevicePixels.snap((parent.width - width) / 2, root.pixelRatio)
             anchors.verticalCenter: parent.verticalCenter
             visible: root.privateWindow || !root.browser
             text: "domino_mask"
@@ -1680,134 +1725,30 @@ Rectangle {
             Accessible.role: Accessible.StaticText
             Accessible.name: qsTr("Private window")
         }
-
-        FooterMarks {
-            id: footerMarks
-            objectName: "footerMarks"
-            anchors.right: settingsButton.left
-            anchors.rightMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            colors: root.colors
-            iconFontFamily: root.iconFontFamily
-            problemRecording: root.problemRecording
-            releaseWatch: root.releaseWatch
-            privateWindow: root.privateWindow
-            hostedExtensions: root.hostedExtensions
-            downloads: root.downloads
-            savedFileNoticeShowing: root.savedFileNoticeShowing
-            onProblemReportRequested: root.problemReportRequested()
-            onReleaseNotesRequested: function (notes) {
-                root.releaseNotesRequested(notes);
-            }
-            onExtensionsClicked: root.extensionRequested(root.extensionMarkRect())
-            onDownloadsRequested: root.downloadsRequested()
-        }
-
-        SettingsButton {
-            id: settingsButton
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            colors: root.colors
-            iconFontFamily: root.iconFontFamily
-            sync: root.sync
-            authenticatedSync: root.authenticatedSync
-            activeSync: root.activeSync
-            settingsAttention: root.settingsAttention
-            pixelRatio: root.pixelRatio
-            onClicked: root.settingsRequested()
-        }
     }
 
-    Rectangle {
-        id: downloadDetail
-        objectName: "downloadDetail"
-        anchors.right: parent.right
-        anchors.rightMargin: 16
+    StatusIsland {
+        id: statusIsland
+        x: DevicePixels.snap(footer.x + (footer.width - width) / 2, root.pixelRatio)
         anchors.bottom: footer.top
-        anchors.bottomMargin: 8
-        width: Math.min(280, Math.max(180, root.width - 32))
-        height: detailLines.height + 16
-        radius: 2
+        anchors.bottomMargin: root.islandGap
+        // Over the tab list it grows up into when it opens.
         z: 5
-        visible: detailLift.showing
-        // Rises from the mark it was asked from, and sinks back to it.
-        transform: SheetLift {
-            id: detailLift
-            shown: footerMarks.downloadItem.detailRequested && footerMarks.downloadItem.running > 0
-            ease: root.easeSpaces
-            distance: 8
+        room: footer.width
+        pixelRatio: root.pixelRatio
+        colors: root.colors
+        iconFontFamily: root.iconFontFamily
+        motion: root.spacesCanMove
+        problemRecording: root.problemRecording
+        releaseWatch: root.releaseWatch
+        privateWindow: root.privateWindow
+        downloads: root.downloads
+        savedFileNoticeShowing: root.savedFileNoticeShowing
+        onProblemReportRequested: root.problemReportRequested()
+        onReleaseNotesRequested: function (notes) {
+            root.releaseNotesRequested(notes);
         }
-        opacity: detailLift.progress
-        color: detailDither.fill
-        border.width: 1
-        border.color: root.colors.accent
-
-        GroundDither {
-            id: detailDither
-            ground: root.colors.overlay
-        }
-
-        Column {
-            id: detailLines
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            anchors.topMargin: 8
-            spacing: 4
-
-            Repeater {
-                // The whole list, settled rows and all, but only while the
-                // detail is on screen: a Space's Download records are in here
-                // too and none of them is a running download.
-                model: downloadDetail.visible ? root.downloads : null
-
-                Item {
-                    id: detailLine
-                    required property int index
-                    required property string fileName
-                    required property real fraction
-                    required property bool running
-
-                    objectName: "downloadDetail-" + index
-                    readonly property string name: detailLine.fileName
-                    readonly property string progressLabel:
-                        footerMarks.downloadItem.progressLabelFor(detailLine.fraction)
-                    // A recorded download is in the same list; the mark reports
-                    // what is running, so a settled row takes no room.
-                    visible: detailLine.running
-                    width: detailLines.width
-                    height: detailLine.running ? lineName.implicitHeight : 0
-
-                    Text {
-                        id: lineProgress
-                        anchors.right: parent.right
-                        anchors.baseline: lineName.baseline
-                        text: detailLine.progressLabel
-                        color: root.colors.mutedText
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        Accessible.ignored: true
-                    }
-
-                    Text {
-                        id: lineName
-                        anchors.left: parent.left
-                        anchors.right: lineProgress.left
-                        anchors.rightMargin: 8
-                        anchors.top: parent.top
-                        text: detailLine.name
-                        elide: Text.ElideMiddle
-                        color: root.colors.text
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        Accessible.role: Accessible.StaticText
-                        Accessible.name: detailLine.name + " · " + detailLine.progressLabel
-                    }
-                }
-            }
-        }
+        onDownloadsRequested: root.downloadsRequested()
     }
 
     NumberAnimation {

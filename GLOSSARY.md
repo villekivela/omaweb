@@ -362,20 +362,25 @@ download
 **Download activity**: What a window's running downloads add up to: how many there are and how far
 along they are together. What the Download mark reports. _Avoid_: Download progress, download status
 
-**Download mark**: The outline footer control for active downloads. It shows their count and
-combined progress, and can list progress by file. It uses the window's live downloads, so it also
-works in Private windows. After the last download finishes, the mark remains until the saved-file
-notice closes. It opens the downloads section. _Avoid_: Download badge, progress bar, download
-indicator, download tray
+**Download mark**: The Status island's mark for active downloads. It shows their count and combined
+progress, and opens the island on their progress by file, which leads on to the downloads section.
+It uses the window's live downloads, so it also works in Private windows. After the last download
+finishes, the mark remains until the saved-file notice closes. _Avoid_: Download badge, progress
+bar, download indicator, download tray
+
+**Status island**: The capsule centred above the sidebar footer that holds the marks of what is
+happening now: a running Problem recording, the Download mark and the Release mark, each only while
+it applies. It is absent while none does. One mark wears a short label, several are icons, and a
+mark with more to say opens the island in place, upward, into its detail. _Avoid_: Status bar,
+status pill, tray, notification area
 
 **Release check**: The once-a-day question Omaweb asks GitHub about its own age. It sends nothing
 about the machine, runs off the engine so it belongs to no Space, and is silent when it fails. A
 Setting turns it off. _Avoid_: Update check, auto-update, version ping
 
-**Release mark**: The outline footer control for a release newer than the running build. It names
-the version and what to run to get it, opens the release notes, and is not shown in a Private
-window. Omaweb never installs the release itself. _Avoid_: Update badge, update banner, upgrade
-prompt
+**Release mark**: The Status island's mark for a release newer than the running build. It names the
+version and what to run to get it, leads to the release notes, and is not shown in a Private window.
+Omaweb never installs the release itself. _Avoid_: Update badge, update banner, upgrade prompt
 
 **Upgrade notes**: The release notes of the running release, opened once on the first launch after
 an upgrade, as a tab behind the page on show. They open in the Space on show, or in the reader's own

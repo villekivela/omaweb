@@ -2,13 +2,13 @@ import QtQuick
 import qs.Commons
 import qs.Ui as Omarchy
 
-// The outline footer control for a newer Omaweb. It appears when a release the
+// The status island's mark for a newer Omaweb. It appears when a release the
 // reader has not seen exists, and is gone the rest of the time: this is a
-// status beside the Download mark and the Sync mark, not an interruption.
+// status beside the Download mark, not an interruption.
 //
-// Omaweb never installs anything. Selecting the mark opens the release notes
-// and the notice is done: a reader who has read them has been told, and the
-// next release tells them again.
+// Omaweb never installs anything. Selecting the mark opens the island on the
+// release, and reading the notes from there is done with the notice: a reader
+// who has read them has been told, and the next release tells them again.
 ChromeButton {
     id: root
 
@@ -23,8 +23,6 @@ ChromeButton {
     // Truthiness rather than a null check: a window built without a watch, as
     // the UI lab and the tests are, has `undefined` here rather than null.
     readonly property bool announcing: !root.privateWindow && !!root.watch && root.watch.announcing
-
-    signal notesRequested(url notes)
 
     visible: root.announcing
     icon: "upgrade"
@@ -51,13 +49,8 @@ ChromeButton {
 
     accessibleName: root.announcing ? qsTr("Omaweb %1 is out").arg(root.watch.release) : ""
     Accessible.description: root.announcing ? root.watch.instruction : ""
-
-    onClicked: {
-        if (!root.announcing)
-            return;
-        root.notesRequested(root.watch.notes);
-        root.watch.dismiss();
-    }
+    // What the island says beside the icon while it is the only mark.
+    readonly property string label: root.announcing ? qsTr("%1 is out").arg(root.watch.release) : ""
 
     // Declared here rather than set through the kit button's own `tooltipText`.
     // That one draws in the button's `fontFamily`, which for a mark is the icon

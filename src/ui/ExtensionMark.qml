@@ -6,9 +6,10 @@ import qs.Commons
 // panel that grows out of the thing it belongs to needs that thing to be
 // somewhere: the popup lifts from this mark.
 //
-// One mark, however many extensions are hosted. A reader who has enabled two
-// gets a menu from it rather than a row of marks, because the sidebar's bottom
-// row is the browser's own and an extension does not get to grow in it.
+// One mark, however many extensions are hosted, at the address's right end. A
+// reader who has enabled two gets a menu from it rather than a row of marks,
+// because the address is the page's and an extension does not get to grow in
+// it.
 //
 // Absent rather than dead when nothing is hosted: an engine that cannot host an
 // extension, a reader who has enabled none, and a Private window all leave
