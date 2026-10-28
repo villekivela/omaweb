@@ -20,7 +20,20 @@ const STOPS = [
   { name: "One field for everything", bars: 8, target: "#omnibar", film: true },
   { name: "Work and personal, kept apart", bars: 12, target: "#spaces", film: true },
   { name: "Keyboard first", bars: 16, target: "#keyboard", film: true, perform: lightKeys },
-  { name: "Follows your Omarchy theme", bars: 20, target: "#theme", film: true },
+  {
+    name: "Follows your Omarchy theme",
+    bars: 20,
+    target: "#theme",
+    film: true,
+    // The page wears the recording's theme as its clip plays: the desktop film is recorded in
+    // Ethereal Nebula Silver, switches to Lumon 4.10 seconds into the clip and back at 9.93,
+    // measured from the clip's frames.
+    follow: [
+      [0, "ethereal-nebula-silver"],
+      [4.1, "lumon"],
+      [9.93, "ethereal-nebula-silver"],
+    ],
+  },
   { name: "Private by default", bars: 24, target: "#private" },
   { name: "Blocking, built in", bars: 28, target: "#blocking", film: true },
   { name: "Split view and docked DevTools", bars: 32, target: "#pros", film: true },
@@ -166,13 +179,48 @@ function rollFootage(layers) {
     layers[index].querySelector(".card__shot").append(video);
     return video;
   });
+  // A clip that names the themes it was recorded in has the page wear each from its frame on, and
+  // the reader's own theme back once its card is no longer read.
+  const root = document.documentElement;
+  const named = document.querySelector(".themes__name");
+  const names = { lumon: "Lumon", "ethereal-nebula-silver": "Ethereal Nebula Silver" };
+  const wear = (theme) => {
+    root.dataset.theme = theme;
+    if (named) {
+      named.textContent =
+        document.querySelector(`[data-theme-choice="${theme}"]`)?.dataset.name || names[theme];
+    }
+  };
+  let own = null;
+  let following = 0;
+  const follow = (video, themes) => {
+    const step = () => {
+      const time = video.currentTime;
+      const wearing = themes.filter(([at]) => at <= time).pop()?.[1];
+      if (wearing && root.dataset.theme !== wearing) wear(wearing);
+      following = video.paused ? 0 : requestAnimationFrame(step);
+    };
+    following = requestAnimationFrame(step);
+  };
+  const unfollow = () => {
+    cancelAnimationFrame(following);
+    following = 0;
+    if (own && root.dataset.theme !== own) wear(own);
+    own = null;
+  };
   let shown = -1;
   return (index) => {
     if (index === shown) return;
     shown = index;
+    unfollow();
     const video = videos[index];
     if (!video) return;
     video.currentTime = 0;
+    const themes = STOPS[index].follow;
+    if (themes) {
+      own = root.dataset.theme;
+      video.addEventListener("playing", () => follow(video, themes), { once: true });
+    }
     video.play().catch(() => {});
   };
 }

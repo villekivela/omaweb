@@ -1695,6 +1695,19 @@ html.highway {
   display: block;
 }
 
+/* Lumon, the theme the desktop film switches to, in Omarchy's own colours, so the page can wear it
+   as the Theme card's clip does. The site offers no swatch for it. */
+[data-theme="lumon"] {
+  --bg: var(--omaweb-bg, #16242d);
+  --sidebar: var(--omaweb-sidebar, #101b21);
+  --fg: var(--omaweb-fg, #d6e2ee);
+  --accent: var(--omaweb-accent, #8bc9eb);
+  --urgent: var(--omaweb-urgent, #4d86b0);
+  --keyword: var(--omaweb-keyword, #b4e4f6);
+  --muted: var(--omaweb-muted, #4d86b0);
+  --border: #8bc9eb;
+}
+
 /* The film, cut into the cards: the card's beat over its capture while it is read. */
 .card__footage {
   position: absolute;
