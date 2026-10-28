@@ -115,3 +115,14 @@
   --muted: var(--omaweb-muted, #6a6e95);
   --border: #26a269;
 }
+
+[data-theme="lumon"] {
+  --bg: var(--omaweb-bg, #0b1216);
+  --sidebar: var(--omaweb-sidebar, #101b21);
+  --fg: var(--omaweb-fg, #d6e2ee);
+  --accent: var(--omaweb-accent, #8bc9eb);
+  --urgent: var(--omaweb-urgent, #4d86b0);
+  --keyword: var(--omaweb-keyword, #8bc9eb);
+  --muted: var(--omaweb-muted, #4d86b0);
+  --border: #8bc9eb;
+}

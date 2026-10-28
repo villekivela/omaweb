@@ -1436,6 +1436,11 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_check_website_csp.py
         )
+        # The website's theme rules, as the shots' generator writes them.
+        add_test(NAME omaweb-build-website-themes
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_build_website_themes.py
+        )
         # The introductory film's fixture sites, the server that answers them
         # and the checks that stop a recording whose beat did not happen.
         add_test(NAME omaweb-record-film
