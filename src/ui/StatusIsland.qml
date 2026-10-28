@@ -136,8 +136,13 @@ Rectangle {
     height: root.open ? root.closedHeight + detailBody.height + 16 : root.closedHeight
     radius: root.open ? 12 : root.closedHeight / 2
     clip: true
-    color: root.colors.overlay
-    border.width: 1
+    // Near black and edgeless where the theme is dark, so the capsule reads
+    // as one object above the sidebar rather than a panel in it. A light
+    // theme's text would not read on that, so there it keeps the overlay and
+    // an edge.
+    readonly property bool darkTheme: Qt.color(root.colors.text).hslLightness > 0.5
+    color: root.darkTheme ? Qt.darker(root.colors.windowOpaque, 2) : root.colors.overlay
+    border.width: root.darkTheme ? 0 : 1
     border.color: root.colors.separator
     visible: lift.showing
     opacity: lift.progress
@@ -179,16 +184,25 @@ Rectangle {
         }
     }
 
-    // Above the marks, which stay where they were as the capsule opens.
+    // Above the marks, which stay where they were as the capsule opens. It
+    // is laid out at the width the capsule opens to and stands still while
+    // the capsule's edges grow over it, so no line re-wraps or re-elides on
+    // the way, and it fades with the opening.
     Item {
         id: detailBody
         objectName: "statusIslandDetail"
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
-        anchors.topMargin: 10
+        x: DevicePixels.snap((root.width - width) / 2, root.pixelRatio)
+        width: root.room - 20
+        anchors.bottom: marks.top
+        anchors.bottomMargin: 8
+        opacity: root.open ? 1 : 0
+        Behavior on opacity {
+            enabled: root.motion
+            NumberAnimation {
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
         height: root.detail === "downloads" ? downloadDetail.height : root.detail === "release" ? releaseDetail.height :
                                                                                                   0
         visible: root.detail.length > 0
@@ -328,7 +342,7 @@ Rectangle {
             width: root.single ? root.labelledWidth(recordingLabel) : root.markSize
             height: root.markSize
             leftAlign: root.single
-            horizontalPadding: 4
+            horizontalPadding: root.single ? root.labelPadding : 4
             colors: root.colors
             iconFontFamily: root.iconFontFamily
             recording: root.problemRecording
@@ -348,12 +362,15 @@ Rectangle {
             width: root.single ? root.labelledWidth(downloadLabel) : root.markSize
             height: root.markSize
             leftAlign: root.single
-            horizontalPadding: 4
+            horizontalPadding: root.single ? root.labelPadding : 4
             colors: root.colors
             iconFontFamily: root.iconFontFamily
             model: root.downloads
             savedFileNoticeShowing: root.savedFileNoticeShowing
             labelled: root.single
+            // Under the icon, labelled or not, so the track stays put as the
+            // label comes and goes and clear of the capsule's rounded ends.
+            trackWidth: root.markSize - 12
             onClicked: root.toggle("downloads")
 
             MarkLabel {
@@ -368,7 +385,7 @@ Rectangle {
             width: root.single ? root.labelledWidth(releaseLabel) : root.markSize
             height: root.markSize
             leftAlign: root.single
-            horizontalPadding: 4
+            horizontalPadding: root.single ? root.labelPadding : 4
             colors: root.colors
             iconFontFamily: root.iconFontFamily
             watch: root.releaseWatch
@@ -382,12 +399,15 @@ Rectangle {
         }
     }
 
-    // A mark's icon keeps the left of its slot and the label stands after it.
-    readonly property int labelInset: 4 + Style.font.iconLarge + 6
+    // A mark's icon keeps the left of its slot and the label stands after it,
+    // both clear of the capsule's rounded ends.
+    readonly property int labelPadding: 10
+    readonly property int labelInset: root.labelPadding + Style.font.iconLarge + 6
 
     // Measured apart from the label, whose own width follows the mark's.
     function labelledWidth(label) {
-        return root.labelInset + Math.min(label.naturalWidth, root.room - root.labelInset - 16) + 8;
+        return root.labelInset + Math.min(label.naturalWidth, root.room - root.labelInset - 16)
+                + root.labelPadding;
     }
 
     component MarkLabel: Text {
@@ -398,7 +418,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.leftMargin: root.labelInset
         anchors.right: parent.right
-        anchors.rightMargin: 8
+        anchors.rightMargin: root.labelPadding
         anchors.verticalCenter: parent.verticalCenter
         visible: root.single
         elide: Text.ElideRight

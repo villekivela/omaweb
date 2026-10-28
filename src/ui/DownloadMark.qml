@@ -16,6 +16,8 @@ ChromeButton {
     // Whether the Status island draws the summary beside the icon, which
     // says the count the corner otherwise carries.
     property bool labelled: false
+    // How wide the progress track under the icon is, centred on the icon.
+    property real trackWidth: root.width - 2 * root.horizontalPadding
 
     readonly property int running: root.model ? root.model.running : 0
     readonly property real fraction: root.model ? root.model.fraction : -1
@@ -83,8 +85,11 @@ ChromeButton {
         id: track
         objectName: "downloadMarkTrack"
         anchors.left: parent.left
-        anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.leftMargin: root.leftAlign ? root.horizontalPadding + (Style.font.iconLarge - width)
+                                             / 2 : (parent.width - width) / 2
+        anchors.bottomMargin: 2
+        width: root.trackWidth
         height: 3
         radius: 1
         color: root.colors.border

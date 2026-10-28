@@ -21661,6 +21661,25 @@ TestCase {
         waitForRendering(island);
     }
 
+    // Whether every corner of `item` lies inside the island's rounded
+    // outline, a pixel clear of its border.
+    function insideIsland(island, item) {
+        const box = item.mapToItem(island, 0, 0, item.width, item.height);
+        const r = island.radius;
+        const corners = [[box.x, box.y], [box.x + box.width, box.y], [box.x, box.y + box.height],
+                         [box.x + box.width, box.y + box.height]];
+        for (let index = 0; index < corners.length; ++index) {
+            const x = corners[index][0];
+            const y = corners[index][1];
+            const cx = Math.min(Math.max(x, r), island.width - r);
+            const cy = Math.min(Math.max(y, r), island.height - r);
+            if (Math.hypot(x - cx, y - cy) > r - 1 || x < 1 || y < 1 || x > island.width - 1 || y
+                    > island.height - 1)
+                return false;
+        }
+        return true;
+    }
+
     // A watch that announces a release, for the Status island's tests.
     function releaseStandIn(parent) {
         return Qt.createQmlObject('import QtQuick\nQtObject {\n'
@@ -21979,14 +21998,37 @@ TestCase {
         compare(findChild(mark, "downloadMarkLabel").text, "2 downloads · size unknown");
         verify(!findChild(mark, "downloadMarkCount").visible, "the label says the count");
         verify(!detail.visible);
+        // The progress stands inside the capsule, labelled or among icons.
+        const track = findChild(mark, "downloadMarkTrack");
+        verify(insideIsland(island, track), "the labelled track inside the island");
+        const watch = releaseStandIn(island);
+        island.releaseWatch = watch;
+        settleIsland(island);
+        verify(insideIsland(island, track), "the icon's track inside the island");
+        island.releaseWatch = Qt.binding(function () {
+            return outline.releaseWatch;
+        });
+        watch.destroy();
+        settleIsland(island);
         const bottom = function () {
             return island.mapToItem(outline, 0, island.height).y;
         };
         const restingBottom = bottom();
+        const marks = findChild(island, "statusIslandMarks");
+        const body = findChild(island, "statusIslandDetail");
+        const aboveTheMarks = function () {
+            return body.mapToItem(island, 0, body.height).y <= marks.y;
+        };
 
         mouseClick(mark);
         compare(island.expanded, "downloads");
         tryCompare(detail, "visible", true);
+        // Laid out at the width it opens to and revealed as the capsule
+        // grows, so no line re-wraps or re-elides on the way, and faded in.
+        verify(island.width < island.room, "still easing");
+        compare(body.width, island.room - 20);
+        verify(body.opacity < 1, "the detail fades in");
+        verify(aboveTheMarks(), "the detail stands above the marks");
         tryVerify(function () {
             return island.height === island.closedHeight + detail.height + 16 && detail.height > 0;
         });
@@ -22005,6 +22047,10 @@ TestCase {
         compare(island.expanded, "");
         verify(detail.visible, "the detail stays while the island shrinks");
         verify(island.height > island.closedHeight);
+        tryVerify(function () {
+            return island.height < island.closedHeight + detail.height;
+        });
+        verify(aboveTheMarks(), "the shrinking detail stays above the marks");
         tryCompare(island, "height", island.closedHeight);
         tryCompare(detail, "visible", false);
         compare(bottom(), restingBottom);
