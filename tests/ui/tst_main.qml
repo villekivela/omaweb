@@ -10619,20 +10619,23 @@ TestCase {
         const glancedGeneration = glanced.pageGeneration;
         glanced.canGoBack = true;
         glanced.canGoForward = true;
-        mouseClick(findChild(glance, "glanceBackButton"));
-        mouseClick(findChild(glance, "glanceForwardButton"));
-        mouseClick(findChild(glance, "glanceReloadButton"));
-        compare(glanced.backCount, 1);
-        compare(glanced.forwardCount, 1);
-        compare(glanced.pageGeneration, glancedGeneration + 1);
-        compare(opener.backCount, 0);
-        compare(opener.pageGeneration, generation);
+        try {
+            mouseClick(findChild(glance, "glanceBackButton"));
+            mouseClick(findChild(glance, "glanceForwardButton"));
+            mouseClick(findChild(glance, "glanceReloadButton"));
+            compare(glanced.backCount, 1);
+            compare(glanced.forwardCount, 1);
+            compare(glanced.pageGeneration, glancedGeneration + 1);
+            compare(opener.backCount, 0);
+            compare(opener.pageGeneration, generation);
 
-        const openAsTab = findChild(glance, "openGlanceAsTabButton");
-        verify(openAsTab.visible);
-        window.glanceIsExtension = true;
-        verify(!openAsTab.visible);
-        window.glanceIsExtension = false;
+            const openAsTab = findChild(glance, "openGlanceAsTabButton");
+            verify(openAsTab.visible);
+            window.glanceIsExtension = true;
+            verify(!openAsTab.visible);
+        } finally {
+            window.glanceIsExtension = false;
+        }
 
         mouseClick(findChild(glance, "closeGlanceButton"));
         tryVerify(function () {
@@ -10681,6 +10684,13 @@ TestCase {
         verify(glanceCursorOn(glance, "glanceBackButton"));
         keyClick(Qt.Key_Return);
         compare(glanced.backCount, 1);
+        // Back at the first page, back is disabled under the cursor, which
+        // moves on to the next button it can press.
+        glanced.canGoBack = false;
+        verify(glanceCursorOn(glance, "glanceReloadButton"));
+        glanced.canGoBack = true;
+        keyClick(Qt.Key_Left);
+        verify(glanceCursorOn(glance, "glanceBackButton"));
 
         // Forward is disabled, so the cursor steps over it.
         keyClick(Qt.Key_Tab);
@@ -10725,7 +10735,7 @@ TestCase {
         });
         verify(window.glanceEngine === glanced);
 
-        // From the page, Escape still closes; from the head, close does too.
+        // Close is pressed from the head too.
         keyClick(Qt.Key_K, Qt.AltModifier);
         keyClick(Qt.Key_Backtab);
         verify(glanceCursorOn(glance, "closeGlanceButton"));
@@ -10738,6 +10748,17 @@ TestCase {
         });
         tryVerify(function () {
             return opener.activeFocus;
+        });
+
+        // From the page, Escape still closes.
+        openGlance("https://glanced.example/second");
+        const second = window.glanceEngine;
+        tryVerify(function () {
+            return second.activeFocus;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.glanceEngine === null;
         });
     }
 
@@ -10814,6 +10835,10 @@ TestCase {
             });
             compare(browser.tabs.rowCount(), tabCount + 1);
             compare(findChild(window.contentItem, "engineLoader").item, glanced);
+            // The keyboard goes with the page into its tab, not with the head.
+            tryVerify(function () {
+                return glanced.activeFocus;
+            });
             browser.closeActiveTab();
         } finally {
             SystemMotion.reduced = false;

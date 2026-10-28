@@ -227,11 +227,11 @@ Window {
         // Back, forward and reload go to a Glance's page while one is open,
         // and back with nowhere to go in it leaves the tab's page be (#839).
         const glanced = root.glanceEngine;
-        const front = glanced || engine;
+        const pageInFront = glanced || engine;
         // The keyboard moves between a Glance's head and page here, not
         // between the main window's regions.
         if (root.glanceOpen && (command === "move-focus-up" || command === "move-focus-down")
-                && glance.moveFocus(0, command === "move-focus-up" ? -1 : 1))
+                && glance.moveFocus(command === "move-focus-up" ? -1 : 1))
             return true;
         switch (command) {
         case "back":
@@ -251,12 +251,12 @@ Window {
             }
             return true;
         case "reload":
-            if (front)
-                front.reloadPage();
+            if (pageInFront)
+                pageInFront.reloadPage();
             return true;
         case "reload-bypassing-cache":
-            if (front)
-                front.reloadPageBypassingCache();
+            if (pageInFront)
+                pageInFront.reloadPageBypassingCache();
             return true;
         case "stop-loading":
             if (engine)

@@ -251,7 +251,7 @@ FocusScope {
     // from it returns. The keyboard is the Glance's while it is in either, and
     // a move another way leaves it where it is. Answers whether the move was
     // the Glance's to take.
-    function moveFocus(stepX, stepY) {
+    function moveFocus(stepY) {
         if (!root.activeFocus)
             return false;
         if (root.headFocused && stepY > 0)
@@ -332,7 +332,6 @@ FocusScope {
             objectName: "glancePageHost"
             x: panel.border.width * (1 - root.keep)
             y: (panel.border.width + root.headHeight) * (1 - root.keep)
-            // Its height at rest, inside the border and under the head.
             readonly property real rest: root.restHeight - 2 * panel.border.width - root.headHeight
             // Laid out once at the page area's size as keeping starts, and
             // revealed by the panel as it grows, as the arrival reveals it.
@@ -368,6 +367,12 @@ FocusScope {
                 const button = head.buttons[index];
                 return button !== undefined && button.visible && button.enabled;
             }
+
+            // Back at the first page, back is disabled under the cursor: the
+            // cursor moves on to a button the keyboard can still press.
+            readonly property bool cursorPressable: head.pressable(head.cursor)
+            onCursorPressableChanged: if (!head.cursorPressable)
+                                          head.cursor = head.step(head.cursor, 1, true)
 
             // The next button the keyboard can press from `from` towards
             // `delta`, round the ends when `wrap` is set, or `from` itself

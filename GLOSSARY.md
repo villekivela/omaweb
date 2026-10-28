@@ -170,8 +170,9 @@ _Avoid_: Command mode, command panel
 **Sidebar cursor**: The sidebar row that holds the keyboard, drawn in the accent while the sidebar
 has focus. `j` and `k` move it through the pins and then the ordinary tabs without changing the
 page, `l` opens its tab and hands the keyboard to the page, and `h` returns it to the tab on show.
-It is never the mark of the tab on show, and no row carries it while the page has the keyboard.
-_Avoid_: Selection, highlight, focused tab
+It is never the mark of the tab on show, and no row carries it while the page has the keyboard. The
+same mark shows which button of a Glance's head holds the keyboard. _Avoid_: Selection, highlight,
+focused tab
 
 **Key label**: The key a control answers to, laid over the control while Primary is held on its own.
 A chord on Primary is labelled by the key that finishes it, and a single key by itself, only while

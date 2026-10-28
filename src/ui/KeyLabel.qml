@@ -20,29 +20,29 @@ Item {
     readonly property string text: chord ? keys.slice("Ctrl+".length) : keys
     // More than one key still to press after Primary, such as Shift and Return,
     // drawn as a cap a key.
-    readonly property bool several: /\+./.test(text)
+    readonly property bool severalKeys: /\+./.test(text)
 
     visible: shown && keys.length > 0
     z: 50
-    width: several ? caps.width : cap.width
-    height: several ? caps.height : cap.height
+    width: severalKeys ? caps.width : cap.width
+    height: severalKeys ? caps.height : cap.height
     Accessible.ignored: true
 
     KeyCap {
         id: cap
-        visible: !root.several
+        visible: !root.severalKeys
         colors: root.colors
         iconFontFamily: root.iconFontFamily
-        text: root.several ? "" : root.text
+        text: root.severalKeys ? "" : root.text
         filled: root.chord
     }
 
     KeyCaps {
         id: caps
-        visible: root.several
+        visible: root.severalKeys
         colors: root.colors
         iconFontFamily: root.iconFontFamily
-        keys: root.several ? root.text : ""
+        keys: root.severalKeys ? root.text : ""
         filled: root.chord
     }
 }

@@ -1441,7 +1441,7 @@ ApplicationWindow {
     function moveFocus(stepX, stepY) {
         // A Glance holds the keyboard over the regions and moves it between
         // its own head and page.
-        if (window.glanceOpen && glance.moveFocus(stepX, stepY))
+        if (window.glanceOpen && glance.moveFocus(stepY))
             return;
         const regions = window.visibleRegions();
         const fromName = window.focusedRegionName();

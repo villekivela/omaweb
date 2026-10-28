@@ -386,23 +386,23 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A Glance is one accent-bordered panel the page area's full height, between margins of 12% of its
   width, grown out of the link that asked for it and retreating into it when it closes. The page
   beneath stands back and is dimmed, not blurred. A head along the panel's top edge holds, left to
-  right, back, forward, reload, the Glance page's address, read-only, muted and elided, Open as tab
-  and close. Back and forward are disabled where the Glance has no history that way, and Open as tab
-  is hidden for an extension's popup. The head arrives and goes with the panel and fades early as
-  the Glance is kept. Open as tab grows the panel's width into the page area, then the page is a tab
-  listed right after the one it came from, its row lit for a moment; with reduced motion it is a
-  cut. It takes the opener's engine profile, so logins hold, and its visits enter the Space's
-  history. It is not a tab: the outline does not list it, the session store and the Sync projection
-  do not carry it, and the address trigger, find bar and prompt bars keep answering for the tab
-  beneath. `back`, `forward`, `reload` and `reload-bypassing-cache` act on the Glance's page while
-  it is open, from keys, the command scope and the head, and leave the tab's page where it was; back
-  with no Glance history does nothing. It ends with `Escape` from its page, its close button, a
-  click outside its panel, the close-tab command, and anything that changes the tab on show: a tab
-  or Space switch, the tab closing, settings or history opening. `Primary+Shift+Return` or the Open
-  as tab button makes it an ordinary tab after the tab it stood over, keeping its engine and so its
-  history, scroll and form state. A new-tab request from inside a Glance opens a tab, which ends the
-  Glance; a second request from the page beneath replaces it. Settings' interface section turns the
-  Glance off, locally.
+  right, back, forward, reload, the Glance page's address, Open as tab and close. The address is
+  read-only, muted and elided. Back and forward are disabled where the Glance has no history that
+  way, and Open as tab is hidden for an extension's popup. The head arrives and goes with the panel
+  and fades early as the Glance is kept. Open as tab grows the panel's width into the page area,
+  then the page is a tab listed right after the one it came from, its row lit for a moment; with
+  reduced motion it is a cut. It takes the opener's engine profile, so logins hold, and its visits
+  enter the Space's history. It is not a tab: the outline does not list it, the session store and
+  the Sync projection do not carry it, and the address trigger, find bar and prompt bars keep
+  answering for the tab beneath. `back`, `forward`, `reload` and `reload-bypassing-cache` act on the
+  Glance's page while it is open, from keys, the command scope and the head, and leave the tab's
+  page where it was; back with no Glance history does nothing. It ends with `Escape` from its page,
+  its close button, a click outside its panel, the close-tab command, and anything that changes the
+  tab on show: a tab or Space switch, the tab closing, settings or history opening.
+  `Primary+Shift+Return` or the Open as tab button makes it an ordinary tab after the tab it stood
+  over, keeping its engine and so its history, scroll and form state. A new-tab request from inside
+  a Glance opens a tab, which ends the Glance; a second request from the page beneath replaces it.
+  Settings' interface section turns the Glance off, locally.
 - `Alt+K` from a Glance's page moves the keyboard into its head, where the Sidebar cursor marks the
   button holding it. `Tab`, `Shift+Tab` and the left and right arrows walk the buttons that can be
   pressed, `Tab` going round the ends, and `Return` or `Space` presses one. `Alt+J` or `Escape`
