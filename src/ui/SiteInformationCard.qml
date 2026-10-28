@@ -87,10 +87,11 @@ Omarchy.BorderSurface {
     readonly property bool siteLinksOffered: !root.blank && String(root.siteLinks.site || "").length
                                              > 0
     readonly property string siteLinksTarget: String(root.siteLinks.space || "")
-    // The rule written in Settings that takes the page, by its place in the
-    // list, or -1. The row only states such a rule and never writes over it.
-    readonly property int siteLinksRule: root.siteLinks.rule === undefined ? -1 : Number(
-                                                                                 root.siteLinks.rule)
+    // The pattern of the rule that takes the page, named under the row when
+    // it is narrower than the whole site.
+    readonly property string siteLinksPattern: String(root.siteLinks.pattern || "")
+    readonly property bool siteLinksNarrower: root.siteLinksPattern.length > 0
+                                              && root.siteLinksPattern !== root.siteLinks.site
 
     readonly property int refusalTally: refusals.count
     property RefusalTally refusals: RefusalTally {
@@ -106,8 +107,6 @@ Omarchy.BorderSurface {
 
     // What the reader asked for, by name, for the window to ask about.
     signal actionRequested(string action)
-    // The Link rule at that place in the list, to be shown in Settings.
-    signal linkRuleRequested(int index)
     signal closeRequested
 
     // How many refused requests the blocked detail lists. The tile counts them
@@ -367,14 +366,10 @@ Omarchy.BorderSurface {
                                                                          {
                                                                              "value": "",
                                                                              "label": qsTr(
-                                                                                          "Wherever I am",
+                                                                                          "The Space on show",
                                                                                           "links from other apps open in the Space on show")
                                                                          }
                                                                      ]);
-    }
-
-    function siteLinkTargetName(target) {
-        return target === LinkRuleTargets.privateWindow ? qsTr("Private window") : target;
     }
 
     function readSiteLinks() {
@@ -877,18 +872,17 @@ Omarchy.BorderSurface {
                 }
             }
 
-            // Where a link to this site from another app opens. The picker
-            // writes the whole-site rule for the page's registrable domain; a
-            // rule written in Settings that takes the page is named instead,
-            // and leads there.
+            // Where a link to this site from another app opens: the first
+            // rule that takes the page, whatever its pattern, which the picker
+            // edits, or the whole-site rule it adds for the registrable domain
+            // when none does.
             Rectangle {
                 id: siteLinksRow
                 objectName: "siteLinks"
                 width: parent.width - 2 * root.gutter
-                // A rule written in Settings is named on a line of its own:
-                // beside the label it would leave the label no room.
-                height: root.siteLinksRule >= 0 ? siteLinksRuleButton.y
-                                                  + siteLinksRuleButton.height + 7 : 40
+                // The note runs the row's width under the picker, which leaves
+                // a narrower rule's pattern the room to be read.
+                height: siteLinksNote.y + siteLinksNote.height + 8
                 visible: root.siteLinksOffered
                 radius: Style.cornerRadius
                 color: root.colors.surface
@@ -896,7 +890,7 @@ Omarchy.BorderSurface {
                 Text {
                     id: siteLinksGlyph
                     x: 10
-                    y: (40 - height) / 2
+                    anchors.verticalCenter: siteLinksChoice.verticalCenter
                     text: "open_in_new"
                     color: root.colors.mutedText
                     font.family: root.iconFontFamily
@@ -905,16 +899,34 @@ Omarchy.BorderSurface {
                 }
 
                 Text {
+                    id: siteLinksTitle
+                    objectName: "siteLinksTitle"
                     anchors.left: siteLinksGlyph.right
                     anchors.leftMargin: 8
-                    anchors.right: siteLinksChoice.visible ? siteLinksChoice.left : parent.right
+                    anchors.right: siteLinksChoice.left
                     anchors.rightMargin: 8
-                    anchors.verticalCenter: siteLinksGlyph.verticalCenter
-                    text: qsTr("Links from other apps")
+                    anchors.verticalCenter: siteLinksChoice.verticalCenter
+                    text: qsTr("%1 opens in", "links to the site from other apps").arg(
+                              root.siteLinks.domain || "")
                     color: root.colors.text
-                    elide: Text.ElideRight
+                    elide: Text.ElideMiddle
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
+                }
+
+                Text {
+                    id: siteLinksNote
+                    objectName: "siteLinksNote"
+                    x: siteLinksTitle.x
+                    y: siteLinksChoice.y + siteLinksChoice.height + 2
+                    width: parent.width - x - 10
+                    text: root.siteLinksNarrower ? qsTr("from other apps · rule: %1").arg(
+                                                       root.siteLinksPattern) : qsTr(
+                                                       "from other apps")
+                    color: root.colors.mutedText
+                    elide: Text.ElideMiddle
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
                 }
 
                 SettingDropdown {
@@ -922,14 +934,13 @@ Omarchy.BorderSurface {
                     objectName: "siteLinksChoice"
                     anchors.right: parent.right
                     anchors.rightMargin: 7
-                    anchors.verticalCenter: siteLinksGlyph.verticalCenter
+                    y: 7
                     width: 170
-                    visible: root.siteLinksRule < 0
                     colors: root.colors
                     options: root.siteLinksOffered ? root.siteLinkTargets() : []
                     value: root.siteLinksTarget
                     accessibleName: qsTr("Where links to %1 from other apps open").arg(
-                                        root.siteLinks.site || "")
+                                        root.siteLinks.domain || "")
                     onChanged: function (value) {
                         if (value !== root.siteLinksTarget && root.browser.routeSiteLinks(
                                     root.activeUrl, value))
@@ -940,19 +951,6 @@ Omarchy.BorderSurface {
                             return root.siteLinksTarget;
                         });
                     }
-                }
-
-                ActionButton {
-                    id: siteLinksRuleButton
-                    objectName: "siteLinksRule"
-                    x: 7
-                    y: 36
-                    width: parent.width - 14
-                    visible: root.siteLinksRule >= 0
-                    colors: root.colors
-                    label: qsTr("%1, by a rule in Settings").arg(root.siteLinkTargetName(
-                                                                     root.siteLinksTarget))
-                    onClicked: root.linkRuleRequested(root.siteLinksRule)
                 }
             }
 

@@ -5769,11 +5769,6 @@ ApplicationWindow {
                     window.refreshThirdPartyRows();
                 window.dialogMode = action;
             }
-            onLinkRuleRequested: function (index) {
-                window.closeSiteInformation();
-                window.requestSettingsSection("spaces");
-                window.buildSettings().revealLinkRule(index);
-            }
         }
     }
 

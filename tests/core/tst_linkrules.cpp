@@ -32,7 +32,7 @@ private slots:
     void namesASiteByItsRegistrableDomain();
     void sendsALinkWhereTheFirstRuleThatTakesItSays();
     void writesAndRemovesTheWholeSiteRule();
-    void leavesARuleWrittenInSettingsAlone();
+    void editsTheFirstRuleThatTakesThePage();
     void offersNoSiteRuleOutsideTheReadersOwnSpaces();
     void opensALinkFromAnotherAppInTheSpaceItsRuleNames();
     void opensAPrivateRulesLinkInThePrivateWindowShownLast();
@@ -230,15 +230,16 @@ void LinkRulesTest::writesAndRemovesTheWholeSiteRule()
 
     const auto before = browser->siteLinkRoute(page);
     QCOMPARE(before.value(QStringLiteral("site")).toString(), QStringLiteral("*.acme.com"));
+    QCOMPARE(before.value(QStringLiteral("domain")).toString(), QStringLiteral("acme.com"));
     QCOMPARE(before.value(QStringLiteral("space")).toString(), QString());
-    QCOMPARE(before.value(QStringLiteral("rule")).toInt(), -1);
+    QCOMPARE(before.value(QStringLiteral("pattern")).toString(), QString());
 
     QVERIFY(browser->routeSiteLinks(page, QStringLiteral("Work")));
     QCOMPARE(storedRules(config.path()),
         QJsonValue(rules({{"github.com", "Personal"}, {"*.acme.com", "Work"}})));
     const auto routed = browser->siteLinkRoute(page);
     QCOMPARE(routed.value(QStringLiteral("space")).toString(), QStringLiteral("Work"));
-    QCOMPARE(routed.value(QStringLiteral("rule")).toInt(), -1);
+    QCOMPARE(routed.value(QStringLiteral("pattern")).toString(), QStringLiteral("*.acme.com"));
     // The rule it wrote takes the site's other hosts too.
     QCOMPARE(browser->siteLinkRoute(address("https://acme.com/"))
                  .value(QStringLiteral("space"))
@@ -265,13 +266,17 @@ void LinkRulesTest::writesAndRemovesTheWholeSiteRule()
     QCOMPARE(storedRules(config.path()), QJsonValue(rules({{"github.com", "Personal"}})));
 }
 
-// A rule the reader wrote in Settings that takes the page is the one the row
-// states, with where it sits in the list, and the row writes nothing over it.
-void LinkRulesTest::leavesARuleWrittenInSettingsAlone()
+// The row is the first rule that takes the page, whatever its pattern: on
+// github.com/acme/omaweb that is `github.com/acme/*`, ahead of the whole-site
+// rule. Choosing a target changes that rule where it stands, and choosing the
+// Space on show removes it, which leaves the next rule that takes the page.
+void LinkRulesTest::editsTheFirstRuleThatTakesThePage()
 {
     QTemporaryDir config;
-    const auto written = rules({{"*.example.org", "Personal"}, {"github.com/acme/*", "Work"}});
-    QVERIFY(SettingsFile(config.path()).set(QStringLiteral("link-rules"), written));
+    QVERIFY(SettingsFile(config.path())
+            .set(QStringLiteral("link-rules"),
+                rules({{"*.example.org", "Personal"}, {"github.com/acme/*", "Work"},
+                    {"*.github.com", "Personal"}})));
     SessionFixture fixture(twoSpaces(), config.path());
     QVERIFY_SESSION_READY(fixture);
     const auto browser = fixture.createController();
@@ -279,12 +284,22 @@ void LinkRulesTest::leavesARuleWrittenInSettingsAlone()
 
     const auto route = browser->siteLinkRoute(page);
     QCOMPARE(route.value(QStringLiteral("site")).toString(), QStringLiteral("*.github.com"));
+    QCOMPARE(route.value(QStringLiteral("domain")).toString(), QStringLiteral("github.com"));
     QCOMPARE(route.value(QStringLiteral("space")).toString(), QStringLiteral("Work"));
-    QCOMPARE(route.value(QStringLiteral("rule")).toInt(), 1);
+    QCOMPARE(
+        route.value(QStringLiteral("pattern")).toString(), QStringLiteral("github.com/acme/*"));
 
-    QVERIFY(!browser->routeSiteLinks(page, QStringLiteral("Personal")));
-    QVERIFY(!browser->routeSiteLinks(page, QString()));
-    QCOMPARE(storedRules(config.path()), QJsonValue(written));
+    QVERIFY(browser->routeSiteLinks(page, linkrules::privateWindow()));
+    QCOMPARE(storedRules(config.path()),
+        QJsonValue(rules({{"*.example.org", "Personal"}, {"github.com/acme/*", "private"},
+            {"*.github.com", "Personal"}})));
+
+    QVERIFY(browser->routeSiteLinks(page, QString()));
+    QCOMPARE(storedRules(config.path()),
+        QJsonValue(rules({{"*.example.org", "Personal"}, {"*.github.com", "Personal"}})));
+    const auto next = browser->siteLinkRoute(page);
+    QCOMPARE(next.value(QStringLiteral("space")).toString(), QStringLiteral("Personal"));
+    QCOMPARE(next.value(QStringLiteral("pattern")).toString(), QStringLiteral("*.github.com"));
 }
 
 // A Private window and an Agent Space have no row, so there is no site rule

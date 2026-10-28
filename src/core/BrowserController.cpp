@@ -2301,20 +2301,14 @@ QString BrowserController::siteLinkPattern(const QUrl &url) const
 
 BrowserController::SiteLinkRoute BrowserController::siteLinkRouteFor(const QUrl &url) const
 {
-    SiteLinkRoute route {.site = siteLinkPattern(url), .space = {}, .rule = -1};
+    SiteLinkRoute route {.site = siteLinkPattern(url), .rules = linkRules(), .taking = -1};
     if (route.site.isEmpty()) {
         return route;
     }
-    const auto rules = linkRules();
-    const auto taking = std::ranges::find_if(
-        rules, [&url](const LinkRule &rule) { return linkrules::matches(rule.pattern, url); });
-    if (taking != rules.end()) {
-        route.space = taking->space;
-        // A rule written in Settings that is the whole-site pattern itself
-        // reads the same in the file, so it is taken for the row's own.
-        if (taking->pattern != route.site) {
-            route.rule = static_cast<int>(std::distance(rules.begin(), taking));
-        }
+    const auto taking = std::ranges::find_if(route.rules,
+        [&url](const LinkRule &rule) { return linkrules::matches(rule.pattern, url); });
+    if (taking != route.rules.end()) {
+        route.taking = static_cast<qsizetype>(std::distance(route.rules.begin(), taking));
     }
     return route;
 }
@@ -2325,32 +2319,34 @@ QVariantMap BrowserController::siteLinkRoute(const QUrl &url) const
     if (route.site.isEmpty()) {
         return {};
     }
+    const auto taking = route.taking >= 0 ? route.rules.at(route.taking) : LinkRule {};
     return {
         {QStringLiteral("site"), route.site},
-        {QStringLiteral("space"), route.space},
-        {QStringLiteral("rule"), route.rule},
+        {QStringLiteral("domain"), route.site.sliced(2)},
+        {QStringLiteral("space"), taking.space},
+        {QStringLiteral("pattern"), taking.pattern},
     };
 }
 
 bool BrowserController::routeSiteLinks(const QUrl &url, const QString &target)
 {
-    const auto route = siteLinkRouteFor(url);
-    if (route.site.isEmpty() || route.rule >= 0) {
+    auto route = siteLinkRouteFor(url);
+    if (route.site.isEmpty()) {
         return false;
     }
-    const auto own = [&route](const LinkRule &rule) { return rule.pattern == route.site; };
-    auto rules = linkRules();
-    const auto first = std::ranges::find_if(rules, own);
-    if (target.isEmpty()) {
-        // Every copy goes, or the next would take the site's links over.
-        if (first == rules.end()) {
+    auto &rules = route.rules;
+    if (route.taking < 0) {
+        if (target.isEmpty()) {
             return true;
         }
-        rules.removeIf(own);
-    } else if (first != rules.end()) {
-        first->space = target;
-    } else {
         rules.append({.pattern = route.site, .space = target});
+    } else if (!target.isEmpty()) {
+        rules[route.taking].space = target;
+    } else {
+        // A later copy of the same pattern would take the page straight back,
+        // as a hand edit or two machines' Sync can leave one.
+        const auto pattern = rules.at(route.taking).pattern;
+        rules.removeIf([&pattern](const LinkRule &rule) { return rule.pattern == pattern; });
     }
     return m_settings.set(QString::fromLatin1(linkRulesKey), linkrules::write(rules));
 }

@@ -127,9 +127,9 @@ Space
 
 **Link rule**: A pattern and where a link from another app that matches it opens: one of the
 reader's own Spaces, by name, or a Private window. It applies only to an address handed over from
-outside the browser, never to a link clicked in a page or an Agent's `open`. Site information writes
-a whole-site rule, the page's registrable domain after `*.`, and never changes another. _Avoid_:
-Routing rule, Space rule, redirect
+outside the browser, never to a link clicked in a page or an Agent's `open`. Site information edits
+the first rule that takes the page on show, whatever its pattern, or adds a whole-site rule, the
+page's registrable domain after `*.`, when none does. _Avoid_: Routing rule, Space rule, redirect
 
 **Private accent**: The one colour a theme names for its Private windows. Omaweb derives the grounds
 it is cast over, the Private window, sidebar, surface and hover fill, by tinting each of the theme's

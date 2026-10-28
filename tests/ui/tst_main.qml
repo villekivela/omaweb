@@ -4399,9 +4399,9 @@ TestCase {
         return JSON.parse(browser.preference("link-rules", "[]"));
     }
 
-    // On app.acme.com, choosing a Space for links from other apps writes the
-    // whole-site rule for acme.com after the reader's own rules, and choosing
-    // Wherever I am removes it again.
+    // On app.acme.com the row reads "acme.com opens in", from other apps.
+    // Choosing a Space writes the whole-site rule for acme.com after the
+    // reader's own rules, and choosing the Space on show removes it again.
     function test_siteInformationSendsTheSitesLinksToASpace() {
         const spaceId = browser.createSpace("Site Work");
         const handWritten = {
@@ -4415,6 +4415,8 @@ TestCase {
         const picker = findChild(card, "siteLinksChoice");
         const shown = row.visible && picker.visible;
         const before = picker.value;
+        const title = findChild(card, "siteLinksTitle").text;
+        const note = findChild(card, "siteLinksNote").text;
         const labels = picker.options.map(function (option) {
             return option.label;
         });
@@ -4422,6 +4424,8 @@ TestCase {
         picker.changed("Site Work");
         const routed = storedLinkRules();
         const routedValue = picker.value;
+        // The whole-site rule is the site itself, so the note names no rule.
+        const routedNote = findChild(card, "siteLinksNote").text;
         picker.changed("private");
         const privately = storedLinkRules();
         picker.changed("");
@@ -4439,8 +4443,11 @@ TestCase {
 
         verify(shown);
         compare(before, "");
+        compare(title, "acme.com opens in");
+        compare(note, "from other apps");
         verify(labels.indexOf("Site Work") >= 0, labels);
-        compare(labels.slice(-2), ["Private window", "Wherever I am"]);
+        compare(labels.slice(-2), ["Private window", "The Space on show"]);
+        compare(routedNote, "from other apps");
         compare(routed, [handWritten,
                          {
                              "pattern": "*.acme.com",
@@ -4459,48 +4466,52 @@ TestCase {
         verify(renamed.indexOf("Site Moved") >= 0 && renamed.indexOf("Site Work") < 0, renamed);
     }
 
-    // A rule written in Settings that takes the page is what the row states,
-    // and it leads to that rule in Settings rather than offering a choice
-    // that would write over it.
-    function test_siteInformationNamesARuleWrittenInSettings() {
+    // A narrower rule that takes the page first is the one the row shows and
+    // edits, and the note under it names its pattern. Choosing a target
+    // changes that rule, and choosing the Space on show removes it.
+    function test_siteInformationEditsTheRuleThatTakesThePage() {
         const spaceId = browser.createSpace("Site Rules");
-        const written = [
-                  {
-                      "pattern": "*.example.org",
-                      "space": "Elsewhere"
-                  },
-                  {
-                      "pattern": "github.com/acme/*",
-                      "space": "Site Rules"
-                  }
-              ];
-        verify(browser.setPreference("link-rules", JSON.stringify(written)));
+        const other = {
+            "pattern": "*.example.org",
+            "space": "Elsewhere"
+        };
+        verify(browser.setPreference("link-rules", JSON.stringify([other,
+                                                                   {
+                                                                       "pattern":
+                                                                       "github.com/acme/*",
+                                                                       "space": "Site Rules"
+                                                                   }
+                                                                  ])));
         openPage("https://github.com/acme/omaweb");
         const card = openSiteCard("");
-        const rule = findChild(card, "siteLinksRule");
-        const shown = rule.visible && !findChild(card, "siteLinksChoice").visible;
-        const label = rule.label;
+        const picker = findChild(card, "siteLinksChoice");
+        const title = findChild(card, "siteLinksTitle").text;
+        const note = findChild(card, "siteLinksNote").text;
+        const before = picker.value;
 
-        rule.clicked();
-        tryVerify(function () {
-            return window.settingsOpen && !card.visible;
-        });
-        const settings = findChild(window.contentItem, "settingsSurface");
-        const section = settings.sections[settings.section];
-        tryVerify(function () {
-            const pattern = findChild(settings, "linkRulePattern-1");
-            return pattern !== null && pattern.activeFocus;
-        });
-        const stored = storedLinkRules();
+        picker.changed("private");
+        const retargeted = storedLinkRules();
+        const retargetedValue = picker.value;
+        picker.changed("");
+        const removed = storedLinkRules();
+        const removedNote = findChild(card, "siteLinksNote").text;
 
-        window.settingsOpen = false;
+        closeSiteCard();
         verify(browser.setPreference("link-rules", ""));
         verify(browser.deleteSpace(spaceId, "Site Rules"));
 
-        verify(shown);
-        compare(label, "Site Rules, by a rule in Settings");
-        compare(section, "spaces");
-        compare(stored, written);
+        compare(title, "github.com opens in");
+        compare(note, "from other apps · rule: github.com/acme/*");
+        compare(before, "Site Rules");
+        compare(retargeted, [other,
+                             {
+                                 "pattern": "github.com/acme/*",
+                                 "space": "private"
+                             }
+                ]);
+        compare(retargetedValue, "private");
+        compare(removed, [other]);
+        compare(removedNote, "from other apps");
     }
 
     // Links from other apps is the reader's own Spaces' alone: a Private

@@ -579,21 +579,6 @@ Rectangle {
         });
     }
 
-    // A rule Site information names, scrolled into view with the keyboard on
-    // its pattern, once the section has been laid out.
-    function revealLinkRule(index) {
-        Qt.callLater(function () {
-            const row = linkRuleList.itemAt(index);
-            if (!row)
-                return;
-            const flickable = scroll.contentItem;
-            const top = row.mapToItem(pane, 0, 0).y;
-            flickable.contentY = Math.max(0, Math.min(top - scroll.height / 3, pane.height
-                                                      - scroll.height));
-            row.focusPattern();
-        });
-    }
-
     function linkRuleTargets(space) {
         return LinkRuleTargets.targets(root.linkRuleSpaces, space, qsTr("Private window"));
     }

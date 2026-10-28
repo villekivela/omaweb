@@ -507,16 +507,16 @@ int main(int argc, char *argv[])
     const auto suggestUrl = suggestIndex >= 0 && suggestIndex + 1 < arguments.size()
         ? arguments.at(suggestIndex + 1)
         : QString();
-    // `--site-links site` or `settings` has a Link rule take Site information's
+    // `--site-links site` or `narrow` has a Link rule take Site information's
     // page, which the lab can only keep with a configuration root too: the
-    // whole-site rule its row writes, or one written in Settings that the row
-    // only names. Use it with `--spaces`, for the Work Space they name.
+    // whole-site rule its row adds, or a narrower one its row names under the
+    // picker. Use it with `--spaces`, for the Work Space they name.
     const auto siteLinksIndex = arguments.indexOf(QStringLiteral("--site-links"));
     const auto siteLinks = siteLinksIndex >= 0 && siteLinksIndex + 1 < arguments.size()
         ? arguments.at(siteLinksIndex + 1)
         : QString();
     if (!siteLinks.isEmpty()) {
-        if (siteLinks != QLatin1String("site") && siteLinks != QLatin1String("settings")) {
+        if (siteLinks != QLatin1String("site") && siteLinks != QLatin1String("narrow")) {
             qCritical("Unknown --site-links %s", qPrintable(siteLinks));
             return 1;
         }

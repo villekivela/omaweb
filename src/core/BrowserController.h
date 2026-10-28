@@ -324,16 +324,17 @@ public:
     // listed: the reader's own Spaces, not an Agent's.
     Q_INVOKABLE QStringList readersSpaceNames() const;
     // Where a link from another app to the page would open, as Site
-    // information's row states it: `site`, the whole-site pattern the row
-    // writes, empty where the row has none to offer; `space`, the target links
-    // to the page go to now, empty for the Space on show; and `rule`, the
-    // index of the rule written in Settings that sends them there, or -1 when
-    // that is the whole-site rule or no rule at all.
+    // information's row states it: `site`, the whole-site pattern for the
+    // page, and `domain`, the registrable domain it names, both empty where
+    // the row is not offered; then `space` and `pattern`, the target and the
+    // pattern of the first rule that takes the page, empty when none does and
+    // links open in the Space on show.
     Q_INVOKABLE QVariantMap siteLinkRoute(const QUrl &url) const;
-    // Writes the page's whole-site rule to send its links to a target, in
-    // place if it is there and after the reader's rules if not, or removes it
-    // for an empty target. False, writing nothing, where the row is not
-    // offered or a rule written in Settings takes the page.
+    // Sends the page's links to a target through the first rule that takes
+    // the page, whatever its pattern, or adds the whole-site rule after the
+    // reader's rules when none does. An empty target, the Space on show,
+    // removes that rule and every copy of its pattern. False, writing nothing,
+    // where the row is not offered.
     Q_INVOKABLE bool routeSiteLinks(const QUrl &url, const QString &target);
     // Whether a Link rule's pattern is one Omaweb reads (linkrules::parses).
     Q_INVOKABLE static bool linkPatternParses(const QString &pattern);
@@ -851,11 +852,12 @@ private:
     QString linkRuleName(const QString &spaceId) const;
     QString siteLinkPattern(const QUrl &url) const;
     // siteLinkRoute before it is a map for QML: no site where the row is not
-    // offered, and -1 for no rule written in Settings.
+    // offered, and the rules with the place of the first that takes the page,
+    // or -1.
     struct SiteLinkRoute {
         QString site;
-        QString space;
-        int rule = -1;
+        QList<LinkRule> rules;
+        qsizetype taking = -1;
     };
     SiteLinkRoute siteLinkRouteFor(const QUrl &url) const;
     // Renames the Space in the Link rules that name it, or deletes them.
