@@ -4951,6 +4951,206 @@ TestCase {
         window.settingsOpen = false;
     }
 
+    // A Link rule that names a Space the reader has not got opens the link
+    // where it would have gone, and the page notice says so.
+    function test_aLinkRuleToNoSuchSpaceSaysWhereTheLinkOpened() {
+        const notice = findChild(window.contentItem, "pageNotice");
+        notice.dismiss();
+        verify(browser.setPreference("link-rules", JSON.stringify([
+                                                                      {
+                                                                          "pattern": "gone.example",
+                                                                          "space": "Clients"
+                                                                      }
+                                                                  ])));
+        const activeId = browser.activeSpaceId;
+        verify(browser.openLinkFromOutside("https://gone.example/"));
+        compare(browser.activeSpaceId, activeId);
+        tryCompare(browser, "activeUrl", "https://gone.example/");
+        tryVerify(function () {
+            return notice.showing;
+        });
+        compare(notice.message, "No Space named Clients, opened here");
+        browser.closeActiveTab();
+        verify(browser.setPreference("link-rules", ""));
+    }
+
+    // A link from another app that a rule sends to another of the reader's
+    // Spaces switches there, and the Space notice names where it landed.
+    function test_aLinkRuleShowsTheSpaceItOpenedIn() {
+        const notice = findChild(window.contentItem, "spaceNotice");
+        const homeId = browser.activeSpaceId;
+        const ruledId = browser.createSpace("Ruled Arrival");
+        tryCompare(notice, "visible", false, 5000);
+        verify(browser.setPreference("link-rules", JSON.stringify([
+                                                                      {
+                                                                          "pattern": "*.acme.com",
+                                                                          "space": "Ruled Arrival"
+                                                                      }
+                                                                  ])));
+        verify(browser.openLinkFromOutside("https://docs.acme.com/x"));
+        compare(browser.activeSpaceId, ruledId);
+        tryCompare(browser, "activeUrl", "https://docs.acme.com/x");
+        tryVerify(function () {
+            return notice.visible && notice.text === "Ruled Arrival";
+        });
+        verify(browser.setPreference("link-rules", ""));
+        verify(browser.switchSpace(homeId));
+        verify(browser.deleteSpace(ruledId, "Ruled Arrival"));
+    }
+
+    // Deleting a Space asks first and says how many Link rules go with it.
+    function test_deletingASpaceNamesItsLinkRules() {
+        const spaceId = browser.createSpace("Ruled Space");
+        verify(browser.setPreference("link-rules", JSON.stringify([
+                                                                      {
+                                                                          "pattern": "*.acme.com",
+                                                                          "space": "Ruled Space"
+                                                                      },
+                                                                      {
+                                                                          "pattern": "other.example",
+                                                                          "space": "Elsewhere"
+                                                                      },
+                                                                      {
+                                                                          "pattern":
+                                                                          "github.com/acme/*",
+                                                                          "space": "Ruled Space"
+                                                                      }
+                                                                  ])));
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("spaces");
+        const remove = findChild(settings, "deleteSpace-" + spaceId);
+        settleActions(remove);
+        remove.clicked();
+        compare(window.dialogMode, "delete");
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        verify(dialog.message.indexOf("2 link rules name this Space") >= 0, dialog.message);
+        dialog.accepted("Ruled Space");
+        tryVerify(function () {
+            return findChild(settings, "settingsSpace-" + spaceId) === null;
+        });
+        compare(JSON.parse(browser.preference("link-rules", "[]")), [
+                    {
+                        "pattern": "other.example",
+                        "space": "Elsewhere"
+                    }
+                ]);
+        verify(browser.setPreference("link-rules", ""));
+        window.settingsOpen = false;
+    }
+
+    // Settings lists the Link rules under Links from other apps, marks a
+    // pattern it cannot read and a Space the reader has not got, follows an
+    // edit made to the file, and writes what the reader changes there.
+    function test_settingsListsAndEditsTheLinkRules() {
+        const spaceId = browser.createSpace("Rules Work");
+        const rules = function () {
+            return JSON.parse(browser.preference("link-rules", "[]"));
+        };
+        verify(browser.setPreference("link-rules", JSON.stringify([
+                                                                      {
+                                                                          "pattern": "*.acme.com",
+                                                                          "space": "Rules Work"
+                                                                      },
+                                                                      {
+                                                                          "pattern": "acme.com/docs",
+                                                                          "space": "Rules Work"
+                                                                      },
+                                                                      {
+                                                                          "pattern": "gone.example",
+                                                                          "space": "Clients"
+                                                                      }
+                                                                  ])));
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("spaces");
+        const row = function (index) {
+            return findChild(settings, "linkRule-" + index);
+        };
+        tryVerify(function () {
+            return row(2) !== null && row(2).visible;
+        });
+        compare(row(3), null);
+        compare(findChild(settings, "linkRulePattern-0").text, "*.acme.com");
+        const picker = findChild(settings, "linkRuleSpace-0");
+        compare(picker.value, "Rules Work");
+        const labels = picker.options.map(function (option) {
+            return option.label;
+        });
+        verify(labels.indexOf("Rules Work") >= 0, labels);
+        verify(labels.indexOf("Private window") >= 0, labels);
+        verify(!findChild(settings, "linkRuleProblem-0").visible);
+        verify(findChild(settings, "linkRuleProblem-1").visible);
+        verify(findChild(settings, "linkRuleProblem-2").visible);
+        compare(findChild(settings, "linkRuleProblem-2").text,
+                "No Space named Clients. Links it takes open in the Space on show.");
+
+        // An edit made to the file shows without reopening Settings.
+        verify(browser.setPreference("link-rules", JSON.stringify([
+                                                                      {
+                                                                          "pattern": "*.acme.com",
+                                                                          "space": "Rules Work"
+                                                                      },
+                                                                      {
+                                                                          "pattern": "acme.com/docs",
+                                                                          "space": "Rules Work"
+                                                                      }
+                                                                  ])));
+        tryVerify(function () {
+            return row(2) === null;
+        });
+
+        // Fixing the pattern takes the mark away.
+        const pattern = findChild(settings, "linkRulePattern-1");
+        pattern.text = "acme.com/docs/*";
+        pattern.editingFinished();
+        compare(rules()[1].pattern, "acme.com/docs/*");
+        tryVerify(function () {
+            return !findChild(settings, "linkRuleProblem-1").visible;
+        });
+
+        findChild(settings, "linkRuleSpace-1").changed("private");
+        compare(rules()[1].space, "private");
+
+        // Dragging the second row's handle up a row puts it first.
+        const handle = findChild(settings, "linkRuleHandle-1");
+        settleActions(handle);
+        const step = row(1).mapToItem(settings, 0, 0).y - row(0).mapToItem(settings, 0, 0).y;
+        mousePress(handle, handle.width / 2, handle.height / 2);
+        for (let moved = 0; moved <= step; moved += step / 4)
+            mouseMove(handle, handle.width / 2, handle.height / 2 - moved);
+        mouseRelease(handle, handle.width / 2, handle.height / 2 - step);
+        tryVerify(function () {
+            return rules()[0].pattern === "acme.com/docs/*";
+        });
+        compare(rules()[1].pattern, "*.acme.com");
+
+        const remove = findChild(settings, "linkRuleRemove-0");
+        remove.clicked();
+        compare(rules(), [
+                    {
+                        "pattern": "*.acme.com",
+                        "space": "Rules Work"
+                    }
+                ]);
+
+        const add = findChild(settings, "addLinkRule");
+        verify(add.visible);
+        add.clicked();
+        tryVerify(function () {
+            return row(1) !== null;
+        });
+        compare(rules().length, 2);
+        compare(rules()[1].pattern, "");
+        tryVerify(function () {
+            return findChild(settings, "linkRulePattern-1").activeFocus;
+        });
+
+        verify(browser.setPreference("link-rules", ""));
+        verify(browser.deleteSpace(spaceId, "Rules Work"));
+        window.settingsOpen = false;
+    }
+
     function test_collapsingTheSidebarLeavesOnlyTheFloatingControls() {
         const sidebar = findChild(window.contentItem, "sidebar");
         const engineViewport = findChild(window.contentItem, "engineViewport");

@@ -1569,6 +1569,10 @@
         <translation>Tällä työpöydällä ei ole näytettävää tulostusikkunaa</translation>
     </message>
     <message>
+        <source>No Space named %1, opened here</source>
+        <translation>Ei tilaa nimeltä %1, avattiin tähän</translation>
+    </message>
+    <message>
         <source>The extension was not installed</source>
         <translation>Laajennusta ei asennettu</translation>
     </message>
@@ -1909,6 +1913,14 @@
     <message>
         <source>%1 keeps its tabs, its session, its logins and its engine data. Deleting it cannot be undone.</source>
         <translation>%1 säilyttää välilehtensä, istuntonsa, kirjautumisensa ja moottorinsa tiedot. Poistamista ei voi perua.</translation>
+    </message>
+    <message>
+        <source>1 link rule names this Space, and is deleted with it.</source>
+        <translation>1 linkkisääntö nimeää tämän tilan, ja se poistetaan tilan mukana.</translation>
+    </message>
+    <message>
+        <source>%1 link rules name this Space, and are deleted with it.</source>
+        <translation>%1 linkkisääntöä nimeää tämän tilan, ja ne poistetaan tilan mukana.</translation>
     </message>
     <message>
         <source>This page has edited form state. Moving it reloads the page under the destination identity and discards those edits.</source>
@@ -3593,6 +3605,10 @@ Päivitykset osoitteesta %3</translation>
         <translation>Violetti</translation>
     </message>
     <message>
+        <source>Private window</source>
+        <translation>Yksityinen ikkuna</translation>
+    </message>
+    <message>
         <source>Cards are kept in the desktop&apos;s keyring and offered in forms in every Space, never in a Private window. The security code is never kept.</source>
         <translation>Kortit säilytetään työpöydän avainnipussa, ja niitä tarjotaan lomakkeissa jokaisessa tilassa, ei koskaan yksityisessä ikkunassa. Turvakoodia ei koskaan säilytetä.</translation>
     </message>
@@ -3899,6 +3915,50 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Move %1 down</source>
         <translation>Siirrä %1 alas</translation>
+    </message>
+    <message>
+        <source>links from other apps</source>
+        <translation>linkit muista sovelluksista</translation>
+    </message>
+    <message>
+        <source>A link opened from another app goes to the Space the first rule that matches it names, and to the Space on show when none does. A pattern is a host, *. and a host for it and the hosts under it, or either followed by a path ending in *, such as github.com/acme/*.</source>
+        <translation>Muusta sovelluksesta avattu linkki avautuu tilaan, jonka ensimmäinen sitä vastaava sääntö nimeää, ja näkyvissä olevaan tilaan, kun mikään sääntö ei vastaa. Kaava on palvelin, *. ja palvelin sille ja sen alaisille palvelimille, tai jompikumpi ja perään *-merkkiin päättyvä polku, kuten github.com/acme/*.</translation>
+    </message>
+    <message>
+        <source>Move the rule for %1</source>
+        <translation>Siirrä sääntöä %1</translation>
+    </message>
+    <message>
+        <source>pattern, such as *.example.com</source>
+        <translation>kaava, kuten *.example.com</translation>
+    </message>
+    <message>
+        <source>Link rule pattern</source>
+        <translation>Linkkisäännön kaava</translation>
+    </message>
+    <message>
+        <source>Where links matching %1 open</source>
+        <translation>Minne kaavaa %1 vastaavat linkit avautuvat</translation>
+    </message>
+    <message>
+        <source>Remove the rule for %1</source>
+        <translation>Poista sääntö %1</translation>
+    </message>
+    <message>
+        <source>Not a pattern Omaweb reads, so the rule is ignored until it is fixed.</source>
+        <translation>Omaweb ei osaa lukea tätä kaavaa, joten sääntö ohitetaan, kunnes se korjataan.</translation>
+    </message>
+    <message>
+        <source>No Space named %1. Links it takes open in the Space on show.</source>
+        <translation>Ei tilaa nimeltä %1. Sen vastaamat linkit avautuvat näkyvissä olevaan tilaan.</translation>
+    </message>
+    <message>
+        <source>Add rule</source>
+        <translation>Lisää sääntö</translation>
+    </message>
+    <message>
+        <source>Add a link rule</source>
+        <translation>Lisää linkkisääntö</translation>
     </message>
     <message>
         <source>Space actions are available in a regular window.</source>

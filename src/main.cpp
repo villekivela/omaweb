@@ -99,6 +99,7 @@
 #include <QQuickWebEngineProfile>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#include <QPointer>
 #include <QTimer>
 #include <QWebEngineExtensionManager>
 #include <QtWebEngineCore/qtwebenginecoreglobal.h>
@@ -719,26 +720,46 @@ int main(int argc, char *argv[])
                   omaweb::bringForward(window, activationToken);
               }
           };
+    // A link from another app opens where its Link rule says, which may be a
+    // Private window. The window that shows it is the one to come forward.
+    const auto openFromOutside
+        = [&windowManager, &browser, mainWindow](const QUrl &url) -> QWindow * {
+        auto *shown = windowManager.openFromOutside(&browser, url);
+        if (!shown) {
+            qWarning("This session has no Private windows, so a link a Link rule sends to one "
+                     "opens nothing.");
+            return nullptr;
+        }
+        return shown == &browser ? mainWindow : windowShowing(shown);
+    };
     if (launchPrivately && !engine.rootObjects().isEmpty()) {
         QTimer::singleShot(
             0, &browser, [showPrivately, launchUrl] { showPrivately(launchUrl, QString()); });
     } else if (launchUrl.isValid() && !engine.rootObjects().isEmpty()) {
-        QTimer::singleShot(
-            0, &browser, [&browser, launchUrl] { browser.openLink(launchUrl, true); });
+        QTimer::singleShot(0, &browser, [openFromOutside, mainWindow, launchUrl] {
+            if (auto *window = openFromOutside(launchUrl); window && window != mainWindow) {
+                omaweb::bringForward(window, QString());
+            }
+        });
     }
 
     // Every later launch arrives here instead, as the address it was asked to
-    // open rather than as a browser of its own.
+    // open rather than as a browser of its own. The activation that follows
+    // the address brings forward the window it opened in.
+    QPointer<QWindow> openedFromOutside;
     QObject::connect(&runningBrowser, &omaweb::RunningBrowser::openRequested, &browser,
-        [&browser](const QUrl &url) { browser.openLink(url, true); });
+        [openFromOutside, &openedFromOutside](
+            const QUrl &url) { openedFromOutside = openFromOutside(url); });
     QObject::connect(
         &runningBrowser, &omaweb::RunningBrowser::privateWindowRequested, &browser, showPrivately);
     // The reader opened a link from another app, or started Omaweb again, and
     // is looking for the browser rather than at the app still in front of it.
     if (mainWindow) {
         QObject::connect(&runningBrowser, &omaweb::RunningBrowser::activationRequested, mainWindow,
-            [mainWindow](const QString &activationToken) {
-                omaweb::bringForward(mainWindow, activationToken);
+            [mainWindow, &openedFromOutside](const QString &activationToken) {
+                QWindow *window = openedFromOutside ? openedFromOutside.data() : mainWindow;
+                openedFromOutside.clear();
+                omaweb::bringForward(window, activationToken);
             });
     }
 

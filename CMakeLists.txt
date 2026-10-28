@@ -431,6 +431,8 @@ add_library(omaweb-core STATIC
     src/core/HistorySearch.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
+    src/core/LinkRules.cpp
+    src/core/LinkRules.h
     src/core/LocaleReport.cpp
     src/core/LocaleReport.h
     src/core/PaymentCardKeyring.cpp
@@ -1867,6 +1869,16 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-settings-file-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-settings-file-tests)
     add_test(NAME omaweb-settings-file COMMAND omaweb-settings-file-tests)
+
+    qt_add_executable(omaweb-link-rules-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_linkrules.cpp"
+    )
+    target_link_libraries(omaweb-link-rules-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-link-rules-tests)
+    omaweb_declarative_fixture_target(omaweb-link-rules-tests)
+    add_test(NAME omaweb-link-rules COMMAND omaweb-link-rules-tests)
 
     qt_add_executable(omaweb-settings-migration-tests tests/core/tst_settingsmigration.cpp)
     target_link_libraries(omaweb-settings-migration-tests PRIVATE omaweb-core Qt6::Test)
