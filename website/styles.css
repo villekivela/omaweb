@@ -1571,7 +1571,7 @@ kbd {
 
 /* PROTOTYPE, throwaway (branch feat/ignite-tour-prototype): driving through the site. */
 
-/* The streamlined Omnibar: the field and Ignite; the rows once the reader types; Radio back in the
+/* The streamlined Omnibar: the field alone; the rows once the reader types; Radio back in the
    header and the theme picker on the theme card. */
 .streamlined .omnibar__hints,
 .streamlined .omnibar:not([data-typed]) .omnibar__rows {
@@ -1580,21 +1580,6 @@ kbd {
 
 body.streamlined:has(.omnibar) .nav .radio-toggle:not([hidden]) {
   display: inline-flex;
-}
-
-.omnibar__ignite {
-  margin-left: 8px;
-  padding: 4px 12px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--bg);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.omnibar__ignite[hidden] {
-  display: none;
 }
 
 #theme .themes {
@@ -1621,6 +1606,13 @@ html.highway {
   width: 1px;
   height: 1px;
   scroll-snap-align: start;
+}
+
+/* The header stays in view over the road's layers, so Radio, the ignition, is always to hand. */
+.highway body:has(.drive) > .top {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 200;
 }
 
 .highway .drive__scrim {
@@ -1661,8 +1653,41 @@ html.highway {
 
 .highway .install.hw-layer {
   width: min(980px, 86vw);
-  max-height: 92vh;
-  overflow: auto;
+}
+
+/* The streamlined Omnibar needs no hint for o: the key still finds it. */
+.streamlined .omnibar__field > kbd {
+  display: none;
+}
+
+/* The cards catch the sun as the Omnibar does: its rim on their border, brightest at the middle of
+   the top edge, and its bloom, lifted by the beat. */
+.lit-card {
+  --horizon: 0%;
+  position: relative;
+  isolation: isolate;
+}
+
+.lit-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  background: var(--scene-rim, none);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+/* A rule between the capture and the words that explain it. */
+.card__shot {
+  border-bottom: 1px solid var(--edge);
+  padding-bottom: 8px;
+}
+
+.card__shot + h2 {
+  margin-top: 18px;
 }
 
 .card kbd.tour-key {

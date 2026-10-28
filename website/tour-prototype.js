@@ -1,8 +1,8 @@
 // PROTOTYPE, throwaway (branch feat/ignite-tour-prototype): driving through the site. On a wide
 // screen that allows motion, the page is a road: scroll is the throttle, and each stop (the Start
 // page, the film, every feature, the install) rises from the horizon, holds while it is read and
-// passes the camera. Ignite, at the end of the Omnibar, is cruise control: the same drive steered
-// by Night road's cues. Anything the reader does takes the wheel back and leaves the music on.
+// passes the camera. The Radio is the ignition: turned on, from the header, M or Return on an
+// empty Omnibar, it is cruise control, the same drive steered by Night road's cues. Anything the reader does takes the wheel back and leaves the music on.
 // ?clock=timer drives on a timer, as it does when the radio cannot play. On a phone or under
 // reduced motion the page stays stacked, with the streamlined Omnibar and no drive.
 
@@ -134,24 +134,46 @@ function streamline(drive) {
   const themes = omnibar.querySelector(".themes");
   const themeCard = drive.querySelector("#theme");
   if (themes && themeCard) themeCard.append(themes);
-  const ignite = document.createElement("button");
-  ignite.className = "omnibar__ignite";
-  ignite.type = "button";
-  ignite.innerHTML = '<span aria-hidden="true">&#9654;</span> Ignite';
-  omnibar.querySelector(".omnibar__field").append(ignite);
-  return ignite;
+}
+
+// The Omnibar's rim and bloom on every card's border too: the road's light, cast on the Omnibar,
+// copied to each card on screen, so the cards' rims catch the sun and lift with the beat.
+function lightTheCards(drive, host) {
+  const cards = [...drive.querySelectorAll(".card, .install")];
+  for (const card of cards) {
+    const glow = document.createElement("span");
+    glow.className = "omnibar__glow";
+    glow.setAttribute("aria-hidden", "true");
+    card.prepend(glow);
+    card.classList.add("lit-card");
+  }
+  const light = host.light;
+  if (!light) return;
+  const cast = light.cast.bind(light);
+  const written = new Map(cards.map((card) => [card, {}]));
+  light.cast = (properties) => {
+    cast(properties);
+    for (const card of cards) {
+      if (card.style.display === "none") continue;
+      const was = written.get(card);
+      for (const [name, value] of Object.entries(properties)) {
+        if (was[name] === value) continue;
+        card.style.setProperty(name, value);
+        was[name] = value;
+      }
+    }
+  };
 }
 
 export function igniteTourPrototype({ drive, host }) {
   const radio = document.querySelector(".radio");
   const radioToggle = document.querySelector(".radio-toggle");
   if (!radio || !radioToggle) return;
-  const ignite = streamline(drive);
-  const still = matchMedia(STILL_MEDIA);
-  if (still.matches) {
-    ignite.hidden = true;
-    return;
-  }
+  streamline(drive);
+  lightTheCards(drive, host);
+  if (matchMedia(STILL_MEDIA).matches) return;
+  const input = drive.querySelector(".omnibar__input");
+  input.placeholder = "Where to?   \u23ce to ignite";
 
   // The highway: every stop a layer over the road, and the page's height a track to scroll.
   document.documentElement.classList.add("highway");
@@ -316,24 +338,27 @@ export function igniteTourPrototype({ drive, host }) {
     show();
   };
 
-  const start = () => {
+  // The radio turned on is the ignition: the song from its start, and cruise control with it.
+  const start = (timer = forceTimer) => {
     clearStop();
     current = -1;
     state = "cruising";
-    timerMode = forceTimer;
+    timerMode = timer;
     timerStart = performance.now();
     radio.loop = false;
-    // The radio's own toggle, from inside the press, so its analyser starts and the sun beats.
-    if (radio.paused) radioToggle.click();
-    radio.currentTime = 0;
-    // A radio that does not play, as when autoplay is refused, leaves the drive to the timer.
-    setTimeout(() => {
-      if (state !== "off" && !timerMode && (radio.paused || radio.muted)) {
-        timerMode = true;
-        timerStart = performance.now() - (radio.currentTime || 0) * 1000;
-      }
-    }, 1500);
+    if (!timer) radio.currentTime = 0;
     tick();
+  };
+  radio.addEventListener("play", () => {
+    if (state === "off") start();
+  });
+  // Return on an empty Omnibar presses the Radio, from inside the press so its analyser starts and
+  // the sun beats. A radio that does not play, as when autoplay is refused, leaves the drive to the
+  // timer.
+  const ignite = () => {
+    if (state !== "off") return;
+    if (radio.paused) radioToggle.click();
+    setTimeout(() => state === "off" && radio.paused && start(true), 1500);
   };
 
   // The reader takes the wheel: cruise lets go where it is and the music plays on, on its loop.
@@ -364,7 +389,6 @@ export function igniteTourPrototype({ drive, host }) {
     if (!radio.paused) radio.pause();
   };
 
-  ignite.addEventListener("click", start);
   resumeButton.addEventListener("click", resume);
   chip.querySelector(".tour-chip__stop").addEventListener("click", stopAll);
   radio.addEventListener("pause", () => {
@@ -374,7 +398,6 @@ export function igniteTourPrototype({ drive, host }) {
 
   // The Omnibar drives too: Return on a row glides to its feature, on an empty field it ignites,
   // and J and K glide to the next and the previous stop.
-  const input = drive.querySelector(".omnibar__input");
   const stopOfRow = (row) =>
     STOPS.findIndex((stop) => stop.target === `#${row.querySelector("a").dataset.card}`);
   addEventListener(
@@ -389,7 +412,7 @@ export function igniteTourPrototype({ drive, host }) {
       if (event.target === input && event.key === "Enter") {
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (!input.value.trim()) return start();
+        if (!input.value.trim()) return ignite();
         const row = [...drive.querySelectorAll('.omnibar [role="option"]')].find(
           (option) => !option.hidden && option.getAttribute("aria-selected") === "true",
         );
@@ -425,7 +448,7 @@ export function igniteTourPrototype({ drive, host }) {
       type,
       (event) => {
         if (!event.isTrusted) return;
-        if (event.target.closest?.(".omnibar__ignite, .tour-chip, .omnibar__rows")) return;
+        if (event.target.closest?.(".radio-toggle, .tour-chip, .omnibar__rows")) return;
         hold();
       },
       { capture: true, passive: true },
