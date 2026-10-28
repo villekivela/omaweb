@@ -61,6 +61,11 @@ void ProblemReporter::setEngineVersions(QStringList lines) { m_engineVersions = 
 
 void ProblemReporter::setSites(const QVariantMap &sites) { m_sites = sites; }
 
+void ProblemReporter::setDiagnosticOverrides(QStringList named)
+{
+    m_diagnosticOverrides = std::move(named);
+}
+
 void ProblemReporter::setSync(QObject *controller) { m_sync = controller; }
 
 void ProblemReporter::setRecording(ProblemRecording *recording) { m_recording = recording; }
@@ -72,11 +77,18 @@ void ProblemReporter::setRun(ProblemReportRun run) { m_run = std::move(run); }
 QList<ProblemReportSection> ProblemReporter::sections(
     const QString &tabId, bool privateWindow, Requester requester)
 {
-    QList<ProblemReportSection> report {
+    QList<ProblemReportSection> report;
+    // What the run changed about what sites see comes before anything it
+    // read, so no reader of the report takes the rest for the engine's own.
+    if (!m_diagnosticOverrides.isEmpty()) {
+        report.append(
+            {.title = QStringLiteral("Diagnostic overrides"), .lines = m_diagnosticOverrides});
+    }
+    report.append({
         {.title = QStringLiteral("Versions"),
             .lines = m_engineVersions + systemVersionLines(m_run)},
         {.title = QStringLiteral("What sites see"), .lines = siteLines(m_sites)},
-    };
+    });
     if (privateWindow || !tabId.isEmpty()) {
         report.append({.title = QStringLiteral("Tab"), .lines = tabLines(tabId, privateWindow)});
     }

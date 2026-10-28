@@ -3,6 +3,7 @@
 #include "AgentConsole.h"
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
+#include "QtDiagnosticOverrides.h"
 #include "QtDrawnFavicons.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
@@ -29,6 +30,7 @@
 #include "PerformanceProbe.h"
 #include "ProcessResources.h"
 #include "SecureDns.h"
+#include "Translations.h"
 #include "WebRtcPolicy.h"
 
 #if OMAWEB_CNAME_UNCLOAKING
@@ -88,6 +90,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QUrlQuery>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 #include <QtWebEngineCore/QWebEngineCertificateError>
+#include <QtWebEngineCore/QWebEngineClientHints>
 #include <QtWebEngineCore/QWebEnginePermission>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
 #include <QtWebEngineCore/QWebEnginePage>
@@ -336,6 +339,9 @@ private slots:
     void qtTellsEverySiteNotToSellTheReadersData();
     void qtSendsTheReadersFirstLanguage_data();
     void qtSendsTheReadersFirstLanguage();
+    void qtShowsPagesTheDiagnosticOverrides_data();
+    void qtShowsPagesTheDiagnosticOverrides();
+    void qtKeepsNoDiagnosticOverridePastItsRun();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn();
     void qtDocksAnInspectorDrawnInOmawebsColours();
@@ -7239,6 +7245,193 @@ void QtEngineContractTest::qtSendsTheReadersFirstLanguage()
         adapter->property("pageTitle").toString(), QStringLiteral("fi-FI"), 15000);
     QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("Accept-Language")),
         QStringLiteral("fi-FI"));
+}
+
+namespace {
+
+// What a page reads of the browser, joined with `|`: `navigator.userAgent`,
+// the brands of `navigator.userAgentData`, its high-entropy `fullVersionList`
+// and `navigator.languages`. Each list is sorted, since the engine's order is
+// its own.
+const QByteArray whatSitesSeePage = R"HTML(<!doctype html><html><body>
+    <script>
+        const named = list => list.map(entry => entry.brand + " " + entry.version).sort().join(",");
+        navigator.userAgentData.getHighEntropyValues(["fullVersionList"]).then(values => {
+            document.title = [navigator.userAgent, named(navigator.userAgentData.brands),
+                named(values.fullVersionList), navigator.languages.join(",")].join("|");
+        });
+    </script>
+</body></html>)HTML";
+
+// Loads `whatSitesSeePage` from `server` in a view of `profile` and answers
+// what it read, or nothing when it read nothing in time.
+QStringList readWhatSitesSee(QQmlEngine &engine, QObject *profile, const PageServer &server)
+{
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), QVariant::fromValue(profile)},
+    }));
+    if (!adapter) {
+        qWarning("%s", qPrintable(component.errorString()));
+        return {};
+    }
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+    adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort())));
+    const auto read = [&adapter] { return adapter->property("pageTitle").toString(); };
+    if (!QTest::qWaitFor([&read] { return read().count(QLatin1Char('|')) == 3; }, 15000)) {
+        return {};
+    }
+    return read().split(QLatin1Char('|'));
+}
+
+// A Space's profile, or the Private windows' shared one, attached to
+// `engineContentBlocker` the way the shell builds every profile.
+std::unique_ptr<QObject> attachedProfileHost(QQmlEngine &engine, const QString &path,
+    bool privateWindow, omaweb::QtContentBlocker &engineContentBlocker)
+{
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    std::unique_ptr<QObject> host(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), path},
+        {QStringLiteral("privateBrowsing"), privateWindow},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    }));
+    if (!host) {
+        qWarning("%s", qPrintable(component.errorString()));
+    }
+    return host;
+}
+
+} // namespace
+
+void QtEngineContractTest::qtShowsPagesTheDiagnosticOverrides_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// `omaweb --diagnose report-chrome=152 --diagnose "brands=Chromium,Google Chrome"
+// --diagnose language=sv-FI` (#753): a page reads Chrome 152 in the user agent,
+// the brands and the full version list, the brand list named, and the one
+// language, in the request as in script. A Space's profile and the Private
+// windows' shared one present alike.
+void QtEngineContractTest::qtShowsPagesTheDiagnosticOverrides()
+{
+    QFETCH(bool, privateWindow);
+    PageServer server(whatSitesSeePage);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::GlobalPrivacyControl control(root.filePath(QStringLiteral("config")));
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &control);
+    omaweb::QtDiagnosticOverrides overrides(omaweb::readDiagnosticOverrides({
+        QStringLiteral("omaweb"),
+        QStringLiteral("--diagnose"),
+        QStringLiteral("report-chrome=152"),
+        QStringLiteral("--diagnose=brands=Chromium,Google Chrome"),
+        QStringLiteral("--diagnose"),
+        QStringLiteral("language=sv-FI"),
+    }));
+    QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &overrides,
+        &omaweb::QtDiagnosticOverrides::attachToProfile);
+
+    QQmlEngine engine;
+    const auto host = attachedProfileHost(
+        engine, root.filePath(QStringLiteral("profile")), privateWindow, engineContentBlocker);
+    QVERIFY(host);
+    const auto read
+        = readWhatSitesSee(engine, host->property("profile").value<QObject *>(), server);
+    QCOMPARE(read.size(), 4);
+
+    const auto agent = read.at(0);
+    QVERIFY2(agent.contains(QStringLiteral(" Chrome/152.0.0.0 ")), qPrintable(agent));
+    QCOMPARE(agent.count(QStringLiteral("Chrome/")), 1);
+    QVERIFY2(!agent.contains(QStringLiteral("QtWebEngine")), qPrintable(agent));
+    QCOMPARE(read.at(1), QStringLiteral("Chromium 152,Google Chrome 152"));
+    QCOMPARE(read.at(2), QStringLiteral("Chromium 152.0.0.0,Google Chrome 152.0.0.0"));
+    QCOMPARE(read.at(3), QStringLiteral("sv-FI"));
+    QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("User-Agent")), agent);
+    QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("Accept-Language")),
+        QStringLiteral("sv-FI"));
+}
+
+// The overrides are the run's: a profile they were set on keeps none of them,
+// so the same profile started again without the flag presents the engine's
+// own, and nothing in its directory names them.
+void QtEngineContractTest::qtKeepsNoDiagnosticOverridePastItsRun()
+{
+    PageServer server(whatSitesSeePage);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto profilePath = root.filePath(QStringLiteral("profile"));
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::GlobalPrivacyControl control(root.filePath(QStringLiteral("config")));
+
+    // What the engine presents untouched: its user agent less the token
+    // Omaweb drops, its own brands, and the reader's language.
+    QWebEngineProfile untouched;
+    auto engineAgent = untouched.httpUserAgent();
+    engineAgent.remove(QRegularExpression(QStringLiteral(" ?QtWebEngine/\\S+")));
+    const auto engineVersions = untouched.clientHints()->fullVersionList();
+    QStringList engineBrands;
+    QStringList engineFullVersions;
+    for (auto brand = engineVersions.cbegin(); brand != engineVersions.cend(); ++brand) {
+        const auto version = brand.value().toString();
+        engineBrands.append(brand.key() + u' ' + version.section(u'.', 0, 0));
+        engineFullVersions.append(brand.key() + u' ' + version);
+    }
+    engineBrands.sort();
+    engineFullVersions.sort();
+    QVERIFY(!engineBrands.contains(QStringLiteral("Omaweb Diagnose 152")));
+
+    {
+        omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &control);
+        omaweb::QtDiagnosticOverrides overrides(omaweb::readDiagnosticOverrides({
+            QStringLiteral("omaweb"),
+            QStringLiteral("--diagnose=report-chrome=152"),
+            QStringLiteral("--diagnose=brands=Chromium,Omaweb Diagnose"),
+            QStringLiteral("--diagnose=language=eo"),
+        }));
+        QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached,
+            &overrides, &omaweb::QtDiagnosticOverrides::attachToProfile);
+        QQmlEngine engine;
+        const auto host = attachedProfileHost(engine, profilePath, false, engineContentBlocker);
+        QVERIFY(host);
+        const auto read
+            = readWhatSitesSee(engine, host->property("profile").value<QObject *>(), server);
+        QCOMPARE(read.value(1), QStringLiteral("Chromium 152,Omaweb Diagnose 152"));
+    }
+    // The engine lets go of a profile's files once it is gone.
+    QTest::qWait(500);
+
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &control);
+    QQmlEngine engine;
+    const auto host = attachedProfileHost(engine, profilePath, false, engineContentBlocker);
+    QVERIFY(host);
+    const auto read
+        = readWhatSitesSee(engine, host->property("profile").value<QObject *>(), server);
+    QCOMPARE(read.size(), 4);
+    QCOMPARE(read.at(0), engineAgent);
+    QCOMPARE(read.at(1), engineBrands.join(u','));
+    QCOMPARE(read.at(2), engineFullVersions.join(u','));
+    QCOMPARE(read.at(3), omaweb::acceptLanguage(omaweb::requestedLocale()));
+
+    QDirIterator files(root.path(), QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
+    while (files.hasNext()) {
+        QFile file(files.next());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto bytes = file.readAll();
+        QVERIFY2(!bytes.contains("Omaweb Diagnose"), qPrintable(file.fileName()));
+        QVERIFY2(!bytes.contains("152.0.0.0"), qPrintable(file.fileName()));
+    }
 }
 
 void QtEngineContractTest::qtDrawsAPageInTheReadersFonts_data()

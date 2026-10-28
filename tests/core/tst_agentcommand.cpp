@@ -1,4 +1,5 @@
 #include "AgentCommand.h"
+#include "DiagnosticOverrides.h"
 
 #include <QDir>
 #include <QJsonArray>
@@ -809,6 +810,12 @@ void AgentCommandTest::answersHelpWithTheVerbsAndHowToLaunch()
     // Both spellings of a Private window, Chromium's and Firefox's.
     QVERIFY(help.text.contains(QStringLiteral("omaweb --incognito [address]")));
     QVERIFY(help.text.contains(QStringLiteral("omaweb --private-window [address]")));
+    // A run with Diagnostic overrides, and every override there is.
+    QVERIFY(help.text.contains(QStringLiteral("omaweb --diagnose <name>=<value> [address]")));
+    for (const auto &form : omaweb::diagnosticOverrideForms()) {
+        QVERIFY2(help.text.contains(form), qPrintable(form));
+    }
+    QVERIFY(!omaweb::diagnosticOverrideForms().isEmpty());
 }
 
 void AgentCommandTest::doesNotTakeAnAddressOrAVerbForHelp()

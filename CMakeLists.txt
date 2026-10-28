@@ -98,6 +98,8 @@ add_library(omaweb-agent-client STATIC
     src/core/AgentPick.h
     src/core/AgentProtocol.cpp
     src/core/AgentProtocol.h
+    src/core/DiagnosticOverrides.cpp
+    src/core/DiagnosticOverrides.h
     src/core/LaunchRequest.cpp
     src/core/LaunchRequest.h
     src/core/ProblemReport.cpp
@@ -149,6 +151,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-problem-report-tests PRIVATE omaweb-agent-client Qt6::Test)
     omaweb_strict_target(omaweb-problem-report-tests)
     add_test(NAME omaweb-problem-report COMMAND omaweb-problem-report-tests)
+
+    qt_add_executable(omaweb-diagnostic-overrides-tests tests/core/tst_diagnosticoverrides.cpp)
+    target_link_libraries(omaweb-diagnostic-overrides-tests PRIVATE omaweb-agent-client Qt6::Test)
+    omaweb_strict_target(omaweb-diagnostic-overrides-tests)
+    add_test(NAME omaweb-diagnostic-overrides COMMAND omaweb-diagnostic-overrides-tests)
 
     qt_add_executable(omaweb-agent-mcp-tests tests/core/tst_agentmcp.cpp)
     target_link_libraries(omaweb-agent-mcp-tests PRIVATE omaweb-agent-client Qt6::Test)
@@ -737,6 +744,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtContentBlocker.h
         src/engine/qt/QtCookiePolicy.cpp
         src/engine/qt/QtCookiePolicy.h
+        src/engine/qt/QtDiagnosticOverrides.cpp
+        src/engine/qt/QtDiagnosticOverrides.h
         src/engine/qt/QtDrawnFavicons.cpp
         src/engine/qt/QtDrawnFavicons.h
         src/engine/qt/QtEnginePaths.cpp

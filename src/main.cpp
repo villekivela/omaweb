@@ -17,6 +17,7 @@
 #include "PageImages.h"
 #include "DefaultBrowser.h"
 #include "DevelopmentLaunch.h"
+#include "DiagnosticOverrides.h"
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
 #include "DesktopTextScaling.h"
@@ -57,6 +58,7 @@
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
 #include "QtPageGlide.h"
+#include "QtDiagnosticOverrides.h"
 #include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
 #include "Quickshell.h"
@@ -256,6 +258,14 @@ int main(int argc, char *argv[])
         qCritical("Omaweb refuses to start: %s", qPrintable(launch.refusal));
         return 2;
     }
+    // What this run changes about what sites see, for this run alone: held
+    // here and in the engine's profiles, never in a store, the settings or
+    // Sync (ADR 0068).
+    const auto diagnosticOverrides = omaweb::readDiagnosticOverrides(arguments);
+    if (!diagnosticOverrides.refusal.isEmpty()) {
+        qCritical("Omaweb refuses to start: %s", qPrintable(diagnosticOverrides.refusal));
+        return 2;
+    }
 
     omaweb::RuntimeSecurity runtimeSecurity(omaweb::SandboxHost::fromEnvironment(),
         {QString::fromLatin1(qWebEngineVersion()), QString::fromLatin1(qWebEngineChromiumVersion()),
@@ -321,6 +331,15 @@ int main(int argc, char *argv[])
     omaweb::RunningBrowser runningBrowser;
     const auto validatingQml = arguments.contains(QStringLiteral("--validate-qml"));
     if (!runningBrowser.isPrimary() && !validatingQml) {
+        // The overrides are set on a profile as it is built, and the running
+        // browser built its own at its start, so it is not handed a run it
+        // cannot give. Quitting it for the reader would close their windows
+        // on a command line's say-so.
+        if (!diagnosticOverrides.empty()) {
+            qCritical("Omaweb refuses to start: a browser is already running. Quit it, then "
+                      "start again with --diagnose.");
+            return 2;
+        }
         if (runningBrowser.handOver(launchUrl, launchPrivately)) {
             return 0;
         }
@@ -500,6 +519,15 @@ int main(int argc, char *argv[])
     omaweb::QtWebRtcPolicy engineWebRtcPolicy(&webRtcPolicy);
     QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached,
         &engineWebRtcPolicy, &omaweb::QtWebRtcPolicy::attachToProfile);
+    // Every profile presents the run's Diagnostic overrides, set after
+    // Content blocking has set the reader's language.
+    omaweb::QtDiagnosticOverrides engineDiagnosticOverrides(diagnosticOverrides);
+    QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached,
+        &engineDiagnosticOverrides, &omaweb::QtDiagnosticOverrides::attachToProfile);
+    if (!diagnosticOverrides.empty()) {
+        qWarning("Omaweb is running with Diagnostic overrides for this run: %s",
+            qPrintable(diagnosticOverrides.named.join(QStringLiteral(", "))));
+    }
     // Where an extension's window is, which it places windows of its own
     // from: the main window or the Tab window holding the page (#684).
     omaweb::QtExtensionWindows extensionWindows;
@@ -549,6 +577,7 @@ int main(int argc, char *argv[])
     omaweb::ProblemReporter problemReporter(&browser, configRoot());
     problemReporter.setRecording(&problemRecording);
     problemReporter.setPageScale(&pageScale);
+    problemReporter.setDiagnosticOverrides(diagnosticOverrides.named);
     problemReporter.setEngineVersions({
         QStringLiteral("Omaweb %1").arg(QStringLiteral(OMAWEB_VERSION)),
         QStringLiteral("QtWebEngine %1").arg(QString::fromLatin1(qWebEngineVersion())),
