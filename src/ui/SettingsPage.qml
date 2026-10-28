@@ -514,6 +514,131 @@ Rectangle {
     property string unlockingCardId: ""
     property bool cardNotKept: false
 
+    // The Link rules as settings.json holds them, and the names of the Spaces
+    // they can send a link to. Read again whenever either changes, from here
+    // or from the file.
+    property var linkRules: []
+    property var linkRuleSpaces: []
+    // What a rule names in place of a Space to open its links in a Private
+    // window (linkrules::privateWindow).
+    readonly property string privateWindowTarget: "private"
+
+    function readLinkRules() {
+        if (!root.browser || root.browser.privateBrowsing) {
+            root.linkRules = [];
+            root.linkRuleSpaces = [];
+            return;
+        }
+        let rules = [];
+        try {
+            rules = JSON.parse(root.browser.preference("link-rules", "[]"));
+        } catch (error) {
+            rules = [];
+        }
+        root.linkRules = Array.isArray(rules) ? rules : [];
+        root.linkRuleSpaces = root.browser.readersSpaceNames();
+    }
+
+    // Changes a copy of the rules and writes it, which the file's watch reads
+    // back into the rows.
+    function editLinkRules(change) {
+        const rules = root.linkRules.map(function (rule) {
+            return {
+                "pattern": String(rule.pattern),
+                "space": String(rule.space)
+            };
+        });
+        change(rules);
+        root.browser.setPreference("link-rules", JSON.stringify(rules));
+    }
+
+    function moveLinkRule(from, to) {
+        if (to < 0 || to >= root.linkRules.length || to === from)
+            return;
+        root.editLinkRules(function (rules) {
+            rules.splice(to, 0, rules.splice(from, 1)[0]);
+        });
+        Qt.callLater(function () {
+            const moved = linkRuleList.itemAt(to);
+            if (moved)
+                moved.focusHandle();
+        });
+    }
+
+    function addLinkRule() {
+        root.editLinkRules(function (rules) {
+            rules.push({
+                           "pattern": "",
+                           "space": root.linkRuleSpaces.length > 0 ? root.linkRuleSpaces[0] :
+                                                                     root.privateWindowTarget
+                       });
+        });
+        Qt.callLater(function () {
+            const added = linkRuleList.itemAt(linkRuleList.count - 1);
+            if (added)
+                added.focusPattern();
+        });
+    }
+
+    // The reader's Spaces and a Private window. A Space the rule names that
+    // the reader has not got is listed too, so the picker shows what the
+    // rule says. A Space called what a Private window is called cannot be a
+    // target, so it is not offered as one.
+    function linkRuleTargets(space) {
+        const targets = root.linkRuleSpaces.filter(function (name) {
+            return name !== root.privateWindowTarget;
+        }).map(function (name) {
+            return {
+                "value": name,
+                "label": name
+            };
+        });
+        if (space !== root.privateWindowTarget && root.linkRuleSpaces.indexOf(space) < 0)
+            targets.push({
+                             "value": space,
+                             "label": space
+                         });
+        targets.push({
+                         "value": root.privateWindowTarget,
+                         "label": qsTr("Private window")
+                     });
+        return targets;
+    }
+
+    onBrowserChanged: root.readLinkRules()
+
+    Connections {
+        target: root.browser || null
+        ignoreUnknownSignals: true
+        function onPreferenceChanged(name) {
+            if (name === "link-rules")
+                root.readLinkRules();
+        }
+        function onAgentSpacesChanged() {
+            root.readLinkRules();
+        }
+    }
+
+    Connections {
+        target: root.browser ? root.browser.spaces : null
+        ignoreUnknownSignals: true
+        function onModelReset() {
+            root.readLinkRules();
+        }
+        function onDataChanged() {
+            root.readLinkRules();
+        }
+        function onRowsInserted() {
+            root.readLinkRules();
+        }
+        function onRowsRemoved() {
+            root.readLinkRules();
+        }
+        function onRowsMoved() {
+            root.readLinkRules();
+        }
+    }
+
     function refreshCards() {
         root.savedCards = root.browser && root.section === root.cardsSection
                 ? root.browser.paymentCards() : [];
@@ -786,7 +911,10 @@ Rectangle {
                        refresh()
     // The selection is state the page holds whether or not it has been opened,
     // so it is read once rather than on the first visit.
-    Component.onCompleted: loadBrowsingDataSelection()
+    Component.onCompleted: {
+        loadBrowsingDataSelection();
+        root.readLinkRules();
+    }
 
     SheetInsets {
         id: sheetInsets
@@ -3307,6 +3435,221 @@ Rectangle {
                                 }
                             }
                         }
+                    }
+
+                    // ---- links from other apps -------------------------------
+
+                    SectionLabel {
+                        visible: root.browser ? !root.browser.privateBrowsing : false
+                        colors: root.colors
+                        text: qsTr("links from other apps")
+                    }
+
+                    Text {
+                        objectName: "linkRulesNote"
+                        width: pane.width
+                        visible: root.browser ? !root.browser.privateBrowsing : false
+                        text: qsTr(
+                                  "A link opened from another app goes to the Space the first rule that matches it names, and to the Space on show when none does. A pattern is a host, *. and a host for it and the hosts under it, or either followed by a path ending in *, such as github.com/acme/*.")
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
+                    Column {
+                        width: pane.width
+                        spacing: Style.spacing.sm
+                        visible: root.browser ? !root.browser.privateBrowsing : false
+
+                        Repeater {
+                            id: linkRuleList
+                            model: root.linkRules
+
+                            Item {
+                                id: linkRuleRow
+                                required property var modelData
+                                required property int index
+                                readonly property string pattern: String(modelData.pattern)
+                                readonly property string space: String(modelData.space)
+                                readonly property bool parses: root.browser
+                                                               ? root.browser.linkPatternParses(
+                                                                     pattern) : true
+                                readonly property bool spaceFound: space
+                                                                   === root.privateWindowTarget
+                                                                   || root.linkRuleSpaces.indexOf(
+                                                                       space) >= 0
+                                // How far the handle has carried the row while
+                                // it is dragged, and nothing at rest.
+                                property real dragOffset: 0
+
+                                function focusPattern() {
+                                    linkRulePattern.forceActiveFocus();
+                                }
+                                function focusHandle() {
+                                    linkRuleHandle.forceActiveFocus();
+                                }
+
+                                objectName: "linkRule-" + index
+                                width: pane.width
+                                height: linkRuleColumn.implicitHeight
+                                z: dragOffset !== 0 ? 1 : 0
+                                transform: Translate {
+                                    y: linkRuleRow.dragOffset
+                                }
+
+                                Column {
+                                    id: linkRuleColumn
+                                    width: parent.width
+                                    spacing: Style.spacing.xs
+
+                                    Row {
+                                        id: linkRuleControls
+                                        width: parent.width
+                                        spacing: Style.spacing.sm
+
+                                        // Dragged to put the rule higher or
+                                        // lower, since the first match wins.
+                                        // With the keyboard, the arrows move it.
+                                        ChromeButton {
+                                            id: linkRuleHandle
+                                            objectName: "linkRuleHandle-" + linkRuleRow.index
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 28
+                                            height: 26
+                                            icon: "drag_indicator"
+                                            fontFamily: root.iconFontFamily
+                                            accent: root.colors.accent
+                                            enabled: root.settingsWritable
+                                            accessibleName: qsTr("Move the rule for %1").arg(
+                                                                linkRuleRow.pattern)
+                                            Keys.onUpPressed: root.moveLinkRule(linkRuleRow.index,
+                                                                                linkRuleRow.index
+                                                                                - 1)
+                                            Keys.onDownPressed: root.moveLinkRule(linkRuleRow.index,
+                                                                                  linkRuleRow.index
+                                                                                  + 1)
+
+                                            MouseArea {
+                                                property real startY: 0
+
+                                                anchors.fill: parent
+                                                enabled: parent.enabled
+                                                preventStealing: true
+                                                cursorShape: Qt.SizeVerCursor
+                                                onPressed: function (mouse) {
+                                                    startY = mapToItem(linkRuleList.parent, mouse.x,
+                                                                       mouse.y).y;
+                                                }
+                                                onPositionChanged: function (mouse) {
+                                                    linkRuleRow.dragOffset = mapToItem(
+                                                                linkRuleList.parent, mouse.x,
+                                                                mouse.y).y - startY;
+                                                }
+                                                onReleased: {
+                                                    const step = linkRuleRow.height
+                                                          + linkRuleList.parent.spacing;
+                                                    const rows = Math.round(linkRuleRow.dragOffset
+                                                                            / step);
+                                                    linkRuleRow.dragOffset = 0;
+                                                    root.moveLinkRule(linkRuleRow.index, Math.max(0,
+                                                                                                  Math.min(root.linkRules.length
+                                                                                                           - 1, linkRuleRow.index
+                                                                                                           + rows)));
+                                                }
+                                                onCanceled: linkRuleRow.dragOffset = 0
+                                            }
+                                        }
+
+                                        SettingField {
+                                            id: linkRulePattern
+                                            objectName: "linkRulePattern-" + linkRuleRow.index
+                                            width: linkRuleControls.width - linkRuleHandle.width
+                                                   - linkRuleSpace.width - linkRuleRemove.width
+                                                   - linkRuleControls.spacing * 3
+                                            colors: root.colors
+                                            enabled: root.settingsWritable
+                                            destructive: !linkRuleRow.parses
+                                            text: linkRuleRow.pattern
+                                            placeholder: qsTr("pattern, such as *.example.com")
+                                            accessibleName: qsTr("Link rule pattern")
+                                            onEditingFinished: {
+                                                if (text === linkRuleRow.pattern)
+                                                    return;
+                                                const edited = text.trim();
+                                                root.editLinkRules(function (rules) {
+                                                    rules[linkRuleRow.index].pattern = edited;
+                                                });
+                                            }
+                                        }
+
+                                        SettingDropdown {
+                                            id: linkRuleSpace
+                                            objectName: "linkRuleSpace-" + linkRuleRow.index
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: Math.min(220, linkRuleControls.width / 3)
+                                            colors: root.colors
+                                            enabled: root.settingsWritable
+                                            options: root.linkRuleTargets(linkRuleRow.space)
+                                            value: linkRuleRow.space
+                                            accessibleName: qsTr("Where links matching %1 open").arg(
+                                                                linkRuleRow.pattern)
+                                            onChanged: function (value) {
+                                                if (value === linkRuleRow.space)
+                                                    return;
+                                                root.editLinkRules(function (rules) {
+                                                    rules[linkRuleRow.index].space = value;
+                                                });
+                                            }
+                                        }
+
+                                        ChromeButton {
+                                            id: linkRuleRemove
+                                            objectName: "linkRuleRemove-" + linkRuleRow.index
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 28
+                                            height: 26
+                                            icon: "close"
+                                            fontFamily: root.iconFontFamily
+                                            accent: root.colors.accent
+                                            enabled: root.settingsWritable
+                                            accessibleName: qsTr("Remove the rule for %1").arg(
+                                                                linkRuleRow.pattern)
+                                            onClicked: root.editLinkRules(function (rules) {
+                                                rules.splice(linkRuleRow.index, 1);
+                                            })
+                                        }
+                                    }
+
+                                    Text {
+                                        objectName: "linkRuleProblem-" + linkRuleRow.index
+                                        x: linkRulePattern.x
+                                        width: linkRulePattern.width
+                                        visible: text.length > 0
+                                        text: !linkRuleRow.parses ? qsTr(
+                                                                        "Not a pattern Omaweb reads, so the rule is ignored until it is fixed.") :
+                                                                    !linkRuleRow.spaceFound ? qsTr(
+                                                                                                  "No Space named %1. Links it takes open in the Space on show.").arg(
+                                                                                                  linkRuleRow.space) :
+                                                                                              ""
+                                        color: root.colors.privateAccent
+                                        wrapMode: Text.WordWrap
+                                        font.family: Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ActionButton {
+                        objectName: "addLinkRule"
+                        visible: root.browser ? !root.browser.privateBrowsing : false
+                        enabled: root.settingsWritable
+                        colors: root.colors
+                        label: qsTr("Add rule")
+                        accessibleName: qsTr("Add a link rule")
+                        onClicked: root.addLinkRule()
                     }
 
                     Text {

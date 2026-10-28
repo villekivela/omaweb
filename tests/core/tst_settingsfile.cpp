@@ -2,6 +2,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QLockFile>
 #include <QScopeGuard>
 #include <QSignalSpy>
@@ -36,6 +38,7 @@ private slots:
     void readsASidebarOpacityOutOfRangeAsTheThemes();
     void roundTripsAFractionThroughText();
     void writesOneMemberIntoWhatIsOnDisk();
+    void holdsLinkRulesAsAnOrderedList();
 };
 
 namespace {
@@ -470,6 +473,48 @@ void SettingsFileTest::writesOneMemberIntoWhatIsOnDisk()
         settings.setMember(QStringLiteral("known-extensions"), QStringLiteral("bitwarden"), {}));
     QVERIFY(!readFile(path).contains("known-extensions"));
     QVERIFY(!settings.setMember(QStringLiteral("known-extensions"), QStringLiteral("x"), 3));
+}
+
+// Link rules are a list of pattern and Space, in the reader's order, which
+// travel as text the way every synced setting does. A pattern that does not
+// parse is still the reader's rule, marked in Settings rather than dropped;
+// a rule missing either half is a value Omaweb cannot use.
+void SettingsFileTest::holdsLinkRulesAsAnOrderedList()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("settings.json"));
+    const auto key = QStringLiteral("link-rules");
+    SettingsFile settings(root.path());
+    QCOMPARE(settings.value(key), QJsonValue(QJsonArray {}));
+    QSignalSpy changed(&settings, &SettingsFile::changed);
+
+    writeFile(path, R"({"version": 1, "link-rules": [
+  {"pattern": "github.com/acme/*", "space": "Work"},
+  {"pattern": "not a pattern", "space": "private"}
+]})");
+    QTRY_COMPARE(changed.count(), 1);
+    QCOMPARE(changed.takeFirst().at(0).toStringList(), QStringList {key});
+    const auto rules = settings.value(key).toArray();
+    QCOMPARE(rules.size(), 2);
+    QCOMPARE(rules.at(0).toObject().value(QStringLiteral("space")), QJsonValue("Work"));
+    QCOMPARE(rules.at(1).toObject().value(QStringLiteral("pattern")), QJsonValue("not a pattern"));
+
+    const auto text = SettingsFile::text(settings.value(key));
+    QCOMPARE(SettingsFile::fromText(key, text), settings.value(key));
+    QVERIFY(SettingsFile::fromText(key, QStringLiteral("github.com")).isUndefined());
+
+    QVERIFY(!SettingsFile::accepts(key, QJsonArray {QJsonObject {{"pattern", "acme.com"}}}));
+    QVERIFY(!SettingsFile::accepts(key, QJsonArray {QStringLiteral("acme.com")}));
+    QVERIFY(!SettingsFile::accepts(key, QJsonObject {}));
+    // A key Omaweb does not know beside a rule does not cost the reader the
+    // rule, or every other rule with it.
+    QVERIFY(SettingsFile::accepts(key,
+        QJsonArray {QJsonObject {{"pattern", "acme.com"}, {"space", "Work"}, {"note", "client"}}}));
+
+    // No rules is the default, and leaves the file.
+    QVERIFY(settings.set(key, QJsonArray {}));
+    QVERIFY(!readFile(path).contains("link-rules"));
 }
 
 QTEST_GUILESS_MAIN(SettingsFileTest)

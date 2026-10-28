@@ -125,6 +125,11 @@ and whose distinct appearance identifies it as private. Private windows share te
 each other only while at least one private window remains open. _Avoid_: Private Space, incognito
 Space
 
+**Link rule**: A pattern and where a link from another app that matches it opens: one of the
+reader's own Spaces, by name, or a Private window. It applies only to an address handed over from
+outside the browser, never to a link clicked in a page or an Agent's `open`. _Avoid_: Routing rule,
+Space rule, redirect
+
 **Private accent**: The one colour a theme names for its Private windows. Omaweb derives the grounds
 it is cast over, the Private window, sidebar, surface and hover fill, by tinting each of the theme's
 own surfaces towards it, so a theme identifies private browsing by naming a hue rather than by

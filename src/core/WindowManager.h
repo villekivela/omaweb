@@ -36,6 +36,12 @@ public:
     // recently, with the address as a new tab, or a new one with the address
     // in its first tab. Null when this session has no Private windows.
     Q_INVOKABLE omaweb::BrowserController *showPrivateWindow(const QUrl &url);
+    // Opens a link another app handed over where the first Link rule that
+    // takes it says, or in the Space on show where none does. Answers the
+    // window that shows it, which is the one to bring forward: the browser, a
+    // Private window, or none when a rule asks for a Private window and this
+    // session has none.
+    BrowserController *openFromOutside(BrowserController *browser, const QUrl &url);
     // The window reports itself when it comes forward, so the next launch
     // finds the Private window the reader saw last.
     Q_INVOKABLE void notePrivateWindowShown(QObject *controller);

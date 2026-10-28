@@ -38,7 +38,7 @@ namespace {
     constexpr auto recoveryChecksumBytes = 4;
     const QStringList syncedPreferences {QStringLiteral("floating-controls"),
         QStringLiteral("use-favicons"), QStringLiteral("tint-favicons"), QStringLiteral("app-icon"),
-        QStringLiteral("browser-theme")};
+        QStringLiteral("browser-theme"), QStringLiteral("link-rules")};
     // Settings an earlier version carried and this one no longer has. A
     // repository still holding one has it taken away on the next capture, so
     // no machine reads it back and nobody reads it in the repository.

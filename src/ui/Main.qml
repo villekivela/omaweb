@@ -2549,6 +2549,17 @@ ApplicationWindow {
         window.windowBrowser.setPreference("tint-favicons", enabled ? "true" : "false");
     }
 
+    // A Link rule sent a link from another app to a Space the reader has not
+    // got, so it opened in the Space on show instead.
+    Connections {
+        target: window.windowBrowser
+
+        function onLinkRuleSpaceMissing(spaceName) {
+            window.showNotice("link_off", qsTr("No Space named %1, opened here").arg(spaceName), "",
+                              5000);
+        }
+    }
+
     Connections {
         target: engineLoader.item
         ignoreUnknownSignals: true
@@ -5769,8 +5780,18 @@ ApplicationWindow {
 
         message: {
             if (window.dialogMode === "delete") {
-                return qsTr("%1 keeps its tabs, its session, its logins and its engine data. "
-                            + "Deleting it cannot be undone.").arg(window.dialogSpaceName);
+                const message = qsTr(
+                          "%1 keeps its tabs, its session, its logins and its engine data. "
+                          + "Deleting it cannot be undone.").arg(window.dialogSpaceName);
+                const rules = window.windowBrowser.linkRulesNaming(window.dialogSpaceId);
+                if (rules === 0)
+                    return message;
+                // English has no catalogue, so its plural is two strings.
+                const named = rules === 1 ? qsTr(
+                                                "1 link rule names this Space, and is deleted with it.") :
+                                            qsTr("%1 link rules name this Space, and are deleted with it.").arg(
+                                                rules);
+                return message + " " + named;
             }
             if (window.dialogMode === "confirm-move") {
                 return qsTr(
