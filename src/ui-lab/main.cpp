@@ -1156,7 +1156,8 @@ int main(int argc, char *argv[])
         window->setProperty("sidebarWidth", window->property("sidebarMinimumWidth"));
     }
     // The Status island's marks, for review (#838). `--no-release` leaves the
-    // lab's release unannounced, `--downloads` starts two downloads once the
+    // lab's release unannounced, `--release <version>` announces that version,
+    // as the website's shots do, `--downloads` starts two downloads once the
     // window has its Space's profile, and `--island-open downloads|release`
     // opens the island on that mark. `--island-demo <dir>` steps the island
     // through one mark, three, open on downloads, closed and one again, and
@@ -1166,6 +1167,9 @@ int main(int argc, char *argv[])
         // The lab's watch follows no browser, so it has nowhere to keep a
         // dismissal: the release is taken away instead.
         releaseWatch.showRelease(QString());
+    } else if (const auto release = arguments.indexOf(QStringLiteral("--release"));
+        release >= 0 && release + 1 < arguments.size()) {
+        releaseWatch.showRelease(arguments.at(release + 1));
     }
     if (!engine.rootObjects().isEmpty()) {
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());

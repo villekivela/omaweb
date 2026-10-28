@@ -213,5 +213,7 @@ scripts/build_website_themes.py --lab <path to omaweb-ui-lab> --themes <omarchy>
 The Start page's road and the Omnibar are drawn with MultiEffect, which the software renderer leaves
 out, so the script captures them, and the Agents footer with its page, under `cage` on its headless
 backend; the script's docstring lists what that needs. Re-run it after a chrome change or an
-upstream theme change. The page offers the themes its swatches name, in `index.html`; a theme the
+upstream theme change. The window's Status island announces a release, the latest `v*` tag unless
+`--release` names another: before a tag, name the release the shots are for, such as
+`--release v0.19.0`. The page offers the themes its swatches name, in `index.html`; a theme the
 script builds but no swatch names is never shown.

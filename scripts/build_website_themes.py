@@ -471,6 +471,7 @@ def build(
     out: pathlib.Path,
     suggest: str,
     wanted_states: list[str],
+    release: str,
 ) -> tuple[dict, dict, str] | None:
     colors = theme_colors(theme)
     if colors is None:
@@ -487,7 +488,7 @@ def build(
         capture = scratch / f"{theme}-{state}.png"
         if state == "omnibar":
             arguments = [*arguments, "--suggest-url", suggest]
-        arguments = [*arguments, "--capture", str(capture)]
+        arguments = [*arguments, "--release", release, "--capture", str(capture)]
         run = run_composited if state in COMPOSITED else run_lab
         run(lab, theme_file, arguments)
         write_webp(out / theme / f"{state}.webp", encoder, capture.read_bytes())
@@ -497,6 +498,18 @@ def build(
     # where it names none: the page draws the frame one colour.
     stops = active_border_stops(colors.get("hyprland_active_border"), channels(palette["accent"]))
     return palette, named, "#%02x%02x%02x" % stops[0][0]
+
+
+def latest_release() -> str:
+    # The shots are taken just before a release is tagged, so the run that
+    # takes them names it with --release; this serves a re-run after the tag.
+    described = subprocess.run(
+        ["git", "describe", "--tags", "--abbrev=0", "--match", "v*"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return described.stdout.strip() or "v0.1.0"
 
 
 def main() -> int:
@@ -528,6 +541,12 @@ def main() -> int:
         metavar="DIR",
         help="where to write the captures and themes.css (default: website/assets/shots)",
     )
+    parser.add_argument(
+        "--release",
+        default=latest_release(),
+        metavar="VERSION",
+        help="the release the Status island announces (default: the latest v* tag)",
+    )
     arguments = parser.parse_args()
 
     if not arguments.lab.is_file():
@@ -555,7 +574,14 @@ def main() -> int:
         for theme, _ in wanted:
             print(f"{theme}:")
             result = build(
-                theme, arguments.lab, scratch, encoder, arguments.out, suggest, arguments.state or []
+                theme,
+                arguments.lab,
+                scratch,
+                encoder,
+                arguments.out,
+                suggest,
+                arguments.state or [],
+                arguments.release,
             )
             if result is not None:
                 built[theme] = result
