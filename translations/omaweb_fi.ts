@@ -2565,6 +2565,33 @@
     </message>
 </context>
 <context>
+    <name>SettingsButton</name>
+    <message>
+        <source>Settings</source>
+        <translation>Asetukset</translation>
+    </message>
+    <message>
+        <source>Settings for %1 — needs attention</source>
+        <translation>Asetukset: %1 — vaatii huomiota</translation>
+    </message>
+    <message>
+        <source>Settings for %1 — Sync paused</source>
+        <translation>Asetukset: %1 — Synkronointi tauolla</translation>
+    </message>
+    <message>
+        <source>Settings for %1</source>
+        <translation>Asetukset: %1</translation>
+    </message>
+    <message>
+        <source>Browsing settings and downloads — needs attention</source>
+        <translation>Selauksen asetukset ja lataukset — vaatii huomiota</translation>
+    </message>
+    <message>
+        <source>Browsing settings and downloads</source>
+        <translation>Selauksen asetukset ja lataukset</translation>
+    </message>
+</context>
+<context>
     <name>SettingsPage</name>
     <message>
         <source>Sync</source>
@@ -4573,30 +4600,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Private window</source>
         <translation>Yksityinen ikkuna</translation>
-    </message>
-    <message>
-        <source>Settings</source>
-        <translation>Asetukset</translation>
-    </message>
-    <message>
-        <source>Settings for %1 — needs attention</source>
-        <translation>Asetukset: %1 — vaatii huomiota</translation>
-    </message>
-    <message>
-        <source>Settings for %1 — Sync paused</source>
-        <translation>Asetukset: %1 — Synkronointi tauolla</translation>
-    </message>
-    <message>
-        <source>Settings for %1</source>
-        <translation>Asetukset: %1</translation>
-    </message>
-    <message>
-        <source>Browsing settings and downloads — needs attention</source>
-        <translation>Selauksen asetukset ja lataukset — vaatii huomiota</translation>
-    </message>
-    <message>
-        <source>Browsing settings and downloads</source>
-        <translation>Selauksen asetukset ja lataukset</translation>
     </message>
 </context>
 <context>
