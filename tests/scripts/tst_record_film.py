@@ -533,38 +533,62 @@ class BeatChecks(unittest.TestCase):
         self.assertEqual(back, (9.0, None))
         self.assertEqual(len(focus), 3)
 
-    def play_theme(self, output):
+    # The chrome's colour in each theme the beat wears, as a frame shows it.
+    NEBULA, LUMON = (5, 7, 24), (16, 27, 33)
+
+    def play_theme(self, output, repaint=0.6):
         """The Theme beat played in front of a recorder of `output`, on a clock that moves only
-        as the beat sleeps. Returns what it marked."""
+        as the beat sleeps, its chrome repainting `repaint` seconds after each theme is put on.
+        Returns what it marked."""
         clock = [100.0]
         recorder = mock.Mock(output=output, geometry=None, now=lambda: clock[0])
         worn = [film.Theme("nebula", {"dark_background": "#050718"}),
                 film.Theme("lumon", {"dark_background": "#101b21"}),
                 film.Theme("nebula", {"dark_background": "#050718"})]
+        colours = {"nebula": self.NEBULA, "lumon": self.LUMON}
+        shown = [(0.0, self.NEBULA)]
         marked = []
 
         def sleep(seconds):
             clock[0] += seconds
 
+        def wear(theme):
+            shown.append((clock[0] + repaint, colours[theme.name]))
+
+        def sample(_frame):
+            return [colour for since, colour in shown if since <= clock[0]][-1]
+
         with mock.patch.object(film.time, "sleep", side_effect=sleep), \
                 mock.patch.object(film, "frame"), \
-                mock.patch.object(film, "chrome_sample"), \
-                mock.patch.object(film, "expect_repainted"):
-            film.play_theme(film.BEAT_NAMED["Theme"], recorder, worn, lambda theme: None,
+                mock.patch.object(film, "chrome_sample", side_effect=sample):
+            film.play_theme(film.BEAT_NAMED["Theme"], recorder, worn, wear,
                             lambda beat, start, end, **drawn: marked.append((start, end, drawn)))
         return marked
+
+    def test_the_theme_beat_marks_each_theme_from_the_frame_that_first_shows_it(self):
+        [(start, end, drawn)] = self.play_theme(None, repaint=1.3)
+        moments = drawn["themes"]
+        self.assertEqual([name for _, name in moments], ["nebula", "lumon", "nebula"])
+        self.assertEqual(moments[0][0], 0.0)
+        # Seen once it repaints, not when it is asked for: the website's page changes theme on
+        # the frame the clip does.
+        self.assertAlmostEqual(moments[1][0], film.THEME_HOLD + 1.3, delta=0.1)
+        self.assertAlmostEqual(moments[2][0], film.THEME_HOLD + 3.0 + 1.3, delta=0.1)
+
+    def test_chrome_that_never_shows_the_new_theme_misses_the_theme_beat(self):
+        self.assertMissed("Theme", lambda _beat: self.play_theme(None, repaint=60.0))
 
     def test_on_the_desktop_the_theme_beat_is_marked_to_draw_back_and_close_in_again(self):
         [(start, end, drawn)] = self.play_theme("DP-1")
         back = film.THEME_HOLD + 2 * 3.0
-        self.assertEqual(drawn, {"focus": [(0.0, None), (film.CAPTION_LEAD, film.DESKTOP),
-                                           (back, None)]})
+        self.assertEqual(drawn["focus"], [(0.0, None), (film.CAPTION_LEAD, film.DESKTOP),
+                                          (back, None)])
         # The camera is on the window again before the beat fades into the next.
         self.assertGreaterEqual(end - start, back + film.MOVE + film.FADE)
 
     def test_in_the_container_the_theme_beat_keeps_its_framing_and_its_length(self):
         [(start, end, drawn)] = self.play_theme(None)
-        self.assertEqual(drawn, {})
+        self.assertEqual(set(drawn), {"themes"})
         self.assertAlmostEqual(end - start, film.THEME_HOLD + 2 * 3.0)
 
     def test_every_other_beat_and_the_containers_theme_beat_keep_to_the_window(self):
@@ -623,6 +647,14 @@ class BeatChecks(unittest.TestCase):
     def test_the_films_files_together_stay_under_five_megabytes(self):
         self.assertEqual(set(film.BUDGET), {"omaweb.webm", "omaweb.mp4", "poster.webp"})
         self.assertLess(sum(film.BUDGET.values()), 5_000_000)
+
+    def test_the_clips_together_stay_under_four_megabytes(self):
+        # A reader on the drive loads every card's clip, beside the film a phone plays instead.
+        self.assertLessEqual(film.CLIPS_BUDGET, 4_000_000)
+
+    def test_every_beat_but_the_end_card_plays_on_a_card_of_its_own(self):
+        self.assertEqual(set(film.CLIP_OF), {beat.name for beat in film.BEATS} - {"End"})
+        self.assertEqual(len(set(film.CLIP_OF.values())), len(film.CLIP_OF))
 
 
     def test_every_site_resolving_to_loopback_sets_the_stage(self):
@@ -692,7 +724,9 @@ def ffmpeg_can_cut_the_film() -> bool:
 class FilmFiles(unittest.TestCase):
     @unittest.skipUnless((ROOT / ".git").exists(), "not a Git checkout")
     def test_the_film_is_not_kept_in_the_repository(self):
-        for name in ("omaweb.webm", "omaweb.mp4", "poster.webp"):
+        clips = [f"clip-{card}.{kind}" for card in film.CLIP_OF.values()
+                 for kind in ("webm", "mp4", "webp")]
+        for name in ("omaweb.webm", "omaweb.mp4", "poster.webp", "clips.json", *clips):
             for place in ("build/film", "website/assets/film"):
                 path = f"{place}/{name}"
                 with self.subTest(path=path):
@@ -804,6 +838,62 @@ class FilmFiles(unittest.TestCase):
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                  str(out / "omaweb.mp4")], capture_output=True, text=True, check=True).stdout)
             self.assertAlmostEqual(duration, start - film.FADE * (len(marks) - 1), delta=0.2)
+
+    @unittest.skipUnless(ffmpeg_can_cut_the_film(), "this ffmpeg cannot cut the film")
+    def test_each_beat_is_cut_into_a_clip_of_its_own_without_its_caption(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                            "color=c=0x202020:size={}x{}:rate={}:duration=20".format(
+                                *film.OUTPUT_MODE, film.FPS),
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            "-bsf:v", "h264_metadata=video_full_range_flag=1",
+                            str(out / "raw.mkv")],
+                           check=True)
+            marks, start = [], 0.0
+            for beat in film.BEATS:
+                length = 4.2 if beat.name in (film.POSTER[0], "Theme") else 1.8
+                marks.append({"beat": beat.name, "start": start, "end": start + length})
+                start += length
+            named = {entry["beat"]: entry for entry in marks}
+            named["Theme"]["themes"] = [[0.0, "nebula"], [2.1, "lumon"], [3.4, "nebula"]]
+            named["Agent"]["lines"] = [{"at": 0.8, "text": "$ omaweb look"}]
+            (out / "marks.json").write_text(json.dumps(marks), encoding="utf-8")
+            film.compose(out)
+
+            clips = json.loads((out / "clips.json").read_text(encoding="utf-8"))
+            self.assertEqual(set(clips), set(film.CLIP_OF.values()))
+            for entry in marks[:-1]:
+                card = film.CLIP_OF[entry["beat"]]
+                length = entry["end"] - entry["start"]
+                with self.subTest(card=card):
+                    self.assertAlmostEqual(clips[card]["length"], length, delta=0.05)
+                    for kind in ("webm", "mp4"):
+                        clip = out / f"clip-{card}.{kind}"
+                        played = float(subprocess.run(
+                            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                             "-of", "csv=p=0", str(clip)],
+                            capture_output=True, text=True, check=True).stdout)
+                        # Each beat whole, with no fade into the next.
+                        self.assertAlmostEqual(played, length, delta=0.1)
+                    self.assertEqual((out / f"clip-{card}.webp").read_bytes()[8:12], b"WEBP")
+            self.assertEqual(clips["theme"]["themes"], named["Theme"]["themes"])
+            self.assertNotIn("themes", clips["omnibar"])
+            film.expect_within("Clips", list(out.glob("clip-*")), film.CLIPS_BUDGET)
+
+            def brightest(path, at):
+                """The brightest pixel along the foot of a frame, where the captions stand."""
+                shot = subprocess.run(
+                    ["ffmpeg", "-v", "error", "-ss", f"{at:.3f}", "-i", str(path),
+                     "-frames:v", "1", "-vf", "crop=iw:ih/5:0:ih*4/5", "-f", "rawvideo",
+                     "-pix_fmt", "gray", "-"], capture_output=True, check=True).stdout
+                return max(shot)
+
+            # The film burns the Omnibar's caption in a second into its beat; its clip does not,
+            # and neither does the Agent's clip burn in its command.
+            self.assertGreater(brightest(out / "omaweb.mp4", 1.5), 150)
+            self.assertLess(brightest(out / "clip-omnibar.mp4", 1.5), 80)
+            self.assertLess(brightest(out / "clip-agents.mp4", 1.2), 80)
 
     @unittest.skipUnless(ffmpeg_can_cut_the_film(), "this ffmpeg cannot cut the film")
     def test_a_desktop_recording_is_cut_to_the_window_and_draws_back_for_the_theme(self):
@@ -973,6 +1063,20 @@ class DesktopCursor(unittest.TestCase):
         self.assertEqual(drawn.hot, (4, 5))
         self.assertTrue(drawn.path.read_bytes().startswith(b"\x89PNG"))
         self.assertEqual(struct.unpack(">II", drawn.path.read_bytes()[16:24]), (3, 3))
+
+    def test_a_desktop_recording_is_cut_again_with_the_desktops_pointer(self):
+        self.theme("default", inherits="Adwaita")
+        self.theme("Adwaita", cursor=xcursor((36, 3, 3, 4, 5, 0xFF000000)))
+        out = Path(self.icons.parent) / "out"
+        out.mkdir()
+        environment = {"XCURSOR_PATH": str(self.icons)}
+        # A recording in the container has no stage, and draws the committed pointer.
+        self.assertEqual(film.pointer_for_recording(out, environment, Path("/nowhere")),
+                         film.DRAWN_POINTER)
+        # A desktop recording leaves its stage, and is cut again as it was first cut.
+        (out / film.STAGE).write_text('{"window": [160, 90, 1600, 900]}')
+        drawn = film.pointer_for_recording(out, environment, Path("/nowhere"))
+        self.assertEqual(drawn, film.Pointer(out / "pointer.png", (4, 5)))
 
     def test_a_desktop_without_a_cursor_to_read_draws_the_committed_pointer(self):
         self.theme("default", inherits="Adwaita, Cycle")

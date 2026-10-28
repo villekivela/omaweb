@@ -633,6 +633,23 @@ SHARED_MEMORY_MB = 256
 # What the film may weigh, per file, which together stay under the 5 MB the page can afford.
 BUDGET = {"omaweb.webm": 2_000_000, "omaweb.mp4": 2_600_000, "poster.webp": 250_000}
 
+# The card on the website's drive that plays each beat, as a clip of its own: the beat whole, with
+# no caption and no fade, since the card's title says what the caption did and the drive moves
+# between cards itself. The end card plays on none; the drive ends on the install.
+CLIP_OF = {
+    "Omnibar": "omnibar",
+    "Hints": "keyboard",
+    "Space switch": "spaces",
+    "Sidebar": "pros",
+    "Blocking": "blocking",
+    "Theme": "theme",
+    "Agent": "agents",
+}
+# The clips' width, about the widest a card on the drive draws one, and what they may weigh
+# together: every one of them, each in two codecs with its poster.
+CLIP_WIDTH = 1280
+CLIPS_BUDGET = 4_000_000
+
 # What the recording's pixels are. wf-recorder converts the screen to limited-range BT.709 but
 # flags the stream full range, and a browser that believes the flag shows black as grey, so the
 # whole film looks washed out. The values pass through the edit as they are, so the finished edit is
@@ -961,31 +978,55 @@ def reported(server: FixtureServer, host: str, path: str, since: int = 0):
                     if report["host"] == host and report["path"] == path]
 
 
+def nearer(sample: tuple[int, int, int], one: tuple[int, int, int],
+           other: tuple[int, int, int]) -> bool:
+    """Whether a sample of the chrome is nearer the colour `one` than `other`."""
+    return (sum((x - y) ** 2 for x, y in zip(sample, one))
+            < sum((x - y) ** 2 for x, y in zip(sample, other)))
+
+
+# How long a theme has to show in the chrome once it is put on, and how often the beat looks.
+REPAINT_WITHIN = 3.0
+REPAINT_LOOK = 0.05
+
+
 def play_theme(beat: Beat, recorder: Recorder, worn: list[Theme], wear, mark) -> None:
     """The Theme beat: each of the `worn` themes after the first put on with `wear`, and the chrome
     checked to have repainted after each.
 
-    On the desktop, where the whole monitor is recorded, the camera draws back to it for the
-    switches and closes on the window again before the beat fades into the next.
+    Each theme is marked with the moment, in seconds into the beat, of the first frame whose chrome
+    shows it, so the website's page can wear it on the frame its card's clip does. On the desktop,
+    where the whole monitor is recorded, the camera draws back to it for the switches and closes on
+    the window again before the beat fades into the next.
     """
     was = chrome_sample(frame(recorder.geometry))
     start = recorder.now()
+    themes = [[0.0, worn[0].name]]
     # Long enough to read the caption over the old theme, so the change it names comes after it,
     # on the same frame.
     time.sleep(THEME_HOLD)
     for old, new in zip(worn, worn[1:]):
+        old_colour = theme_colour(old.colours, "dark_background")
+        new_colour = theme_colour(new.colours, "dark_background")
+        put_on = recorder.now()
         wear(new)
-        time.sleep(3.0)
-        now = chrome_sample(frame(recorder.geometry))
-        expect_repainted(beat.name, was, now, theme_colour(old.colours, "dark_background"),
-                         theme_colour(new.colours, "dark_background"))
+        while True:
+            # The moment a frame is asked for is the moment it shows.
+            at = recorder.now()
+            now = chrome_sample(frame(recorder.geometry))
+            if nearer(now, new_colour, old_colour) or at - put_on >= REPAINT_WITHIN:
+                break
+            time.sleep(REPAINT_LOOK)
+        expect_repainted(beat.name, was, now, old_colour, new_colour)
+        themes.append([round(at - start, 3), new.name])
+        time.sleep(max(0.0, REPAINT_WITHIN - (recorder.now() - put_on)))
         was = now
     if recorder.output is None:
-        mark(beat, start, recorder.now())
+        mark(beat, start, recorder.now(), themes=themes)
         return
     focus = theme_focus(recorder.now() - start)
     time.sleep(MOVE + FADE + 0.3)
-    mark(beat, start, recorder.now(), focus=focus)
+    mark(beat, start, recorder.now(), focus=focus, themes=themes)
 
 
 def drive(browser: Path, server: FixtureServer, recorder: Recorder, worn: list[Theme],
@@ -1972,7 +2013,9 @@ def record_on_desktop(desktop: Desktop, out: Path) -> None:
     with desktop.taken():
         record(browser, out, desktop)
     compose(out, pointer_for_desktop(os.environ, Path.home(), out))
-    log("The film is in " + ", ".join(str(out / name) for name in (*BUDGET, "captions.vtt")))
+    log("The film is in " + ", ".join(str(out / name) for name in (*BUDGET, "captions.vtt"))
+        + ", and its clips in " + ", ".join(f"{out}/clip-{card}.*" for card in CLIP_OF.values())
+        + f" with {out / 'clips.json'}")
 
 
 def eased(keyframes: list[tuple[float, float]], variable: str) -> str:
@@ -2136,6 +2179,15 @@ def pointer_for_desktop(environ: typing.Mapping[str, str], home: Path, out: Path
     return Pointer(drawn, image.hot)
 
 
+def pointer_for_recording(out: Path, environ: typing.Mapping[str, str], home: Path) -> Pointer:
+    """The pointer a recording in `out` is cut with: the desktop's own for a desktop recording,
+    which leaves its stage beside it, so cutting it again draws what its first cut drew, and the
+    committed drawing for one made in the container."""
+    if (out / STAGE).exists():
+        return pointer_for_desktop(environ, home, out)
+    return DRAWN_POINTER
+
+
 def pointer(entry: dict, hot: tuple[int, int] = (0, 0),
             origin: tuple[int, int] = (0, 0)) -> str | None:
     """The overlay filter that draws the pointer over a beat, or `None` for a beat without one.
@@ -2252,9 +2304,66 @@ def recording_size(path: Path) -> tuple[int, int]:
     return int(width), int(height)
 
 
+def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str, label: str) -> list[str]:
+    """One beat of the raw recording as filter chains that end in `[label]`: trimmed to the beat,
+    its pointer drawn as `drawn` from the input labelled `pointer_input`, and its camera followed.
+    """
+    beat = BEAT_NAMED[entry["beat"]]
+    chains = []
+    trimmed = (f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},"
+               f"setpts=PTS-STARTPTS{stage.scaling}")
+    overlay = pointer(entry, drawn.hot, stage.origin)
+    if overlay:
+        chains.append(f"{trimmed}[r{label}]")
+        trimmed = f"[r{label}][{pointer_input}]{overlay}"
+    # A beat whose moments are timed as it plays brings its focus with it.
+    focus = [(at, tuple(place) if isinstance(place, list) else place)
+             for at, place in entry.get("focus", beat.focus)]
+    chains.append(f"{trimmed},{camera(focus, stage.window)},setsar=1,format=yuv420p[{label}]")
+    return chains
+
+
+def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> None:
+    """Each beat a card plays as a clip of its own, `clip-<card>`, in the page's two codecs with a
+    poster of its first frame, and `clips.json`: each clip's length, and for the Theme beat the
+    moment each theme first shows, so the page can wear it with the clip."""
+    clips = {}
+    for entry in marks:
+        card = CLIP_OF.get(entry["beat"])
+        if card is None:
+            continue
+        inputs = ["-i", str(out / "raw.mkv")]
+        if pointer(entry):
+            inputs += ["-i", str(drawn.path)]
+        chains = framed(entry, stage, drawn, "1:v", "beat")
+        chains.append(f"[beat]scale={CLIP_WIDTH}:-2,{COLOURS}[clip]")
+        master = out / f"clip-{card}.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", *inputs,
+                        "-filter_complex", ";".join(chains), "-map", "[clip]", "-an",
+                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", str(master)],
+                       check=True)
+        for name, arguments in (
+                (f"clip-{card}.webm", ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "38",
+                                       "-row-mt", "1", "-deadline", "good", "-cpu-used", "2"]),
+                (f"clip-{card}.mp4", ["-c:v", "libx264", "-preset", "slower",
+                                      "-profile:v", "high", "-crf", "28",
+                                      "-movflags", "+faststart"])):
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(master), "-an",
+                            "-pix_fmt", "yuv420p", *arguments, str(out / name)], check=True)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(master), "-frames:v", "1",
+                        "-c:v", "libwebp", "-quality", "80", str(out / f"clip-{card}.webp")],
+                       check=True)
+        master.unlink()
+        clips[card] = {"length": round(entry["end"] - entry["start"], 3)}
+        if "themes" in entry:
+            clips[card]["themes"] = entry["themes"]
+    (out / "clips.json").write_text(json.dumps(clips, indent=2) + "\n", encoding="utf-8")
+    expect_within("Clips", sorted(out.glob("clip-*")), CLIPS_BUDGET)
+
+
 def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
     """Cuts the raw recording to its beats, follows each beat's focus, and captions it, and draws
-    the pointer as `drawn`."""
+    the pointer as `drawn`; then cuts each beat a card plays into a clip of its own."""
     marks = json.loads((out / "marks.json").read_text(encoding="utf-8"))
     placed = out / STAGE
     window = (json.loads(placed.read_text(encoding="utf-8"))["window"] if placed.exists()
@@ -2270,18 +2379,8 @@ def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
         chains.append(f"[1:v]split={len(pointed)}"
                       + "".join(f"[p{index}]" for index in range(len(pointed))))
     for index, entry in enumerate(marks):
-        beat = BEAT_NAMED[entry["beat"]]
-        trimmed = (f"[0:v]trim=start={entry['start']:.3f}:end={entry['end']:.3f},"
-                   f"setpts=PTS-STARTPTS{stage.scaling}")
-        overlay = pointer(entry, drawn.hot, stage.origin)
-        if overlay:
-            chains.append(f"{trimmed}[r{index}]")
-            trimmed = f"[r{index}][p{pointed.index(entry)}]{overlay}"
-        # A beat whose moments are timed as it plays brings its focus with it.
-        focus = [(at, tuple(place) if isinstance(place, list) else place)
-                 for at, place in entry.get("focus", beat.focus)]
-        chains.append(f"{trimmed},{camera(focus, stage.window)},setsar=1,format=yuv420p"
-                      f"[b{index}]")
+        chains += framed(entry, stage, drawn, f"p{pointed.index(entry)}" if pointer(entry) else "",
+                         f"b{index}")
     joined = "[b0]"
     for index in range(1, len(marks)):
         chains.append(f"{joined}[b{index}]xfade=transition=fade:duration={FADE}"
@@ -2325,6 +2424,7 @@ def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
     expect_within("Film", [out / name for name in BUDGET], sum(BUDGET.values()))
     for name, limit in BUDGET.items():
         expect_within(name, [out / name], limit)
+    cut_clips(out, marks, stage, drawn)
 
 
 def frame_brightness(film: Path) -> list[float]:
@@ -2409,7 +2509,7 @@ def main() -> int:
         elif desktop is not None:
             record_on_desktop(desktop, arguments.out.resolve())
         else:
-            compose(arguments.out)
+            compose(arguments.out, pointer_for_recording(arguments.out, os.environ, Path.home()))
     except (BeatMissed, subprocess.CalledProcessError, StopIteration) as missed:
         if isinstance(missed, subprocess.CalledProcessError):
             missed = f"{shlex.join(map(str, missed.cmd))} exited {missed.returncode}"

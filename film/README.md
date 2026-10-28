@@ -172,11 +172,11 @@ a workspace given with `--workspace` is left empty.
 scripts/record_film.sh
 ```
 
-writes `omaweb.webm`, `omaweb.mp4`, `poster.webp` and `captions.vtt` to `build/film/`, from the
-commit checked out. Re-record it for each release. The script needs Docker on the host and nothing
-else. It builds the browser in the container against `omaweb-qtwebengine`, as CI's `arch-linux` job
-does, and runs it under headless cage. On an arm64 machine, name an arm64 image and limit the CPUs
-if the build runs out of memory:
+writes `omaweb.webm`, `omaweb.mp4`, `poster.webp` and `captions.vtt` to `build/film/`, with the
+clips ([below](#the-clips)), from the commit checked out. Re-record it for each release. The script
+needs Docker on the host and nothing else. It builds the browser in the container against
+`omaweb-qtwebengine`, as CI's `arch-linux` job does, and runs it under headless cage. On an arm64
+machine, name an arm64 image and limit the CPUs if the build runs out of memory:
 
 ```sh
 OMAWEB_FILM_IMAGE=lopsided/archlinux:devel OMAWEB_FILM_DOCKER='--cpuset-cpus 0-5' \
@@ -238,16 +238,49 @@ the commands it runs, to the window's place, and to putting the desktop back aft
 failed or was stopped. It cuts a stand-in desktop recording to check that the edit crops it to the
 window, draws back to the monitor in the Theme beat, and draws the pointer there.
 
+## The clips
+
+The website's drive plays each beat on its own card, so the edit also cuts every beat but the end
+card into a clip of its own: `clip-<card>.webm` and `.mp4` at 1280 pixels wide, and
+`clip-<card>.webp`, its first frame, which the card shows from the moment it rises on the road. A
+clip is its beat whole, with the same trim, pointer and camera as the film, and without the captions
+or the fades, since the card's title says what the caption did and the drive moves between cards
+itself. `CLIP_OF` in `scripts/record_film.py` names each beat's card.
+
+`clips.json` lists the cards with a clip and each clip's length. The Theme beat's entry also lists
+the theme the recording wears at each moment, as `[seconds into the clip, theme]`: the beat marks
+each theme from the first frame whose chrome shows it, so the website's page puts the same theme on
+at that frame. The website offers the themes it wears there: Retro 82 and Tokyo Night from the
+container, and on the desktop the desktop's own theme and Lumon, the theme the beat changes to,
+which `scripts/build_website_themes.py` builds for the page without a swatch. A recording changed to
+another theme needs that theme added there too.
+
+The clips together stay under 4 MB, and the edit fails a recording whose clips do not.
+
+## Cutting it again
+
+The recording, `build/film/raw.mkv`, and what each beat marked in it, `build/film/marks.json`, are
+kept after a run, so the film and its clips can be cut again without recording anything:
+
+```sh
+scripts/record_film.py compose
+```
+
+writes the film, its poster, its captions, the clips and `clips.json` from them again, as the run
+did. A desktop recording also leaves `stage.json`, where the window is on the monitor, and is cut
+again with the desktop's own pointer, read again from the session the command runs in.
+
 ## Publishing it
 
 The files are not kept in the repository. They are the assets of the `film` release, and the
 website's build (`website/build/film.mjs`) copies them into the site, so the page plays them from
 its own address and its Content-Security-Policy stays `default-src 'self'`. The build fails when one
-is missing. Watch a recording before uploading it, then replace the release's copies:
+is missing, including a clip `clips.json` names. Watch a recording before uploading it, then replace
+the release's copies:
 
 ```sh
 gh release upload film build/film/omaweb.webm build/film/omaweb.mp4 build/film/poster.webp \
-    --clobber
+    build/film/clips.json build/film/clip-* --clobber
 ```
 
 The release is made once, before the first upload, and kept off the latest release so the engine and
