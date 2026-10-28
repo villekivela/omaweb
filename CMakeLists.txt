@@ -986,7 +986,7 @@ set(omaweb_ui_files
     src/ui/PanelResizer.qml
     src/ui/SiteNotifications.qml
     src/ui/SiteTile.qml
-    src/ui/FooterMarks.qml
+    src/ui/StatusIsland.qml
     src/ui/ProblemMark.qml
     src/ui/ReleaseMark.qml
     src/ui/SpaceNotice.qml

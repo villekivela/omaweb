@@ -2240,6 +2240,10 @@
         <translation>Ongelmaa nauhoitetaan, %1 min jäljellä</translation>
     </message>
     <message>
+        <source>Recording · %1 min left</source>
+        <translation>Nauhoitetaan · %1 min jäljellä</translation>
+    </message>
+    <message>
         <source>Recording a problem</source>
         <translation>Ongelmaa nauhoitetaan</translation>
     </message>
@@ -2279,6 +2283,10 @@
     <message>
         <source>Omaweb %1 is out</source>
         <translation>Omaweb %1 on julkaistu</translation>
+    </message>
+    <message>
+        <source>%1 is out</source>
+        <translation>%1 on julkaistu</translation>
     </message>
 </context>
 <context>
@@ -4609,6 +4617,17 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Could not migrate tabs for Space %1</source>
         <translation>Tilan %1 välilehtiä ei voitu siirtää</translation>
+    </message>
+</context>
+<context>
+    <name>StatusIsland</name>
+    <message>
+        <source>All downloads</source>
+        <translation>Kaikki lataukset</translation>
+    </message>
+    <message>
+        <source>Release notes</source>
+        <translation>Julkaisutiedot</translation>
     </message>
 </context>
 <context>

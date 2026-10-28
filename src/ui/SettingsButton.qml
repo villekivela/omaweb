@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import qs.Commons
 
-// The outline footer's Settings control. Its face is the gear, or the Sync
+// The Settings control, first in the sidebar's navigation row. Its face is the gear, or the Sync
 // avatar once Sync is signed in, and one dot serves both: urgent while
 // Settings needs attention or Sync has an error, accent while Sync runs, none
 // otherwise. A paused Sync greys the avatar and leaves the dot out.

@@ -129,10 +129,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The vertical sidebar shows the active Space. From top to bottom, it contains the navigation row,
   current-address trigger, pinned tabs, ordinary tabs, and footer. Pinned tabs use icon-only buttons
   in full-width rows with capacity for three to five tabs. Incomplete rows divide their width among
-  their tabs. Ordinary tabs use single-line rows. The navigation row puts the sidebar and
-  command-scope buttons first, followed by back, forward, and reload. The footer contains the
-  Spaces, active Download mark, and settings. Private windows replace the Spaces with a mask. New
-  tabs remain available through the Omnibar and keyboard commands rather than a sidebar button.
+  their tabs. Ordinary tabs use single-line rows. The navigation row puts Settings first, then the
+  sidebar and command-scope buttons, followed by back, forward, and reload. The footer is the Spaces
+  alone, centred while every Space fits. The Status island stands above it while one of its marks
+  applies, and the extension mark stands at the address trigger's right end while the Space hosts an
+  extension. Private windows replace the Spaces with a centred mask. New tabs remain available
+  through the Omnibar and keyboard commands rather than a sidebar button.
 - The sidebar is quiet. The address trigger is a line, not a field. It shows the page's host alone,
   without the scheme, `www.`, path, query or fragment, and keeps a port. A page with no host shows
   the last part of its path, a file's name or the name of one of Omaweb's own pages, and any other
@@ -1100,12 +1102,11 @@ The default page commands include:
   downloads list shows progress and the actions available for each item. A reader can cancel an
   active download, retry an interrupted one, reveal a finished file, or remove its history record
   without deleting the file.
-- The Download mark in the sidebar footer shows the number and combined progress of active
-  downloads. Pointer and keyboard focus reveal progress by file, and activating the mark opens the
-  downloads section. Files without a declared length show an unknown size instead of a percentage.
-  The mark uses the window's live downloads, so it works in Private windows. It remains in a
-  finished state until the saved-file notice closes. Chromeless windows have notices but no sidebar
-  footer or Download mark.
+- The Download mark in the Status island shows the number and combined progress of active downloads.
+  Activating the mark opens the island on progress by file, which leads on to the downloads section.
+  Files without a declared length show an unknown size instead of a percentage. The mark uses the
+  window's live downloads, so it works in Private windows. It remains in a finished state until the
+  saved-file notice closes. Chromeless windows have notices but no sidebar footer or Status island.
 - Save link as, and a download whose name is already taken, use the native save dialog.
 - CI checks the approved QtWebEngine and Chromium security baseline weekly. Settings reads the same
   baseline file. A Qt patch with security fixes requires an Omaweb update within seven days.

@@ -34,7 +34,15 @@ Motion is felt rather than watched: it says which way something went, and no mor
   the window from the sidebar reads as a jolt rather than the field opening. Site information
   unfolds from the address it reports on.
 - **Sheets lift.** The Shortcut sheet, settings and history are one kind of thing: a sheet that
-  lifts from a little below its place. The download detail rises from its mark the same way.
+  lifts from a little below its place.
+- **The Status island rises from the footer.** It stands centred over the Space row while a mark of
+  what is happening now applies, rises 8 px from the footer as its first mark comes and sinks back
+  as its last goes, and hugs its marks, its width easing as they come and go. A mark with more to
+  say opens it in place, upward, into that detail, which stays drawn until the island has shrunk
+  back. Under reduced motion each of these changes in one step.
+- **Each control sits with what it acts on.** Settings is the navigation row's first item. The
+  extension mark stands at the address trigger's end, and the extension popup unfolds from it as
+  Site information unfolds from the address. The footer is the Space row alone.
 - **A Glance is the link, opened.** It grows out of the link the reader pressed to its place over
   the page and retreats into it when it closes. What is inside keeps its resting size the whole way
   and the panel clips it, so the page is revealed rather than laid out again at every size the panel

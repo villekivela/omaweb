@@ -13,6 +13,11 @@ ChromeButton {
     // until the saved-file notice closes. Following the notice itself is what
     // makes that hold, rather than a duration copied from it.
     property bool savedFileNoticeShowing: false
+    // Whether the Status island draws the summary beside the icon, which
+    // says the count the corner otherwise carries.
+    property bool labelled: false
+    // How wide the progress track under the icon is, centred on the icon.
+    property real trackWidth: root.width - 2 * root.horizontalPadding
 
     readonly property int running: root.model ? root.model.running : 0
     readonly property real fraction: root.model ? root.model.fraction : -1
@@ -21,6 +26,8 @@ ChromeButton {
     readonly property bool measured: root.fraction >= 0
     readonly property bool holding: root.running === 0 && root.finished > 0
                                     && root.savedFileNoticeShowing
+
+    readonly property bool applies: root.running > 0 || root.holding
 
     readonly property bool detailRequested: root.visible && (root.hot || root.activeFocus)
 
@@ -49,7 +56,7 @@ ChromeButton {
         return names.join(", ");
     }
 
-    visible: root.running > 0 || root.holding
+    visible: root.applies
     icon: root.holding ? "download_done" : "download"
     accent: root.colors.accent
     fontFamily: root.iconFontFamily
@@ -66,7 +73,7 @@ ChromeButton {
         objectName: "downloadMarkCount"
         anchors.right: parent.right
         anchors.top: parent.top
-        visible: root.running > 1
+        visible: root.running > 1 && !root.labelled
         text: String(root.running)
         color: root.colors.text
         font.family: Style.font.family
@@ -78,8 +85,11 @@ ChromeButton {
         id: track
         objectName: "downloadMarkTrack"
         anchors.left: parent.left
-        anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.leftMargin: root.leftAlign ? root.horizontalPadding + (Style.font.iconLarge - width)
+                                             / 2 : (parent.width - width) / 2
+        anchors.bottomMargin: 2
+        width: root.trackWidth
         height: 3
         radius: 1
         color: root.colors.border

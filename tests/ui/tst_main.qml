@@ -6282,6 +6282,9 @@ TestCase {
             return window.active;
         });
         openPage("https://labels-over.example/");
+        // With the Status island up, which the Space labels hang over.
+        if (!problemRecording.recording)
+            window.commands.run("record-problem", -1);
         // A page with no history leaves back and forward disabled, drawn at 35%.
         verify(!findChild(window.contentItem, "backButton").enabled);
         const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
@@ -6312,6 +6315,7 @@ TestCase {
             compare(hidden, 0, names[index] + " has pixels drawn over");
         }
         keyRelease(Qt.Key_Control);
+        window.commands.run("record-problem", -1);
     }
 
     // Switching Space names the Space it arrived in at the top of the page,
@@ -7116,20 +7120,27 @@ TestCase {
         verify(addressButton.activeFocusOnTab);
         verify(collapseButton.activeFocusOnTab);
 
+        // A tab row to pass on the way, which a Space at rest does not list.
+        openPage("https://keyboard.example/");
         addressButton.forceActiveFocus();
         compare(window.activeFocusItem.objectName, "addressButton");
 
         let visitedTab = false;
-        for (let step = 0; step < 20 && window.activeFocusItem.objectName
-             !== "settingsButton"; ++step) {
+        for (let step = 0; step < 20 && window.activeFocusItem.objectName.indexOf("space-")
+             !== 0; ++step) {
             keyClick(Qt.Key_Tab);
             if (window.activeFocusItem.objectName.indexOf("tab-") === 0)
                 visitedTab = true;
         }
         verify(visitedTab);
-        compare(window.activeFocusItem.objectName, "settingsButton");
-        keyClick(Qt.Key_Backtab);
         verify(window.activeFocusItem.objectName.indexOf("space-") === 0);
+
+        // Settings is the top row's first stop, before collapse (#838).
+        settingsButton.forceActiveFocus();
+        keyClick(Qt.Key_Tab);
+        compare(window.activeFocusItem.objectName, "collapseButton");
+        keyClick(Qt.Key_Backtab);
+        compare(window.activeFocusItem.objectName, "settingsButton");
     }
 
     function test_everyBrowserCommandIsBoundAndSearchable() {
@@ -8608,9 +8619,6 @@ TestCase {
         compare(hidden[hidden.length - 1], made[made.length - 1]);
         verify(findChild(sidebar, "space-" + personalId).visible);
         verify(overflow.x + overflow.width <= switcher.width);
-        const settings = findChild(sidebar, "settingsButton");
-        verify(switcher.mapToItem(sidebar, overflow.x + overflow.width, 0).x <= settings.mapToItem(sidebar,
-                                                                                                   0, 0).x);
         verify(switcher.contentX === undefined);
 
         // A Space key reaches one that is left out, and the Space on show
@@ -8673,6 +8681,99 @@ TestCase {
         tryCompare(sidebar, "arriving", false);
         for (let index = made.length - 1; index >= 0; --index)
             verify(browser.deleteSpace(made[index], names[index]));
+        window.setSidebarWidth(window.sidebarDefaultWidth);
+        tryVerify(function () {
+            return !overflow.visible;
+        });
+    }
+
+    function spaceRowSpan(sidebar) {
+        let first = Infinity;
+        let last = -Infinity;
+        let shown = 0;
+        for (let row = 0; row < browser.spaces.rowCount(); ++row) {
+            const id = browser.spaces.data(browser.spaces.index(row, 0), Qt.UserRole + 1);
+            const item = findChild(sidebar, "space-" + id);
+            if (!item.visible)
+                continue;
+            ++shown;
+            const corner = item.mapToItem(sidebar, 0, 0);
+            first = Math.min(first, corner.x);
+            last = Math.max(last, corner.x + item.width);
+        }
+        const overflow = findChild(sidebar, "spaceOverflow");
+        if (overflow.visible)
+            last = Math.max(last, overflow.mapToItem(sidebar, overflow.width, 0).x);
+        return {
+            "first": first,
+            "last": last,
+            "shown": shown
+        };
+    }
+
+    // The footer is the Space row. It is centred while every Space fits and
+    // fills the width with the count at its end when they do not. At 220 px it
+    // shows as many Spaces with every status mark up as with none (#838).
+    function test_theFooterIsTheSpaceRow() {
+        if (problemRecording.recording)
+            window.commands.run("record-problem", -1);
+        openPage("https://row.example/box");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const footer = findChild(sidebar, "spaceHeading");
+        const overflow = findChild(sidebar, "spaceOverflow");
+        const island = findChild(sidebar, "statusIsland");
+        const footerLeft = footer.mapToItem(sidebar, 0, 0).x;
+        const footerCentre = footerLeft + footer.width / 2;
+        settleMotion();
+        let span = spaceRowSpan(sidebar);
+        verify(!overflow.visible);
+        tryVerify(function () {
+            span = spaceRowSpan(sidebar);
+            return Math.abs((span.first + span.last) / 2 - footerCentre) <= 0.5;
+        }, 5000, "centred: " + JSON.stringify(span) + " in a footer centred at " + footerCentre);
+
+        window.setSidebarWidth(window.sidebarMinimumWidth);
+        compare(sidebar.width, 220);
+        const made = [];
+        for (let index = 0; index < 12; ++index)
+            made.push(browser.createSpace("Row " + index));
+        tryVerify(function () {
+            return overflow.visible;
+        });
+        settleMotion();
+        // Over the width, the row fills it from its start, the count at its end.
+        tryVerify(function () {
+            span = spaceRowSpan(sidebar);
+            return Math.abs(span.first - footerLeft) <= 0.5 && footerLeft + footer.width - span.last
+                    < sidebar.spaceSlot + sidebar.slotSpacing;
+        }, 5000, "filled: " + JSON.stringify(span) + " in " + footerLeft + "-" + (footerLeft
+                                                                                  + footer.width));
+        const shownAlone = span.shown;
+
+        window.commands.run("record-problem", -1);
+        const watch = releaseStandIn(island);
+        island.releaseWatch = watch;
+        const host = window.spaceProfileHost;
+        clearDownloads();
+        browser.recordOriginInteraction("https://row.example/box");
+        const download = host.simulateDownloadRequest("https://row.example/box",
+                                                      "https://row.example/omaweb-test-row.pdf",
+                                                      "omaweb-test-row.pdf", "application/pdf");
+        verify(download.length > 0);
+        tryCompare(island, "count", 3);
+        settleMotion();
+        compare(spaceRowSpan(sidebar).shown, shownAlone);
+
+        host.simulateDownloadFinished(download);
+        findChild(window.contentItem, "pageNotice").dismiss();
+        window.commands.run("record-problem", -1);
+        island.releaseWatch = Qt.binding(function () {
+            return sidebar.releaseWatch;
+        });
+        watch.destroy();
+        tryCompare(island, "count", 0);
+        for (let index = made.length - 1; index >= 0; --index)
+            verify(browser.deleteSpace(made[index], "Row " + index));
         window.setSidebarWidth(window.sidebarDefaultWidth);
         tryVerify(function () {
             return !overflow.visible;
@@ -10138,6 +10239,11 @@ TestCase {
         verify(privateBadge.visible);
         compare(privateBadge.text, "domino_mask");
         compare(String(privateBadge.color), String(privateBrowser.colors.privateAccent));
+        // Centred in the footer, which it has to itself (#838).
+        const privateFooter = findChild(privateBrowser.contentItem, "spaceHeading");
+        const maskCentre = privateBadge.mapToItem(privateFooter, privateBadge.width / 2, 0).x;
+        verify(Math.abs(maskCentre - privateFooter.width / 2) <= 0.5, "the mask at " + maskCentre
+               + " of " + privateFooter.width);
         privateBrowser.windowBrowser.openInput("https://private.example", false);
         tryVerify(function () {
             return privateEngine.item !== null;
@@ -17070,6 +17176,34 @@ TestCase {
         }
     }
 
+    // Settings, gear or avatar, is the top row's first item, before collapse
+    // and search, and its dot is drawn there with it. The footer keeps the
+    // Spaces alone (#838).
+    function test_settingsStandsFirstInTheTopRow() {
+        for (const component of [attentionOutlineComponent, authenticatedOutlineComponent]) {
+            const outline = createTemporaryObject(component, window.contentItem);
+            verify(outline !== null);
+            const navigation = findChild(outline, "sidebarNavigation");
+            const footer = findChild(outline, "spaceHeading");
+            const collapse = findChild(outline, "collapseButton");
+            const face = outline.authenticatedSync ? findChild(outline, "syncAvatarButton") :
+                                                     findChild(outline, "settingsButton");
+            const dot = findChild(outline, "settingsDot");
+            verify(face.visible);
+            verify(dot.visible);
+            const inNavigation = function (item) {
+                const top = item.mapToItem(navigation, 0, 0).y;
+                return top >= 0 && top + item.height <= navigation.height;
+            };
+            verify(inNavigation(face), "Settings in the top row");
+            verify(inNavigation(dot), "its dot in the top row");
+            verify(face.mapToItem(outline, 0, 0).x < collapse.mapToItem(outline, 0, 0).x);
+            verify(face.mapToItem(outline, 0, 0).x <= outline.listMargin);
+            verify(face.mapToItem(footer, 0, 0).y + face.height <= 0,
+                   "nothing of it in the footer");
+        }
+    }
+
     // A binding this build cannot honour is dropped rather than taking the
     // keymap with it, so a notice is the only thing that says a configured key
     // is missing. It waits in the settings section it belongs to, and the
@@ -21361,8 +21495,7 @@ TestCase {
         const mark = findChild(outline, "problemRecordingMark");
         window.commands.run("record-problem", -1);
         tryCompare(mark, "visible", true);
-        // The footer's RowLayout places a mark when it next polishes.
-        tryCompare(mark, "width", 26);
+        tryCompare(findChild(outline, "statusIsland").transform[0], "progress", 1);
         const tip = findChild(mark, "problemRecordingMarkToolTip");
         verify(tip !== null);
         mouseMove(mark, mark.width / 2, mark.height / 2);
@@ -21504,44 +21637,77 @@ TestCase {
         tryCompare(mark, "visible", false);
         mark.privateWindow = false;
         tryCompare(mark, "visible", true);
+        mark.privateWindow = Qt.binding(function () {
+            return outline.privateWindow;
+        });
 
-        // Selecting it opens the notes and has told the reader, so the mark
+        // Selecting it opens the status island on the release, which says it
+        // again with what to run, and has told no one yet (#838).
+        const island = findChild(outline, "statusIsland");
+        island.releaseWatch = watch;
+        mark.watch = Qt.binding(function () {
+            return island.releaseWatch;
+        });
+        settleIsland(island);
+        compare(findChild(mark, "releaseMarkLabel").text, "v9.9.9 is out");
+        mouseClick(mark);
+        compare(island.expanded, "release");
+        const detail = findChild(island, "releaseDetail");
+        tryCompare(detail, "visible", true);
+        compare(findChild(detail, "releaseDetailHeadline").text, "Omaweb v9.9.9 is out");
+        compare(findChild(detail, "releaseDetailInstruction").text,
+                "Upgrade with the rest of the system: pacman -Syu");
+        compare(watch.dismissed, 0);
+
+        // Its notes open in a new tab and have told the reader, so the mark
         // goes. Nothing is installed by the browser either way.
-        mark.clicked();
+        const tabs = browser.tabs.rowCount();
+        const notes = findChild(detail, "releaseNotesButton");
+        tryVerify(function () {
+            return island.height === island.closedHeight + detail.height + 16;
+        });
+        mouseClick(notes);
         compare(watch.dismissed, 1);
+        compare(island.expanded, "");
+        // What it said stays drawn while the island shrinks, though the watch
+        // has nothing to announce any more.
+        watch.announcing = false;
+        verify(detail.visible);
+        compare(findChild(detail, "releaseDetailHeadline").text, "Omaweb v9.9.9 is out");
+        tryCompare(detail, "visible", false);
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabs + 1;
+        });
+        compare(browser.activeUrl.toString(), "https://example.invalid/releases/tag/v9.9.9");
+        browser.closeActiveTab();
 
-        mark.watch = null;
+        watch.announcing = true;
+        island.releaseWatch = Qt.binding(function () {
+            return outline.releaseWatch;
+        });
         tryCompare(mark, "visible", false);
         watch.destroy();
     }
 
-    // The release, extension and download marks each take a slot of their
-    // own, in that order, and the Spaces end before the first of them.
-    function test_theFooterMarksStandSideBySide() {
-        openPage("https://mirror.example/shelf");
-        const host = window.spaceProfileHost;
-        clearDownloads();
-        browser.recordOriginInteraction("https://mirror.example/shelf");
+    // The extension mark stands at the address box's right end while the
+    // Space hosts an extension, the address ends before it, and the menu
+    // and the popup unfold from it (#838).
+    function test_theExtensionMarkStandsInTheAddressBox() {
+        openPage("https://shelf.example/extension");
         const outline = findChild(window.contentItem, "sidebar");
-        const releaseMark = findChild(outline, "releaseMark");
-        const extensionMark = findChild(outline, "extensionMark");
-        const downloadMark = findChild(outline, "downloadMark");
-        const switcher = findChild(outline, "spaceSwitcher");
-        verify(releaseMark !== null);
-        verify(extensionMark !== null);
-        verify(downloadMark !== null);
-        verify(switcher !== null);
+        const address = findChild(outline, "addressButton");
+        const text = findChild(outline, "addressText");
+        const mark = findChild(outline, "extensionMark");
+        verify(!mark.visible);
+        const left = function (item) {
+            return item.mapToItem(null, 0, 0).x;
+        };
+        const right = function (item) {
+            return left(item) + item.width;
+        };
+        const textRightAlone = right(text);
 
-        const watch = Qt.createQmlObject('import QtQuick\nQtObject {\n'
-                                         + '    property bool announcing: true\n'
-                                         + '    property string release: "v9.9.9"\n'
-                                         + '    property string instruction: ""\n'
-                                         + '    property url notes: "https://example.invalid/releases/tag/v9.9.9"\n'
-                                         + '    function dismiss() {}\n}', releaseMark,
-                                         "releaseMarkStandIn");
-        releaseMark.watch = watch;
-        // The engine under test hosts no extension, so the mark is handed one.
-        extensionMark.hosted = [
+        outline.hostedExtensions = [
                     {
                         "key": "omaweb-test-notes",
                         "name": "Notes",
@@ -21549,42 +21715,163 @@ TestCase {
                         "popupUrl": "chrome-extension://omaweb-test-notes/popup.html"
                     }
                 ];
-        const download = host.simulateDownloadRequest("https://mirror.example/shelf",
-                                                      "https://mirror.example/omaweb-test-index.pdf",
-                                                      "omaweb-test-index.pdf", "application/pdf");
-        verify(download.length > 0);
-        tryCompare(releaseMark, "visible", true);
-        tryCompare(extensionMark, "visible", true);
-        tryCompare(downloadMark, "visible", true);
+        tryCompare(mark, "visible", true);
+        const top = mark.mapToItem(address, 0, 0).y;
+        verify(top >= 0 && top + mark.height <= address.height, "in the address box");
+        verify(right(mark) <= right(address) && right(address) - right(mark) <= 8,
+               "at its right end: " + right(mark) + " of " + right(address));
+        verify(right(text) <= left(mark), "the address ends at " + right(text));
+        verify(right(text) < textRightAlone);
 
-        const left = function (item) {
-            return item.mapToItem(null, 0, 0).x;
-        };
-        const right = function (item) {
-            return left(item) + item.width;
-        };
-        const span = function (item) {
-            return left(item) + "-" + right(item);
-        };
-        // The marks stand in a RowLayout, which places them when it next polishes.
-        tryVerify(function () {
-            return right(releaseMark) <= left(extensionMark) && right(extensionMark) <= left(
-                        downloadMark) && right(switcher) <= left(releaseMark);
-        }, 5000, "release " + span(releaseMark) + ", extension " + span(extensionMark)
-        + ", download " + span(downloadMark) + ", the Spaces end at " + right(switcher));
+        mouseClick(mark);
+        tryCompare(window, "extensionMenuOpen", true);
+        const origin = window.extensionMenuOrigin;
+        compare(origin.x, left(mark));
+        compare(origin.y, mark.mapToItem(null, 0, 0).y);
+        compare(origin.width, mark.width);
+        // The popup grows out of the same mark the keyboard opens it from.
+        compare(outline.extensionMarkRect(), origin);
+        window.extensionMenuOpen = false;
 
-        host.simulateDownloadFinished(download);
-        tryCompare(downloadMark, "running", 0);
-        findChild(window.contentItem, "pageNotice").dismiss();
-        tryCompare(downloadMark, "visible", false);
-        extensionMark.hosted = Qt.binding(function () {
-            return outline.hostedExtensions;
+        outline.hostedExtensions = Qt.binding(function () {
+            return window.hostedExtensions;
         });
-        tryCompare(extensionMark, "visible", false);
-        releaseMark.watch = Qt.binding(function () {
+        tryCompare(mark, "visible", false);
+        compare(right(text), textRightAlone);
+    }
+
+    // The island risen and its width at rest, so a press lands on the mark
+    // it is aimed at rather than where the mark was a frame ago.
+    function settleIsland(island) {
+        tryCompare(island.transform[0], "progress", 1);
+        tryVerify(function () {
+            return island.width === Math.min(island.room, Math.max(island.closedHeight,
+                                                                   island.marksWidth + 4));
+        });
+        waitForRendering(island);
+    }
+
+    // Whether every corner of `item` lies inside the island's rounded
+    // outline, a pixel clear of its border.
+    function insideIsland(island, item) {
+        const box = item.mapToItem(island, 0, 0, item.width, item.height);
+        const r = island.radius;
+        const corners = [[box.x, box.y], [box.x + box.width, box.y], [box.x, box.y + box.height],
+                         [box.x + box.width, box.y + box.height]];
+        for (let index = 0; index < corners.length; ++index) {
+            const x = corners[index][0];
+            const y = corners[index][1];
+            const cx = Math.min(Math.max(x, r), island.width - r);
+            const cy = Math.min(Math.max(y, r), island.height - r);
+            if (Math.hypot(x - cx, y - cy) > r - 1 || x < 1 || y < 1 || x > island.width - 1 || y
+                    > island.height - 1)
+                return false;
+        }
+        return true;
+    }
+
+    // A watch that announces a release, for the Status island's tests.
+    function releaseStandIn(parent) {
+        return Qt.createQmlObject('import QtQuick\nQtObject {\n'
+                                  + '    property bool announcing: true\n'
+                                  + '    property string release: "v9.9.9"\n'
+                                  + '    property string instruction: "Upgrade with the rest of the system: pacman -Syu"\n'
+                                  + '    property url notes: "https://example.invalid/releases/tag/v9.9.9"\n'
+                                  + '    property int dismissed: 0\n'
+                                  + '    function dismiss() { dismissed = dismissed + 1; announcing = false; }\n'
+                                  + '}', parent, "releaseStandIn");
+    }
+
+    function test_theStatusIslandComesAndGoesWithItsMarks_data() {
+        return [
+                    {
+                        tag: "eased",
+                        reduced: false
+                    },
+                    {
+                        tag: "reduced motion",
+                        reduced: true
+                    }
+                ];
+    }
+
+    // The island stands centred above the Space row only while a mark is up,
+    // and hugs its marks: one wears its label, several are icons alone. Its
+    // width eases as they come and go and steps under reduced motion, as its
+    // rise does. The tab list ends at its top (#838).
+    function test_theStatusIslandComesAndGoesWithItsMarks(data) {
+        SystemMotion.reduced = data.reduced;
+        if (problemRecording.recording)
+            window.commands.run("record-problem", -1);
+        const outline = findChild(window.contentItem, "sidebar");
+        const island = findChild(outline, "statusIsland");
+        const footer = findChild(outline, "spaceHeading");
+        const tabs = findChild(outline, "listLayer");
+        const recording = findChild(island, "problemRecordingMark");
+        const release = findChild(island, "releaseMark");
+        verify(island !== null);
+        tryCompare(island, "visible", false);
+        const left = function (item) {
+            return item.mapToItem(outline, 0, 0).x;
+        };
+        const bottom = function (item) {
+            return item.mapToItem(outline, 0, item.height).y;
+        };
+
+        window.commands.run("record-problem", -1);
+        tryCompare(island, "visible", true);
+        const lift = island.transform[0];
+        if (data.reduced)
+            compare(lift.progress, 1);
+        tryCompare(lift, "progress", 1);
+        const label = findChild(recording, "problemRecordingMarkLabel");
+        verify(label.visible, "one mark wears its label");
+        verify(label.text.indexOf("min left") > 0, label.text);
+        verify(recording.width > island.markSize);
+        tryCompare(island, "width", recording.width + 4);
+        const centre = left(island) + island.width / 2;
+        verify(Math.abs(centre - (left(footer) + footer.width / 2)) <= 0.5, "centred at " + centre);
+        verify(bottom(island) <= footer.mapToItem(outline, 0, 0).y, "above the Space row");
+        tryVerify(function () {
+            return Math.abs(bottom(tabs) - island.mapToItem(outline, 0, 0).y) <= 1;
+        }, 5000, "the tab list ends at " + bottom(tabs));
+
+        const labelledWidth = island.width;
+        const watch = releaseStandIn(island);
+        island.releaseWatch = watch;
+        tryCompare(release, "visible", true);
+        // Several marks are icons alone, in their order.
+        verify(!label.visible);
+        verify(!findChild(release, "releaseMarkLabel").visible);
+        compare(recording.width, island.markSize);
+        compare(release.width, island.markSize);
+        // A Row places its children when it next polishes.
+        tryVerify(function () {
+            return left(recording) < left(release);
+        });
+        const iconsWidth = 2 * island.markSize + 2 + 4;
+        if (data.reduced)
+            compare(island.width, iconsWidth);
+        else
+            verify(island.width !== iconsWidth, "the width eases rather than jumping");
+        tryCompare(island, "width", iconsWidth);
+        verify(iconsWidth < labelledWidth);
+
+        window.commands.run("record-problem", -1);
+        verify(!problemRecording.recording);
+        tryVerify(function () {
+            return findChild(release, "releaseMarkLabel").visible;
+        });
+        watch.announcing = false;
+        if (data.reduced)
+            compare(island.visible, false);
+        tryCompare(island, "visible", false);
+        island.releaseWatch = Qt.binding(function () {
             return outline.releaseWatch;
         });
-        tryCompare(releaseMark, "visible", false);
+        tryVerify(function () {
+            return Math.abs(bottom(tabs) - footer.mapToItem(outline, 0, 0).y) <= 1;
+        }, 5000, "the tab list ends at the footer again: " + bottom(tabs));
         watch.destroy();
     }
 
@@ -21736,7 +22023,9 @@ TestCase {
         compare(mark.visible, false);
     }
 
-    function test_theFooterMarkOpensTheDownloadsItStandsFor() {
+    // The Downloads command opens Settings on them, as the island's All
+    // downloads does.
+    function test_theDownloadsCommandOpensTheDownloads() {
         openPage("https://depot.example/box");
         const host = window.spaceProfileHost;
         clearDownloads();
@@ -21751,12 +22040,6 @@ TestCase {
                                                      "omaweb-test-depot.pdf", "application/pdf");
         verify(running.length > 0);
         tryCompare(mark, "visible", true);
-        mark.clicked();
-        tryCompare(window, "settingsOpen", true);
-        compare(settings.sections[settings.section], "downloads");
-
-        window.settingsOpen = false;
-        settings.section = 0;
         verify(window.commands.run("downloads"));
         tryCompare(window, "settingsOpen", true);
         compare(settings.sections[settings.section], "downloads");
@@ -21773,18 +22056,20 @@ TestCase {
         tryCompare(mark, "visible", false);
     }
 
-    function test_theFooterMarkNamesEachDownloadOnDemand() {
+    // Pressing the Download mark opens the island in place, upward, into the
+    // running downloads, newest first. Pressing it again or Escape closes it,
+    // and the list stays drawn until the island has shrunk back (#838).
+    function test_theDownloadMarkOpensTheIslandInPlace() {
         openPage("https://atlas.example/box");
         const host = window.spaceProfileHost;
         clearDownloads();
         browser.recordOriginInteraction("https://atlas.example/box");
         const outline = findChild(window.contentItem, "sidebar");
+        const island = findChild(outline, "statusIsland");
         const mark = findChild(outline, "downloadMark");
-        tryCompare(mark, "visible", false);
-        const detail = findChild(outline, "downloadDetail");
+        const detail = findChild(island, "downloadDetail");
         verify(detail !== null);
-        mouseMove(outline, 4, 4);
-        compare(detail.visible, false);
+        tryCompare(mark, "visible", false);
 
         const first = host.simulateDownloadRequest("https://atlas.example/box",
                                                    "https://atlas.example/omaweb-test-north.pdf",
@@ -21799,28 +22084,96 @@ TestCase {
         host.simulateDownloadProgress(first, 600, 1000);
         host.simulateDownloadProgress(second, 100, 0);
         tryCompare(mark, "running", 2);
+        settleIsland(island);
+        compare(findChild(mark, "downloadMarkLabel").text, "2 downloads · size unknown");
+        verify(!findChild(mark, "downloadMarkCount").visible, "the label says the count");
+        verify(!detail.visible);
+        // The progress stands inside the capsule, labelled or among icons.
+        const track = findChild(mark, "downloadMarkTrack");
+        verify(insideIsland(island, track), "the labelled track inside the island");
+        const watch = releaseStandIn(island);
+        island.releaseWatch = watch;
+        settleIsland(island);
+        verify(insideIsland(island, track), "the icon's track inside the island");
+        island.releaseWatch = Qt.binding(function () {
+            return outline.releaseWatch;
+        });
+        watch.destroy();
+        settleIsland(island);
+        const bottom = function () {
+            return island.mapToItem(outline, 0, island.height).y;
+        };
+        const restingBottom = bottom();
+        const marks = findChild(island, "statusIslandMarks");
+        const body = findChild(island, "statusIslandDetail");
+        const aboveTheMarks = function () {
+            return body.mapToItem(island, 0, body.height).y <= marks.y;
+        };
 
-        compare(detail.visible, false);
-        mouseMove(mark, mark.width / 2, mark.height / 2);
+        mouseClick(mark);
+        compare(island.expanded, "downloads");
         tryCompare(detail, "visible", true);
+        // Laid out at the width it opens to and revealed as the capsule
+        // grows, so no line re-wraps or re-elides on the way, and faded in.
+        verify(island.width < island.room, "still easing");
+        compare(body.width, island.room - 20);
+        verify(body.opacity < 1, "the detail fades in");
+        verify(aboveTheMarks(), "the detail stands above the marks");
+        tryVerify(function () {
+            return island.height === island.closedHeight + detail.height + 16 && detail.height > 0;
+        });
+        compare(bottom(), restingBottom);
+        compare(island.width, island.room);
         // Newest first, as the list itself is.
         const southRow = findChild(detail, "downloadDetail-0");
         const northRow = findChild(detail, "downloadDetail-1");
-        verify(northRow !== null);
-        verify(southRow !== null);
         compare(northRow.name, "omaweb-test-north.pdf");
         compare(northRow.progressLabel, "60%");
         compare(southRow.name, "omaweb-test-south.pdf");
         compare(southRow.progressLabel, "size unknown");
 
-        mouseMove(outline, 4, 4);
+        // The same mark again closes it, and the list outlasts the shrink.
+        mouseClick(mark);
+        compare(island.expanded, "");
+        verify(detail.visible, "the detail stays while the island shrinks");
+        verify(island.height > island.closedHeight);
+        tryVerify(function () {
+            return island.height < island.closedHeight + detail.height;
+        });
+        verify(aboveTheMarks(), "the shrinking detail stays above the marks");
+        tryCompare(island, "height", island.closedHeight);
         tryCompare(detail, "visible", false);
+        compare(bottom(), restingBottom);
+
+        // From the keyboard the mark keeps the keyboard: pressing it again
+        // closes the island, and Escape closes it too.
         window.requestActivate();
         mark.forceActiveFocus();
-        tryCompare(detail, "visible", true);
-
-        findChild(outline, "settingsButton").forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        compare(island.expanded, "downloads");
+        verify(mark.activeFocus);
+        keyClick(Qt.Key_Space);
+        compare(island.expanded, "");
+        keyClick(Qt.Key_Space);
+        compare(island.expanded, "downloads");
+        keyClick(Qt.Key_Escape);
+        compare(island.expanded, "");
+        verify(mark.activeFocus);
         tryCompare(detail, "visible", false);
+
+        // Every download, finished ones too, is a press away in Settings.
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = 0;
+        mouseClick(mark);
+        const all = findChild(detail, "allDownloadsButton");
+        tryVerify(function () {
+            return all.visible && island.height === island.closedHeight + detail.height + 16;
+        });
+        mouseClick(all);
+        tryCompare(window, "settingsOpen", true);
+        compare(settings.sections[settings.section], "downloads");
+        compare(island.expanded, "");
+        window.settingsOpen = false;
 
         host.simulateDownloadFinished(first);
         host.simulateDownloadFinished(second);

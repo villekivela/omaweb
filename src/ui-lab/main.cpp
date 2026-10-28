@@ -1155,6 +1155,95 @@ int main(int argc, char *argv[])
         auto *window = engine.rootObjects().constFirst();
         window->setProperty("sidebarWidth", window->property("sidebarMinimumWidth"));
     }
+    // The Status island's marks, for review (#838). `--no-release` leaves the
+    // lab's release unannounced, `--downloads` starts two downloads once the
+    // window has its Space's profile, and `--island-open downloads|release`
+    // opens the island on that mark. `--island-demo <dir>` steps the island
+    // through one mark, three, open on downloads, closed and one again, and
+    // saves the window every 40 ms as frame-NNN.png in that directory.
+    const auto demoIndex = arguments.indexOf(QStringLiteral("--island-demo"));
+    if (arguments.contains(QStringLiteral("--no-release")) || demoIndex >= 0) {
+        // The lab's watch follows no browser, so it has nowhere to keep a
+        // dismissal: the release is taken away instead.
+        releaseWatch.showRelease(QString());
+    }
+    if (!engine.rootObjects().isEmpty()) {
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        const auto startDownloads = [window, &browser](int count) {
+            auto *profile = window->property("spaceProfileHost").value<QObject *>();
+            if (profile == nullptr) {
+                return;
+            }
+            profile->setProperty("acceptDownloads", true);
+            const QStringList names {QStringLiteral("report-2026-10.pdf"),
+                QStringLiteral("omaweb-field-guide-2026.pdf")};
+            const QList<int> received {620, 180};
+            for (int index = 0; index < count && index < names.size(); ++index) {
+                const QUrl page(QStringLiteral("https://mirror%1.example/").arg(index));
+                browser.recordOriginInteraction(page);
+                QVariant runtimeId;
+                QMetaObject::invokeMethod(profile, "simulateDownloadRequest",
+                    Q_RETURN_ARG(QVariant, runtimeId), Q_ARG(QVariant, page),
+                    Q_ARG(QVariant, page.resolved(names.at(index))),
+                    Q_ARG(QVariant, names.at(index)),
+                    Q_ARG(QVariant, QStringLiteral("application/pdf")));
+                QMetaObject::invokeMethod(profile, "simulateDownloadProgress",
+                    Q_ARG(QVariant, runtimeId), Q_ARG(QVariant, received.at(index)),
+                    Q_ARG(QVariant, 1000));
+            }
+        };
+        const auto openIndex = arguments.indexOf(QStringLiteral("--island-open"));
+        const auto opened = openIndex >= 0 && openIndex + 1 < arguments.size()
+            ? arguments.at(openIndex + 1)
+            : QString();
+        const auto downloads = arguments.contains(QStringLiteral("--downloads"));
+        if (downloads || !opened.isEmpty()) {
+            QTimer::singleShot(100, window, [window, startDownloads, downloads, opened] {
+                if (downloads) {
+                    startDownloads(2);
+                }
+                if (!opened.isEmpty()) {
+                    if (auto *island
+                        = window->findChild<QObject *>(QStringLiteral("statusIsland"))) {
+                        island->setProperty("expanded", opened);
+                    }
+                }
+            });
+        }
+        if (demoIndex >= 0 && demoIndex + 1 < arguments.size() && window != nullptr) {
+            const auto directory = arguments.at(demoIndex + 1);
+            const auto frame = std::make_shared<int>(0);
+            auto *timer = new QTimer(window);
+            timer->setInterval(40);
+            QObject::connect(
+                timer, &QTimer::timeout, window, [window, timer, frame, directory, startDownloads] {
+                    auto *island = window->findChild<QObject *>(QStringLiteral("statusIsland"));
+                    const auto at = *frame * 40;
+                    if (at == 400) {
+                        startDownloads(1);
+                    } else if (at == 1400) {
+                        problemRecording.start();
+                    } else if (at == 2400) {
+                        releaseWatch.showRelease(QStringLiteral("v9.9.9"));
+                    } else if (at == 3400 && island) {
+                        island->setProperty("expanded", QStringLiteral("downloads"));
+                    } else if (at == 4800 && island) {
+                        island->setProperty("expanded", QString());
+                    } else if (at == 5800) {
+                        problemRecording.stop();
+                        releaseWatch.showRelease(QString());
+                    }
+                    window->grabWindow().save(QStringLiteral("%1/frame-%2.png")
+                            .arg(directory)
+                            .arg(*frame, 3, 10, QLatin1Char('0')));
+                    if (++*frame * 40 > 6800) {
+                        timer->stop();
+                        QCoreApplication::quit();
+                    }
+                });
+            QTimer::singleShot(300, timer, qOverload<>(&QTimer::start));
+        }
+    }
     // `--sidebar-right` stands the sidebar against the window's right edge, as
     // Settings' interface section does.
     if (arguments.contains(QStringLiteral("--sidebar-right")) && !engine.rootObjects().isEmpty()) {
