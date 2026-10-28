@@ -57,18 +57,12 @@ state. Its engine is 6.11.2-16, built against Qt 6.12.0.
 with the address as a bare domain line, borderless pinned tabs and an Agent tab marked on its row,
 the inspector drawn in the theme, a CRT glass and a telemetry Scene on the Start page, touchpad
 scrolling that glides on after the lift, and link hints that follow Vimium's rules. Its engine is
-still 6.11.2-16.
+still 6.11.2-16. [v0.18.1](https://github.com/villekivela/omaweb/releases/tag/v0.18.1) shipped the
+engine on QtWebEngine 6.11.3, with Chromium's security fixes up to 155.0.8059.85, Omarchy's private
+browser key opening a Private window, and the Sync avatar drawn as a circle.
 
-[v0.18.1](https://github.com/villekivela/omaweb/milestone/19) is the release in progress. It moves
-the engine to QtWebEngine 6.11.3: the patch series rebased onto it
-([#802](https://github.com/villekivela/omaweb/issues/802)), then the security baseline raised to it
-([#822](https://github.com/villekivela/omaweb/issues/822)). Omarchy's private browser key opens a
-Private window ([#829](https://github.com/villekivela/omaweb/issues/829)), the Omarchy kit catches
-up with quattro ([#762](https://github.com/villekivela/omaweb/issues/762)), and the Sync avatar
-draws as the circle it was meant to be ([#836](https://github.com/villekivela/omaweb/issues/836)).
-
-[v0.19.0](https://github.com/villekivela/omaweb/milestone/20) follows. A Link rule opens a link from
-another app in the Space it names, or in a Private window
+[v0.19.0](https://github.com/villekivela/omaweb/milestone/20) is the release in progress. A Link
+rule opens a link from another app in the Space it names, or in a Private window
 ([#388](https://github.com/villekivela/omaweb/issues/388)), and Site information chooses one for the
 site on show ([#828](https://github.com/villekivela/omaweb/issues/828)). `omaweb --diagnose` starts
 a run with named overrides, such as the Chrome version a page reads, for testing a suspicion without
