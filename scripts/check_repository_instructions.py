@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Checks that everything naming the [omaweb] repository names the same one.
 
-A reader adds the repository from whichever page they happened to open, so the
-address they configure and the key they trust have to be identical in both.
-Nothing else would report a disagreement: each page is correct on its own, and a
-fingerprint that is right in one place and stale in the other fails at the
-reader's machine with a signature error, which is the worst place to find out.
+A reader adds the repository by hand from the README, which the website links to
+for it, or through a script that adds it for them, so the address they configure
+and the key they trust have to be identical in each. Nothing else would report a
+disagreement: each is correct on its own, and a fingerprint that is right in one
+place and stale in another fails at the reader's machine with a signature error,
+which is the worst place to find out.
 
 `scripts/trust_omaweb_repository.sh` is the third place, because the release
 workflow and CI install the engine from that same repository through it to build
@@ -38,7 +39,6 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGES = (
     "README.md",
-    "website/index.html",
     "scripts/trust_omaweb_repository.sh",
     "scripts/install.sh",
 )

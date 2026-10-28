@@ -240,20 +240,8 @@ a {
   color: var(--accent);
 }
 
-/* The radio's button: three level bars, still while the radio is off and moving while it plays.
-   The landing page has it on the Omnibar's hints, beside the theme, and the release pages, which
-   have no Omnibar, in the header. */
-body:has(.omnibar) .nav .radio-toggle {
-  display: none;
-}
-
-.omnibar__hints .radio-toggle {
-  margin-left: auto;
-}
-
-.omnibar__hints .radio-toggle:not([hidden]) + .themes {
-  margin-left: 0;
-}
+/* The radio's button, in the header: three level bars, still while the radio is off and moving
+   while it plays. */
 .radio-toggle:not([hidden]) {
   display: inline-flex;
   align-items: center;
@@ -638,15 +626,54 @@ body:has(.drive) > .top {
   color: var(--fg);
 }
 
-.omnibar__hints {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 18px;
-  padding: 8px 16px;
-  border-top: 1px solid var(--rule);
-  color: var(--dim);
-  font-size: 11px;
+/* With the script, the rows show once the reader types: the Omnibar at rest is the field alone. */
+.omnibar[data-quiet] .omnibar__rows {
+  display: none;
+}
+
+.omnibar[data-quiet] .omnibar__field {
+  border-bottom: 0;
+}
+
+/* Ignite, at the field's end where the page is a drive: a round play button in the accent, its
+   ring pulsing outward while it waits to be pressed. */
+.omnibar__ignite:not([hidden]) {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -8px;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  cursor: pointer;
+  animation: ignite-waits 2.2s ease-out infinite;
+  transition: transform 0.15s;
+}
+
+.omnibar__ignite svg {
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  fill: currentColor;
+}
+
+.omnibar__ignite:hover {
+  transform: scale(1.1);
+}
+
+@keyframes ignite-waits {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+
+  70%,
+  to {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
 }
 
 /* The way in spans the Omnibar's width: the install on its left edge and the lede filling the rest
@@ -690,13 +717,16 @@ body:has(.drive) > .top {
   color: var(--accent);
 }
 
-/* The theme picker, in the Omnibar's hints: each swatch is a small square of its own theme's
-   accent, inside a larger target, and the chosen one is ringed. */
+/* The theme picker, on the theme card: each swatch is a small square of its own theme's accent,
+   inside a larger target, and the chosen one is ringed. */
 .themes:not([hidden]) {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-left: auto;
+  gap: 8px 10px;
+  margin: 12px 10px 0;
+  color: var(--dim);
+  font-size: 12px;
 }
 
 .themes__name {
@@ -961,6 +991,13 @@ body:has(.drive) > .top {
   background: #000;
 }
 
+/* A rule between a card's capture and the words that explain it. */
+.card .card__shot + h2 {
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--edge);
+}
+
 .card__shot img {
   position: absolute;
   top: calc(-100% * var(--y) / (var(--w) * 0.5625));
@@ -1061,24 +1098,6 @@ body:has(.drive) > .top {
 
 .install .hud {
   margin-top: 12px;
-}
-
-/* The manual steps, behind a summary that reads as the section's other links. The marker is the
-   browser's own, so it turns with the open state without a script. */
-.install__manual {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-}
-
-.install__manual summary {
-  width: fit-content;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.install__manual summary:hover {
-  color: var(--accent);
 }
 
 .install__notes {
@@ -1484,6 +1503,202 @@ kbd {
 
 .log__out {
   margin-top: 36px;
+}
+
+/* The drive: on a wide screen that allows motion, the page is a road (highway.js). The page's
+   height is a track for the scroll with a snap at each stop, and each stop is a layer over the road
+   that drive.js places by the scroll: risen from the sun, read, then passed. */
+
+html.highway {
+  scroll-snap-type: y proximity;
+}
+
+.highway__track {
+  position: relative;
+}
+
+.highway__track i {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  scroll-snap-align: start;
+}
+
+/* The road stands clear, and the header stays in view with Radio, the ignition, in it. */
+.highway .drive__scrim {
+  display: none;
+}
+
+.highway body:has(.drive) > .top {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 200;
+}
+
+.highway .highway__stop {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, calc(-50% + var(--stop-drop, 0px))) scale(var(--stop-scale, 1));
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.highway .highway__stop[data-reading] {
+  pointer-events: auto;
+}
+
+.highway .start.highway__stop {
+  inset: 0;
+  height: 100svh;
+  transform: translateY(var(--stop-drop, 0px)) scale(var(--stop-scale, 1));
+}
+
+/* A card as large as the window allows with its words under its capture, the Agents card laid out
+   as the others, and the theme card, three captures across, a little wider for its picker. */
+.highway .card.highway__stop {
+  width: min(980px, 86vw, (100vh - 250px) * 1.45);
+}
+
+.highway #theme.highway__stop {
+  width: min(980px, 86vw, (100vh - 280px) * 1.9);
+}
+
+.highway .card--last {
+  display: block;
+}
+
+.highway .install.highway__stop {
+  width: min(980px, 86vw);
+}
+
+/* The film plays in the cards, a clip each, so the drive has no film of its own. */
+.highway .film {
+  display: none;
+}
+
+.card__clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* The cards catch the sun as the Omnibar does: its rim on their border, brightest at the middle of
+   the top edge, and its bloom, lifted by the radio's beat. */
+.highway .card,
+.highway .install {
+  --horizon: 0%;
+  isolation: isolate;
+}
+
+.highway .card::before,
+.highway .install::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  background: var(--scene-rim, none);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+/* And its bloom: a wider ring across the edge, blurred and added to the road as light is, lifted
+   by the beat, as the Omnibar's. */
+.stop__glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: var(--scene-bloom, 0);
+  filter: blur(calc(var(--scene-bloom-blur, 0) * 1px));
+  mix-blend-mode: plus-lighter;
+  pointer-events: none;
+}
+
+.stop__glow::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--scene-bloom-width, 0) * -0.5px);
+  padding: calc(var(--scene-bloom-width, 0) * 1px);
+  background: var(--scene-rim, none);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+/* Keyboard first's keys, lit one by one as cruise control reaches it. */
+.card kbd[data-lit] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+/* Cruise control's place: the stop it is at, the song's progress, and the way out. */
+.cruise {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 10px 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--plate) 88%, transparent);
+  backdrop-filter: blur(14px);
+  font-size: 13px;
+}
+
+.cruise[hidden],
+.cruise [hidden] {
+  display: none;
+}
+
+.cruise__where {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.cruise__name {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.cruise__song {
+  display: block;
+  height: 2px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.cruise__song i {
+  display: block;
+  width: calc(var(--song, 0) * 100%);
+  height: 100%;
+  background: var(--accent);
+}
+
+.cruise button {
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cruise__resume {
+  color: var(--accent);
 }
 
 /* Footer */

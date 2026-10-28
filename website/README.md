@@ -19,22 +19,24 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
   feature with a crop of the real interface, the install and a link to the release notes. Each
   section is plain HTML with a comment saying what it is, so the words are edited where they are
   read; a card's crop is a modifier class in `styles.css`.
-- `drive.js` is the landing page's behaviour: the road behind it, the Omnibar's rows, the film and
-  the theme picker, and on a release page the road as a still header. `script.js` is what the
-  landing page and the release pages share: the menu, the copy buttons and the release log. Both are
-  optional: without them the road is a gradient, the Omnibar's rows are links to their cards, and
-  the film is an ordinary video.
+- `drive.js` is the landing page's behaviour: the road behind it, the Omnibar's rows, the film, the
+  theme picker and the drive (below), and on a release page the road as a still header. `script.js`
+  is what the landing page and the release pages share: the menu, the copy buttons, the radio and
+  the release log. Both are optional: without them the road is a gradient, the page is stacked, the
+  Omnibar's rows are links to their cards, and the film is an ordinary video.
+- `highway.js` is what the drive decides: where each stop stands on the road, which stop the song
+  has reached, and what cruise control does when the reader takes the wheel.
 - `film.js` is what the film's own controls decide: what they show for its time, where a press on
   the scrubber seeks to and what a key does. `drive.js` wires them to the video, in place of the
   browser's controls, which it removes.
 - `scene.js` is the Scene host and `crt-road.js` the one Scene the site ships. The contract between
   them is below.
 - `assets/audio/nightroad.mp3` is the night radio: one song, Night road, which `script.js` plays on
-  a loop from the Radio button, on the Omnibar or a release page's header, or the `M` key, and stops
-  on the next press. Nothing loads before that.
-- `assets/film/` is where the introduction film and its poster are served from. The build copies
-  them there from the `film` release (`build/film.mjs`), and `film/README.md` at the repository root
-  has how the film is recorded and uploaded.
+  a loop from the Radio button in the header, or the `M` key, and stops on the next press. Nothing
+  loads before that. On the drive, turning it on is the ignition.
+- `assets/film/` is where the introduction film, its poster and its clips are served from. The build
+  copies them there from the `film` release (`build/film.mjs`), and `film/README.md` at the
+  repository root has how the film is recorded, cut and uploaded.
 - `assets/og.png` is the picture a link to the site shows where it is shared: the film's poster
   frame, cut to 1200×630. Make it again from a new poster with
   `magick poster.webp -resize 1200x675 -gravity center -extent 1200x630 -strip assets/og.png`.
@@ -97,14 +99,14 @@ export const myScene = {
 
 `light(input)` returns the colours, amounts and CSS values the Scene lights the page with, by name:
 a colour as an RGB triple, an amount as a number and a CSS value as a string. The host sets each on
-the one element the page names as lit, as `--scene-<name>`, an amount to two places, and writes only
+every element the page names as lit, as `--scene-<name>`, an amount to two places, and writes only
 what changed and nothing while that element is off screen. The CRT road casts the light its file's
 `light` block describes, which the browser's Omnibar is lit by too: `rim`, a radial gradient in the
 sun's colours centred on the sun, and `bloom`, `bloom-width` and `bloom-blur`, the blurred ring over
 the rim. The bloom's opacity rests at the file's amount and lifts with the radio's beat as it swells
 the sky around the sun, not at all below the glow's threshold or under `reducedMotion`. The landing
 page lights the Omnibar with it: its rim catches the sun's light, brightest over the sun and
-brighter on the beat.
+brighter on the beat. On the drive it lights every card and the install too.
 
 `glass: "crt"` asks the host to show the canvas through a CRT. The browser composites the canvas
 scaled up pixelated, a bloom, the beam's scanlines with one line to each of the Scene's rows, the
@@ -183,6 +185,38 @@ the road's look there, not in the script.
 Measured with the Scene in a 1440 by 900 box at twice the density, at rest on the Start page and
 while scrolling, it holds 30 frames a second in Firefox, Chrome and Safari for about a millisecond
 of main thread a frame.
+
+## The drive
+
+On a wide screen that allows motion, the landing page is a road, and the scroll is the throttle.
+`drive.js` decides it once, as the page opens, by the same query `scene.js` holds the road still
+under; a phone or a reader who asked for less motion keeps the stacked page. The page's height
+becomes a track of one window's height to each stop, with a snap where each is read, and each stop
+(the Start page, each card and the install) a layer over the road. `highway.js` places it by the
+scroll: past the horizon, risen from the sun and growing, held while it is read, then growing on,
+dropping below the camera and fading as the next one arrives. The install is where the road ends,
+and holds. The road runs faster with the scroll than on the stacked page, and at speed through a
+glide between stops. The scrim stands aside, the header stays in view, and the film has no stop of
+its own: each card plays its own beat of it instead.
+
+Ignite, the play button at the Omnibar's end, Radio in the header, `M` and Return on the empty
+Omnibar all start cruise control: the radio plays Night road from its start, without its loop, and
+the page drives to each stop on the song's cues. The Start page holds the eight bars before the beat
+comes in, each card four, and the install lands on the section at bar 40. A radio that does not play
+leaves the drive to a timer on the same cues. Anything the reader does takes the wheel: the drive
+lets go where it is, and the music plays on, on its loop. A chip in the corner names the stop, shows
+the song's progress, and offers Resume cruise, which carries on from the stop being read with the
+song sought to its cue, and Stop, which with `Esc` or the radio turned off ends the drive and the
+music. On the Start page the Omnibar types its way to a feature, and Keyboard first lights its keys.
+J and K glide to the next and the previous stop, and Return on a row to its card.
+
+`assets/film/clips.json` names the cards with a clip of the film, `clip-<card>.webm` and `.mp4` with
+`clip-<card>.webp`, its first frame. A card shows that frame from the horizon on, plays the clip
+from its start when it is read and holds its last frame; without `clips.json` the cards keep their
+captures. The Theme card's clip names the theme the recording wears at each moment, and the page
+wears each from its frame on, its picker naming it, and the reader's theme again when the card is no
+longer read. Lumon, which the desktop film changes to, is among the page's themes for that, with no
+swatch. Every card and the install catch the road's light as the Omnibar does.
 
 ## The release pages
 

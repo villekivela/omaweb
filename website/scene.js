@@ -108,9 +108,9 @@ export class SceneLight {
 export function drawsFrames(environment) {
   return Boolean(
     environment.onScreen &&
-      !environment.pageHidden &&
-      environment.focused &&
-      !holdsStill(environment),
+    !environment.pageHidden &&
+    environment.focused &&
+    !holdsStill(environment),
   );
 }
 
@@ -141,7 +141,8 @@ const ROLES = {
 export class SceneHost {
   // `held` holds the Scene still and leaves out its glass: one calm frame, as a release page's
   // header shows it. `beat` reads the radio's beat, 0 to 1, for each frame. `lit` is the element
-  // the Scene's light falls on, as `lightProperties` gives it, while that element is on screen.
+  // the Scene's light falls on, as `lightProperties` gives it, while that element is on screen;
+  // `lightUp` adds another.
   constructor(canvas, scene, { chosen = {}, held = false, beat = () => 0, lit = null } = {}) {
     this.canvas = canvas;
     // A Scene's canvas is small and redrawn every frame; kept in memory rather than on the GPU,
@@ -160,7 +161,7 @@ export class SceneHost {
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)");
     this.phone = matchMedia(PHONE);
     this.glass = scene.glass === "crt" && !held ? new CrtGlass(canvas, scene) : null;
-    this.light = lit && new SceneLight(lit);
+    this.lights = lit ? [new SceneLight(lit)] : [];
 
     new IntersectionObserver((entries) => {
       this.onScreen = entries[entries.length - 1].isIntersecting;
@@ -238,7 +239,15 @@ export class SceneHost {
     const input = { ...sceneInput(this.scene, environment), state: this.state };
     this.scene.draw(this.context, input);
     this.glass?.draw(this.context, input);
-    this.light?.cast(lightProperties(this.scene, input));
+    if (this.lights.length) {
+      const properties = lightProperties(this.scene, input);
+      for (const light of this.lights) light.cast(properties);
+    }
+  }
+
+  // The Scene's light on one more element, as on the first, while it is on screen.
+  lightUp(element) {
+    this.lights.push(new SceneLight(element));
   }
 
   update() {

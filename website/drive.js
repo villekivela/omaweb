@@ -1,11 +1,13 @@
 // The landing page's behaviour: the road behind it, the Omnibar on the Start page, the
-// introduction and the theme; and on a release page, the road as a still header. Optional, like
-// all of the page's script: without it the road is a gradient, the Omnibar's rows are links to
-// their cards, and the introduction is an ordinary video.
+// introduction and the theme, and on a wide screen that allows motion the drive down the road;
+// and on a release page, the road as a still header. Optional, like all of the page's script:
+// without it the road is a gradient, the page is stacked, the Omnibar's rows are links to their
+// cards, and the introduction is an ordinary video.
 
 import { createCrtRoad } from "./crt-road.js";
 import { filmKey, filmState, seekAt } from "./film.js";
-import { SceneHost } from "./scene.js";
+import { Cruise, cues, nearestStop, placement, wornAt } from "./highway.js";
+import { STILL_MEDIA, SceneHost } from "./scene.js";
 
 // The road's parameters, shared with the browser's own road and served beside this script. A
 // page that cannot fetch them keeps the gradient the road would have stood on.
@@ -55,20 +57,24 @@ if (drive) {
   // The Omnibar stands in front of the sun and catches its light at its rim.
   const host = crtRoad
     ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
-    : { setNavigating() {} };
+    : { setNavigating() {}, lightUp() {} };
 
   // Past the Start page the road sinks under a scrim of the theme's ground so the cards read
   // against it, and the scroll's speed is how hard the reader is navigating: the road speeds up
-  // with it and eases back when the scroll stops.
+  // with it and eases back when the scroll stops. On the drive the scroll is the throttle, so the
+  // road answers it harder, and a glide between stops runs it at speed (`cruising`).
   const start = drive.querySelector(".start");
   const scrim = drive.querySelector(".drive__scrim");
   let lastY = scrollY;
   let lastAt = performance.now();
   let pace = 0;
   let easing = 0;
+  let throttle = 1;
+  let cruising = 0;
+  const navigate = () => host.setNavigating(Math.min(1, Math.max(pace * throttle, cruising)));
   const settle = () => {
     pace *= 0.9;
-    host.setNavigating(pace);
+    navigate();
     easing = pace > 0.01 ? requestAnimationFrame(settle) : 0;
   };
   const scrolled = () => {
@@ -76,7 +82,7 @@ if (drive) {
     pace = Math.max(pace, Math.min(1, Math.abs(scrollY - lastY) / Math.max(16, now - lastAt) / 3));
     lastY = scrollY;
     lastAt = now;
-    host.setNavigating(pace);
+    navigate();
     if (!easing) easing = requestAnimationFrame(settle);
     scrim.style.opacity = String(Math.min(1, scrollY / (start.offsetHeight * 0.7)));
   };
@@ -198,7 +204,9 @@ if (drive) {
     }
   }
 
-  // The Omnibar: type to filter the features, arrows to choose a row, Return to go to its card.
+  // The Omnibar: type to filter the features, arrows to choose a row, Return to go to its card. At
+  // rest it is the field alone, its rows showing once the reader types. On the drive, Return on
+  // the empty field is the ignition.
   const input = omnibar.querySelector(".omnibar__input");
   const rows = [...omnibar.querySelectorAll('[role="option"]')];
   let chosen = 0;
@@ -212,9 +220,11 @@ if (drive) {
   };
   const go = (row) => {
     const card = drive.querySelector(`#${row.querySelector("a").dataset.card}`);
-    card.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
+    if (highway) highway.goTo(card);
+    else card.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
   };
   input.addEventListener("input", () => {
+    omnibar.toggleAttribute("data-quiet", !input.value);
     const query = input.value.trim().toLowerCase();
     for (const row of rows)
       row.hidden = Boolean(query) && !row.textContent.toLowerCase().includes(query);
@@ -224,6 +234,9 @@ if (drive) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       choose(chosen + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Enter" && highway && !input.value.trim()) {
+      event.preventDefault();
+      highway.ignite();
     } else if (event.key === "Enter" && shown().length) {
       event.preventDefault();
       go(shown()[chosen]);
@@ -242,12 +255,13 @@ if (drive) {
   }
   omnibar.querySelector(".omnibar__placeholder").remove();
   input.hidden = false;
+  omnibar.toggleAttribute("data-quiet", true);
 
   // The theme: the whole page, its road and its captures take the chosen Omarchy theme. A capture
   // with no data-shot shows a theme of its own, as the theme card's do.
   const captures = [...drive.querySelectorAll("img[data-shot]")];
   let theme = document.documentElement.dataset.theme;
-  const picker = omnibar.querySelector(".themes");
+  const picker = drive.querySelector(".themes");
   const swatches = [...picker.querySelectorAll("[data-theme-choice]")];
   // The pick lasts the visit, so the release pages open in it, and a new visit opens in the
   // markup's theme again; theme.js applies it.
@@ -281,6 +295,7 @@ if (drive) {
   const cards = [...drive.querySelectorAll(".card")];
   let current = -1;
   const step = (by) => {
+    if (highway) return highway.step(by);
     const onScreen = (card) => {
       const rect = card.getBoundingClientRect();
       return rect.bottom > 0 && rect.top < innerHeight;
@@ -367,6 +382,375 @@ if (drive) {
       paint(swatches[(at + by + swatches.length) % swatches.length].dataset.themeChoice);
     }
   });
+
+  // The drive, on a wide screen that allows motion: the page is the road (highway.js). Its stops
+  // are the Start page, each card and the install; the page's height becomes a track to scroll,
+  // and each stop a layer over the road, placed by how far along it the scroll is. A phone or a
+  // reader who asked for less motion keeps the stacked page, decided once as the page opens.
+  const highway = matchMedia(STILL_MEDIA).matches ? null : driveTheRoad();
+
+  function driveTheRoad() {
+    const root = document.documentElement;
+    const stops = [start, ...cards, drive.querySelector(".install")];
+    const times = cues(stops.length);
+    root.classList.add("highway");
+    for (const stop of stops) stop.classList.add("highway__stop");
+    throttle = 4;
+
+    // One window's height of scroll to each stop, with a snap where it is read.
+    const track = document.createElement("div");
+    track.className = "highway__track";
+    track.setAttribute("aria-hidden", "true");
+    drive.prepend(track);
+    let base = 0;
+    let length = innerHeight;
+    const measure = () => {
+      length = innerHeight;
+      track.style.height = `${(stops.length - 1) * length + innerHeight}px`;
+      track.replaceChildren(
+        ...stops.map((_, index) => {
+          const mark = document.createElement("i");
+          mark.style.top = `${index * length}px`;
+          return mark;
+        }),
+      );
+      base = track.getBoundingClientRect().top + scrollY;
+    };
+    const progress = () => (scrollY - base) / length;
+
+    // The cards catch the sun as the Omnibar does, each with a bloom of its own.
+    for (const stop of stops.slice(1)) {
+      const glow = document.createElement("span");
+      glow.className = "stop__glow";
+      glow.setAttribute("aria-hidden", "true");
+      stop.prepend(glow);
+      host.lightUp(stop);
+    }
+
+    // The film, a clip to each card that has a beat of it (film/README.md): the clip's first frame
+    // from the horizon on, played from its start when the card is read, held on its last frame. A
+    // clip that names the themes it was recorded in has the page wear each from its frame on, and
+    // the page's own theme back when its card is no longer read. A theme the page has no rule for
+    // is not worn. Without `clips.json` the cards keep their captures.
+    const clips = new Map();
+    fetch(new URL("assets/film/clips.json", document.baseURI))
+      .then((response) => (response.ok ? response.json() : {}))
+      .then((listed) => {
+        for (const [name, clip] of Object.entries(listed)) {
+          const card = cards.find((candidate) => candidate.id === name);
+          if (!card) continue;
+          const video = document.createElement("video");
+          video.className = "card__clip";
+          video.muted = true;
+          video.playsInline = true;
+          video.preload = "auto";
+          video.poster = `assets/film/clip-${name}.webp`;
+          video.setAttribute("aria-hidden", "true");
+          for (const [type, kind] of [
+            ["video/webm", "webm"],
+            ["video/mp4", "mp4"],
+          ]) {
+            const source = document.createElement("source");
+            source.type = type;
+            source.src = `assets/film/clip-${name}.${kind}`;
+            video.append(source);
+          }
+          card.querySelector(".card__shot").append(video);
+          clips.set(card, {
+            video,
+            themes: (clip.themes || []).filter(([, worn]) => styled(worn)),
+          });
+        }
+        shown = -1;
+        render();
+      })
+      .catch(() => {});
+    const probe = document.createElement("i");
+    probe.hidden = true;
+    drive.append(probe);
+    const ground = (worn) => {
+      probe.dataset.theme = worn;
+      return getComputedStyle(probe).getPropertyValue("--bg").trim();
+    };
+    const styled = (worn) => ground(worn) !== ground("");
+    const named = picker.querySelector(".themes__name");
+    const wear = (worn) => {
+      root.dataset.theme = worn;
+      const swatch = swatches.find((choice) => choice.dataset.themeChoice === worn);
+      named.textContent =
+        swatch?.dataset.name ??
+        worn.replace(/(^|-)([a-z])/g, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
+    };
+    let following = 0;
+    let shown = -1;
+    const roll = (index) => {
+      if (index === shown) return;
+      shown = index;
+      cancelAnimationFrame(following);
+      if (root.dataset.theme !== theme) wear(theme);
+      const clip = clips.get(stops[index]);
+      if (!clip) return;
+      clip.video.currentTime = 0;
+      clip.video.play().catch(() => {});
+      if (!clip.themes.length) return;
+      const follow = () => {
+        const worn = wornAt(clip.video.currentTime, clip.themes);
+        if (worn && root.dataset.theme !== worn) wear(worn);
+        following = clip.video.ended ? 0 : requestAnimationFrame(follow);
+      };
+      following = requestAnimationFrame(follow);
+    };
+
+    let reading = 0;
+    const render = () => {
+      const at = progress();
+      stops.forEach((stop, index) => {
+        const place = placement(at - index, index === stops.length - 1);
+        if (!place) {
+          stop.style.display = "none";
+          return;
+        }
+        stop.style.display = "";
+        stop.style.opacity = place.opacity.toFixed(3);
+        stop.style.zIndex = String(100 - Math.round(place.depth * 5));
+        stop.style.setProperty("--stop-scale", place.scale.toFixed(4));
+        stop.style.setProperty("--stop-drop", `${(place.drop * 60).toFixed(2)}vh`);
+        stop.toggleAttribute("data-reading", place.reading);
+        if (place.reading) reading = index;
+      });
+      roll(reading);
+    };
+    let frame = 0;
+    addEventListener(
+      "scroll",
+      () => {
+        if (!frame) frame = requestAnimationFrame(() => ((frame = 0), render()));
+      },
+      { passive: true },
+    );
+    addEventListener("resize", () => {
+      measure();
+      render();
+    });
+    measure();
+    render();
+
+    // A glide to a stop, as cruise control, the Omnibar or J and K drive: eased, the road at
+    // speed, and the snap let go until it lands.
+    let gliding = 0;
+    const glide = (index, duration = 2200) => {
+      cancelAnimationFrame(gliding);
+      const from = scrollY;
+      const to = base + index * length;
+      const began = performance.now();
+      root.style.scrollSnapType = "none";
+      const move = (now) => {
+        const t = Math.min(1, (now - began) / duration);
+        const eased = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+        cruising = Math.sin(Math.PI * t);
+        scrollTo({ top: from + (to - from) * eased, behavior: "instant" });
+        if (t < 1) {
+          gliding = requestAnimationFrame(move);
+        } else {
+          gliding = 0;
+          cruising = 0;
+          root.style.scrollSnapType = "";
+        }
+      };
+      gliding = requestAnimationFrame(move);
+    };
+    const letGo = () => {
+      cancelAnimationFrame(gliding);
+      gliding = 0;
+      cruising = 0;
+      root.style.scrollSnapType = "";
+    };
+
+    // Cruise control, on the night radio: its button in the header, M, Ignite at the Omnibar's end
+    // and Return on the empty Omnibar all turn it on, and the radio turned on drives the road on
+    // the song's cues from its start. A radio that does not play, as when the browser refuses it,
+    // leaves the drive to a timer on the same cues. Anything the reader does takes the wheel: the
+    // drive lets go and the music plays on, on its loop again. Stop, Esc or the radio turned off
+    // ends both.
+    const radio = document.querySelector(".radio");
+    const radioButton = document.querySelector(".radio-toggle");
+    const ignition = omnibar.querySelector(".omnibar__ignite");
+    if (!radio || !radioButton) return { goTo() {}, step() {}, ignite() {} };
+    const cruise = new Cruise(times);
+    let timed = false;
+    let timerStart = 0;
+    const clock = () => (timed ? (performance.now() - timerStart) / 1000 : radio.currentTime);
+
+    const chip = document.createElement("div");
+    chip.className = "cruise";
+    chip.hidden = true;
+    chip.innerHTML = `<div class="cruise__where"><span class="cruise__name"></span
+      ><span class="cruise__song"><i></i></span></div
+      ><button class="cruise__resume" type="button">Resume cruise</button
+      ><button class="cruise__stop" type="button">Stop <kbd>Esc</kbd></button>`;
+    document.body.append(chip);
+    const where = chip.querySelector(".cruise__name");
+    const song = chip.querySelector(".cruise__song");
+    const resumeButton = chip.querySelector(".cruise__resume");
+    const nameOf = (index) =>
+      index === 0 ? "Start" : stops[index].querySelector("h2").textContent.replace(/\.$/, "");
+    const show = () => {
+      chip.hidden = cruise.state === "off";
+      resumeButton.hidden = cruise.state !== "held";
+      where.textContent =
+        cruise.state === "held"
+          ? "You have the wheel"
+          : cruise.state === "parked"
+            ? "End of the road"
+            : nameOf(Math.max(0, cruise.current));
+      song.style.setProperty("--song", Math.min(1, clock() / times[times.length - 1]).toFixed(3));
+    };
+
+    // What a stop does as cruise control reaches it: the Omnibar types its way to a feature, and
+    // Keyboard first lights its keys. Each gives back how to undo it.
+    const later = (timers, seconds, action) => timers.push(setTimeout(action, seconds * 1000));
+    const performs = new Map([
+      [
+        start,
+        () => {
+          const timers = [];
+          const type = (value) => {
+            input.value = value;
+            input.dispatchEvent(new Event("input"));
+          };
+          const query = "keyboard";
+          [...query].forEach((_, at) =>
+            later(timers, 2 + at * 0.18, () => type(query.slice(0, at + 1))),
+          );
+          later(timers, 2 + (times[1] - 2) * 0.6, () => type(""));
+          return () => {
+            timers.forEach(clearTimeout);
+            type("");
+          };
+        },
+      ],
+      [
+        drive.querySelector("#keyboard"),
+        (card) => {
+          const timers = [];
+          const keys = [...card.querySelectorAll("kbd")];
+          keys.forEach((key, at) =>
+            later(timers, 0.6 + at * 0.4, () => key.toggleAttribute("data-lit", true)),
+          );
+          return () => {
+            timers.forEach(clearTimeout);
+            for (const key of keys) key.removeAttribute("data-lit");
+          };
+        },
+      ],
+    ]);
+    let undo = () => {};
+    const leave = () => {
+      undo();
+      undo = () => {};
+    };
+
+    const tick = () => {
+      const index = cruise.tick(clock());
+      if (index !== null) {
+        leave();
+        glide(index);
+        undo = performs.get(stops[index])?.(stops[index]) ?? (() => {});
+        if (cruise.state === "parked" && timed)
+          setTimeout(() => cruise.state === "parked" && end(), 4000);
+      }
+      show();
+    };
+    setInterval(() => cruise.state !== "off" && tick(), 100);
+
+    const begin = (timer) => {
+      leave();
+      timed = timer;
+      timerStart = performance.now();
+      radio.loop = false;
+      if (!timer) radio.currentTime = 0;
+      cruise.start();
+      tick();
+    };
+    const end = () => {
+      leave();
+      cruise.end();
+      radio.loop = true;
+      show();
+    };
+    const hold = () => {
+      if (!cruise.hold()) return;
+      leave();
+      letGo();
+      radio.loop = true;
+      show();
+    };
+    const resume = () => {
+      const cue = cruise.resume(nearestStop(progress(), stops.length)) + 0.01;
+      radio.loop = false;
+      if (timed) timerStart = performance.now() - cue * 1000;
+      else {
+        radio.currentTime = cue;
+        if (radio.paused) radio.play().catch(() => {});
+      }
+      tick();
+    };
+    const stopAll = () => {
+      end();
+      if (!radio.paused) radio.pause();
+    };
+    // The radio's own button, pressed from inside the reader's press, so the song's analyser starts
+    // and the sun beats with it.
+    const ignite = () => {
+      if (cruise.state !== "off") return;
+      if (radio.paused) radioButton.click();
+      setTimeout(() => cruise.state === "off" && radio.paused && begin(true), 1500);
+    };
+
+    radio.addEventListener("play", () => cruise.state === "off" && begin(false));
+    radio.addEventListener("pause", () => cruise.state !== "off" && !radio.ended && end());
+    radio.addEventListener("ended", () => cruise.state !== "off" && end());
+    ignition.hidden = false;
+    ignition.addEventListener("click", ignite);
+    resumeButton.addEventListener("click", resume);
+    chip.querySelector(".cruise__stop").addEventListener("click", stopAll);
+
+    // The reader's own hand, before the page's keys act on it. The ignition, the chip, the radio
+    // and the Omnibar's rows are cruise control's own controls or drive to a stop themselves.
+    const own = (target) =>
+      target instanceof Element &&
+      target.closest(".omnibar__ignite, .cruise, .radio-toggle, .omnibar__rows");
+    for (const type of ["wheel", "touchstart", "pointerdown"]) {
+      addEventListener(type, (event) => event.isTrusted && !own(event.target) && hold(), {
+        capture: true,
+        passive: true,
+      });
+    }
+    addEventListener(
+      "keydown",
+      (event) => {
+        if (!event.isTrusted || own(event.target)) return;
+        if (event.key === "Escape" && cruise.state !== "off") {
+          event.stopImmediatePropagation();
+          stopAll();
+        } else if (event.key.toLowerCase() !== "m") {
+          hold();
+        }
+      },
+      { capture: true },
+    );
+
+    return {
+      goTo(card) {
+        hold();
+        glide(stops.indexOf(card), 2600);
+      },
+      step(by) {
+        glide(Math.max(0, Math.min(stops.length - 1, reading + by)), 1600);
+      },
+      ignite,
+    };
+  }
 }
 
 // A release page: the road as a thin header, one still frame without the glass, in the reader's
