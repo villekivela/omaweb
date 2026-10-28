@@ -1840,6 +1840,11 @@ html.highway {
   }
 }
 
+/* On the road the Agents card reads as every other card does: its words under its capture. */
+.highway .card--last {
+  display: block;
+}
+
 .card kbd.tour-key {
   border-color: var(--accent);
   background: var(--accent);
