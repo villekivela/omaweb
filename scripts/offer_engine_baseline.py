@@ -5,7 +5,9 @@
 and Settings marks a build below it as an unsupported preview. So the baseline
 has to name the engine the pacman repository serves, and the two numbers that
 say which engine that is come out of the tree it was built from rather than
-being retyped: `engine.json` is written by the build.
+being retyped: the build writes one `engine-<arch>.json` per architecture.
+Both are built from one tree, so they must agree on both numbers, and the offer
+is refused when they do not.
 
 What this opens is a pull request, not a commit. Raising the baseline means the
 Qt release notes were read and a build was qualified against the engine, and
@@ -14,10 +16,12 @@ left alone for that reason, and the pull request says so:
 `chromiumSecurityPatch`, which Qt states in prose, and `reviewed`, which is the
 date a person read it.
 
-    scripts/offer_engine_baseline.py --engine artifacts/engine.json --tag engine-6.11.2
+    scripts/offer_engine_baseline.py --engine artifacts/engine-*.json --tag engine-6.11.2
 
 Exits 0 having done nothing when the baseline already names that engine, which
-is the case on a rebuild of a version already approved.
+is the case on a rebuild of a version already approved. It also exits 0 when
+given no engine file, which is an engine built before the build wrote one, but
+says so as a warning rather than skipping in silence (#846).
 """
 
 from __future__ import annotations
@@ -70,8 +74,10 @@ Until the baseline lands, every build reports itself as below it."""
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--engine", type=Path, required=True,
-                        help="engine.json, as the build wrote it")
+    parser.add_argument("--engine", type=Path, nargs="*", default=[],
+                        help="the engine files the release carries, as the build wrote them")
+    parser.add_argument("--baseline", type=Path, default=BASELINE,
+                        help="the baseline to raise")
     parser.add_argument("--tag", required=True,
                         help="the release the engine was published from")
     parser.add_argument("--base", default="main",
@@ -80,10 +86,26 @@ def main():
                         help="write the file and print what would be pushed")
     arguments = parser.parse_args()
 
-    engine = json.loads(arguments.engine.read_text(encoding="utf-8"))
-    qt, chromium = engine["qtwebengine"], engine["chromium"]
+    if not arguments.engine:
+        print(f"::warning::{arguments.tag} carries no engine file, so the baseline was not "
+              "offered; raise it by hand if this engine needs it")
+        return 0
 
-    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    engines = {path: json.loads(path.read_text(encoding="utf-8")) for path in arguments.engine}
+    agreed = []
+    for field in ("qtwebengine", "chromium"):
+        try:
+            versions = {str(path): engine[field] for path, engine in engines.items()}
+        except KeyError:
+            print(f"::error::an engine file carries no {field}", file=sys.stderr)
+            return 1
+        if len(set(versions.values())) > 1:
+            print(f"::error::the engine files disagree on {field}: {versions}", file=sys.stderr)
+            return 1
+        agreed.append(next(iter(versions.values())))
+    qt, chromium = agreed
+
+    baseline = json.loads(arguments.baseline.read_text(encoding="utf-8"))
     if baseline["qtwebengine"] == qt:
         print(f"the baseline already names {qt}, so there is nothing to offer")
         return 0
@@ -91,7 +113,7 @@ def main():
     was = baseline["qtwebengine"]
     baseline["qtwebengine"] = qt
     baseline["chromium"] = chromium
-    BASELINE.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
+    arguments.baseline.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
     print(f"baseline: {was} -> {qt}, Chromium {chromium}")
 
     if arguments.dry_run:
@@ -104,7 +126,7 @@ def main():
     run("git", "config", "user.name", AUTHOR[0])
     run("git", "config", "user.email", AUTHOR[1])
     run("git", "switch", "-c", branch)
-    run("git", "add", str(BASELINE.relative_to(ROOT)))
+    run("git", "add", str(arguments.baseline.resolve().relative_to(ROOT)))
     run("git", "commit", "--quiet", "--message",
         commit_message(qt, chromium, arguments.tag))
     run("git", "push", "--force", "origin", branch)

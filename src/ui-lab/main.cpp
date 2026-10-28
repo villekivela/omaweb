@@ -1719,6 +1719,9 @@ QtObject {
             // A Glance over the last seeded tab's page, as a link asking for a
             // new tab opens one. `--glance-keep-at <ms>` keeps it as a tab and
             // holds the movement that far in, so a capture is a moment of it.
+            // `--glance-keyboard` puts the keyboard in its controls, and
+            // `--glance-labels` shows their Key labels as holding Primary does,
+            // which a capture has no key to hold for.
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
                 qCritical("--show glance needs a page; pass --tabs");
@@ -1729,10 +1732,18 @@ QtObject {
             const auto keepAt = keepAtIndex >= 0 && keepAtIndex + 1 < arguments.size()
                 ? arguments.at(keepAtIndex + 1).toInt()
                 : -1;
-            QTimer::singleShot(300, root, [root, keepAt] {
+            const auto inControls = arguments.contains(QStringLiteral("--glance-keyboard"));
+            const auto labelled = arguments.contains(QStringLiteral("--glance-labels"));
+            QTimer::singleShot(300, root, [root, keepAt, inControls, labelled] {
                 QMetaObject::invokeMethod(root, "openGlance", Q_ARG(QVariant, QVariant()),
                     Q_ARG(QVariant, QUrl(QStringLiteral("https://example.org/glance"))));
                 auto *glance = root->findChild<QObject *>(QStringLiteral("glance"));
+                if (glance != nullptr && labelled) {
+                    glance->setProperty("keyLabelsShown", true);
+                }
+                if (glance != nullptr && inControls) {
+                    QMetaObject::invokeMethod(glance, "focusControls");
+                }
                 if (keepAt < 0 || glance == nullptr) {
                     return;
                 }

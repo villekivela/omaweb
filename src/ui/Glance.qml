@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Ui as Omarchy
 import "DevicePixels.mjs" as DevicePixels
 
 // A page opened by a link that asked for a new tab, shown over the tab it came
@@ -12,10 +13,11 @@ import "DevicePixels.mjs" as DevicePixels
 // an ordinary tab, page and all.
 //
 // The window owns the engine and its life; this is where it is drawn while it
-// is a Glance. The chrome goes on answering for the tab beneath: the address,
-// the find bar, back and forward are that tab's. The Glance is the page alone,
-// as Zen's is, with its two buttons beside it rather than a head over it
-// (#704).
+// is a Glance. The chrome goes on answering for the tab beneath: the address
+// trigger and the find bar are that tab's. The Glance's own controls stand in
+// a column beside the panel: back, forward and reload there walk the history
+// the Glance's engine keeps, and the window sends those commands here from
+// keys and the command scope too while a Glance is open (#839).
 //
 // A `FocusScope`, for the reason `DialogPanel` is one: the page beneath settles
 // its own `focus` binding after the Glance opens, and a flat item would lose
@@ -62,12 +64,22 @@ FocusScope {
 
     signal closed
     signal openAsTabRequested
+    signal backRequested
+    signal forwardRequested
+    signal reloadRequested
     // The panel is the page area: the engine is the tab's to take.
     signal kept
 
+    // The keymap the controls' Key labels are read from, and whether Primary
+    // is held for them.
+    property var keyMap: null
+    property bool keyLabelsShown: false
+    // Whether the keyboard is in the controls rather than in the page.
+    readonly property bool controlsFocused: controls.activeFocus
+
     // A page's Glance stands the page area's full height between margins wide
     // enough that the page beneath is seen either side, so the panel reads as
-    // over the page rather than as the page, and its buttons stand in one.
+    // over the page rather than as the page, and its controls stand in one.
     readonly property real margin: DevicePixels.snap(width * 0.12, pixelRatio)
     // How close an extension's popup may come to the page area's edges.
     readonly property real inset: 40
@@ -212,10 +224,35 @@ FocusScope {
         departure.restart();
     }
 
+    // The window opens the Glance as it hands it the engine, and `open` can
+    // be told first: the page is focused once it is there to focus.
+    onEngineChanged: if (root.open && root.engine)
+                         root.focusPage()
+
     function focusPage() {
         root.forceActiveFocus();
         if (root.engine)
             root.engine.focusPage();
+    }
+
+    // The keyboard comes into the controls on the first button it can press.
+    function focusControls() {
+        controls.cursor = controls.step(-1, 1, false);
+        controls.forceActiveFocus();
+    }
+
+    // The controls stand by the panel's top, so up from the page reaches them
+    // and down from them returns. The keyboard is the Glance's while it is in
+    // either, and a move another way leaves it where it is. Answers whether
+    // the move was the Glance's to take.
+    function moveFocus(stepY) {
+        if (!root.activeFocus)
+            return false;
+        if (root.controlsFocused && stepY > 0)
+            root.focusPage();
+        else if (!root.controlsFocused && stepY < 0)
+            root.focusControls();
+        return true;
     }
 
     // A list Omaweb drew under a field of the Glance's page takes the next
@@ -298,56 +335,213 @@ FocusScope {
         }
     }
 
-    // Close and keep, floating beside the panel's top corner where a head
-    // would have held them.
-    Rectangle {
+    // The Glance's controls, a column of bare buttons beside the panel's top
+    // corner: close and open as tab, then back, forward and reload for the
+    // page inside. Gone early in the keeping, as the controls of a page that
+    // is a tab now.
+    //
+    // The buttons are no keyboard stops of their own. The column holds the
+    // keyboard and walks a cursor over them, as the outline walks the Sidebar
+    // cursor over its rows: Tab inside a Glance belongs to its page, so
+    // `Alt+K` is the way in, and `Alt+J` or `Escape` the way out.
+    FocusScope {
+        id: controls
         objectName: "glanceButtons"
-        // On whole pixels of the display, as the panel is, so its border and
-        // glyphs are not drawn soft at a fractional scale.
+        // On whole pixels of the display, as the panel is, so the glyphs are
+        // not drawn soft at a fractional scale.
         x: DevicePixels.snap(panel.x + panel.width + Style.spacing.lg, root.pixelRatio)
         y: DevicePixels.snap(panel.y + Style.spacing.lg, root.pixelRatio)
-        width: buttons.implicitWidth + 2 * Style.spacing.sm
-        height: buttons.implicitHeight + 2 * Style.spacing.sm
-        radius: width / 2
-        color: buttonsDither.fill
-        border.width: DevicePixels.snap(1, root.pixelRatio)
-        border.color: root.colors.separator
-        // Gone early in the keeping, as the head of a page that is a tab now.
+        width: buttons.width
+        height: buttons.height
         opacity: root.arrival * (1 - Math.min(1, 3 * root.keep))
 
-        GroundDither {
-            id: buttonsDither
-            ground: root.colors.overlay
+        // The button under the cursor, by its place in `order`.
+        property int cursor: 0
+        readonly property var order: [closeButton, openAsTabButton, backButton, forwardButton,
+            reloadButton]
+
+        function pressable(index) {
+            const button = controls.order[index];
+            return button !== undefined && button.visible && button.enabled;
+        }
+
+        // Back at the first page, back is disabled under the cursor: the
+        // cursor moves on to a button the keyboard can still press.
+        readonly property bool cursorPressable: controls.pressable(controls.cursor)
+        onCursorPressableChanged: if (!controls.cursorPressable)
+                                      controls.cursor = controls.step(controls.cursor, 1, true)
+
+        // The next button the keyboard can press from `from` towards `delta`,
+        // round the ends when `wrap` is set, or `from` itself when there is
+        // none that way.
+        function step(from, delta, wrap) {
+            const count = controls.order.length;
+            let at = from;
+            for (let tried = 0; tried < count; ++tried) {
+                at += delta;
+                if (wrap)
+                    at = (at + count) % count;
+                else if (at < 0 || at >= count)
+                    return from;
+                if (controls.pressable(at))
+                    return at;
+            }
+            return from;
+        }
+
+        Keys.onPressed: function (event) {
+            switch (event.key) {
+            case Qt.Key_Up:
+                controls.cursor = controls.step(controls.cursor, -1, false);
+                break;
+            case Qt.Key_Down:
+                controls.cursor = controls.step(controls.cursor, 1, false);
+                break;
+            case Qt.Key_Tab:
+                controls.cursor = controls.step(controls.cursor, 1, true);
+                break;
+            case Qt.Key_Backtab:
+                controls.cursor = controls.step(controls.cursor, -1, true);
+                break;
+            case Qt.Key_Return:
+            case Qt.Key_Enter:
+            case Qt.Key_Space:
+                if (controls.pressable(controls.cursor))
+                    controls.order[controls.cursor].clicked();
+                break;
+            case Qt.Key_Escape:
+                root.focusPage();
+                break;
+            default:
+                return;
+            }
+            event.accepted = true;
+        }
+
+        // A click on a disabled button, or between two, is not a click
+        // outside the Glance: the column stands over the dim, which would
+        // take it and close the Glance.
+        MouseArea {
+            anchors.fill: parent
         }
 
         Column {
             id: buttons
-            x: DevicePixels.snap(Style.spacing.sm, root.pixelRatio)
-            y: x
             spacing: Style.spacing.sm
 
-            ChromeButton {
+            GlanceButton {
+                id: closeButton
                 objectName: "closeGlanceButton"
-                width: 30
-                height: 30
                 icon: "close"
                 accessibleName: qsTr("Close Glance")
-                fontFamily: root.iconFontFamily
-                accent: root.colors.accent
                 onClicked: root.closed()
             }
 
-            ChromeButton {
+            GlanceButton {
+                id: openAsTabButton
                 objectName: "openGlanceAsTabButton"
                 visible: root.openAsTabAllowed
-                width: 30
-                height: 30
                 icon: "open_in_new"
                 accessibleName: qsTr("Open as tab")
-                fontFamily: root.iconFontFamily
-                accent: root.colors.accent
                 onClicked: root.openAsTabRequested()
             }
+
+            GlanceButton {
+                id: backButton
+                objectName: "glanceBackButton"
+                icon: "arrow_back"
+                accessibleName: qsTr("Back")
+                enabled: root.engine ? root.engine.canGoBack : false
+                onClicked: root.backRequested()
+            }
+
+            GlanceButton {
+                id: forwardButton
+                objectName: "glanceForwardButton"
+                icon: "arrow_forward"
+                accessibleName: qsTr("Forward")
+                enabled: root.engine ? root.engine.canGoForward : false
+                onClicked: root.forwardRequested()
+            }
+
+            GlanceButton {
+                id: reloadButton
+                objectName: "glanceReloadButton"
+                icon: "refresh"
+                accessibleName: qsTr("Reload")
+                onClicked: root.reloadRequested()
+            }
         }
+
+        // The Sidebar cursor, on the button holding the keyboard: the accent
+        // at 7% with an accent border, as on a tab row.
+        Omarchy.BorderSurface {
+            objectName: "glanceButtonsCursor"
+            readonly property Item button: controls.order[controls.cursor] || null
+            visible: controls.activeFocus && controls.pressable(controls.cursor)
+            x: button ? button.x : 0
+            y: button ? button.y : 0
+            width: button ? button.width : 0
+            height: button ? button.height : 0
+            radius: 2
+            color: Qt.alpha(root.colors.accent, 0.07)
+            borderSpec: Border.flat(root.colors.accent, 1)
+        }
+
+        // The labels belong to the column rather than to their buttons: a
+        // disabled button is drawn at 35%, and a label that inherited that
+        // would let the page show through it. Each stands beside its button,
+        // away from the panel, since the next button is below it.
+        GlanceKeyLabel {
+            objectName: "keyLabel-closeGlanceButton"
+            button: closeButton
+            command: "close-tab"
+        }
+
+        GlanceKeyLabel {
+            objectName: "keyLabel-openGlanceAsTabButton"
+            button: openAsTabButton
+            command: "glance-to-tab"
+        }
+
+        GlanceKeyLabel {
+            objectName: "keyLabel-glanceBackButton"
+            button: backButton
+            command: "back"
+        }
+
+        GlanceKeyLabel {
+            objectName: "keyLabel-glanceForwardButton"
+            button: forwardButton
+            command: "forward"
+        }
+
+        GlanceKeyLabel {
+            objectName: "keyLabel-glanceReloadButton"
+            button: reloadButton
+            command: "reload"
+        }
+    }
+
+    component GlanceButton: ChromeButton {
+        width: 30
+        height: 30
+        // The column walks its cursor over the buttons, so none is a stop the
+        // kit marks with its own focus ring.
+        focusable: false
+        fontFamily: root.iconFontFamily
+        accent: root.colors.accent
+    }
+
+    component GlanceKeyLabel: KeyLabel {
+        required property Item button
+        required property string command
+
+        iconFontFamily: root.iconFontFamily
+        x: DevicePixels.snap(button.x + button.width + Style.spacing.sm, root.pixelRatio)
+        y: DevicePixels.snap(button.y + (button.height - height) / 2, root.pixelRatio)
+        keys: root.keyLabelsShown && root.keyMap ? root.keyMap.labelFor(command) : ""
+        shown: root.keyLabelsShown && button.visible
+        colors: root.colors
     }
 }

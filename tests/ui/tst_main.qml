@@ -10820,9 +10820,11 @@ TestCase {
     }
 
     // A Glance stands the page area's full height between margins of an
-    // eighth of its width, as Zen's does (#704). It has no head: its buttons
-    // float beside it, and the page it came from is scaled back and dimmed
-    // behind it rather than blurred.
+    // eighth of its width, as Zen's does (#704), and the page it came from is
+    // scaled back and dimmed behind it rather than blurred. It has no head:
+    // the page fills the panel, and its controls are bare buttons in a column
+    // beside the panel's top corner (#839), close and open as tab, then back,
+    // forward and reload.
     function test_aGlanceStandsTheFullHeightWithItsButtonsBeside() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         SystemMotion.reduced = true;
@@ -10837,19 +10839,31 @@ TestCase {
             compare(Math.round(panel.x), margin);
             compare(Math.round(glance.width - panel.x - panel.width), margin);
             // The page fills the panel inside its border, with no head over it.
+            compare(findChild(glance, "glanceHead"), null);
             compare(findChild(glance, "glanceTitle"), null);
             compare(findChild(glance, "glanceAddress"), null);
             compare(pageHost.y, panel.border.width);
             compare(pageHost.height, panel.height - 2 * panel.border.width);
 
-            for (const name of ["closeGlanceButton", "openGlanceAsTabButton"]) {
+            // Bare buttons: the column has no ground, border or capsule.
+            const column = findChild(glance, "glanceButtons");
+            verify(column !== null);
+            compare(column.color, undefined);
+            compare(column.border, undefined);
+            compare(column.radius, undefined);
+
+            let previous = -1;
+            for (const name of ["closeGlanceButton", "openGlanceAsTabButton", "glanceBackButton",
+                                "glanceForwardButton", "glanceReloadButton"]) {
                 const button = findChild(glance, name);
                 verify(button !== null, name);
                 verify(button.visible, name);
                 const at = button.mapToItem(glance, 0, 0);
                 verify(at.x >= panel.x + panel.width, name + " beside the panel: " + at.x);
-                verify(at.y < 80, name + " by the panel's top: " + at.y);
+                verify(at.y > previous, name + " in its place, top to bottom: " + at.y);
+                previous = at.y;
             }
+            verify(previous < 240, "the column by the panel's top: " + previous);
 
             compare(findChild(glance, "glanceBackdrop"), null);
             compare(findChild(glance, "glanceDim").opacity, 0.45);
@@ -10894,6 +10908,329 @@ TestCase {
         tryVerify(function () {
             return !glance.visible;
         });
+    }
+
+    // Back and forward follow the Glance (#839): a link followed inside it
+    // gives the Glance history of its own, and the back key walks that, not
+    // the tab beneath, which stays where it was.
+    function test_backAndForwardInAGlanceMoveTheGlanceNotTheTab() {
+        const opener = openPage("https://opener.example");
+        opener.canGoBack = true;
+        opener.canGoForward = true;
+        openGlance("https://glanced.example/first");
+        const glanced = window.glanceEngine;
+        glanced.canGoBack = true;
+        try {
+            keyClick(Qt.Key_BracketLeft, Qt.ControlModifier);
+            compare(glanced.backCount, 1);
+            glanced.canGoBack = false;
+            glanced.canGoForward = true;
+            window.commands.run("forward", -1);
+            compare(glanced.forwardCount, 1);
+            compare(opener.backCount, 0);
+            compare(opener.forwardCount, 0);
+            compare(String(opener.currentUrl), "https://opener.example");
+        } finally {
+            opener.canGoBack = false;
+            opener.canGoForward = false;
+            window.closeGlance();
+        }
+    }
+
+    // Back at the Glance's first page has nowhere to go, and does not fall
+    // through to the tab beneath.
+    function test_backAtAGlancesFirstPageDoesNothing() {
+        const opener = openPage("https://opener.example");
+        opener.canGoBack = true;
+        const glance = openGlance("https://glanced.example/first");
+        const glanced = window.glanceEngine;
+        const backButton = findChild(glance, "glanceBackButton");
+        try {
+            verify(!backButton.enabled);
+            verify(!findChild(glance, "glanceForwardButton").enabled);
+            glanced.canGoBack = true;
+            verify(backButton.enabled);
+            glanced.canGoBack = false;
+            // A click on the disabled button is not a click outside the
+            // Glance either.
+            mouseClick(backButton);
+            verify(window.glanceEngine === glanced);
+            keyClick(Qt.Key_BracketLeft, Qt.ControlModifier);
+            window.commands.run("back", -1);
+            window.commands.run("forward", -1);
+            compare(glanced.backCount, 0);
+            compare(glanced.forwardCount, 0);
+            compare(opener.backCount, 0);
+            compare(opener.forwardCount, 0);
+        } finally {
+            opener.canGoBack = false;
+            window.closeGlance();
+        }
+    }
+
+    // The Glance's buttons act on its page, as the commands do. Open as tab is
+    // not on offer for an extension's popup.
+    function test_theGlanceButtonsActOnTheGlance() {
+        const opener = openPage("https://opener.example");
+        const glance = openGlance("https://glanced.example/first");
+        const glanced = window.glanceEngine;
+        const generation = opener.pageGeneration;
+        const glancedGeneration = glanced.pageGeneration;
+        glanced.canGoBack = true;
+        glanced.canGoForward = true;
+        try {
+            mouseClick(findChild(glance, "glanceBackButton"));
+            mouseClick(findChild(glance, "glanceForwardButton"));
+            mouseClick(findChild(glance, "glanceReloadButton"));
+            compare(glanced.backCount, 1);
+            compare(glanced.forwardCount, 1);
+            compare(glanced.pageGeneration, glancedGeneration + 1);
+            compare(opener.backCount, 0);
+            compare(opener.pageGeneration, generation);
+
+            const openAsTab = findChild(glance, "openGlanceAsTabButton");
+            verify(openAsTab.visible);
+            window.glanceIsExtension = true;
+            verify(!openAsTab.visible);
+        } finally {
+            window.glanceIsExtension = false;
+        }
+
+        mouseClick(findChild(glance, "closeGlanceButton"));
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        tryVerify(function () {
+            return !glance.visible;
+        });
+    }
+
+    // Fails unless the Sidebar cursor among a Glance's controls marks the
+    // named button. Within a hundredth of a pixel, since a mapped position
+    // reads a hair off in a GCC build (see `verifyOnDevicePixel`).
+    function verifyGlanceCursorOn(glance, name) {
+        const cursor = findChild(glance, "glanceButtonsCursor");
+        const button = findChild(glance, name);
+        const at = button.mapToItem(cursor.parent, 0, 0);
+        const where = " (cursor " + cursor.x + "," + cursor.y + " " + cursor.width + ", button "
+              + at.x + "," + at.y + " " + button.width + ")";
+        verify(cursor.visible, "the cursor is drawn on " + name);
+        verify(Math.abs(cursor.x - at.x) < 0.01 && Math.abs(cursor.y - at.y) < 0.01 && cursor.width
+               === button.width, "the cursor marks " + name + where);
+    }
+
+    // Tab inside a Glance walks its page, so its controls are reached with
+    // the key that moves the keyboard up a region (#839). There the Sidebar
+    // cursor marks the button holding it, Tab and the arrows walk the buttons
+    // past any that are disabled, Return and Space press one, and the key
+    // down a region or Escape hands the keyboard back to the page.
+    function test_altKReachesTheGlanceControlsAndAltJReturns() {
+        window.requestActivate();
+        const opener = openPage("https://opener.example");
+        tryVerify(function () {
+            return window.active && opener.activeFocus;
+        });
+        // The Glance's page takes the keyboard as it opens.
+        const glance = openGlance("https://glanced.example/first");
+        const glanced = window.glanceEngine;
+        const generation = glanced.pageGeneration;
+        glanced.canGoBack = true;
+        tryVerify(function () {
+            return glanced.activeFocus;
+        });
+        verify(!findChild(glance, "glanceButtonsCursor").visible);
+
+        // In at the top of the column, on close.
+        keyClick(Qt.Key_K, Qt.AltModifier);
+        tryVerify(function () {
+            return glance.controlsFocused;
+        });
+        verify(!glanced.activeFocus);
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "glanceBackButton");
+        keyClick(Qt.Key_Return);
+        compare(glanced.backCount, 1);
+        // Back at the first page, back is disabled under the cursor, which
+        // moves on to the next button it can press, past disabled forward.
+        glanced.canGoBack = false;
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
+        keyClick(Qt.Key_Space);
+        compare(glanced.pageGeneration, generation + 1);
+        glanced.canGoBack = true;
+        keyClick(Qt.Key_Up);
+        verifyGlanceCursorOn(glance, "glanceBackButton");
+        glanced.canGoForward = true;
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "glanceForwardButton");
+        keyClick(Qt.Key_Space);
+        compare(glanced.forwardCount, 1);
+        // The arrows stop at the ends, and Tab goes round them.
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
+        keyClick(Qt.Key_Tab);
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Up);
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Backtab);
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
+        compare(opener.backCount, 0);
+        compare(opener.forwardCount, 0);
+
+        keyClick(Qt.Key_J, Qt.AltModifier);
+        tryVerify(function () {
+            return glanced.activeFocus;
+        });
+        verify(!glance.controlsFocused);
+        verify(!findChild(glance, "glanceButtonsCursor").visible);
+
+        // Escape in the controls returns to the page rather than closing.
+        keyClick(Qt.Key_K, Qt.AltModifier);
+        tryVerify(function () {
+            return glance.controlsFocused;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return glanced.activeFocus;
+        });
+        verify(window.glanceEngine === glanced);
+
+        // Close is pressed from the controls too.
+        keyClick(Qt.Key_K, Qt.AltModifier);
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        tryVerify(function () {
+            return !glance.visible;
+        });
+        tryVerify(function () {
+            return opener.activeFocus;
+        });
+
+        // From the page, Escape still closes.
+        openGlance("https://glanced.example/second");
+        const second = window.glanceEngine;
+        tryVerify(function () {
+            return second.activeFocus;
+        });
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+    }
+
+    // Holding Primary labels the Glance's buttons with their keys, the
+    // Glance's own Primary+Shift+Return on open as tab included (#839).
+    function test_holdingPrimaryLabelsTheGlanceButtons() {
+        window.requestActivate();
+        const opener = openPage("https://opener.example");
+        tryVerify(function () {
+            return window.active && opener.activeFocus;
+        });
+        const glance = openGlance("https://glanced.example/first");
+        const openAsTab = findChild(glance, "keyLabel-openGlanceAsTabButton");
+        verify(openAsTab !== null);
+        verify(!openAsTab.visible);
+        try {
+            keyPress(Qt.Key_Control);
+            tryVerify(function () {
+                return openAsTab.visible;
+            });
+            compare(openAsTab.keys, "Ctrl+Shift+Return");
+            // What finishes the chord is a cap a key.
+            const caps = findChild(openAsTab, "keycaps");
+            verify(caps !== null && caps.visible);
+            compare(caps.parts, ["Shift", "Return"]);
+            // Each label stands beside its button, away from the panel and
+            // within the button's height, so none covers the next button.
+            for (const [name, keys] of [["openGlanceAsTabButton", "Ctrl+Shift+Return"],
+                                        ["glanceBackButton", "Ctrl+["], ["glanceForwardButton",
+                                                                         "Ctrl+]"],
+                                        ["glanceReloadButton", "r"], ["closeGlanceButton",
+                                                                      "Ctrl+W"]]) {
+                const label = findChild(glance, "keyLabel-" + name);
+                const button = findChild(glance, name);
+                verify(label.visible, name);
+                compare(label.keys, keys, name);
+                const at = button.mapToItem(label.parent, 0, 0);
+                verify(label.x >= at.x + button.width, name + "'s label beside it: " + label.x);
+                verify(label.y >= at.y && label.y + label.height <= at.y + button.height, name
+                       + "'s label within its height: " + label.y);
+            }
+            // An extension's popup is not kept as a tab, so its key is not
+            // offered.
+            window.glanceIsExtension = true;
+            verify(!openAsTab.visible);
+            window.glanceIsExtension = false;
+        } finally {
+            keyRelease(Qt.Key_Control);
+            window.closeGlance();
+        }
+        verify(!openAsTab.visible);
+    }
+
+    // Open as tab is pressed from the keyboard too.
+    function test_theGlanceIsKeptAsATabFromItsControls() {
+        SystemMotion.reduced = true;
+        try {
+            window.requestActivate();
+            const opener = openPage("https://opener.example");
+            tryVerify(function () {
+                return window.active && opener.activeFocus;
+            });
+            const tabCount = browser.tabs.rowCount();
+            const glance = openGlance("https://kept-from-controls.example/page");
+            const glanced = window.glanceEngine;
+            tryVerify(function () {
+                return glanced.activeFocus;
+            });
+            keyClick(Qt.Key_K, Qt.AltModifier);
+            tryVerify(function () {
+                return glance.controlsFocused;
+            });
+            keyClick(Qt.Key_Down);
+            verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
+            keyClick(Qt.Key_Return);
+            tryVerify(function () {
+                return window.glanceEngine === null;
+            });
+            compare(browser.tabs.rowCount(), tabCount + 1);
+            compare(findChild(window.contentItem, "engineLoader").item, glanced);
+            // The keyboard goes with the page into its tab, not with the
+            // controls.
+            tryVerify(function () {
+                return glanced.activeFocus;
+            });
+            browser.closeActiveTab();
+        } finally {
+            SystemMotion.reduced = false;
+        }
+    }
+
+    // Reload, and reload bypassing the cache, read the Glance's page again and
+    // leave the tab's alone.
+    function test_reloadInAGlanceReloadsTheGlancesPageOnly() {
+        const opener = openPage("https://opener.example");
+        openGlance("https://glanced.example/first");
+        const glanced = window.glanceEngine;
+        const openerGeneration = opener.pageGeneration;
+        const glancedGeneration = glanced.pageGeneration;
+        try {
+            window.commands.run("reload", -1);
+            compare(glanced.pageGeneration, glancedGeneration + 1);
+            keyClick(Qt.Key_R, Qt.ControlModifier | Qt.ShiftModifier);
+            compare(glanced.bypassedCacheCount, 1);
+            compare(opener.pageGeneration, openerGeneration);
+            compare(opener.bypassedCacheCount, 0);
+        } finally {
+            window.closeGlance();
+        }
     }
 
     // What stands in the middle of the page area rests on whole pixels whether
@@ -18818,6 +19155,53 @@ TestCase {
         compare(browser.activeTabId, readingTabId);
         compare(tabWindow.glanceEngine.browserProfile, engine.browserProfile);
 
+        tabWindow.closeGlance();
+        tryVerify(function () {
+            return tabWindow.glanceEngine === null;
+        });
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // A Tab window's Glance takes its window's back, forward and reload, as
+    // the main window's does (#839), and the tab's page stays where it was.
+    function test_aTabWindowsGlanceTakesItsNavigation() {
+        window.setGlanceEnabled(true);
+        const engine = openPage("https://opener.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        engine.canGoBack = true;
+        engine.simulateNewWindowRequest("https://glanced.example/", false);
+        tryVerify(function () {
+            return tabWindow.glanceEngine !== null;
+        });
+        const glanced = tabWindow.glanceEngine;
+        const generation = engine.pageGeneration;
+
+        verify(tabWindow.run("back", -1));
+        compare(glanced.backCount, 0);
+        glanced.canGoBack = true;
+        glanced.canGoForward = true;
+        verify(tabWindow.run("back", -1));
+        verify(tabWindow.run("forward", -1));
+        verify(tabWindow.run("reload", -1));
+        verify(tabWindow.run("reload-bypassing-cache", -1));
+        compare(glanced.backCount, 1);
+        compare(glanced.forwardCount, 1);
+        compare(glanced.bypassedCacheCount, 1);
+        compare(engine.backCount, 0);
+        compare(engine.forwardCount, 0);
+        compare(engine.bypassedCacheCount, 0);
+        compare(engine.pageGeneration, generation);
+
+        engine.canGoBack = false;
         tabWindow.closeGlance();
         tryVerify(function () {
             return tabWindow.glanceEngine === null;
