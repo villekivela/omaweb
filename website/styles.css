@@ -1851,7 +1851,7 @@ html.highway {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  z-index: 20;
+  z-index: 300;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1909,7 +1909,7 @@ html.highway {
   position: fixed;
   left: 50%;
   bottom: 16px;
-  z-index: 30;
+  z-index: 300;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
