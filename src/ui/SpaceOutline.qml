@@ -1809,8 +1809,6 @@ Rectangle {
                     source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
                                                                            + root.sync.avatarPath :
                                                                            ""
-                    sourceSize.width: 48
-                    sourceSize.height: 48
                     fillMode: Image.PreserveAspectCrop
                     visible: false
                     smooth: true
