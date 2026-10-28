@@ -4615,10 +4615,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
 <context>
     <name>StatusIsland</name>
     <message>
-        <source>Omaweb %1 is out</source>
-        <translation>Omaweb %1 on julkaistu</translation>
-    </message>
-    <message>
         <source>All downloads</source>
         <translation>Kaikki lataukset</translation>
     </message>

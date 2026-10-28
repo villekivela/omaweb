@@ -25,7 +25,7 @@ Rectangle {
     // as one list (#779).
     readonly property int blockGap: 8
     readonly property int rowGap: 4
-    // Between the status island and the Space row under it.
+    // Between the Status island and the Space row under it.
     readonly property int islandGap: 6
 
     property var colors
@@ -1193,7 +1193,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: outline.bottom
         anchors.bottom: footer.top
-        // The list ends at the status island's top while it stands, and the
+        // The list ends at the Status island's top while it stands, and the
         // island opens over it.
         anchors.bottomMargin: statusIsland.anyShown ? statusIsland.closedHeight + root.islandGap : 0
 
@@ -1542,6 +1542,8 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.bottomMargin: 16
         height: 30
+        // The Spaces' key labels hang up over the Status island.
+        z: root.keyLabelsShown ? statusIsland.z + 1 : 0
         Accessible.role: Accessible.Heading
         Accessible.name: root.privateWindow || !root.browser ? qsTr("Private") :
                                                                root.browser.activeSpaceName

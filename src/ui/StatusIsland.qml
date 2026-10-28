@@ -2,7 +2,7 @@ import QtQuick
 import qs.Commons
 import "DevicePixels.mjs" as DevicePixels
 
-// The status island: a capsule above the footer's Space row that hugs the
+// The Status island: a capsule above the footer's Space row that hugs the
 // marks of what is happening now. Left to right they are a running Problem
 // recording, downloads and a newer release, each only while it applies, so
 // the island is there only while one of them is (#838). One mark wears a
@@ -44,7 +44,6 @@ Rectangle {
     readonly property bool anyShown: root.count > 0
     readonly property bool single: root.count === 1
     readonly property bool open: root.expanded.length > 0
-    readonly property alias downloadItem: downloadMark
 
     // What the release detail says, held past the dismissal its own button
     // makes, so the detail does not empty while the capsule shrinks.
@@ -56,13 +55,19 @@ Rectangle {
     signal releaseNotesRequested(url notes)
     signal downloadsRequested
 
+    function markFor(key) {
+        return key === "downloads" ? downloadMark : key === "release" ? releaseMark : null;
+    }
+
+    // The mark pressed keeps the keyboard, so pressing it again closes what
+    // it opened, and Escape reaches the island through it.
     function toggle(key) {
         root.expanded = root.expanded === key ? "" : key;
+        root.markFor(key).forceActiveFocus();
     }
 
     function close() {
-        const opener = root.expanded === "downloads" ? downloadMark : root.expanded === "release" ? releaseMark :
-                                                                                                    null;
+        const opener = root.markFor(root.expanded);
         root.expanded = "";
         if (opener && opener.visible)
             opener.forceActiveFocus();
@@ -77,34 +82,31 @@ Rectangle {
 
     onExpandedChanged: {
         if (root.expanded.length > 0) {
+            root.holdRelease();
             root.detail = root.expanded;
-            root.forceActiveFocus();
         }
         root.settleDetail();
     }
     onHeightChanged: root.settleDetail()
 
-    Binding {
-        target: root
-        property: "releaseHeadline"
-        when: releaseMark.announcing
-        value: releaseMark.announcing ? qsTr("Omaweb %1 is out").arg(root.releaseWatch.release) : ""
-        restoreMode: Binding.RestoreNone
+    // Taken while the mark announces and left alone once it stops, which a
+    // `Binding` with a `when` does not manage: its value empties in the same
+    // change that turns it off, and the empty text lands first.
+    function holdRelease() {
+        if (!releaseMark.announcing)
+            return;
+        root.releaseHeadline = releaseMark.headline;
+        root.releaseInstruction = root.releaseWatch.instruction;
+        root.releaseNotes = root.releaseWatch.notes;
     }
-    Binding {
-        target: root
-        property: "releaseInstruction"
-        when: releaseMark.announcing
-        value: releaseMark.announcing ? root.releaseWatch.instruction : ""
-        restoreMode: Binding.RestoreNone
+
+    Connections {
+        target: releaseMark
+        function onSummaryChanged() {
+            root.holdRelease();
+        }
     }
-    Binding {
-        target: root
-        property: "releaseNotes"
-        when: releaseMark.announcing
-        value: releaseMark.announcing ? root.releaseWatch.notes : ""
-        restoreMode: Binding.RestoreNone
-    }
+    onReleaseWatchChanged: root.holdRelease()
 
     // A mark that goes while the capsule is open on it closes it.
     Connections {
@@ -335,7 +337,7 @@ Rectangle {
 
             MarkLabel {
                 id: recordingLabel
-                text: problemMark.label
+                text: problemMark.islandLabel
                 color: root.colors.urgent
             }
         }
@@ -375,7 +377,7 @@ Rectangle {
 
             MarkLabel {
                 id: releaseLabel
-                text: releaseMark.label
+                text: releaseMark.islandLabel
             }
         }
     }

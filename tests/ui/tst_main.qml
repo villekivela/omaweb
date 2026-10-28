@@ -6281,6 +6281,9 @@ TestCase {
             return window.active;
         });
         openPage("https://labels-over.example/");
+        // With the Status island up, which the Space labels hang over.
+        if (!problemRecording.recording)
+            window.commands.run("record-problem", -1);
         // A page with no history leaves back and forward disabled, drawn at 35%.
         verify(!findChild(window.contentItem, "backButton").enabled);
         const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
@@ -6311,6 +6314,7 @@ TestCase {
             compare(hidden, 0, names[index] + " has pixels drawn over");
         }
         keyRelease(Qt.Key_Control);
+        window.commands.run("record-problem", -1);
     }
 
     // Switching Space names the Space it arrived in at the top of the page,
@@ -21554,7 +21558,7 @@ TestCase {
         mark.watch = Qt.binding(function () {
             return island.releaseWatch;
         });
-        tryCompare(island.transform[0], "progress", 1);
+        settleIsland(island);
         compare(findChild(mark, "releaseMarkLabel").text, "v9.9.9 is out");
         mouseClick(mark);
         compare(island.expanded, "release");
@@ -21575,6 +21579,12 @@ TestCase {
         mouseClick(notes);
         compare(watch.dismissed, 1);
         compare(island.expanded, "");
+        // What it said stays drawn while the island shrinks, though the watch
+        // has nothing to announce any more.
+        watch.announcing = false;
+        verify(detail.visible);
+        compare(findChild(detail, "releaseDetailHeadline").text, "Omaweb v9.9.9 is out");
+        tryCompare(detail, "visible", false);
         tryVerify(function () {
             return browser.tabs.rowCount() === tabs + 1;
         });
@@ -21640,7 +21650,18 @@ TestCase {
         compare(right(text), textRightAlone);
     }
 
-    // A watch that announces a release, for the status island's tests.
+    // The island risen and its width at rest, so a press lands on the mark
+    // it is aimed at rather than where the mark was a frame ago.
+    function settleIsland(island) {
+        tryCompare(island.transform[0], "progress", 1);
+        tryVerify(function () {
+            return island.width === Math.min(island.room, Math.max(island.closedHeight,
+                                                                   island.marksWidth + 4));
+        });
+        waitForRendering(island);
+    }
+
+    // A watch that announces a release, for the Status island's tests.
     function releaseStandIn(parent) {
         return Qt.createQmlObject('import QtQuick\nQtObject {\n'
                                   + '    property bool announcing: true\n'
@@ -21954,7 +21975,7 @@ TestCase {
         host.simulateDownloadProgress(first, 600, 1000);
         host.simulateDownloadProgress(second, 100, 0);
         tryCompare(mark, "running", 2);
-        tryCompare(island.transform[0], "progress", 1);
+        settleIsland(island);
         compare(findChild(mark, "downloadMarkLabel").text, "2 downloads · size unknown");
         verify(!findChild(mark, "downloadMarkCount").visible, "the label says the count");
         verify(!detail.visible);
@@ -21988,9 +22009,15 @@ TestCase {
         tryCompare(detail, "visible", false);
         compare(bottom(), restingBottom);
 
-        // From the keyboard: Escape closes it and hands the keyboard back.
+        // From the keyboard the mark keeps the keyboard: pressing it again
+        // closes the island, and Escape closes it too.
         window.requestActivate();
         mark.forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        compare(island.expanded, "downloads");
+        verify(mark.activeFocus);
+        keyClick(Qt.Key_Space);
+        compare(island.expanded, "");
         keyClick(Qt.Key_Space);
         compare(island.expanded, "downloads");
         keyClick(Qt.Key_Escape);

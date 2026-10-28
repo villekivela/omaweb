@@ -1199,7 +1199,7 @@ int main(int argc, char *argv[])
         }
         if (demoIndex >= 0 && demoIndex + 1 < arguments.size() && window != nullptr) {
             const auto directory = arguments.at(demoIndex + 1);
-            auto *frame = new int(0);
+            const auto frame = std::make_shared<int>(0);
             auto *timer = new QTimer(window);
             timer->setInterval(40);
             QObject::connect(

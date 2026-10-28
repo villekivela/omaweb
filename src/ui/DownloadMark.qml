@@ -13,7 +13,7 @@ ChromeButton {
     // until the saved-file notice closes. Following the notice itself is what
     // makes that hold, rather than a duration copied from it.
     property bool savedFileNoticeShowing: false
-    // Whether the status island draws the summary beside the icon, which
+    // Whether the Status island draws the summary beside the icon, which
     // says the count the corner otherwise carries.
     property bool labelled: false
 

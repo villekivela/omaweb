@@ -2,7 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui as Omarchy
 
-// The status island's mark for a newer Omaweb. It appears when a release the
+// The Status island's mark for a newer Omaweb. It appears when a release the
 // reader has not seen exists, and is gone the rest of the time: this is a
 // status beside the Download mark, not an interruption.
 //
@@ -41,16 +41,17 @@ ChromeButton {
     // known and pacman saying who owns the binary, so the tooltip is the
     // version until it arrives rather than a version with a dangling separator.
     readonly property string summary: !root.announcing ? "" : (root.watch.instruction.length > 0
-                                                               ? qsTr("Omaweb %1 is out").arg(
-                                                                     root.watch.release) + "\n"
-                                                                 + root.watch.instruction : qsTr(
-                                                                     "Omaweb %1 is out").arg(
-                                                                     root.watch.release))
+                                                               ? root.headline + "\n"
+                                                                 + root.watch.instruction :
+                                                                 root.headline)
+    readonly property string headline: root.announcing ? qsTr("Omaweb %1 is out").arg(
+                                                             root.watch.release) : ""
 
-    accessibleName: root.announcing ? qsTr("Omaweb %1 is out").arg(root.watch.release) : ""
+    accessibleName: root.headline
     Accessible.description: root.announcing ? root.watch.instruction : ""
     // What the island says beside the icon while it is the only mark.
-    readonly property string label: root.announcing ? qsTr("%1 is out").arg(root.watch.release) : ""
+    readonly property string islandLabel: root.announcing ? qsTr("%1 is out").arg(
+                                                                root.watch.release) : ""
 
     // Declared here rather than set through the kit button's own `tooltipText`.
     // That one draws in the button's `fontFamily`, which for a mark is the icon
