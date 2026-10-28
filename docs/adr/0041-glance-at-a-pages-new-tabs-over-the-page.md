@@ -23,15 +23,16 @@ The chrome keeps answering for the tab beneath, as it does for the tab beside in
 notice, loading indicator, zoom and the other page commands are the active tab's. Navigation is the
 exception. The Glance's engine keeps a history of its own, and a back key that moved the page behind
 the Glance moved a page the reader was not looking at, so `back`, `forward`, `reload` and
-`reload-bypassing-cache` act on the Glance's page while one is open (#839). Its controls are a head
-along the panel's top edge, with back, forward, reload, the page's address, keep and close. They
-first floated beside the panel as a pill (#704), which the keyboard could not reach, because Tab
-inside a Glance walks its page; the head is reached with `Alt+K`, as a region above the page. What
-its page asks of the browser is answered as the page on show is answered, since it is in front: Site
-permissions, certificate failures, JavaScript prompts, file pickers and the page context menu all
-reach the reader. Its visits are recorded in the Space's history, because the reader read them; the
-tab path records visits off the tab's page report, and a Glance with no tab records them itself. A
-Private window records none, as for every page in it.
+`reload-bypassing-cache` act on the Glance's page while one is open (#839). The Glance is otherwise
+the page alone, as Zen's is: it has no head naming its page and address, and a head across the panel
+was tried and set aside in #839. Its controls are bare buttons in a column beside the panel's top
+corner: close, keep, back, forward and reload. They first stood in a pill (#704) that the keyboard
+could not reach, because Tab inside a Glance walks its page; they are reached with `Alt+K`, as the
+regions are. What its page asks of the browser is answered as the page on show is answered, since it
+is in front: Site permissions, certificate failures, JavaScript prompts, file pickers and the page
+context menu all reach the reader. Its visits are recorded in the Space's history, because the
+reader read them; the tab path records visits off the tab's page report, and a Glance with no tab
+records them itself. A Private window records none, as for every page in it.
 
 A Glance stands over one tab and ends with it. A tab or Space switch, the tab closing, and settings
 or history taking the page area all end it, and so do `Escape`, the close-tab command, its close

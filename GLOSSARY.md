@@ -144,7 +144,7 @@ window and the sidebar. _Avoid_: Agent colour, bot colour
 **Glance**: A page opened by a link that asked for a new tab, shown over the tab it came from
 instead of as a tab. It runs on the Space's engine profile and records its visits, but it is not
 listed, saved, or synced, and the chrome goes on answering for the tab beneath, except back, forward
-and reload, which its head and the commands take to its own page. It ends with `Escape`, the
+and reload, which its controls and the commands take to its own page. It ends with `Escape`, the
 close-tab command, or anything that changes the tab on show, and one command keeps it as an ordinary
 tab, page and all. _Avoid_: Peek, preview, popup, quick look, overlay tab
 
@@ -176,7 +176,7 @@ _Avoid_: Command mode, command panel
 has focus. `j` and `k` move it through the pins and then the ordinary tabs without changing the
 page, `l` opens its tab and hands the keyboard to the page, and `h` returns it to the tab on show.
 It is never the mark of the tab on show, and no row carries it while the page has the keyboard. The
-same mark shows which button of a Glance's head holds the keyboard. _Avoid_: Selection, highlight,
+same mark shows which of a Glance's controls holds the keyboard. _Avoid_: Selection, highlight,
 focused tab
 
 **Key label**: The key a control answers to, laid over the control while Primary is held on its own.

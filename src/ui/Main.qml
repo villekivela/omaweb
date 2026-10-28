@@ -1440,7 +1440,7 @@ ApplicationWindow {
     // regions: a sheet or a dialog owns its own keys.
     function moveFocus(stepX, stepY) {
         // A Glance holds the keyboard over the regions and moves it between
-        // its own head and page.
+        // its own controls and page.
         if (window.glanceOpen && glance.moveFocus(stepY))
             return;
         const regions = window.visibleRegions();
@@ -3597,10 +3597,10 @@ ApplicationWindow {
     // same reason: the reader must not have to know their keymap to get back to
     // the page they were on. The exceptions are a suggestion list Omaweb drew
     // under a field of the Glance, which that Escape closes first, and the
-    // Glance's head, where it returns the keyboard to the Glance's page.
+    // Glance's controls, where it returns the keyboard to the Glance's page.
     Shortcut {
         sequence: "Esc"
-        enabled: window.glanceOpen && !formSuggestions.shown && !glance.headFocused &&
+        enabled: window.glanceOpen && !formSuggestions.shown && !glance.controlsFocused &&
                  !engineLoader.siteFullscreenActive && !window.omnibarOpen && !window.settingsOpen
                  && !window.historyOpen && !window.pageMenuOpen && !window.permissionOpen &&
                  !window.certificateQuestionOpen && window.dialogMode.length === 0 &&

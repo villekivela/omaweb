@@ -228,7 +228,7 @@ Window {
         // and back with nowhere to go in it leaves the tab's page be (#839).
         const glanced = root.glanceEngine;
         const pageInFront = glanced || engine;
-        // The keyboard moves between a Glance's head and page here, not
+        // The keyboard moves between a Glance's controls and page here, not
         // between the main window's regions.
         if (root.glanceOpen && (command === "move-focus-up" || command === "move-focus-down")
                 && glance.moveFocus(command === "move-focus-up" ? -1 : 1))
@@ -1157,11 +1157,11 @@ Window {
     }
 
     // A Glance closes with Escape whatever its page does with the key. In the
-    // Glance's head, Escape returns the keyboard to its page instead.
+    // Glance's controls, Escape returns the keyboard to its page instead.
     Shortcut {
         sequence: "Esc"
-        enabled: root.glanceOpen && !glance.headFocused && !root.omnibarOpen && !root.promptShown
-                 && !root.siteFullscreen
+        enabled: root.glanceOpen && !glance.controlsFocused && !root.omnibarOpen &&
+                 !root.promptShown && !root.siteFullscreen
         context: Qt.WindowShortcut
         onActivated: root.closeGlance()
     }

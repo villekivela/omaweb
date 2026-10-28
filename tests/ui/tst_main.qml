@@ -10659,55 +10659,49 @@ TestCase {
 
     // A Glance stands the page area's full height between margins of an
     // eighth of its width, as Zen's does (#704), and the page it came from is
-    // scaled back and dimmed behind it rather than blurred. Its controls are a
-    // head along the panel's top edge, over the page it holds (#839): back,
-    // forward, reload, the page's address, open as tab and close.
-    function test_aGlanceStandsTheFullHeightUnderItsHead() {
+    // scaled back and dimmed behind it rather than blurred. It has no head:
+    // the page fills the panel, and its controls are bare buttons in a column
+    // beside the panel's top corner (#839), close and open as tab, then back,
+    // forward and reload.
+    function test_aGlanceStandsTheFullHeightWithItsButtonsBeside() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         SystemMotion.reduced = true;
         openPage("https://opener.example");
         const glance = openGlance("https://beside.example/page");
         const panel = findChild(glance, "glancePanel");
         const pageHost = findChild(glance, "glancePageHost");
-        const head = findChild(glance, "glanceHead");
         try {
             compare(panel.y, 0);
             compare(panel.height, glance.height);
             const margin = Math.round(glance.width * 0.12);
             compare(Math.round(panel.x), margin);
             compare(Math.round(glance.width - panel.x - panel.width), margin);
+            // The page fills the panel inside its border, with no head over it.
+            compare(findChild(glance, "glanceHead"), null);
+            compare(findChild(glance, "glanceTitle"), null);
+            compare(findChild(glance, "glanceAddress"), null);
+            compare(pageHost.y, panel.border.width);
+            compare(pageHost.height, panel.height - 2 * panel.border.width);
 
-            // The head spans the panel inside its border, and the page starts
-            // under it.
-            compare(findChild(glance, "glanceButtons"), null);
-            verify(head !== null);
-            verify(head.visible);
-            verify(head.height >= 32, "head height: " + head.height);
-            const headAt = head.mapToItem(panel, 0, 0);
-            compare(headAt.x, panel.border.width);
-            compare(headAt.y, panel.border.width);
-            compare(head.width, panel.width - 2 * panel.border.width);
-            compare(pageHost.y, panel.border.width + head.height);
-            compare(pageHost.height, panel.height - 2 * panel.border.width - head.height);
-            verifyOnWholePixels(pageHost, "the Glance's page");
-
-            const address = findChild(glance, "glanceAddress");
-            compare(address.text, "https://beside.example/page");
-            compare(String(address.color), String(window.colors.mutedText));
-            compare(address.elide, Text.ElideMiddle);
+            // Bare buttons: the column has no ground, border or capsule.
+            const column = findChild(glance, "glanceButtons");
+            verify(column !== null);
+            compare(column.color, undefined);
+            compare(column.border, undefined);
+            compare(column.radius, undefined);
 
             let previous = -1;
-            for (const name of ["glanceBackButton", "glanceForwardButton", "glanceReloadButton",
-                                "glanceAddress", "openGlanceAsTabButton", "closeGlanceButton"]) {
-                const item = findChild(glance, name);
-                verify(item !== null, name);
-                verify(item.visible, name);
-                const at = item.mapToItem(head, 0, 0);
-                verify(at.x > previous, name + " in its place, left to right: " + at.x);
-                verify(at.x + item.width <= head.width, name + " inside the head");
-                verify(at.y >= 0 && at.y + item.height <= head.height, name + " inside the head");
-                previous = at.x;
+            for (const name of ["closeGlanceButton", "openGlanceAsTabButton", "glanceBackButton",
+                                "glanceForwardButton", "glanceReloadButton"]) {
+                const button = findChild(glance, name);
+                verify(button !== null, name);
+                verify(button.visible, name);
+                const at = button.mapToItem(glance, 0, 0);
+                verify(at.x >= panel.x + panel.width, name + " beside the panel: " + at.x);
+                verify(at.y > previous, name + " in its place, top to bottom: " + at.y);
+                previous = at.y;
             }
+            verify(previous < 240, "the column by the panel's top: " + previous);
 
             compare(findChild(glance, "glanceBackdrop"), null);
             compare(findChild(glance, "glanceDim").opacity, 0.45);
@@ -10795,7 +10789,10 @@ TestCase {
             glanced.canGoBack = true;
             verify(backButton.enabled);
             glanced.canGoBack = false;
+            // A click on the disabled button is not a click outside the
+            // Glance either.
             mouseClick(backButton);
+            verify(window.glanceEngine === glanced);
             keyClick(Qt.Key_BracketLeft, Qt.ControlModifier);
             window.commands.run("back", -1);
             window.commands.run("forward", -1);
@@ -10809,9 +10806,9 @@ TestCase {
         }
     }
 
-    // The head's buttons act on the Glance's page, as the commands do. Open as
-    // tab is not on offer for an extension's popup.
-    function test_theGlanceHeadsButtonsActOnTheGlance() {
+    // The Glance's buttons act on its page, as the commands do. Open as tab is
+    // not on offer for an extension's popup.
+    function test_theGlanceButtonsActOnTheGlance() {
         const opener = openPage("https://opener.example");
         const glance = openGlance("https://glanced.example/first");
         const glanced = window.glanceEngine;
@@ -10846,11 +10843,11 @@ TestCase {
         });
     }
 
-    // Fails unless the Sidebar cursor in a Glance's head marks the named
-    // button. Within a hundredth of a pixel, since a mapped position reads a
-    // hair off in a GCC build (see `verifyOnDevicePixel`).
+    // Fails unless the Sidebar cursor among a Glance's controls marks the
+    // named button. Within a hundredth of a pixel, since a mapped position
+    // reads a hair off in a GCC build (see `verifyOnDevicePixel`).
     function verifyGlanceCursorOn(glance, name) {
-        const cursor = findChild(glance, "glanceHeadCursor");
+        const cursor = findChild(glance, "glanceButtonsCursor");
         const button = findChild(glance, name);
         const at = button.mapToItem(cursor.parent, 0, 0);
         const where = " (cursor " + cursor.x + "," + cursor.y + " " + cursor.width + ", button "
@@ -10860,12 +10857,12 @@ TestCase {
                === button.width, "the cursor marks " + name + where);
     }
 
-    // Tab inside a Glance walks its page, so the head is reached with the key
-    // that moves the keyboard up a region (#839). There the Sidebar cursor
-    // marks the button holding it, Tab and the arrows walk the buttons past
-    // any that are disabled, Return and Space press one, and the key down a
-    // region or Escape hands the keyboard back to the page.
-    function test_altKReachesTheGlanceHeadAndAltJReturns() {
+    // Tab inside a Glance walks its page, so its controls are reached with
+    // the key that moves the keyboard up a region (#839). There the Sidebar
+    // cursor marks the button holding it, Tab and the arrows walk the buttons
+    // past any that are disabled, Return and Space press one, and the key
+    // down a region or Escape hands the keyboard back to the page.
+    function test_altKReachesTheGlanceControlsAndAltJReturns() {
         window.requestActivate();
         const opener = openPage("https://opener.example");
         tryVerify(function () {
@@ -10879,46 +10876,46 @@ TestCase {
         tryVerify(function () {
             return glanced.activeFocus;
         });
-        verify(!findChild(glance, "glanceHeadCursor").visible);
+        verify(!findChild(glance, "glanceButtonsCursor").visible);
 
+        // In at the top of the column, on close.
         keyClick(Qt.Key_K, Qt.AltModifier);
         tryVerify(function () {
-            return glance.headFocused;
+            return glance.controlsFocused;
         });
         verify(!glanced.activeFocus);
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
+        keyClick(Qt.Key_Down);
         verifyGlanceCursorOn(glance, "glanceBackButton");
         keyClick(Qt.Key_Return);
         compare(glanced.backCount, 1);
         // Back at the first page, back is disabled under the cursor, which
-        // moves on to the next button it can press.
+        // moves on to the next button it can press, past disabled forward.
         glanced.canGoBack = false;
-        verifyGlanceCursorOn(glance, "glanceReloadButton");
-        glanced.canGoBack = true;
-        keyClick(Qt.Key_Left);
-        verifyGlanceCursorOn(glance, "glanceBackButton");
-
-        // Forward is disabled, so the cursor steps over it.
-        keyClick(Qt.Key_Tab);
         verifyGlanceCursorOn(glance, "glanceReloadButton");
         keyClick(Qt.Key_Space);
         compare(glanced.pageGeneration, generation + 1);
+        glanced.canGoBack = true;
+        keyClick(Qt.Key_Up);
+        verifyGlanceCursorOn(glance, "glanceBackButton");
         glanced.canGoForward = true;
-        keyClick(Qt.Key_Left);
+        keyClick(Qt.Key_Down);
         verifyGlanceCursorOn(glance, "glanceForwardButton");
         keyClick(Qt.Key_Space);
         compare(glanced.forwardCount, 1);
-        keyClick(Qt.Key_Right);
-        keyClick(Qt.Key_Right);
-        verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
-        keyClick(Qt.Key_Right);
-        verifyGlanceCursorOn(glance, "closeGlanceButton");
         // The arrows stop at the ends, and Tab goes round them.
-        keyClick(Qt.Key_Right);
-        verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
+        keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
         keyClick(Qt.Key_Tab);
-        verifyGlanceCursorOn(glance, "glanceBackButton");
-        keyClick(Qt.Key_Backtab);
         verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Up);
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
+        keyClick(Qt.Key_Backtab);
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
         compare(opener.backCount, 0);
         compare(opener.forwardCount, 0);
 
@@ -10926,13 +10923,13 @@ TestCase {
         tryVerify(function () {
             return glanced.activeFocus;
         });
-        verify(!glance.headFocused);
-        verify(!findChild(glance, "glanceHeadCursor").visible);
+        verify(!glance.controlsFocused);
+        verify(!findChild(glance, "glanceButtonsCursor").visible);
 
-        // Escape in the head returns to the page rather than closing.
+        // Escape in the controls returns to the page rather than closing.
         keyClick(Qt.Key_K, Qt.AltModifier);
         tryVerify(function () {
-            return glance.headFocused;
+            return glance.controlsFocused;
         });
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
@@ -10940,9 +10937,8 @@ TestCase {
         });
         verify(window.glanceEngine === glanced);
 
-        // Close is pressed from the head too.
+        // Close is pressed from the controls too.
         keyClick(Qt.Key_K, Qt.AltModifier);
-        keyClick(Qt.Key_Backtab);
         verifyGlanceCursorOn(glance, "closeGlanceButton");
         keyClick(Qt.Key_Return);
         tryVerify(function () {
@@ -10967,9 +10963,9 @@ TestCase {
         });
     }
 
-    // Holding Primary labels the head's buttons with their keys, the Glance's
-    // own Primary+Shift+Return on open as tab included (#839).
-    function test_holdingPrimaryLabelsTheGlanceHead() {
+    // Holding Primary labels the Glance's buttons with their keys, the
+    // Glance's own Primary+Shift+Return on open as tab included (#839).
+    function test_holdingPrimaryLabelsTheGlanceButtons() {
         window.requestActivate();
         const opener = openPage("https://opener.example");
         tryVerify(function () {
@@ -10985,20 +10981,25 @@ TestCase {
                 return openAsTab.visible;
             });
             compare(openAsTab.keys, "Ctrl+Shift+Return");
-            // What finishes the chord is a cap a key, and stays clear of the
-            // label beside it.
+            // What finishes the chord is a cap a key.
             const caps = findChild(openAsTab, "keycaps");
             verify(caps !== null && caps.visible);
             compare(caps.parts, ["Shift", "Return"]);
-            const close = findChild(glance, "keyLabel-closeGlanceButton");
-            verify(openAsTab.x + openAsTab.width <= close.x, "open as tab's label ends at " + (
-                       openAsTab.x + openAsTab.width));
-            for (const [name, keys] of [["glanceBackButton", "Ctrl+["], ["glanceForwardButton", "Ctrl+]"],
+            // Each label stands beside its button, away from the panel and
+            // within the button's height, so none covers the next button.
+            for (const [name, keys] of [["openGlanceAsTabButton", "Ctrl+Shift+Return"],
+                                        ["glanceBackButton", "Ctrl+["], ["glanceForwardButton",
+                                                                         "Ctrl+]"],
                                         ["glanceReloadButton", "r"], ["closeGlanceButton",
                                                                       "Ctrl+W"]]) {
                 const label = findChild(glance, "keyLabel-" + name);
+                const button = findChild(glance, name);
                 verify(label.visible, name);
                 compare(label.keys, keys, name);
+                const at = button.mapToItem(label.parent, 0, 0);
+                verify(label.x >= at.x + button.width, name + "'s label beside it: " + label.x);
+                verify(label.y >= at.y && label.y + label.height <= at.y + button.height, name
+                       + "'s label within its height: " + label.y);
             }
             // An extension's popup is not kept as a tab, so its key is not
             // offered.
@@ -11012,8 +11013,8 @@ TestCase {
         verify(!openAsTab.visible);
     }
 
-    // Open as tab is pressed from the head's keyboard too.
-    function test_theGlanceIsKeptAsATabFromItsHead() {
+    // Open as tab is pressed from the keyboard too.
+    function test_theGlanceIsKeptAsATabFromItsControls() {
         SystemMotion.reduced = true;
         try {
             window.requestActivate();
@@ -11022,17 +11023,16 @@ TestCase {
                 return window.active && opener.activeFocus;
             });
             const tabCount = browser.tabs.rowCount();
-            const glance = openGlance("https://kept-from-head.example/page");
+            const glance = openGlance("https://kept-from-controls.example/page");
             const glanced = window.glanceEngine;
             tryVerify(function () {
                 return glanced.activeFocus;
             });
             keyClick(Qt.Key_K, Qt.AltModifier);
             tryVerify(function () {
-                return glance.headFocused;
+                return glance.controlsFocused;
             });
-            keyClick(Qt.Key_Backtab);
-            keyClick(Qt.Key_Left);
+            keyClick(Qt.Key_Down);
             verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
             keyClick(Qt.Key_Return);
             tryVerify(function () {
@@ -11040,7 +11040,8 @@ TestCase {
             });
             compare(browser.tabs.rowCount(), tabCount + 1);
             compare(findChild(window.contentItem, "engineLoader").item, glanced);
-            // The keyboard goes with the page into its tab, not with the head.
+            // The keyboard goes with the page into its tab, not with the
+            // controls.
             tryVerify(function () {
                 return glanced.activeFocus;
             });

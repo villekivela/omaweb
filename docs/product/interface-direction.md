@@ -38,8 +38,8 @@ Motion is felt rather than watched: it says which way something went, and no mor
   the page and retreats into it when it closes. What is inside keeps its resting size the whole way
   and the panel clips it, so the page is revealed rather than laid out again at every size the panel
   passes through. A page that named no press lifts the Glance as a sheet instead. The scrim stands
-  still and fades either way. Its head is part of the panel, so it arrives and goes with it, and
-  fades early as the Glance grows into a tab, since a tab's page has no head of its own.
+  still and fades either way. Its controls arrive and go with the panel, and fade early as the
+  Glance grows into a tab, since a tab's page has no controls of its own.
 - **Notices belong to the edge.** A page notice comes down from the top edge as it fades in and goes
   back up as it fades out. The Space notice does the same over the middle of the page, and it
   belongs to the window rather than to the page, so it stands still while the page arrives from the
@@ -49,12 +49,12 @@ Motion is felt rather than watched: it says which way something went, and no mor
 
 - **Focus is marked on the selection, not around a region.** Hyprland already borders the focused
   window, so a frame inside it would draw a second border. The Sidebar cursor lights the one row
-  holding the keyboard, and the page, which holds it otherwise, needs no mark of its own. In a
-  Glance's head the same cursor marks the button holding the keyboard.
-- **A Glance's head is a region above its page.** Its controls sit in a strip in the chrome's 2 px
-  corners rather than a pill floating beside the panel, as the head of the page the Glance holds.
-  Tab inside a Glance belongs to its page, so the head is reached the way the regions are, with
-  `Alt+K`, and left with `Alt+J` or `Escape`.
+  holding the keyboard, and the page, which holds it otherwise, needs no mark of its own. Among a
+  Glance's controls the same cursor marks the button holding the keyboard.
+- **A Glance's controls are bare buttons beside it.** They stand in a column by the panel's top
+  corner with no ground or border of their own, so nothing but the buttons is drawn over the page
+  beneath. Tab inside a Glance belongs to its page, so the controls are reached the way the regions
+  are, with `Alt+K`, and left with `Alt+J` or `Escape`.
 - **`h j k l` in the sidebar are not a mode.** They answer only while the sidebar holds the
   keyboard, as `j` and `k` scroll only while the page does, and nothing is switched on that stays on
   after the reader leaves. `l`, the key towards the page, opens a row.
