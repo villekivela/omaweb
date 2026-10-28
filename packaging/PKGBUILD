@@ -40,7 +40,9 @@ depends=(
     # 6.11.2-16 the first that lets a click copy without a question, lets an
     # extension use the clipboard its permissions allow (#745) and gives a
     # page Chrome's chrome.app, chrome.csi and chrome.loadTimes (#766).
-    'omaweb-qtwebengine>=6.11.2-16'
+    # 6.11.3-1 is the first that carries Chromium's security fixes up to
+    # 155.0.8059.85 (#802).
+    'omaweb-qtwebengine>=6.11.3-1'
     # Native Wayland is the primary display platform. X11 stays a fallback Qt
     # supplies through qt6-base.
     'qt6-wayland'
