@@ -442,9 +442,9 @@ and says that one is there for "Report a problem" in the browser to take in.
 `omaweb --diagnose <name>=<value>` starts the browser with a Diagnostic override for that run alone,
 and repeats for more than one:
 
-- `report-chrome=<major>` reports that Chrome version in the user agent, as `Chrome/152.0.0.0`, and
-  for every brand at Chromium's version in the client hints.
-- `brands=<list>` sends the brands named, apart by commas, in place of the engine's. A brand the
+- `report-chrome=<major>` reports that Chrome version in the user agent, as `Chrome/152.0.0.0`. In
+  the client hints, every brand at Chromium's version reports it too.
+- `brands=<list>` sends the brands named, separated by commas, in place of the engine's. A brand the
   engine has keeps its version, and one it lacks, such as `Google Chrome`, takes Chromium's.
 - `language=<tag>` tells every site one language, in Accept-Language and `navigator.languages`.
 

@@ -50,7 +50,7 @@ namespace {
                 if (brand.isEmpty() || brand.contains(u'"') || brand.contains(u'\\')
                     || brands.contains(brand)) {
                     return malformed(QStringLiteral(
-                        "it takes brand names apart by commas, each once and without quotes"));
+                        "it takes brand names separated by commas, each once and without quotes"));
                 }
                 brands.append(brand);
             }

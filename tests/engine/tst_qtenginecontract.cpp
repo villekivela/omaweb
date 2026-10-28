@@ -341,6 +341,7 @@ private slots:
     void qtSendsTheReadersFirstLanguage();
     void qtShowsPagesTheDiagnosticOverrides_data();
     void qtShowsPagesTheDiagnosticOverrides();
+    void qtReportsTheNamedChromeAlone();
     void qtKeepsNoDiagnosticOverridePastItsRun();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn();
@@ -7360,6 +7361,56 @@ void QtEngineContractTest::qtShowsPagesTheDiagnosticOverrides()
     QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("User-Agent")), agent);
     QCOMPARE(server.header(QStringLiteral("/page.html"), QStringLiteral("Accept-Language")),
         QStringLiteral("sv-FI"));
+}
+
+// `omaweb --diagnose report-chrome=152` alone (#753): the page reads Chrome 152
+// in the user agent, the brands and the full version list, and every other
+// brand the engine sends, the made-up one Chrome adds among them, stays as the
+// engine sends it.
+void QtEngineContractTest::qtReportsTheNamedChromeAlone()
+{
+    PageServer server(whatSitesSeePage);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::GlobalPrivacyControl control(root.filePath(QStringLiteral("config")));
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &control);
+    omaweb::QtDiagnosticOverrides overrides(
+        omaweb::readDiagnosticOverrides({QStringLiteral("omaweb"), QStringLiteral("--diagnose"),
+            QStringLiteral("report-chrome=152")}));
+    QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &overrides,
+        &omaweb::QtDiagnosticOverrides::attachToProfile);
+
+    QWebEngineProfile untouched;
+    const auto engineVersions = untouched.clientHints()->fullVersionList();
+    const auto chromium = engineVersions.value(QStringLiteral("Chromium")).toString();
+    QVERIFY(!chromium.isEmpty());
+    QVERIFY(!chromium.startsWith(QStringLiteral("152.")));
+    QStringList brands;
+    QStringList fullVersions;
+    for (auto brand = engineVersions.cbegin(); brand != engineVersions.cend(); ++brand) {
+        const auto version = brand.value().toString();
+        const auto chrome = version.section(u'.', 0, 0) == chromium.section(u'.', 0, 0);
+        brands.append(
+            brand.key() + u' ' + (chrome ? QStringLiteral("152") : version.section(u'.', 0, 0)));
+        fullVersions.append(brand.key() + u' ' + (chrome ? QStringLiteral("152.0.0.0") : version));
+    }
+    brands.sort();
+    fullVersions.sort();
+    QVERIFY(engineVersions.size() > 1);
+
+    QQmlEngine engine;
+    const auto host = attachedProfileHost(
+        engine, root.filePath(QStringLiteral("profile")), false, engineContentBlocker);
+    QVERIFY(host);
+    const auto read
+        = readWhatSitesSee(engine, host->property("profile").value<QObject *>(), server);
+    QCOMPARE(read.size(), 4);
+    QVERIFY2(read.at(0).contains(QStringLiteral(" Chrome/152.0.0.0 ")), qPrintable(read.at(0)));
+    QCOMPARE(read.at(1), brands.join(u','));
+    QCOMPARE(read.at(2), fullVersions.join(u','));
+    QCOMPARE(read.at(3), omaweb::acceptLanguage(omaweb::requestedLocale()));
 }
 
 // The overrides are the run's: a profile they were set on keeps none of them,

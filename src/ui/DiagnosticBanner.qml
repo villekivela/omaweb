@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "DevicePixels.mjs" as DevicePixels
 
 // The strip across the top of every window of a run started with
 // `omaweb --diagnose` (#753), naming its Diagnostic overrides. It has no close:
@@ -15,11 +16,14 @@ Rectangle {
     // `<name>=<value>` each, as the run was started with.
     property var overrides: []
 
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
     readonly property bool shown: !!root.overrides && root.overrides.length > 0 && !!root.colors
     readonly property string text: root.shown ? qsTr("Diagnostic overrides for this run: %1").arg(
                                                     root.overrides.join(", ")) : ""
 
-    height: root.shown ? 24 : 0
+    // On the display's pixels, since the window's chrome and page start at
+    // its bottom edge and a position on screen is the sum of its offsets.
+    height: root.shown ? DevicePixels.snap(24, root.pixelRatio) : 0
     visible: root.shown
     color: root.shown ? Qt.tint(root.colors.windowOpaque, Qt.rgba(root.colors.urgent.r,
                                                                   root.colors.urgent.g,
@@ -40,7 +44,7 @@ Rectangle {
         id: mark
         anchors.left: parent.left
         anchors.leftMargin: Style.space(8)
-        anchors.verticalCenter: parent.verticalCenter
+        y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
         text: "experiment"
         color: root.shown ? root.colors.urgent : "transparent"
         font.family: root.iconFontFamily
@@ -53,7 +57,7 @@ Rectangle {
         anchors.leftMargin: Style.space(8)
         anchors.right: parent.right
         anchors.rightMargin: Style.space(8)
-        anchors.verticalCenter: parent.verticalCenter
+        y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
         text: root.text
         color: root.shown ? root.colors.text : "transparent"
         font.family: Style.font.family

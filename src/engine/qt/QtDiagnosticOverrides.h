@@ -6,8 +6,8 @@
 
 namespace omaweb {
 
-// The run's Diagnostic overrides, set on every Engine profile QtWebEngine
-// runs: a Space's, an Agent Space's and the Private windows' shared one alike.
+// The run's Diagnostic overrides, set on every profile QtWebEngine runs: a
+// Space's, an Agent Space's and the Private windows' shared one alike.
 // The user agent, the client hints and the language are a profile's, held by
 // the engine in memory for as long as the profile lives.
 class QtDiagnosticOverrides final : public QObject {

@@ -19880,8 +19880,6 @@ TestCase {
         window.commands.run("zoom-reset", -1);
     }
 
-    // The Page scale is the whole browser's: a Private window's pages and a
-    // Tab window's page are drawn at it, and follow it as it changes.
     // `omaweb --diagnose` (#753): while the run has Diagnostic overrides, a
     // strip across the top of every window names them, sidebar included, and
     // the window's own chrome and page start under it. A Private window is a
@@ -19971,6 +19969,8 @@ TestCase {
         browser.closeTab(stayingTabId);
     }
 
+    // The Page scale is the whole browser's: a Private window's pages and a
+    // Tab window's page are drawn at it, and follow it as it changes.
     function test_thePageScaleReachesPrivateAndTabWindows() {
         pageScale.desktopFactor = 1.3636;
         windowManager.openPrivateWindow();
