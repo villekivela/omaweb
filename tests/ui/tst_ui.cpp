@@ -717,6 +717,10 @@ public slots:
             QStringLiteral("problemRecording"), m_problemRecording.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("problemReporter"), m_problemReporter.get());
+        // A run without `--diagnose`. A test names the run's overrides on the
+        // window it checks.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("diagnosticOverrides"), QStringList());
         // These tests run no engine, so there is nothing to draw a page's
         // fonts with; the page shows the controls and they reach nothing.
         engine->rootContext()->setContextProperty(

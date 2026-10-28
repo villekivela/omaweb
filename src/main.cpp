@@ -674,6 +674,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
     engine.rootContext()->setContextProperty(QStringLiteral("problemRecording"), &problemRecording);
     engine.rootContext()->setContextProperty(QStringLiteral("problemReporter"), &problemReporter);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("diagnosticOverrides"), diagnosticOverrides.named);
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);

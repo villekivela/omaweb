@@ -948,6 +948,7 @@ set(omaweb_ui_files
     src/ui/AgentStopButton.qml
     src/ui/AgentWindowBar.qml
     src/ui/CommandDialog.qml
+    src/ui/DiagnosticBanner.qml
     src/ui/DialogPanel.qml
     src/ui/PageBackdrop.qml
     src/ui/PageLoadingIndicator.qml

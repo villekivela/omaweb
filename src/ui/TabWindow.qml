@@ -28,6 +28,8 @@ Window {
     property var commands: null
     property var keymap: null
     property string iconFontFamily
+    // The run's Diagnostic overrides, which the strip across the top names.
+    property var diagnosticOverrideNames: []
     property bool spaceColours: true
     property bool useFavicons: true
     property bool tintFavicons: false
@@ -813,10 +815,21 @@ Window {
             root.respondToFileSelection([]);
     }
 
+    DiagnosticBanner {
+        id: diagnosticBanner
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        colors: root.colors
+        iconFontFamily: root.iconFontFamily
+        overrides: root.diagnosticOverrideNames
+    }
+
     Rectangle {
         id: shell
         objectName: "tabWindowShell"
         anchors.fill: parent
+        anchors.topMargin: diagnosticBanner.height
         color: root.colors ? root.colors.windowOpaque : "transparent"
 
         // The strip: the Space, what the connection is, and the address, on

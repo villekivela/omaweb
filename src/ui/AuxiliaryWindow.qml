@@ -43,6 +43,8 @@ ApplicationWindow {
     // The window's palette, for the frame an Agent's window wears.
     property var colors
     property string iconFontFamily
+    // The run's Diagnostic overrides, which the strip across the top names.
+    property var diagnosticOverrideNames: []
     // The tab that opened this window and the connection driving it, which
     // stay the same for as long as it is the Agent's.
     readonly property var agentWindowInfo: auxiliary.agentDriven
@@ -98,7 +100,7 @@ ApplicationWindow {
         id: engineLoader
         objectName: "auxiliaryEngineLoader"
         anchors.fill: parent
-        anchors.topMargin: agentBar.visible ? agentBar.height : 0
+        anchors.topMargin: diagnosticBanner.height + (agentBar.visible ? agentBar.height : 0)
 
         Component.onCompleted: setSource(auxiliary.engineSource, {
                                              "profilePath": auxiliary.openerEngine.profilePath,
@@ -133,6 +135,16 @@ ApplicationWindow {
         }
     }
 
+    DiagnosticBanner {
+        id: diagnosticBanner
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        colors: auxiliary.colors
+        iconFontFamily: auxiliary.iconFontFamily
+        overrides: auxiliary.diagnosticOverrideNames
+    }
+
     // An Agent's window has no row in the sidebar, so a bar above its page
     // carries the mark and Stop instead.
     AgentWindowBar {
@@ -140,7 +152,7 @@ ApplicationWindow {
         objectName: "auxiliaryAgentBar"
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.top: diagnosticBanner.bottom
         visible: auxiliary.agentDriven && auxiliary.colors !== undefined
         colors: auxiliary.colors
         iconFontFamily: auxiliary.iconFontFamily

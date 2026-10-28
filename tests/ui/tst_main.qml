@@ -355,6 +355,7 @@ TestCase {
         window.historyOpen = false;
         window.dialogMode = "";
         problemRecording.take();
+        window.diagnosticOverrideNames = [];
         window.closeSiteInformation();
         window.tabMenuOpen = false;
         window.pageMenuOpen = false;
@@ -19881,6 +19882,95 @@ TestCase {
 
     // The Page scale is the whole browser's: a Private window's pages and a
     // Tab window's page are drawn at it, and follow it as it changes.
+    // `omaweb --diagnose` (#753): while the run has Diagnostic overrides, a
+    // strip across the top of every window names them, sidebar included, and
+    // the window's own chrome and page start under it. A Private window is a
+    // main window, so it draws the same. A run without overrides draws none.
+    function test_aDiagnosticRunNamesItsOverridesInEveryWindow() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const banner = findChild(window.contentItem, "diagnosticBanner");
+        verify(banner !== null);
+        verify(!banner.visible);
+        compare(sidebar.mapToItem(window.contentItem, 0, 0).y, 0);
+
+        window.diagnosticOverrideNames = ["report-chrome=152", "language=sv-FI"];
+        const named = "Diagnostic overrides for this run: report-chrome=152, language=sv-FI";
+        tryVerify(function () {
+            return banner.visible;
+        });
+        compare(banner.height, 24);
+        compare(banner.mapToItem(window.contentItem, 0, 0).y, 0);
+        compare(banner.width, window.contentItem.width);
+        compare(banner.text, named);
+        compare(sidebar.mapToItem(window.contentItem, 0, 0).y, 24);
+        verify(engineLoader.mapToItem(window.contentItem, 0, 0).y >= 24);
+        // A peek floats the sidebar over the page, in the window's own
+        // coordinates, and it stays under the strip there too, as does the
+        // blur it samples from under itself.
+        window.sidebarCollapsed = true;
+        window.sidebarPeeked = true;
+        tryVerify(function () {
+            return sidebar.floating;
+        });
+        compare(sidebar.mapToItem(window.contentItem, 0, 0).y, 24);
+        const backdrop = findChild(window.contentItem, "sidebarBackdrop");
+        compare(backdrop.y, 24);
+        compare(backdrop.sourceRect.y, 0);
+        window.sidebarPeeked = false;
+        window.sidebarCollapsed = false;
+        tryVerify(function () {
+            return !sidebar.floating;
+        });
+
+        openPage("https://popped-diagnosed.example/");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://staying-diagnosed.example");
+        const stayingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const tabBanner = findChild(tabWindow.contentItem, "diagnosticBanner");
+        tryVerify(function () {
+            return tabBanner !== null && tabBanner.visible;
+        });
+        compare(tabBanner.text, named);
+        compare(tabBanner.mapToItem(tabWindow.contentItem, 0, 0).y, 0);
+        compare(findChild(tabWindow.contentItem, "tabWindowShell").mapToItem(tabWindow.contentItem,
+                                                                             0, 0).y, 24);
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+
+        engineLoader.item.simulateNewWindowRequest("https://sign-in-diagnosed.example/", true);
+        let auxiliary = null;
+        tryVerify(function () {
+            auxiliary = findChild(window, "auxiliaryWindow");
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const auxiliaryBanner = findChild(auxiliary.contentItem, "diagnosticBanner");
+        verify(auxiliaryBanner !== null && auxiliaryBanner.visible);
+        compare(auxiliaryBanner.text, named);
+        const auxiliaryEngine = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        compare(auxiliaryEngine.mapToItem(auxiliary.contentItem, 0, 0).y, 24);
+        tryVerify(function () {
+            return auxiliaryEngine.item !== null;
+        });
+        auxiliaryEngine.item.simulateWindowCloseRequest();
+        tryVerify(function () {
+            return findChild(window, "auxiliaryWindow") === null;
+        });
+        window.requestActivate();
+
+        window.diagnosticOverrideNames = [];
+        tryVerify(function () {
+            return !banner.visible;
+        });
+        compare(sidebar.mapToItem(window.contentItem, 0, 0).y, 0);
+        browser.closeTab(tabId);
+        browser.closeTab(stayingTabId);
+    }
+
     function test_thePageScaleReachesPrivateAndTabWindows() {
         pageScale.desktopFactor = 1.3636;
         windowManager.openPrivateWindow();
