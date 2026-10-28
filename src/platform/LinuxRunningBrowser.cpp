@@ -23,6 +23,12 @@ namespace {
     const auto kInterface = QStringLiteral("org.freedesktop.Application");
     // Where the freedesktop interface carries a Wayland activation token.
     const auto kActivationToken = QStringLiteral("activation-token");
+    // Omaweb's own key in the same platform data, asking for a Private window.
+    // A flag beside the address rather than an action of its own, so the
+    // address still travels as the standard `Open`: a browser that does not
+    // know the flag opens the page in its ordinary window rather than losing
+    // it, which is what an unknown action would do.
+    const auto kPrivateWindow = QStringLiteral("dev.omaweb.private-window");
 
     // A local call to a process that is already running. Long enough to survive
     // a browser busy with a page, short enough that a wedged one does not leave
@@ -47,18 +53,40 @@ namespace {
     public slots:
         void Activate(const QVariantMap &platformData)
         {
+            if (wantsPrivateWindow(platformData)) {
+                emit m_browser->privateWindowRequested({}, activationToken(platformData));
+                return;
+            }
             emit m_browser->activationRequested(activationToken(platformData));
         }
 
         void Open(const QStringList &uris, const QVariantMap &platformData)
         {
+            const auto privateWindow = wantsPrivateWindow(platformData);
+            auto openedPrivately = false;
             for (const auto &uri : uris) {
                 // Whatever arrives here came from outside the browser, so it is
                 // read exactly as strictly as a command line is.
                 const QUrl url(uri, QUrl::StrictMode);
-                if (url.isValid() && !url.isRelative()) {
+                if (!url.isValid() || url.isRelative()) {
+                    continue;
+                }
+                // The Private window is the one that comes forward, so it takes
+                // the token with the address.
+                if (privateWindow) {
+                    emit m_browser->privateWindowRequested(url, activationToken(platformData));
+                    openedPrivately = true;
+                } else {
                     emit m_browser->openRequested(url);
                 }
+            }
+            if (privateWindow) {
+                // Nothing here was an address, and the reader still asked for
+                // the window.
+                if (!openedPrivately) {
+                    emit m_browser->privateWindowRequested({}, activationToken(platformData));
+                }
+                return;
             }
             // The link was opened from another app, which is the one on show,
             // and the reader wants to see the page.
@@ -79,6 +107,11 @@ namespace {
         static QString activationToken(const QVariantMap &platformData)
         {
             return platformData.value(kActivationToken).toString();
+        }
+
+        static bool wantsPrivateWindow(const QVariantMap &platformData)
+        {
+            return platformData.value(kPrivateWindow).toBool();
         }
 
         RunningBrowser *m_browser;
@@ -120,7 +153,7 @@ RunningBrowser::~RunningBrowser()
 
 bool RunningBrowser::isPrimary() const { return m_primary; }
 
-bool RunningBrowser::handOver(const QUrl &url)
+bool RunningBrowser::handOver(const QUrl &url, bool privateWindow)
 {
     if (m_primary) {
         return false;
@@ -146,6 +179,9 @@ bool RunningBrowser::handOver(const QUrl &url)
     QVariantMap platformData;
     if (const auto token = qEnvironmentVariable("XDG_ACTIVATION_TOKEN"); !token.isEmpty()) {
         platformData.insert(kActivationToken, token);
+    }
+    if (privateWindow) {
+        platformData.insert(kPrivateWindow, true);
     }
     message << platformData;
 

@@ -15,6 +15,6 @@ RunningBrowser::~RunningBrowser() = default;
 
 bool RunningBrowser::isPrimary() const { return m_primary; }
 
-bool RunningBrowser::handOver(const QUrl &) { return false; }
+bool RunningBrowser::handOver(const QUrl &, bool) { return false; }
 
 } // namespace omaweb

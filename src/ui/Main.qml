@@ -5438,6 +5438,12 @@ ApplicationWindow {
             window.releases.openUpgradeNotes();
     }
 
+    // A launch asking for a Private window goes to the one the reader saw last.
+    onActiveChanged: {
+        if (window.privateWindow && window.active)
+            windowManager.notePrivateWindowShown(window.windowBrowser);
+    }
+
     function forgetPrivateWindow(instance) {
         const index = window.privateWindows.indexOf(instance);
         if (index !== -1)

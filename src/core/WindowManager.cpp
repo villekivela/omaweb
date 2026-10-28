@@ -45,22 +45,55 @@ BrowserController *WindowManager::createPrivateWindow()
         return nullptr;
     }
 
-    m_privateWindows.insert(controller);
+    // A new window is the one on show.
+    m_privateWindows.prepend(controller);
     emit privateWindowCountChanged();
     return controller;
 }
 
-void WindowManager::openPrivateWindow()
+void WindowManager::openPrivateWindow() { openNewPrivateWindow({}); }
+
+BrowserController *WindowManager::showPrivateWindow(const QUrl &url)
 {
-    if (auto *controller = createPrivateWindow()) {
-        emit privateWindowRequested(controller, privateProfilePath());
+    if (m_privateWindows.isEmpty()) {
+        return openNewPrivateWindow(url);
+    }
+    auto *shown = m_privateWindows.constFirst();
+    if (url.isValid()) {
+        shown->openLink(url, true);
+    }
+    return shown;
+}
+
+BrowserController *WindowManager::openNewPrivateWindow(const QUrl &url)
+{
+    auto *controller = createPrivateWindow();
+    if (!controller) {
+        return nullptr;
+    }
+    // A new window opens on a blank tab, which the address takes rather than
+    // leaving it beside the page. Before the window is built, so it comes up
+    // on the address.
+    if (url.isValid()) {
+        controller->openLink(url, false);
+    }
+    emit privateWindowRequested(controller, privateProfilePath());
+    return controller;
+}
+
+void WindowManager::notePrivateWindowShown(QObject *controller)
+{
+    auto *browser = qobject_cast<BrowserController *>(controller);
+    const auto index = m_privateWindows.indexOf(browser);
+    if (index > 0) {
+        m_privateWindows.move(index, 0);
     }
 }
 
 void WindowManager::releasePrivateWindow(QObject *controller)
 {
     auto *browser = qobject_cast<BrowserController *>(controller);
-    if (!browser || !m_privateWindows.remove(browser)) {
+    if (!browser || !m_privateWindows.removeOne(browser)) {
         return;
     }
 

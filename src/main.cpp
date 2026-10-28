@@ -168,6 +168,18 @@ QString keybindingsPath()
     return path;
 }
 
+// The window the shell built for a Private window's controller. Every window
+// the shell opens is a Main.qml, which names its controller.
+QWindow *windowShowing(const QObject *controller)
+{
+    for (auto *window : QGuiApplication::topLevelWindows()) {
+        if (window->property("windowBrowser").value<QObject *>() == controller) {
+            return window;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -298,6 +310,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setDesktopFileName(QStringLiteral("omaweb"));
 
     const auto launchUrl = omaweb::readLaunchUrl(arguments);
+    const auto launchPrivately = omaweb::readPrivateRequest(arguments);
     // Claimed before anything expensive is built, so a launch that only carries
     // a link for the browser already running costs a D-Bus call rather than a
     // second session store, a second filter set and a second engine.
@@ -307,7 +320,7 @@ int main(int argc, char *argv[])
     omaweb::RunningBrowser runningBrowser;
     const auto validatingQml = arguments.contains(QStringLiteral("--validate-qml"));
     if (!runningBrowser.isPrimary() && !validatingQml) {
-        if (runningBrowser.handOver(launchUrl)) {
+        if (runningBrowser.handOver(launchUrl, launchPrivately)) {
             return 0;
         }
         // Nothing took it. Opening the page here is worse than one browser and
@@ -688,7 +701,28 @@ int main(int argc, char *argv[])
     // exists to put it on. Queued rather than called here: the shell restores
     // the session while it loads, and an address opened before that would be
     // buried under the tabs coming back.
-    if (launchUrl.isValid() && !engine.rootObjects().isEmpty()) {
+    //
+    // A launch that asked for a Private window gets the one shown most
+    // recently, or a new one, and that window comes forward. A session with no
+    // Private windows leaves the address unopened: in the main window it would
+    // go into the history and the session the reader asked to keep it out of.
+    const auto showPrivately
+        = [&windowManager, mainWindow](const QUrl &url, const QString &activationToken) {
+              auto *window = static_cast<QWindow *>(mainWindow);
+              if (auto *controller = windowManager.showPrivateWindow(url)) {
+                  window = windowShowing(controller);
+              } else {
+                  qWarning("This session has no Private windows, so a private launch opens "
+                           "nothing.");
+              }
+              if (window) {
+                  omaweb::bringForward(window, activationToken);
+              }
+          };
+    if (launchPrivately && !engine.rootObjects().isEmpty()) {
+        QTimer::singleShot(
+            0, &browser, [showPrivately, launchUrl] { showPrivately(launchUrl, QString()); });
+    } else if (launchUrl.isValid() && !engine.rootObjects().isEmpty()) {
         QTimer::singleShot(
             0, &browser, [&browser, launchUrl] { browser.openLink(launchUrl, true); });
     }
@@ -697,6 +731,8 @@ int main(int argc, char *argv[])
     // open rather than as a browser of its own.
     QObject::connect(&runningBrowser, &omaweb::RunningBrowser::openRequested, &browser,
         [&browser](const QUrl &url) { browser.openLink(url, true); });
+    QObject::connect(
+        &runningBrowser, &omaweb::RunningBrowser::privateWindowRequested, &browser, showPrivately);
     // The reader opened a link from another app, or started Omaweb again, and
     // is looking for the browser rather than at the app still in front of it.
     if (mainWindow) {

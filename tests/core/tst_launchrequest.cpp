@@ -3,6 +3,7 @@
 #include <QTest>
 
 using omaweb::readLaunchUrl;
+using omaweb::readPrivateRequest;
 using omaweb::readVersionRequest;
 using omaweb::versionReport;
 
@@ -15,6 +16,8 @@ private slots:
     void refusesASchemeThatIsNotTheWeb();
     void refusesAnArgumentThatIsNotAnAddress();
     void takesTheFirstAddressOnly();
+    void readsAPrivateWindowRequest();
+    void readsTheAddressBesideAPrivateWindowRequest();
     void readsAVersionRequest();
     void reportsTheBrowserAndTheEngine();
 };
@@ -75,6 +78,34 @@ void LaunchRequestTest::takesTheFirstAddressOnly()
     QCOMPARE(readLaunchUrl({QStringLiteral("omaweb"), QStringLiteral("https://first.example"),
                  QStringLiteral("https://second.example")}),
         QUrl(QStringLiteral("https://first.example")));
+}
+
+// Omarchy's private browser key runs the browser with `--incognito`, which is
+// Chromium's spelling; `--private-window` is Firefox's. Either asks for a
+// Private window.
+void LaunchRequestTest::readsAPrivateWindowRequest()
+{
+    QVERIFY(readPrivateRequest({QStringLiteral("omaweb"), QStringLiteral("--incognito")}));
+    QVERIFY(readPrivateRequest({QStringLiteral("omaweb"), QStringLiteral("--private-window")}));
+    QVERIFY(readPrivateRequest({QStringLiteral("omaweb"), QStringLiteral("--private-window"),
+        QStringLiteral("https://example.com")}));
+    QVERIFY(!readPrivateRequest({QStringLiteral("omaweb")}));
+    QVERIFY(!readPrivateRequest({QStringLiteral("omaweb"), QStringLiteral("https://example.com")}));
+    QVERIFY(!readPrivateRequest({}));
+    // The program's own path is not an argument.
+    QVERIFY(!readPrivateRequest({QStringLiteral("--incognito")}));
+}
+
+// Firefox takes the address as the switch's value, so it is the next argument
+// rather than part of the switch.
+void LaunchRequestTest::readsTheAddressBesideAPrivateWindowRequest()
+{
+    QCOMPARE(readLaunchUrl({QStringLiteral("omaweb"), QStringLiteral("--private-window"),
+                 QStringLiteral("https://example.com")}),
+        QUrl(QStringLiteral("https://example.com")));
+    QCOMPARE(readLaunchUrl({QStringLiteral("omaweb"), QStringLiteral("--incognito"),
+                 QStringLiteral("https://example.com")}),
+        QUrl(QStringLiteral("https://example.com")));
 }
 
 // A build that will not start is the one a bug report is about, so the switch

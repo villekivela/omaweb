@@ -42,6 +42,16 @@ QUrl readLaunchUrl(const QStringList &arguments)
     return {};
 }
 
+bool readPrivateRequest(const QStringList &arguments)
+{
+    // Chromium's spelling and Firefox's, because a launcher written for either
+    // passes its own. Firefox's takes the address as its value, which reads
+    // here as the address beside it.
+    const auto switches = arguments.mid(1);
+    return switches.contains(QLatin1String("--incognito"))
+        || switches.contains(QLatin1String("--private-window"));
+}
+
 bool readVersionRequest(const QStringList &arguments)
 {
     // Only the long spelling. Chromium takes `-v` as a logging level and

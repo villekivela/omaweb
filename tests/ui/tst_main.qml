@@ -1731,6 +1731,34 @@ TestCase {
         window.requestActivate();
     }
 
+    // A launch asking for a Private window goes to the one the reader saw
+    // last, so a window coming forward says so.
+    function test_aPrivateWindowComingForwardIsTheOneALaunchReuses() {
+        windowManager.openPrivateWindow();
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 2);
+        const first = window.privateWindows[0];
+        const second = window.privateWindows[1];
+        verify(windowManager.showPrivateWindow("") === second.windowBrowser);
+
+        first.requestActivate();
+        tryVerify(function () {
+            return first.active;
+        });
+        verify(windowManager.showPrivateWindow("") === first.windowBrowser);
+
+        second.requestActivate();
+        tryVerify(function () {
+            return second.active;
+        });
+        verify(windowManager.showPrivateWindow("") === second.windowBrowser);
+
+        first.windowBrowser.closeActiveTab();
+        second.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+    }
+
     // A Private window gets the same prompts, and names itself where a Space
     // would be named.
     function test_aPrivateWindowAsksForASecurityKeyTheSameWay() {

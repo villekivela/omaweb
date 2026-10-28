@@ -806,6 +806,9 @@ void AgentCommandTest::answersHelpWithTheVerbsAndHowToLaunch()
     }
     QVERIFY(help.text.contains(QStringLiteral("omaweb [address]")));
     QVERIFY(help.text.contains(QStringLiteral("omaweb help <verb>")));
+    // Both spellings of a Private window, Chromium's and Firefox's.
+    QVERIFY(help.text.contains(QStringLiteral("omaweb --incognito [address]")));
+    QVERIFY(help.text.contains(QStringLiteral("omaweb --private-window [address]")));
 }
 
 void AgentCommandTest::doesNotTakeAnAddressOrAVerbForHelp()

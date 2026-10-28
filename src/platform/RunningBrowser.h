@@ -30,9 +30,10 @@ public:
     bool isPrimary() const;
 
     // Hands an address to the Omaweb already running, or asks it to come
-    // forward when there is no address. False means nothing took it, and the
-    // caller is better off opening the page itself than dropping it.
-    bool handOver(const QUrl &url);
+    // forward when there is no address, in a Private window when asked for
+    // one. False means nothing took it, and the caller is better off opening
+    // the page itself than dropping it.
+    bool handOver(const QUrl &url, bool privateWindow = false);
 
 signals:
     // Another launch handed this process an address to open.
@@ -41,6 +42,10 @@ signals:
     // it handed over. The token is the one the compositor gave that launch to
     // come forward with, and is empty when it had none.
     void activationRequested(const QString &activationToken);
+    // Another launch asked for a Private window, with an address to open in
+    // it or none. The window that comes forward is that one, so the token
+    // comes with the request rather than with activationRequested.
+    void privateWindowRequested(const QUrl &url, const QString &activationToken);
 
 private:
     bool m_primary = true;
