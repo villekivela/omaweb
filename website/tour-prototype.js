@@ -9,21 +9,23 @@
 import { STILL_MEDIA } from "./scene.js";
 
 // Night road runs at about 107.5 beats a minute, so a bar is 2.23 seconds; the beat comes in after
-// eight bars and the sections turn every eight. Each card holds four bars. Tune by ear: the
-// prototype bar shows the song's time.
+// eight bars and the sections turn every eight. Each card holds four bars, and the install lands on
+// the section at bar 40. Tune by ear: the prototype bar shows the song's time.
+//
+// `clip` is the card's beat of the introduction film, in seconds of the cut, from its captions
+// (build/film/captions.vtt): the card plays it in place of its capture while it is read.
 const BAR = 240 / 107.5;
 const STOPS = [
   { name: "Start", bars: 0, target: ".start", perform: typeQuery },
-  { name: "In use", bars: 8, target: ".film", perform: playFilm },
-  { name: "One field for everything", bars: 16, target: "#omnibar" },
-  { name: "Work and personal, kept apart", bars: 20, target: "#spaces" },
-  { name: "Keyboard first", bars: 24, target: "#keyboard", perform: pressKeys },
-  { name: "Follows your Omarchy theme", bars: 28, target: "#theme", perform: cycleThemes },
-  { name: "Private by default", bars: 32, target: "#private" },
-  { name: "Blocking, built in", bars: 36, target: "#blocking" },
-  { name: "Split view and docked DevTools", bars: 40, target: "#pros" },
-  { name: "Agents drive their own Spaces", bars: 44, target: "#agents" },
-  { name: "Get on the road", bars: 48, target: "#install" },
+  { name: "One field for everything", bars: 8, target: "#omnibar", clip: [0, 9.4] },
+  { name: "Work and personal, kept apart", bars: 12, target: "#spaces", clip: [13.2, 19.7] },
+  { name: "Keyboard first", bars: 16, target: "#keyboard", clip: [9.4, 13.2], perform: lightKeys },
+  { name: "Follows your Omarchy theme", bars: 20, target: "#theme", clip: [34.1, 50.6] },
+  { name: "Private by default", bars: 24, target: "#private" },
+  { name: "Blocking, built in", bars: 28, target: "#blocking", clip: [23.9, 34.1] },
+  { name: "Split view and docked DevTools", bars: 32, target: "#pros", clip: [19.7, 23.9] },
+  { name: "Agents drive their own Spaces", bars: 36, target: "#agents", clip: [50.6, 61] },
+  { name: "Get on the road", bars: 40, target: "#install" },
 ].map((stop) => ({ ...stop, cue: stop.bars * BAR }));
 
 const forceTimer = new URLSearchParams(location.search).get("clock") === "timer";
@@ -73,52 +75,14 @@ function typeQuery() {
   };
 }
 
-// The film plays from its start; it is silent, so it runs under the song.
-function playFilm() {
-  const film = document.querySelector(".film__video");
-  if (film) {
-    film.currentTime = 0;
-    film.play().catch(() => {});
-  }
-  return () => {};
-}
-
-// Keyboard first: its keys light one by one, then the page's own link hints show on f.
-function pressKeys(card) {
+// Keyboard first: its keys light one by one while the film shows the hints.
+function lightKeys(card) {
   const timers = [];
   const keys = [...card.querySelectorAll("kbd")];
   keys.forEach((key, at) => later(timers, 0.6 + at * 0.4, () => key.classList.add("tour-key")));
-  const press = (key) =>
-    document.body.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
-  let hinting = false;
-  later(timers, BAR, () => {
-    hinting = true;
-    press("f");
-  });
-  later(timers, 3 * BAR, () => {
-    hinting = false;
-    press("Escape");
-  });
   return () => {
     timers.forEach(clearTimeout);
     keys.forEach((key) => key.classList.remove("tour-key"));
-    if (hinting) press("Escape");
-  };
-}
-
-// The theme card: the page wears the next three themes, one a bar, and returns to its own.
-function cycleThemes() {
-  const timers = [];
-  const swatches = [...document.querySelectorAll("[data-theme-choice]")];
-  const own = document.documentElement.dataset.theme;
-  const at = swatches.findIndex((swatch) => swatch.dataset.themeChoice === own);
-  const pick = (index) => swatches[(index + swatches.length) % swatches.length]?.click();
-  for (let step = 1; step <= 3; ++step)
-    later(timers, (step - 1) * BAR + 0.8, () => pick(at + step));
-  later(timers, 3 * BAR + 0.8, () => pick(at));
-  return () => {
-    timers.forEach(clearTimeout);
-    if (document.documentElement.dataset.theme !== own) pick(at);
   };
 }
 
@@ -139,7 +103,7 @@ function streamline(drive) {
 // The Omnibar's rim and bloom on every card's border too: the road's light, cast on the Omnibar,
 // copied to each card on screen, so the cards' rims catch the sun and lift with the beat.
 function lightTheCards(drive, host) {
-  const cards = [...drive.querySelectorAll(".card, .install")];
+  const cards = [...drive.querySelectorAll(".card, .install, .igniter--start")];
   for (const card of cards) {
     const glow = document.createElement("span");
     glow.className = "omnibar__glow";
@@ -165,13 +129,92 @@ function lightTheCards(drive, host) {
   };
 }
 
+// Ignite, three ways, on ?ignite= and the prototype bar's arrows: "start", a round engine-start
+// button on the road under the Omnibar; "cta", a second call to action beside the install; and
+// "road", a marker set into the asphalt where the centre line runs out.
+const IGNITERS = { a: "start", b: "cta", c: "road" };
+const igniterKey = Object.keys(IGNITERS).includes(
+  new URLSearchParams(location.search).get("ignite"),
+)
+  ? new URLSearchParams(location.search).get("ignite")
+  : "a";
+
+function switchIgniter(by) {
+  const keys = Object.keys(IGNITERS);
+  const params = new URLSearchParams(location.search);
+  params.set("ignite", keys[(keys.indexOf(igniterKey) + by + keys.length) % keys.length]);
+  location.search = params.toString();
+}
+
+function buildIgniter(drive) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `igniter igniter--${IGNITERS[igniterKey]}`;
+  if (igniterKey === "a") {
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M7.05 6.05a7 7 0 1 0 9.9 0" /></svg>
+      <span>Engine<br />start</span>`;
+    button.setAttribute("aria-label", "Engine start: drive through Omaweb with the radio on");
+    drive.querySelector(".start__deck").append(button);
+  } else if (igniterKey === "b") {
+    button.className += " btn";
+    button.innerHTML = '<span aria-hidden="true">&#9654;</span> Take the drive';
+    drive.querySelector(".start__below").prepend(button);
+  } else {
+    button.innerHTML =
+      '<span class="igniter__mark"><span aria-hidden="true">&#9654;</span> Ignite</span>';
+    button.setAttribute("aria-label", "Ignite: drive through Omaweb with the radio on");
+    drive.querySelector(".start").append(button);
+  }
+  return button;
+}
+
+// The film, cut into the cards: one video, carried into the capture of the card being read, which
+// plays its beat from the start and holds on its last frame. A card without a beat shows its
+// capture. Leaving a card keeps the footage on it while it passes.
+function rollFootage(layers) {
+  const video = document.createElement("video");
+  video.className = "card__footage";
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.setAttribute("aria-hidden", "true");
+  for (const [type, file] of [
+    ["video/webm", "omaweb.webm"],
+    ["video/mp4", "omaweb.mp4"],
+  ]) {
+    const source = document.createElement("source");
+    source.type = type;
+    source.src = `assets/film/${file}`;
+    video.append(source);
+  }
+  let shown = -1;
+  let end = 0;
+  video.addEventListener("timeupdate", () => {
+    if (video.currentTime >= end) video.pause();
+  });
+  return (index) => {
+    if (index === shown) return;
+    shown = index;
+    const clip = STOPS[index].clip;
+    if (!clip) return;
+    layers[index].querySelector(".card__shot").append(video);
+    end = clip[1];
+    video.currentTime = clip[0];
+    video.play().catch(() => {});
+  };
+}
+
 export function igniteTourPrototype({ drive, host }) {
   const radio = document.querySelector(".radio");
   const radioToggle = document.querySelector(".radio-toggle");
   if (!radio || !radioToggle) return;
   streamline(drive);
+  const igniter = buildIgniter(drive);
   lightTheCards(drive, host);
-  if (matchMedia(STILL_MEDIA).matches) return;
+  if (matchMedia(STILL_MEDIA).matches) {
+    igniter.hidden = true;
+    return;
+  }
   const input = drive.querySelector(".omnibar__input");
   input.placeholder = "Where to?   \u23ce to ignite";
 
@@ -198,6 +241,7 @@ export function igniteTourPrototype({ drive, host }) {
   };
   const progress = () => (scrollY - base) / step;
   let reading = 0;
+  const footage = rollFootage(layers);
   const render = () => {
     const at = progress();
     layers.forEach((layer, index) => {
@@ -214,6 +258,7 @@ export function igniteTourPrototype({ drive, host }) {
       layer.toggleAttribute("data-reading", place.reading);
       if (place.reading) reading = index;
     });
+    footage(reading);
   };
   let frame = 0;
   addEventListener(
@@ -275,7 +320,18 @@ export function igniteTourPrototype({ drive, host }) {
   const resumeButton = chip.querySelector(".tour-chip__resume");
   const bar = document.createElement("div");
   bar.className = "proto-bar";
+  bar.innerHTML = `
+    <button type="button" data-by="-1" aria-label="Previous Ignite">&larr;</button>
+    <span class="proto-bar__variant"></span>
+    <button type="button" data-by="1" aria-label="Next Ignite">&rarr;</button>
+    <span class="proto-bar__state"></span>`;
   document.body.append(bar);
+  bar.querySelector(".proto-bar__variant").textContent = `ignite=${IGNITERS[igniterKey]}`;
+  const barState = bar.querySelector(".proto-bar__state");
+  for (const button of bar.querySelectorAll("[data-by]")) {
+    button.addEventListener("click", () => switchIgniter(Number(button.dataset.by)));
+  }
+  igniter.addEventListener("click", () => ignite());
 
   // off, cruising, held (the reader has the wheel, the music plays on) or parked (at Install,
   // the song playing out).
@@ -313,7 +369,7 @@ export function igniteTourPrototype({ drive, host }) {
     const time = clock();
     chipLine.style.width = `${Math.min(100, (time / STOPS[STOPS.length - 1].cue) * 100)}%`;
     const clockText = `${Math.floor(time / 60)}:${String(Math.floor(time % 60)).padStart(2, "0")}.${Math.floor((time % 1) * 10)}`;
-    bar.textContent = `PROTOTYPE · ${timerMode ? "timer" : "song"} ${clockText} · ${state} · reading ${reading + 1}/${STOPS.length} ${STOPS[reading].name}`;
+    barState.textContent = `PROTOTYPE · ${timerMode ? "timer" : "song"} ${clockText} · ${state} · reading ${reading + 1}/${STOPS.length} ${STOPS[reading].name}`;
   };
 
   const tick = () => {
@@ -357,6 +413,7 @@ export function igniteTourPrototype({ drive, host }) {
   // timer.
   const ignite = () => {
     if (state !== "off") return;
+    igniter.toggleAttribute("data-pressed", true);
     if (radio.paused) radioToggle.click();
     setTimeout(() => state === "off" && radio.paused && start(true), 1500);
   };
@@ -405,6 +462,8 @@ export function igniteTourPrototype({ drive, host }) {
     (event) => {
       if (!event.isTrusted) return;
       const ours = event.target.closest?.(".tour-chip");
+      const arrow = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+      if (arrow && !event.target.closest?.("input")) return switchIgniter(arrow);
       if (event.key === "Escape" && state !== "off") {
         event.stopImmediatePropagation();
         return stopAll();
@@ -448,7 +507,10 @@ export function igniteTourPrototype({ drive, host }) {
       type,
       (event) => {
         if (!event.isTrusted) return;
-        if (event.target.closest?.(".radio-toggle, .tour-chip, .omnibar__rows")) return;
+        if (
+          event.target.closest?.(".radio-toggle, .tour-chip, .omnibar__rows, .igniter, .proto-bar")
+        )
+          return;
         hold();
       },
       { capture: true, passive: true },

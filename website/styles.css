@@ -1690,6 +1690,156 @@ html.highway {
   margin-top: 18px;
 }
 
+/* The film, cut into the cards: the card's beat over its capture while it is read. */
+.card__footage {
+  position: absolute;
+  inset: 0 0 8px;
+  width: 100%;
+  height: calc(100% - 8px);
+  object-fit: cover;
+  background: #000;
+}
+
+/* The film plays in the cards, so the drive has no film of its own. */
+.highway .film {
+  display: none;
+}
+
+/* Ignite A: a round engine-start button on the road under the Omnibar, its rim lit by the sun as
+   the cards' are, breathing while it waits to be pressed. */
+.igniter {
+  cursor: pointer;
+  font: inherit;
+}
+
+.igniter[hidden] {
+  display: none !important;
+}
+
+.igniter--start {
+  --horizon: -60%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  width: 104px;
+  height: 104px;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 35%,
+    color-mix(in srgb, var(--plate) 60%, var(--accent) 12%),
+    color-mix(in srgb, var(--plate) 92%, transparent) 70%
+  );
+  backdrop-filter: blur(14px);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--plate) 70%, transparent),
+    0 0 0 7px var(--edge),
+    0 10px 30px rgb(0 0 0 / 50%);
+  animation: igniter-breathe 2.4s ease-in-out infinite;
+  transition: transform 0.15s;
+}
+
+.igniter--start svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.igniter--start::before {
+  border-radius: 50%;
+}
+
+.igniter--start .omnibar__glow {
+  border-radius: 50%;
+}
+
+.igniter--start:hover {
+  transform: scale(1.06);
+  color: var(--fg);
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--plate) 70%, transparent),
+    0 0 0 7px var(--accent),
+    0 0 36px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.igniter--start:active,
+.igniter--start[data-pressed] {
+  transform: scale(0.95);
+}
+
+@keyframes igniter-breathe {
+  50% {
+    box-shadow:
+      0 0 0 6px color-mix(in srgb, var(--plate) 70%, transparent),
+      0 0 0 7px color-mix(in srgb, var(--accent) 60%, var(--edge)),
+      0 0 28px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+/* Ignite B: a second call to action beside the install, in outline. */
+.igniter--cta {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
+  color: var(--accent);
+  backdrop-filter: blur(14px);
+}
+
+.igniter--cta:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Ignite C: a marker set into the asphalt where the centre line runs out, lying on the road in
+   perspective, lighting up under the pointer. */
+.igniter--road {
+  position: absolute;
+  left: 50%;
+  bottom: 9svh;
+  border: 0;
+  padding: 0;
+  background: none;
+  transform: translateX(-50%) perspective(400px) rotateX(52deg);
+  transform-origin: 50% 100%;
+}
+
+.igniter__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 34px;
+  border: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-family: var(--display);
+  font-size: 34px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent);
+  animation: igniter-glow 2.4s ease-in-out infinite;
+}
+
+.igniter--road:hover .igniter__mark {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--fg);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+@keyframes igniter-glow {
+  50% {
+    box-shadow: 0 0 34px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+
 .card kbd.tour-key {
   border-color: var(--accent);
   background: var(--accent);
