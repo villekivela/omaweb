@@ -850,6 +850,14 @@ private:
     QList<LinkRule> linkRules() const;
     QString linkRuleName(const QString &spaceId) const;
     QString siteLinkPattern(const QUrl &url) const;
+    // siteLinkRoute before it is a map for QML: no site where the row is not
+    // offered, and -1 for no rule written in Settings.
+    struct SiteLinkRoute {
+        QString site;
+        QString space;
+        int rule = -1;
+    };
+    SiteLinkRoute siteLinkRouteFor(const QUrl &url) const;
     // Renames the Space in the Link rules that name it, or deletes them.
     void rewriteLinkRules(const QString &spaceId, const std::optional<QString> &renamed);
     // Facts held by pages that survived a Space switch. The session store does

@@ -63,10 +63,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   to the site go now. Choosing a Space or Private window writes or updates the rule for the page's
   registrable domain, as Qt's public suffix list names it, so `app.acme.com` and `www.bbc.co.uk`
   give `*.acme.com` and `*.bbc.co.uk`; a new rule goes after the reader's own. Choosing Wherever I
-  am removes it. When another rule takes the page first, such as `github.com/acme/*` on
-  `github.com/acme/omaweb`, the row reads "Work, by a rule in Settings" and opens Settings at that
-  rule, and changes nothing. The row is absent in a Private window, in an Agent Space, on Omaweb's
-  own pages, and for an address with no registrable domain, such as an IP address or `localhost`.
+  am removes it, and every copy of it. A rule written in Settings that is that pattern exactly reads
+  the same in the file, so the row treats it as its own. When another rule takes the page first,
+  such as `github.com/acme/*` on `github.com/acme/omaweb`, the row reads "Work, by a rule in
+  Settings" and opens Settings at that rule, and changes nothing. The row is absent in a Private
+  window, in an Agent Space, on Omaweb's own pages, and for an address with no registrable domain,
+  such as an IP address or `localhost`.
 - Site-requested Auxiliary windows are allowed for authentication, payment, and similar flows. A
   page's other new-window requests open a Glance over the page on show, or a tab where the reader
   has turned the Glance off; a background-tab request, from a middle click or the background link

@@ -516,6 +516,10 @@ int main(int argc, char *argv[])
         ? arguments.at(siteLinksIndex + 1)
         : QString();
     if (!siteLinks.isEmpty()) {
+        if (siteLinks != QLatin1String("site") && siteLinks != QLatin1String("settings")) {
+            qCritical("Unknown --site-links %s", qPrintable(siteLinks));
+            return 1;
+        }
         const auto rule = siteLinks == QLatin1String("site")
             ? QStringLiteral("*.example.org")
             : QStringLiteral("www.example.org/articles/*");

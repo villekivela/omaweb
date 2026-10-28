@@ -4395,9 +4395,6 @@ TestCase {
         verify(!window.pointAtSiteInformation("lock", false).ok);
     }
 
-    // The command and its key open the card at its top, and both are named
-    // where the reader looks keys up: the Shortcut sheet, and the command's
-    // own row in command scope.
     function storedLinkRules() {
         return JSON.parse(browser.preference("link-rules", "[]"));
     }
@@ -4430,10 +4427,15 @@ TestCase {
         picker.changed("");
         const removed = storedLinkRules();
         const removedValue = picker.value;
+        // A Space renamed while the card is open is offered by its new name.
+        verify(browser.renameSpace(spaceId, "Site Moved"));
+        const renamed = picker.options.map(function (option) {
+            return option.label;
+        });
 
         closeSiteCard();
         verify(browser.setPreference("link-rules", ""));
-        verify(browser.deleteSpace(spaceId, "Site Work"));
+        verify(browser.deleteSpace(spaceId, "Site Moved"));
 
         verify(shown);
         compare(before, "");
@@ -4454,6 +4456,7 @@ TestCase {
                 ]);
         compare(removed, [handWritten]);
         compare(removedValue, "");
+        verify(renamed.indexOf("Site Moved") >= 0 && renamed.indexOf("Site Work") < 0, renamed);
     }
 
     // A rule written in Settings that takes the page is what the row states,
@@ -4554,6 +4557,9 @@ TestCase {
         verify(!inAnAgentSpace);
     }
 
+    // The command and its key open the card at its top, and both are named
+    // where the reader looks keys up: the Shortcut sheet, and the command's
+    // own row in command scope.
     function test_siteInformationOpensFromItsCommandAndItsKey() {
         openPage("https://command-site.example/page");
         activateWindow();

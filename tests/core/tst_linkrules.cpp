@@ -174,6 +174,8 @@ void LinkRulesTest::namesASiteByItsRegistrableDomain()
     // page that is not on the web.
     QCOMPARE(site(QStringLiteral("https://co.uk/")), QStringLiteral("none"));
     QCOMPARE(site(QStringLiteral("http://localhost:8080/")), QStringLiteral("none"));
+    // A name written as fully qualified is one no pattern can take.
+    QCOMPARE(site(QStringLiteral("https://acme.com./")), QStringLiteral("none"));
     QCOMPARE(site(QStringLiteral("http://192.168.1.10/")), QStringLiteral("none"));
     QCOMPARE(site(QStringLiteral("http://[::1]/")), QStringLiteral("none"));
     QCOMPARE(site(QStringLiteral("file:///home/reader/page.html")), QStringLiteral("none"));
@@ -250,6 +252,17 @@ void LinkRulesTest::writesAndRemovesTheWholeSiteRule()
     QVERIFY(browser->routeSiteLinks(page, QString()));
     QCOMPARE(storedRules(config.path()), QJsonValue(rules({{"github.com", "Personal"}})));
     QCOMPARE(browser->siteLinkRoute(page).value(QStringLiteral("space")).toString(), QString());
+
+    // The same whole-site rule twice, as a hand edit or two machines' Sync can
+    // leave it, goes altogether, or the second would take over from the first.
+    QVERIFY(SettingsFile(config.path())
+            .set(QStringLiteral("link-rules"),
+                rules({{"*.acme.com", "Work"}, {"github.com", "Personal"},
+                    {"*.acme.com", "private"}})));
+    QTRY_COMPARE(browser->siteLinkRoute(page).value(QStringLiteral("space")).toString(),
+        QStringLiteral("Work"));
+    QVERIFY(browser->routeSiteLinks(page, QString()));
+    QCOMPARE(storedRules(config.path()), QJsonValue(rules({{"github.com", "Personal"}})));
 }
 
 // A rule the reader wrote in Settings that takes the page is the one the row

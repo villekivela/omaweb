@@ -73,7 +73,7 @@ std::optional<QString> sitePattern(const QUrl &url)
         return std::nullopt;
     }
     const auto host = url.host(QUrl::EncodeUnicode).toLower();
-    if (host.isEmpty() || !QHostAddress(host).isNull()) {
+    if (host.isEmpty() || host.endsWith(u'.') || !QHostAddress(host).isNull()) {
         return std::nullopt;
     }
     const auto labels = host.split(u'.');

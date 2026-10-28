@@ -4464,7 +4464,7 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Wherever I am</source>
         <comment>links from other apps open in the Space on show</comment>
-        <translation>Siellä missä olen</translation>
+        <translation>Siellä, missä olen</translation>
     </message>
     <message>
         <source>Back to %1</source>
@@ -4484,7 +4484,7 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     </message>
     <message>
         <source>%1, by a rule in Settings</source>
-        <translation>%1 Asetusten säännön mukaan</translation>
+        <translation>%1, Asetusten säännön mukaan</translation>
     </message>
     <message>
         <source>Clear site data</source>

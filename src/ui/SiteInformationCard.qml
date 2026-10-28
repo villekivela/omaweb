@@ -2,6 +2,7 @@ import QtQuick
 import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
+import "LinkRuleTargets.mjs" as LinkRuleTargets
 
 // What Omaweb states about the site on show, for the Space it is on show in.
 //
@@ -90,8 +91,6 @@ Omarchy.BorderSurface {
     // list, or -1. The row only states such a rule and never writes over it.
     readonly property int siteLinksRule: root.siteLinks.rule === undefined ? -1 : Number(
                                                                                  root.siteLinks.rule)
-    // What a Link rule names in place of a Space (linkrules::privateWindow).
-    readonly property string privateWindowTarget: "private"
 
     readonly property int refusalTally: refusals.count
     property RefusalTally refusals: RefusalTally {
@@ -360,39 +359,22 @@ Omarchy.BorderSurface {
                                                                    root.decisionFor(choice));
     }
 
-    // The reader's Spaces, a Private window, and the Space on show, which is
-    // the empty target. A Space the rule names that the reader has not got is
-    // listed too, so the picker shows what the rule says. A Space called what
-    // a Private window is called cannot be a target.
+    // The targets Settings offers, then the Space on show, which is the empty
+    // target.
     function siteLinkTargets() {
-        const names = root.siteLinkSpaces;
-        const targets = names.filter(function (name) {
-            return name !== root.privateWindowTarget;
-        }).map(function (name) {
-            return {
-                "value": name,
-                "label": name
-            };
-        });
-        const target = root.siteLinksTarget;
-        if (target.length > 0 && target !== root.privateWindowTarget && names.indexOf(target) < 0)
-            targets.push({
-                             "value": target,
-                             "label": target
-                         });
-        targets.push({
-                         "value": root.privateWindowTarget,
-                         "label": qsTr("Private window")
-                     }, {
-                         "value": "",
-                         "label": qsTr("Wherever I am",
-                                       "links from other apps open in the Space on show")
-                     });
-        return targets;
+        return LinkRuleTargets.targets(root.siteLinkSpaces, root.siteLinksTarget, qsTr(
+                                           "Private window")).concat([
+                                                                         {
+                                                                             "value": "",
+                                                                             "label": qsTr(
+                                                                                          "Wherever I am",
+                                                                                          "links from other apps open in the Space on show")
+                                                                         }
+                                                                     ]);
     }
 
     function siteLinkTargetName(target) {
-        return target === root.privateWindowTarget ? qsTr("Private window") : target;
+        return target === LinkRuleTargets.privateWindow ? qsTr("Private window") : target;
     }
 
     function readSiteLinks() {
@@ -470,6 +452,26 @@ Omarchy.BorderSurface {
         function onPreferenceChanged(name) {
             if (name === "link-rules")
                 root.readSiteLinks();
+        }
+    }
+
+    // A Space added, renamed or removed while the card is open, which changes
+    // what the picker offers.
+    Connections {
+        target: root.browser ? root.browser.spaces : null
+        enabled: root.open
+        ignoreUnknownSignals: true
+        function onModelReset() {
+            root.readSiteLinks();
+        }
+        function onDataChanged() {
+            root.readSiteLinks();
+        }
+        function onRowsInserted() {
+            root.readSiteLinks();
+        }
+        function onRowsRemoved() {
+            root.readSiteLinks();
         }
     }
 
@@ -885,7 +887,8 @@ Omarchy.BorderSurface {
                 width: parent.width - 2 * root.gutter
                 // A rule written in Settings is named on a line of its own:
                 // beside the label it would leave the label no room.
-                height: root.siteLinksRule >= 0 ? siteLinksRule.y + siteLinksRule.height + 7 : 40
+                height: root.siteLinksRule >= 0 ? siteLinksRuleButton.y
+                                                  + siteLinksRuleButton.height + 7 : 40
                 visible: root.siteLinksOffered
                 radius: Style.cornerRadius
                 color: root.colors.surface
@@ -940,7 +943,7 @@ Omarchy.BorderSurface {
                 }
 
                 ActionButton {
-                    id: siteLinksRule
+                    id: siteLinksRuleButton
                     objectName: "siteLinksRule"
                     x: 7
                     y: 36
