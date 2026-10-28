@@ -273,6 +273,27 @@ TestCase {
         }
     }
 
+    // A square photo, so the corners show whether the avatar is masked to a
+    // circle (#836).
+    Component {
+        id: photoOutlineComponent
+
+        Omaweb.SpaceOutline {
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            width: 300
+            height: 300
+            sync: QtObject {
+                property bool enabled: true
+                property string login: "octocat"
+                property string status: "Sync is on"
+                property string errorMessage: ""
+                property string avatarPath: Qt.resolvedUrl("fixtures/avatar-red.png").toString(
+                                                ).replace("file://", "")
+            }
+        }
+    }
+
     SignalSpy {
         id: avatarSettingsSpy
         signalName: "settingsRequested"
@@ -13062,6 +13083,48 @@ TestCase {
         tryVerify(function () {
             return !settingsSurface.visible;
         });
+    }
+
+    function test_syncAvatarPhotoDrawsAsACircle() {
+        const outline = photoOutlineComponent.createObject(window.contentItem);
+        verify(outline !== null);
+        try {
+            const clip = findChild(outline, "syncAvatarClip");
+            const canvas = findChild(outline, "syncAvatarCanvas");
+            verify(clip !== null);
+            verify(canvas !== null);
+            tryVerify(function () {
+                return canvas.visible;
+            });
+            // The window's grab is in the display's pixels, which a fractional
+            // scale makes more than the item's logical ones.
+            const ratio = window.devicePixelRatio;
+            const origin = clip.mapToItem(window.contentItem, 0, 0);
+            const left = Math.round(origin.x * ratio);
+            const top = Math.round(origin.y * ratio);
+            const side = Math.round(clip.width * ratio);
+            const middle = Math.floor(side / 2);
+            let painted = null;
+            tryVerify(function () {
+                painted = grabImage(window.contentItem);
+                return Qt.colorEqual(painted.pixel(left + middle, top + middle), "#ff0000");
+            });
+            // The corners of the square are outside the circle.
+            for (const [x, y] of [[0, 0], [side - 1, 0], [0, side - 1], [side - 1, side - 1]]) {
+                verify(!Qt.colorEqual(painted.pixel(left + x, top + y), "#ff0000"));
+            }
+
+            // A paused Sync greys the photo. The software renderer draws no
+            // effect, so what it asks for is checked rather than what it draws.
+            const effect = findChild(outline, "syncAvatarEffect");
+            verify(effect !== null);
+            verify(!effect.visible);
+            outline.sync.enabled = false;
+            verify(effect.visible);
+            compare(effect.saturation, -1);
+        } finally {
+            outline.destroy();
+        }
     }
 
     function test_authenticatedAvatarReplacesSettingsAndOpensIt() {
