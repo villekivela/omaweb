@@ -1,16 +1,19 @@
-// PROTOTYPE, throwaway (branch feat/ignite-tour-prototype): the Ignite tour. Ignite plays the
-// night radio and drives the page through its stops on the song's cues; anything the reader does
-// takes the wheel back and leaves the music on, and Resume drive carries on from the stop nearest
-// to where they are. Two ways to drive, on ?drive=: "scroll", the page scrolling from stop to stop
-// as it looks today, and "road", the scrim lifting and the road racing on a slower glide between
-// stops. ?clock=timer drives on a timer, as it does when the radio cannot play.
+// PROTOTYPE, throwaway (branch feat/ignite-tour-prototype): driving through the site. On a wide
+// screen that allows motion, the page is a road: scroll is the throttle, and each stop (the Start
+// page, the film, every feature, the install) rises from the horizon, holds while it is read and
+// passes the camera. Ignite, at the end of the Omnibar, is cruise control: the same drive steered
+// by Night road's cues. Anything the reader does takes the wheel back and leaves the music on.
+// ?clock=timer drives on a timer, as it does when the radio cannot play. On a phone or under
+// reduced motion the page stays stacked, with the streamlined Omnibar and no drive.
+
+import { STILL_MEDIA } from "./scene.js";
 
 // Night road runs at about 107.5 beats a minute, so a bar is 2.23 seconds; the beat comes in after
 // eight bars and the sections turn every eight. Each card holds four bars. Tune by ear: the
 // prototype bar shows the song's time.
 const BAR = 240 / 107.5;
 const STOPS = [
-  { name: "Start", bars: 0, target: ".start", top: true, perform: typeQuery },
+  { name: "Start", bars: 0, target: ".start", perform: typeQuery },
   { name: "In use", bars: 8, target: ".film", perform: playFilm },
   { name: "One field for everything", bars: 16, target: "#omnibar" },
   { name: "Work and personal, kept apart", bars: 20, target: "#spaces" },
@@ -23,12 +26,32 @@ const STOPS = [
   { name: "Get on the road", bars: 48, target: "#install" },
 ].map((stop) => ({ ...stop, cue: stop.bars * BAR }));
 
-const params = new URLSearchParams(location.search);
-const VARIANTS = ["scroll", "road"];
-const variant = VARIANTS.includes(params.get("drive")) ? params.get("drive") : "scroll";
-const forceTimer = params.get("clock") === "timer";
+const forceTimer = new URLSearchParams(location.search).get("clock") === "timer";
 
-// What a stop does while it is the current one; each returns how to undo it.
+// Where a stop is on the road, by `t`, its distance in stops from the one being read: beyond -1
+// it is past the horizon, it approaches to -0.3, holds to 0.3 and passes the camera by 0.85.
+const FAR = -1;
+const ARRIVE = -0.3;
+const LEAVE = 0.3;
+const GONE = 0.85;
+const HORIZON_DEPTH = 12;
+
+function placement(t, last) {
+  if (last) t = Math.min(t, 0);
+  if (t <= FAR || t >= GONE) return null;
+  if (t < ARRIVE) {
+    const near = (t - FAR) / (ARRIVE - FAR);
+    const depth = 1 + (1 - near) * (HORIZON_DEPTH - 1);
+    return { scale: 1 / depth, opacity: Math.min(1, near * 2.5), depth, reading: false, drop: 0 };
+  }
+  if (t <= LEAVE) return { scale: 1, opacity: 1, depth: 1, reading: true, drop: 0 };
+  // Passing, it grows and drops below the camera, and fades fast so the next one reads.
+  const by = (t - LEAVE) / (GONE - LEAVE);
+  const depth = 1 - 0.6 * by;
+  return { scale: 1 / depth, opacity: (1 - by) ** 2.5, depth, reading: false, drop: by * by };
+}
+
+// What a stop does while cruise control holds it; each returns how to undo it.
 function later(timers, seconds, action) {
   timers.push(setTimeout(action, seconds * 1000));
 }
@@ -99,22 +122,120 @@ function cycleThemes() {
   };
 }
 
-export function igniteTourPrototype({ drive, host, smooth }) {
-  const radio = document.querySelector(".radio");
-  const radioToggle = document.querySelector(".radio-toggle");
-  const below = drive.querySelector(".start__below");
-  if (!radio || !radioToggle || !below) return;
-
-  // The road's speed: during a glide the "road" variant asks for all of it.
-  let boost = 0;
-  const setNavigating = host.setNavigating.bind(host);
-  host.setNavigating = (value) => setNavigating(Math.max(value, boost));
-
+// The streamlined Omnibar, on every screen: the field and Ignite, the rows only once the reader
+// types, Radio in the header and the theme picker on the theme card.
+function streamline(drive) {
+  const omnibar = drive.querySelector(".omnibar");
+  const input = omnibar.querySelector(".omnibar__input");
+  document.body.classList.add("streamlined");
+  input.addEventListener("input", () =>
+    omnibar.toggleAttribute("data-typed", Boolean(input.value)),
+  );
+  const themes = omnibar.querySelector(".themes");
+  const themeCard = drive.querySelector("#theme");
+  if (themes && themeCard) themeCard.append(themes);
   const ignite = document.createElement("button");
-  ignite.className = "btn ignite";
+  ignite.className = "omnibar__ignite";
   ignite.type = "button";
   ignite.innerHTML = '<span aria-hidden="true">&#9654;</span> Ignite';
-  below.prepend(ignite);
+  omnibar.querySelector(".omnibar__field").append(ignite);
+  return ignite;
+}
+
+export function igniteTourPrototype({ drive, host }) {
+  const radio = document.querySelector(".radio");
+  const radioToggle = document.querySelector(".radio-toggle");
+  if (!radio || !radioToggle) return;
+  const ignite = streamline(drive);
+  const still = matchMedia(STILL_MEDIA);
+  if (still.matches) {
+    ignite.hidden = true;
+    return;
+  }
+
+  // The highway: every stop a layer over the road, and the page's height a track to scroll.
+  document.documentElement.classList.add("highway");
+  const layers = STOPS.map((stop) => drive.querySelector(stop.target));
+  for (const layer of layers) layer.classList.add("hw-layer");
+  const track = document.createElement("div");
+  track.className = "hw-track";
+  drive.prepend(track);
+  let base = 0;
+  let step = innerHeight;
+  const measure = () => {
+    step = innerHeight;
+    track.style.height = `${(STOPS.length - 1) * step + innerHeight}px`;
+    track.replaceChildren(
+      ...STOPS.map((_, index) => {
+        const mark = document.createElement("i");
+        mark.style.top = `${index * step}px`;
+        return mark;
+      }),
+    );
+    base = track.getBoundingClientRect().top + scrollY;
+  };
+  const progress = () => (scrollY - base) / step;
+  let reading = 0;
+  const render = () => {
+    const at = progress();
+    layers.forEach((layer, index) => {
+      const place = placement(at - index, index === layers.length - 1);
+      if (!place) {
+        layer.style.display = "none";
+        return;
+      }
+      layer.style.display = "";
+      layer.style.opacity = place.opacity.toFixed(3);
+      layer.style.zIndex = String(100 - Math.round(place.depth * 5));
+      layer.style.setProperty("--hw-scale", place.scale.toFixed(4));
+      layer.style.setProperty("--hw-drop", `${(place.drop * 60).toFixed(2)}vh`);
+      layer.toggleAttribute("data-reading", place.reading);
+      if (place.reading) reading = index;
+    });
+  };
+  let frame = 0;
+  addEventListener(
+    "scroll",
+    () => {
+      if (!frame) frame = requestAnimationFrame(() => ((frame = 0), render()));
+    },
+    { passive: true },
+  );
+  addEventListener("resize", () => {
+    measure();
+    render();
+  });
+  measure();
+  render();
+
+  // Scroll is the throttle: the road runs with the scroll's speed, harder than on the stacked page.
+  let cruising = 0;
+  const setNavigating = host.setNavigating.bind(host);
+  host.setNavigating = (value) => setNavigating(Math.min(1, Math.max(value * 4, cruising)));
+
+  // A glide to a stop, as cruise control or the Omnibar drives: eased, the road at speed, and the
+  // snap let go until it lands.
+  let glide = 0;
+  const glideTo = (index, length = 2200) => {
+    cancelAnimationFrame(glide);
+    const from = scrollY;
+    const to = base + index * step;
+    const began = performance.now();
+    document.documentElement.style.scrollSnapType = "none";
+    const tick = (now) => {
+      const t = Math.min(1, (now - began) / length);
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+      cruising = Math.sin(Math.PI * t);
+      scrollTo({ top: from + (to - from) * eased, behavior: "instant" });
+      if (t < 1) glide = requestAnimationFrame(tick);
+      else {
+        glide = 0;
+        cruising = 0;
+        document.documentElement.style.scrollSnapType = "";
+      }
+    };
+    glide = requestAnimationFrame(tick);
+  };
 
   const chip = document.createElement("div");
   chip.className = "tour-chip";
@@ -124,122 +245,57 @@ export function igniteTourPrototype({ drive, host, smooth }) {
       <span class="tour-chip__name"></span>
       <span class="tour-chip__line"><i></i></span>
     </div>
-    <button class="tour-chip__resume" type="button">Resume drive</button>
+    <button class="tour-chip__resume" type="button">Resume cruise</button>
     <button class="tour-chip__stop" type="button">Stop <kbd>Esc</kbd></button>`;
   document.body.append(chip);
   const chipName = chip.querySelector(".tour-chip__name");
   const chipLine = chip.querySelector(".tour-chip__line i");
   const resumeButton = chip.querySelector(".tour-chip__resume");
-
   const bar = document.createElement("div");
   bar.className = "proto-bar";
-  bar.innerHTML = `
-    <button type="button" data-by="-1" aria-label="Previous variant">&larr;</button>
-    <span class="proto-bar__variant"></span>
-    <button type="button" data-by="1" aria-label="Next variant">&rarr;</button>
-    <span class="proto-bar__state"></span>`;
   document.body.append(bar);
-  bar.querySelector(".proto-bar__variant").textContent = `drive=${variant}`;
-  const barState = bar.querySelector(".proto-bar__state");
-  const switchVariant = (by) => {
-    const next = VARIANTS[(VARIANTS.indexOf(variant) + by + VARIANTS.length) % VARIANTS.length];
-    params.set("drive", next);
-    location.search = params.toString();
-  };
-  for (const button of bar.querySelectorAll("[data-by]")) {
-    button.addEventListener("click", () => switchVariant(Number(button.dataset.by)));
-  }
 
-  // off, driving, held (the reader has the wheel, the music plays on) or parked (at Install,
+  // off, cruising, held (the reader has the wheel, the music plays on) or parked (at Install,
   // the song playing out).
   let state = "off";
   let current = -1;
   let undo = () => {};
   let timerMode = false;
   let timerStart = 0;
-  let glide = 0;
   const clock = () =>
     timerMode ? (performance.now() - timerStart) / 1000 : radio.currentTime || 0;
   const seek = (seconds) => {
     if (timerMode) timerStart = performance.now() - seconds * 1000;
     else radio.currentTime = seconds;
   };
-
   const clearStop = () => {
     undo();
     undo = () => {};
-    for (const element of drive.querySelectorAll("[data-tour-current]")) {
-      element.removeAttribute("data-tour-current");
-    }
   };
-
-  // Where a stop sits: the Start page at the top, a stop shorter than the window in its middle,
-  // a taller one at its top.
-  const targetY = (element, top) => {
-    if (top) return 0;
-    const rect = element.getBoundingClientRect();
-    const y =
-      rect.height < innerHeight
-        ? rect.top + scrollY - (innerHeight - rect.height) / 2
-        : rect.top + scrollY - 24;
-    return Math.max(0, Math.min(document.documentElement.scrollHeight - innerHeight, y));
-  };
-
-  const travel = (y) => {
-    cancelAnimationFrame(glide);
-    if (!smooth) return scrollTo({ top: y, behavior: "auto" });
-    if (variant === "scroll") return scrollTo({ top: y, behavior: "smooth" });
-    // The road: a slow glide with the scrim lifted and the road at full speed.
-    const from = scrollY;
-    const length = 1800;
-    const began = performance.now();
-    drive.setAttribute("data-tour-glide", "");
-    boost = 1;
-    const step = (now) => {
-      const t = Math.min(1, (now - began) / length);
-      const eased = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
-      scrollTo({ top: from + (y - from) * eased, behavior: "auto" });
-      if (t < 1) glide = requestAnimationFrame(step);
-      else {
-        glide = 0;
-        boost = 0;
-        host.setNavigating(0);
-        drive.removeAttribute("data-tour-glide");
-      }
-    };
-    glide = requestAnimationFrame(step);
-  };
-
   const goTo = (index) => {
     clearStop();
     current = index;
-    const stop = STOPS[index];
-    const element = drive.querySelector(stop.target);
-    if (!stop.top) element.setAttribute("data-tour-current", "");
-    travel(targetY(element, stop.top));
-    undo = stop.perform?.(element) || (() => {});
+    glideTo(index);
+    undo = STOPS[index].perform?.(layers[index]) || (() => {});
   };
 
   const show = () => {
     chip.hidden = state === "off";
-    chip.dataset.state = state;
     resumeButton.hidden = state !== "held";
-    const stop = STOPS[current];
     chipName.textContent =
-      state === "held" ? "You have the wheel" : state === "parked" ? "End of the road" : stop?.name;
-    const end = STOPS[STOPS.length - 1].cue;
-    chipLine.style.width = `${Math.min(100, (clock() / end) * 100)}%`;
+      state === "held"
+        ? "You have the wheel"
+        : state === "parked"
+          ? "End of the road"
+          : STOPS[current]?.name;
     const time = clock();
-    barState.textContent = `${timerMode ? "timer" : "song"} ${Math.floor(time / 60)}:${String(
-      Math.floor(time % 60),
-    ).padStart(
-      2,
-      "0",
-    )}.${Math.floor((time % 1) * 10)} · ${state} · stop ${current + 1}/${STOPS.length}`;
+    chipLine.style.width = `${Math.min(100, (time / STOPS[STOPS.length - 1].cue) * 100)}%`;
+    const clockText = `${Math.floor(time / 60)}:${String(Math.floor(time % 60)).padStart(2, "0")}.${Math.floor((time % 1) * 10)}`;
+    bar.textContent = `PROTOTYPE · ${timerMode ? "timer" : "song"} ${clockText} · ${state} · reading ${reading + 1}/${STOPS.length} ${STOPS[reading].name}`;
   };
 
   const tick = () => {
-    if (state === "driving") {
+    if (state === "cruising") {
       const time = clock();
       let index = 0;
       while (index + 1 < STOPS.length && STOPS[index + 1].cue <= time) ++index;
@@ -256,10 +312,6 @@ export function igniteTourPrototype({ drive, host, smooth }) {
   const end = () => {
     state = "off";
     clearStop();
-    cancelAnimationFrame(glide);
-    boost = 0;
-    drive.removeAttribute("data-tour-glide");
-    drive.removeAttribute("data-tour");
     radio.loop = true;
     show();
   };
@@ -267,8 +319,7 @@ export function igniteTourPrototype({ drive, host, smooth }) {
   const start = () => {
     clearStop();
     current = -1;
-    state = "driving";
-    drive.setAttribute("data-tour", "");
+    state = "cruising";
     timerMode = forceTimer;
     timerStart = performance.now();
     radio.loop = false;
@@ -285,33 +336,25 @@ export function igniteTourPrototype({ drive, host, smooth }) {
     tick();
   };
 
-  // The reader takes the wheel: the drive lets go and the music plays on, on its loop again.
+  // The reader takes the wheel: cruise lets go where it is and the music plays on, on its loop.
   const hold = () => {
-    if (state !== "driving") return;
+    if (state !== "cruising") return;
     state = "held";
     clearStop();
     cancelAnimationFrame(glide);
-    boost = 0;
-    drive.removeAttribute("data-tour-glide");
+    cruising = 0;
+    document.documentElement.style.scrollSnapType = "";
     radio.loop = true;
     show();
   };
 
-  // Resume from the stop nearest the middle of the window, the song sought to its cue.
+  // Resume from the stop being read, the song sought to its cue.
   const resume = () => {
-    const middle = innerHeight / 2;
-    const distance = (stop) => {
-      const rect = drive.querySelector(stop.target).getBoundingClientRect();
-      return Math.abs(rect.top + Math.min(rect.height, innerHeight) / 2 - middle);
-    };
-    let nearest = 0;
-    STOPS.forEach((stop, index) => {
-      if (distance(stop) < distance(STOPS[nearest])) nearest = index;
-    });
+    const nearest = Math.max(0, Math.min(STOPS.length - 1, Math.round(progress())));
     radio.loop = false;
     seek(STOPS[nearest].cue + 0.01);
     current = -1;
-    state = "driving";
+    state = "cruising";
     if (!timerMode && radio.paused) radio.play().catch(() => {});
     tick();
   };
@@ -324,43 +367,69 @@ export function igniteTourPrototype({ drive, host, smooth }) {
   ignite.addEventListener("click", start);
   resumeButton.addEventListener("click", resume);
   chip.querySelector(".tour-chip__stop").addEventListener("click", stopAll);
-
-  // The radio stopped by the reader, on Radio or M, ends the drive; the song's end ends a parked
-  // one.
   radio.addEventListener("pause", () => {
     if (state !== "off" && !radio.ended) end();
   });
   radio.addEventListener("ended", () => state !== "off" && end());
 
-  const ours = (target) =>
-    target instanceof Element && target.closest(".ignite, .tour-chip, .proto-bar");
-  for (const type of ["wheel", "touchstart", "pointerdown"]) {
-    addEventListener(
-      type,
-      (event) => {
-        if (event.isTrusted && !ours(event.target)) hold();
-      },
-      { capture: true, passive: true },
-    );
-  }
+  // The Omnibar drives too: Return on a row glides to its feature, on an empty field it ignites,
+  // and J and K glide to the next and the previous stop.
+  const input = drive.querySelector(".omnibar__input");
+  const stopOfRow = (row) =>
+    STOPS.findIndex((stop) => stop.target === `#${row.querySelector("a").dataset.card}`);
   addEventListener(
     "keydown",
     (event) => {
-      if (!event.isTrusted || ours(event.target)) return;
+      if (!event.isTrusted) return;
+      const ours = event.target.closest?.(".tour-chip");
       if (event.key === "Escape" && state !== "off") {
         event.stopImmediatePropagation();
         return stopAll();
       }
-      // The prototype's own keys: the arrows switch the variant.
-      if (
-        (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
-        !event.target.closest?.("input")
-      ) {
-        return switchVariant(event.key === "ArrowLeft" ? -1 : 1);
+      if (event.target === input && event.key === "Enter") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!input.value.trim()) return start();
+        const row = [...drive.querySelectorAll('.omnibar [role="option"]')].find(
+          (option) => !option.hidden && option.getAttribute("aria-selected") === "true",
+        );
+        hold();
+        if (row) glideTo(stopOfRow(row), 2600);
+        return;
       }
-      if (event.key.toLowerCase() !== "m") hold();
+      if (ours || event.key.toLowerCase() === "m") return;
+      hold();
+      const key = event.key.toLowerCase();
+      if ((key === "j" || key === "k") && !event.target.closest?.("input")) {
+        event.stopImmediatePropagation();
+        const next = Math.max(0, Math.min(STOPS.length - 1, reading + (key === "j" ? 1 : -1)));
+        glideTo(next, 1600);
+      }
     },
     { capture: true },
   );
+  addEventListener(
+    "click",
+    (event) => {
+      const link = event.target.closest?.(".omnibar__rows a");
+      if (!link || !event.isTrusted) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      hold();
+      glideTo(stopOfRow(link.closest('[role="option"]')), 2600);
+    },
+    { capture: true },
+  );
+  for (const type of ["wheel", "touchstart", "pointerdown"]) {
+    addEventListener(
+      type,
+      (event) => {
+        if (!event.isTrusted) return;
+        if (event.target.closest?.(".omnibar__ignite, .tour-chip, .omnibar__rows")) return;
+        hold();
+      },
+      { capture: true, passive: true },
+    );
+  }
   show();
 }

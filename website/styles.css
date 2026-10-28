@@ -1569,32 +1569,100 @@ kbd {
   }
 }
 
-/* PROTOTYPE, throwaway (branch feat/ignite-tour-prototype): the Ignite tour. */
+/* PROTOTYPE, throwaway (branch feat/ignite-tour-prototype): driving through the site. */
 
-.ignite {
-  border: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--plate) 80%, transparent);
-  color: var(--accent);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
+/* The streamlined Omnibar: the field and Ignite; the rows once the reader types; Radio back in the
+   header and the theme picker on the theme card. */
+.streamlined .omnibar__hints,
+.streamlined .omnibar:not([data-typed]) .omnibar__rows {
+  display: none;
 }
 
-.ignite:hover {
+body.streamlined:has(.omnibar) .nav .radio-toggle:not([hidden]) {
+  display: inline-flex;
+}
+
+.omnibar__ignite {
+  margin-left: 8px;
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
   background: var(--accent);
   color: var(--bg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.card[data-tour-current],
-.film[data-tour-current] .film__frame,
-.install[data-tour-current] {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 1px var(--accent),
-    0 0 32px color-mix(in srgb, var(--accent) 35%, transparent);
-  transition:
-    box-shadow 0.4s,
-    border-color 0.4s;
+.omnibar__ignite[hidden] {
+  display: none;
+}
+
+#theme .themes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 10px 0;
+}
+
+/* The highway: every stop a layer over the road, placed by tour-prototype.js, and a track for the
+   scroll with a snap at each stop. */
+html.highway {
+  scroll-snap-type: y proximity;
+}
+
+.hw-track {
+  position: relative;
+}
+
+.hw-track i {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  scroll-snap-align: start;
+}
+
+.highway .drive__scrim {
+  display: none;
+}
+
+.highway .hw-layer {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  margin: 0;
+  transform: translate(-50%, calc(-50% + var(--hw-drop, 0px))) scale(var(--hw-scale, 1));
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.highway .hw-layer[data-reading] {
+  pointer-events: auto;
+}
+
+.highway .start.hw-layer {
+  inset: 0;
+  height: 100svh;
+  transform: translateY(var(--hw-drop, 0px)) scale(var(--hw-scale, 1));
+}
+
+.highway #theme.hw-layer {
+  width: min(980px, 86vw, (100vh - 280px) * 1.9);
+}
+
+.highway .card.hw-layer {
+  width: min(980px, 86vw, (100vh - 250px) * 1.45);
+}
+
+.highway .film.hw-layer {
+  width: min(1100px, 86vw, (100vh - 120px) * 16 / 9);
+}
+
+.highway .install.hw-layer {
+  width: min(980px, 86vw);
+  max-height: 92vh;
+  overflow: auto;
 }
 
 .card kbd.tour-key {
@@ -1602,15 +1670,6 @@ kbd {
   background: var(--accent);
   color: var(--bg);
   transition: all 0.2s;
-}
-
-/* The road variant: while the page glides between stops, the scrim lifts off the road. */
-.drive[data-tour] .drive__scrim {
-  transition: opacity 0.6s;
-}
-
-.drive[data-tour-glide] .drive__scrim {
-  opacity: 0.15 !important;
 }
 
 .tour-chip {
