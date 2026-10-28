@@ -2304,7 +2304,8 @@ def recording_size(path: Path) -> tuple[int, int]:
     return int(width), int(height)
 
 
-def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str, label: str) -> list[str]:
+def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str | None,
+           label: str) -> list[str]:
     """One beat of the raw recording as filter chains that end in `[label]`: trimmed to the beat,
     its pointer drawn as `drawn` from the input labelled `pointer_input`, and its camera followed.
     """
@@ -2332,13 +2333,11 @@ def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> Non
         card = CLIP_OF.get(entry["beat"])
         if card is None:
             continue
-        inputs = ["-i", str(out / "raw.mkv")]
-        if pointer(entry):
-            inputs += ["-i", str(drawn.path)]
-        chains = framed(entry, stage, drawn, "1:v", "beat")
+        drawn_input = ["-i", str(drawn.path)] if pointer(entry) else []
+        chains = framed(entry, stage, drawn, "1:v" if drawn_input else None, "beat")
         chains.append(f"[beat]scale={CLIP_WIDTH}:-2,{COLOURS}[clip]")
         master = out / f"clip-{card}.mkv"
-        subprocess.run(["ffmpeg", "-v", "error", "-y", *inputs,
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out / "raw.mkv"), *drawn_input,
                         "-filter_complex", ";".join(chains), "-map", "[clip]", "-an",
                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "8", str(master)],
                        check=True)
@@ -2379,8 +2378,8 @@ def compose(out: Path, drawn: Pointer = DRAWN_POINTER) -> None:
         chains.append(f"[1:v]split={len(pointed)}"
                       + "".join(f"[p{index}]" for index in range(len(pointed))))
     for index, entry in enumerate(marks):
-        chains += framed(entry, stage, drawn, f"p{pointed.index(entry)}" if pointer(entry) else "",
-                         f"b{index}")
+        chains += framed(entry, stage, drawn,
+                         f"p{pointed.index(entry)}" if pointer(entry) else None, f"b{index}")
     joined = "[b0]"
     for index in range(1, len(marks)):
         chains.append(f"{joined}[b{index}]xfade=transition=fade:duration={FADE}"

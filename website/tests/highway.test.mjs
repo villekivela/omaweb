@@ -5,7 +5,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BAR, Cruise, cues, nearestStop, placement, stopAt, wornAt } from "../highway.js";
+import {
+  BAR,
+  Cruise,
+  cues,
+  keyAnswer,
+  nearestStop,
+  placement,
+  stopAt,
+  wornAt,
+} from "../highway.js";
 
 // The Start page, eight cards and the install.
 const STOPS = 10;
@@ -137,5 +146,20 @@ test("cruise: stopping ends the drive from any state", () => {
     cruise.end();
     assert.equal(cruise.state, "off", before);
     assert.equal(cruise.tick(0), null);
+  }
+});
+
+test("keys: Esc stops the drive wherever the reader's focus is", () => {
+  assert.equal(keyAnswer("Escape", false), "stop");
+  // Focus stays on Ignite or Resume cruise once pressed.
+  assert.equal(keyAnswer("Escape", true), "stop");
+});
+
+test("keys: M is the radio's, a cruise control's own key is its, and any other takes the wheel", () => {
+  assert.equal(keyAnswer("m", false), null);
+  assert.equal(keyAnswer("M", false), null);
+  assert.equal(keyAnswer("Enter", true), null);
+  for (const key of ["j", "k", "ArrowDown", " ", "f", "o"]) {
+    assert.equal(keyAnswer(key, false), "hold", key);
   }
 });

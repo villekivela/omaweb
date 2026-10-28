@@ -67,6 +67,15 @@ export function wornAt(time, themes) {
   return worn;
 }
 
+// What a key the reader presses does to the drive: Esc stops it wherever their focus is, M is the
+// radio's own, a key on one of cruise control's own controls (`own`) is that control's, and any
+// other takes the wheel.
+export function keyAnswer(key, own) {
+  if (key === "Escape") return "stop";
+  if (key.toLowerCase() === "m" || own) return null;
+  return "hold";
+}
+
 // Cruise control: off; cruising, driving to each stop as its cue comes; held, the reader having
 // taken the wheel, the music playing on; or parked at the install, the song playing out.
 export class Cruise {

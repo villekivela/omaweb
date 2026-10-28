@@ -502,7 +502,7 @@ def kept_rules(written: str) -> dict[str, str]:
 def stylesheet(
     palettes: dict[str, tuple[dict, dict]],
     borders: dict[str, str],
-    kept: dict[str, str] | None = None,
+    kept: dict[str, str],
 ) -> str:
     """Each theme's roles, on any element rather than the body: those built in this run, and the
     `kept` rules of the others."""
@@ -518,7 +518,7 @@ def stylesheet(
     ]
     for name, _ in THEMES:
         if name not in palettes:
-            if kept and name in kept:
+            if name in kept:
                 lines.append(kept[name])
             continue
         palette, named = palettes[name]

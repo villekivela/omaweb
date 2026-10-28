@@ -108,9 +108,9 @@ export class SceneLight {
 export function drawsFrames(environment) {
   return Boolean(
     environment.onScreen &&
-    !environment.pageHidden &&
-    environment.focused &&
-    !holdsStill(environment),
+      !environment.pageHidden &&
+      environment.focused &&
+      !holdsStill(environment),
   );
 }
 

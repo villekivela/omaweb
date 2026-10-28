@@ -6,7 +6,7 @@
 
 import { createCrtRoad } from "./crt-road.js";
 import { filmKey, filmState, seekAt } from "./film.js";
-import { Cruise, cues, nearestStop, placement, wornAt } from "./highway.js";
+import { Cruise, cues, keyAnswer, nearestStop, placement, wornAt } from "./highway.js";
 import { STILL_MEDIA, SceneHost } from "./scene.js";
 
 // The road's parameters, shared with the browser's own road and served beside this script. A
@@ -461,7 +461,7 @@ if (drive) {
             themes: (clip.themes || []).filter(([, worn]) => styled(worn)),
           });
         }
-        shown = -1;
+        rolled = -1;
         render();
       })
       .catch(() => {});
@@ -482,10 +482,10 @@ if (drive) {
         worn.replace(/(^|-)([a-z])/g, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
     };
     let following = 0;
-    let shown = -1;
+    let rolled = -1;
     const roll = (index) => {
-      if (index === shown) return;
-      shown = index;
+      if (index === rolled) return;
+      rolled = index;
       cancelAnimationFrame(following);
       if (root.dataset.theme !== theme) wear(theme);
       const clip = clips.get(stops[index]);
@@ -493,7 +493,10 @@ if (drive) {
       clip.video.currentTime = 0;
       clip.video.play().catch(() => {});
       if (!clip.themes.length) return;
+      // A theme the reader picks while the clip plays is theirs, and the clip stops dressing the page.
+      const picked = theme;
       const follow = () => {
+        if (theme !== picked) return;
         const worn = wornAt(clip.video.currentTime, clip.themes);
         if (worn && root.dataset.theme !== worn) wear(worn);
         following = clip.video.ended ? 0 : requestAnimationFrame(follow);
@@ -525,10 +528,12 @@ if (drive) {
       "scroll",
       () => {
         if (!frame) frame = requestAnimationFrame(() => ((frame = 0), render()));
+        if (resting !== null && !gliding && Math.abs(scrollY - resting) > 8) takeWheel();
       },
       { passive: true },
     );
     addEventListener("resize", () => {
+      resting = null;
       measure();
       render();
     });
@@ -538,32 +543,40 @@ if (drive) {
     // A glide to a stop, as cruise control, the Omnibar or J and K drive: eased, the road at
     // speed, and the snap let go until it lands.
     let gliding = 0;
+    // Where a glide left the scroll, while cruise control rests there: a scroll away from it that
+    // no glide made, as the scrollbar dragged, is the reader's hand (`takeWheel`), as is one in
+    // the middle of a glide.
+    let resting = null;
+    let takeWheel = () => letGo();
+    const letGo = () => {
+      cancelAnimationFrame(gliding);
+      gliding = 0;
+      cruising = 0;
+      resting = null;
+      root.style.scrollSnapType = "";
+    };
     const glide = (index, duration = 2200) => {
       cancelAnimationFrame(gliding);
       const from = scrollY;
       const to = base + index * length;
       const began = performance.now();
       root.style.scrollSnapType = "none";
+      let placed = from;
       const move = (now) => {
+        // The scrollbar dragged, or any scroll the glide did not make, is the reader's hand.
+        if (Math.abs(scrollY - placed) > 2) return takeWheel();
         const t = Math.min(1, (now - began) / duration);
         const eased = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
         cruising = Math.sin(Math.PI * t);
-        scrollTo({ top: from + (to - from) * eased, behavior: "instant" });
-        if (t < 1) {
-          gliding = requestAnimationFrame(move);
-        } else {
-          gliding = 0;
-          cruising = 0;
-          root.style.scrollSnapType = "";
+        placed = Math.round(from + (to - from) * eased);
+        scrollTo({ top: placed, behavior: "instant" });
+        if (t < 1) gliding = requestAnimationFrame(move);
+        else {
+          letGo();
+          resting = placed;
         }
       };
       gliding = requestAnimationFrame(move);
-    };
-    const letGo = () => {
-      cancelAnimationFrame(gliding);
-      gliding = 0;
-      cruising = 0;
-      root.style.scrollSnapType = "";
     };
 
     // Cruise control, on the night radio: its button in the header, M, Ignite at the Omnibar's end
@@ -678,10 +691,12 @@ if (drive) {
       radio.loop = true;
       show();
     };
+    // A glide in flight lets go whatever cruise control's state, as on the way to the install,
+    // where it has already parked.
     const hold = () => {
+      if (gliding) letGo();
       if (!cruise.hold()) return;
       leave();
-      letGo();
       radio.loop = true;
       show();
     };
@@ -707,7 +722,16 @@ if (drive) {
       setTimeout(() => cruise.state === "off" && radio.paused && begin(true), 1500);
     };
 
-    radio.addEventListener("play", () => cruise.state === "off" && begin(false));
+    takeWheel = hold;
+    // The radio coming on while a timer drives, as when the reader turns it on after the browser
+    // refused it, takes the drive over at the timer's place in the song.
+    radio.addEventListener("play", () => {
+      if (cruise.state === "off") begin(false);
+      else if (timed) {
+        radio.currentTime = clock();
+        timed = false;
+      }
+    });
     radio.addEventListener("pause", () => cruise.state !== "off" && !radio.ended && end());
     radio.addEventListener("ended", () => cruise.state !== "off" && end());
     ignition.hidden = false;
@@ -729,11 +753,12 @@ if (drive) {
     addEventListener(
       "keydown",
       (event) => {
-        if (!event.isTrusted || own(event.target)) return;
-        if (event.key === "Escape" && cruise.state !== "off") {
+        if (!event.isTrusted) return;
+        const answer = keyAnswer(event.key, own(event.target));
+        if (answer === "stop" && cruise.state !== "off") {
           event.stopImmediatePropagation();
           stopAll();
-        } else if (event.key.toLowerCase() !== "m") {
+        } else if (answer === "hold") {
           hold();
         }
       },

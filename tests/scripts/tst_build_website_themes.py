@@ -29,7 +29,7 @@ PALETTE = {
 class Stylesheet(unittest.TestCase):
     def test_a_run_for_one_theme_keeps_the_rules_of_the_others(self):
         earlier = themes.stylesheet(
-            {"nord": (PALETTE, {"mutedText": "#667080"})}, {"nord": "#81a1c1"}
+            {"nord": (PALETTE, {"mutedText": "#667080"})}, {"nord": "#81a1c1"}, {}
         )
         kept = themes.kept_rules(earlier)
         self.assertEqual(set(kept), {"nord"})
@@ -43,7 +43,9 @@ class Stylesheet(unittest.TestCase):
 
     def test_a_rule_built_again_replaces_the_one_kept(self):
         kept = themes.kept_rules(
-            themes.stylesheet({"nord": (PALETTE, {"mutedText": "#667080"})}, {"nord": "#81a1c1"})
+            themes.stylesheet(
+                {"nord": (PALETTE, {"mutedText": "#667080"})}, {"nord": "#81a1c1"}, {}
+            )
         )
         again = themes.stylesheet(
             {"nord": (PALETTE, {"mutedText": "#123456"})}, {"nord": "#81a1c1"}, kept
