@@ -63,15 +63,23 @@ still 6.11.2-16.
 the engine to QtWebEngine 6.11.3: the patch series rebased onto it
 ([#802](https://github.com/villekivela/omaweb/issues/802)), then the security baseline raised to it
 ([#822](https://github.com/villekivela/omaweb/issues/822)). Omarchy's private browser key opens a
-Private window ([#829](https://github.com/villekivela/omaweb/issues/829)), and the Omarchy kit
-catches up with quattro ([#762](https://github.com/villekivela/omaweb/issues/762)).
+Private window ([#829](https://github.com/villekivela/omaweb/issues/829)), the Omarchy kit catches
+up with quattro ([#762](https://github.com/villekivela/omaweb/issues/762)), and the Sync avatar
+draws as the circle it was meant to be ([#836](https://github.com/villekivela/omaweb/issues/836)).
 
 [v0.19.0](https://github.com/villekivela/omaweb/milestone/20) follows. A Link rule opens a link from
 another app in the Space it names, or in a Private window
 ([#388](https://github.com/villekivela/omaweb/issues/388)), and Site information chooses one for the
 site on show ([#828](https://github.com/villekivela/omaweb/issues/828)). `omaweb --diagnose` starts
 a run with named overrides, such as the Chrome version a page reads, for testing a suspicion without
-a one-off build ([#753](https://github.com/villekivela/omaweb/issues/753)).
+a one-off build ([#753](https://github.com/villekivela/omaweb/issues/753)). The sidebar footer
+becomes the Space row, centred: Settings moves to the top row, downloads, a problem recording and a
+new release share a pill above the footer while they last, and the extension mark moves into the
+address box ([#835](https://github.com/villekivela/omaweb/issues/835),
+[#838](https://github.com/villekivela/omaweb/issues/838)). The floating navigation strip goes, since
+a hidden sidebar peeks from its edge ([#837](https://github.com/villekivela/omaweb/issues/837)). A
+Glance gets a head with back, forward and reload that act on the Glance rather than the page behind
+it, reachable from the keyboard ([#839](https://github.com/villekivela/omaweb/issues/839)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
