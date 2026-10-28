@@ -532,7 +532,6 @@ ApplicationWindow {
         objectName: "browserCommands"
         window: window
         browser: window.windowBrowser
-        engineHost: engineLoader
         keymap: keymap
     }
 
@@ -1440,6 +1439,10 @@ ApplicationWindow {
     // keyboard where it is, and so does a keyboard that is in none of the
     // regions: a sheet or a dialog owns its own keys.
     function moveFocus(stepX, stepY) {
+        // A Glance holds the keyboard over the regions and moves it between
+        // its own controls and page.
+        if (window.glanceOpen && glance.moveFocus(stepY))
+            return;
         const regions = window.visibleRegions();
         const fromName = window.focusedRegionName();
         let from = null;
@@ -1818,7 +1821,41 @@ ApplicationWindow {
                               "The document was downloaded instead"), 4200);
     }
 
+    // Back, forward and reload go to the page in front: a Glance's, which keeps
+    // a history of its own in its own engine, or else the tab's. With nowhere
+    // to go in the Glance, back does nothing rather than move the tab beneath
+    // it (#839).
+    function goBack() {
+        if (window.glanceEngine) {
+            if (window.glanceEngine.canGoBack)
+                window.glanceEngine.goBack();
+            return;
+        }
+        engineLoader.goBack();
+    }
+
+    function goForward() {
+        if (window.glanceEngine) {
+            if (window.glanceEngine.canGoForward)
+                window.glanceEngine.goForward();
+            return;
+        }
+        engineLoader.goForward();
+    }
+
+    function reloadPage() {
+        if (window.glanceEngine) {
+            window.glanceEngine.reloadPage();
+            return;
+        }
+        engineLoader.reloadPage();
+    }
+
     function reloadBypassingCache() {
+        if (window.glanceEngine) {
+            window.glanceEngine.reloadPageBypassingCache();
+            return;
+        }
         if (!engineLoader.item) {
             window.reportUnavailable(browserCommands.descriptions["reload-bypassing-cache"].title);
             return;
@@ -3558,14 +3595,16 @@ ApplicationWindow {
 
     // A Glance closes with Escape whatever its page does with the key, for the
     // same reason: the reader must not have to know their keymap to get back to
-    // the page they were on. The one exception is a suggestion list Omaweb
-    // drew under a field of the Glance, which that Escape closes first.
+    // the page they were on. The exceptions are a suggestion list Omaweb drew
+    // under a field of the Glance, which that Escape closes first, and the
+    // Glance's controls, where it returns the keyboard to the Glance's page.
     Shortcut {
         sequence: "Esc"
-        enabled: window.glanceOpen && !formSuggestions.shown && !engineLoader.siteFullscreenActive
-                 && !window.omnibarOpen && !window.settingsOpen && !window.historyOpen &&
-                 !window.pageMenuOpen && !window.permissionOpen && !window.certificateQuestionOpen
-                 && window.dialogMode.length === 0 && !window.siteInformationOpen
+        enabled: window.glanceOpen && !formSuggestions.shown && !glance.controlsFocused &&
+                 !engineLoader.siteFullscreenActive && !window.omnibarOpen && !window.settingsOpen
+                 && !window.historyOpen && !window.pageMenuOpen && !window.permissionOpen &&
+                 !window.certificateQuestionOpen && window.dialogMode.length === 0 &&
+                 !window.siteInformationOpen
         context: Qt.WindowShortcut
         onActivated: window.closeGlance()
     }
@@ -4145,7 +4184,12 @@ ApplicationWindow {
                     openAsTabAllowed: !window.glanceIsExtension
                     engine: window.glanceEngine
                     escapeTaken: formSuggestions.shown
+                    keyMap: keymap
+                    keyLabelsShown: PrimaryHold.held && !window.settingsOpen
 
+                    onBackRequested: window.goBack()
+                    onForwardRequested: window.goForward()
+                    onReloadRequested: window.reloadPage()
                     onClosed: window.closeGlance()
                     onOpenAsTabRequested: window.openGlanceAsTab()
                     onKept: window.keepGlance()

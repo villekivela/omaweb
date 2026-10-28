@@ -194,8 +194,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   `h` returns the cursor to the tab on show. A single key the reader binds to a command takes
   precedence.
 - Holding Primary on its own for 400 ms shows Key labels over the navigation row, the address
-  trigger, the Spaces and the first nine tabs, read from the live keymap. Releasing Primary,
-  pressing another key, or the window losing the keyboard removes them.
+  trigger, the Spaces, the first nine tabs and an open Glance's controls, read from the live keymap.
+  Releasing Primary, pressing another key, or the window losing the keyboard removes them.
 - Every key the chrome shows is drawn as the website's `kbd`: a key cap 22 px tall and at least 22
   px wide with a 4 px radius, a 1 px accent border at 55% with a 3 px bottom edge, a ground of the
   accent at 10% over the plate, and the key in the accent in the mono face at weight 500 and 12 px,
@@ -401,19 +401,29 @@ reports the gap and remains experimental rather than imitating behavior it canno
   new-window request was handed to.
 - A Glance is one accent-bordered panel the page area's full height, between margins of 12% of its
   width, grown out of the link that asked for it and retreating into it when it closes. The page
-  beneath stands back and is dimmed, not blurred. It has no head: close and Open as tab float beside
-  its top corner. Open as tab grows the panel's width into the page area, then the page is a tab
-  listed right after the one it came from, its row lit for a moment; with reduced motion it is a
+  beneath stands back and is dimmed, not blurred. Its controls are bare buttons in a column beside
+  the panel's top corner, with no ground or border of their own: close, Open as tab, back, forward
+  and reload. Back and forward are disabled where the Glance has no history that way, and Open as
+  tab is hidden for an extension's popup. The controls arrive and go with the panel and fade early
+  as the Glance is kept. Open as tab grows the panel's width into the page area, then the page is a
+  tab listed right after the one it came from, its row lit for a moment; with reduced motion it is a
   cut. It takes the opener's engine profile, so logins hold, and its visits enter the Space's
   history. It is not a tab: the outline does not list it, the session store and the Sync projection
-  do not carry it, and the address trigger, find bar, prompt bars and page commands keep answering
-  for the tab beneath. It ends with `Escape`, its close button, a click outside its panel, the
-  close-tab command, and anything that changes the tab on show: a tab or Space switch, the tab
-  closing, settings or history opening. `Primary+Shift+Return` or the Open as tab button beside it
-  makes it an ordinary tab after the tab it stood over, keeping its engine and so its history,
-  scroll and form state. A new-tab request from inside a Glance opens a tab, which ends the Glance;
-  a second request from the page beneath replaces it. Settings' interface section turns the Glance
-  off, locally.
+  do not carry it, and the address trigger, find bar and prompt bars keep answering for the tab
+  beneath. `back`, `forward`, `reload` and `reload-bypassing-cache` act on the Glance's page while
+  it is open, from keys, the command scope and its controls, and leave the tab's page where it was;
+  back with no Glance history does nothing. It ends with `Escape` from its page, its close button, a
+  click outside its panel, the close-tab command, and anything that changes the tab on show: a tab
+  or Space switch, the tab closing, settings or history opening. `Primary+Shift+Return` or the Open
+  as tab button makes it an ordinary tab after the tab it stood over, keeping its engine and so its
+  history, scroll and form state. A new-tab request from inside a Glance opens a tab, which ends the
+  Glance; a second request from the page beneath replaces it. Settings' interface section turns the
+  Glance off, locally.
+- `Alt+K` from a Glance's page moves the keyboard into its controls, where the Sidebar cursor marks
+  the button holding it. `Tab`, `Shift+Tab` and the up and down arrows walk the buttons that can be
+  pressed, `Tab` going round the ends, and `Return` or `Space` presses one. `Alt+J` or `Escape`
+  returns the keyboard to the Glance's page. Holding Primary labels the controls beside each button,
+  `Primary+Shift+Return` on Open as tab included.
 - The Shortcut sheet lists the browser commands and the keys that run them, read from the live
   keymap so it cannot promise a key the window does not answer. The Keyboard shortcuts command
   summons it, from the Omnibar or with `Primary+/` and `?`, over a page or over the Start page,
@@ -509,7 +519,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - `Alt+H`, `Alt+J`, `Alt+K` and `Alt+L` move the keyboard left, down, up and right between the
   regions on screen: the outline, the page area, which is a pane at a time while a split is on show,
   and the Developer tools dock. A region that is hidden is skipped rather than shown, and a move
-  with nothing in that direction leaves the keyboard where it is.
+  with nothing in that direction leaves the keyboard where it is. While a Glance holds the keyboard,
+  `Alt+K` and `Alt+J` move it between the Glance's controls and page instead.
 - In Settings, an unhandled letter selects the next section whose name begins with it and moves the
   keyboard onto that name in the rail. Repeated presses cycle through matching sections. A field
   keeps the letters typed into it.

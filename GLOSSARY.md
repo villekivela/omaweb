@@ -143,9 +143,10 @@ window and the sidebar. _Avoid_: Agent colour, bot colour
 
 **Glance**: A page opened by a link that asked for a new tab, shown over the tab it came from
 instead of as a tab. It runs on the Space's engine profile and records its visits, but it is not
-listed, saved, or synced, and the chrome goes on answering for the tab beneath. It ends with
-`Escape`, the close-tab command, or anything that changes the tab on show, and one command keeps it
-as an ordinary tab, page and all. _Avoid_: Peek, preview, popup, quick look, overlay tab
+listed, saved, or synced, and the chrome goes on answering for the tab beneath, except back, forward
+and reload, which its controls and the commands take to its own page. It ends with `Escape`, the
+close-tab command, or anything that changes the tab on show, and one command keeps it as an ordinary
+tab, page and all. _Avoid_: Peek, preview, popup, quick look, overlay tab
 
 **Auxiliary window**: A temporary, minimally framed window requested by a site to complete a flow
 such as authentication or payment. It inherits the browsing identity of its opener and is not an
@@ -174,8 +175,9 @@ _Avoid_: Command mode, command panel
 **Sidebar cursor**: The sidebar row that holds the keyboard, drawn in the accent while the sidebar
 has focus. `j` and `k` move it through the pins and then the ordinary tabs without changing the
 page, `l` opens its tab and hands the keyboard to the page, and `h` returns it to the tab on show.
-It is never the mark of the tab on show, and no row carries it while the page has the keyboard.
-_Avoid_: Selection, highlight, focused tab
+It is never the mark of the tab on show, and no row carries it while the page has the keyboard. The
+same mark shows which of a Glance's controls holds the keyboard. _Avoid_: Selection, highlight,
+focused tab
 
 **Key label**: The key a control answers to, laid over the control while Primary is held on its own.
 A chord on Primary is labelled by the key that finishes it, and a single key by itself, only while

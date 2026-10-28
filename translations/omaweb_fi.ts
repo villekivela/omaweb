@@ -992,6 +992,18 @@
 <context>
     <name>Glance</name>
     <message>
+        <source>Back</source>
+        <translation>Takaisin</translation>
+    </message>
+    <message>
+        <source>Forward</source>
+        <translation>Eteenpäin</translation>
+    </message>
+    <message>
+        <source>Reload</source>
+        <translation>Lataa uudelleen</translation>
+    </message>
+    <message>
         <source>Open as tab</source>
         <translation>Avaa välilehtenä</translation>
     </message>
