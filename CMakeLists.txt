@@ -1514,6 +1514,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
         )
+        # The baseline an engine release offers from its per-architecture files, and the
+        # refusal when they disagree (#846).
+        add_test(NAME omaweb-offer-engine-baseline
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_offer_engine_baseline.py
+        )
         # The fingerprint read out of the signing key, which is what decides
         # whether a release trusts the key a reader was told to check.
         add_test(NAME omaweb-repository-instructions
