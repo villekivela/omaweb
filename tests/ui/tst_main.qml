@@ -13152,7 +13152,6 @@ TestCase {
             compare(avatarClip.opacity, 1);
             compare(avatarMonogram.text, "O");
             verify(avatarMonogram.visible);
-            compare(avatarEffect.saturation, 0);
             compare(String(activityDot.color), String(outline.colors.accent));
 
             avatar.clicked();

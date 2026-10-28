@@ -1879,7 +1879,7 @@ Rectangle {
                     anchors.fill: parent
                     source: avatarCanvas
                     visible: avatarImage.status === Image.Ready && !root.activeSync
-                    saturation: root.activeSync ? 0 : -1
+                    saturation: -1
                 }
             }
 
