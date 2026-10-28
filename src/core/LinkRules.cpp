@@ -1,7 +1,9 @@
 #include "LinkRules.h"
 
+#include <QHostAddress>
 #include <QJsonObject>
 #include <QRegularExpression>
+#include <QtNetwork/private/qtldurl_p.h>
 
 namespace omaweb::linkrules {
 
@@ -63,6 +65,32 @@ bool matches(const QString &pattern, const QUrl &url)
     const auto &prefix = *parsed->path;
     const auto path = url.path();
     return path.startsWith(prefix) || (prefix.endsWith(u'/') && path == prefix.chopped(1));
+}
+
+std::optional<QString> sitePattern(const QUrl &url)
+{
+    if (url.scheme() != QLatin1String("https") && url.scheme() != QLatin1String("http")) {
+        return std::nullopt;
+    }
+    const auto host = url.host(QUrl::EncodeUnicode).toLower();
+    if (host.isEmpty() || !QHostAddress(host).isNull()) {
+        return std::nullopt;
+    }
+    const auto labels = host.split(u'.');
+    if (labels.size() < 2 || qIsEffectiveTLD(host)) {
+        return std::nullopt;
+    }
+    // The longest suffix the list names wins, so the walk starts from the
+    // left.
+    for (qsizetype first = 1; first < labels.size(); ++first) {
+        const auto suffix = labels.sliced(first).join(u'.');
+        if (qIsEffectiveTLD(suffix)) {
+            return QStringLiteral("*.") + labels.sliced(first - 1).join(u'.');
+        }
+    }
+    // The list's default rule: a top-level name it does not know is a public
+    // suffix of its own.
+    return QStringLiteral("*.") + labels.sliced(labels.size() - 2).join(u'.');
 }
 
 QList<LinkRule> read(const QJsonValue &value)

@@ -247,12 +247,17 @@ message(STATUS "Omaweb approved engine baseline: QtWebEngine "
 # Qt ships privately and which is what reads a store package's archive. Writing
 # a ZIP reader by hand, or taking a dependency for one, would both be worse
 # than a header that has been in the same place since Qt 5.
+# `NetworkPrivate` is `qIsEffectiveTLD` in `LinkRules.cpp`, the public suffix
+# list Qt compiles in for its own cookie jar. A whole-site Link rule names a
+# registrable domain, and a second copy of the list would go stale apart from
+# the one Qt already ships and updates.
 # `LinguistTools` is a build tool only: it refreshes and compiles the translation
 # catalogues under translations/.
 # `ShaderTools` is a build tool only: it compiles the Start page's CRT glass
 # (src/ui/shaders) to the shader packs Qt Quick loads at runtime.
 set(omaweb_qt_components
-    Concurrent Core CorePrivate Gui LinguistTools Network Qml Quick QuickControls2 ShaderTools Sql
+    Concurrent Core CorePrivate Gui LinguistTools Network NetworkPrivate Qml Quick QuickControls2
+    ShaderTools Sql
 )
 if(UNIX AND NOT APPLE)
     # The desktop's notification service is a session-bus service, so the Linux
@@ -503,7 +508,8 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto)
 target_link_libraries(omaweb-core
     PUBLIC omaweb-agent-client Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
-    PRIVATE Qt6::Concurrent Qt6::CorePrivate PkgConfig::LIBCRYPTO omaweb-content-blocking)
+    PRIVATE Qt6::Concurrent Qt6::CorePrivate Qt6::NetworkPrivate PkgConfig::LIBCRYPTO
+    omaweb-content-blocking)
 # Payment cards are kept in the desktop's Secret Service (ADR 0053), which the
 # core reaches through libsecret on Linux. Elsewhere the core builds without
 # it, and a machine with no Secret Service has no payment cards.

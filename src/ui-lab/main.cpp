@@ -507,8 +507,25 @@ int main(int argc, char *argv[])
     const auto suggestUrl = suggestIndex >= 0 && suggestIndex + 1 < arguments.size()
         ? arguments.at(suggestIndex + 1)
         : QString();
+    // `--site-links site` or `settings` has a Link rule take Site information's
+    // page, which the lab can only keep with a configuration root too: the
+    // whole-site rule its row writes, or one written in Settings that the row
+    // only names. Use it with `--spaces`, for the Work Space they name.
+    const auto siteLinksIndex = arguments.indexOf(QStringLiteral("--site-links"));
+    const auto siteLinks = siteLinksIndex >= 0 && siteLinksIndex + 1 < arguments.size()
+        ? arguments.at(siteLinksIndex + 1)
+        : QString();
+    if (!siteLinks.isEmpty()) {
+        const auto rule = siteLinks == QLatin1String("site")
+            ? QStringLiteral("*.example.org")
+            : QStringLiteral("www.example.org/articles/*");
+        omaweb::SettingsFile(dataRootPath)
+            .set(QStringLiteral("link-rules"),
+                QJsonArray {QJsonObject {{QStringLiteral("pattern"), rule},
+                    {QStringLiteral("space"), QStringLiteral("Work")}}});
+    }
     omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")),
-        suggestUrl.isEmpty() ? QString() : dataRootPath);
+        suggestUrl.isEmpty() && siteLinks.isEmpty() ? QString() : dataRootPath);
     browser.setEngineSuggestions(&engineSuggestions);
     // A keyring in memory: the lab never reaches the desktop's.
     // `--sample-cards` puts two cards in it, so the Settings section, the

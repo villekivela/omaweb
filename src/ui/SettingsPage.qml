@@ -580,6 +580,21 @@ Rectangle {
         });
     }
 
+    // A rule Site information names, scrolled into view with the keyboard on
+    // its pattern, once the section has been laid out.
+    function revealLinkRule(index) {
+        Qt.callLater(function () {
+            const row = linkRuleList.itemAt(index);
+            if (!row)
+                return;
+            const flickable = scroll.contentItem;
+            const top = row.mapToItem(pane, 0, 0).y;
+            flickable.contentY = Math.max(0, Math.min(top - scroll.height / 3, pane.height
+                                                      - scroll.height));
+            row.focusPattern();
+        });
+    }
+
     // The reader's Spaces and a Private window. A Space the rule names that
     // the reader has not got is listed too, so the picker shows what the
     // rule says. A Space called what a Private window is called cannot be a

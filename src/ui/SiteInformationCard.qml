@@ -77,6 +77,21 @@ Omarchy.BorderSurface {
     property int cookieCount: 0
     property real siteDataBytes: -1
     property real retainedDataBytes: -1
+    // Where a link from another app to this site opens, as the browser's
+    // siteLinkRoute states it. Empty where the row is not offered: in a
+    // Private window, in an Agent Space, and on Omaweb's own pages.
+    property var siteLinks: ({})
+    // The reader's Spaces a link can be sent to, read with it.
+    property var siteLinkSpaces: []
+    readonly property bool siteLinksOffered: !root.blank && String(root.siteLinks.site || "").length
+                                             > 0
+    readonly property string siteLinksTarget: String(root.siteLinks.space || "")
+    // The rule written in Settings that takes the page, by its place in the
+    // list, or -1. The row only states such a rule and never writes over it.
+    readonly property int siteLinksRule: root.siteLinks.rule === undefined ? -1 : Number(
+                                                                                 root.siteLinks.rule)
+    // What a Link rule names in place of a Space (linkrules::privateWindow).
+    readonly property string privateWindowTarget: "private"
 
     readonly property int refusalTally: refusals.count
     property RefusalTally refusals: RefusalTally {
@@ -92,6 +107,8 @@ Omarchy.BorderSurface {
 
     // What the reader asked for, by name, for the window to ask about.
     signal actionRequested(string action)
+    // The Link rule at that place in the list, to be shown in Settings.
+    signal linkRuleRequested(int index)
     signal closeRequested
 
     // How many refused requests the blocked detail lists. The tile counts them
@@ -343,6 +360,47 @@ Omarchy.BorderSurface {
                                                                    root.decisionFor(choice));
     }
 
+    // The reader's Spaces, a Private window, and the Space on show, which is
+    // the empty target. A Space the rule names that the reader has not got is
+    // listed too, so the picker shows what the rule says. A Space called what
+    // a Private window is called cannot be a target.
+    function siteLinkTargets() {
+        const names = root.siteLinkSpaces;
+        const targets = names.filter(function (name) {
+            return name !== root.privateWindowTarget;
+        }).map(function (name) {
+            return {
+                "value": name,
+                "label": name
+            };
+        });
+        const target = root.siteLinksTarget;
+        if (target.length > 0 && target !== root.privateWindowTarget && names.indexOf(target) < 0)
+            targets.push({
+                             "value": target,
+                             "label": target
+                         });
+        targets.push({
+                         "value": root.privateWindowTarget,
+                         "label": qsTr("Private window")
+                     }, {
+                         "value": "",
+                         "label": qsTr("Wherever I am",
+                                       "links from other apps open in the Space on show")
+                     });
+        return targets;
+    }
+
+    function siteLinkTargetName(target) {
+        return target === root.privateWindowTarget ? qsTr("Private window") : target;
+    }
+
+    function readSiteLinks() {
+        root.siteLinkSpaces = root.browser ? root.browser.readersSpaceNames() : [];
+        root.siteLinks = root.browser && !root.blank ? root.browser.siteLinkRoute(root.activeUrl) : (
+                                                           {});
+    }
+
     // Cookies, storage and cache, measured as the engine can measure them.
     function formatBytes(bytes) {
         const units = ["B", "kB", "MB", "GB"];
@@ -401,6 +459,18 @@ Omarchy.BorderSurface {
         root.retainedDataBytes = root.siteDataOnDisk ? root.browser.siteDataBytes(
                                                            root.browser.activeSpaceId,
                                                            root.retainedDataEntries) : -1;
+        root.readSiteLinks();
+    }
+
+    // A rule changed in Settings or in the file while the card is open.
+    Connections {
+        target: root.browser
+        enabled: root.open
+        ignoreUnknownSignals: true
+        function onPreferenceChanged(name) {
+            if (name === "link-rules")
+                root.readSiteLinks();
+        }
     }
 
     onOpenChanged: {
@@ -802,6 +872,84 @@ Omarchy.BorderSurface {
                             wrapMode: Text.Wrap
                         }
                     }
+                }
+            }
+
+            // Where a link to this site from another app opens. The picker
+            // writes the whole-site rule for the page's registrable domain; a
+            // rule written in Settings that takes the page is named instead,
+            // and leads there.
+            Rectangle {
+                id: siteLinksRow
+                objectName: "siteLinks"
+                width: parent.width - 2 * root.gutter
+                // A rule written in Settings is named on a line of its own:
+                // beside the label it would leave the label no room.
+                height: root.siteLinksRule >= 0 ? siteLinksRule.y + siteLinksRule.height + 7 : 40
+                visible: root.siteLinksOffered
+                radius: Style.cornerRadius
+                color: root.colors.surface
+
+                Text {
+                    id: siteLinksGlyph
+                    x: 10
+                    y: (40 - height) / 2
+                    text: "open_in_new"
+                    color: root.colors.mutedText
+                    font.family: root.iconFontFamily
+                    font.pixelSize: Style.font.icon
+                    Accessible.ignored: true
+                }
+
+                Text {
+                    anchors.left: siteLinksGlyph.right
+                    anchors.leftMargin: 8
+                    anchors.right: siteLinksChoice.visible ? siteLinksChoice.left : parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: siteLinksGlyph.verticalCenter
+                    text: qsTr("Links from other apps")
+                    color: root.colors.text
+                    elide: Text.ElideRight
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                }
+
+                SettingDropdown {
+                    id: siteLinksChoice
+                    objectName: "siteLinksChoice"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 7
+                    anchors.verticalCenter: siteLinksGlyph.verticalCenter
+                    width: 170
+                    visible: root.siteLinksRule < 0
+                    colors: root.colors
+                    options: root.siteLinksOffered ? root.siteLinkTargets() : []
+                    value: root.siteLinksTarget
+                    accessibleName: qsTr("Where links to %1 from other apps open").arg(
+                                        root.siteLinks.site || "")
+                    onChanged: function (value) {
+                        if (value !== root.siteLinksTarget && root.browser.routeSiteLinks(
+                                    root.activeUrl, value))
+                            root.readSiteLinks();
+                        // The dropdown sets its own value on a choice, so it
+                        // shows what is stored again.
+                        siteLinksChoice.value = Qt.binding(function () {
+                            return root.siteLinksTarget;
+                        });
+                    }
+                }
+
+                ActionButton {
+                    id: siteLinksRule
+                    objectName: "siteLinksRule"
+                    x: 7
+                    y: 36
+                    width: parent.width - 14
+                    visible: root.siteLinksRule >= 0
+                    colors: root.colors
+                    label: qsTr("%1, by a rule in Settings").arg(root.siteLinkTargetName(
+                                                                     root.siteLinksTarget))
+                    onClicked: root.linkRuleRequested(root.siteLinksRule)
                 }
             }
 

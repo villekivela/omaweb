@@ -4398,6 +4398,162 @@ TestCase {
     // The command and its key open the card at its top, and both are named
     // where the reader looks keys up: the Shortcut sheet, and the command's
     // own row in command scope.
+    function storedLinkRules() {
+        return JSON.parse(browser.preference("link-rules", "[]"));
+    }
+
+    // On app.acme.com, choosing a Space for links from other apps writes the
+    // whole-site rule for acme.com after the reader's own rules, and choosing
+    // Wherever I am removes it again.
+    function test_siteInformationSendsTheSitesLinksToASpace() {
+        const spaceId = browser.createSpace("Site Work");
+        const handWritten = {
+            "pattern": "github.com",
+            "space": "Site Work"
+        };
+        verify(browser.setPreference("link-rules", JSON.stringify([handWritten])));
+        openPage("https://app.acme.com/dashboard");
+        const card = openSiteCard("");
+        const row = findChild(card, "siteLinks");
+        const picker = findChild(card, "siteLinksChoice");
+        const shown = row.visible && picker.visible;
+        const before = picker.value;
+        const labels = picker.options.map(function (option) {
+            return option.label;
+        });
+
+        picker.changed("Site Work");
+        const routed = storedLinkRules();
+        const routedValue = picker.value;
+        picker.changed("private");
+        const privately = storedLinkRules();
+        picker.changed("");
+        const removed = storedLinkRules();
+        const removedValue = picker.value;
+
+        closeSiteCard();
+        verify(browser.setPreference("link-rules", ""));
+        verify(browser.deleteSpace(spaceId, "Site Work"));
+
+        verify(shown);
+        compare(before, "");
+        verify(labels.indexOf("Site Work") >= 0, labels);
+        compare(labels.slice(-2), ["Private window", "Wherever I am"]);
+        compare(routed, [handWritten,
+                         {
+                             "pattern": "*.acme.com",
+                             "space": "Site Work"
+                         }
+                ]);
+        compare(routedValue, "Site Work");
+        compare(privately, [handWritten,
+                            {
+                                "pattern": "*.acme.com",
+                                "space": "private"
+                            }
+                ]);
+        compare(removed, [handWritten]);
+        compare(removedValue, "");
+    }
+
+    // A rule written in Settings that takes the page is what the row states,
+    // and it leads to that rule in Settings rather than offering a choice
+    // that would write over it.
+    function test_siteInformationNamesARuleWrittenInSettings() {
+        const spaceId = browser.createSpace("Site Rules");
+        const written = [
+                  {
+                      "pattern": "*.example.org",
+                      "space": "Elsewhere"
+                  },
+                  {
+                      "pattern": "github.com/acme/*",
+                      "space": "Site Rules"
+                  }
+              ];
+        verify(browser.setPreference("link-rules", JSON.stringify(written)));
+        openPage("https://github.com/acme/omaweb");
+        const card = openSiteCard("");
+        const rule = findChild(card, "siteLinksRule");
+        const shown = rule.visible && !findChild(card, "siteLinksChoice").visible;
+        const label = rule.label;
+
+        rule.clicked();
+        tryVerify(function () {
+            return window.settingsOpen && !card.visible;
+        });
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const section = settings.sections[settings.section];
+        tryVerify(function () {
+            const pattern = findChild(settings, "linkRulePattern-1");
+            return pattern !== null && pattern.activeFocus;
+        });
+        const stored = storedLinkRules();
+
+        window.settingsOpen = false;
+        verify(browser.setPreference("link-rules", ""));
+        verify(browser.deleteSpace(spaceId, "Site Rules"));
+
+        verify(shown);
+        compare(label, "Site Rules, by a rule in Settings");
+        compare(section, "spaces");
+        compare(stored, written);
+    }
+
+    // Links from other apps is the reader's own Spaces' alone: a Private
+    // window, an Agent Space and Omaweb's own pages have no row.
+    function test_siteInformationOffersLinksOnlyForTheReadersSites() {
+        const linksShown = function (host) {
+            const card = findChild(host.contentItem, "siteInformationCard");
+            host.openSiteInformation("");
+            tryVerify(function () {
+                return card.visible && card.open;
+            });
+            const shown = findChild(card, "siteLinks").visible;
+            host.closeSiteInformation();
+            tryVerify(function () {
+                return !card.visible;
+            });
+            return shown;
+        };
+
+        openPage("https://reader-site.example/page");
+        const onAPage = linksShown(window);
+
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        browser.openInput("about:blank", true);
+        tryVerify(function () {
+            return engineHost.item === null;
+        });
+        const onTheStartPage = linksShown(window);
+        browser.closeActiveTab();
+
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://reader-site.example/private", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const inAPrivateWindow = linksShown(privateBrowser);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        const drive = driveAnAgentSpace(false);
+        const inAnAgentSpace = linksShown(window);
+        endAgentDrive(drive);
+
+        verify(onAPage);
+        verify(!onTheStartPage);
+        verify(!inAPrivateWindow);
+        verify(!inAnAgentSpace);
+    }
+
     function test_siteInformationOpensFromItsCommandAndItsKey() {
         openPage("https://command-site.example/page");
         activateWindow();

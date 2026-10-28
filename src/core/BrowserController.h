@@ -323,6 +323,18 @@ public:
     // The names a Link rule can send a link to, in the order the Spaces are
     // listed: the reader's own Spaces, not an Agent's.
     Q_INVOKABLE QStringList readersSpaceNames() const;
+    // Where a link from another app to the page would open, as Site
+    // information's row states it: `site`, the whole-site pattern the row
+    // writes, empty where the row has none to offer; `space`, the target links
+    // to the page go to now, empty for the Space on show; and `rule`, the
+    // index of the rule written in Settings that sends them there, or -1 when
+    // that is the whole-site rule or no rule at all.
+    Q_INVOKABLE QVariantMap siteLinkRoute(const QUrl &url) const;
+    // Writes the page's whole-site rule to send its links to a target, in
+    // place if it is there and after the reader's rules if not, or removes it
+    // for an empty target. False, writing nothing, where the row is not
+    // offered or a rule written in Settings takes the page.
+    Q_INVOKABLE bool routeSiteLinks(const QUrl &url, const QString &target);
     // Whether a Link rule's pattern is one Omaweb reads (linkrules::parses).
     Q_INVOKABLE static bool linkPatternParses(const QString &pattern);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
@@ -837,6 +849,7 @@ private:
     void rememberReadersSpace();
     QList<LinkRule> linkRules() const;
     QString linkRuleName(const QString &spaceId) const;
+    QString siteLinkPattern(const QUrl &url) const;
     // Renames the Space in the Link rules that name it, or deletes them.
     void rewriteLinkRules(const QString &spaceId, const std::optional<QString> &renamed);
     // Facts held by pages that survived a Space switch. The session store does

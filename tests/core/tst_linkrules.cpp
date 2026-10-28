@@ -29,7 +29,11 @@ private slots:
     void takesASiteAndEverySiteBelowIt();
     void takesThePathsUnderAPrefix();
     void acceptsOnlyAHostAndAPathPrefix();
+    void namesASiteByItsRegistrableDomain();
     void sendsALinkWhereTheFirstRuleThatTakesItSays();
+    void writesAndRemovesTheWholeSiteRule();
+    void leavesARuleWrittenInSettingsAlone();
+    void offersNoSiteRuleOutsideTheReadersOwnSpaces();
     void opensALinkFromAnotherAppInTheSpaceItsRuleNames();
     void opensAPrivateRulesLinkInThePrivateWindowShownLast();
     void opensWhereItWouldHaveGoneWhenTheSpaceIsNotTheReaders();
@@ -78,6 +82,11 @@ SessionSpec twoSpaces()
         },
         .activeSpaceId = QStringLiteral("personal"),
     };
+}
+
+QJsonValue storedRules(const QString &config)
+{
+    return SettingsFile(config).value(QStringLiteral("link-rules"));
 }
 
 QStringList tabAddresses(const BrowserController &browser)
@@ -139,6 +148,41 @@ void LinkRulesTest::acceptsOnlyAHostAndAPathPrefix()
     QVERIFY(!linkrules::matches(QStringLiteral("acme.com/docs"), address("https://acme.com/docs")));
 }
 
+// The whole-site rule Site information writes is the page's registrable
+// domain under `*.`, which is the site a cookie belongs to: one label more
+// than the public suffix, however many labels that suffix has.
+void LinkRulesTest::namesASiteByItsRegistrableDomain()
+{
+    const auto site = [](const QString &text) {
+        return linkrules::sitePattern(QUrl(text)).value_or(QStringLiteral("none"));
+    };
+    QCOMPARE(site(QStringLiteral("https://app.acme.com/dashboard")), QStringLiteral("*.acme.com"));
+    QCOMPARE(site(QStringLiteral("https://acme.com")), QStringLiteral("*.acme.com"));
+    QCOMPARE(site(QStringLiteral("http://a.b.ACME.com/")), QStringLiteral("*.acme.com"));
+    QCOMPARE(site(QStringLiteral("https://www.bbc.co.uk/news")), QStringLiteral("*.bbc.co.uk"));
+    QCOMPARE(
+        site(QStringLiteral("https://reader.github.io/")), QStringLiteral("*.reader.github.io"));
+    QCOMPARE(site(QStringLiteral("https://www.bücher.de/")), QStringLiteral("*.xn--bcher-kva.de"));
+    // A top-level name the list does not know is a public suffix all the same,
+    // as the list's own default rule has it.
+    QCOMPARE(
+        site(QStringLiteral("https://wiki.corp.internal/")), QStringLiteral("*.corp.internal"));
+    // A suffix outside ASCII is one the list names too.
+    QCOMPARE(site(QStringLiteral("https://shop.個人.香港/")),
+        QStringLiteral("*.shop.xn--gmqw5a.xn--j6w193g"));
+    // What is not under a public suffix has no site to name, and nor has a
+    // page that is not on the web.
+    QCOMPARE(site(QStringLiteral("https://co.uk/")), QStringLiteral("none"));
+    QCOMPARE(site(QStringLiteral("http://localhost:8080/")), QStringLiteral("none"));
+    QCOMPARE(site(QStringLiteral("http://192.168.1.10/")), QStringLiteral("none"));
+    QCOMPARE(site(QStringLiteral("http://[::1]/")), QStringLiteral("none"));
+    QCOMPARE(site(QStringLiteral("file:///home/reader/page.html")), QStringLiteral("none"));
+    QCOMPARE(site(QStringLiteral("about:blank")), QStringLiteral("none"));
+    // Each one is a pattern that takes the page it was made on.
+    QVERIFY(linkrules::matches(
+        site(QStringLiteral("https://app.acme.com/")), address("https://app.acme.com/")));
+}
+
 // The rules as settings.json holds them. The first that takes the address
 // wins, a rule whose pattern does not parse is passed over, and an address no
 // rule takes goes nowhere in particular.
@@ -167,6 +211,100 @@ void LinkRulesTest::sendsALinkWhereTheFirstRuleThatTakesItSays()
     QCOMPARE(linkrules::read(linkrules::write(rules)), rules);
     // A value that is not a list of rules holds none.
     QVERIFY(linkrules::read(QJsonValue(QStringLiteral("acme.com"))).isEmpty());
+}
+
+// On app.acme.com, choosing Work in Site information adds `*.acme.com` to
+// Work after the reader's own rules, choosing another Space changes that rule
+// where it stands, and choosing Wherever I am removes it again.
+void LinkRulesTest::writesAndRemovesTheWholeSiteRule()
+{
+    QTemporaryDir config;
+    QVERIFY(SettingsFile(config.path())
+            .set(QStringLiteral("link-rules"), rules({{"github.com", "Personal"}})));
+    SessionFixture fixture(twoSpaces(), config.path());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    const auto page = address("https://app.acme.com/dashboard");
+
+    const auto before = browser->siteLinkRoute(page);
+    QCOMPARE(before.value(QStringLiteral("site")).toString(), QStringLiteral("*.acme.com"));
+    QCOMPARE(before.value(QStringLiteral("space")).toString(), QString());
+    QCOMPARE(before.value(QStringLiteral("rule")).toInt(), -1);
+
+    QVERIFY(browser->routeSiteLinks(page, QStringLiteral("Work")));
+    QCOMPARE(storedRules(config.path()),
+        QJsonValue(rules({{"github.com", "Personal"}, {"*.acme.com", "Work"}})));
+    const auto routed = browser->siteLinkRoute(page);
+    QCOMPARE(routed.value(QStringLiteral("space")).toString(), QStringLiteral("Work"));
+    QCOMPARE(routed.value(QStringLiteral("rule")).toInt(), -1);
+    // The rule it wrote takes the site's other hosts too.
+    QCOMPARE(browser->siteLinkRoute(address("https://acme.com/"))
+                 .value(QStringLiteral("space"))
+                 .toString(),
+        QStringLiteral("Work"));
+
+    QVERIFY(browser->routeSiteLinks(page, linkrules::privateWindow()));
+    QCOMPARE(storedRules(config.path()),
+        QJsonValue(rules({{"github.com", "Personal"}, {"*.acme.com", "private"}})));
+
+    QVERIFY(browser->routeSiteLinks(page, QString()));
+    QCOMPARE(storedRules(config.path()), QJsonValue(rules({{"github.com", "Personal"}})));
+    QCOMPARE(browser->siteLinkRoute(page).value(QStringLiteral("space")).toString(), QString());
+}
+
+// A rule the reader wrote in Settings that takes the page is the one the row
+// states, with where it sits in the list, and the row writes nothing over it.
+void LinkRulesTest::leavesARuleWrittenInSettingsAlone()
+{
+    QTemporaryDir config;
+    const auto written = rules({{"*.example.org", "Personal"}, {"github.com/acme/*", "Work"}});
+    QVERIFY(SettingsFile(config.path()).set(QStringLiteral("link-rules"), written));
+    SessionFixture fixture(twoSpaces(), config.path());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    const auto page = address("https://github.com/acme/omaweb");
+
+    const auto route = browser->siteLinkRoute(page);
+    QCOMPARE(route.value(QStringLiteral("site")).toString(), QStringLiteral("*.github.com"));
+    QCOMPARE(route.value(QStringLiteral("space")).toString(), QStringLiteral("Work"));
+    QCOMPARE(route.value(QStringLiteral("rule")).toInt(), 1);
+
+    QVERIFY(!browser->routeSiteLinks(page, QStringLiteral("Personal")));
+    QVERIFY(!browser->routeSiteLinks(page, QString()));
+    QCOMPARE(storedRules(config.path()), QJsonValue(written));
+}
+
+// A Private window and an Agent Space have no row, so there is no site rule
+// to offer or write from either.
+void LinkRulesTest::offersNoSiteRuleOutsideTheReadersOwnSpaces()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(twoSpaces(), config.path());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    const auto page = address("https://app.acme.com/");
+    const auto offered = [&page](BrowserController &controller) {
+        return controller.siteLinkRoute(page).value(QStringLiteral("site")).toString();
+    };
+
+    WindowManager windows(config.path(), true);
+    QSignalSpy requested(&windows, &WindowManager::privateWindowRequested);
+    windows.openPrivateWindow();
+    QCOMPARE(requested.count(), 1);
+    auto *privateBrowser = requested.at(0).value(0).value<BrowserController *>();
+    QCOMPARE(offered(*privateBrowser), QString());
+    QVERIFY(!privateBrowser->routeSiteLinks(page, QStringLiteral("Work")));
+    windows.releasePrivateWindow(privateBrowser);
+
+    const auto agentId = browser->createAgentSpace(QStringLiteral("Checks"), QStringLiteral("t"));
+    QVERIFY(!agentId.isEmpty());
+    QVERIFY(browser->switchSpace(agentId));
+    QCOMPARE(offered(*browser), QString());
+    QVERIFY(!browser->routeSiteLinks(page, QStringLiteral("Work")));
+
+    QVERIFY(browser->switchSpace(QStringLiteral("work")));
+    QCOMPARE(offered(*browser), QStringLiteral("*.acme.com"));
+    QVERIFY(!SettingsFile(config.path()).isSet(QStringLiteral("link-rules")));
 }
 
 // A link from another app that a rule names Work for opens there while

@@ -2289,6 +2289,57 @@ bool BrowserController::openLinkFromOutside(const QUrl &url)
     return true;
 }
 
+// The row is the reader's own Spaces' alone: a Private window keeps no rules
+// of its own, and an Agent Space's pages are not the reader's to route.
+QString BrowserController::siteLinkPattern(const QUrl &url) const
+{
+    if (m_privateBrowsing || agentSpace(activeSpaceId())) {
+        return {};
+    }
+    return linkrules::sitePattern(url).value_or(QString());
+}
+
+QVariantMap BrowserController::siteLinkRoute(const QUrl &url) const
+{
+    const auto site = siteLinkPattern(url);
+    if (site.isEmpty()) {
+        return {};
+    }
+    const auto rules = linkRules();
+    const auto taking = std::ranges::find_if(
+        rules, [&url](const LinkRule &rule) { return linkrules::matches(rule.pattern, url); });
+    const auto byHand = taking != rules.end() && taking->pattern != site;
+    return {
+        {QStringLiteral("site"), site},
+        {QStringLiteral("space"), taking == rules.end() ? QString() : taking->space},
+        {QStringLiteral("rule"),
+            byHand ? static_cast<int>(std::distance(rules.begin(), taking)) : -1},
+    };
+}
+
+bool BrowserController::routeSiteLinks(const QUrl &url, const QString &target)
+{
+    const auto route = siteLinkRoute(url);
+    const auto site = route.value(QStringLiteral("site")).toString();
+    if (site.isEmpty() || route.value(QStringLiteral("rule")).toInt() >= 0) {
+        return false;
+    }
+    auto rules = linkRules();
+    const auto own = std::ranges::find_if(
+        rules, [&site](const LinkRule &rule) { return rule.pattern == site; });
+    if (target.isEmpty()) {
+        if (own == rules.end()) {
+            return true;
+        }
+        rules.erase(own);
+    } else if (own != rules.end()) {
+        own->space = target;
+    } else {
+        rules.append({.pattern = site, .space = target});
+    }
+    return m_settings.set(QString::fromLatin1(linkRulesKey), linkrules::write(rules));
+}
+
 QStringList BrowserController::readersSpaceNames() const
 {
     QStringList names;
