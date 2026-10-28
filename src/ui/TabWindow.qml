@@ -224,22 +224,39 @@ Window {
     // window's, which comes forward to run it.
     function run(command, argument) {
         const engine = root.engine;
+        // Back, forward and reload go to a Glance's page while one is open,
+        // and back with nowhere to go in it leaves the tab's page be (#839).
+        const glanced = root.glanceEngine;
+        const front = glanced || engine;
+        // The keyboard moves between a Glance's head and page here, not
+        // between the main window's regions.
+        if (root.glanceOpen && (command === "move-focus-up" || command === "move-focus-down")
+                && glance.moveFocus(0, command === "move-focus-up" ? -1 : 1))
+            return true;
         switch (command) {
         case "back":
-            if (engine)
+            if (glanced) {
+                if (glanced.canGoBack)
+                    glanced.goBack();
+            } else if (engine) {
                 engine.goBack();
+            }
             return true;
         case "forward":
-            if (engine)
+            if (glanced) {
+                if (glanced.canGoForward)
+                    glanced.goForward();
+            } else if (engine) {
                 engine.goForward();
+            }
             return true;
         case "reload":
-            if (engine)
-                engine.reloadPage();
+            if (front)
+                front.reloadPage();
             return true;
         case "reload-bypassing-cache":
-            if (engine)
-                engine.reloadPageBypassingCache();
+            if (front)
+                front.reloadPageBypassingCache();
             return true;
         case "stop-loading":
             if (engine)
@@ -998,7 +1015,12 @@ Window {
             iconFontFamily: root.iconFontFamily
             open: root.glanceOpen
             engine: root.glanceEngine
+            keyMap: root.keymap
+            keyLabelsShown: PrimaryHold.held && root.active
 
+            onBackRequested: root.run("back", -1)
+            onForwardRequested: root.run("forward", -1)
+            onReloadRequested: root.run("reload", -1)
             onClosed: root.closeGlance()
             onOpenAsTabRequested: root.keepGlance()
         }
@@ -1134,10 +1156,12 @@ Window {
         onActivated: root.engine.exitSiteFullscreen()
     }
 
-    // A Glance closes with Escape whatever its page does with the key.
+    // A Glance closes with Escape whatever its page does with the key. In the
+    // Glance's head, Escape returns the keyboard to its page instead.
     Shortcut {
         sequence: "Esc"
-        enabled: root.glanceOpen && !root.omnibarOpen && !root.promptShown && !root.siteFullscreen
+        enabled: root.glanceOpen && !glance.headFocused && !root.omnibarOpen && !root.promptShown
+                 && !root.siteFullscreen
         context: Qt.WindowShortcut
         onActivated: root.closeGlance()
     }

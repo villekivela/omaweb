@@ -8,7 +8,6 @@ QtObject {
     // a command missing here is unreachable by keyboard and unsearchable.
     property var window
     property var browser
-    property var engineHost
     property var keymap
 
     // A tab's id, where a command was given one rather than a position.
@@ -19,13 +18,13 @@ QtObject {
     function run(command, argument) {
         switch (command) {
         case "back":
-            engineHost.goBack();
+            window.goBack();
             return true;
         case "forward":
-            engineHost.goForward();
+            window.goForward();
             return true;
         case "reload":
-            engineHost.reloadPage();
+            window.reloadPage();
             return true;
         case "reload-bypassing-cache":
             window.reloadBypassingCache();
