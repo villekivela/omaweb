@@ -1568,3 +1568,138 @@ kbd {
     display: none;
   }
 }
+
+/* PROTOTYPE, throwaway (branch feat/ignite-tour-prototype): the Ignite tour. */
+
+.ignite {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.ignite:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.card[data-tour-current],
+.film[data-tour-current] .film__frame,
+.install[data-tour-current] {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 32px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition:
+    box-shadow 0.4s,
+    border-color 0.4s;
+}
+
+.card kbd.tour-key {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  transition: all 0.2s;
+}
+
+/* The road variant: while the page glides between stops, the scrim lifts off the road. */
+.drive[data-tour] .drive__scrim {
+  transition: opacity 0.6s;
+}
+
+.drive[data-tour-glide] .drive__scrim {
+  opacity: 0.15 !important;
+}
+
+.tour-chip {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 10px 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--plate) 88%, transparent);
+  backdrop-filter: blur(14px);
+  font-size: 13px;
+}
+
+.tour-chip[hidden],
+.tour-chip [hidden] {
+  display: none;
+}
+
+.tour-chip__text {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.tour-chip__name {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tour-chip__line {
+  display: block;
+  height: 2px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.tour-chip__line i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+}
+
+.tour-chip button {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.tour-chip__resume {
+  color: var(--accent) !important;
+}
+
+.proto-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 30;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #ff0;
+  color: #000;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 50%);
+  font: 12px/1.2 monospace;
+  white-space: nowrap;
+}
+
+.proto-bar button {
+  border: 0;
+  background: #000;
+  color: #ff0;
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .proto-bar {
+    bottom: 76px;
+  }
+}

@@ -6,6 +6,8 @@
 import { createCrtRoad } from "./crt-road.js";
 import { filmKey, filmState, seekAt } from "./film.js";
 import { SceneHost } from "./scene.js";
+// PROTOTYPE, throwaway: the Ignite tour.
+import { igniteTourPrototype } from "./tour-prototype.js";
 
 // The road's parameters, shared with the browser's own road and served beside this script. A
 // page that cannot fetch them keeps the gradient the road would have stood on.
@@ -367,6 +369,9 @@ if (drive) {
       paint(swatches[(at + by + swatches.length) % swatches.length].dataset.themeChoice);
     }
   });
+
+  // PROTOTYPE, throwaway: the Ignite tour.
+  igniteTourPrototype({ drive, host, smooth });
 }
 
 // A release page: the road as a thin header, one still frame without the glass, in the reader's
