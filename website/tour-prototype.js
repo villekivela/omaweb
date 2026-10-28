@@ -103,7 +103,7 @@ function streamline(drive) {
 // The Omnibar's rim and bloom on every card's border too: the road's light, cast on the Omnibar,
 // copied to each card on screen, so the cards' rims catch the sun and lift with the beat.
 function lightTheCards(drive, host) {
-  const cards = [...drive.querySelectorAll(".card, .install, .igniter--start")];
+  const cards = [...drive.querySelectorAll(".card, .install, .igniter--segment")];
   for (const card of cards) {
     const glow = document.createElement("span");
     glow.className = "omnibar__glow";
@@ -129,10 +129,11 @@ function lightTheCards(drive, host) {
   };
 }
 
-// Ignite, three ways, on ?ignite= and the prototype bar's arrows: "start", a round engine-start
-// button on the road under the Omnibar; "cta", a second call to action beside the install; and
-// "road", a marker set into the asphalt where the centre line runs out.
-const IGNITERS = { a: "start", b: "cta", c: "road" };
+// Ignite, four ways, all at the end of the Omnibar, on ?ignite= and the prototype bar's arrows:
+// "filled", the first one, a filled button; "key", a keycap like the Omnibar's own hints;
+// "segment", the bar's right end, full height, lit by the sun and the beat; and "play", a round
+// play button whose ring pulses.
+const IGNITERS = { a: "filled", b: "key", c: "segment", d: "play" };
 const igniterKey = Object.keys(IGNITERS).includes(
   new URLSearchParams(location.search).get("ignite"),
 )
@@ -150,21 +151,14 @@ function buildIgniter(drive) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = `igniter igniter--${IGNITERS[igniterKey]}`;
-  if (igniterKey === "a") {
-    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M7.05 6.05a7 7 0 1 0 9.9 0" /></svg>
-      <span>Engine<br />start</span>`;
-    button.setAttribute("aria-label", "Engine start: drive through Omaweb with the radio on");
-    drive.querySelector(".start__deck").append(button);
-  } else if (igniterKey === "b") {
-    button.className += " btn";
-    button.innerHTML = '<span aria-hidden="true">&#9654;</span> Take the drive';
-    drive.querySelector(".start__below").prepend(button);
-  } else {
-    button.innerHTML =
-      '<span class="igniter__mark"><span aria-hidden="true">&#9654;</span> Ignite</span>';
-    button.setAttribute("aria-label", "Ignite: drive through Omaweb with the radio on");
-    drive.querySelector(".start").append(button);
-  }
+  button.setAttribute("aria-label", "Ignite: drive through Omaweb with the radio on");
+  button.innerHTML = {
+    filled: '<span aria-hidden="true">&#9654;</span> Ignite',
+    key: '<span aria-hidden="true">&#9166;</span> Ignite',
+    segment: '<span aria-hidden="true">&#9654;</span> Ignite',
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>',
+  }[IGNITERS[igniterKey]];
+  drive.querySelector(".omnibar__field").append(button);
   return button;
 }
 
@@ -216,7 +210,6 @@ export function igniteTourPrototype({ drive, host }) {
     return;
   }
   const input = drive.querySelector(".omnibar__input");
-  input.placeholder = "Where to?   \u23ce to ignite";
 
   // The highway: every stop a layer over the road, and the page's height a track to scroll.
   document.documentElement.classList.add("highway");
