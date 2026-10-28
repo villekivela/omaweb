@@ -3140,15 +3140,15 @@ void BrowserControllerTest::followsAChromeSettingWrittenInTheFile()
 
     QFile file(QDir(config.path()).filePath(QStringLiteral("settings.json")));
     QVERIFY(file.open(QIODevice::WriteOnly));
-    file.write(R"({"version": 1, "floating-controls": false})");
+    file.write(R"({"version": 1, "glance": false})");
     file.close();
 
     QTRY_COMPARE(changed.count(), 1);
-    QCOMPARE(changed.at(0).at(0).toString(), QStringLiteral("floating-controls"));
-    QCOMPARE(controller.preference(QStringLiteral("floating-controls"), QStringLiteral("true")),
+    QCOMPARE(changed.at(0).at(0).toString(), QStringLiteral("glance"));
+    QCOMPARE(controller.preference(QStringLiteral("glance"), QStringLiteral("true")),
         QStringLiteral("false"));
     QTRY_COMPARE(privateChanged.count(), 1);
-    QCOMPARE(privateWindow->preference(QStringLiteral("floating-controls"), QStringLiteral("true")),
+    QCOMPARE(privateWindow->preference(QStringLiteral("glance"), QStringLiteral("true")),
         QStringLiteral("false"));
 }
 

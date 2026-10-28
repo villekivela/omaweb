@@ -167,7 +167,6 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: false
     property string appIcon: "black-and-white"
-    property bool floatingControls: true
     property string sidebarSide: "left"
     property bool glanceEnabled: true
     property bool spaceColours: true
@@ -448,7 +447,6 @@ Rectangle {
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal appIconChosen(string icon)
-    signal floatingControlsToggled(bool enabled)
     signal sidebarSideChosen(string side)
     signal glanceToggled(bool enabled)
     signal spaceColoursToggled(bool enabled)
@@ -1276,7 +1274,7 @@ Rectangle {
                         colors: root.colors
                         title: qsTr("Sidebar side")
                         note: qsTr(
-                                  "The edge of the window the sidebar stands against. While it is hidden, the floating controls stay at that edge.")
+                                  "The edge of the window the sidebar stands against. While it is hidden, pause the pointer at that edge to peek at it.")
 
                         SettingChoice {
                             objectName: "sidebarSide"
@@ -1298,19 +1296,6 @@ Rectangle {
                                 root.sidebarSideChosen(side);
                             }
                         }
-                    }
-
-                    SettingToggle {
-                        objectName: "floatingControls"
-                        enabled: root.settingsWritable
-                        width: pane.width
-                        colors: root.colors
-                        title: qsTr("Floating controls")
-                        note: qsTr(
-                                  "With the sidebar hidden, keep the navigation controls over the page. Pause at the sidebar's edge of the window to peek at it; it hides when the pointer leaves.")
-                        accessibleName: qsTr("Floating controls")
-                        checked: root.floatingControls
-                        onClicked: root.floatingControlsToggled(!checked)
                     }
 
                     SettingToggle {

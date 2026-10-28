@@ -78,7 +78,6 @@ namespace {
             {QLatin1StringView("browser-theme"), Kind::Text, QString()},
             {QLatin1StringView("sidebar-side"), Kind::Text, QStringLiteral("left"),
                 {QStringLiteral("left"), QStringLiteral("right")}},
-            {QLatin1StringView("floating-controls"), Kind::Switch, true},
             {QLatin1StringView("glance"), Kind::Switch, true},
             {QLatin1StringView("start-page-scene"), Kind::Text, QStringLiteral("crt-road")},
             {QLatin1StringView("start-page-glass"), Kind::Switch, true},

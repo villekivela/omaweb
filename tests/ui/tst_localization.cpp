@@ -200,7 +200,7 @@ void Localization::aSettingChangedUnderFinnishStoresItsEnglishKeyAndValue()
                  QStringLiteral("settings_heading")),
         QStringLiteral("Asetukset"));
     QCOMPARE(reportLine(locale, QStringLiteral("--report-setting-change"),
-                 QStringLiteral("stored_floating_controls")),
+                 QStringLiteral("stored_glance")),
         QStringLiteral("false"));
 }
 

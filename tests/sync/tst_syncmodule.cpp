@@ -312,7 +312,7 @@ private slots:
     void restoresTheRestBesideASettingsFileItCannotRead();
     void leavesAReadOnlyKeybindingsFileAloneWhenItMatches();
     void capturesNoSettingWhoseValueCannotBeRead();
-    void dropsTheRetiredChromeEaseSetting();
+    void dropsTheSettingsThisVersionRetired();
     void leavesTheRemoteUntouchedWhenNothingChanged();
     void authorizationPollBacksOffWithinItsCeiling();
     void localSyncStateRecognizesOnlyItsProjection();
@@ -693,9 +693,8 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(writeSettings(firstConfigRoot.path(),
-        {{QStringLiteral("floating-controls"), false}, {QStringLiteral("use-favicons"), false},
-            {QStringLiteral("tint-favicons"), true}, {QStringLiteral("glance"), false},
-            {QStringLiteral("space-colours"), false}}));
+        {{QStringLiteral("use-favicons"), false}, {QStringLiteral("tint-favicons"), true},
+            {QStringLiteral("glance"), false}, {QStringLiteral("space-colours"), false}}));
     QVERIFY(firstStore.savePreference(QStringLiteral("ease-sidebar"), QStringLiteral("false")));
     QVERIFY(firstStore.savePreference(QStringLiteral("sidebar-width"), QStringLiteral("500")));
     QVERIFY(firstStore.savePreference(
@@ -733,7 +732,7 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
                  {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
         qPrintable(error));
     const auto checkout = inspectionRoot.filePath(QStringLiteral("checkout"));
-    QVERIFY(QFile::exists(checkout + QStringLiteral("/settings/floating-controls.json")));
+    QVERIFY(QFile::exists(checkout + QStringLiteral("/settings/use-favicons.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/ease-sidebar.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/sidebar-width.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/start-page-road.json")));
@@ -766,13 +765,11 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
-    QCOMPARE(
-        setting(secondConfigRoot.path(), QStringLiteral("floating-controls")), QJsonValue(false));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("tint-favicons")), QJsonValue(true));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("glance")), QJsonValue(true));
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("space-colours")), QJsonValue(true));
-    QVERIFY(secondStore.preference(QStringLiteral("floating-controls")).isEmpty());
+    QVERIFY(secondStore.preference(QStringLiteral("use-favicons")).isEmpty());
     QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
     QCOMPARE(secondStore.preference(QStringLiteral("sidebar-width")), QStringLiteral("311"));
     QCOMPARE(secondStore.preference(QStringLiteral("clear-data-range")),
@@ -1159,7 +1156,7 @@ void SyncModuleTest::restoresSettingsBesideASettingsPageWrite()
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
     QVERIFY(writeSettings(firstConfigRoot.path(),
-        {{QStringLiteral("floating-controls"), false}, {QStringLiteral("tint-favicons"), true}}));
+        {{QStringLiteral("use-favicons"), false}, {QStringLiteral("tint-favicons"), true}}));
     SyncModule first({.dataRoot = firstDataRoot.path(),
         .configRoot = firstConfigRoot.path(),
         .remoteUrl = remote,
@@ -1203,7 +1200,7 @@ void SyncModuleTest::restoresSettingsBesideASettingsPageWrite()
     restored = true;
     QVERIFY(settingsPage->wait(30000));
 
-    QCOMPARE(setting(configRoot, QStringLiteral("floating-controls")), QJsonValue(false));
+    QCOMPARE(setting(configRoot, QStringLiteral("use-favicons")), QJsonValue(false));
     QCOMPARE(setting(configRoot, QStringLiteral("tint-favicons")), QJsonValue(true));
     QCOMPARE(
         setting(configRoot, QStringLiteral("sidebar-side")), QJsonValue(QStringLiteral("right")));
@@ -1343,7 +1340,7 @@ void SyncModuleTest::capturesNoSettingWhoseValueCannotBeRead()
     // A machine with a Space of its own reconciles rather than restoring.
     QVERIFY(store.saveSpace(
         {QStringLiteral("space"), QStringLiteral("Space"), QStringLiteral("green"), true}));
-    QVERIFY(writeSettings(configRoot.path(), {{QStringLiteral("floating-controls"), false}}));
+    QVERIFY(writeSettings(configRoot.path(), {{QStringLiteral("use-favicons"), false}}));
     SyncModule sync({.dataRoot = dataRoot.path(),
         .configRoot = configRoot.path(),
         .remoteUrl = remote,
@@ -1352,8 +1349,8 @@ void SyncModuleTest::capturesNoSettingWhoseValueCannotBeRead()
     OMAWEB_VERIFY_SYNC(settle(sync, store));
 
     QVERIFY(writeFile(configRoot.filePath(QStringLiteral("settings.json")),
-        R"({"version": 1, "floating-controls": "off"})"));
-    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("floating-controls")));
+        R"({"version": 1, "use-favicons": "off"})"));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("use-favicons")));
     SyncModule again({.dataRoot = dataRoot.path(),
         .configRoot = configRoot.path(),
         .remoteUrl = remote,
@@ -1365,14 +1362,15 @@ void SyncModuleTest::capturesNoSettingWhoseValueCannotBeRead()
                  {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
         qPrintable(error));
     const auto record = readObject(
-        inspectionRoot.filePath(QStringLiteral("checkout/settings/floating-controls.json")));
+        inspectionRoot.filePath(QStringLiteral("checkout/settings/use-favicons.json")));
     QCOMPARE(record.value(QStringLiteral("value")), QJsonValue(QStringLiteral("false")));
 }
 
-// The chrome's ease stopped being a setting, so a repository an earlier
-// version wrote it into is neither read for it nor left carrying it: the next
-// machine to sync keeps no value for it and takes the file away.
-void SyncModuleTest::dropsTheRetiredChromeEaseSetting()
+// The chrome's ease and the floating controls stopped being settings (#503,
+// #837), so a repository an earlier version wrote them into is neither read
+// for them nor left carrying them: the next machine to sync keeps no value for
+// them and takes the files away.
+void SyncModuleTest::dropsTheSettingsThisVersionRetired()
 {
     QTemporaryDir remoteRoot;
     QTemporaryDir firstDataRoot;
@@ -1393,7 +1391,9 @@ void SyncModuleTest::dropsTheRetiredChromeEaseSetting()
 
     SqliteSessionStore firstStore(firstDataRoot.path());
     QVERIFY(firstStore.open(&error));
-    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("floating-controls"), false}}));
+    // As an earlier build left it, which no SettingsFile here writes.
+    QVERIFY(writeFile(firstConfigRoot.filePath(QStringLiteral("settings.json")),
+        R"({"version": 1, "use-favicons": false, "floating-controls": false})"));
     SyncModule first({.dataRoot = firstDataRoot.path(),
         .configRoot = firstConfigRoot.path(),
         .remoteUrl = remote,
@@ -1406,11 +1406,14 @@ void SyncModuleTest::dropsTheRetiredChromeEaseSetting()
                  {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
         qPrintable(error));
     const auto older = olderRoot.filePath(QStringLiteral("checkout"));
-    QVERIFY(writeFile(older + QStringLiteral("/settings/ease-sidebar.json"),
-        QJsonDocument(QJsonObject {{QStringLiteral("version"), SyncModule::contractVersion},
-                          {QStringLiteral("key"), QStringLiteral("ease-sidebar")},
-                          {QStringLiteral("value"), QStringLiteral("false")}})
-            .toJson(QJsonDocument::Indented)));
+    for (const auto &retired :
+        {QStringLiteral("ease-sidebar"), QStringLiteral("floating-controls")}) {
+        QVERIFY(writeFile(older + QStringLiteral("/settings/%1.json").arg(retired),
+            QJsonDocument(QJsonObject {{QStringLiteral("version"), SyncModule::contractVersion},
+                              {QStringLiteral("key"), retired},
+                              {QStringLiteral("value"), QStringLiteral("false")}})
+                .toJson(QJsonDocument::Indented)));
+    }
     for (const auto &arguments :
         QList<QStringList> {{QStringLiteral("add"), QStringLiteral("--all")},
             {QStringLiteral("-c"), QStringLiteral("user.name=Older Omaweb"), QStringLiteral("-c"),
@@ -1428,16 +1431,18 @@ void SyncModuleTest::dropsTheRetiredChromeEaseSetting()
         .machineId = QStringLiteral("machine-b")});
     OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
-    QCOMPARE(
-        setting(secondConfigRoot.path(), QStringLiteral("floating-controls")), QJsonValue(false));
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
+    QVERIFY(
+        !omaweb::SettingsFile(secondConfigRoot.path()).isSet(QStringLiteral("floating-controls")));
     QVERIFY(secondStore.preference(QStringLiteral("ease-sidebar")).isEmpty());
 
     QVERIFY2(runGit(inspectionRoot.path(),
                  {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
         qPrintable(error));
     const auto checkout = inspectionRoot.filePath(QStringLiteral("checkout"));
-    QVERIFY(QFile::exists(checkout + QStringLiteral("/settings/floating-controls.json")));
+    QVERIFY(QFile::exists(checkout + QStringLiteral("/settings/use-favicons.json")));
     QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/ease-sidebar.json")));
+    QVERIFY(!QFile::exists(checkout + QStringLiteral("/settings/floating-controls.json")));
 }
 
 void SyncModuleTest::leavesTheRemoteUntouchedWhenNothingChanged()
@@ -1568,7 +1573,7 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
     QCOMPARE(changed.count(), 0);
     QCOMPARE(localState.checkpoint().generation, initial.generation);
 
-    QVERIFY(browser.setPreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
+    QVERIFY(browser.setPreference(QStringLiteral("use-favicons"), QStringLiteral("false")));
     QTRY_COMPARE(changed.count(), 1);
     QCOMPARE(localState.checkpoint().generation, initial.generation + 1);
     SyncModule staleTransaction({});
@@ -1726,7 +1731,7 @@ void SyncModuleTest::compactsAnOvergrownRepositoryIntoASnapshot()
         .historyCommitLimit = 3,
         .historyMaxAgeMilliseconds = 0});
     OMAWEB_VERIFY_SYNC(sync.open({.recoveryKey = QByteArray(32, 'k')}));
-    QVERIFY(writeSettings(configRoot.path(), {{QStringLiteral("floating-controls"), false}}));
+    QVERIFY(writeSettings(configRoot.path(), {{QStringLiteral("use-favicons"), false}}));
     OMAWEB_VERIFY_SYNC(settle(sync, store));
 
     SqliteSessionStore staleStore(staleDataRoot.path());
@@ -1744,15 +1749,14 @@ void SyncModuleTest::compactsAnOvergrownRepositoryIntoASnapshot()
     // default, so every other revision takes the key out of the file.
     for (int revision = 1; revision < 5; ++revision) {
         QVERIFY(writeSettings(
-            configRoot.path(), {{QStringLiteral("floating-controls"), revision % 2 == 1}}));
+            configRoot.path(), {{QStringLiteral("use-favicons"), revision % 2 == 1}}));
         OMAWEB_VERIFY_SYNC(settle(sync, store));
     }
-    QVERIFY(writeSettings(staleConfigRoot.path(), {{QStringLiteral("floating-controls"), true}}));
+    QVERIFY(writeSettings(staleConfigRoot.path(), {{QStringLiteral("use-favicons"), true}}));
     QVERIFY(staleStore.saveSpace({QStringLiteral("stale-space"), QStringLiteral("Stale"),
         QStringLiteral("#ffffff"), false}));
     OMAWEB_VERIFY_SYNC(settle(stale, staleStore));
-    QCOMPARE(
-        setting(staleConfigRoot.path(), QStringLiteral("floating-controls")), QJsonValue(false));
+    QCOMPARE(setting(staleConfigRoot.path(), QStringLiteral("use-favicons")), QJsonValue(false));
     QCOMPARE(staleStore.loadSpaces().size(), 1);
     QCOMPARE(staleStore.loadSpaces().constFirst().id, QStringLiteral("space"));
     QCOMPARE(gitOutput(remoteRoot.filePath(QStringLiteral("sync.git")),
@@ -1970,7 +1974,7 @@ void SyncModuleTest::preservesUnappliedRemoteChangesDuringALocalEdit()
     });
     OMAWEB_VERIFY_SYNC(staged.open({.recoveryKey = key}));
     OMAWEB_VERIFY_SYNC(staged.reconcile(secondStore));
-    QVERIFY(writeSettings(secondConfigRoot.path(), {{QStringLiteral("floating-controls"), false}}));
+    QVERIFY(writeSettings(secondConfigRoot.path(), {{QStringLiteral("use-favicons"), false}}));
 
     SyncModule settled({.dataRoot = secondDataRoot.path(),
         .configRoot = secondConfigRoot.path(),
