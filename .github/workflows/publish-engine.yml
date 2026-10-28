@@ -175,6 +175,9 @@ jobs:
       # back over: readers get the engine either way, and the baseline is a
       # claim about it that a person has to finish anyway.
       - name: Offer the baseline this engine needs
+        # A browser tag has no engine to offer a baseline for, and a warning
+        # that it carries no engine file would be wrong.
+        if: startsWith(inputs.tag, 'engine-')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

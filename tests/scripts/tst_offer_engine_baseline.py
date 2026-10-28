@@ -47,37 +47,46 @@ class OfferEngineBaseline(unittest.TestCase):
              "engine-6.11.4-1", "--baseline", str(self.baseline), "--dry-run"],
             capture_output=True, text=True, check=False)
 
-    def test_aReleaseWithBothArchitecturesOffersTheBaseline(self):
+    def test_a_release_with_both_architectures_offers_the_baseline(self):
         result = self.offer(self.engine_file("engine-x86_64.json"),
                             self.engine_file("engine-aarch64.json"))
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("baseline: 6.11.3 -> 6.11.4, Chromium 140.0.7339.300", result.stdout)
-        self.assertEqual(json.loads(self.baseline.read_text())["qtwebengine"], "6.11.4")
+        self.assertEqual(json.loads(self.baseline.read_text(encoding="utf-8"))["qtwebengine"], "6.11.4")
 
-    def test_architecturesThatDisagreeOnQtwebengineFail(self):
+    def test_architectures_that_disagree_on_qtwebengine_fail(self):
         result = self.offer(self.engine_file("engine-x86_64.json"),
                             self.engine_file("engine-aarch64.json", qtwebengine="6.11.5"))
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("::error::", result.stdout + result.stderr)
-        self.assertEqual(json.loads(self.baseline.read_text()), APPROVED)
+        self.assertIn("::error::", result.stderr)
+        self.assertEqual(json.loads(self.baseline.read_text(encoding="utf-8")), APPROVED)
 
-    def test_architecturesThatDisagreeOnChromiumFail(self):
+    def test_architectures_that_disagree_on_chromium_fail(self):
         result = self.offer(self.engine_file("engine-x86_64.json"),
                             self.engine_file("engine-aarch64.json", chromium="141.0.0.1"))
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("::error::", result.stdout + result.stderr)
-        self.assertEqual(json.loads(self.baseline.read_text()), APPROVED)
+        self.assertIn("::error::", result.stderr)
+        self.assertEqual(json.loads(self.baseline.read_text(encoding="utf-8")), APPROVED)
 
-    def test_aReleaseWithNoEngineFileWarnsAndOffersNothing(self):
+    def test_an_engine_file_without_a_version_fails(self):
+        broken = self.directory / "engine-x86_64.json"
+        broken.write_text(json.dumps({"qtwebengine": "6.11.4"}), encoding="utf-8")
+
+        result = self.offer(broken)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("::error::", result.stderr)
+
+    def test_a_release_with_no_engine_file_warns_and_offers_nothing(self):
         result = self.offer()
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("::warning::", result.stdout)
         self.assertIn("baseline was not offered", result.stdout)
-        self.assertEqual(json.loads(self.baseline.read_text()), APPROVED)
+        self.assertEqual(json.loads(self.baseline.read_text(encoding="utf-8")), APPROVED)
 
 
 if __name__ == "__main__":

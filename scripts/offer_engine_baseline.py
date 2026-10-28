@@ -92,16 +92,20 @@ def main():
         return 0
 
     engines = {path: json.loads(path.read_text(encoding="utf-8")) for path in arguments.engine}
+    agreed = []
     for field in ("qtwebengine", "chromium"):
-        versions = {path.name: engine[field] for path, engine in engines.items()}
+        try:
+            versions = {str(path): engine[field] for path, engine in engines.items()}
+        except KeyError:
+            print(f"::error::an engine file carries no {field}", file=sys.stderr)
+            return 1
         if len(set(versions.values())) > 1:
             print(f"::error::the engine files disagree on {field}: {versions}", file=sys.stderr)
             return 1
-    first = next(iter(engines.values()))
-    qt, chromium = first["qtwebengine"], first["chromium"]
+        agreed.append(next(iter(versions.values())))
+    qt, chromium = agreed
 
-    baseline_file = arguments.baseline
-    baseline = json.loads(baseline_file.read_text(encoding="utf-8"))
+    baseline = json.loads(arguments.baseline.read_text(encoding="utf-8"))
     if baseline["qtwebengine"] == qt:
         print(f"the baseline already names {qt}, so there is nothing to offer")
         return 0
@@ -109,7 +113,7 @@ def main():
     was = baseline["qtwebengine"]
     baseline["qtwebengine"] = qt
     baseline["chromium"] = chromium
-    baseline_file.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
+    arguments.baseline.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
     print(f"baseline: {was} -> {qt}, Chromium {chromium}")
 
     if arguments.dry_run:
@@ -122,7 +126,7 @@ def main():
     run("git", "config", "user.name", AUTHOR[0])
     run("git", "config", "user.email", AUTHOR[1])
     run("git", "switch", "-c", branch)
-    run("git", "add", str(baseline_file.resolve().relative_to(ROOT)))
+    run("git", "add", str(arguments.baseline.resolve().relative_to(ROOT)))
     run("git", "commit", "--quiet", "--message",
         commit_message(qt, chromium, arguments.tag))
     run("git", "push", "--force", "origin", branch)
