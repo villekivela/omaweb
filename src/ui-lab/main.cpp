@@ -1136,6 +1136,16 @@ int main(int argc, char *argv[])
             if (itemsIndex >= 0 && itemsIndex + 1 < arguments.size()) {
                 sidebar->setProperty("labFooterItems", arguments.at(itemsIndex + 1));
             }
+            // `--footer-expand <item>` opens variant d's capsule on that item,
+            // and `--footer-demo <dir>` records its frames into that directory.
+            const auto expandIndex = arguments.indexOf(QStringLiteral("--footer-expand"));
+            if (expandIndex >= 0 && expandIndex + 1 < arguments.size()) {
+                sidebar->setProperty("protoExpanded", arguments.at(expandIndex + 1));
+            }
+            const auto demoIndex = arguments.indexOf(QStringLiteral("--footer-demo"));
+            if (demoIndex >= 0 && demoIndex + 1 < arguments.size()) {
+                sidebar->setProperty("protoDemoFrames", arguments.at(demoIndex + 1));
+            }
         }
     }
     // `--sidebar-right` stands the sidebar against the window's right edge, as

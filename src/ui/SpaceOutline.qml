@@ -98,7 +98,16 @@ Rectangle {
     //      right end; Settings in the top row.
     property string labFooterVariant: ""
     property string labFooterItems: "all"
-    readonly property bool protoA: root.labFooterVariant === "a"
+    //   a-centred: a with the pill's items centred.
+    //   d: a with a capsule that hugs its items, centred above the Space row,
+    //      whose width follows them and which opens in place into a detail.
+    readonly property bool protoA: ["a", "a-centred", "d"].indexOf(root.labFooterVariant) >= 0
+    readonly property bool protoPillShown: root.labFooterVariant === "a" || root.labFooterVariant
+                                           === "a-centred"
+    readonly property bool protoCentred: root.labFooterVariant === "a-centred"
+    readonly property bool protoD: root.labFooterVariant === "d"
+    // The item variant d's capsule is open on, or empty while it is closed.
+    property string protoExpanded: ""
     readonly property bool protoB: root.labFooterVariant === "b"
     readonly property bool protoC: root.labFooterVariant === "c"
     readonly property bool protoSettingsOnTop: root.protoA || root.protoC
@@ -1259,8 +1268,10 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: outline.bottom
         // PROTOTYPE #838: the list ends at the pill's top, or at the docked rows'.
-        anchors.bottom: protoPill.visible ? protoPill.top : protoRows.visible ? protoRows.top :
-                                                                                footer.top
+        anchors.bottom: protoPill.visible ? protoPill.top : protoIsland.visible ? protoIsland.top :
+                                                                                  protoRows.visible
+                                                                                  ? protoRows.top :
+                                                                                    footer.top
 
         // The space the rows leave empty moves the window, as the navigation
         // strip does (#179). A row holds its press for a reorder, which this
@@ -1855,26 +1866,223 @@ Rectangle {
         opacity: pillLift.progress
         transform: SheetLift {
             id: pillLift
-            shown: root.protoA && root.protoStatus.length > 0
+            shown: root.protoPillShown && root.protoStatus.length > 0
             ease: root.easeSpaces
             distance: 8
         }
 
         Row {
-            anchors.left: parent.left
+            anchors.left: root.protoCentred ? undefined : parent.left
+            anchors.horizontalCenter: root.protoCentred ? parent.horizontalCenter : undefined
             anchors.leftMargin: 2
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
 
             Repeater {
-                model: root.protoA ? root.protoStatus : []
+                model: root.protoPillShown ? root.protoStatus : []
 
                 ProtoStatusItem {
                     labelled: protoPill.single
-                    width: labelled ? protoPill.width - 4 : 28
+                    width: !labelled ? 28 : root.protoCentred ? naturalWidth : protoPill.width - 4
                     height: 26
                 }
             }
+        }
+    }
+
+    // PROTOTYPE #838, variant d: a capsule centred above the Space row that
+    // hugs its items. Its width follows them as they come and go, and pressing
+    // one opens it in place into that item's detail; the same item again, or
+    // Escape, closes it. Reduced motion steps instead of easing.
+    Rectangle {
+        id: protoIsland
+        objectName: "prototypeIsland"
+        readonly property bool single: root.protoStatus.length === 1
+        readonly property bool open: root.protoExpanded.length > 0
+        readonly property real room: root.width - root.listMargin - 16
+        readonly property bool eases: root.easeSpaces && root.spacesCanMove
+        anchors.horizontalCenter: footer.horizontalCenter
+        anchors.bottom: footer.top
+        anchors.bottomMargin: 6
+        width: open ? room : Math.min(room, Math.max(30, islandItems.implicitWidth + 4))
+        height: open ? islandDetail.implicitHeight + 30 + 8 : 30
+        radius: open ? 12 : 15
+        clip: true
+        color: root.colors.overlay
+        border.width: 1
+        border.color: root.colors.separator
+        visible: islandLift.showing
+        opacity: islandLift.progress
+        focus: open
+        Keys.onEscapePressed: root.protoExpanded = ""
+        transform: SheetLift {
+            id: islandLift
+            shown: root.protoD && root.protoStatus.length > 0
+            ease: root.easeSpaces
+            distance: 8
+        }
+
+        Behavior on width {
+            enabled: protoIsland.eases
+            NumberAnimation {
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on height {
+            enabled: protoIsland.eases
+            NumberAnimation {
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on radius {
+            enabled: protoIsland.eases
+            NumberAnimation {
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        // The stub detail, above the items, which stay where they were.
+        Column {
+            id: islandDetail
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 10
+            spacing: 4
+            opacity: protoIsland.open ? 1 : 0
+
+            Behavior on opacity {
+                enabled: protoIsland.eases
+                NumberAnimation {
+                    duration: 120
+                }
+            }
+
+            Repeater {
+                model: root.protoDetail(root.protoExpanded)
+
+                Item {
+                    required property var modelData
+                    width: islandDetail.width
+                    height: detailName.implicitHeight
+
+                    Text {
+                        id: detailValue
+                        anchors.right: parent.right
+                        anchors.baseline: detailName.baseline
+                        text: modelData.value
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
+                    Text {
+                        id: detailName
+                        anchors.left: parent.left
+                        anchors.right: detailValue.left
+                        anchors.rightMargin: 8
+                        text: modelData.name
+                        elide: Text.ElideMiddle
+                        color: root.colors.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+                }
+            }
+        }
+
+        Row {
+            id: islandItems
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 2
+            height: 26
+            spacing: 2
+
+            Repeater {
+                model: root.protoD ? root.protoStatus : []
+
+                ProtoStatusItem {
+                    labelled: protoIsland.single
+                    width: naturalWidth
+                    height: 26
+                    onActivated: function (key) {
+                        root.protoExpanded = root.protoExpanded === key ? "" : key;
+                        if (root.protoExpanded.length > 0)
+                            protoIsland.forceActiveFocus();
+                    }
+                }
+            }
+        }
+    }
+
+    // PROTOTYPE #838: what variant d's capsule opens into, per item.
+    function protoDetail(key) {
+        if (key === "downloads")
+            return [
+                        {
+                            "name": "report-2026-10.pdf",
+                            "value": "62%"
+                        },
+                        {
+                            "name": "omaweb-0.19.1-x86_64.pkg.tar.zst",
+                            "value": "18%"
+                        }
+                    ];
+        if (key === "release")
+            return [
+                        {
+                            "name": qsTr("Omaweb 0.19.1 is out"),
+                            "value": ""
+                        },
+                        {
+                            "name": "sudo pacman -Syu omaweb",
+                            "value": qsTr("notes ↗")
+                        }
+                    ];
+        if (key === "recording")
+            return [
+                        {
+                            "name": qsTr("Recording a problem"),
+                            "value": qsTr("3 min left")
+                        },
+                        {
+                            "name": qsTr("Press again to end and report"),
+                            "value": ""
+                        }
+                    ];
+        return [];
+    }
+
+    // PROTOTYPE #838: the lab's `--footer-demo <dir>` steps variant d through
+    // none, one, all, one, open on downloads, closed, none, and saves the
+    // sidebar every 40 ms as frame-NNN.png in that directory.
+    property string protoDemoFrames: ""
+    property int protoDemoFrame: 0
+    property var protoDemoSteps: [[600, "one", ""], [1600, "all", ""], [2800, "one", ""], [3800,
+                                                                                           "one", "downloads"],
+        [5200, "one", ""], [6200, "none", ""]]
+    Timer {
+        interval: 40
+        repeat: true
+        running: root.protoDemoFrames.length > 0 && root.protoDemoFrame < 180
+        onTriggered: {
+            const at = root.protoDemoFrame * 40;
+            for (const step of root.protoDemoSteps) {
+                if (step[0] === at) {
+                    root.labFooterItems = step[1];
+                    root.protoExpanded = step[2];
+                }
+            }
+            const name = root.protoDemoFrames + "/frame-" + String(root.protoDemoFrame).padStart(3, "0")
+                  + ".png";
+            root.grabToImage(function (result) {
+                result.saveToFile(name);
+            });
+            root.protoDemoFrame += 1;
         }
     }
 
@@ -1914,6 +2122,9 @@ Rectangle {
         id: statusItem
         required property var modelData
         property bool labelled: false
+        readonly property real naturalWidth: statusItem.labelled ? 30 + statusLabel.implicitWidth
+                                                                   + 8 : 28
+        signal activated(string key)
         objectName: "prototypeStatus-" + modelData.key
 
         ChromeButton {
@@ -1926,9 +2137,11 @@ Rectangle {
             accessibleName: statusItem.modelData.label
             fontFamily: root.iconFontFamily
             accent: root.colors.accent
+            onClicked: statusItem.activated(statusItem.modelData.key)
         }
 
         Text {
+            id: statusLabel
             visible: statusItem.labelled
             anchors.left: parent.left
             anchors.leftMargin: 30
