@@ -963,10 +963,12 @@ set(omaweb_ui_files
     src/ui/SettingSlider.qml
     src/ui/SettingStepper.qml
     src/ui/SettingToggle.qml
+    src/ui/SettingsButton.qml
     src/ui/SettingsPage.qml
     src/ui/PanelResizer.qml
     src/ui/SiteNotifications.qml
     src/ui/SiteTile.qml
+    src/ui/FooterMarks.qml
     src/ui/ProblemMark.qml
     src/ui/ReleaseMark.qml
     src/ui/SpaceNotice.qml

@@ -13165,7 +13165,7 @@ TestCase {
             const avatarClip = findChild(outline, "syncAvatarClip");
             const avatarMonogram = findChild(outline, "syncAvatarMonogram");
             const avatarEffect = findChild(outline, "syncAvatarEffect");
-            const activityDot = findChild(outline, "syncActivityDot");
+            const activityDot = findChild(outline, "settingsDot");
             const settings = findChild(outline, "settingsButton");
             verify(avatar !== null);
             verify(avatarClip !== null);
@@ -13191,12 +13191,52 @@ TestCase {
             verify(!settings.visible);
             compare(avatarClip.opacity, 1);
             compare(avatarEffect.saturation, -1);
-            compare(String(activityDot.color), String(outline.colors.mutedText));
+            verify(!activityDot.visible);
         } finally {
             avatarSettingsSpy.target = null;
             outline.destroy();
             window.requestActivate();
         }
+    }
+
+    // One dot rule covers both faces of the footer's Settings button: urgent
+    // while Settings needs attention or Sync has an error, accent while Sync
+    // runs, none otherwise (#835).
+    function test_settingsDotFollowsOneRuleOnBothFaces() {
+        const gear = createTemporaryObject(attentionOutlineComponent, window.contentItem);
+        verify(gear !== null);
+        const gearDot = findChild(gear, "settingsDot");
+        verify(gearDot !== null);
+        verify(findChild(gear, "settingsButton").visible);
+        verify(gearDot.visible);
+        compare(String(gearDot.color), String(gear.colors.urgent));
+        gear.settingsAttention = false;
+        verify(!gearDot.visible);
+
+        const avatar = createTemporaryObject(authenticatedOutlineComponent, window.contentItem);
+        verify(avatar !== null);
+        const dot = findChild(avatar, "settingsDot");
+        verify(dot !== null);
+        verify(findChild(avatar, "syncAvatarButton").visible);
+        verify(dot.visible);
+        compare(String(dot.color), String(avatar.colors.accent));
+
+        avatar.sync.enabled = false;
+        verify(!dot.visible);
+
+        avatar.sync.enabled = true;
+        avatar.sync.errorMessage = "offline";
+        verify(dot.visible);
+        compare(String(dot.color), String(avatar.colors.urgent));
+
+        avatar.sync.errorMessage = "";
+        avatar.settingsAttention = true;
+        verify(dot.visible);
+        compare(String(dot.color), String(avatar.colors.urgent));
+
+        avatar.sync.enabled = false;
+        verify(dot.visible);
+        compare(String(dot.color), String(avatar.colors.urgent));
     }
 
     // The rail is as wide as the longest section name it draws, measured in the
@@ -16334,7 +16374,7 @@ TestCase {
     function test_settingsMarksItselfWhenTheKeymapReportsIgnoredBindings() {
         const settings = findChild(window.contentItem, "settingsSurface");
         const notice = findChild(window.contentItem, "keyboardBindingNotice");
-        const dot = findChild(window.contentItem, "settingsAttentionDot");
+        const dot = findChild(window.contentItem, "settingsDot");
         verify(settings !== null);
         verify(notice !== null);
         verify(dot !== null);
@@ -16382,7 +16422,7 @@ TestCase {
         // And the mark is drawn once the outline is told.
         const marked = attentionOutlineComponent.createObject(window.contentItem);
         verify(marked !== null);
-        const markedDot = findChild(marked, "settingsAttentionDot");
+        const markedDot = findChild(marked, "settingsDot");
         verify(markedDot !== null);
         tryVerify(function () {
             return markedDot.visible;
@@ -20548,6 +20588,8 @@ TestCase {
         const mark = findChild(outline, "problemRecordingMark");
         window.commands.run("record-problem", -1);
         tryCompare(mark, "visible", true);
+        // The footer's RowLayout places a mark when it next polishes.
+        tryCompare(mark, "width", 26);
         const tip = findChild(mark, "problemRecordingMarkToolTip");
         verify(tip !== null);
         mouseMove(mark, mark.width / 2, mark.height / 2);
@@ -20751,11 +20793,12 @@ TestCase {
         const span = function (item) {
             return left(item) + "-" + right(item);
         };
-        verify(right(releaseMark) <= left(extensionMark) && right(extensionMark) <= left(
-                   downloadMark), "release " + span(releaseMark) + ", extension " + span(
-                   extensionMark) + ", download " + span(downloadMark));
-        verify(right(switcher) <= left(releaseMark), "the Spaces end at " + right(switcher)
-               + ", the release mark starts at " + left(releaseMark));
+        // The marks stand in a RowLayout, which places them when it next polishes.
+        tryVerify(function () {
+            return right(releaseMark) <= left(extensionMark) && right(extensionMark) <= left(
+                        downloadMark) && right(switcher) <= left(releaseMark);
+        }, 5000, "release " + span(releaseMark) + ", extension " + span(extensionMark)
+        + ", download " + span(downloadMark) + ", the Spaces end at " + right(switcher));
 
         host.simulateDownloadFinished(download);
         tryCompare(downloadMark, "running", 0);
