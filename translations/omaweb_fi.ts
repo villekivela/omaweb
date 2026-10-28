@@ -645,6 +645,13 @@
     </message>
 </context>
 <context>
+    <name>DiagnosticBanner</name>
+    <message>
+        <source>Diagnostic overrides for this run: %1</source>
+        <translation>Tämän ajokerran diagnostiset ohitukset: %1</translation>
+    </message>
+</context>
+<context>
     <name>DownloadMark</name>
     <message>
         <source>1 download finished</source>

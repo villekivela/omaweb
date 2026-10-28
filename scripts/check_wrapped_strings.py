@@ -71,6 +71,7 @@ TOKENS = {
     ("SettingsPage.qml", "claude"),
     ("TabWindow.qml", "warning"),
     ("TabWindow.qml", "lock"),
+    ("DiagnosticBanner.qml", "experiment"),
     # A Tab window's first title, which a compositor rule matches whatever the
     # chrome's language (ADR 0062).
     ("TabWindow.qml", "Omaweb tab window"),

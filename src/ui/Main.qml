@@ -264,6 +264,9 @@ ApplicationWindow {
     // context properties. A Private window records nothing.
     readonly property var recording: window.privateWindow ? null : problemRecording
     readonly property var reporter: problemReporter
+    // The run's Diagnostic overrides, `<name>=<value>` each, which the strip
+    // across the top of this window and every window it opens names.
+    property var diagnosticOverrideNames: diagnosticOverrides
     readonly property var enginePageFonts: pageFonts
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
     // so opening it on one page does not open it over the next — and a tab that
@@ -656,7 +659,11 @@ ApplicationWindow {
                                                                 "glanceEnabled": Qt.binding(
                                                                                      function () {
                                                                                          return window.glanceEnabled;
-                                                                                     })
+                                                                                     }),
+                                                                "diagnosticOverrideNames":
+                                                                Qt.binding(function () {
+                                                                    return window.diagnosticOverrideNames;
+                                                                })
                                                             });
                 if (!tabWindow)
                     continue;
@@ -1600,7 +1607,7 @@ ApplicationWindow {
     function openPageMenu(engine, context) {
         // The engine reports the point in its own coordinates; the menu lives
         // in the window, so the point has to travel with it.
-        const point = engine.mapToItem(shell, context.x, context.y);
+        const point = engine.mapToItem(window.contentItem, context.x, context.y);
         window.pageContext = context;
         window.pageContextEngine = engine;
         window.pageMenuActions = window.pageMenuFor(context);
@@ -1616,7 +1623,7 @@ ApplicationWindow {
         }
         // The engine reports the point in its own coordinates; the tooltip
         // lives in the window, so the point has to travel with it.
-        const point = engine.mapToItem(shell, tooltip.x, tooltip.y);
+        const point = engine.mapToItem(window.contentItem, tooltip.x, tooltip.y);
         window.pageTooltipEngine = engine;
         window.pageTooltipText = String(tooltip.text);
         window.pageTooltipX = point.x;
@@ -3598,9 +3605,22 @@ ApplicationWindow {
         onActivated: window.closeGlance()
     }
 
+    DiagnosticBanner {
+        id: diagnosticBanner
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        colors: window.colors
+        iconFontFamily: materialSymbols.name
+        overrides: window.diagnosticOverrideNames
+    }
+
     Rectangle {
         id: shell
         anchors.fill: parent
+        // The chrome and the page start under the strip a diagnostic run
+        // draws, and fill the window without one.
+        anchors.topMargin: diagnosticBanner.height
         color: window.colors.window
         // A window filling the screen has no edge to draw: the frame belongs to
         // a window sitting on a desktop, not to one that is the desktop.
@@ -3679,9 +3699,11 @@ ApplicationWindow {
                 // A floating outline has to sit above the blur that samples
                 // the composed shell. Reparenting it keeps that sample from
                 // including the outline and feeding the effect back into
-                // itself. Both parents fill the window, so its coordinates do
-                // not change at the handoff.
+                // itself. Both parents span the window's width, and the
+                // window's own is lowered to the row's top, so its coordinates
+                // do not change at the handoff.
                 parent: floating ? window.contentItem : chromeRow
+                y: floating ? shell.y : 0
                 height: chromeRow.height
                 // The sidebar's own width does not change as it leaves or
                 // arrives, so the rows in it are not laid out again on the way.
@@ -5257,6 +5279,7 @@ ApplicationWindow {
             engineSource: engineViewSource
             colors: window.colors
             iconFontFamily: materialSymbols.name
+            diagnosticOverrideNames: window.diagnosticOverrideNames
             drawnZoom: engineLoader.drawnZoom(1)
             permissionController: window.windowBrowser
             contentBlocker: contentBlocker
@@ -5905,7 +5928,9 @@ ApplicationWindow {
         // floating outline is reparented above this item, so it is absent from
         // the sample and the effect cannot recurse.
         source: shell
-        sourceRect: Qt.rect(x, y, width, height)
+        // In the shell's coordinates, which start under a diagnostic run's
+        // strip.
+        sourceRect: Qt.rect(x, y - shell.y, width, height)
         textureScale: 0.5
         readonly property color overlayTint: window.colors.sheet
         tint: Qt.rgba(overlayTint.r, overlayTint.g, overlayTint.b, Math.min(overlayTint.a, 0.8))

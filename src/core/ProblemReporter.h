@@ -29,6 +29,9 @@ public:
     // What a page reads of the browser: `userAgent`, `brands`,
     // `fullVersionList`, `platform` and `language`, from the engine's profile.
     Q_INVOKABLE void setSites(const QVariantMap &sites);
+    // The run's Diagnostic overrides, `<name>=<value>` each, which a report
+    // lists before anything else.
+    void setDiagnosticOverrides(QStringList named);
     // The Sync module's controller, or null where Sync is not loaded.
     void setSync(QObject *controller);
     void setRecording(ProblemRecording *recording);
@@ -61,6 +64,7 @@ private:
     QString m_configRoot;
     QStringList m_engineVersions;
     QVariantMap m_sites;
+    QStringList m_diagnosticOverrides;
     QPointer<QObject> m_sync;
     QPointer<ProblemRecording> m_recording;
     const PageScale *m_pageScale = nullptr;

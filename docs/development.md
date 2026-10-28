@@ -441,6 +441,21 @@ exits 0, since a browser that will not start is a problem to report too. Every r
 is an Agent's, from the CLI as from MCP, so this report leaves a Problem recording out and running,
 and says that one is there for "Report a problem" in the browser to take in.
 
+`omaweb --diagnose <name>=<value>` starts the browser with a Diagnostic override for that run alone,
+and repeats for more than one:
+
+- `report-chrome=<major>` reports that Chrome version in the user agent, as `Chrome/152.0.0.0`. In
+  the client hints, every brand at Chromium's version reports it too.
+- `brands=<list>` sends the brands named, separated by commas, in place of the engine's. A brand the
+  engine has keeps its version, and one it lacks, such as `Google Chrome`, takes Chromium's.
+- `language=<tag>` tells every site one language, in Accept-Language and `navigator.languages`.
+
+Overrides are held in the browser's memory and set on each profile as it is built, never written to
+a profile, the settings or Sync, so the next start without them presents the engine's own. A Problem
+report taken during the run lists them first. An unknown name, a malformed value or a name given
+twice refuses to start, exits 2 and lists the overrides there are. A browser already running refuses
+too, because its profiles were built without the overrides: quit it first.
+
 `omaweb help`, `omaweb --help` and `omaweb -h` list the verbs and say how to launch the browser, and
 `omaweb help <verb>` lists a verb's options, read from the grammar the parser takes. They exit 0
 without starting a browser, opening a profile or reaching the control socket, so an agent can ask

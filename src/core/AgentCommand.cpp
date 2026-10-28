@@ -3,6 +3,7 @@
 #include "AgentConsole.h"
 #include "AgentPick.h"
 #include "AgentProtocol.h"
+#include "DiagnosticOverrides.h"
 #include "ProblemReport.h"
 
 #include <QCoreApplication>
@@ -642,11 +643,16 @@ namespace {
                                       "omaweb --incognito [address]\n"
                                       "omaweb --private-window [address]\n"
                                       "                            open a Private window\n"
+                                      "omaweb --diagnose <name>=<value> [address]\n"
+                                      "                            launch with a Diagnostic "
+                                      "override for this run,\n"
+                                      "                            repeatable: %1\n"
                                       "omaweb <verb> [options]     drive the browser already "
                                       "running\n"
                                       "omaweb help <verb>          list a verb's options\n"
                                       "\n"
-                                      "Verbs:\n");
+                                      "Verbs:\n")
+                           .arg(diagnosticOverrideForms().join(QStringLiteral(", ")));
         for (const auto &entry : verbSummaries) {
             text += QStringLiteral("  %1 %2\n")
                         .arg(QLatin1String(entry.verb), -9)

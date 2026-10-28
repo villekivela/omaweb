@@ -428,6 +428,7 @@ class AgentControlTest final : public QObject {
 private slots:
     void reportHoldsWhatAReportNeedsAndNothingElse();
     void reportFromATabAddsThatTabAlone();
+    void reportListsTheRunsDiagnosticOverridesFirst();
     void reportFromAPrivateWindowSaysOnlyThat();
     void gatesOnlyAgentSpacesBehindAllowAgents();
     void keepsAllowAgentsOffUntilTheReaderTurnsItOn();
@@ -3438,6 +3439,8 @@ void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
     QVERIFY(!report.contains(QStringLiteral("poll")));
     // A key the file holds at its default value differs from nothing.
     QVERIFY(!report.contains(QStringLiteral("glance")));
+    // A run started without `--diagnose` has none to list.
+    QVERIFY(!report.contains(QStringLiteral("Diagnostic overrides")));
     // Filled in the order a link that is too short cuts from the end: what
     // the issue names first, then what it does not name, then the recording.
     const QStringList order {QStringLiteral("Versions\n"), QStringLiteral("What sites see\n"),
@@ -3460,6 +3463,29 @@ void AgentControlTest::reportHoldsWhatAReportNeedsAndNothingElse()
     QCOMPARE(activity.entries().size(), 1);
     QCOMPARE(activity.entries().constLast().verb, QStringLiteral("report"));
     QCOMPARE(activity.entries().constLast().outcome, QStringLiteral("ok"));
+}
+
+// A run started with `--diagnose` presents sites something other than the
+// engine's own, so a report from it says so before anything it reads (#753),
+// whoever asks for it.
+void AgentControlTest::reportListsTheRunsDiagnosticOverridesFirst()
+{
+    SeededReport seeded;
+    QVERIFY_SESSION_READY(*seeded.fixture);
+    seeded.reporter->setDiagnosticOverrides(
+        {QStringLiteral("report-chrome=152"), QStringLiteral("language=sv-FI")});
+    AgentControl control(seeded.browser.get(), seeded.config.path());
+    control.setProblemReporter(seeded.reporter.get());
+
+    const auto answer = ask(control, QStringLiteral("cli"), QStringLiteral("report"));
+    QVERIFY2(succeeded(answer), qPrintable(failure(answer)));
+    const auto expected = QStringLiteral("Diagnostic overrides\n- report-chrome=152\n"
+                                         "- language=sv-FI\n\nVersions\n");
+    for (const auto &report : {answer.value(QStringLiteral("report")).toString(),
+             seeded.reporter->text(QStringLiteral("personal-tab"), false),
+             seeded.reporter->form({}, true).value(QStringLiteral("text")).toString()}) {
+        QVERIFY2(report.startsWith(expected), qPrintable(report));
+    }
 }
 
 void AgentControlTest::reportFromATabAddsThatTabAlone()

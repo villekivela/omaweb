@@ -4,6 +4,7 @@
 #include "BrowserController.h"
 #include "BrowserTheme.h"
 #include "StoredFaviconProvider.h"
+#include "TabListModel.h"
 #include "ContentBlocker.h"
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
@@ -16,6 +17,7 @@
 #include "FaviconTint.h"
 #include "FontSettings.h"
 #include "DesktopTextScaling.h"
+#include "DiagnosticOverrides.h"
 #include "PageScale.h"
 #include "ProblemRecording.h"
 #include "ProblemReporter.h"
@@ -714,6 +716,17 @@ int main(int argc, char *argv[])
     }
     engine.rootContext()->setContextProperty(QStringLiteral("problemRecording"), &problemRecording);
     engine.rootContext()->setContextProperty(QStringLiteral("problemReporter"), &problemReporter);
+    // `--diagnose <name>=<value>` names the run's Diagnostic overrides, as the
+    // browser takes them, so their strip is there to be reviewed. The lab runs
+    // no engine, so nothing else changes.
+    const auto diagnosticOverrides = omaweb::readDiagnosticOverrides(arguments);
+    if (!diagnosticOverrides.refusal.isEmpty()) {
+        qCritical("%s", qPrintable(diagnosticOverrides.refusal));
+        return 2;
+    }
+    problemReporter.setDiagnosticOverrides(diagnosticOverrides.named);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("diagnosticOverrides"), diagnosticOverrides.named);
     // The switch is reviewed here; what it flips is written under the lab's
     // own data root rather than the reader's configuration.
     static omaweb::GlobalPrivacyControl globalPrivacyControl(dataRootPath);
@@ -1862,6 +1875,24 @@ QtObject {
         });
     }
 
+    // `--tab-window` pops the first tab with a page out into a Tab window,
+    // which the capture takes in place of the main window.
+    const auto tabWindowShown = arguments.contains(QStringLiteral("--tab-window"));
+    if (tabWindowShown && !engine.rootObjects().isEmpty()) {
+        QTimer::singleShot(200, &application, [&engine, &browser] {
+            auto *tabs = browser.tabs();
+            for (int row = 0; row < tabs->rowCount(); ++row) {
+                const auto index = tabs->index(row, 0);
+                const auto url = tabs->data(index, omaweb::TabListModel::UrlRole).toUrl();
+                if (url.scheme().startsWith(u"http")) {
+                    QMetaObject::invokeMethod(engine.rootObjects().constFirst(), "popOutTab",
+                        Q_ARG(QVariant, tabs->data(index, omaweb::TabListModel::IdRole)));
+                    return;
+                }
+            }
+        });
+    }
+
     const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));
     if (captureIndex >= 0 && captureIndex + 1 < arguments.size()) {
         const auto capturePath = arguments.at(captureIndex + 1);
@@ -1871,22 +1902,31 @@ QtObject {
         const auto delay = delayIndex >= 0 && delayIndex + 1 < arguments.size()
             ? arguments.at(delayIndex + 1).toInt()
             : 700;
-        QTimer::singleShot(delay, &application, [&engine, capturePath, agentsWindow] {
-            if (engine.rootObjects().isEmpty()) {
-                QCoreApplication::exit(1);
-                return;
-            }
-            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
-            if (agentsWindow && window != nullptr) {
-                window = window->findChild<QQuickWindow *>(QStringLiteral("auxiliaryWindow"));
-            }
-            if (!window || !window->grabWindow().save(capturePath)) {
-                qCritical("Could not capture %s", qPrintable(capturePath));
-                QCoreApplication::exit(1);
-                return;
-            }
-            QCoreApplication::quit();
-        });
+        QTimer::singleShot(
+            delay, &application, [&engine, capturePath, agentsWindow, tabWindowShown] {
+                if (engine.rootObjects().isEmpty()) {
+                    QCoreApplication::exit(1);
+                    return;
+                }
+                auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+                if (agentsWindow && window != nullptr) {
+                    window = window->findChild<QQuickWindow *>(QStringLiteral("auxiliaryWindow"));
+                }
+                if (tabWindowShown) {
+                    const auto windows = QGuiApplication::topLevelWindows();
+                    const auto shown = std::ranges::find_if(windows, [](const QWindow *candidate) {
+                        return candidate->objectName() == u"tabWindow";
+                    });
+                    window
+                        = shown == windows.cend() ? nullptr : qobject_cast<QQuickWindow *>(*shown);
+                }
+                if (!window || !window->grabWindow().save(capturePath)) {
+                    qCritical("Could not capture %s", qPrintable(capturePath));
+                    QCoreApplication::exit(1);
+                    return;
+                }
+                QCoreApplication::quit();
+            });
     }
 
     if (application.arguments().contains(QStringLiteral("--validate-qml"))) {
