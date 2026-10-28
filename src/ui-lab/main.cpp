@@ -1122,6 +1122,22 @@ int main(int argc, char *argv[])
         auto *window = engine.rootObjects().constFirst();
         window->setProperty("sidebarWidth", window->property("sidebarMinimumWidth"));
     }
+    // PROTOTYPE #838, throwaway: `--footer-variant a|b|c` places the footer's
+    // marks and Settings as one of three variants, and `--footer-items
+    // all|one|none` says how many stub marks are up (SpaceOutline.qml).
+    if (!engine.rootObjects().isEmpty()) {
+        if (auto *sidebar
+            = engine.rootObjects().constFirst()->findChild<QObject *>(QStringLiteral("sidebar"))) {
+            const auto variantIndex = arguments.indexOf(QStringLiteral("--footer-variant"));
+            if (variantIndex >= 0 && variantIndex + 1 < arguments.size()) {
+                sidebar->setProperty("labFooterVariant", arguments.at(variantIndex + 1));
+            }
+            const auto itemsIndex = arguments.indexOf(QStringLiteral("--footer-items"));
+            if (itemsIndex >= 0 && itemsIndex + 1 < arguments.size()) {
+                sidebar->setProperty("labFooterItems", arguments.at(itemsIndex + 1));
+            }
+        }
+    }
     // `--sidebar-right` stands the sidebar against the window's right edge, as
     // Settings' interface section does.
     if (arguments.contains(QStringLiteral("--sidebar-right")) && !engine.rootObjects().isEmpty()) {

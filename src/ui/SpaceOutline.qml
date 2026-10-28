@@ -86,10 +86,69 @@ Rectangle {
     // resting on it would (Main.qml's holdTabRow). Empty holds none.
     property string heldTabId: ""
 
+    // PROTOTYPE #838, throwaway: three places for the footer's marks and
+    // Settings, set by the UI lab's `--footer-variant a|b|c` and
+    // `--footer-items all|one|none`. Empty is the footer as on main. The items
+    // are stubs, so the lab needs no downloads or hosted extensions.
+    //   a: the issue as written. Settings in the top row, a status pill above
+    //      the Space row, the extension mark in the address box.
+    //   b: the marks as rows docked at the end of the tab list, labelled like
+    //      tabs; Settings stays at the footer's right end.
+    //   c: every mark, the extension's too, as a tray at the address box's
+    //      right end; Settings in the top row.
+    property string labFooterVariant: ""
+    property string labFooterItems: "all"
+    readonly property bool protoA: root.labFooterVariant === "a"
+    readonly property bool protoB: root.labFooterVariant === "b"
+    readonly property bool protoC: root.labFooterVariant === "c"
+    readonly property bool protoSettingsOnTop: root.protoA || root.protoC
+    readonly property var protoStatus: {
+        if (root.labFooterItems === "none")
+            return [];
+        const all = [
+                  {
+                      "key": "recording",
+                      "icon": "radio_button_checked",
+                      "label": qsTr("Recording · 3 min left"),
+                      "urgent": true
+                  },
+                  {
+                      "key": "downloads",
+                      "icon": "download",
+                      "label": qsTr("2 downloads · 40%"),
+                      "urgent": false
+                  },
+                  {
+                      "key": "release",
+                      "icon": "upgrade",
+                      "label": qsTr("0.19.1 is out"),
+                      "urgent": false
+                  }
+              ];
+        if (root.labFooterItems === "one")
+            return [all[1]];
+        // A Private window records nothing and is told of no release.
+        return root.privateWindow ? [all[1]] : all;
+    }
+    readonly property var protoExtension: root.labFooterItems === "all" && !root.privateWindow ? [
+                                                                                                     {
+                                                                                                         "key": "extension",
+                                                                                                         "icon": "extension",
+                                                                                                         "label": qsTr(
+                                                                                                                      "uBlock Origin"),
+                                                                                                         "urgent": false
+                                                                                                     }
+                                                                                                 ] : []
+
     // How wide a Space is in the footer, and the count of those left out.
     readonly property int spaceSlot: 18
     readonly property int slotSpacing: 4
     readonly property int overflowSlot: 28
+
+    // PROTOTYPE #838: how wide the row's Spaces are, for centring it.
+    function protoRowWidth(shown) {
+        return shown * root.spaceSlot + Math.max(0, shown - 1) * root.slotSpacing;
+    }
 
     // How many Spaces the row has room for. The reader's come first and the
     // Agent Spaces after them, so the ones left out are the last in that
@@ -931,6 +990,20 @@ Rectangle {
                     accent: root.colors.accent
                     onClicked: root.commandScopeRequested()
                 }
+
+                // PROTOTYPE #838: Settings in the top row, variants a and c.
+                SettingsButton {
+                    objectName: "prototypeTopSettings"
+                    visible: root.protoSettingsOnTop
+                    colors: root.colors
+                    iconFontFamily: root.iconFontFamily
+                    sync: root.sync
+                    authenticatedSync: root.authenticatedSync
+                    activeSync: root.activeSync
+                    settingsAttention: root.settingsAttention
+                    pixelRatio: root.pixelRatio
+                    onClicked: root.settingsRequested()
+                }
             }
 
             Row {
@@ -1095,7 +1168,8 @@ Rectangle {
                 anchors.left: securityGlyph.right
                 anchors.leftMargin: Style.space(9)
                 anchors.right: parent.right
-                anchors.rightMargin: Style.space(9)
+                anchors.rightMargin: Style.space(9) + (addressTray.width > 0 ? addressTray.width
+                                                                               + 4 : 0)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.blank ? qsTr("search or enter address") : AddressTrigger.shown(
                                        root.activeUrl)
@@ -1117,6 +1191,36 @@ Rectangle {
                 onClicked: {
                     addressButton.forceActiveFocus();
                     root.addressRequested();
+                }
+            }
+
+            // PROTOTYPE #838: the address box's right end. Variant a puts the
+            // extension mark here alone; variant c puts every mark here.
+            Row {
+                id: addressTray
+                objectName: "prototypeAddressTray"
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(4)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+
+                Repeater {
+                    model: root.protoA ? root.protoExtension : root.protoC ? root.protoStatus.concat(
+                                                                                 root.protoExtension) :
+                                                                             []
+
+                    ChromeButton {
+                        required property var modelData
+                        objectName: "prototypeTray-" + modelData.key
+                        width: 24
+                        height: 26
+                        icon: modelData.icon
+                        iconSize: Style.font.icon
+                        foreground: modelData.urgent ? root.colors.urgent : restingForeground
+                        accessibleName: modelData.label
+                        fontFamily: root.iconFontFamily
+                        accent: root.colors.accent
+                    }
                 }
             }
         }
@@ -1154,7 +1258,9 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: outline.bottom
-        anchors.bottom: footer.top
+        // PROTOTYPE #838: the list ends at the pill's top, or at the docked rows'.
+        anchors.bottom: protoPill.visible ? protoPill.top : protoRows.visible ? protoRows.top :
+                                                                                footer.top
 
         // The space the rows leave empty moves the window, as the navigation
         // strip does (#179). A row holds its press for a reorder, which this
@@ -1520,12 +1626,20 @@ Rectangle {
             anchors.left: parent.left
             // The row ends where the first mark standing in the footer
             // begins, so no Space and no count sits under one.
-            anchors.right: footerMarks.anyShown ? footerMarks.left : settingsButton.left
-            anchors.rightMargin: 8
+            anchors.right: root.protoSettingsOnTop ? parent.right : root.labFooterVariant.length
+                                                     > 0 || !footerMarks.anyShown
+                                                     ? settingsButton.left : footerMarks.left
+            anchors.rightMargin: root.protoSettingsOnTop ? 0 : 8
             anchors.verticalCenter: parent.verticalCenter
             height: 28
             visible: !root.privateWindow
             spacing: root.slotSpacing
+            // PROTOTYPE #838: with the footer to itself, the row is centred
+            // while every Space fits and fills the width when they do not.
+            leftPadding: root.protoSettingsOnTop && shown === spaceRepeater.count ? Math.max(0, (
+                                                                                                 width - root.protoRowWidth(
+                                                                                                     shown)) / 2) :
+                                                                                    0
 
             Repeater {
                 id: spaceRepeater
@@ -1669,7 +1783,8 @@ Rectangle {
         // sidebar's own icon language rather than in shouted capitals.
         Text {
             objectName: "privateBadge"
-            anchors.left: parent.left
+            anchors.left: root.protoSettingsOnTop ? undefined : parent.left
+            anchors.horizontalCenter: root.protoSettingsOnTop ? parent.horizontalCenter : undefined
             anchors.leftMargin: 2
             anchors.verticalCenter: parent.verticalCenter
             visible: root.privateWindow || !root.browser
@@ -1684,6 +1799,7 @@ Rectangle {
         FooterMarks {
             id: footerMarks
             objectName: "footerMarks"
+            visible: root.labFooterVariant.length === 0
             anchors.right: settingsButton.left
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
@@ -1705,6 +1821,7 @@ Rectangle {
 
         SettingsButton {
             id: settingsButton
+            visible: !root.protoSettingsOnTop
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             colors: root.colors
@@ -1715,6 +1832,115 @@ Rectangle {
             settingsAttention: root.settingsAttention
             pixelRatio: root.pixelRatio
             onClicked: root.settingsRequested()
+        }
+    }
+
+    // PROTOTYPE #838, variant a: the status pill. It spans the sidebar inside
+    // the margins just above the Space row and rises from the footer as a
+    // sheet lifts. One item is its icon and a label; several are icons.
+    Rectangle {
+        id: protoPill
+        objectName: "prototypeStatusPill"
+        readonly property bool single: root.protoStatus.length === 1
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: footer.top
+        anchors.leftMargin: root.listMargin
+        anchors.rightMargin: 16
+        anchors.bottomMargin: 6
+        height: 30
+        radius: Style.cornerRadius
+        color: SidebarFill.fill(root.colors.text, false)
+        visible: pillLift.showing
+        opacity: pillLift.progress
+        transform: SheetLift {
+            id: pillLift
+            shown: root.protoA && root.protoStatus.length > 0
+            ease: root.easeSpaces
+            distance: 8
+        }
+
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: 2
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+
+            Repeater {
+                model: root.protoA ? root.protoStatus : []
+
+                ProtoStatusItem {
+                    labelled: protoPill.single
+                    width: labelled ? protoPill.width - 4 : 28
+                    height: 26
+                }
+            }
+        }
+    }
+
+    // PROTOTYPE #838, variant b: the marks as rows docked at the end of the
+    // tab list, under a rule, each labelled as a tab is.
+    Column {
+        id: protoRows
+        objectName: "prototypeStatusRows"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: footer.top
+        anchors.leftMargin: root.listMargin
+        anchors.rightMargin: 16
+        anchors.bottomMargin: 6
+        visible: root.protoB && root.protoStatus.length + root.protoExtension.length > 0
+        spacing: root.rowGap
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: root.colors.separator
+        }
+
+        Repeater {
+            model: root.protoB ? root.protoStatus.concat(root.protoExtension) : []
+
+            ProtoStatusItem {
+                labelled: true
+                width: protoRows.width
+                height: 28
+            }
+        }
+    }
+
+    // PROTOTYPE #838: one status item, its icon alone or with its label.
+    component ProtoStatusItem: Item {
+        id: statusItem
+        required property var modelData
+        property bool labelled: false
+        objectName: "prototypeStatus-" + modelData.key
+
+        ChromeButton {
+            anchors.fill: parent
+            leftAlign: true
+            horizontalPadding: 5
+            icon: statusItem.modelData.icon
+            iconSize: Style.font.icon
+            foreground: statusItem.modelData.urgent ? root.colors.urgent : restingForeground
+            accessibleName: statusItem.modelData.label
+            fontFamily: root.iconFontFamily
+            accent: root.colors.accent
+        }
+
+        Text {
+            visible: statusItem.labelled
+            anchors.left: parent.left
+            anchors.leftMargin: 30
+            anchors.right: parent.right
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            text: statusItem.modelData.label
+            elide: Text.ElideRight
+            color: statusItem.modelData.urgent ? root.colors.urgent : root.colors.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            Accessible.ignored: true
         }
     }
 
