@@ -1,8 +1,8 @@
 {
   "version": 1,
   "reviewed": "2026-09-04",
-  "qtwebengine": "6.11.2",
-  "chromium": "140.0.7339.225",
+  "qtwebengine": "6.11.3",
+  "chromium": "140.0.7339.264",
   "chromiumSecurityPatch": "151.0.7922.71",
   "notes": [
     "A supported Omaweb build uses this approved engine baseline.",
