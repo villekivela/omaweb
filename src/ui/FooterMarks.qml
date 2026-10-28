@@ -17,6 +17,7 @@ RowLayout {
     property var downloads: null
     property bool savedFileNoticeShowing: false
 
+    readonly property int markSize: 26
     readonly property alias downloadItem: downloadMark
     readonly property bool anyShown: problemMark.visible || releaseMark.visible
                                      || extensionMark.visible || downloadMark.visible
@@ -36,8 +37,8 @@ RowLayout {
     ProblemMark {
         id: problemMark
         objectName: "problemRecordingMark"
-        Layout.preferredWidth: 26
-        Layout.preferredHeight: 26
+        Layout.preferredWidth: root.markSize
+        Layout.preferredHeight: root.markSize
         colors: root.colors
         iconFontFamily: root.iconFontFamily
         recording: root.problemRecording
@@ -47,8 +48,8 @@ RowLayout {
     ReleaseMark {
         id: releaseMark
         objectName: "releaseMark"
-        Layout.preferredWidth: 26
-        Layout.preferredHeight: 26
+        Layout.preferredWidth: root.markSize
+        Layout.preferredHeight: root.markSize
         colors: root.colors
         iconFontFamily: root.iconFontFamily
         watch: root.releaseWatch
@@ -61,8 +62,8 @@ RowLayout {
     ExtensionMark {
         id: extensionMark
         objectName: "extensionMark"
-        Layout.preferredWidth: 26
-        Layout.preferredHeight: 26
+        Layout.preferredWidth: root.markSize
+        Layout.preferredHeight: root.markSize
         colors: root.colors
         iconFontFamily: root.iconFontFamily
         hosted: root.hostedExtensions
@@ -72,8 +73,8 @@ RowLayout {
     DownloadMark {
         id: downloadMark
         objectName: "downloadMark"
-        Layout.preferredWidth: 26
-        Layout.preferredHeight: 26
+        Layout.preferredWidth: root.markSize
+        Layout.preferredHeight: root.markSize
         colors: root.colors
         iconFontFamily: root.iconFontFamily
         model: root.downloads

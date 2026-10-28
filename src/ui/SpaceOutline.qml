@@ -1699,7 +1699,7 @@ Rectangle {
             onReleaseNotesRequested: function (notes) {
                 root.releaseNotesRequested(notes);
             }
-            onExtensionsClicked: root.extensionRequested(footerMarks.extensionRect())
+            onExtensionsClicked: root.extensionRequested(root.extensionMarkRect())
             onDownloadsRequested: root.downloadsRequested()
         }
 

@@ -27,10 +27,11 @@ Item {
     height: 26
 
     ChromeButton {
-        id: syncMark
+        id: avatarButton
         objectName: "syncAvatarButton"
         anchors.fill: parent
         visible: root.authenticatedSync
+        // Evaluated while the avatar is hidden too, when there is no Sync to name.
         accessibleName: !root.authenticatedSync ? qsTr("Settings") : root.settingsAttention ? qsTr(
                                                                                                   "Settings for %1 — needs attention").arg(
                                                                                                   root.sync.login) :
@@ -39,7 +40,7 @@ Item {
                                                                                                     root.sync.login) :
                                                                                                 qsTr("Settings for %1").arg(
                                                                                                     root.sync.login)
-        foreground: root.syncFailing ? root.colors.urgent : syncMark.restingForeground
+        foreground: root.syncFailing ? root.colors.urgent : avatarButton.restingForeground
 
         accent: root.colors.accent
         onClicked: root.clicked()

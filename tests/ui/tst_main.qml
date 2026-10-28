@@ -13229,8 +13229,11 @@ TestCase {
         verify(dot.visible);
         compare(String(dot.color), String(avatar.colors.urgent));
 
-        avatar.sync.errorMessage = "";
         avatar.settingsAttention = true;
+        verify(dot.visible);
+        compare(String(dot.color), String(avatar.colors.urgent));
+
+        avatar.sync.errorMessage = "";
         verify(dot.visible);
         compare(String(dot.color), String(avatar.colors.urgent));
 
