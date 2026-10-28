@@ -27,6 +27,7 @@ private slots:
     void keepsTheLastGoodValuesWhileTheFileCannotBeRead();
     void startsOnTheDefaultsFromAFileOfAnotherVersion();
     void readsABadValueAsItsDefaultAndNamesIt();
+    void ignoresTheFloatingControlsAnEarlierBuildStored();
     void followsAnEditMadeWhileItRuns();
     void keepsBothOfTwoWritesAtOnce();
     void takesItsTurnBesideABusyWriter();
@@ -241,6 +242,24 @@ void SettingsFileTest::readsABadValueAsItsDefaultAndNamesIt()
     QVERIFY(readFile(path).contains("\"sidebar-colour\": \"red\""));
 }
 
+// The floating controls went with the strip they turned off (#837). A file
+// that still names them is read as naming a setting this build does not have.
+void SettingsFileTest::ignoresTheFloatingControlsAnEarlierBuildStored()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("settings.json"));
+    writeFile(path, R"({"version": 1, "floating-controls": false})");
+    SettingsFile settings(root.path());
+
+    QVERIFY(settings.readable());
+    QVERIFY(!settings.needsAttention());
+    QVERIFY(!SettingsFile::keys().contains(QStringLiteral("floating-controls")));
+    QVERIFY(!settings.isSet(QStringLiteral("floating-controls")));
+    QVERIFY(settings.value(QStringLiteral("floating-controls")).isUndefined());
+    QCOMPARE(settings.ignoredKeys(), QStringList {QStringLiteral("floating-controls")});
+}
+
 // The file is watched as theme.json is, so an edit lands without a restart,
 // whether the editor writes in place or replaces the file, and whether the
 // file was there when Omaweb started or not.
@@ -323,7 +342,7 @@ void SettingsFileTest::keepsBothOfTwoWritesAtOnce()
         });
     };
     std::unique_ptr<QThread> first(writer(QStringLiteral("tint-favicons"), true));
-    std::unique_ptr<QThread> second(writer(QStringLiteral("floating-controls"), false));
+    std::unique_ptr<QThread> second(writer(QStringLiteral("glance"), false));
     first->start();
     second->start();
     QVERIFY(first->wait(30000));
@@ -332,8 +351,8 @@ void SettingsFileTest::keepsBothOfTwoWritesAtOnce()
     SettingsFile settings(config);
     QCOMPARE(settings.value(QStringLiteral("tint-favicons")), QJsonValue(true));
     QVERIFY(settings.isSet(QStringLiteral("tint-favicons")));
-    QCOMPARE(settings.value(QStringLiteral("floating-controls")), QJsonValue(false));
-    QVERIFY(settings.isSet(QStringLiteral("floating-controls")));
+    QCOMPARE(settings.value(QStringLiteral("glance")), QJsonValue(false));
+    QVERIFY(settings.isSet(QStringLiteral("glance")));
 }
 
 // The limits Settings offers are the only ones the file takes: a value the

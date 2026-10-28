@@ -36,15 +36,17 @@ namespace {
     constexpr auto recoveryAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
     constexpr auto recoveryKeyBytes = 32;
     constexpr auto recoveryChecksumBytes = 4;
-    const QStringList syncedPreferences {QStringLiteral("floating-controls"),
-        QStringLiteral("use-favicons"), QStringLiteral("tint-favicons"), QStringLiteral("app-icon"),
+    const QStringList syncedPreferences {QStringLiteral("use-favicons"),
+        QStringLiteral("tint-favicons"), QStringLiteral("app-icon"),
         QStringLiteral("browser-theme"), QStringLiteral("link-rules")};
     // Settings an earlier version carried and this one no longer has. A
     // repository still holding one has it taken away on the next capture, so
     // no machine reads it back and nobody reads it in the repository.
     // `ease-sidebar` went when the chrome stopped offering its ease as a
-    // setting (#503).
-    const QStringList retiredPreferences {QStringLiteral("ease-sidebar")};
+    // setting (#503), and `floating-controls` with the strip it turned off
+    // (#837).
+    const QStringList retiredPreferences {
+        QStringLiteral("ease-sidebar"), QStringLiteral("floating-controls")};
 
     // A synced setting's record holds its value as text, as every version of
     // the record has; settings.json holds it typed.

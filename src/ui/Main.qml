@@ -39,12 +39,8 @@ ApplicationWindow {
     // A deliberate pause at the window edge borrows the page for the sidebar
     // without changing whether the reader left it collapsed.
     property bool sidebarPeeked: false
-    // What stands in for the sidebar once it has gone. A reader who hides it to
-    // hand the page the whole window may mean the whole window, so the strip is
-    // theirs to refuse; the keys that hide the sidebar bring it back either way.
-    property bool floatingControls: true
     // The window edge the sidebar stands against, "left" or "right". The page,
-    // the seam and the floating controls follow it.
+    // the seam and the edge it peeks from follow it.
     property string sidebarSide: "left"
     // The desktop asking for no movement, which stills everything the chrome
     // would move, whatever started it.
@@ -2453,8 +2449,6 @@ ApplicationWindow {
     }
 
     function restoreChromeAppearance() {
-        window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
-                === "true";
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
         const scene = window.windowBrowser.preference("start-page-scene", "crt-road");
         window.startPageScene = window.startPageScenes.indexOf(scene) >= 0 ? scene : "crt-road";
@@ -2483,11 +2477,6 @@ ApplicationWindow {
     function setSidebarSide(side) {
         window.sidebarSide = side;
         window.windowBrowser.setPreference("sidebar-side", side);
-    }
-
-    function setFloatingControls(enabled) {
-        window.floatingControls = enabled;
-        window.windowBrowser.setPreference("floating-controls", enabled ? "true" : "false");
     }
 
     function setStartPageScene(scene) {
@@ -2623,9 +2612,9 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
-            if (name === "floating-controls" || name === "glance" || name === "start-page-scene" || name
-                    === "start-page-glass" || name === "sidebar-side" || name === "space-colours"
-                    || name === "telemetry-text" || name === "telemetry-hidden")
+            if (name === "glance" || name === "start-page-scene" || name === "start-page-glass" || name
+                    === "sidebar-side" || name === "space-colours" || name === "telemetry-text"
+                    || name === "telemetry-hidden")
                 window.restoreChromeAppearance();
             else if (name === "app-icon")
                 window.restoreAppIcon();
@@ -4401,8 +4390,8 @@ ApplicationWindow {
                 FindBar {
                     id: findBar
                     objectName: "findBar"
-                    // Across the page from the sidebar's side, where the
-                    // floating controls stand while it is hidden.
+                    // Across the page from the sidebar's side, clear of the
+                    // edge it peeks from while it is hidden.
                     x: chromeRow.sidebarOnRight ? 20 : DevicePixels.snap(parent.width - width - 20,
                                                                          window.devicePixelRatio)
                     anchors.top: parent.top
@@ -4945,7 +4934,6 @@ ApplicationWindow {
                             useFavicons: window.useFavicons
                             tintFavicons: window.tintFavicons
                             appIcon: window.appIcon
-                            floatingControls: window.floatingControls
                             sidebarSide: window.sidebarSide
                             glanceEnabled: window.glanceEnabled
                             spaceColours: window.spaceColours
@@ -5028,9 +5016,6 @@ ApplicationWindow {
                             onAppIconChosen: function (icon) {
                                 window.setAppIcon(icon);
                             }
-                            onFloatingControlsToggled: function (enabled) {
-                                window.setFloatingControls(enabled);
-                            }
                             onSidebarSideChosen: function (side) {
                                 window.setSidebarSide(side);
                             }
@@ -5057,47 +5042,6 @@ ApplicationWindow {
                     open: window.historyOpen
                     pageSource: window.pagelessViewport ? null : engineLoader
                     onClosed: window.historyOpen = false
-                }
-
-                // The outline carries these commands while it is open; the
-                // strip is what the chromeless state has instead — except
-                // where a site has been given the screen, which is the one
-                // state that has no browser chrome over it at all, and except
-                // where the reader has asked for the strip not to be there.
-                NavigationCluster {
-                    // The sidebar itself rather than the flag that sends it
-                    // away: the strip stands in for a sidebar that has gone,
-                    // not for one still sliding out.
-                    visible: window.floatingControls && !window.settingsOpen && !window.historyOpen
-                             && !sidebar.visible && !engineLoader.siteFullscreenActive
-                    // Where the outline's own controls were: the strip stands
-                    // in for the top of the sidebar, so hiding the sidebar
-                    // leaves the commands where the reader was already
-                    // reaching for them rather than moving them to the floor.
-                    // Beside a right sidebar that is the window's right edge,
-                    // over the top of docked developer tools.
-                    x: chromeRow.sidebarOnRight ? DevicePixels.snap(parent.width - width - 16,
-                                                                    window.devicePixelRatio) : 16
-                    anchors.top: parent.top
-                    anchors.topMargin: 16
-                    z: 5
-                    colors: window.colors
-                    iconFontFamily: materialSymbols.name
-                    // The page behind the strip, not the viewport that owns
-                    // both, so the blur never samples itself. Over the dock
-                    // there is no page to blur, so the strip takes its own fill.
-                    backdropSource: chromeRow.sidebarOnRight && developerToolsDock.visible ? null :
-                                                                                             engineLoader
-                    canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
-                    canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
-                    sidebarCollapsed: window.sidebarCollapsed
-                    sidebarOnRight: chromeRow.sidebarOnRight
-
-                    onBackRequested: engineLoader.goBack()
-                    onForwardRequested: engineLoader.goForward()
-                    onReloadRequested: engineLoader.reloadPage()
-                    onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
-                    onCommandScopeRequested: window.openCommandScope()
                 }
 
                 Connections {

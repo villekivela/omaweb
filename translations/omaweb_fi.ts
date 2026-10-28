@@ -2015,33 +2015,6 @@
     </message>
 </context>
 <context>
-    <name>NavigationCluster</name>
-    <message>
-        <source>Back</source>
-        <translation>Takaisin</translation>
-    </message>
-    <message>
-        <source>Forward</source>
-        <translation>Eteenpäin</translation>
-    </message>
-    <message>
-        <source>Reload</source>
-        <translation>Lataa uudelleen</translation>
-    </message>
-    <message>
-        <source>Show sidebar</source>
-        <translation>Näytä sivupalkki</translation>
-    </message>
-    <message>
-        <source>Hide sidebar</source>
-        <translation>Piilota sivupalkki</translation>
-    </message>
-    <message>
-        <source>Search commands</source>
-        <translation>Hae komentoja</translation>
-    </message>
-</context>
-<context>
     <name>Omnibar</name>
     <message>
         <source>Search %1 for %2</source>
@@ -2890,14 +2863,6 @@
         <translation>Mitään ei pidetä aktiivisena</translation>
     </message>
     <message>
-        <source>The edge of the window the sidebar stands against. While it is hidden, the floating controls stay at that edge.</source>
-        <translation>Ikkunan reuna, jota vasten sivupalkki on. Kun sivupalkki on piilotettu, kelluvat ohjaimet pysyvät tässä reunassa.</translation>
-    </message>
-    <message>
-        <source>Floating controls</source>
-        <translation>Kelluvat ohjaimet</translation>
-    </message>
-    <message>
         <source>Glance at a page&apos;s new tabs</source>
         <translation>Pikakatsaus sivun uusiin välilehtiin</translation>
     </message>
@@ -3235,6 +3200,10 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>%1 sets Omaweb&apos;s palette instead.</source>
         <translation>%1 määrää Omawebin väripaletin tämän sijaan.</translation>
+    </message>
+    <message>
+        <source>The edge of the window the sidebar stands against. While it is hidden, pause the pointer at that edge to peek at it.</source>
+        <translation>Ikkunan reuna, jota vasten sivupalkki on. Kun sivupalkki on piilotettu, viivähdä osoittimella tässä reunassa, niin näet sivupalkin.</translation>
     </message>
     <message>
         <source>%1, from the desktop</source>
@@ -3690,10 +3659,6 @@ Päivitykset osoitteesta %3</translation>
         <source>Right</source>
         <comment>sidebar side: the window&apos;s right edge</comment>
         <translation>Oikea</translation>
-    </message>
-    <message>
-        <source>With the sidebar hidden, keep the navigation controls over the page. Pause at the sidebar&apos;s edge of the window to peek at it; it hides when the pointer leaves.</source>
-        <translation>Kun sivupalkki on piilotettu, pidä siirtymisohjaimet sivun päällä. Viivähdä ikkunan sivupalkin puoleisessa reunassa, niin näet sivupalkin; se piiloutuu, kun osoitin poistuu.</translation>
     </message>
     <message>
         <source>Scene on the Start page</source>

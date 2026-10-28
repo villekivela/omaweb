@@ -979,7 +979,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // Flips the Floating controls toggle as a reader does and reports what
+    // Flips the Glance toggle as a reader does and reports what
     // the browser stored, so a test can check that a setting changed under a
     // translated chrome is written under its English key and value.
     if (arguments.contains(QStringLiteral("--report-setting-change"))) {
@@ -989,15 +989,14 @@ int main(int argc, char *argv[])
         auto *root = engine.rootObjects().constFirst();
         QMetaObject::invokeMethod(root, "buildSettings");
         auto *heading = root->findChild<QObject *>(QStringLiteral("settingsHeading"));
-        auto *toggle = root->findChild<QObject *>(QStringLiteral("floatingControls"));
+        auto *toggle = root->findChild<QObject *>(QStringLiteral("glanceEnabled"));
         if (heading == nullptr || toggle == nullptr) {
-            qCritical("Settings has no Floating controls toggle");
+            qCritical("Settings has no Glance toggle");
             return 1;
         }
         QMetaObject::invokeMethod(toggle, "clicked");
         printf("settings_heading=%s\n", qPrintable(heading->property("text").toString()));
-        printf("stored_floating_controls=%s\n",
-            qPrintable(browser.preference(QStringLiteral("floating-controls"))));
+        printf("stored_glance=%s\n", qPrintable(browser.preference(QStringLiteral("glance"))));
         fflush(stdout);
         return 0;
     }
@@ -1237,9 +1236,7 @@ int main(int argc, char *argv[])
         static const QHash<QString, QList<ShowProperty>> states = {
             {QStringLiteral("collapsed"),
                 {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", false}}},
-            {QStringLiteral("peek"),
-                {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", true},
-                    {"", "floatingControls", false}}},
+            {QStringLiteral("peek"), {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", true}}},
             {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
             {QStringLiteral("settings:clear"),
                 {{"", "settingsOpen", true}, {"settingsSurface", "clearDataOpen", true}}},
@@ -1791,7 +1788,6 @@ QtObject {
                 if (!peeked) {
                     return;
                 }
-                root->setProperty("floatingControls", false);
                 const auto views = root->findChildren<QObject *>(QStringLiteral("mockEngineView"));
                 for (auto *view : views) {
                     view->setProperty("blurReviewPattern", true);

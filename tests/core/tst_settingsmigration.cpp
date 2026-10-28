@@ -18,6 +18,7 @@ class SettingsMigrationTest final : public QObject {
 private slots:
     void buildsTheFileFromWhereSettingsWereKept();
     void startsAnEmptyFileWhenThereIsNothingToCarry();
+    void dropsTheFloatingControlsRowWithoutAWarning();
     void leavesAnOldFileBesideAFileThatIsAlreadyThere();
     void keepsAnOldFileItCannotReadAndSaysWhatItDropped();
 };
@@ -131,6 +132,26 @@ void SettingsMigrationTest::startsAnEmptyFileWhenThereIsNothingToCarry()
     QCOMPARE(readJson(config.filePath(QStringLiteral("settings.json"))),
         (QJsonObject {{QStringLiteral("version"), 1}}));
     QVERIFY(!config.exists(QStringLiteral("agents.json")));
+}
+
+// The floating controls went with their strip (#837): a store that still holds
+// the row loses it, and nothing is carried or said about a setting that is gone.
+void SettingsMigrationTest::dropsTheFloatingControlsRowWithoutAWarning()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const QDir config(root.filePath(QStringLiteral("config")));
+    omaweb::SqliteSessionStore store(root.filePath(QStringLiteral("data")));
+    QVERIFY(store.open());
+    QVERIFY(store.savePreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
+    QTest::failOnWarning();
+
+    QVERIFY(omaweb::migrateSettings(config.path(), store));
+
+    QCOMPARE(readJson(config.filePath(QStringLiteral("settings.json"))),
+        (QJsonObject {{QStringLiteral("version"), 1}}));
+    const auto missing = QStringLiteral("missing");
+    QCOMPARE(store.preference(QStringLiteral("floating-controls"), missing), missing);
 }
 
 // A settings.json from the reader's dotfiles is theirs, so an old file beside

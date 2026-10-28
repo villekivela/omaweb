@@ -366,8 +366,6 @@ TestCase {
         window.sidebarPeeked = false;
         if (window.sidebarWidth !== window.sidebarDefaultWidth)
             window.setSidebarWidth(window.sidebarDefaultWidth);
-        if (!window.floatingControls)
-            window.setFloatingControls(true);
         if (window.sidebarSide !== "left")
             window.setSidebarSide("left");
         if (window.startPageScene !== "crt-road")
@@ -891,7 +889,6 @@ TestCase {
             return browser.splitOnShow && engineHost.besideEngine !== null;
         });
         window.sidebarCollapsed = true;
-        window.setFloatingControls(false);
         window.setSidebarWidth(window.sidebarMinimumWidth);
         window.openTabMenu(besideTabId, 0, 0);
         window.requestSettings();
@@ -911,7 +908,6 @@ TestCase {
         verify(sidebar.visible);
         compare(sidebar.x, 0);
         compare(window.sidebarWidth, window.sidebarDefaultWidth);
-        verify(window.floatingControls);
         // The watch a failed test did not stop hears none of the frames after.
         const heard = leftWatching.seen.length;
         window.sidebarCollapsed = true;
@@ -4711,20 +4707,10 @@ TestCase {
         const spaceHeading = findChild(window.contentItem, "spaceHeading");
         const sidebarNavigation = findChild(window.contentItem, "sidebarNavigation");
         const engineViewport = findChild(window.contentItem, "engineViewport");
-        const navigationCluster = findChild(window.contentItem, "navigationCluster");
         verify(spaceHeading !== null);
         verify(sidebarNavigation !== null);
         verify(engineViewport !== null);
-        verify(navigationCluster !== null);
         compare(engineViewport.height, window.height);
-
-        // Navigation floats over the page instead of taking a band above it,
-        // and it floats where the outline's own controls are: at the top, so
-        // hiding the sidebar does not move the commands to the floor.
-        verify(navigationCluster.height < engineViewport.height / 4);
-        verify(navigationCluster.y < engineViewport.height / 2);
-        verify(navigationCluster.mapToItem(engineViewport, 0, 0).y < sidebarNavigation.mapToItem(
-                   engineViewport, 0, 0).y + sidebarNavigation.height);
 
         // Navigation opens the outline; pinned rows sit above the tabs.
         browser.toggleActivePinned();
@@ -4760,18 +4746,11 @@ TestCase {
     function test_hiddenSidebarCanBePeekedWithMouse_data() {
         return [
                     {
-                        tag: "floating eased",
-                        floating: true,
+                        tag: "eased",
                         eased: true
                     },
                     {
-                        tag: "no floating eased",
-                        floating: false,
-                        eased: true
-                    },
-                    {
-                        tag: "floating immediate",
-                        floating: true,
+                        tag: "immediate",
                         eased: false
                     }
                 ];
@@ -4781,7 +4760,6 @@ TestCase {
         const sidebar = findChild(window.contentItem, "sidebar");
         const backdrop = findChild(window.contentItem, "sidebarBackdrop");
         const engineViewport = findChild(window.contentItem, "engineViewport");
-        window.floatingControls = data.floating;
         SystemMotion.reduced = !data.eased;
         mouseMove(window.contentItem, window.width / 2, window.height / 2);
         window.sidebarCollapsed = true;
@@ -4822,7 +4800,6 @@ TestCase {
         tryCompare(sidebar, "visible", false);
         compare(window.sidebarCollapsed, true);
         compare(backdrop.visible, false);
-        window.floatingControls = true;
         SystemMotion.reduced = false;
     }
 
@@ -5151,16 +5128,34 @@ TestCase {
         window.settingsOpen = false;
     }
 
-    function test_collapsingTheSidebarLeavesOnlyTheFloatingControls() {
+    // The navigation controls on show anywhere in the window. An item's
+    // visible is false under a hidden ancestor, so these are the ones drawn.
+    function navigationControlsOnShow() {
+        const names = ["backButton", "forwardButton", "reloadButton", "collapseButton",
+                       "commandScopeButton"];
+        const shown = [];
+        const visit = function (item) {
+            for (let at = 0; at < item.children.length; ++at) {
+                const child = item.children[at];
+                if (names.indexOf(child.objectName) >= 0 && child.visible)
+                    shown.push(child.objectName);
+                visit(child);
+            }
+        };
+        visit(window.contentItem);
+        return shown;
+    }
+
+    // A hidden sidebar hands the page the whole window: nothing stands in for
+    // it over the page, and its keys bring it back.
+    function test_aHiddenSidebarLeavesNothingOverThePage() {
+        openPage("https://whole-window.example/");
         const sidebar = findChild(window.contentItem, "sidebar");
         const engineViewport = findChild(window.contentItem, "engineViewport");
-        const navigationCluster = findChild(window.contentItem, "navigationCluster");
         verify(sidebar !== null);
         verify(sidebar.visible);
 
         const expandedViewport = engineViewport.width;
-        // While the outline is open it carries the controls itself.
-        verify(!navigationCluster.visible);
         window.sidebarCollapsed = true;
         tryVerify(function () {
             return !sidebar.visible;
@@ -5168,22 +5163,23 @@ TestCase {
         tryVerify(function () {
             return engineViewport.width > expandedViewport;
         });
-        verify(navigationCluster.visible);
+        compare(navigationControlsOnShow(), []);
+        compare(findChild(window.contentItem, "navigationCluster"), null);
 
-        window.sidebarCollapsed = false;
+        verify(window.commands.run("toggle-sidebar", -1));
+        compare(window.sidebarCollapsed, false);
         tryVerify(function () {
             return sidebar.visible && Math.round(sidebar.x) === 0;
         });
     }
 
-    // The seam and the strip at every frame drawn from here on.
-    function watchTheSeam(sidebar, viewport, strip) {
+    // The seam at every frame drawn from here on.
+    function watchTheSeam(sidebar, viewport) {
         return watchFrames(function () {
             return {
                 "seam": Math.round(viewport.x),
                 "sidebarEnd": Math.round(sidebar.x + sidebar.width),
-                "pageEnd": Math.round(viewport.x + viewport.width),
-                "strip": strip.visible
+                "pageEnd": Math.round(viewport.x + viewport.width)
             };
         });
     }
@@ -5191,9 +5187,7 @@ TestCase {
     // The seam in every frame drawn: the page's leading edge stays on the
     // sidebar's trailing one, and the pair still cover the row, so the
     // movement leaves no gap between them and the page is not uncovered at
-    // the far edge. The strip stands in for a sidebar that has gone, so no
-    // frame draws it beside one: not while the sidebar is on its way out, and
-    // not once one is drawn coming back.
+    // the far edge.
     function checkTheSeam(watch, row) {
         stopWatching(watch);
         verify(watch.seen.length > 0);
@@ -5201,8 +5195,6 @@ TestCase {
             const frame = watch.seen[at];
             compare(frame.sidebarEnd, frame.seam);
             verify(frame.pageEnd >= row);
-            if (frame.strip)
-                compare(frame.seam, 0);
         }
     }
 
@@ -5217,10 +5209,8 @@ TestCase {
         window.setSidebarWidth(window.sidebarDefaultWidth);
         const sidebar = findChild(window.contentItem, "sidebar");
         const viewport = findChild(window.contentItem, "engineViewport");
-        const cluster = findChild(window.contentItem, "navigationCluster");
         verify(sidebar !== null);
         verify(viewport !== null);
-        verify(cluster !== null);
         // A seam that has arrived. Its width alone would not say so: the
         // sidebar keeps that as it slides, and only where it sits does.
         tryVerify(function () {
@@ -5236,7 +5226,7 @@ TestCase {
         viewportWidthSpy.clear();
         sidebarWidthSpy.clear();
 
-        let seam = watchTheSeam(sidebar, viewport, cluster);
+        let seam = watchTheSeam(sidebar, viewport);
         let slide = watchChanges(viewport, "x");
         window.commands.run("toggle-sidebar", -1);
         verify(passedBetween(slide, window.sidebarDefaultWidth, 0));
@@ -5247,10 +5237,9 @@ TestCase {
         compare(Math.round(viewport.x), 0);
         compare(Math.round(viewport.width), row);
         compare(viewportWidthSpy.count, 1);
-        verify(cluster.visible);
 
         viewportWidthSpy.clear();
-        seam = watchTheSeam(sidebar, viewport, cluster);
+        seam = watchTheSeam(sidebar, viewport);
         slide = watchChanges(viewport, "x");
         window.commands.run("toggle-sidebar", -1);
         verify(passedBetween(slide, 0, window.sidebarDefaultWidth));
@@ -17092,37 +17081,19 @@ TestCase {
         compare(browser.preference("tint-favicons", "false"), "false");
     }
 
-    // The strip stands in for the sidebar by default, and a reader who wants
-    // the page to have the window keeps the keys that hide the sidebar either
-    // way: refusing the strip refuses the strip, not the state it belongs to.
-    function test_theFloatingControlsCanBeRefused() {
+    // Settings offers nothing for a sidebar that has gone: a hidden one leaves
+    // nothing over the page to turn off.
+    function test_settingsHasNoFloatingControlsRow() {
+        const settings = window.buildSettings();
+        const before = settings.section;
+        window.requestSettingsSection("interface");
+        tryVerify(function () {
+            return findChild(settings, "sidebarSide") !== null;
+        });
+        compare(findChild(settings, "floatingControls"), null);
+        compare(visibleTextsHolding(settings, "Floating controls", null), []);
         window.settingsOpen = false;
-        window.sidebarCollapsed = false;
-        const cluster = findChild(window.contentItem, "navigationCluster");
-        const floatingControls = findChild(window.contentItem, "floatingControls");
-        verify(cluster !== null);
-        verify(floatingControls !== null);
-        compare(window.floatingControls, true);
-
-        window.sidebarCollapsed = true;
-        tryVerify(function () {
-            return cluster.visible;
-        });
-
-        floatingControls.clicked();
-        compare(window.floatingControls, false);
-        compare(browser.preference("floating-controls", "true"), "false");
-        verify(!cluster.visible);
-        // The sidebar still answers, so the reader is not shut out of the
-        // state they are in.
-        verify(window.commands.run("toggle-sidebar", -1));
-        tryVerify(function () {
-            return !window.sidebarCollapsed;
-        });
-
-        floatingControls.clicked();
-        compare(window.floatingControls, true);
-        compare(browser.preference("floating-controls", "true"), "true");
+        settings.section = before;
     }
 
     // The kit's choice draws one button per option and names none of them, so
@@ -17289,13 +17260,11 @@ TestCase {
     // every frame the page stays at the window's left edge, so its content
     // does not jump, and the part of it on show ends on the sidebar's leading
     // edge, so the slide opens no gap and the page is not drawn over the
-    // sidebar. Hidden, it leaves the floating controls and the edge that peeks
-    // at it on the right.
+    // sidebar. Hidden, it leaves the edge that peeks at it on the right.
     function test_aRightSidebarHidesTowardItsOwnEdge() {
         window.setSidebarSide("right");
         const sidebar = findChild(window.contentItem, "sidebar");
         const viewport = findChild(window.contentItem, "engineViewport");
-        const cluster = findChild(window.contentItem, "navigationCluster");
         const revealEdge = findChild(window.contentItem, "sidebarRevealEdge");
         const backdrop = findChild(window.contentItem, "sidebarBackdrop");
         const pageClip = findChild(window.contentItem, "pageClip");
@@ -17312,9 +17281,7 @@ TestCase {
                     "sidebarStart": Math.round(sidebar.x),
                     "pageStart": Math.round(viewport.mapToItem(window.contentItem, 0, 0).x),
                     "pageShownEnd": Math.round(pageClip.clip ? Math.min(pageEnd, pageClip.width) :
-                                                               pageEnd),
-                    "sidebarShown": sidebar.visible,
-                    "strip": cluster.visible
+                                                               pageEnd)
                 };
             });
         };
@@ -17325,8 +17292,6 @@ TestCase {
                 const frame = watch.seen[at];
                 compare(frame.pageStart, 0);
                 compare(frame.pageShownEnd, frame.sidebarStart);
-                if (frame.strip)
-                    verify(!frame.sidebarShown);
             }
         };
 
@@ -17341,15 +17306,11 @@ TestCase {
         compare(Math.round(viewport.x), 0);
         compare(Math.round(viewport.width), row);
 
-        // The strip stands where the sidebar's top was, against the right edge.
-        verify(cluster.visible);
-        const strip = cluster.mapToItem(window.contentItem, 0, 0);
-        compare(Math.round(strip.x + cluster.width), row - 16);
-        // The find bar moves across the page, out of the strip's way.
-        const findBar = findChild(window.contentItem, "findBar");
-        verify(findBar.mapToItem(window.contentItem, 0, 0).x + findBar.width < strip.x);
         compare(Math.round(revealEdge.mapToItem(window.contentItem, 0, 0).x + revealEdge.width),
                 row);
+        // The find bar moves across the page, clear of the edge that peeks.
+        const findBar = findChild(window.contentItem, "findBar");
+        verify(findBar.mapToItem(window.contentItem, 0, 0).x + findBar.width < row / 2);
 
         // Holding the pointer at the right edge peeks from there.
         mouseMove(window.contentItem, row - 2, window.height / 2);
@@ -17365,7 +17326,7 @@ TestCase {
 
         seam = watchTheRightSeam();
         slide = watchChanges(sidebar, "x");
-        cluster.sidebarToggled();
+        verify(window.commands.run("toggle-sidebar", -1));
         verify(passedBetween(slide, row, shownAt));
         tryVerify(function () {
             return Math.round(viewport.width) === shownAt;
@@ -17373,33 +17334,6 @@ TestCase {
         checkTheRightSeam(seam);
         compare(Math.round(sidebar.x), shownAt);
         compare(Math.round(viewport.x), 0);
-    }
-
-    // With developer tools docked and a right sidebar hidden, the strip still
-    // stands against the window's right edge, over the dock's top corner,
-    // where the sidebar's controls were.
-    function test_aRightSidebarsStripStandsAtTheWindowsEdgeBesideTheDock() {
-        openPage("https://dock-strip.example/");
-        window.setSidebarSide("right");
-        window.commands.run("developer-tools", -1);
-        const dock = findChild(window.contentItem, "developerToolsDock");
-        const cluster = findChild(window.contentItem, "navigationCluster");
-        tryVerify(function () {
-            return dock.visible;
-        });
-        try {
-            window.sidebarCollapsed = true;
-            tryVerify(function () {
-                return cluster.visible;
-            });
-            const strip = cluster.mapToItem(window.contentItem, 0, 0);
-            compare(Math.round(strip.x + cluster.width), window.contentItem.width - 16);
-        } finally {
-            browser.closeDeveloperTools();
-            tryVerify(function () {
-                return !dock.visible;
-            });
-        }
     }
 
     // What stands over the page area beside a right sidebar stands over the
@@ -17447,7 +17381,8 @@ TestCase {
 
     // A key hides the sidebar in one step: the seam is where it settles in the
     // frame the sidebar was hidden in rather than somewhere along the way, and
-    // the page is laid out once as it always is. The pointer's press eases it.
+    // the page is laid out once as it always is. The pointer's press eases it
+    // away; once hidden, it has no control to press, so a key brings it back.
     function test_theSidebarSettlesFromAKeyAndEasesFromThePointer() {
         window.settingsOpen = false;
         window.historyOpen = false;
@@ -17489,16 +17424,10 @@ TestCase {
         tryVerify(function () {
             return !sidebar.visible;
         });
-        const show = findChild(findChild(window.contentItem, "navigationCluster"),
-                               "collapseButton");
-        tryVerify(function () {
-            return show.visible;
-        });
-        settleActions(show);
-        slide = watchChanges(sidebar, "x");
-        mouseClick(show);
+        // A hidden sidebar has no control of its own to press, so a key
+        // brings it back.
+        keyClick(Qt.Key_B, Qt.ControlModifier);
         compare(window.sidebarCollapsed, false);
-        verify(passedBetween(slide, -sidebar.width, 0));
         tryVerify(function () {
             return Math.round(sidebar.x) === 0;
         });
@@ -20318,9 +20247,6 @@ TestCase {
         compare(window.browserFullscreen, false);
         compare(window.sidebarCollapsed, false);
 
-        const floatingControls = findChild(window.contentItem, "navigationCluster");
-        verify(floatingControls !== null);
-
         engine.simulateSiteFullscreen("cinema.example");
         tryVerify(function () {
             return engineHost.siteFullscreenActive;
@@ -20328,9 +20254,6 @@ TestCase {
         compare(window.browserFullscreen, false);
         compare(window.sidebarCollapsed, true);
         verify(notice.message.indexOf("cinema.example") !== -1);
-        // The page has the whole window: standing the outline aside must not
-        // put the floating strip over the page in its place.
-        verify(!floatingControls.visible);
         verify(!findChild(window.contentItem, "sidebarRevealEdge").visible);
         mouseMove(window.contentItem, 2, window.height / 2);
         wait(200);

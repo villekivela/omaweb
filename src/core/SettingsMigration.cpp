@@ -25,7 +25,6 @@ namespace {
         QStringLiteral("use-favicons"),
         QStringLiteral("tint-favicons"),
         QStringLiteral("sidebar-side"),
-        QStringLiteral("floating-controls"),
         QStringLiteral("glance"),
         QStringLiteral("start-page-scene"),
         QStringLiteral("start-page-glass"),
@@ -35,6 +34,9 @@ namespace {
     // The switch the Start page had before it had Scenes. Read once more here,
     // so a reader who turned it off arrives on None.
     const auto startPageRoad = QStringLiteral("start-page-road");
+    // The switch that turned the floating navigation strip off, gone with it
+    // (#837). Its row is dropped rather than carried.
+    const auto floatingControls = QStringLiteral("floating-controls");
     constexpr std::array agentKeys {
         QLatin1StringView("allow-agents"), QLatin1StringView("agent-command")};
 
@@ -167,6 +169,7 @@ bool migrateSettings(const QString &configRoot, SessionStore &store)
     }
     QStringList rows = settingRows;
     rows.append(startPageRoad);
+    rows.append(floatingControls);
     for (const auto &extension : knownExtensions()) {
         rows.append(extensionRow(extension.key));
     }

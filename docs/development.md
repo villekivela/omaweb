@@ -1303,6 +1303,10 @@ the `dev` preset on 2026-09-12, and on CI's runners and on an Omarchy laptop on 
 The Telemetry read was first taken on 2026-10-27, offscreen on an Omarchy laptop, a Dell XPS, five
 runs of the median of ten reads. Its other columns wait for a run on those machines.
 
+The chromeless frame times were taken with the floating navigation strip drawn over the page. #837
+removed the strip, so the probe now times a hidden sidebar with nothing over the page, and these
+columns stand until they are taken again. Offscreen on the Dell XPS on 2026-10-28 it read 0.7 ms.
+
 The CI columns are the `arch-linux-clang` and `arch-linux-gcc` jobs of `main` at `d4561d3` and
 `9a39d1c`, on 2026-10-06 with QtWebEngine 6.11.2-5, read from the step that prints the probes'
 numbers from ctest's log. That step prints them on a passing run.
@@ -1357,15 +1361,12 @@ What each one measures:
 - Tab switch is the median of ten `next-tab` commands between two pages whose engines already exist,
   from the command to the first swapped frame showing the destination.
 - Frame time is the scene graph's own cost per frame, from `beforeFrameBegin` to `afterFrameEnd`,
-  averaged over one second with the sidebar hidden, the navigation strip floating and the page
-  redrawing every frame. The probe then takes the same second with the strip turned off, so the
-  strip's own cost, its live copy of the page, blur and mask, is the difference between the two
-  lines it prints. The tests draw through the software rasteriser on the offscreen platform, so the
-  absolute value is meaningful only on real GPU hardware and a virtual machine's number is
-  comparative only: it holds the chrome to what it cost before on the same machine. The software
-  rasteriser draws no shader effect, so it cannot price the strip at all. On the same machine
-  through Metal, `QT_QPA_PLATFORM=cocoa`, a tab switch costs 14 to 18 ms, the difference being a
-  wait for the display.
+  averaged over one second with the sidebar hidden and the page redrawing every frame. The tests
+  draw through the software rasteriser on the offscreen platform, so the absolute value is
+  meaningful only on real GPU hardware and a virtual machine's number is comparative only: it holds
+  the chrome to what it cost before on the same machine. On the same machine through Metal,
+  `QT_QPA_PLATFORM=cocoa`, a tab switch costs 14 to 18 ms, the difference being a wait for the
+  display.
 - The Start page's frame time is the same cost over one second of a resting Space, its road driving:
   the Scene's moving parts placed thirty times a second, its small picture captured, and the CRT
   glass drawn over the window. The window draws up to two frames for each of the road's, because a
@@ -1492,7 +1493,9 @@ QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1 build/ci/omaweb-ui-tests \
 ```
 
 The chromeless probe fails there, at 16.7 ms against 10 ms, because the CPU bracket includes the
-wait for the display, as [the floating strip's cost](#the-floating-strips-cost) describes for Metal.
+wait for the display. Under Metal some seconds have every frame cost 8 or 16 ms with the GPU still
+under a millisecond, so a mean from such a second says nothing about the chrome. The probe's
+threshold is set for the offscreen platform CI runs it on, where there is no display to wait for.
 
 ### The runtime budget
 
@@ -1948,24 +1951,3 @@ measurement over time with its ceiling. Each machine has its own series. Hoverin
 raw scores and the Chromium version it was measured against. Engine updates are marked on the time
 axis. The version-lag gap should jump there, and the matched baseline changes Chromium version at
 the same marks.
-
-### The floating strip's cost
-
-Measured under Metal with `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1`, which turns on the GPU
-timestamps the probe reads beside its CPU bracket, on the same M2 Max on 2026-09-13. The probe takes
-one second of each state; these ranges are from eighteen of each, interleaved, over repeated runs:
-
-| State         | Frames a second | CPU per frame | GPU per frame  |
-| ------------- | --------------- | ------------- | -------------- |
-| Strip present | 60 to 62        | 0.9 to 1.5 ms | 0.4 to 0.9 ms  |
-| Strip absent  | 59 to 62        | 0.5 to 0.8 ms | 0.2 to 0.65 ms |
-
-The strip adds about 0.4 ms on the CPU and 0.2 ms on the GPU to a frame and drops none, well under
-the 2 ms that #213 set as the point to change how it is drawn, so it is drawn as it was. The CPU
-bracket includes the wait for a display drawable when the render thread gets ahead of the display:
-some seconds have every frame cost 8 or 16 ms with the GPU still under a millisecond, in either
-state, and a mean from such a second says nothing about the chrome. The probe's threshold is set for
-the offscreen platform CI runs it on, where there is no display to wait for. The scene graph's own
-stage timings, `QSG_RENDER_TIMING=1`, which is what the QML Profiler shows, count whole milliseconds
-and put sync, render and swap at 0 in both states, so the fraction the strip costs is below what
-they can resolve; the GPU timestamps are what priced it. The Linux number is still to be taken.

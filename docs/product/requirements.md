@@ -450,20 +450,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   while it is pending. A site the Space has never loaded keeps its host code. A Private window keeps
   its pages' icons in memory for that window alone and never reads a Space's.
 - Browser chrome does not occupy a toolbar above the webpage. The webpage uses the full height
-  beside the sidebar. While the sidebar is hidden, the navigation controls, the sidebar toggle and
-  the command-scope trigger float over the page's top corner on the sidebar's side instead of taking
-  a band from it.
+  beside the sidebar. While the sidebar is hidden, nothing is drawn over the page in its place: the
+  sidebar comes back by peeking at its edge of the window or by its keys.
 - The sidebar stands against the window's left edge until the reader chooses the right one under
   Sidebar side in Settings' interface section. The choice moves the sidebar, its seam and resize
-  handle, the page beside it, the edge it hides toward and peeks from, and the floating controls at
-  once, and it survives a restart. The find bar stands across the page from the sidebar's side.
-- `Primary+B` hides the sidebar entirely. In that chromeless state the page keeps the whole window,
-  the floating controls appear. Hiding or showing the sidebar eases the seam and the page travels
-  with it, keeping one width for the whole movement: the page lays out once rather than at every
-  width the seam crosses, and the sidebar's rows keep their own width as it goes.
-- The floating controls are a default rather than a fixture. Settings' interface section turns them
-  off, and without them a hidden sidebar leaves the page the whole window. The choice survives a
-  restart, and the keys that hide and show the sidebar work the same either way.
+  handle, the page beside it, and the edge it hides toward and peeks from at once, and it survives a
+  restart. The find bar stands across the page from the sidebar's side.
+- `Primary+B` hides the sidebar entirely. In that chromeless state the page keeps the whole window.
+  Hiding or showing the sidebar eases the seam and the page travels with it, keeping one width for
+  the whole movement: the page lays out once rather than at every width the seam crosses, and the
+  sidebar's rows keep their own width as it goes.
 - The chrome moves what the pointer did and settles what a key did. A click, a drag or a tap that
   hides or shows the sidebar, switches Space or tab, or opens or closes the Omnibar eases there, so
   the eye can follow where something went. The same action from a key binding, from the keymap or

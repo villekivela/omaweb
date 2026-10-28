@@ -18,8 +18,9 @@ Motion is felt rather than watched: it says which way something went, and no mor
 
 ## Origins
 
-- **The sidebar is the shelf.** It lives on the left edge and peeks from it. What belongs to it
-  grows out of the row or control that asked for it, never out of the middle of the window.
+- **The sidebar is the shelf.** It lives on the left edge and peeks from it. Hidden, it leaves
+  nothing over the page in its place, and comes back from that edge or by its keys. What belongs to
+  it grows out of the row or control that asked for it, never out of the middle of the window.
 - **Spaces are the row the footer draws.** Switching Space slides the outline along that row: the
   Space to the right arrives from the right as the one on show leaves to the left; the lit letter
   slides along the footer with it; the page arrives the same way, a little, from under the shelf.

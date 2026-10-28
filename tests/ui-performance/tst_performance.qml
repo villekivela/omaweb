@@ -178,18 +178,10 @@ TestCase {
                     2) + " ms, slowest " + report.maxFrameMilliseconds.toFixed(1) + " ms" + gpu;
     }
 
-    // What a frame costs in the chromeless state: sidebar hidden, the
-    // navigation strip floating over the page, and the page redrawing every
-    // frame. The cost is the scene graph's own, from the start of a frame to
-    // its end, rather than the interval between frames, which the animation
-    // timer sets at sixty a second regardless.
-    //
-    // The same second is then taken with the strip sent away, so what the
-    // strip's blur costs the page is the difference between the two lines,
-    // rather than a number that would have to be teased out of one. Only the
-    // first is held: under a GPU the strip is a fraction of a millisecond, and
-    // the software rasteriser draws no shader effect at all, so a threshold
-    // on the difference would be one on noise.
+    // What a frame costs in the chromeless state: sidebar hidden and the page
+    // redrawing every frame. The cost is the scene graph's own, from the start
+    // of a frame to its end, rather than the interval between frames, which
+    // the animation timer sets at sixty a second regardless.
     //
     // The tests draw through the software rasteriser on the offscreen
     // platform, so this number is comparative only: it holds the chrome to
@@ -202,16 +194,10 @@ TestCase {
         const engine = openPage("https://motion.example/", true);
         engine.motionReview = true;
         mouseMove(window.contentItem, window.width / 2, window.height / 2);
-        window.floatingControls = true;
         window.sidebarCollapsed = true;
         const sidebar = findChild(window.contentItem, "sidebar");
         tryCompare(sidebar, "visible", false);
-        const cluster = findChild(window.contentItem, "navigationCluster");
-        tryVerify(function () {
-            return cluster.visible;
-        });
-        // The collapse eases, and the strip's first frames build its
-        // pipelines; the measured second starts once both have settled.
+        // The collapse eases; the measured second starts once it has settled.
         wait(300);
 
         const report = watchASecond();
@@ -220,18 +206,8 @@ TestCase {
         verify(report.frames >= 20, "the animated page drew only " + report.frames
                + " frames in a second, so nothing was being timed");
         const backend = GraphicsInfo.api === GraphicsInfo.Software ? "software rasteriser" : "GPU";
-        console.info("chromeless frames with the strip: " + describeFrames(report)
-                     + ", drawn by the " + backend
+        console.info("chromeless frames: " + describeFrames(report) + ", drawn by the " + backend
                      + "; comparative only unless drawn by a GPU on real hardware");
-
-        // The reader can ask for the strip not to be there, which is the
-        // chromeless state without it: the control.
-        window.floatingControls = false;
-        tryCompare(cluster, "visible", false);
-        wait(300);
-        const control = watchASecond();
-        console.info("chromeless frames without the strip: " + describeFrames(control));
-        window.floatingControls = true;
 
         probe("chromeless-frame-time", report.meanFrameMilliseconds, "ms",
               frameTimeThresholdMilliseconds);

@@ -1268,11 +1268,10 @@ Rectangle {
             height: 56
             color: samplePage.raised
 
-            // In line with the article, and never under the window controls
-            // that float over the page's top left while the sidebar is hidden.
+            // In line with the article.
             Rectangle {
                 id: siteMark
-                x: Math.max(article.x, 216)
+                x: article.x
                 anchors.verticalCenter: parent.verticalCenter
                 width: 22
                 height: 22
@@ -1476,7 +1475,7 @@ Rectangle {
                 color: samplePage.ground
 
                 Text {
-                    x: Math.max(essay.x, 216)
+                    x: essay.x
                     anchors.verticalCenter: parent.verticalCenter
                     text: "AFTER DARK"
                     color: samplePage.ink
