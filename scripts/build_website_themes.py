@@ -30,8 +30,9 @@ the offscreen platform with the software renderer:
     QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \\
       ./build/dev/omaweb-ui-lab --tabs --show settings:tabs --capture out.png
 
-The Start page's road and the Omnibar's blur are drawn with MultiEffect, which
-the software renderer leaves out, so the states that show them (`COMPOSITED`)
+The Start page's road and the blur under the Omnibar, the shortcut sheet and
+Settings are drawn with MultiEffect, which the software renderer leaves out, so
+the states that show them (`COMPOSITED`)
 run under cage, a Wayland compositor, on its headless backend, with
 `wlr-randr` sizing its output to the capture. Those need `cage`,
 `qt6-wayland`, `mesa` and `wlr-randr`, and cage will not run as root.
@@ -45,8 +46,8 @@ its theme's opacity, as it stands on a desktop.
 
 `omaweb-ui-lab` runs no engine, so where a webpage would be it draws a stand-in.
 The states that show the browser in use pass `--browse`, which ends the seeded
-day on a photo essay the stand-in draws in the page palette; the one that does
-not shows Settings, which covers the page anyway. Every state is therefore
+day on a photo essay the stand-in draws in the page palette. Settings passes it
+too, so its sheet has a page to blur. Every state is therefore
 real chrome over a drawn page, captured headlessly, and a shot of a real site
 would need the browser on a live compositor and `grim`, which gives up every
 property above.
@@ -64,6 +65,10 @@ script.
 
 The one thing to install besides those is a WebP encoder: `cwebp` from libwebp,
 or ImageMagick. Everything else is the standard library.
+
+The sample tabs are real sites, and the run fetches their icons from them as it
+starts (`FAVICONS`), so it needs the network and ImageMagick to read them. A
+tab whose icon is not fetched keeps the lab's stand-in.
 
 Captures are taken at twice the size the page draws them, so the browser's own
 type is rendered at two device pixels per logical one rather than resampled.
@@ -96,6 +101,7 @@ import sys
 import tempfile
 import threading
 import tomllib
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TEMPLATE = ROOT / "integrations" / "omarchy" / "omaweb.json.tpl"
@@ -161,24 +167,39 @@ STATES = [
     ("space", ["--tabs", "--spaces", "--browse", "--capture-delay", "2500"]),
     (
         "agents",
-        ["--tabs", "--spaces", "--many-spaces", "--agents-away", "--browse"]
+        ["--tabs", "--spaces", "--agents-away", "--browse"]
         + ["--capture-delay", "7000"],
     ),
     ("shortcuts", ["--tabs", "--browse", "--show", "shortcuts", "--capture-delay", "2500"]),
-    ("privacy", ["--tabs", "--show", "settings:privacy", "--capture-delay", "2500"]),
+    ("privacy", ["--tabs", "--browse", "--show", "settings:privacy", "--capture-delay", "2500"]),
     ("split", ["--tabs", "--browse", "--show", "split", "--capture-delay", "2500"]),
     (
         "blocking",
-        ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]
+        ["--tabs", "--browse", "--sample-lists", "--show", "settings:content-blocking"]
         + ["--capture-delay", "2500"],
     ),
 ]
 
 # The states drawn with MultiEffect, captured under cage.
-COMPOSITED = {"start", "omnibar", "agents"}
+COMPOSITED = {"start", "omnibar", "agents", "shortcuts", "privacy", "blocking"}
 
 # The engine's answer to the Omnibar's query, as an OpenSearch suggestions
 # document, served on a local port for the lab's `--suggest-url`.
+# The sample tabs' own icons, fetched as the run starts and handed to the lab
+# with `--favicons`, so the sidebar shows the sites the tabs name. The
+# repository keeps no other site's mark. A host whose icon cannot be fetched
+# keeps the lab's stand-in, with a word about it.
+FAVICONS = {
+    "mail.proton.me": "https://mail.proton.me/assets/favicon.ico",
+    "calendar.google.com": "https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png",
+    "github.com": "https://github.githubassets.com/favicons/favicon-dark.png",
+    "music.youtube.com": "https://music.youtube.com/img/favicon_144.png",
+    "doc.qt.io": "https://d33sqmjvzgs8hq.cloudfront.net/wp-content/themes/oneqt/assets/images/favicon-32x32.png",
+    "wayland.app": "https://wayland.app/protocols/favicon.ico",
+    "archlinux.org": "https://archlinux.org/static/archlinux_common_style/favicon.png",
+    "omarchy.org": "https://omarchy.org/assets/images/favicon.png",
+}
+
 SUGGESTIONS = (
     b'["qt", ["qt quick shapes", "qt 6.11 release notes", "qtwebengine flags", "qt creator"]]'
 )
@@ -288,6 +309,38 @@ def resolved_palette(lab: pathlib.Path, theme_file: pathlib.Path) -> dict:
                 "install it, or name an installed family with OMAWEB_CAPTURE_FONT_FAMILY"
             )
         return palette
+
+
+def fetch_favicons(directory: pathlib.Path) -> None:
+    magick = shutil.which("magick")
+    if magick is None:
+        print("No ImageMagick to read the sites' icons; the tabs keep the lab's.")
+        return
+    directory.mkdir(parents=True, exist_ok=True)
+    for host, address in FAVICONS.items():
+        fetched = directory / f"{host}.download"
+        request = urllib.request.Request(address, headers={"User-Agent": "Mozilla/5.0"})
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                fetched.write_bytes(response.read())
+        except OSError as error:
+            print(f"  {host}: icon not fetched ({error}); the lab's stands in")
+            continue
+        # An .ico holds several sizes; the largest is the one to scale down.
+        kind = "ico" if fetched.read_bytes()[:4] == b"\x00\x00\x01\x00" else "png"
+        source = f"{kind}:{fetched}"
+        widths = subprocess.run(
+            [magick, "identify", "-format", "%w\n", source], capture_output=True, text=True
+        ).stdout.split()
+        if not widths:
+            print(f"  {host}: icon unreadable; the lab's stands in")
+            continue
+        largest = max(range(len(widths)), key=lambda index: int(widths[index]))
+        subprocess.run(
+            [magick, f"{source}[{largest}]", "-background", "none", "-resize", "64x64"]
+            + ["-gravity", "center", "-extent", "64x64", str(directory / f"{host}.png")],
+            check=True,
+        )
 
 
 def suggestion_server() -> str:
@@ -472,6 +525,7 @@ def build(
     suggest: str,
     wanted_states: list[str],
     release: str,
+    favicons: pathlib.Path,
 ) -> tuple[dict, dict, str] | None:
     colors = theme_colors(theme)
     if colors is None:
@@ -488,7 +542,10 @@ def build(
         capture = scratch / f"{theme}-{state}.png"
         if state == "omnibar":
             arguments = [*arguments, "--suggest-url", suggest]
-        arguments = [*arguments, "--release", release, "--capture", str(capture)]
+        # The site shows Spaces in the muted footer, which reads as one piece
+        # with the theme rather than a row of colours of the lab's choosing.
+        arguments = [*arguments, "--space-colours-off", "--release", release]
+        arguments = [*arguments, "--favicons", str(favicons), "--capture", str(capture)]
         run = run_composited if state in COMPOSITED else run_lab
         run(lab, theme_file, arguments)
         write_webp(out / theme / f"{state}.webp", encoder, capture.read_bytes())
@@ -571,6 +628,8 @@ def main() -> int:
     suggest = suggestion_server()
     with tempfile.TemporaryDirectory() as directory:
         scratch = pathlib.Path(directory)
+        favicons = scratch / "favicons"
+        fetch_favicons(favicons)
         for theme, _ in wanted:
             print(f"{theme}:")
             result = build(
@@ -582,6 +641,7 @@ def main() -> int:
                 suggest,
                 arguments.state or [],
                 arguments.release,
+                favicons,
             )
             if result is not None:
                 built[theme] = result

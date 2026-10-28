@@ -22,8 +22,12 @@ Rectangle {
                                                                          currentUrl.toString()
     // The lab runs no engine and so has no icon store. Handing every host one
     // of the drawn stand-ins is what makes the sidebar's chips reviewable
-    // without the QtWebEngine build.
+    // without the QtWebEngine build. A host `--favicons` has an icon for
+    // reports its own.
     property url pageIconUrl: {
+        const host = root.currentUrl.toString().split("/")[2] || "";
+        if (typeof labSiteIcons !== "undefined" && labSiteIcons[host])
+            return labSiteIcons[host];
         if (!mockFaviconUrls || mockFaviconUrls.length === 0)
             return "";
         const address = String(root.currentUrl);

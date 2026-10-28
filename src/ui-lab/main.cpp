@@ -119,6 +119,33 @@ QVariantList drawMockFavicons(const QString &directory)
     return urls;
 }
 
+// Sites' own icons from `--favicons <dir>`, kept there as `<host>.png`, by
+// host. The website's shots fetch the real icons as they run
+// (scripts/build_website_themes.py), since the repository keeps no other
+// site's mark.
+QVariantMap readSiteIcons(const QString &directory)
+{
+    QVariantMap icons;
+    if (directory.isEmpty()) {
+        return icons;
+    }
+    const auto files = QDir(directory).entryInfoList({QStringLiteral("*.png")}, QDir::Files);
+    for (const auto &file : files) {
+        icons.insert(file.completeBaseName(), QUrl::fromLocalFile(file.absoluteFilePath()));
+    }
+    return icons;
+}
+
+// A sample tab's icon: its site's own, or else the next stand-in.
+QUrl sampleFavicon(
+    const QUrl &url, const QVariantMap &siteIcons, const QVariantList &favicons, qsizetype &icon)
+{
+    if (const auto own = siteIcons.value(url.host()); own.isValid()) {
+        return own.toUrl();
+    }
+    return favicons.isEmpty() ? QUrl {} : favicons.at(icon++ % favicons.size()).toUrl();
+}
+
 // A day's worth of tabs for a Space the lab would otherwise bring up at rest.
 // The sidebar's shape is the point — Pinned tiles above an ordinary list — so
 // these are named the way a reader's own tabs are named rather than by their
@@ -285,8 +312,8 @@ void writeSampleLists(const QDir &dataRoot)
     }
 }
 
-void seedSampleTabs(
-    omaweb::BrowserController &browser, const QVariantList &favicons, const QString &onShow)
+void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favicons,
+    const QVariantMap &siteIcons, const QString &onShow)
 {
     auto shownTabId = browser.activeTabId();
     auto *unpinned = browser.unpinnedTabs();
@@ -298,8 +325,7 @@ void seedSampleTabs(
         if (tabId.isEmpty()) {
             continue;
         }
-        const auto favicon
-            = favicons.isEmpty() ? QUrl {} : favicons.at(icon++ % favicons.size()).toUrl();
+        const auto favicon = sampleFavicon(url, siteIcons, favicons, icon);
         browser.reportTabPageState(
             tabId, url, QString::fromUtf8(sample.title), favicon, false, false);
         if (!onShow.isEmpty() && url.toString() == onShow) {
@@ -324,7 +350,8 @@ void seedSampleTabs(
 // Space has somewhere to go. The first Space is put back on show at the
 // end. This runs before the QML loads: a switch with the interface up tears
 // the leaving Space's engines down, which a seed has no reason to pay for.
-void seedSampleSpaces(omaweb::BrowserController &browser, const QVariantList &favicons)
+void seedSampleSpaces(
+    omaweb::BrowserController &browser, const QVariantList &favicons, const QVariantMap &siteIcons)
 {
     const auto firstSpaceId = browser.activeSpaceId();
     auto *unpinned = browser.unpinnedTabs();
@@ -352,8 +379,7 @@ void seedSampleSpaces(omaweb::BrowserController &browser, const QVariantList &fa
             if (tabId.isEmpty()) {
                 continue;
             }
-            const auto favicon
-                = favicons.isEmpty() ? QUrl {} : favicons.at(icon++ % favicons.size()).toUrl();
+            const auto favicon = sampleFavicon(url, siteIcons, favicons, icon);
             browser.reportTabPageState(
                 tabId, url, QString::fromUtf8(sample.title), favicon, false, false);
             if (sample.pinned) {
@@ -751,6 +777,14 @@ int main(int argc, char *argv[])
         QStringLiteral("iconFontSource"), QUrl(QStringLiteral(OMAWEB_ICON_FONT_URL)));
     const auto mockFavicons = drawMockFavicons(dataRoot.filePath(QStringLiteral("favicons")));
     engine.rootContext()->setContextProperty(QStringLiteral("mockFaviconUrls"), mockFavicons);
+    // `--favicons <dir>` gives the sample tabs their sites' own icons, and the
+    // stand-in page reports them too; see readSiteIcons.
+    const auto siteIconsIndex = arguments.indexOf(QStringLiteral("--favicons"));
+    const auto siteIcons
+        = readSiteIcons(siteIconsIndex >= 0 && siteIconsIndex + 1 < arguments.size()
+                ? arguments.at(siteIconsIndex + 1)
+                : QString());
+    engine.rootContext()->setContextProperty(QStringLiteral("labSiteIcons"), siteIcons);
     // `--browse` shows the browser in use: the seeded day ends on a page, and
     // the stand-in view draws a sample one where it would otherwise say no
     // engine is running.
@@ -790,7 +824,7 @@ int main(int argc, char *argv[])
     }
     // `--spaces` seeds the Spaces to switch between; see seedSampleSpaces.
     if (arguments.contains(QStringLiteral("--spaces"))) {
-        seedSampleSpaces(browser, mockFavicons);
+        seedSampleSpaces(browser, mockFavicons, siteIcons);
     }
     // `--projects` makes two Spaces projects' (`omaweb dev`), so their rows in
     // Settings can be reviewed: one whose folder is here, with an agent command
@@ -1116,7 +1150,8 @@ int main(int argc, char *argv[])
     // section nor the tab list, so the sidebar that distinguishes this browser
     // is the one thing a capture of it cannot show. `--tabs` seeds a day.
     if (arguments.contains(QStringLiteral("--tabs"))) {
-        seedSampleTabs(browser, mockFavicons, browse ? QString::fromUtf8(browsedTab) : QString());
+        seedSampleTabs(
+            browser, mockFavicons, siteIcons, browse ? QString::fromUtf8(browsedTab) : QString());
     }
     // `--put-away` has the sample day's ordinary tabs last shown one by one
     // over the past few days, then lets the check put away those past twelve
