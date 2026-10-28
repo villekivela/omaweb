@@ -12,19 +12,19 @@ import { STILL_MEDIA } from "./scene.js";
 // eight bars and the sections turn every eight. Each card holds four bars, and the install lands on
 // the section at bar 40. Tune by ear: the prototype bar shows the song's time.
 //
-// `clip` is the card's beat of the introduction film, in seconds of the cut, from its captions
-// (build/film/captions.vtt): the card plays it in place of its capture while it is read.
+// `film` marks a card with a beat of the introduction film, cut for it without captions by
+// scripts/cut_film_beats_prototype.py: the card plays it in place of its capture while it is read.
 const BAR = 240 / 107.5;
 const STOPS = [
   { name: "Start", bars: 0, target: ".start", perform: typeQuery },
-  { name: "One field for everything", bars: 8, target: "#omnibar", clip: [0, 9.4] },
-  { name: "Work and personal, kept apart", bars: 12, target: "#spaces", clip: [13.2, 19.7] },
-  { name: "Keyboard first", bars: 16, target: "#keyboard", clip: [9.4, 13.2], perform: lightKeys },
-  { name: "Follows your Omarchy theme", bars: 20, target: "#theme", clip: [34.1, 50.6] },
+  { name: "One field for everything", bars: 8, target: "#omnibar", film: true },
+  { name: "Work and personal, kept apart", bars: 12, target: "#spaces", film: true },
+  { name: "Keyboard first", bars: 16, target: "#keyboard", film: true, perform: lightKeys },
+  { name: "Follows your Omarchy theme", bars: 20, target: "#theme", film: true },
   { name: "Private by default", bars: 24, target: "#private" },
-  { name: "Blocking, built in", bars: 28, target: "#blocking", clip: [23.9, 34.1] },
-  { name: "Split view and docked DevTools", bars: 32, target: "#pros", clip: [19.7, 23.9] },
-  { name: "Agents drive their own Spaces", bars: 36, target: "#agents", clip: [50.6, 61] },
+  { name: "Blocking, built in", bars: 28, target: "#blocking", film: true },
+  { name: "Split view and docked DevTools", bars: 32, target: "#pros", film: true },
+  { name: "Agents drive their own Spaces", bars: 36, target: "#agents", film: true },
   { name: "Get on the road", bars: 40, target: "#install" },
 ].map((stop) => ({ ...stop, cue: stop.bars * BAR }));
 
@@ -140,38 +140,39 @@ function buildIgniter(drive) {
   return button;
 }
 
-// The film, cut into the cards: one video, carried into the capture of the card being read, which
-// plays its beat from the start and holds on its last frame. A card without a beat shows its
-// capture. Leaving a card keeps the footage on it while it passes.
+// The film, cut into the cards: each card with a beat has a clip of its own over its capture,
+// showing its first frame from the horizon on, so nothing changes under the reader's eyes as it
+// arrives. Read, it plays from the start and holds its last frame.
 function rollFootage(layers) {
-  const video = document.createElement("video");
-  video.className = "card__footage";
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = "auto";
-  video.setAttribute("aria-hidden", "true");
-  for (const [type, file] of [
-    ["video/webm", "omaweb.webm"],
-    ["video/mp4", "omaweb.mp4"],
-  ]) {
-    const source = document.createElement("source");
-    source.type = type;
-    source.src = `assets/film/${file}`;
-    video.append(source);
-  }
-  let shown = -1;
-  let end = 0;
-  video.addEventListener("timeupdate", () => {
-    if (video.currentTime >= end) video.pause();
+  const videos = STOPS.map((stop, index) => {
+    if (!stop.film) return null;
+    const name = stop.target.slice(1);
+    const video = document.createElement("video");
+    video.className = "card__footage";
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.poster = `assets/film/beats/${name}.webp`;
+    video.setAttribute("aria-hidden", "true");
+    for (const [type, extension] of [
+      ["video/webm", "webm"],
+      ["video/mp4", "mp4"],
+    ]) {
+      const source = document.createElement("source");
+      source.type = type;
+      source.src = `assets/film/beats/${name}.${extension}`;
+      video.append(source);
+    }
+    layers[index].querySelector(".card__shot").append(video);
+    return video;
   });
+  let shown = -1;
   return (index) => {
     if (index === shown) return;
     shown = index;
-    const clip = STOPS[index].clip;
-    if (!clip) return;
-    layers[index].querySelector(".card__shot").append(video);
-    end = clip[1];
-    video.currentTime = clip[0];
+    const video = videos[index];
+    if (!video) return;
+    video.currentTime = 0;
     video.play().catch(() => {});
   };
 }

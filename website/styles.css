@@ -1690,6 +1690,11 @@ html.highway {
   margin-top: 18px;
 }
 
+/* On the road the Agents card reads as every other card does: its words under its footage. */
+.highway .card--last {
+  display: block;
+}
+
 /* The film, cut into the cards: the card's beat over its capture while it is read. */
 .card__footage {
   position: absolute;
