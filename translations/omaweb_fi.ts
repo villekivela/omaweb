@@ -4417,8 +4417,26 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Leikepöytä</translation>
     </message>
     <message>
+        <source>The Space on show</source>
+        <comment>links from other apps open in the Space on show</comment>
+        <translation>Näkyvä tila</translation>
+    </message>
+    <message>
         <source>Blocked requests</source>
         <translation>Estetyt pyynnöt</translation>
+    </message>
+    <message>
+        <source>%1 opens in</source>
+        <comment>links to the site from other apps</comment>
+        <translation>%1 avautuu</translation>
+    </message>
+    <message>
+        <source>from other apps · rule: %1</source>
+        <translation>sovelluksista · sääntö: %1</translation>
+    </message>
+    <message>
+        <source>from other apps</source>
+        <translation>muista sovelluksista</translation>
     </message>
     <message>
         <source>Site information</source>
@@ -4470,12 +4488,20 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>%1 täytettiin sivustolle %2</translation>
     </message>
     <message>
+        <source>Private window</source>
+        <translation>Yksityinen ikkuna</translation>
+    </message>
+    <message>
         <source>Back to %1</source>
         <translation>Takaisin: %1</translation>
     </message>
     <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Where links to %1 from other apps open</source>
+        <translation>Minne linkit sivustolle %1 muista sovelluksista avautuvat</translation>
     </message>
     <message>
         <source>Clear site data</source>

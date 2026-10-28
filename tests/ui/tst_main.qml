@@ -4395,6 +4395,179 @@ TestCase {
         verify(!window.pointAtSiteInformation("lock", false).ok);
     }
 
+    function storedLinkRules() {
+        return JSON.parse(browser.preference("link-rules", "[]"));
+    }
+
+    // On app.acme.com the row reads "acme.com opens in", from other apps.
+    // Choosing a Space writes the whole-site rule for acme.com after the
+    // reader's own rules, and choosing the Space on show removes it again.
+    function test_siteInformationSendsTheSitesLinksToASpace() {
+        const spaceId = browser.createSpace("Site Work");
+        const handWritten = {
+            "pattern": "github.com",
+            "space": "Site Work"
+        };
+        verify(browser.setPreference("link-rules", JSON.stringify([handWritten])));
+        openPage("https://app.acme.com/dashboard");
+        const card = openSiteCard("");
+        const row = findChild(card, "siteLinks");
+        const picker = findChild(card, "siteLinksChoice");
+        const shown = row.visible && picker.visible;
+        const before = picker.value;
+        const title = findChild(card, "siteLinksTitle").text;
+        const note = findChild(card, "siteLinksNote").text;
+        const labels = picker.options.map(function (option) {
+            return option.label;
+        });
+
+        picker.changed("Site Work");
+        const routed = storedLinkRules();
+        const routedValue = picker.value;
+        // The whole-site rule is the site itself, so the note names no rule.
+        const routedNote = findChild(card, "siteLinksNote").text;
+        picker.changed("private");
+        const privately = storedLinkRules();
+        picker.changed("");
+        const removed = storedLinkRules();
+        const removedValue = picker.value;
+        // A Space renamed while the card is open is offered by its new name.
+        verify(browser.renameSpace(spaceId, "Site Moved"));
+        const renamed = picker.options.map(function (option) {
+            return option.label;
+        });
+
+        closeSiteCard();
+        verify(browser.setPreference("link-rules", ""));
+        verify(browser.deleteSpace(spaceId, "Site Moved"));
+
+        verify(shown);
+        compare(before, "");
+        compare(title, "acme.com opens in");
+        compare(note, "from other apps");
+        verify(labels.indexOf("Site Work") >= 0, labels);
+        compare(labels.slice(-2), ["Private window", "The Space on show"]);
+        compare(routedNote, "from other apps");
+        compare(routed, [handWritten,
+                         {
+                             "pattern": "*.acme.com",
+                             "space": "Site Work"
+                         }
+                ]);
+        compare(routedValue, "Site Work");
+        compare(privately, [handWritten,
+                            {
+                                "pattern": "*.acme.com",
+                                "space": "private"
+                            }
+                ]);
+        compare(removed, [handWritten]);
+        compare(removedValue, "");
+        verify(renamed.indexOf("Site Moved") >= 0 && renamed.indexOf("Site Work") < 0, renamed);
+    }
+
+    // A narrower rule that takes the page first is the one the row shows and
+    // edits, and the note under it names its pattern. Choosing a target
+    // changes that rule, and choosing the Space on show removes it.
+    function test_siteInformationEditsTheRuleThatTakesThePage() {
+        const spaceId = browser.createSpace("Site Rules");
+        const other = {
+            "pattern": "*.example.org",
+            "space": "Elsewhere"
+        };
+        verify(browser.setPreference("link-rules", JSON.stringify([other,
+                                                                   {
+                                                                       "pattern":
+                                                                       "github.com/acme/*",
+                                                                       "space": "Site Rules"
+                                                                   }
+                                                                  ])));
+        openPage("https://github.com/acme/omaweb");
+        const card = openSiteCard("");
+        const picker = findChild(card, "siteLinksChoice");
+        const title = findChild(card, "siteLinksTitle").text;
+        const note = findChild(card, "siteLinksNote").text;
+        const before = picker.value;
+
+        picker.changed("private");
+        const retargeted = storedLinkRules();
+        const retargetedValue = picker.value;
+        picker.changed("");
+        const removed = storedLinkRules();
+        const removedNote = findChild(card, "siteLinksNote").text;
+
+        closeSiteCard();
+        verify(browser.setPreference("link-rules", ""));
+        verify(browser.deleteSpace(spaceId, "Site Rules"));
+
+        compare(title, "github.com opens in");
+        compare(note, "from other apps · rule: github.com/acme/*");
+        compare(before, "Site Rules");
+        compare(retargeted, [other,
+                             {
+                                 "pattern": "github.com/acme/*",
+                                 "space": "private"
+                             }
+                ]);
+        compare(retargetedValue, "private");
+        compare(removed, [other]);
+        compare(removedNote, "from other apps");
+    }
+
+    // Links from other apps is the reader's own Spaces' alone: a Private
+    // window, an Agent Space and Omaweb's own pages have no row.
+    function test_siteInformationOffersLinksOnlyForTheReadersSites() {
+        const linksShown = function (host) {
+            const card = findChild(host.contentItem, "siteInformationCard");
+            host.openSiteInformation("");
+            tryVerify(function () {
+                return card.visible && card.open;
+            });
+            const shown = findChild(card, "siteLinks").visible;
+            host.closeSiteInformation();
+            tryVerify(function () {
+                return !card.visible;
+            });
+            return shown;
+        };
+
+        openPage("https://reader-site.example/page");
+        const onAPage = linksShown(window);
+
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        browser.openInput("about:blank", true);
+        tryVerify(function () {
+            return engineHost.item === null;
+        });
+        const onTheStartPage = linksShown(window);
+        browser.closeActiveTab();
+
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://reader-site.example/private", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const inAPrivateWindow = linksShown(privateBrowser);
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        const drive = driveAnAgentSpace(false);
+        const inAnAgentSpace = linksShown(window);
+        endAgentDrive(drive);
+
+        verify(onAPage);
+        verify(!onTheStartPage);
+        verify(!inAPrivateWindow);
+        verify(!inAnAgentSpace);
+    }
+
     // The command and its key open the card at its top, and both are named
     // where the reader looks keys up: the Shortcut sheet, and the command's
     // own row in command scope.

@@ -33,6 +33,13 @@ namespace linkrules {
     // `acme.com` as well, and a pattern that does not parse takes nothing.
     bool matches(const QString &pattern, const QUrl &url);
 
+    // The whole-site pattern for a web address: its registrable domain, the
+    // public suffix and one label before it, after `*.`, so `app.acme.com`
+    // gives `*.acme.com`. None for an address that is not `http` or `https`,
+    // an IP address, a fully qualified name ending in `.`, which no pattern
+    // takes, or a host with no label before its public suffix.
+    std::optional<QString> sitePattern(const QUrl &url);
+
     // The rules a settings value holds, in order, or none for one that is not
     // a list of them.
     QList<LinkRule> read(const QJsonValue &value);

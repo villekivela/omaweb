@@ -58,6 +58,17 @@ reports the gap and remains experimental rather than imitating behavior it canno
   window, a drag handle to reorder and a remove button, and marks a pattern that does not parse; the
   rule is ignored until it is fixed. Renaming a Space rewrites the rules that name it, and deleting
   one names its rules in the confirmation and deletes them with it.
+- Site information edits the Link rule that takes the page on show. Its row reads "acme.com opens
+  in", a picker of the reader's Spaces, Private window and The Space on show, with a muted line
+  under it, "from other apps", plus " · rule: <pattern>" when that rule is narrower than the whole
+  site. The site is the page's registrable domain, as Qt's public suffix list names it, so
+  `app.acme.com` and `www.bbc.co.uk` give `acme.com` and `bbc.co.uk`. The picker shows and edits the
+  first rule that takes the page, whatever its pattern: choosing a Space or Private window changes
+  that rule's target where it stands, and choosing The Space on show removes it, with any copy of
+  its pattern, which leaves the next rule that takes the page, if any. With no rule taking the page,
+  choosing a Space or Private window adds the whole-site rule, `*.acme.com`, after the reader's own.
+  The row is absent in a Private window, in an Agent Space, on Omaweb's own pages, and for an
+  address with no registrable domain, such as an IP address or `localhost`.
 - Site-requested Auxiliary windows are allowed for authentication, payment, and similar flows. A
   page's other new-window requests open a Glance over the page on show, or a tab where the reader
   has turned the Glance off; a background-tab request, from a middle click or the background link
@@ -1048,8 +1059,9 @@ The default page commands include:
   data with the cookie count the engine holds for the site, and Third parties with the count
   allowed. Then a row for each permission the site asked for or the reader decided in this Space,
   with an Allow, Ask or Block dropdown that is stored for the Space at once and makes the engine
-  forget its own record, and a site that never asked has none. Clear site data and Reset permissions
-  close it, side by side, each confirmed in the centred dialog first.
+  forget its own record, and a site that never asked has none. Then where a link to the site from
+  another app opens, "acme.com opens in" and a picker. Clear site data and Reset permissions close
+  it, side by side, each confirmed in the centred dialog first.
 - A tile opens its detail inside the card, which keeps its width and place, with "‹ <host>" to go
   back. Enter opens the tile the arrows are on, Escape steps back to the top, and Escape again
   closes the card. The address trigger's button opens it at its top, and the "Site information"

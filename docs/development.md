@@ -83,7 +83,9 @@ is how a layout change is reviewed at a font size the page was not written at: p
 `--show site:certificate`, `site:blocked`, `site:cookies` or `site:third-parties` opens it at that
 detail. `--site-page http`, `cert` or `start` picks the page it is about, and `--site-sample` names
 what the lab has no engine for: refused requests, decided permissions, third parties and the site's
-cookies. `--tabs --show permission` has the last seeded tab's page ask for notifications, so the
+cookies. With `--spaces`, `--site-links site` has the page's whole-site Link rule send its links to
+Work, and `--site-links narrow` has a narrower rule, `www.example.org/articles/*`, take the page
+instead. `--tabs --show permission` has the last seeded tab's page ask for notifications, so the
 question bar stands over it; add `--private` to read the Private window's wording. `--show prompt`
 has the same page ask a JavaScript confirm, so the prompt bar stands over it. `--tabs --show ask`
 stands the question `:ask` asks while Allow agents is off over that page. `--agent-activity` seeds

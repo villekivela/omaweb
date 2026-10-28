@@ -2,6 +2,7 @@ import QtQuick
 import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
+import "LinkRuleTargets.mjs" as LinkRuleTargets
 
 // What Omaweb states about the site on show, for the Space it is on show in.
 //
@@ -77,6 +78,20 @@ Omarchy.BorderSurface {
     property int cookieCount: 0
     property real siteDataBytes: -1
     property real retainedDataBytes: -1
+    // Where a link from another app to this site opens, as the browser's
+    // siteLinkRoute states it. Empty where the row is not offered: in a
+    // Private window, in an Agent Space, and on Omaweb's own pages.
+    property var siteLinks: ({})
+    // The reader's Spaces a link can be sent to, read with it.
+    property var siteLinkSpaces: []
+    readonly property bool siteLinksOffered: !root.blank && String(root.siteLinks.site || "").length
+                                             > 0
+    readonly property string siteLinksTarget: String(root.siteLinks.space || "")
+    // The pattern of the rule that takes the page, named under the row when
+    // it is narrower than the whole site.
+    readonly property string siteLinksPattern: String(root.siteLinks.pattern || "")
+    readonly property bool siteLinksNarrower: root.siteLinksPattern.length > 0
+                                              && root.siteLinksPattern !== root.siteLinks.site
 
     readonly property int refusalTally: refusals.count
     property RefusalTally refusals: RefusalTally {
@@ -343,6 +358,26 @@ Omarchy.BorderSurface {
                                                                    root.decisionFor(choice));
     }
 
+    // The targets Settings offers, then the Space on show, which is the empty
+    // target.
+    function siteLinkTargets() {
+        return LinkRuleTargets.targets(root.siteLinkSpaces, root.siteLinksTarget, qsTr(
+                                           "Private window")).concat([
+                                                                         {
+                                                                             "value": "",
+                                                                             "label": qsTr(
+                                                                                          "The Space on show",
+                                                                                          "links from other apps open in the Space on show")
+                                                                         }
+                                                                     ]);
+    }
+
+    function readSiteLinks() {
+        root.siteLinkSpaces = root.browser ? root.browser.readersSpaceNames() : [];
+        root.siteLinks = root.browser && !root.blank ? root.browser.siteLinkRoute(root.activeUrl) : (
+                                                           {});
+    }
+
     // Cookies, storage and cache, measured as the engine can measure them.
     function formatBytes(bytes) {
         const units = ["B", "kB", "MB", "GB"];
@@ -401,6 +436,38 @@ Omarchy.BorderSurface {
         root.retainedDataBytes = root.siteDataOnDisk ? root.browser.siteDataBytes(
                                                            root.browser.activeSpaceId,
                                                            root.retainedDataEntries) : -1;
+        root.readSiteLinks();
+    }
+
+    // A rule changed in Settings or in the file while the card is open.
+    Connections {
+        target: root.browser
+        enabled: root.open
+        ignoreUnknownSignals: true
+        function onPreferenceChanged(name) {
+            if (name === "link-rules")
+                root.readSiteLinks();
+        }
+    }
+
+    // A Space added, renamed or removed while the card is open, which changes
+    // what the picker offers.
+    Connections {
+        target: root.browser ? root.browser.spaces : null
+        enabled: root.open
+        ignoreUnknownSignals: true
+        function onModelReset() {
+            root.readSiteLinks();
+        }
+        function onDataChanged() {
+            root.readSiteLinks();
+        }
+        function onRowsInserted() {
+            root.readSiteLinks();
+        }
+        function onRowsRemoved() {
+            root.readSiteLinks();
+        }
     }
 
     onOpenChanged: {
@@ -801,6 +868,88 @@ Omarchy.BorderSurface {
                             font.pixelSize: Style.font.bodySmall
                             wrapMode: Text.Wrap
                         }
+                    }
+                }
+            }
+
+            // Where a link to this site from another app opens: the first
+            // rule that takes the page, whatever its pattern, which the picker
+            // edits, or the whole-site rule it adds for the registrable domain
+            // when none does.
+            Rectangle {
+                id: siteLinksRow
+                objectName: "siteLinks"
+                width: parent.width - 2 * root.gutter
+                // The note runs the row's width under the picker, which leaves
+                // a narrower rule's pattern the room to be read.
+                height: siteLinksNote.y + siteLinksNote.height + 8
+                visible: root.siteLinksOffered
+                radius: Style.cornerRadius
+                color: root.colors.surface
+
+                Text {
+                    id: siteLinksGlyph
+                    x: 10
+                    anchors.verticalCenter: siteLinksChoice.verticalCenter
+                    text: "open_in_new"
+                    color: root.colors.mutedText
+                    font.family: root.iconFontFamily
+                    font.pixelSize: Style.font.icon
+                    Accessible.ignored: true
+                }
+
+                Text {
+                    id: siteLinksTitle
+                    objectName: "siteLinksTitle"
+                    anchors.left: siteLinksGlyph.right
+                    anchors.leftMargin: 8
+                    anchors.right: siteLinksChoice.left
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: siteLinksChoice.verticalCenter
+                    text: qsTr("%1 opens in", "links to the site from other apps").arg(
+                              root.siteLinks.domain || "")
+                    color: root.colors.text
+                    elide: Text.ElideMiddle
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                }
+
+                Text {
+                    id: siteLinksNote
+                    objectName: "siteLinksNote"
+                    x: siteLinksTitle.x
+                    y: siteLinksChoice.y + siteLinksChoice.height + 2
+                    width: parent.width - x - 10
+                    text: root.siteLinksNarrower ? qsTr("from other apps · rule: %1").arg(
+                                                       root.siteLinksPattern) : qsTr(
+                                                       "from other apps")
+                    color: root.colors.mutedText
+                    elide: Text.ElideMiddle
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                SettingDropdown {
+                    id: siteLinksChoice
+                    objectName: "siteLinksChoice"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 7
+                    y: 7
+                    width: 170
+                    colors: root.colors
+                    options: root.siteLinksOffered ? root.siteLinkTargets() : []
+                    value: root.siteLinksTarget
+                    accessibleName: qsTr("Where links to %1 from other apps open").arg(
+                                        root.siteLinks.domain || "")
+                    onChanged: function (value) {
+                        if (value !== root.siteLinksTarget && root.browser.routeSiteLinks(
+                                    root.activeUrl, value))
+                            root.readSiteLinks();
+                        // The dropdown sets its own value on a choice, so it
+                        // shows what is stored again.
+                        siteLinksChoice.value = Qt.binding(function () {
+                            return root.siteLinksTarget;
+                        });
                     }
                 }
             }

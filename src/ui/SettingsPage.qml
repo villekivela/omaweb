@@ -5,6 +5,7 @@ import QtQuick.Effects
 import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
+import "LinkRuleTargets.mjs" as LinkRuleTargets
 import "SettingsAttention.mjs" as SettingsAttention
 
 // Settings is a place, not a dialog. It has outgrown a modal — filter lists, a
@@ -519,9 +520,7 @@ Rectangle {
     // or from the file.
     property var linkRules: []
     property var linkRuleSpaces: []
-    // What a rule names in place of a Space to open its links in a Private
-    // window (linkrules::privateWindow).
-    readonly property string privateWindowTarget: "private"
+    readonly property string privateWindowTarget: LinkRuleTargets.privateWindow
 
     function readLinkRules() {
         if (!root.browser || root.browser.privateBrowsing) {
@@ -580,29 +579,8 @@ Rectangle {
         });
     }
 
-    // The reader's Spaces and a Private window. A Space the rule names that
-    // the reader has not got is listed too, so the picker shows what the
-    // rule says. A Space called what a Private window is called cannot be a
-    // target, so it is not offered as one.
     function linkRuleTargets(space) {
-        const targets = root.linkRuleSpaces.filter(function (name) {
-            return name !== root.privateWindowTarget;
-        }).map(function (name) {
-            return {
-                "value": name,
-                "label": name
-            };
-        });
-        if (space !== root.privateWindowTarget && root.linkRuleSpaces.indexOf(space) < 0)
-            targets.push({
-                             "value": space,
-                             "label": space
-                         });
-        targets.push({
-                         "value": root.privateWindowTarget,
-                         "label": qsTr("Private window")
-                     });
-        return targets;
+        return LinkRuleTargets.targets(root.linkRuleSpaces, space, qsTr("Private window"));
     }
 
     onBrowserChanged: root.readLinkRules()

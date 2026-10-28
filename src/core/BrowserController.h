@@ -323,6 +323,19 @@ public:
     // The names a Link rule can send a link to, in the order the Spaces are
     // listed: the reader's own Spaces, not an Agent's.
     Q_INVOKABLE QStringList readersSpaceNames() const;
+    // Where a link from another app to the page would open, as Site
+    // information's row states it: `site`, the whole-site pattern for the
+    // page, and `domain`, the registrable domain it names, both empty where
+    // the row is not offered; then `space` and `pattern`, the target and the
+    // pattern of the first rule that takes the page, empty when none does and
+    // links open in the Space on show.
+    Q_INVOKABLE QVariantMap siteLinkRoute(const QUrl &url) const;
+    // Sends the page's links to a target through the first rule that takes
+    // the page, whatever its pattern, or adds the whole-site rule after the
+    // reader's rules when none does. An empty target, the Space on show,
+    // removes that rule and every copy of its pattern. False, writing nothing,
+    // where the row is not offered.
+    Q_INVOKABLE bool routeSiteLinks(const QUrl &url, const QString &target);
     // Whether a Link rule's pattern is one Omaweb reads (linkrules::parses).
     Q_INVOKABLE static bool linkPatternParses(const QString &pattern);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
@@ -837,6 +850,16 @@ private:
     void rememberReadersSpace();
     QList<LinkRule> linkRules() const;
     QString linkRuleName(const QString &spaceId) const;
+    QString siteLinkPattern(const QUrl &url) const;
+    // siteLinkRoute before it is a map for QML: no site where the row is not
+    // offered, and the rules with the place of the first that takes the page,
+    // or -1.
+    struct SiteLinkRoute {
+        QString site;
+        QList<LinkRule> rules;
+        qsizetype taking = -1;
+    };
+    SiteLinkRoute siteLinkRouteFor(const QUrl &url) const;
     // Renames the Space in the Link rules that name it, or deletes them.
     void rewriteLinkRules(const QString &spaceId, const std::optional<QString> &renamed);
     // Facts held by pages that survived a Space switch. The session store does

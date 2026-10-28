@@ -2289,6 +2289,68 @@ bool BrowserController::openLinkFromOutside(const QUrl &url)
     return true;
 }
 
+// The row is the reader's own Spaces' alone: a Private window keeps no rules
+// of its own, and an Agent Space's pages are not the reader's to route.
+QString BrowserController::siteLinkPattern(const QUrl &url) const
+{
+    if (m_privateBrowsing || agentSpace(activeSpaceId())) {
+        return {};
+    }
+    return linkrules::sitePattern(url).value_or(QString());
+}
+
+BrowserController::SiteLinkRoute BrowserController::siteLinkRouteFor(const QUrl &url) const
+{
+    SiteLinkRoute route {.site = siteLinkPattern(url), .rules = linkRules(), .taking = -1};
+    if (route.site.isEmpty()) {
+        return route;
+    }
+    const auto taking = std::ranges::find_if(route.rules,
+        [&url](const LinkRule &rule) { return linkrules::matches(rule.pattern, url); });
+    if (taking != route.rules.end()) {
+        route.taking = static_cast<qsizetype>(std::distance(route.rules.begin(), taking));
+    }
+    return route;
+}
+
+QVariantMap BrowserController::siteLinkRoute(const QUrl &url) const
+{
+    const auto route = siteLinkRouteFor(url);
+    if (route.site.isEmpty()) {
+        return {};
+    }
+    const auto taking = route.taking >= 0 ? route.rules.at(route.taking) : LinkRule {};
+    return {
+        {QStringLiteral("site"), route.site},
+        {QStringLiteral("domain"), route.site.sliced(2)},
+        {QStringLiteral("space"), taking.space},
+        {QStringLiteral("pattern"), taking.pattern},
+    };
+}
+
+bool BrowserController::routeSiteLinks(const QUrl &url, const QString &target)
+{
+    auto route = siteLinkRouteFor(url);
+    if (route.site.isEmpty()) {
+        return false;
+    }
+    auto &rules = route.rules;
+    if (route.taking < 0) {
+        if (target.isEmpty()) {
+            return true;
+        }
+        rules.append({.pattern = route.site, .space = target});
+    } else if (!target.isEmpty()) {
+        rules[route.taking].space = target;
+    } else {
+        // A later copy of the same pattern would take the page straight back,
+        // as a hand edit or two machines' Sync can leave one.
+        const auto pattern = rules.at(route.taking).pattern;
+        rules.removeIf([&pattern](const LinkRule &rule) { return rule.pattern == pattern; });
+    }
+    return m_settings.set(QString::fromLatin1(linkRulesKey), linkrules::write(rules));
+}
+
 QStringList BrowserController::readersSpaceNames() const
 {
     QStringList names;
