@@ -10846,13 +10846,18 @@ TestCase {
         });
     }
 
-    // Whether the Sidebar cursor in a Glance's head marks the named button.
-    function glanceCursorOn(glance, name) {
+    // Fails unless the Sidebar cursor in a Glance's head marks the named
+    // button. Within a hundredth of a pixel, since a mapped position reads a
+    // hair off in a GCC build (see `verifyOnDevicePixel`).
+    function verifyGlanceCursorOn(glance, name) {
         const cursor = findChild(glance, "glanceHeadCursor");
         const button = findChild(glance, name);
         const at = button.mapToItem(cursor.parent, 0, 0);
-        return cursor.visible && cursor.x === at.x && cursor.y === at.y && cursor.width
-                === button.width;
+        const where = " (cursor " + cursor.x + "," + cursor.y + " " + cursor.width + ", button "
+              + at.x + "," + at.y + " " + button.width + ")";
+        verify(cursor.visible, "the cursor is drawn on " + name);
+        verify(Math.abs(cursor.x - at.x) < 0.01 && Math.abs(cursor.y - at.y) < 0.01 && cursor.width
+               === button.width, "the cursor marks " + name + where);
     }
 
     // Tab inside a Glance walks its page, so the head is reached with the key
@@ -10881,39 +10886,39 @@ TestCase {
             return glance.headFocused;
         });
         verify(!glanced.activeFocus);
-        verify(glanceCursorOn(glance, "glanceBackButton"));
+        verifyGlanceCursorOn(glance, "glanceBackButton");
         keyClick(Qt.Key_Return);
         compare(glanced.backCount, 1);
         // Back at the first page, back is disabled under the cursor, which
         // moves on to the next button it can press.
         glanced.canGoBack = false;
-        verify(glanceCursorOn(glance, "glanceReloadButton"));
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
         glanced.canGoBack = true;
         keyClick(Qt.Key_Left);
-        verify(glanceCursorOn(glance, "glanceBackButton"));
+        verifyGlanceCursorOn(glance, "glanceBackButton");
 
         // Forward is disabled, so the cursor steps over it.
         keyClick(Qt.Key_Tab);
-        verify(glanceCursorOn(glance, "glanceReloadButton"));
+        verifyGlanceCursorOn(glance, "glanceReloadButton");
         keyClick(Qt.Key_Space);
         compare(glanced.pageGeneration, generation + 1);
         glanced.canGoForward = true;
         keyClick(Qt.Key_Left);
-        verify(glanceCursorOn(glance, "glanceForwardButton"));
+        verifyGlanceCursorOn(glance, "glanceForwardButton");
         keyClick(Qt.Key_Space);
         compare(glanced.forwardCount, 1);
         keyClick(Qt.Key_Right);
         keyClick(Qt.Key_Right);
-        verify(glanceCursorOn(glance, "openGlanceAsTabButton"));
+        verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
         keyClick(Qt.Key_Right);
-        verify(glanceCursorOn(glance, "closeGlanceButton"));
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
         // The arrows stop at the ends, and Tab goes round them.
         keyClick(Qt.Key_Right);
-        verify(glanceCursorOn(glance, "closeGlanceButton"));
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
         keyClick(Qt.Key_Tab);
-        verify(glanceCursorOn(glance, "glanceBackButton"));
+        verifyGlanceCursorOn(glance, "glanceBackButton");
         keyClick(Qt.Key_Backtab);
-        verify(glanceCursorOn(glance, "closeGlanceButton"));
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
         compare(opener.backCount, 0);
         compare(opener.forwardCount, 0);
 
@@ -10938,7 +10943,7 @@ TestCase {
         // Close is pressed from the head too.
         keyClick(Qt.Key_K, Qt.AltModifier);
         keyClick(Qt.Key_Backtab);
-        verify(glanceCursorOn(glance, "closeGlanceButton"));
+        verifyGlanceCursorOn(glance, "closeGlanceButton");
         keyClick(Qt.Key_Return);
         tryVerify(function () {
             return window.glanceEngine === null;
@@ -11028,7 +11033,7 @@ TestCase {
             });
             keyClick(Qt.Key_Backtab);
             keyClick(Qt.Key_Left);
-            verify(glanceCursorOn(glance, "openGlanceAsTabButton"));
+            verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
             keyClick(Qt.Key_Return);
             tryVerify(function () {
                 return window.glanceEngine === null;
