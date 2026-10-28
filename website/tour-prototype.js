@@ -103,7 +103,7 @@ function streamline(drive) {
 // The Omnibar's rim and bloom on every card's border too: the road's light, cast on the Omnibar,
 // copied to each card on screen, so the cards' rims catch the sun and lift with the beat.
 function lightTheCards(drive, host) {
-  const cards = [...drive.querySelectorAll(".card, .install, .igniter--segment")];
+  const cards = [...drive.querySelectorAll(".card, .install")];
   for (const card of cards) {
     const glow = document.createElement("span");
     glow.className = "omnibar__glow";
@@ -129,35 +129,13 @@ function lightTheCards(drive, host) {
   };
 }
 
-// Ignite, four ways, all at the end of the Omnibar, on ?ignite= and the prototype bar's arrows:
-// "filled", the first one, a filled button; "key", a keycap like the Omnibar's own hints;
-// "segment", the bar's right end, full height, lit by the sun and the beat; and "play", a round
-// play button whose ring pulses.
-const IGNITERS = { a: "filled", b: "key", c: "segment", d: "play" };
-const igniterKey = Object.keys(IGNITERS).includes(
-  new URLSearchParams(location.search).get("ignite"),
-)
-  ? new URLSearchParams(location.search).get("ignite")
-  : "a";
-
-function switchIgniter(by) {
-  const keys = Object.keys(IGNITERS);
-  const params = new URLSearchParams(location.search);
-  params.set("ignite", keys[(keys.indexOf(igniterKey) + by + keys.length) % keys.length]);
-  location.search = params.toString();
-}
-
+// Ignite: a round play button at the end of the Omnibar, its ring pulsing while it waits.
 function buildIgniter(drive) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `igniter igniter--${IGNITERS[igniterKey]}`;
+  button.className = "igniter igniter--play";
   button.setAttribute("aria-label", "Ignite: drive through Omaweb with the radio on");
-  button.innerHTML = {
-    filled: '<span aria-hidden="true">&#9654;</span> Ignite',
-    key: '<span aria-hidden="true">&#9166;</span> Ignite',
-    segment: '<span aria-hidden="true">&#9654;</span> Ignite',
-    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>',
-  }[IGNITERS[igniterKey]];
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>';
   drive.querySelector(".omnibar__field").append(button);
   return button;
 }
@@ -313,17 +291,9 @@ export function igniteTourPrototype({ drive, host }) {
   const resumeButton = chip.querySelector(".tour-chip__resume");
   const bar = document.createElement("div");
   bar.className = "proto-bar";
-  bar.innerHTML = `
-    <button type="button" data-by="-1" aria-label="Previous Ignite">&larr;</button>
-    <span class="proto-bar__variant"></span>
-    <button type="button" data-by="1" aria-label="Next Ignite">&rarr;</button>
-    <span class="proto-bar__state"></span>`;
+  bar.innerHTML = '<span class="proto-bar__state"></span>';
   document.body.append(bar);
-  bar.querySelector(".proto-bar__variant").textContent = `ignite=${IGNITERS[igniterKey]}`;
   const barState = bar.querySelector(".proto-bar__state");
-  for (const button of bar.querySelectorAll("[data-by]")) {
-    button.addEventListener("click", () => switchIgniter(Number(button.dataset.by)));
-  }
   igniter.addEventListener("click", () => ignite());
 
   // off, cruising, held (the reader has the wheel, the music plays on) or parked (at Install,
@@ -455,8 +425,6 @@ export function igniteTourPrototype({ drive, host }) {
     (event) => {
       if (!event.isTrusted) return;
       const ours = event.target.closest?.(".tour-chip");
-      const arrow = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
-      if (arrow && !event.target.closest?.("input")) return switchIgniter(arrow);
       if (event.key === "Escape" && state !== "off") {
         event.stopImmediatePropagation();
         return stopAll();
