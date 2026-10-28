@@ -50,10 +50,12 @@ jobs:
           mkdir -p artifacts
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern '*.pkg.tar.*' --dir artifacts
-          # What the build said it built, if it said. Absent on an engine built
-          # before the build wrote one, and then the baseline is left alone.
+          # What the build said it built, if it said: one file per architecture,
+          # `engine-x86_64.json` and `engine-aarch64.json`. Absent on an engine
+          # built before the build wrote them, and then the baseline is left
+          # alone, with a warning from the offer below.
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'engine.json' --dir artifacts || true
+            --pattern 'engine-*.json' --dir artifacts || true
           # A signature already on the release is not this job's to trust: it
           # signs what it publishes itself, so an attached `.sig` is dropped
           # rather than served.
@@ -173,9 +175,13 @@ jobs:
       # back over: readers get the engine either way, and the baseline is a
       # claim about it that a person has to finish anyway.
       - name: Offer the baseline this engine needs
-        if: hashFiles('artifacts/engine.json') != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          scripts/offer_engine_baseline.py --engine artifacts/engine.json \
+          # Every engine file the release carries, none if it carries none:
+          # the script warns about that and refuses files that disagree. The
+          # names have no space, and splitting them is the point.
+          engines=$(find artifacts -maxdepth 1 -name 'engine-*.json')
+          # shellcheck disable=SC2086
+          scripts/offer_engine_baseline.py --engine $engines \
             --tag "${{ inputs.tag }}" --base "${{ github.ref_name }}"
