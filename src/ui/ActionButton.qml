@@ -26,7 +26,14 @@ Omarchy.Button {
     // The kit sizes a button by its text, to a fraction of a pixel. A button on
     // a fractional position is snapped when it is drawn, which can push its
     // border past a clip at its edge, as at the right of a Settings row.
-    width: Math.ceil(implicitWidth)
+    //
+    // The width is the text's own size, measured apart from the button. The
+    // kit fits its label to the button's width, so `implicitWidth` shrinks
+    // with a width taken from it, and a row of buttons laid out meanwhile
+    // keeps the shrunk size and draws them over one another (#762). A button
+    // here has no icon, so the kit's room for one is left out.
+    width: Math.ceil(labelMetrics.advanceWidth + horizontalPadding * 2 + _reservedBorderLeft
+                     + _reservedBorderRight)
     text: label
     focusable: true
     bordered: true
@@ -34,6 +41,15 @@ Omarchy.Button {
     foreground: colors.text
     accent: edge
     opacity: enabled ? 1.0 : 0.4
+
+    TextMetrics {
+        id: labelMetrics
+
+        text: root.label
+        font.family: root.fontFamily
+        font.pixelSize: root.fontSize
+        font.bold: root.selected
+    }
 
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName

@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/omacom/omarchy",
   "branch": "quattro",
-  "ref": "916a47f5b844d31331e2b194e8024df30714de30",
-  "fetched": "2026-10-12",
+  "ref": "58858aecfa2a3e26c4d0a1371b369c672474fd04",
+  "fetched": "2026-10-27",
   "license": "MIT",
   "files": {
     "LICENSE": {
@@ -12,8 +12,8 @@
     },
     "qs/Commons/AudioNodes.qml": {
       "upstream": "shell/Commons/AudioNodes.qml",
-      "blob": "448cfe5556396245339bc677f56b0ffe7e87ad15",
-      "sha256": "482f9ecdfcc130b4358b0a018f49f4117eacee6326a2f051483dfaf0665985ba"
+      "blob": "bf734c9a955b0d095f0b5ff50fd07efab6838b2d",
+      "sha256": "f56c5dac50890998ea5a47f553241ec55b093117be809ad83fb88ad910821365"
     },
     "qs/Commons/AudioNodesModel.js": {
       "upstream": "shell/Commons/AudioNodesModel.js",
@@ -35,6 +35,16 @@
       "blob": "0dbcbf675db9b56e8211097e1a4d6a7e873f13db",
       "sha256": "08af401286831759b63279cf6d6732d666256c751864a03bd5594ea29a29f0e5"
     },
+    "qs/Commons/I18n.qml": {
+      "upstream": "shell/Commons/I18n.qml",
+      "blob": "50fd511ba16f88e0f3c1e82906adca1498b22f49",
+      "sha256": "ef01debf0303e3081630dbd4736b308a362f8454ae74417ff044a225156b233c"
+    },
+    "qs/Commons/InputDevices.qml": {
+      "upstream": "shell/Commons/InputDevices.qml",
+      "blob": "fa008264368f1175c2d9fc7c35982a18a9078387",
+      "sha256": "e1d5cbee7fc4906f158d6b28ead51458143c79416b926523d547999184474f50"
+    },
     "qs/Commons/InputMethodState.qml": {
       "upstream": "shell/Commons/InputMethodState.qml",
       "blob": "14a3494dd5c0ed178f77012e662d6daf6e3eba69",
@@ -45,6 +55,16 @@
       "blob": "e479df288ecdfd63719e404f7b0a62f18b2956a7",
       "sha256": "e3da03778f65eed0b47a5249abc9c22afe936dd0ce49077d3cd0b3d710b0eda2"
     },
+    "qs/Commons/Numbers.js": {
+      "upstream": "shell/Commons/Numbers.js",
+      "blob": "b017ce8b91299d1f558049865ddff0c94b54b12e",
+      "sha256": "90c180b4161ad1553701d4b78d92321abbab8c3d6b04819d2ce6b37622855dca"
+    },
+    "qs/Commons/Plural.js": {
+      "upstream": "shell/Commons/Plural.js",
+      "blob": "828782c033758329597681071fe35593d8e294df",
+      "sha256": "73a5d34fbe0e9b4656d20d8819052a24538d958cc55a732852ff9be2239f3a0a"
+    },
     "qs/Commons/ShellIpc.qml": {
       "upstream": "shell/Commons/ShellIpc.qml",
       "blob": "15f5d27e5321ec485871598fc63d7b2e6a610b50",
@@ -52,8 +72,13 @@
     },
     "qs/Commons/Style.qml": {
       "upstream": "shell/Commons/Style.qml",
-      "blob": "a4026972216059f60b364c1804774b6ba46f0b9c",
-      "sha256": "bfc786135e015961b06de9a850b7296fe6bca0de8b1e19e215127be39fbc0111"
+      "blob": "6016cce4a41b301e31fa574ec361811e6e1a1da5",
+      "sha256": "65758e4935a225984d88afee65e740bae99e335d608d12befdbe5ec5e2e57f90"
+    },
+    "qs/Commons/Translations.qml": {
+      "upstream": "shell/Commons/Translations.qml",
+      "blob": "ea2bddbc6c9bb737b97a3bbd3361bb5b51fb6a24",
+      "sha256": "d719fd0774dd0820108231799c969c3eeb10cd89551a76f7e821f0ad6ff479e0"
     },
     "qs/Commons/UntypedInput.qml": {
       "upstream": "shell/Commons/UntypedInput.qml",
@@ -62,13 +87,13 @@
     },
     "qs/Commons/Util.qml": {
       "upstream": "shell/Commons/Util.qml",
-      "blob": "cacc98d25517f6fa6e9ad00ea111aeb457f12abd",
-      "sha256": "20800c11650b37f2c588d4cbfcbf1704cf3b64a92c862e62d2b7fa980e29b944"
+      "blob": "688714e02d2876d6f123e6e237bec7c6448637ea",
+      "sha256": "f252d02a43c9ae10d394e1a2e9349a74a81e1c83021314299b182d58c21f3cf6"
     },
     "qs/Commons/qmldir": {
       "upstream": "shell/Commons/qmldir",
-      "blob": "e5be766be9a8138e0a619398f3777ec73a21b467",
-      "sha256": "fe9985aeecbc5f0e83514ce01b20a9f09541536e9b6690f068a804deb0ac1afa"
+      "blob": "8dff741ad9ea5d3d7ab7417535ec63f1d845f192",
+      "sha256": "3c29f0e3ca8984a8dd2cb9227f9458147242d06873cff5c189ed5616234ed13e"
     },
     "qs/Ui/BackgroundMedia.qml": {
       "upstream": "shell/Ui/BackgroundMedia.qml",
@@ -77,8 +102,8 @@
     },
     "qs/Ui/BarIconButton.qml": {
       "upstream": "shell/Ui/BarIconButton.qml",
-      "blob": "a5567b4f9ad65941fd953e74a988cc3aaa332789",
-      "sha256": "687e79d601419d9ac66a071dded6869d5aea7d9df05b6a37d14ccf58c15a9c8c"
+      "blob": "8516395fd5f6f31c12223eeedeaf178b9dc4e33e",
+      "sha256": "767b89beb1a75b79202fd43c34afd18066bc377980445908ed53ef791a09c36e"
     },
     "qs/Ui/BarIconContent.qml": {
       "upstream": "shell/Ui/BarIconContent.qml",
@@ -92,8 +117,8 @@
     },
     "qs/Ui/BarWidget.qml": {
       "upstream": "shell/Ui/BarWidget.qml",
-      "blob": "a0c9584d4ace606cc6435114d45b191655e740a1",
-      "sha256": "8be00e2553a486b3dbfcb4f99de976035f323c4061b993dbc1842c75ff8b9022"
+      "blob": "69fa9b6cf78dd61e597f43fe05b719d21afb3dfd",
+      "sha256": "6dc5f08b92280e323b9bb8645ec530bca9c68512f3af49f6e3d5a13a6d9f99a3"
     },
     "qs/Ui/BorderOverlay.qml": {
       "upstream": "shell/Ui/BorderOverlay.qml",
@@ -107,18 +132,18 @@
     },
     "qs/Ui/Button.qml": {
       "upstream": "shell/Ui/Button.qml",
-      "blob": "1f53dbec4bb2a80013839845484967872c716f7b",
-      "sha256": "a4ffb175b361dfb3a4455bb0e8d9697149cfa6f535ca0cd9e385666292639dba"
+      "blob": "d7fa47da0afe472847526f16b4b510a6c619463c",
+      "sha256": "6075290196bb448962e36e6136d0e1f4b7bc725799191b31141eac68d5e944da"
     },
     "qs/Ui/ButtonGroup.qml": {
       "upstream": "shell/Ui/ButtonGroup.qml",
-      "blob": "8657fe6a7994c8f09a833bc53ee40f0b8d63029d",
-      "sha256": "daecdccb8529c9d17e61b470571dac3fa41b2b0e6a888c5b7ca10205b17d4428"
+      "blob": "1284a18aa2e55c4dc48319a548d70e4b7fa22cb0",
+      "sha256": "ab228e5f8d1089b7f3076a00087830970e97d9342e3f8a9ec62476c8d7ae7585"
     },
     "qs/Ui/ConfirmDialog.qml": {
       "upstream": "shell/Ui/ConfirmDialog.qml",
-      "blob": "9bbb1304834a520f01ad8f499895e21139d3150b",
-      "sha256": "96ae48c0f4df28ff3b0ef9391ad8f24d3e252b416fa79a28b5bd801e71b1ac4f"
+      "blob": "636782eaacfd0f130ec8120ead59467ade78f8a7",
+      "sha256": "6ee99c757e443af24f3d1db366665654436c488018091018580014c889ac25ac"
     },
     "qs/Ui/CursorSurface.qml": {
       "upstream": "shell/Ui/CursorSurface.qml",
@@ -130,6 +155,11 @@
       "blob": "6d24092882f58407f93f3334fc1a9ea6848551ed",
       "sha256": "67991822c07aaa8a64bacc2292eabea135ac3a4d1e47a8b798d8c46a04126890"
     },
+    "qs/Ui/FilterInput.qml": {
+      "upstream": "shell/Ui/FilterInput.qml",
+      "blob": "4c95ea661c91bad77fbb9874280c9ca6a70b4cc8",
+      "sha256": "4b3a159a748feb169d72d480f5d3284d4526dc2305ef689d7ab6a38e3bc0badf"
+    },
     "qs/Ui/IconContentBounds.qml": {
       "upstream": "shell/Ui/IconContentBounds.qml",
       "blob": "90bde568d570190df48b836a40eb32c367a8835a",
@@ -137,13 +167,13 @@
     },
     "qs/Ui/KeyboardPanel.qml": {
       "upstream": "shell/Ui/KeyboardPanel.qml",
-      "blob": "6f917e5bdbfaca0aa932197e3a05f0dff29bb0f9",
-      "sha256": "e509278a51a7e9b45fa3a6fa630bedcd671a0f34202bfb7413a5b6a2f88d7e22"
+      "blob": "60c2890cc3a9b76f1fd0f5e50ed657d9edd142b5",
+      "sha256": "0f27a4b7793706e2a8b9423073feec290fe793847e338a82793a70179831894e"
     },
     "qs/Ui/MultiSelect.qml": {
       "upstream": "shell/Ui/MultiSelect.qml",
-      "blob": "656047ddd08804cd586afdf47c7c2df6c71a610d",
-      "sha256": "7027a6320d1bf67c4b5fa8756a6e2547609da98b3b439578cbd09bc307209431"
+      "blob": "f837b61e28534b6e6fd1e82603db77d68de8aa0a",
+      "sha256": "a3ec386cc6ef74ed9a28c8b5b86d94d1d58c26a9c49d4b45b2a250ca4f677225"
     },
     "qs/Ui/NumberField.qml": {
       "upstream": "shell/Ui/NumberField.qml",
@@ -157,8 +187,8 @@
     },
     "qs/Ui/OverlayWindow.qml": {
       "upstream": "shell/Ui/OverlayWindow.qml",
-      "blob": "bbca91e6f48286843843d16afa3623b3f59052f8",
-      "sha256": "cb934aeeb459eba78a424404a8b149dfcfbb472f932937aa283e62eb11958572"
+      "blob": "e0b3c322b12e31ebaa283d16b410efd95d65d6c9",
+      "sha256": "563753469de1ae53bb595ddfb0b45803615ca7000ecf05d823a50b7dd4da1e9d"
     },
     "qs/Ui/Panel.qml": {
       "upstream": "shell/Ui/Panel.qml",
@@ -182,8 +212,8 @@
     },
     "qs/Ui/PanelKeyCatcher.qml": {
       "upstream": "shell/Ui/PanelKeyCatcher.qml",
-      "blob": "03cf59f166e9a5e51bb3c161efe74f616870f282",
-      "sha256": "16f84aedb456fba224bdc40df5c40a5ec3ff7cd701f1ac616811d3aac9cf4cb7"
+      "blob": "3009c921c7b5655b39c2d39f4741d57149e871bb",
+      "sha256": "f39fe259bd811ef3be00834a888dfe4ba003b4148738e495708c2070a914c27f"
     },
     "qs/Ui/PanelSectionHeader.qml": {
       "upstream": "shell/Ui/PanelSectionHeader.qml",
@@ -197,8 +227,8 @@
     },
     "qs/Ui/PanelSlider.qml": {
       "upstream": "shell/Ui/PanelSlider.qml",
-      "blob": "2dd85a33a0ac3955c51a345c4c5362c8abafa251",
-      "sha256": "5ecbadab3114a6b6a56ac3061e0ef6cd3c9f12a2b3a55b7b2c38dced30ce93ba"
+      "blob": "ad9d438389cb303654bbf0c73355aa15a2730597",
+      "sha256": "b1cf37e74a65133ff0e272233860cb4b6635ccd5f11a83c014a072888d583a54"
     },
     "qs/Ui/PanelToolTip.qml": {
       "upstream": "shell/Ui/PanelToolTip.qml",
@@ -207,8 +237,8 @@
     },
     "qs/Ui/PluginBarApi.qml": {
       "upstream": "shell/Ui/PluginBarApi.qml",
-      "blob": "03c748b142cd4d3470feae77db60461bb5090428",
-      "sha256": "91964a42b92c58476a4f961df35148d4c94071344ef1a69eab1563d1496705a7"
+      "blob": "6400a1e6332edefaafcf2a1cd2221389a7a5e735",
+      "sha256": "182bed4f712c14f50adb78cea6e4d9634ec20d42c40d22fa5eb1d5e18f8f5675"
     },
     "qs/Ui/PointerMoveGate.qml": {
       "upstream": "shell/Ui/PointerMoveGate.qml",
@@ -217,8 +247,8 @@
     },
     "qs/Ui/PopupCard.qml": {
       "upstream": "shell/Ui/PopupCard.qml",
-      "blob": "6551237d56942fc577b8d6fb18a13b964c71701b",
-      "sha256": "47a2af6456607f220a6bcc9fa5088c0fafa29d18790d32437a4d20edad32da88"
+      "blob": "8854538b08cfc8131a2db3ebb4953aa228ae2a71",
+      "sha256": "7138ab57505734e74084f8af1816206b3db0c6bc659f1f83a419638238b2d550"
     },
     "qs/Ui/ScreenMoveRemap.qml": {
       "upstream": "shell/Ui/ScreenMoveRemap.qml",
@@ -227,13 +257,18 @@
     },
     "qs/Ui/SearchableDropdown.qml": {
       "upstream": "shell/Ui/SearchableDropdown.qml",
-      "blob": "256e4293ee41fc4e600000a588eb279d2926a15a",
-      "sha256": "98e71d4fc3679d9a260db2ca29b6935db18447faecf190a8122ee31ef4a1384b"
+      "blob": "8a7079e5e4b2df5f4339d1d977b2c3a48789585a",
+      "sha256": "a27bb9de86f4bba5366c11db83ecc5a42e3618436b12b57b8c5f26dfd1537f2f"
+    },
+    "qs/Ui/SizedImage.qml": {
+      "upstream": "shell/Ui/SizedImage.qml",
+      "blob": "5a66f9305d266cadfcc17628a713df33227ab4c4",
+      "sha256": "e7c2a140de06e5aa4a3e7bbf6588428ed3f687b257efa6dded6a63e2c384e0f8"
     },
     "qs/Ui/SpeedTestOverlay.qml": {
       "upstream": "shell/Ui/SpeedTestOverlay.qml",
-      "blob": "b0ad24ed97f3019e15f7371f4859c0d7f0d373b3",
-      "sha256": "6f7ad72dea2f0d71c1c6900a327d11fada0481c66538e1ff3d2e85de6ed00515"
+      "blob": "cde269c1d693ce35ccfcc0b45e296657a87c5c01",
+      "sha256": "e0bd6e1307bde6e3e6d5932a488fb40e58c3197f71535f2e6a5ce0d5f4077a37"
     },
     "qs/Ui/TextField.qml": {
       "upstream": "shell/Ui/TextField.qml",
@@ -247,18 +282,18 @@
     },
     "qs/Ui/ToggleSwitch.qml": {
       "upstream": "shell/Ui/ToggleSwitch.qml",
-      "blob": "48b7afba0fa02028494f13244a87849231732339",
-      "sha256": "5d1cd5226ac11b93a98cb6dd769e0d9170faa65be001f0bc9326747a6061dde3"
+      "blob": "538e111586d76ae3d78a993d5dad1fe31011673a",
+      "sha256": "ee2419357a064767d4b6de3b3c341f92ebfce7c8cd9b4b294eb9a6de48f6e167"
     },
     "qs/Ui/WidgetButton.qml": {
       "upstream": "shell/Ui/WidgetButton.qml",
-      "blob": "c27e21aa4cad738b7903de56928829cf592f9826",
-      "sha256": "206e278477a25c990673fefb22e8f98d77128f430d345a98194ae0338a9fcae0"
+      "blob": "df8fe12e3839c467122b1bbbd16de82525962ae1",
+      "sha256": "33dd50a9f06c254262a53583a6618c954bb3ee8000a0214ef6be33e15359d612"
     },
     "qs/Ui/qmldir": {
       "upstream": "shell/Ui/qmldir",
-      "blob": "90f50678b19412b4034473de22fc02851b01651e",
-      "sha256": "2c692f7e597ec8ef1c3072f7795961eb965085492c38f334e9aa0e09477cf620"
+      "blob": "f8d81a679e682542690caabf9d4731b356a6f54d",
+      "sha256": "182255446c5774d5a8f4772ec50ba317e6ceb0d36f3f3e81d6e68da08ee11be3"
     }
   }
 }
