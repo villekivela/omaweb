@@ -2405,6 +2405,17 @@ if(BUILD_TESTING)
                 "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1.5;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
         )
 
+        # The sidebar's Sync avatar is a Canvas drawn in the display's own
+        # pixels, so whether its circle holds shows only at a fractional scale.
+        foreach(scale IN ITEMS 1.25 1.6)
+            add_test(NAME omaweb-ui-sync-avatar-at-${scale}
+                COMMAND omaweb-ui-tests BrowserChrome::test_syncAvatarPhotoDrawsAsACircle)
+            set_tests_properties(omaweb-ui-sync-avatar-at-${scale} PROPERTIES
+                ENVIRONMENT
+                    "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=${scale};DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
+            )
+        endforeach()
+
         # CI runs the suite a job per processor, and the tests that measure
         # time have to have the machine to themselves while they do.
         if(Python3_Interpreter_FOUND)

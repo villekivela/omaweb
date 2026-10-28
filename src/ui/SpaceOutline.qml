@@ -1809,19 +1809,77 @@ Rectangle {
                     source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
                                                                            + root.sync.avatarPath :
                                                                            ""
-                    sourceSize.width: 48
-                    sourceSize.height: 48
                     fillMode: Image.PreserveAspectCrop
                     visible: false
                     smooth: true
                 }
 
+                // A Canvas, not a MultiEffect mask: the software renderer
+                // draws no effect, so a mask there showed no photo to test
+                // (#836). The circle is clipped at the display's own pixels.
+                Canvas {
+                    id: avatarCanvas
+                    objectName: "syncAvatarCanvas"
+                    visible: avatarImage.status === Image.Ready
+                    // Sized in the display's pixels and scaled back, so the
+                    // edge of the circle is drawn at a fractional scale too.
+                    width: Math.ceil(parent.width * root.pixelRatio)
+                    height: width
+                    scale: parent.width / width
+                    transformOrigin: Item.TopLeft
+                    onWidthChanged: requestPaint()
+                    onAvailableChanged: requestPaint()
+
+                    Connections {
+                        target: avatarImage
+
+                        function onStatusChanged() {
+                            avatarCanvas.load();
+                        }
+                    }
+
+                    // A Canvas draws only an image it loaded itself.
+                    function load() {
+                        if (avatarImage.status === Image.Ready) {
+                            loadImage(avatarImage.source);
+                        }
+                        requestPaint();
+                    }
+
+                    onImageLoaded: requestPaint()
+
+                    onPaint: {
+                        if (!available) {
+                            return;
+                        }
+                        const ctx = getContext("2d");
+                        const w = width;
+                        const h = height;
+                        ctx.reset();
+                        if (!isImageLoaded(avatarImage.source)) {
+                            return;
+                        }
+                        const side = Math.min(avatarImage.implicitWidth,
+                                              avatarImage.implicitHeight);
+                        const sx = (avatarImage.implicitWidth - side) / 2;
+                        const sy = (avatarImage.implicitHeight - side) / 2;
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, w, h);
+                        ctx.clip();
+                        ctx.drawImage(avatarImage.source, sx, sy, side, side, 0, 0, w, h);
+                        ctx.restore();
+                    }
+                }
+
+                // Greyscale for a paused Sync. It draws on a GPU renderer only, as
+                // every effect does, and covers the circle the Canvas drew.
                 MultiEffect {
                     objectName: "syncAvatarEffect"
                     anchors.fill: parent
-                    source: avatarImage
-                    visible: avatarImage.status === Image.Ready
-                    saturation: root.activeSync ? 0 : -1
+                    source: avatarCanvas
+                    visible: avatarImage.status === Image.Ready && !root.activeSync
+                    saturation: -1
                 }
             }
 
