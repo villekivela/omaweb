@@ -54,8 +54,15 @@ jobs:
           # `engine-x86_64.json` and `engine-aarch64.json`. Absent on an engine
           # built before the build wrote them, and then the baseline is left
           # alone, with a warning from the offer below.
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'engine-*.json' --dir artifacts || true
+          # Asked of the release rather than guessed from a failed download, so
+          # that a `gh` that fails for a real reason fails the job instead of
+          # passing as a release with no engine file.
+          engine_files=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name | select(test("^engine-.*\\.json$"))')
+          if [ -n "$engine_files" ]; then
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern 'engine-*.json' --dir artifacts
+          fi
           # A signature already on the release is not this job's to trust: it
           # signs what it publishes itself, so an attached `.sig` is dropped
           # rather than served.
