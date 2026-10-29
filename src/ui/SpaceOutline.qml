@@ -1598,19 +1598,32 @@ Rectangle {
                     foreground: active ? root.colors.text : root.colors.mutedText
                     accent: root.colors.accent
                     background: "transparent"
+                    // Hover is the mark's own, below: the kit's filled and
+                    // bordered box is for the keyboard focus alone.
+                    color: _showFocusRing ? Style.focusFillFor(foreground, accent) : "transparent"
+                    borderSpec: _showFocusRing ? _focusBorderSpec : Border.none()
                     hasCursor: root.heldSpaceId === spaceId
                     onClicked: root.spaceActivated(spaceId)
 
                     Rectangle {
                         objectName: "spaceMark-" + spaceButton.spaceId
-                        readonly property int side: spaceButton.active ? 12 : 8
+                        readonly property int side: spaceButton.active ? 12 : (spaceButton.hot ? 10 :
+                                                                                                 8)
                         anchors.centerIn: parent
                         visible: !spaceButton.showsAgent
                         width: side
                         height: side
                         radius: 2
                         color: root.spaceColour(spaceButton.spaceColor)
+                        opacity: spaceButton.active || spaceButton.hot ? 1 : 0.7
                         Accessible.ignored: true
+                        Behavior on opacity {
+                            enabled: root.easeSpaces
+                            NumberAnimation {
+                                duration: 160
+                                easing.type: Easing.OutCubic
+                            }
+                        }
                         Behavior on width {
                             enabled: root.easeSpaces
                             NumberAnimation {
