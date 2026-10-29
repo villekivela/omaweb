@@ -19320,14 +19320,18 @@ TestCase {
     // bottom-right one, so a pin that is playing and popped out shows both
     // (#887). The mark keeps its corner whether or not the tab plays.
     function test_aPoppedOutPinKeepsItsWindowMarkBelowItsSpeaker() {
-        const engine = openPage("https://pinned-sound.example");
+        const engine = openPageInNewTab("https://pinned-sound.example");
         engine.simulateUserActivation();
         const tabId = browser.activeTabId;
         browser.toggleActivePinned();
+        verify(browser.tabPinned(tabId));
         openPageInNewTab("https://reading.example");
         const readingTabId = browser.activeTabId;
         verify(window.commands.run("pop-out-tab", tabId));
         tabWindowOf(tabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null;
+        });
         const row = findChild(window.contentItem, "pinned-" + tabId);
         const mark = findChild(window.contentItem, "tabWindowMark-" + tabId);
         const speaker = findChild(window.contentItem, "audio-" + tabId);
@@ -19355,19 +19359,30 @@ TestCase {
         verify(spoken.y + mark.height <= row.height);
         verify(spoken.x + mark.width <= row.width);
 
+        window.tabWindowFor(tabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
         browser.closeTab(readingTabId);
     }
 
     // The Glance's keep button takes the same corner as the speaker on a pin,
     // so the window mark stays clear of it too (#887).
     function test_aPoppedOutPinKeepsItsWindowMarkBelowAGlancesKeepButton() {
-        openPage("https://pinned-glance.example");
+        openPageInNewTab("https://pinned-glance.example");
         const tabId = browser.activeTabId;
         browser.toggleActivePinned();
+        verify(browser.tabPinned(tabId));
         openPageInNewTab("https://reading.example");
         const readingTabId = browser.activeTabId;
         verify(window.commands.run("pop-out-tab", tabId));
         tabWindowOf(tabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null;
+        });
         const row = findChild(window.contentItem, "pinned-" + tabId);
         const mark = findChild(window.contentItem, "tabWindowMark-" + tabId);
         const keep = findChild(window.contentItem, "glanceKeep-" + tabId);
@@ -19384,6 +19399,13 @@ TestCase {
         const keepAt = keep.mapToItem(row, 0, 0);
         verify(markAt.y >= keepAt.y + keep.height || markAt.x >= keepAt.x + keep.width || markAt.x
                + mark.width <= keepAt.x, "the window mark overlaps the keep button");
+        window.tabWindowFor(tabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
         browser.closeTab(readingTabId);
     }
 
