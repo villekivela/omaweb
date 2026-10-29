@@ -7,6 +7,7 @@
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QTest>
 #include <QWheelEvent>
 
@@ -73,6 +74,10 @@ private slots:
     void pageLoadStopsTheGlide();
     void hiddenPageStopsTheGlide_data();
     void hiddenPageStopsTheGlide();
+    void chromeViewGlidesInPixels();
+    void chromeViewHeldAtItsEndDoesNotGlide();
+    void slantedSwipeGlidesAListThatScrollsOneWay();
+    void chromeViewGlideStopsAtItsEnd();
 
 private:
     // Flicks the page and waits for the glide's first steps.
@@ -128,6 +133,47 @@ void flick(QObject *to)
     drag(to);
     edge(to, Qt::ScrollEnd, 1100, Qt::MouseEventSynthesizedBySystem);
 }
+
+// The fingers on a view in the chrome, which scrolls by their pixels: `move` every 10 ms from 1000
+// to 1100 ms, then the lift, at a hundred times `move` a second. Qt's Wayland plugin gives each an
+// angle twelve times its pixels.
+void flickPixels(QQuickItem *view, QPoint move = QPoint(0, -10))
+{
+    const auto send
+        = [view](Qt::ScrollPhase phase, QPoint pixels, quint64 at, Qt::MouseEventSource source) {
+              QWheelEvent event(QPointF(40, 40), QPointF(140, 140), pixels,
+                  pixels * omaweb::QtPageGlide::anglePerPixel, Qt::NoButton, Qt::NoModifier, phase,
+                  false, source);
+              event.setTimestamp(at);
+              QCoreApplication::sendEvent(view, &event);
+          };
+    send(Qt::ScrollBegin, {}, 990, Qt::MouseEventNotSynthesized);
+    for (quint64 at = 1000; at <= 1100; at += 10) {
+        send(Qt::ScrollUpdate, move, at, Qt::MouseEventSynthesizedBySystem);
+    }
+    send(Qt::ScrollEnd, {}, 1100, Qt::MouseEventSynthesizedBySystem);
+}
+
+// A `Flickable` 100 pixels high over 1000 pixels of content, in a window, scrolled `contentY`
+// down them.
+struct ChromeView {
+    explicit ChromeView(qreal contentY = 0)
+    {
+        component.setData("import QtQuick\n"
+                          "Flickable { width: 100; height: 100; contentHeight: 1000 }",
+            QUrl());
+        view.reset(qobject_cast<QQuickItem *>(component.create()));
+        view->setParentItem(window.contentItem());
+        view->setProperty("contentY", contentY);
+    }
+
+    qreal contentY() const { return view->property("contentY").toReal(); }
+
+    QQuickWindow window;
+    QQmlEngine engine;
+    QQmlComponent component {&engine};
+    std::unique_ptr<QQuickItem> view;
+};
 
 // What the page hears of the fingers before the lift: two begins and eleven updates.
 constexpr qsizetype fingerEvents = 13;
@@ -346,6 +392,58 @@ void QtPageGlideTest::hiddenPageStopsTheGlide()
     }
     QTRY_VERIFY_WITH_TIMEOUT(!m_glide->gliding(), 500);
     QVERIFY(endedOnce());
+}
+
+// The fingers' 1000 pixels a second carry the view a quarter of that further, 250 pixels, less
+// the last one.
+void QtPageGlideTest::chromeViewGlidesInPixels()
+{
+    ChromeView chrome;
+    QVERIFY2(chrome.view, qPrintable(chrome.component.errorString()));
+    flickPixels(chrome.view.get());
+    const qreal lifted = chrome.contentY();
+    QVERIFY(lifted > 0);
+    QVERIFY(m_glide->gliding());
+    QTRY_VERIFY_WITH_TIMEOUT(!m_glide->gliding(), 4000);
+    const qreal glided = chrome.contentY() - lifted;
+    QVERIFY2(glided >= 248 && glided <= 250, qPrintable(QString::number(glided)));
+}
+
+// Fingers that push a view against its end move nothing, so nothing glides.
+void QtPageGlideTest::chromeViewHeldAtItsEndDoesNotGlide()
+{
+    ChromeView chrome(900);
+    QVERIFY2(chrome.view, qPrintable(chrome.component.errorString()));
+    flickPixels(chrome.view.get());
+    QVERIFY(!m_glide->gliding());
+}
+
+// The fingers take the view to about 800, and the glide would take it 250 further, but it stops
+// with the step that reaches the end at 900. The fingers may drag this view past its ends, and the
+// glide would have held it there until it ran out.
+void QtPageGlideTest::chromeViewGlideStopsAtItsEnd()
+{
+    ChromeView chrome(700);
+    QVERIFY2(chrome.view, qPrintable(chrome.component.errorString()));
+    flickPixels(chrome.view.get());
+    QVERIFY(chrome.contentY() < 900);
+    QVERIFY(m_glide->gliding());
+    QTRY_VERIFY_WITH_TIMEOUT(chrome.contentY() >= 900, 2000);
+    QVERIFY(!m_glide->gliding());
+}
+
+// Fingers never move straight down. A list that scrolls only up and down is at both its ends
+// across, and that is no end of the way it scrolls.
+void QtPageGlideTest::slantedSwipeGlidesAListThatScrollsOneWay()
+{
+    ChromeView chrome;
+    QVERIFY2(chrome.view, qPrintable(chrome.component.errorString()));
+    flickPixels(chrome.view.get(), QPoint(-2, -10));
+    const qreal lifted = chrome.contentY();
+    QVERIFY(m_glide->gliding());
+    QTest::qWait(100);
+    QVERIFY(m_glide->gliding());
+    QVERIFY(chrome.contentY() > lifted);
 }
 
 QTEST_MAIN(QtPageGlideTest)

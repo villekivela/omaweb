@@ -14452,6 +14452,118 @@ TestCase {
         compare(String(dot.color), String(avatar.colors.urgent));
     }
 
+    // Settings, open on its tallest section, and the view that scrolls it.
+    function openTallSettings() {
+        const settingsSurface = findChild(window.contentItem, "settingsSurface");
+        window.requestSettings();
+        tryVerify(function () {
+            return settingsSurface.visible;
+        });
+        const view = findChild(settingsSurface, "settingsScroll").contentItem;
+        let tallest = 0;
+        let height = 0;
+        for (let index = 0; index < settingsSurface.sections.length; ++index) {
+            settingsSurface.section = index;
+            wait(0);
+            if (view.contentHeight > height) {
+                height = view.contentHeight;
+                tallest = index;
+            }
+        }
+        settingsSurface.section = tallest;
+        tryVerify(function () {
+            return view.contentHeight === height;
+        });
+        view.contentY = 0;
+        return view;
+    }
+
+    // Until a view has not moved for 100 ms.
+    function waitForRest(view) {
+        let resting = -1;
+        tryVerify(function () {
+            const still = view.contentY === resting;
+            resting = view.contentY;
+            wait(100);
+            return still;
+        }, 5000);
+    }
+
+    function closeSettings() {
+        const settingsSurface = findChild(window.contentItem, "settingsSurface");
+        settingsSurface.section = 0;
+        window.settingsOpen = false;
+        tryVerify(function () {
+            return !settingsSurface.visible;
+        });
+    }
+
+    // Two fingers that lift from Settings as they move glide it on, slowing to
+    // a stop, as a page does (#864). Ten moves of 4 pixels, over the 101 ms to
+    // the lift, are 396 pixels a second, which GTK's friction of 4 a second
+    // carries a quarter of that further: 99 pixels, less the last one, in whole
+    // pixels.
+    function test_aSwipeInSettingsGlidesOnAfterTheLift() {
+        const view = openTallSettings();
+        verify(view.contentHeight - view.height > 160, "Settings is too short to glide in");
+
+        swipeAcross(view, 0, 11, 10, -4);
+        const lifted = view.contentY;
+        verify(lifted > 20);
+        liftFingers(view);
+        tryVerify(function () {
+            return view.contentY > lifted + 20;
+        });
+        waitForRest(view);
+        const glided = view.contentY - lifted;
+        verify(glided >= 98 && glided <= 99, "glided " + glided + " pixels");
+
+        closeSettings();
+    }
+
+    // The glide stops on the first press, as a page's does.
+    function test_aPressStopsTheGlideInSettings() {
+        const view = openTallSettings();
+        swipeAcross(view, 0, 11, 10, -4);
+        liftFingers(view);
+        tryVerify(function () {
+            return view.contentY > 70;
+        });
+        mousePress(view, 4, 4);
+        const pressedAt = view.contentY;
+        wait(200);
+        mouseRelease(view, 4, 4);
+        compare(view.contentY, pressedAt);
+
+        closeSettings();
+    }
+
+    // The sidebar's tab list glides as Settings does, by the same 99 pixels
+    // for the same swipe.
+    function test_aSwipeDownTheTabListGlidesOnAfterTheLift() {
+        const tabList = findChild(window.contentItem, "tabScroll").contentItem;
+        const opened = [];
+        for (let index = 0; index < 40; ++index) {
+            browser.openInput("https://glide.example/" + index, true);
+            opened.push(browser.activeTabId);
+        }
+        tryVerify(function () {
+            return tabList.contentHeight - tabList.height > 200;
+        });
+        tabList.contentY = 0;
+
+        swipeAcross(tabList, 0, 11, 10, -4);
+        const lifted = tabList.contentY;
+        verify(lifted > 20);
+        liftFingers(tabList);
+        waitForRest(tabList);
+        const glided = tabList.contentY - lifted;
+        verify(glided >= 98 && glided <= 99, "glided " + glided + " pixels");
+
+        for (let index = 0; index < opened.length; ++index)
+            browser.closeTab(opened[index]);
+    }
+
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes. A pixel count was right at one theme
     // font size and clipped "Content Blocking" at the next, and a rail that

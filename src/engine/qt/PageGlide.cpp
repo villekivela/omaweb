@@ -34,8 +34,9 @@ QPointF GlideSpeed::at(quint64 liftedAt) const
     return moved * 1000.0 / static_cast<qreal>(liftedAt - first->at);
 }
 
-GlideCurve::GlideCurve(QPointF velocity)
+GlideCurve::GlideCurve(QPointF velocity, qreal rest)
     : m_velocity(velocity)
+    , m_rest(rest)
 {
 }
 
@@ -47,8 +48,10 @@ qreal GlideCurve::duration() const
 {
     const qreal speed = std::hypot(m_velocity.x(), m_velocity.y());
     const qreal toGo = speed / friction;
-    return toGo > rest ? std::log(toGo / rest) / friction : 0;
+    return toGo > m_rest ? std::log(toGo / m_rest) / friction : 0;
 }
+
+QPointF GlideCurve::velocity() const { return m_velocity; }
 
 QPointF GlideCurve::travelled(qreal seconds) const
 {
