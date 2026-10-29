@@ -303,94 +303,12 @@ a {
   font-size: 12px;
 }
 
-/* Screens */
-
-/* A terminal: the Omnibar's plate and edge around a plain dark field, so a command reads as one to
-   copy rather than as part of the road. */
-.hud {
-  min-width: 0;
-  margin: 0;
-  padding: 6px;
-  border: 1px solid var(--edge);
-  border-radius: 3px;
-  background: var(--plate);
-}
-
-.hud__bar {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 6px 10px 10px;
-  color: var(--dim);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.hud__meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.hud__bar span:last-child {
-  color: color-mix(in srgb, var(--fg) 50%, transparent);
-  text-transform: none;
-  letter-spacing: 0.02em;
-}
-
-.hud__screen {
-  overflow: hidden;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--bg) 55%, #000);
-}
-
-.hud pre {
-  margin: 0;
-  padding: 20px 22px;
-  overflow-x: auto;
-  color: var(--fg);
-  font: 400 14px/1.9 var(--mono);
-}
-
 /* A command or a path in running text. The page is set in a monospace face, so a command needs a
    ground of its own to stand apart from the words around it. */
 p code {
   padding: 0.1em 0.35em;
   border-radius: 2px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--fg);
-}
-
-.hud__prompt {
-  color: var(--accent);
-}
-
-.hud mark {
-  padding: 0 0.2em;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
-  color: var(--fg);
-}
-
-.hud__copy:not([hidden]) {
-  padding: 2px 9px;
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  border-radius: 3px;
-  background: var(--bg);
-  color: var(--dim);
-  font: 600 11px var(--mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.hud__copy:hover,
-.hud__copy.is-done {
-  border-color: var(--accent);
   color: var(--fg);
 }
 
@@ -1093,22 +1011,61 @@ body:has(.drive) > .top {
   text-align: center;
 }
 
-.install__plate {
-  position: relative;
-  padding: 16px 18px;
+/* The Omnibar the road ends on: the Start page's, its field holding the one line to copy. */
+.install .install__bar {
+  margin: 0 auto;
 }
 
+.install__command {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: copy;
+  user-select: all;
+}
+
+.install__copy:not([hidden]) {
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 3px;
+  background: none;
+  color: var(--accent);
+  font: 600 11px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.install__copy:hover,
+.install__copy.is-done {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* And under it, as the Start page's way in sits under its Omnibar. */
 .install .install__lede {
-  margin-top: 0;
+  width: fit-content;
+  max-width: min(100% - 32px, 720px);
+  margin: 14px auto 0;
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
+  backdrop-filter: blur(14px);
+  color: var(--fg);
+  font-size: 13px;
+  text-align: center;
 }
 
 .install p {
   margin: 12px 0 0;
   color: var(--dim);
-}
-
-.install .hud {
-  margin-top: 12px;
 }
 
 /* Every key hint is the same keycap: one size wherever it stands, a key to a cap, with a deeper
@@ -1576,15 +1533,13 @@ html.highway {
   display: block;
 }
 
+/* On the road the install's title stands in the sky above the sun, and its Omnibar rests on the
+   horizon, as the Start page's do. The road's light is set on the stop and falls on its Omnibar,
+   so the stop places the sun for the rim, as far below the Omnibar's top edge as on the Start
+   page. */
 .highway .install.highway__stop {
+  --horizon: 50px;
   width: min(980px, 86vw);
-}
-
-/* On the road the install's title stands in the sky above the sun, as the Start page's does, and
-   the whole stop sits a little high, its plate just under the horizon. The road's light is set on
-   the stop and falls on the plate, so its rim is placed on the stop, at the plate's top edge. */
-.highway .install.highway__stop {
-  --horizon: 0%;
   top: calc(50% - 7svh);
 }
 
@@ -1608,14 +1563,12 @@ html.highway {
 
 /* The cards catch the sun as the Omnibar does: its rim on their border, brightest at the middle of
    the top edge, and its bloom, lifted by the radio's beat. */
-.highway .card,
-.highway .install__plate {
+.highway .card {
   --horizon: 0%;
   isolation: isolate;
 }
 
-.highway .card::before,
-.highway .install__plate::before {
+.highway .card::before {
   content: "";
   position: absolute;
   inset: -1px;
@@ -1769,9 +1722,8 @@ html.highway {
     padding-block: 16px 56px;
   }
 
-  .hud pre {
-    padding: 16px;
-    font-size: 12px;
+  .install .omnibar__field {
+    font-size: 13px;
   }
 
   .foot a {

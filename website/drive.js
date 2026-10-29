@@ -418,13 +418,15 @@ if (drive) {
     };
     const progress = () => (scrollY - base) / length;
 
-    // The cards catch the sun as the Omnibar does, each with a bloom of its own.
+    // The cards catch the sun as the Omnibar does, each with a bloom of its own, and the install's
+    // Omnibar as the Start page's does, its bloom its own.
     for (const stop of stops.slice(1)) {
-      const glow = document.createElement("span");
-      glow.className = "stop__glow";
-      glow.setAttribute("aria-hidden", "true");
-      // The install's light is on its plate, under its title.
-      (stop.querySelector(".install__plate") ?? stop).prepend(glow);
+      if (!stop.querySelector(".omnibar__glow")) {
+        const glow = document.createElement("span");
+        glow.className = "stop__glow";
+        glow.setAttribute("aria-hidden", "true");
+        stop.prepend(glow);
+      }
       host.lightUp(stop);
     }
 
