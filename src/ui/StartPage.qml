@@ -88,7 +88,8 @@ Item {
     readonly property Item scene: root.sceneShown ? host : null
 
     // It fades in under the Omnibar arriving, and out as the page it gave way
-    // to takes over. While it fades out a click is that page's.
+    // to takes over, once the window has drawn a frame. While it fades out a
+    // click is that page's.
     opacity: open ? 1 : 0
     visible: opacity > 0
 
@@ -100,11 +101,28 @@ Item {
         root.readPages();
     }
 
+    // Whether the window has drawn a frame. A window that comes up on a page
+    // stands the Start page in while the page's view loads and closes it before
+    // anything is drawn. Faded, that close would put its Scene and glass in the
+    // window's first frames, over a page already coming, and hold the first of
+    // them back (#883). Until then it goes at once.
+    property bool windowDrawn: false
+
+    Connections {
+        target: root.Window.window
+        enabled: !root.windowDrawn
+
+        function onFrameSwapped() {
+            root.windowDrawn = true;
+        }
+    }
+
     // The fade after a drive is the Scene reporting the page's arrival, as the
     // loading indicator reports a load, so it plays after a key's Return as
-    // after a click, and only reduced motion stills it.
+    // after a click. Reduced motion stills it, and so does a window that has
+    // not drawn yet.
     Behavior on opacity {
-        enabled: root.ease || root.drove && !SystemMotion.reduced
+        enabled: root.windowDrawn && (root.ease || root.drove && !SystemMotion.reduced)
 
         // Leaving after a drive is slower: the page is already there under
         // it, so the longer fade costs no waiting.
