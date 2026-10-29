@@ -22306,6 +22306,7 @@ TestCase {
         const track = findChild(mark, "downloadMarkTrack");
         verify(fill.width > 0);
         verify(fill.width < track.width);
+        verify(!findChild(mark, "downloadMarkSlide").visible);
 
         openPage("https://tape.example/feed");
         browser.recordOriginInteraction("https://tape.example/feed");
@@ -22319,6 +22320,18 @@ TestCase {
         compare(fill.width, 0);
         verify(track.visible);
         compare(mark.Accessible.name, "2 downloads · size unknown");
+        // With a size unknown the track says so by a segment sliding along it,
+        // which holds still under reduced motion.
+        const slide = findChild(mark, "downloadMarkSlide");
+        verify(slide.visible);
+        tryVerify(function () {
+            return slide.animating;
+        });
+        SystemMotion.reduced = true;
+        tryVerify(function () {
+            return !slide.animating;
+        });
+        SystemMotion.reduced = false;
 
         host.simulateDownloadFinished(measured);
         host.simulateDownloadFinished(unmeasured);

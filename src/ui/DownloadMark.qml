@@ -81,28 +81,18 @@ ChromeButton {
         Accessible.ignored: true
     }
 
-    Rectangle {
+    DownloadBar {
         id: track
-        objectName: "downloadMarkTrack"
+        name: "downloadMark"
+        colors: root.colors
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         anchors.leftMargin: root.leftAlign ? root.horizontalPadding + (Style.font.iconLarge - width)
                                              / 2 : (parent.width - width) / 2
         anchors.bottomMargin: 2
         width: root.trackWidth
-        height: 3
-        radius: 1
-        color: root.colors.border
-
-        Rectangle {
-            objectName: "downloadMarkFill"
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            radius: parent.radius
-            width: root.holding ? track.width : (root.measured ? Math.round(track.width
-                                                                            * root.fraction) : 0)
-            color: root.colors.accent
-        }
+        fraction: root.fraction
+        running: root.running > 0
+        full: root.holding
     }
 }

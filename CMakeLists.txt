@@ -938,6 +938,7 @@ set(omaweb_ui_files
     src/ui/SidebarFill.mjs
     src/ui/SiteChip.mjs
     src/ui/SpaceColour.mjs
+    src/ui/DownloadBar.qml
     src/ui/DownloadMark.qml
     src/ui/ExtensionMark.qml
     src/ui/FindBar.qml
