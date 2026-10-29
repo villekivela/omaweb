@@ -17562,7 +17562,7 @@ TestCase {
     // page's view loads. Closed before the window has drawn a frame, it goes
     // at once: a fade would draw its Scene and glass over the first frames for
     // nobody, which held the window back by 50 ms on CI's runner (#883).
-    function test_aStartPageClosedBeforeTheFirstFrameGoesAtOnce() {
+    function test_theStartPageClosedBeforeTheFirstFrameGoesAtOnce() {
         browser.openInput("about:blank", true);
         const fresh = windowComponent.createObject(null);
         verify(fresh !== null);
