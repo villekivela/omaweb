@@ -1,6 +1,6 @@
 {
   "machine": "GitHub Actions ubuntu-latest, archlinux:base-devel container, no GPU, cage on the wlroots headless backend with the pixman renderer",
-  "recorded_on": "2026-09-15",
+  "recorded_on": "2026-10-29",
   "measurements": {
     "startup_seconds": {
       "ceiling": 3.0,
