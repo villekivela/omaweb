@@ -134,6 +134,8 @@ BrowserStateImage BrowserStateExchangeAdapter::capture(const BrowserStateSelecti
     return image;
 }
 
+void BrowserStateExchangeAdapter::landPendingChanges() { m_browser->landPendingTabs(); }
+
 void BrowserStateExchangeAdapter::refresh(BrowserStateSections sections)
 {
     if (sections.testFlag(BrowserStateSection::Browser)) {
