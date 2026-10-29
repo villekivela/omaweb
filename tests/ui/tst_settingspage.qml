@@ -604,6 +604,7 @@ TestCase {
                 return child.rowHeight !== undefined;
             });
         }, []);
+        verify(rows.length > 0, "the Link rule row was not found as a field beside a dropdown");
         for (const row of rows) {
             const heights = row.children.filter(function (child) {
                 return child.visible && (child.placeholderText !== undefined || child.rowHeight
