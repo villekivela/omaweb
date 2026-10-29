@@ -2489,7 +2489,7 @@ Rectangle {
                 Column {
                     width: pane.width
                     visible: root.section === 7
-                    spacing: 0
+                    spacing: pane.spacing
 
                     // The section is named for what it will hold rather than
                     // for its one row: the reputation protection, proxy
@@ -3356,13 +3356,15 @@ Rectangle {
                                                                              spaceRow.spaceName)
                                     }
 
-                                    ActionButton {
+                                    ChromeButton {
                                         id: deleteSpace
                                         objectName: "deleteSpace-" + spaceRow.spaceId
-                                        colors: root.colors
-                                        label: qsTr("Delete")
+                                        width: 28
+                                        height: 26
+                                        icon: "close"
+                                        fontFamily: root.iconFontFamily
+                                        accent: root.colors.accent
                                         accessibleName: qsTr("Delete %1").arg(spaceRow.spaceName)
-                                        destructive: true
                                         enabled: spaceList.count > 1
                                         onClicked: root.spaceActionRequested("delete",
                                                                              spaceRow.spaceId,
@@ -3566,7 +3568,7 @@ Rectangle {
                                         SettingDropdown {
                                             id: linkRuleSpace
                                             objectName: "linkRuleSpace-" + linkRuleRow.index
-                                            anchors.verticalCenter: parent.verticalCenter
+                                            rowHeight: linkRulePattern.height
                                             width: Math.min(220, linkRuleControls.width / 3)
                                             colors: root.colors
                                             enabled: root.settingsWritable
@@ -3873,7 +3875,7 @@ Rectangle {
 
                     Column {
                         width: pane.width
-                        spacing: 0
+                        spacing: pane.spacing
                         visible: root.knownExtensionsAvailable && !root.privateWindow
 
                         Repeater {
