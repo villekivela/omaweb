@@ -8,6 +8,7 @@
 #include <QQuickItem>
 #include <QWheelEvent>
 
+#include <algorithm>
 #include <cmath>
 
 namespace omaweb {
@@ -30,6 +31,33 @@ namespace {
     {
         auto *item = qobject_cast<QQuickItem *>(object);
         return isPageInput(item) ? item : nullptr;
+    }
+
+    // A list or a pane in the chrome: a Qt Quick `Flickable`, a `ListView` or the view inside a
+    // `ScrollView`. Its type is private to Qt, so it is known by its class.
+    QQuickItem *chromeViewOf(QObject *object)
+    {
+        auto *item = qobject_cast<QQuickItem *>(object);
+        return item != nullptr && item->inherits("QQuickFlickable") ? item : nullptr;
+    }
+
+    // Whether `view` is at its end the way `speed` goes. A page's glide ends at the page's end
+    // because Chromium stops there. A view the fingers may drag past its ends, as a `ListView` is
+    // by default, would be held there until the glide ran out.
+    bool atEnd(const QQuickItem *view, QPointF speed)
+    {
+        const auto at = [view](const char *end) { return view->property(end).toBool(); };
+        // Down the touchpad is a negative delta, and takes the view towards its end. A view at
+        // both ends of an axis does not scroll along it, and fingers never move straight, so
+        // the way across a list is no end of it.
+        const auto atEndOf = [&at](qreal along, const char *beginning, const char *end) {
+            if (at(beginning) && at(end)) {
+                return false;
+            }
+            return (along < 0 && at(end)) || (along > 0 && at(beginning));
+        };
+        return atEndOf(speed.y(), "atYBeginning", "atYEnd")
+            || atEndOf(speed.x(), "atXBeginning", "atXEnd");
     }
 
     // Qt's Wayland plugin gives phases to fingers' scrolling alone, not to a wheel's notches or
@@ -78,15 +106,15 @@ void QtPageGlide::halt(const char *cause)
     qCInfo(glideLog) << "glide stopped:" << cause << "after" << m_since.elapsed() << "ms, sent"
                      << m_sent;
     m_frames.stop();
-    if (m_page) {
+    if (m_scrolled) {
         send(Qt::ScrollEnd, {});
     }
-    m_page.clear();
+    m_scrolled.clear();
 }
 
 void QtPageGlide::stopIn(QQuickItem *view)
 {
-    if (gliding() && m_page && view != nullptr && view->isAncestorOf(m_page)) {
+    if (gliding() && m_scrolled && view != nullptr && view->isAncestorOf(m_scrolled)) {
         halt("page load");
     }
 }
@@ -100,14 +128,16 @@ bool QtPageGlide::eventFilter(QObject *watched, QEvent *event)
     case QEvent::Wheel: {
         auto *wheel = static_cast<QWheelEvent *>(event);
         auto *page = pageOf(watched);
+        auto *view = page == nullptr ? chromeViewOf(watched) : nullptr;
         qCInfo(glideLog).nospace() << "wheel to " << watched->metaObject()->className()
-                                   << (page != nullptr ? " (page)" : "") << ": " << *wheel;
+                                   << (page != nullptr ? " (page)" : "")
+                                   << (view != nullptr ? " (chrome view)" : "") << ": " << *wheel;
         // Qt 6.12's `QWindowSystemInterface::handleWheelEvent` sends an event whose delta is
         // neither only vertical nor only horizontal twice, so the lift that started the glide
         // comes again. Fingers that come back begin first, so an end with no movement is that
         // copy. The page must not hear it either: to Chromium it would end the glide's gesture.
         if (gliding() && wheel->phase() == Qt::ScrollEnd && wheel->angleDelta().isNull()) {
-            if (page != nullptr) {
+            if (page != nullptr || (view != nullptr && view == m_scrolled)) {
                 wheel->accept();
                 return true;
             }
@@ -116,7 +146,13 @@ bool QtPageGlide::eventFilter(QObject *watched, QEvent *event)
         // Qt hands an event to the window before the item under the pointer, so a glide stops
         // before the page hears what stopped it.
         halt("wheel event");
-        return page != nullptr && fromTouchpad(wheel) && follow(page, wheel);
+        if (!fromTouchpad(wheel)) {
+            return false;
+        }
+        if (page != nullptr) {
+            return follow(page, Scroller::Page, wheel);
+        }
+        return view != nullptr && follow(view, Scroller::ChromeView, wheel);
     }
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonDblClick:
@@ -137,32 +173,42 @@ bool QtPageGlide::eventFilter(QObject *watched, QEvent *event)
     return false;
 }
 
-bool QtPageGlide::follow(QQuickItem *page, QWheelEvent *event)
+bool QtPageGlide::follow(QQuickItem *scrolled, Scroller scroller, QWheelEvent *event)
 {
-    if (event->phase() == Qt::ScrollBegin || page != m_page) {
-        m_page = page;
+    if (event->phase() == Qt::ScrollBegin || scrolled != m_scrolled) {
+        m_scrolled = scrolled;
+        m_scroller = scroller;
         m_speed.clear();
         m_moves = 0;
     }
     m_pointer = {event->position(), event->globalPosition(), event->modifiers(), event->inverted(),
         event->pointingDevice()};
     if (event->phase() != Qt::ScrollEnd) {
-        m_speed.add(event->timestamp(), event->angleDelta());
+        m_speed.add(event->timestamp(),
+            scroller == Scroller::Page ? QPointF(event->angleDelta())
+                                       : QPointF(event->pixelDelta()));
         m_movedAt = event->timestamp();
         ++m_moves;
         return false;
     }
     const QPointF speed = m_speed.at(event->timestamp());
-    m_curve = GlideCurve(speed);
+    const qreal rest = scroller == Scroller::Page ? GlideCurve::rest : GlideCurve::pixelRest;
+    m_curve = GlideCurve(speed, rest);
     m_speed.clear();
     qCInfo(glideLog).nospace() << "lift at " << event->timestamp() << " after " << m_moves
                                << " moves, the last at " << m_movedAt << ": speed " << speed
                                << " a second, duration " << m_curve.duration() << " s";
     if (!m_curve.glides()) {
-        qCInfo(glideLog) << "no glide: under" << GlideCurve::rest << "units to travel";
+        qCInfo(glideLog) << "no glide: under" << rest
+                         << (scroller == Scroller::Page ? "units" : "pixels") << "to travel";
+        return false;
+    }
+    if (scroller == Scroller::ChromeView && atEnd(scrolled, speed)) {
+        qCInfo(glideLog) << "no glide: the view is at its end";
         return false;
     }
     m_liftedAt = event->timestamp();
+    m_stampedAt = m_liftedAt;
     m_sent = {};
     m_since.start();
     m_frames.start();
@@ -174,11 +220,11 @@ bool QtPageGlide::follow(QQuickItem *page, QWheelEvent *event)
 
 void QtPageGlide::step()
 {
-    if (!m_page) {
+    if (!m_scrolled) {
         halt("page gone");
         return;
     }
-    if (!onShow(m_page)) {
+    if (!onShow(m_scrolled)) {
         halt("page hidden");
         return;
     }
@@ -193,17 +239,27 @@ void QtPageGlide::step()
     }
     if (last) {
         halt("came to rest");
+    } else if (m_scroller == Scroller::ChromeView && atEnd(m_scrolled, m_curve.velocity())) {
+        halt("reached the end");
     }
 }
 
-void QtPageGlide::send(Qt::ScrollPhase phase, QPoint angleDelta)
+void QtPageGlide::send(Qt::ScrollPhase phase, QPoint delta)
 {
-    QWheelEvent event(m_pointer.position, m_pointer.globalPosition, QPoint(), angleDelta,
-        Qt::NoButton, m_pointer.modifiers, phase, m_pointer.inverted,
-        Qt::MouseEventSynthesizedBySystem, m_pointer.device);
-    event.setTimestamp(m_liftedAt + static_cast<quint64>(m_since.elapsed()));
+    const bool page = m_scroller == Scroller::Page;
+    QWheelEvent event(m_pointer.position, m_pointer.globalPosition, page ? QPoint() : delta,
+        page ? delta : delta * anglePerPixel, Qt::NoButton, m_pointer.modifiers, phase,
+        m_pointer.inverted, Qt::MouseEventSynthesizedBySystem, m_pointer.device);
+    quint64 at = m_liftedAt + static_cast<quint64>(m_since.elapsed());
+    // A `Flickable` drops a wheel event no later than the one before it, and its movement with
+    // it. A busy machine can run two steps in one millisecond, so each comes a millisecond on.
+    if (!page) {
+        at = std::max(at, m_stampedAt + 1);
+    }
+    m_stampedAt = at;
+    event.setTimestamp(at);
     m_sending = true;
-    QCoreApplication::sendEvent(m_page, &event);
+    QCoreApplication::sendEvent(m_scrolled, &event);
     m_sending = false;
 }
 

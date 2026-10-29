@@ -620,6 +620,18 @@ During a glide the second lift is that copy, so it neither stops the glide nor r
 What the touchpad really delivers can be logged with `QT_LOGGING_RULES=omaweb.glide.info=true`: each
 wheel event, the speed and duration at the lift, each hold, and why a glide stopped.
 
+A Qt Quick `Flickable` stops at the lift for the same reason, so the same filter glides the chrome's
+lists and panes, every item whose class inherits `QQuickFlickable` (#864). A `Flickable` scrolls a
+touchpad by its pixel deltas and drags its content by their sum since the `ScrollBegin`, so the
+glide measures pixels, sends updates that carry pixels, with the angle twelve times them as Qt's
+Wayland plugin gives fingers, and ends with under a pixel to go. With the `ScrollEnd` held back, the
+`Flickable` takes the updates as the fingers' own drag. A `ListView` may be dragged past its ends,
+where the glide would hold it until it ran out, so the glide does not start at a view's end and
+stops at the step that reaches it. A `Flickable` drops an event stamped no later than the one before
+it, movement and all, and a busy machine can run two steps in one millisecond, so a view's glide
+stamps each event at least a millisecond after the last. The UI tests compile the filter in, since
+it needs Qt Quick and not QtWebEngine.
+
 ## Page context menu
 
 Omaweb draws the page's context menu. The engine adapter accepts the engine's own context-menu

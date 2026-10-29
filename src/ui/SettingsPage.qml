@@ -254,11 +254,20 @@ Rectangle {
             const index = (root.section + offset) % root.sections.length;
             if (root.sectionTitles[index].charAt(0).toLowerCase() !== letter)
                 continue;
-            root.section = index;
-            sectionRepeater.itemAt(index).forceActiveFocus();
+            root.showSection(index);
             return true;
         }
         return false;
+    }
+
+    // Selects a section from the keyboard, with its name in the rail focused
+    // and the section shown from its top.
+    function showSection(index) {
+        // The focus moves first: Qt refuses to take the name it leaves out of
+        // the Tab ring while that name still holds the focus.
+        sectionRepeater.itemAt(index).forceActiveFocus();
+        root.section = index;
+        scroll.contentItem.contentY = 0;
     }
 
     readonly property int railWidth: {
@@ -1011,7 +1020,10 @@ Rectangle {
                     font.pixelSize: Style.font.subtitle
                     font.bold: index === root.section
                     font.capitalization: Font.Capitalize
-                    activeFocusOnTab: true
+                    // The rail is one stop in the Tab ring, the current
+                    // section's name, so Tab goes from it into that section and
+                    // Shift+Tab comes back to it. The arrows walk the names.
+                    activeFocusOnTab: index === root.section
                     Accessible.role: Accessible.PageTab
                     Accessible.name: root.sectionTitles[index]
                     Accessible.onPressAction: root.section = index
@@ -1021,7 +1033,37 @@ Rectangle {
                                 === Qt.Key_Space) {
                             root.section = index;
                             event.accepted = true;
+                            return;
                         }
+                        const last = root.sections.length - 1;
+                        let to = -1;
+                        if (event.key === Qt.Key_Up)
+                            to = Math.max(index - 1, 0);
+                        else if (event.key === Qt.Key_Down)
+                            to = Math.min(index + 1, last);
+                        else if (event.key === Qt.Key_Home)
+                            to = 0;
+                        else if (event.key === Qt.Key_End)
+                            to = last;
+                        if (to < 0)
+                            return;
+                        root.showSection(to);
+                        event.accepted = true;
+                    }
+
+                    // The kit's focus box, as a slider in the pane draws it.
+                    // It reaches past the name into the margins beside the
+                    // rail, so the rail stays as wide as its widest name.
+                    Omarchy.BorderSurface {
+                        objectName: "railFocus"
+                        z: -1
+                        anchors.fill: parent
+                        anchors.leftMargin: -Style.spacing.sm
+                        anchors.rightMargin: -Style.spacing.sm
+                        visible: parent.activeFocus
+                        radius: Style.cornerRadius
+                        color: Style.focusFillFor(root.colors.text, root.colors.text)
+                        borderSpec: Border.controlSpec("focus", root.colors.text, root.colors.text)
                     }
 
                     MouseArea {
@@ -1038,6 +1080,7 @@ Rectangle {
 
         ScrollView {
             id: scroll
+            objectName: "settingsScroll"
             width: body.width - rail.width - body.spacing
             height: parent.height
             rightPadding: root.sideMargin

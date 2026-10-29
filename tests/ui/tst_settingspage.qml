@@ -1197,8 +1197,126 @@ TestCase {
 
         keyClick(Qt.Key_Space);
         compare(page.sections[page.section], "privacy");
+        verify(!addresses.activeFocusOnTab);
+    }
+
+    function railName(page, index) {
+        const name = findChild(page, "settingsSection" + index);
+        verify(name !== null);
+        return name;
+    }
+
+    // The rail is a list the arrows walk, and each step shows the section it
+    // lands on, from its top.
+    function test_upAndDownSelectTheNeighbouringSections() {
+        const page = makePage();
+        const scroll = findChild(page, "settingsScroll");
+        verify(scroll !== null);
+        railName(page, 0).forceActiveFocus();
+
+        keyClick(Qt.Key_Down);
+        compare(page.section, 1);
+        verify(railName(page, 1).activeFocus);
+
+        keyClick(Qt.Key_Up);
+        compare(page.section, 0);
+        verify(railName(page, 0).activeFocus);
+
+        // A section scrolled down, and the next one tall enough to keep that
+        // offset if nothing took it back to its top. The page is made short so
+        // that two sections side by side overflow it.
+        page.height = 300;
+        const view = scroll.contentItem;
+        let tall = -1;
+        for (let index = 0; index + 1 < page.sections.length && tall < 0; ++index) {
+            page.section = index + 1;
+            wait(0);
+            const nextRoom = view.contentHeight - view.height;
+            page.section = index;
+            wait(0);
+            if (nextRoom > 100 && view.contentHeight - view.height > 100)
+                tall = index;
+        }
+        verify(tall >= 0, "no two tall sections side by side");
+        railName(page, tall).forceActiveFocus();
+        view.contentY = 100;
+        keyClick(Qt.Key_Down);
+        compare(page.section, tall + 1);
+        compare(view.contentY, 0);
+        page.section = 0;
+        railName(page, 0).forceActiveFocus();
+
+        // The ends hold: the rail is a list, not a ring.
+        keyClick(Qt.Key_Up);
+        compare(page.section, 0);
+        verify(railName(page, 0).activeFocus);
+    }
+
+    function test_homeAndEndGoToTheFirstAndLastSections() {
+        const page = makePage();
+        const last = page.sections.length - 1;
+        railName(page, 1).forceActiveFocus();
+
+        keyClick(Qt.Key_End);
+        compare(page.section, last);
+        verify(railName(page, last).activeFocus);
+
+        keyClick(Qt.Key_Down);
+        compare(page.section, last);
+
+        keyClick(Qt.Key_Home);
+        compare(page.section, 0);
+        verify(railName(page, 0).activeFocus);
+    }
+
+    // A name the keyboard is on draws the kit's focus box behind it, and only
+    // while the focus is there: the current section is told by its accent.
+    function test_theFocusedRailNameShowsTheFocusBox() {
+        const page = makePage();
+        const first = railName(page, 0);
+        const second = railName(page, 1);
+        const firstBox = findChild(first, "railFocus");
+        const secondBox = findChild(second, "railFocus");
+        verify(firstBox !== null);
+        verify(secondBox !== null);
+        compare(firstBox.visible, false);
+
+        first.forceActiveFocus();
+        compare(firstBox.visible, true);
+        verify(firstBox.width >= first.width);
+        verify(firstBox.height >= first.height);
+
+        keyClick(Qt.Key_Down);
+        compare(firstBox.visible, false);
+        compare(secondBox.visible, true);
+
+        page.forceActiveFocus();
+        compare(secondBox.visible, false);
+        verify(second.font.bold);
+    }
+
+    // The rail is one stop in the Tab ring, so Tab goes from it into the
+    // section it shows rather than along the other names, and Shift+Tab comes
+    // back to the name it left.
+    function test_tabEntersTheSectionAndShiftTabReturnsToTheRail() {
+        const page = makePage();
+        const pane = findChild(page, "settingsPane");
+        verify(pane !== null);
+        const privacy = page.sections.indexOf("privacy");
+        railName(page, privacy).forceActiveFocus();
+        keyClick(Qt.Key_Return);
+
         keyClick(Qt.Key_Tab);
-        verify(addresses.activeFocus);
+        const entered = page.Window.activeFocusItem;
+        verify(entered !== null);
+        let inPane = false;
+        for (let item = entered; item !== null; item = item.parent)
+            inPane = inPane || item === pane;
+        verify(inPane, "Tab left the rail for " + entered);
+        compare(page.section, privacy);
+
+        keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+        verify(railName(page, privacy).activeFocus);
     }
 
     function test_aRepeatedLetterWrapsAndAnUnknownLetterDoesNothing() {

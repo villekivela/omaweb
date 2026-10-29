@@ -2365,10 +2365,14 @@ if(BUILD_TESTING)
     )
 
     if(OMAWEB_BUILD_UI_LAB)
+        # The glide is compiled in from its source, as its own tests take it: the chrome's
+        # scrolling glides through it, and it needs Qt Quick alone, not the engine.
         qt_add_executable(omaweb-ui-tests
             "tests/ui/tst_ui.cpp"
             "tests/ui/ProbeClock.cpp"
             "tests/ui/ProbeClock.h"
+            "src/engine/qt/PageGlide.cpp"
+            "src/engine/qt/QtPageGlide.cpp"
         )
         target_link_libraries(omaweb-ui-tests PRIVATE
             omaweb-core
@@ -2397,7 +2401,7 @@ if(BUILD_TESTING)
             OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             OMAWEB_OMARCHY_IMPORT_PATH="${omaweb_omarchy_root}"
         )
-        target_include_directories(omaweb-ui-tests PRIVATE "tests")
+        target_include_directories(omaweb-ui-tests PRIVATE "tests" "src/engine/qt")
         omaweb_strict_target(omaweb-ui-tests)
         # The suite is every `tst_*.qml` under `tests/ui`. The performance
         # probes are in a directory of their own and run as tests of their

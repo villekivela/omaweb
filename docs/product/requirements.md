@@ -538,6 +538,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - In Settings, an unhandled letter selects the next section whose name begins with it and moves the
   keyboard onto that name in the rail. Repeated presses cycle through matching sections. A field
   keeps the letters typed into it.
+- In the Settings rail, `Up` and `Down` select the previous and next section, `Home` and `End` the
+  first and last, and each shows the section from its top. The rail ends there rather than wrapping.
+  The rail is one stop in the `Tab` order: `Tab` goes from it into the section on show, and
+  `Shift+Tab` comes back to that section's name. The name the keyboard is on draws the kit's focus
+  box while the keyboard is there, and the current section keeps its accent.
 - The Site information button rides inline in the address trigger and opens Site information at its
   top. The trigger shows no blocked-request count: the card shows it, and its blocked tile opens the
   list.
@@ -698,6 +703,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   fingers were scrolling, a nested scroller included. Fingers coming down on the touchpad, a scroll
   or a wheel, a click, a key, the window losing focus, a tab or Space switch and a page load each
   stop it. A mouse wheel scrolls exactly as far as each notch, with no easing.
+- Every list and pane in the chrome glides the same way, with the same curve and the same stops:
+  Settings, the sidebar's tab list, History, Agent activity, the Omnibar's results, the theme menu
+  and the shortcut sheet. Its glide also stops at the list's end, as a page's stops at the page's
+  end.
 - Find belongs to one tab. Hiding the find interface retains its query and current match for that
   tab; navigation clears the matches and keeps the query ready to run again.
 - Zoom belongs to one tab and supports increase, decrease, and reset. It enlarges the page over the
