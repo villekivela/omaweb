@@ -1081,26 +1081,25 @@ body:has(.drive) > .top {
   align-self: start;
 }
 
+/* The install's title is the road's last word, standing on it as the Start page's does over the
+   Omnibar, and the one line on its plate under it. */
 .install {
-  margin-top: 10px;
-  padding: 16px 18px;
+  margin-top: 48px;
 }
 
-.install h2 {
-  margin: 0 0 10px;
-  font-size: 22px;
-}
-
-/* The install's title is the road's last word, set as the Start page's is, with the line under it
-   in the middle beside it. */
 .install .install__title {
-  margin: 10px 0 0;
+  margin: 0 0 24px;
   font-size: clamp(32px, min(4.6vw, 7svh), 64px);
   text-align: center;
 }
 
+.install__plate {
+  position: relative;
+  padding: 16px 18px;
+}
+
 .install .install__lede {
-  text-align: center;
+  margin-top: 0;
 }
 
 .install p {
@@ -1581,6 +1580,11 @@ html.highway {
   width: min(980px, 86vw);
 }
 
+/* On the road the install's title stands in the sky above the sun, as the Start page's does. */
+.highway .install .install__title {
+  margin-bottom: 22svh;
+}
+
 /* The film plays in the cards, a clip each, so the drive has no film of its own. */
 .highway .film {
   display: none;
@@ -1598,13 +1602,13 @@ html.highway {
 /* The cards catch the sun as the Omnibar does: its rim on their border, brightest at the middle of
    the top edge, and its bloom, lifted by the radio's beat. */
 .highway .card,
-.highway .install {
+.highway .install__plate {
   --horizon: 0%;
   isolation: isolate;
 }
 
 .highway .card::before,
-.highway .install::before {
+.highway .install__plate::before {
   content: "";
   position: absolute;
   inset: -1px;

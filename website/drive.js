@@ -423,7 +423,8 @@ if (drive) {
       const glow = document.createElement("span");
       glow.className = "stop__glow";
       glow.setAttribute("aria-hidden", "true");
-      stop.prepend(glow);
+      // The install's light is on its plate, under its title.
+      (stop.querySelector(".install__plate") ?? stop).prepend(glow);
       host.lightUp(stop);
     }
 

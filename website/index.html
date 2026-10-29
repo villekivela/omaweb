@@ -508,25 +508,28 @@
           </ul>
         </section>
 
-        <!-- Installing: the one line, which runs scripts/install.sh, served by the build at
+        <!-- Installing: the title on the road, and the one line on its plate, which runs
+           scripts/install.sh, served by the build at
            /install. Installing by hand is the README's, which
            scripts/check_repository_instructions.py holds to the script and the key. -->
-        <section class="plate install" id="install" aria-labelledby="install-title">
+        <section class="install" id="install" aria-labelledby="install-title">
           <h2 class="display install__title" id="install-title">Get on the road.</h2>
-          <p class="install__lede">One line, once. It upgrades with the rest of your system.</p>
-          <figure class="hud">
-            <figcaption class="hud__bar">
-              <span>Install</span>
-              <span class="hud__meta"
-                >terminal<button class="hud__copy" type="button" data-copy hidden>
-                  Copy
-                </button></span
-              >
-            </figcaption>
-            <div class="hud__screen">
-              <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSL https://omaweb.app/install | sh</code></pre>
-            </div>
-          </figure>
+          <div class="plate install__plate">
+            <p class="install__lede">One line, once. It upgrades with the rest of your system.</p>
+            <figure class="hud">
+              <figcaption class="hud__bar">
+                <span>Install</span>
+                <span class="hud__meta"
+                  >terminal<button class="hud__copy" type="button" data-copy hidden>
+                    Copy
+                  </button></span
+                >
+              </figcaption>
+              <div class="hud__screen">
+                <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSL https://omaweb.app/install | sh</code></pre>
+              </div>
+            </figure>
+          </div>
         </section>
       </div>
     </main>
