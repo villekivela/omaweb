@@ -1630,7 +1630,8 @@ html.highway {
     color 0.2s;
 }
 
-/* Cruise control's place: the stop it is at, the song's progress, and the way out. */
+/* Cruise control's place: the stop it is at and the way out, on glass as the Omnibar is, its one
+   edge, and the song's progress filling along its foot. */
 .cruise {
   position: fixed;
   right: 16px;
@@ -1638,11 +1639,13 @@ html.highway {
   z-index: 300;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
   max-width: calc(100vw - 32px);
-  padding: 8px 10px 8px 14px;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--plate) 88%, transparent);
+  padding: 10px 16px 12px;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
   backdrop-filter: blur(14px);
   font-size: 13px;
 }
@@ -1652,21 +1655,17 @@ html.highway {
   display: none;
 }
 
-.cruise__where {
-  display: grid;
-  gap: 6px;
-  min-width: 180px;
-}
-
 .cruise__name {
-  color: var(--accent);
+  min-width: 160px;
+  color: var(--fg);
   font-weight: 700;
 }
 
 .cruise__song {
-  display: block;
+  position: absolute;
+  inset: auto 0 0;
   height: 2px;
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .cruise__song i {
@@ -1677,16 +1676,22 @@ html.highway {
 }
 
 .cruise button {
-  padding: 4px 8px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  background: transparent;
-  color: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
   font: inherit;
   cursor: pointer;
 }
 
-.cruise__resume {
-  color: var(--accent);
+.cruise button:hover {
+  color: var(--fg);
+}
+
+.cruise__key {
+  margin-left: 4px;
+  color: var(--dim);
+  font-size: 11px;
 }
 
 /* Footer */

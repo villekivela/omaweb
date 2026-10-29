@@ -600,10 +600,10 @@ if (drive) {
     const chip = document.createElement("div");
     chip.className = "cruise";
     chip.hidden = true;
-    chip.innerHTML = `<div class="cruise__where"><span class="cruise__name"></span
-      ><span class="cruise__song"><i></i></span></div
+    chip.innerHTML = `<span class="cruise__name"></span
       ><button class="cruise__resume" type="button">Resume cruise</button
-      ><button class="cruise__stop" type="button">Stop <kbd>Esc</kbd></button>`;
+      ><button class="cruise__stop" type="button">Stop <span class="cruise__key">Esc</span></button
+      ><span class="cruise__song" aria-hidden="true"><i></i></span>`;
     document.body.append(chip);
     const where = chip.querySelector(".cruise__name");
     const song = chip.querySelector(".cruise__song");
