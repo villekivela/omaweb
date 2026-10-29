@@ -56,8 +56,16 @@ above, three runs of each suite, the same Omaweb binary against both engine libr
 | JetStream 2.2    | 360.43     | 363.57     | +0.9%  | 0.937              | 0.939              |
 | MotionMark 1.3.2 | 2695.96    | 3063.84    | +13.6% | 0.940              | 1.041              |
 
-The latest Chromium's Speedometer runs spread by 1.4% and 1.3% in the two sessions, so Speedometer's
-gain is outside it and JetStream's is not. MotionMark's spread was 3.6% and 6.8%.
+Omaweb's own three Speedometer runs spread by 0.5% at O0 and 0.7% at O2, and the latest Chromium's
+by 1.4% and 1.3% in the two sessions, so Speedometer's gain is outside both and JetStream's is not.
+MotionMark's runs spread more, Omaweb's by 1.5% and 4.1% and the latest Chromium's by 3.6% and 6.8%,
+so its gain is real but its 1.041 does not say the engine composites faster than Chrome.
+
+A profile of one Speedometer run at O2, taken as #860's was, shows where the O0 link lost time.
+`TaskQueueImpl::TraceQueueSize`, 0.44% of the renderer at O0 and in its top 20, falls to 0.01%,
+inlined into its callers once the link optimizes. It asks at run time whether to trace, so the
+tracing build flags were not the cause. TurboFan's `GraphReducer` is in the top 20 at O2, as it is
+in Chrome's.
 
 The rest of the build was set beside Chrome 140's official Linux build. It already matches on
 `is_official_build`, PGO (`chrome_pgo_phase = 2` with Chrome's profile),
